@@ -7,8 +7,11 @@
  */
 package org.elasticsearch.script;
 
+import org.apache.lucene.index.Term;
+import org.apache.lucene.index.TermStates;
 import org.apache.lucene.search.Explanation;
 import org.apache.lucene.search.Scorable;
+import org.apache.lucene.search.TermStatistics;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.search.lookup.SearchLookup;
@@ -17,6 +20,7 @@ import org.elasticsearch.search.lookup.Source;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.function.DoubleSupplier;
 import java.util.function.Function;
@@ -189,10 +193,6 @@ public abstract class ScoreScript extends DocBasedScript {
         this.indexName = indexName;
     }
 
-    public void _termsStatsReader(String fieldName, String query, String analyzer) throws IOException {
-        docReader.termsStatsReader(fieldName, query);
-    }
-
     /** A factory to construct {@link ScoreScript} instances. */
     public interface LeafFactory {
 
@@ -213,4 +213,12 @@ public abstract class ScoreScript extends DocBasedScript {
     }
 
     public static final ScriptContext<ScoreScript.Factory> CONTEXT = new ScriptContext<>("score", ScoreScript.Factory.class);
+
+    public List<TermStatistics> _termsStatistics(String fieldName, String query) throws IOException {
+        return docReader.termsStatistics(fieldName, query);
+    }
+
+    public Map<Term, TermStates> _collectedTermStates() {
+        return docReader.collectedTermStates();
+    };
 }

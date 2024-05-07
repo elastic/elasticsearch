@@ -8,7 +8,13 @@
 
 package org.elasticsearch.script;
 
+import org.apache.lucene.analysis.Analyzer;
+import org.apache.lucene.analysis.TokenStream;
+import org.apache.lucene.analysis.tokenattributes.TermToBytesRefAttribute;
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.Term;
+import org.apache.lucene.index.TermStates;
+import org.apache.lucene.search.TermStatistics;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.script.field.EmptyField;
 import org.elasticsearch.script.field.Field;
@@ -18,7 +24,11 @@ import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.search.lookup.Source;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
+import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Supplier;
 import java.util.stream.Stream;
 
@@ -34,13 +44,13 @@ public class DocValuesDocReader implements DocReader, LeafReaderContextSupplier 
 
     /** A leaf lookup for the bound segment this proxy will operate on. */
     protected LeafSearchLookup leafSearchLookup;
-    protected final TermsStatsReaderProvider termsStatsReaderProvider;
+    protected final TermsStatsReader termsStatsReader;
 
     public DocValuesDocReader(SearchLookup searchLookup, LeafReaderContext leafContext) {
         this.searchLookup = searchLookup;
         this.leafReaderContext = leafContext;
         this.leafSearchLookup = searchLookup.getLeafSearchLookup(leafReaderContext);
-        this.termsStatsReaderProvider = new TermsStatsReaderProvider(searchLookup, leafContext);
+        this.termsStatsReader = searchLookup.termsStatsReader(leafReaderContext);
     }
 
     @Override
@@ -84,7 +94,35 @@ public class DocValuesDocReader implements DocReader, LeafReaderContextSupplier 
         return leafSearchLookup.source();
     }
 
-    public TermsStatsReader termsStatsReader(String fieldName, String query) throws IOException {
-        return termsStatsReaderProvider.termStatsReader(fieldName, query);
+    public List<TermStatistics> termsStatistics(String fieldName, String query) throws IOException {
+        return extractTerms(fieldName, query).stream().map((Term term) -> {
+            try {
+                return termsStatsReader.termStatistics(term);
+            } catch (IOException e) {
+                throw new UncheckedIOException(e);
+            }
+        }).toList();
+    }
+
+    @Override
+    public Map<Term, TermStates> collectedTermStates() {
+        return termsStatsReader.collectedTermStates();
+    }
+
+    private Set<Term> extractTerms(String fieldName, String query) throws IOException {
+        Set<Term> terms = new HashSet<>();
+        try(
+            Analyzer analyzer = searchLookup.fieldType(fieldName).getTextSearchInfo().searchAnalyzer();
+            TokenStream ts = analyzer.tokenStream(fieldName, query);
+        ) {
+            TermToBytesRefAttribute termAttr = ts.getAttribute(TermToBytesRefAttribute.class);
+            ts.reset();
+
+            while (ts.incrementToken()) {
+                terms.add(new Term(fieldName, termAttr.getBytesRef()));
+            }
+
+            return terms;
+        }
     }
 }

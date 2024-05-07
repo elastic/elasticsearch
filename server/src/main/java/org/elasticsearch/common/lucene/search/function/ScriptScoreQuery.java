@@ -9,6 +9,8 @@
 package org.elasticsearch.common.lucene.search.function;
 
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.Term;
+import org.apache.lucene.index.TermStates;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BulkScorer;
 import org.apache.lucene.search.DocIdSetIterator;
@@ -25,6 +27,7 @@ import org.apache.lucene.search.TwoPhaseIterator;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.Bits;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.script.DocValuesDocReader;
 import org.elasticsearch.script.ScoreScript;
 import org.elasticsearch.script.ScoreScript.ExplanationHolder;
@@ -32,6 +35,7 @@ import org.elasticsearch.script.Script;
 import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.io.IOException;
+import java.util.Map;
 import java.util.Objects;
 
 /**
@@ -88,6 +92,19 @@ public class ScriptScoreQuery extends Query {
         boolean needsScore = scriptBuilder.needs_score();
         ScoreMode subQueryScoreMode = needsScore ? ScoreMode.COMPLETE : ScoreMode.COMPLETE_NO_SCORES;
         Weight subQueryWeight = subQuery.createWeight(searcher, subQueryScoreMode, 1.0f);
+
+        for (LeafReaderContext leafReaderContext: searcher.getLeafContexts()) {
+            ScoreScript scriptScore = makeScoreScript(leafReaderContext);
+            scriptScore.execute(null);
+            for (Map.Entry<Term, TermStates> e: scriptScore._collectedTermStates().entrySet()) {
+                LogManager.getLogger(ScriptScoreQuery.class).debug(
+                    "Term stats for term [" + e.getKey().text() +"], docFreq[ " + e.getValue().docFreq() + "]"
+                );
+                if (e.getValue().docFreq() > 0) {
+                    searcher.termStatistics(e.getKey(), e.getValue().docFreq(), e.getValue().totalTermFreq());
+                }
+            }
+        }
 
         return new Weight(this) {
             @Override
@@ -163,19 +180,19 @@ public class ScriptScoreQuery extends Query {
                 return explanation;
             }
 
-            private ScoreScript makeScoreScript(LeafReaderContext context) throws IOException {
-                final ScoreScript scoreScript = scriptBuilder.newInstance(new DocValuesDocReader(lookup, context));
-                scoreScript._setIndexName(indexName);
-                scoreScript._setShard(shardId);
-                return scoreScript;
-            }
-
             @Override
             public boolean isCacheable(LeafReaderContext ctx) {
                 // the sub-query should be cached independently when the score is not needed
                 return false;
             }
         };
+    }
+
+    private ScoreScript makeScoreScript(LeafReaderContext context) throws IOException {
+        final ScoreScript scoreScript = scriptBuilder.newInstance(new DocValuesDocReader(lookup, context));
+        scoreScript._setIndexName(indexName);
+        scoreScript._setShard(shardId);
+        return scoreScript;
     }
 
     @Override

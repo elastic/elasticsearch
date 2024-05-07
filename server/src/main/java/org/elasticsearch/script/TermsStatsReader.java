@@ -8,41 +8,74 @@
 
 package org.elasticsearch.script;
 
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.PostingsEnum;
 import org.apache.lucene.index.Term;
+import org.apache.lucene.index.TermState;
 import org.apache.lucene.index.TermStates;
+import org.apache.lucene.index.TermsEnum;
+import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.TermStatistics;
 
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.stream.Collectors;
 
 public class TermsStatsReader {
-    private final Map<Term, TermStates> termStates;
+    private final LeafReaderContext leafReaderContext;
+    private final IndexSearcher searcher;
+    private final Map<Term, TermStates> termContexts = new HashMap<>();
+    private final Map<Term, PostingsEnum> postingsEnums = new HashMap<>();
 
-    private final Map<Term, PostingsEnum> postingsEnums;
-
-    public TermsStatsReader(Map<Term, TermStates> termStates, Map<Term, PostingsEnum> postingsEnums) {
-        this.termStates = termStates;
-        this.postingsEnums = postingsEnums;
+    public TermsStatsReader(LeafReaderContext leafReaderContext, IndexSearcher searcher) {
+        this.leafReaderContext = leafReaderContext;
+        this.searcher = searcher;
     }
 
-    public Map<Term, Integer> docFrequencies() {
-        return termStates.entrySet().stream().collect(Collectors.toMap(Map.Entry::getKey, e -> e.getValue().docFreq()));
-    }
+    private TermStates termStates(Term term) throws IOException {
+        if (termContexts.containsKey(term) == false) {
+            TermStates termStates = TermStates.build(searcher, term, true);
 
-    public Map<Term, Integer> termFrequencies(int docId) throws IOException {
-        Map<Term, Integer> termFreqs = new HashMap<>();
-
-        for (Term term: postingsEnums.keySet()) {
-            PostingsEnum postingsEnum = postingsEnums.get(term);
-            if (postingsEnum.advance(docId) == docId){
-                termFreqs.put(term, postingsEnum.freq());
-            } else {
-                termFreqs.put(term, 0);
+            if (termStates != null && termStates.docFreq() > 0) {
+                searcher.collectionStatistics(term.field());
+                searcher.termStatistics(term, termStates.docFreq(), termStates.totalTermFreq());
             }
+
+            termContexts.put(term, termStates);
         }
 
-        return termFreqs;
+        return termContexts.get(term);
+    }
+
+    public TermStatistics termStatistics(Term term) throws IOException {
+        TermStates termStates = termStates(term);
+        try {
+            return searcher.termStatistics(term, termStates.docFreq(), termStates.totalTermFreq());
+        } catch (IllegalArgumentException e) {
+            return null;
+        }
+    }
+
+    public PostingsEnum postingsEnum(Term term) throws IOException {
+        return postingsEnums.computeIfAbsent(term, t -> {
+            try {
+                TermStates termStates = termStates(t);
+                TermState state = termStates.get(leafReaderContext);
+
+                if (state == null || termStates.docFreq() == 0) {
+                    return null;
+                }
+
+                TermsEnum termsEnum = leafReaderContext.reader().terms(t.field()).iterator();
+                termsEnum.seekExact(t.bytes(), state);
+                return termsEnum.postings(null, PostingsEnum.ALL);
+            } catch (IOException e) {
+                return null;
+            }
+        });
+    }
+
+    public Map<Term, TermStates> collectedTermStates() {
+        return termContexts;
     }
 }

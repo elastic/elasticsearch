@@ -14,7 +14,6 @@ import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.FieldInfos;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.index.TermStates;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.join.BitSetProducer;
@@ -52,6 +51,7 @@ import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptCompiler;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptFactory;
+import org.elasticsearch.script.TermsStatsReader;
 import org.elasticsearch.search.NestedDocuments;
 import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
 import org.elasticsearch.search.lookup.LeafFieldLookupProvider;
@@ -60,8 +60,6 @@ import org.elasticsearch.search.lookup.SourceProvider;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 
-import java.io.IOException;
-import java.io.UncheckedIOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -512,20 +510,7 @@ public class SearchExecutionContext extends QueryRewriteContext {
             ),
             sourceProvider,
             fieldLookupProvider,
-            (term) -> {
-                try {
-                    TermStates termStates =  TermStates.build(searcher, term, true);
-
-                    if (termStates != null && termStates.docFreq() > 0) {
-                        searcher.collectionStatistics(term.field());
-                        searcher.termStatistics(term, termStates.docFreq(), termStates.totalTermFreq());
-                    }
-
-                    return  termStates;
-                } catch (IOException e) {
-                    throw new UncheckedIOException(e);
-                }
-            }
+            ctx -> new TermsStatsReader(ctx, searcher)
         );
     }
 

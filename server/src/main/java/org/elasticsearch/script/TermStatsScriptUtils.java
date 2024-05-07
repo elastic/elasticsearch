@@ -8,36 +8,39 @@
 
 package org.elasticsearch.script;
 
+import org.apache.lucene.search.TermStatistics;
+
 import java.io.IOException;
 import java.util.DoubleSummaryStatistics;
-import java.util.function.Supplier;
+import java.util.List;
+import java.util.stream.DoubleStream;
 
 public class TermStatsScriptUtils {
 
     public static final class DocumentFrequencyStatistics {
-        private final TermsStatsReader termsStatsReader;
+        private final List<TermStatistics> termsStatistics;
 
         public DocumentFrequencyStatistics(ScoreScript scoreScript, String fieldName, String query) throws IOException {
-            this.termsStatsReader = scoreScript.docReader.termsStatsReader(fieldName, query);
+            this.termsStatistics = scoreScript._termsStatistics(fieldName, query);
         }
 
         public DoubleSummaryStatistics documentFrequencyStatistics() {
-            return termsStatsReader.docFrequencies().values().stream().mapToDouble(Integer::doubleValue).summaryStatistics();
+            return termsStatistics.stream().mapToDouble(termStats -> termStats == null ? 0 : termStats.docFreq()).summaryStatistics();
         }
     }
 
     public static final class TermFrequencyStatistics {
-        private final TermsStatsReader termsStatsReader;
-        private final Supplier<Integer> docIdSupplier;
+//        private final TermsStatsReader termsStatsReader;
+//        private final Supplier<Integer> docIdSupplier;
 
 
         public TermFrequencyStatistics(ScoreScript scoreScript, String fieldName, String query) throws IOException {
-            this.termsStatsReader = scoreScript.docReader.termsStatsReader(fieldName, query);
-            this.docIdSupplier = scoreScript::_getDocId;
+//            this.termsStatsReader = scoreScript.docReader.termsStatsReader(fieldName, query);
+//            this.docIdSupplier = scoreScript::_getDocId;
         }
 
         public DoubleSummaryStatistics termFrequencyStatistics() throws IOException {
-            return termsStatsReader.termFrequencies(docIdSupplier.get()).values().stream().mapToDouble(Integer::doubleValue).summaryStatistics();
+            return DoubleStream.of(12).summaryStatistics();
         }
     }
 }

@@ -9,11 +9,10 @@
 package org.elasticsearch.search.lookup;
 
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.index.Term;
-import org.apache.lucene.index.TermStates;
 import org.elasticsearch.common.TriFunction;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.script.TermsStatsReader;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -54,7 +53,7 @@ public class SearchLookup implements SourceProvider {
         IndexFieldData<?>> fieldDataLookup;
     private final Function<LeafReaderContext, LeafFieldLookupProvider> fieldLookupProvider;
 
-    private final Function<Term, TermStates> termStatesProvider;
+    private final Function<LeafReaderContext, TermsStatsReader> termStatsReaderProvider;
 
     /**
      * Create a new SearchLookup, using the default stored fields provider
@@ -82,14 +81,14 @@ public class SearchLookup implements SourceProvider {
         TriFunction<MappedFieldType, Supplier<SearchLookup>, MappedFieldType.FielddataOperation, IndexFieldData<?>> fieldDataLookup,
         SourceProvider sourceProvider,
         Function<LeafReaderContext, LeafFieldLookupProvider> fieldLookupProvider,
-        Function<Term, TermStates> termStatesProvider
+        Function<LeafReaderContext, TermsStatsReader> termStatsReaderProvider
     ) {
         this.fieldTypeLookup = fieldTypeLookup;
         this.fieldChain = Collections.emptySet();
         this.sourceProvider = sourceProvider;
         this.fieldDataLookup = fieldDataLookup;
         this.fieldLookupProvider = fieldLookupProvider;
-        this.termStatesProvider = termStatesProvider;
+        this.termStatsReaderProvider = termStatsReaderProvider;
     }
 
     /**
@@ -105,7 +104,7 @@ public class SearchLookup implements SourceProvider {
         this.fieldTypeLookup = searchLookup.fieldTypeLookup;
         this.fieldDataLookup = searchLookup.fieldDataLookup;
         this.fieldLookupProvider = searchLookup.fieldLookupProvider;
-        this.termStatesProvider = null;
+        this.termStatsReaderProvider = null;
     }
 
     /**
@@ -151,7 +150,7 @@ public class SearchLookup implements SourceProvider {
         return sourceProvider.getSource(ctx, doc);
     }
 
-    public TermStates getTermStates(Term term) {
-        return termStatesProvider.apply(term);
+    public TermsStatsReader termsStatsReader(LeafReaderContext ctx) {
+        return termStatsReaderProvider.apply(ctx);
     }
 }

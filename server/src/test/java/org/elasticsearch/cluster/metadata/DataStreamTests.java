@@ -333,7 +333,7 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
             equalTo(
                 String.format(
                     Locale.ROOT,
-                    "cannot remove backing index [%s] of data stream [%s] because it is the write index",
+                    "cannot remove backing index [%s] of data stream [%s] because it is the write index of the failure store",
                     original.getFailureIndices().get(original.getFailureIndices().size() - 1).getName(),
                     original.getName()
                 )
@@ -1963,7 +1963,7 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
             randomBoolean() ? IndexMode.STANDARD : IndexMode.TIME_SERIES,
             DataStreamLifecycleTests.randomLifecycle(),
             false,
-            null,
+            List.of(),
             replicated == false && randomBoolean(),
             null
         );

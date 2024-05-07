@@ -1,10 +1,9 @@
-[chapter]
 [[getting-started]]
-= Quick start
+== Quick start guide
 
 This guide helps you learn how to:
 
-* install and run {es} and {kib} (using {ecloud} or Docker),
+* Run {es} and {kib} (using {ecloud} or in a local Docker dev environment),
 * add simple (non-timestamped) dataset to {es},
 * run basic searches.
 

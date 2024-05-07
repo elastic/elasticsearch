@@ -748,7 +748,7 @@ class OptimizerRules {
             final Expression apply() {
                 // force float point folding for FlP field
                 Literal bcl = operation.dataType().isRational()
-                    ? Literal.of(bcLiteral, ((Number) bcLiteral.value()).doubleValue())
+                    ? new Literal(bcLiteral.source(), ((Number) bcLiteral.value()).doubleValue(), DataTypes.DOUBLE)
                     : bcLiteral;
 
                 Expression bcRightExpression = ((BinaryComparisonInversible) operation).binaryComparisonInverse()

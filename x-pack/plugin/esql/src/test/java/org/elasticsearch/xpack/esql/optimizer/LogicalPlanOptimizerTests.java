@@ -4431,8 +4431,8 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         doTestSimplifyComparisonArithmetics("2 * integer > 4", "integer", GT, 2);
 
         // TODO: These aren't passing
-        // doTestSimplifyComparisonArithmetics("float / 2.0 > 4.0", "float", GT, 8d);
-        // doTestSimplifyComparisonArithmetics("2.0 / float < 4.0", "float", GT, .5);
+        doTestSimplifyComparisonArithmetics("float / 2 > 4", "float", GT, 8d);
+        doTestSimplifyComparisonArithmetics("2 / float < 4", "float", GT, .5);
     }
 
     public void testSimplifyComparisonArithmeticWithMultipleOps() {

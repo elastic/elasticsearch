@@ -41,12 +41,12 @@ GET _search
    "query":{
       "sparse_vector": {
         "field": "ml.tokens",
-        "query_vector": [ "token1": 0.5, "token2": 0.3, "token3": 0.2 ]
+        "query_vector": { "token1": 0.5, "token2": 0.3, "token3": 0.2 }
       }
    }
 }
 ----
-// TEST[skip: TODO implement]
+// TEST[skip: TBD]
 
 [discrete]
 [[sparse-vector-field-params]]

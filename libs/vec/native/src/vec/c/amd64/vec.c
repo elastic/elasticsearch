@@ -29,8 +29,9 @@
 #include <x86intrin.h>
 #endif
 
-// input:  functionNumber = leaf(eax). Subleaf is always 0
-// output: output[0] = eax, output[1] = ebx, output[2] = ecx, output[3] = edx
+// Multi-platform CPUID "intrinsic"; it takes as input a "functionNumber" (or "leaf", the eax registry). "Subleaf"
+// is always 0. Output is stored in the passed output parameter: output[0] = eax, output[1] = ebx, output[2] = ecx,
+// output[3] = edx
 static inline void cpuid(int output[4], int functionNumber) {
 #if defined(__GNUC__) || defined(__clang__)
     // use inline assembly, Gnu/AT&T syntax
@@ -48,7 +49,7 @@ static inline void cpuid(int output[4], int functionNumber) {
 #endif
 }
 
-// horizontally add 8 int32_t
+// Utility function to horizontally add 8 32-bit integers
 static inline int hsum_i32_8(const __m256i a) {
     const __m128i sum128 = _mm_add_epi32(_mm256_castsi256_si128(a), _mm256_extractf128_si256(a, 1));
     const __m128i hi64 = _mm_unpackhi_epi64(sum128, sum128);

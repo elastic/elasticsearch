@@ -6,4 +6,4 @@ COPY . /workspace
 WORKDIR /workspace
 RUN ./gradlew --quiet --console=plain clean buildSharedLibrary
 
-CMD cat build/libs/vec/shared/libvec.so
+CMD cat build/output/libvec.so

@@ -15,7 +15,7 @@ var os = org.gradle.internal.os.OperatingSystem.current()
 //   docker build --platform linux/arm64 --progress=plain . (for aarch64)
 //   docker build --platform linux/amd64 --progress=plain . (for x64)
 // Grab the image id from the console output, then, e.g.
-//   docker run 9c9f36564c148b275aeecc42749e7b4580ded79dcf51ff6ccc008c8861e7a979 > build/libs/vec/shared/libvec.so
+//   docker run 9c9f36564c148b275aeecc42749e7b4580ded79dcf51ff6ccc008c8861e7a979 > build/libs/vec/shared/$arch/libvec.so
 //
 // To run tests and benchmarks on a locally built libvec,
 //  1. Temporarily comment out the download in libs/native/library/build.gradle
@@ -91,8 +91,22 @@ tasks.register('buildSharedLibrary') {
   description = 'Assembles native shared library for the host architecture'
   if (platformName.equals("aarch64")) {
     dependsOn tasks.vecAarch64SharedLibrary
+    doLast {
+      copy {
+        from tasks.linkVecAarch64SharedLibrary.outputs.files.files
+        into layout.buildDirectory.dir('output');
+        duplicatesStrategy = 'INCLUDE'
+      }
+    }
   } else if (platformName.equals("amd64")) {
     dependsOn tasks.vecAmd64SharedLibrary
+    doLast {
+      copy {
+        from tasks.linkVecAmd64SharedLibrary.outputs.files.files
+        into layout.buildDirectory.dir('output');
+        duplicatesStrategy = 'INCLUDE'
+      }
+    }
   } else {
     throw new GradleException("Unsupported platform: " + platformName)
   }

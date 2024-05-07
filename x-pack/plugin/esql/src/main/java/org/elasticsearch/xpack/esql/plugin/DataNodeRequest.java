@@ -90,7 +90,7 @@ final class DataNodeRequest extends TransportRequest implements IndicesRequest {
         }
         out.writeCollection(shardIds);
         out.writeMap(aliasFilters);
-        new PlanStreamOutput(out, planNameRegistry).writePhysicalPlanNode(plan);
+        new PlanStreamOutput(out, planNameRegistry, configuration).writePhysicalPlanNode(plan);
     }
 
     @Override

@@ -31,7 +31,6 @@ import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSenderTests;
 import org.elasticsearch.xpack.inference.external.http.sender.Sender;
 import org.elasticsearch.xpack.inference.logging.ThrottlerManager;
-import org.hamcrest.CoreMatchers;
 import org.junit.After;
 import org.junit.Before;
 
@@ -272,8 +271,8 @@ public class OpenAiChatCompletionActionTests extends ESTestCase {
 
             var thrownException = expectThrows(ElasticsearchStatusException.class, () -> listener.actionGet(TIMEOUT));
 
-            assertThat(thrownException.getMessage(), CoreMatchers.is("OpenAI completions only accepts 1 input"));
-            assertThat(thrownException.status(), CoreMatchers.is(RestStatus.BAD_REQUEST));
+            assertThat(thrownException.getMessage(), is("OpenAI completions only accepts 1 input"));
+            assertThat(thrownException.status(), is(RestStatus.BAD_REQUEST));
         }
     }
 

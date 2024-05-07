@@ -243,15 +243,6 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
      */
     @Nullable
     public Index getFailureStoreWriteIndex() {
-        return isFailureStoreEnabled() == false ? null : unsafeGetFailureStoreWriteIndex();
-    }
-
-    /**
-     * Note: do not use this to determine which index to write on because we do not perform the check if failure store is enabled.
-     * @return the write failure index if there is already at least one failure, null otherwise
-     */
-    @Nullable
-    public Index unsafeGetFailureStoreWriteIndex() {
         return failureIndices.isEmpty() ? null : failureIndices.get(failureIndices.size() - 1);
     }
 
@@ -601,7 +592,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
             throw new IllegalArgumentException(
                 String.format(
                     Locale.ROOT,
-                    "cannot remove backing index [%s] of data stream [%s] because it is the write index",
+                    "cannot remove backing index [%s] of data stream [%s] because it is the write index of the failure store",
                     index.getName(),
                     name
                 )
@@ -841,13 +832,19 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
     ) {
         List<Index> olderIndices = new ArrayList<>();
         for (Index index : indices) {
-            if (isIndexOderThan(index, retentionPeriod.getMillis(), nowSupplier.getAsLong(), indicesPredicate, indexMetadataSupplier)) {
+            if (isIndexOlderThan(index, retentionPeriod.getMillis(), nowSupplier.getAsLong(), indicesPredicate, indexMetadataSupplier)) {
                 olderIndices.add(index);
             }
         }
         if (DataStream.isFailureStoreFeatureFlagEnabled() && failureIndices.isEmpty() == false) {
             for (Index index : failureIndices) {
-                if (isIndexOderThan(index, retentionPeriod.getMillis(), nowSupplier.getAsLong(), indicesPredicate, indexMetadataSupplier)) {
+                if (isIndexOlderThan(
+                    index,
+                    retentionPeriod.getMillis(),
+                    nowSupplier.getAsLong(),
+                    indicesPredicate,
+                    indexMetadataSupplier
+                )) {
                     olderIndices.add(index);
                 }
             }
@@ -855,7 +852,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
         return olderIndices;
     }
 
-    private boolean isIndexOderThan(
+    private boolean isIndexOlderThan(
         Index index,
         long retentionPeriod,
         long now,

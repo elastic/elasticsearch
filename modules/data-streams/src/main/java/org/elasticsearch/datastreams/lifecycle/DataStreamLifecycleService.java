@@ -809,7 +809,7 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
 
     @Nullable
     private Index maybeExecuteRollover(ClusterState state, DataStream dataStream, boolean rolloverFailureStore) {
-        Index currentRunWriteIndex = rolloverFailureStore ? dataStream.unsafeGetFailureStoreWriteIndex() : dataStream.getWriteIndex();
+        Index currentRunWriteIndex = rolloverFailureStore ? dataStream.getFailureStoreWriteIndex() : dataStream.getWriteIndex();
         if (currentRunWriteIndex == null) {
             return null;
         }

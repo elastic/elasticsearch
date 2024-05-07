@@ -311,22 +311,24 @@ public class SecuritySystemIndices {
                     }
                     builder.endObject();
 
-                    builder.startObject("remote_cluster");
-                    {
-                        builder.field("type", "object");
-                        builder.startObject("properties");
+                    if (mappingVersion.onOrAfter(SecurityMainIndexMappingVersion.ADD_REMOTE_CLUSTER_AND_DESCRIPTION_FIELDS)) {
+                        builder.startObject("remote_cluster");
                         {
-                            builder.startObject("clusters");
-                            builder.field("type", "keyword");
-                            builder.endObject();
+                            builder.field("type", "object");
+                            builder.startObject("properties");
+                            {
+                                builder.startObject("clusters");
+                                builder.field("type", "keyword");
+                                builder.endObject();
 
-                            builder.startObject("privileges");
-                            builder.field("type", "keyword");
+                                builder.startObject("privileges");
+                                builder.field("type", "keyword");
+                                builder.endObject();
+                            }
                             builder.endObject();
                         }
                         builder.endObject();
                     }
-                    builder.endObject();
 
                     builder.startObject("applications");
                     {
@@ -409,7 +411,7 @@ public class SecuritySystemIndices {
                     builder.field("type", "keyword");
                     builder.endObject();
 
-                    if (mappingVersion.onOrAfter(SecurityMainIndexMappingVersion.ADD_DESCRIPTION_FIELD)) {
+                    if (mappingVersion.onOrAfter(SecurityMainIndexMappingVersion.ADD_REMOTE_CLUSTER_AND_DESCRIPTION_FIELDS)) {
                         builder.startObject("description");
                         builder.field("type", "text");
                         builder.endObject();
@@ -1039,9 +1041,9 @@ public class SecuritySystemIndices {
         INITIAL(1),
 
         /**
-         * The mapping was changed to add a new text description field.
+         * The mapping was changed to add new text description and remote_cluster fields.
          */
-        ADD_DESCRIPTION_FIELD(2),
+        ADD_REMOTE_CLUSTER_AND_DESCRIPTION_FIELDS(2),
 
         ;
 

@@ -50,7 +50,7 @@ model {
       }
       target("amd64") {
         cCompiler.executable = "/usr/bin/gcc"
-        cCompiler.withArguments { args -> args.addAll(["-O3", "-std=c99", "-march=core-avx2"]) }
+        cCompiler.withArguments { args -> args.addAll(["-O3", "-std=c99", "-march=core-avx2", "-Wno-incompatible-pointer-types"]) }
       }
     }
     cl(VisualCpp) {

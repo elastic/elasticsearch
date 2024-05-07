@@ -43,7 +43,7 @@ public class RestNodesCapabilitiesAction extends BaseRestHandler {
 
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
-        NodesCapabilitiesRequest r = new NodesCapabilitiesRequest().timeout(request.param("timeout"))
+        NodesCapabilitiesRequest r = new NodesCapabilitiesRequest().timeout(request.paramAsTime("timeout", null))
             .method(RestRequest.Method.valueOf(request.param("method", "GET")))
             .path(URLDecoder.decode(request.param("path"), StandardCharsets.UTF_8))
             .parameters(request.paramAsStringArray("parameters", Strings.EMPTY_ARRAY))

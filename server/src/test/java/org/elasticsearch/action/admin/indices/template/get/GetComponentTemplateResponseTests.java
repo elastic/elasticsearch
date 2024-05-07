@@ -34,7 +34,6 @@ import static org.elasticsearch.cluster.metadata.ComponentTemplateTests.randomMa
 import static org.elasticsearch.cluster.metadata.ComponentTemplateTests.randomSettings;
 import static org.elasticsearch.xcontent.ToXContent.EMPTY_PARAMS;
 import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.not;
 
 public class GetComponentTemplateResponseTests extends AbstractWireSerializingTestCase<GetComponentTemplateAction.Response> {
     @Override
@@ -103,9 +102,6 @@ public class GetComponentTemplateResponseTests extends AbstractWireSerializingTe
                 .keySet()) {
                 assertThat(serialized, containsString(label));
             }
-            // We check that even if there was no retention provided by the user, the global retention applies
-            assertThat(serialized, not(containsString("data_retention")));
-            assertThat(serialized, containsString("effective_retention"));
         }
     }
 

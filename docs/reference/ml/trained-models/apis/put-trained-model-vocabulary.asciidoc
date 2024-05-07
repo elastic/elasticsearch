@@ -34,7 +34,7 @@ The vocabulary is stored in the index as described in
 
 `<model_id>`::
 (Required, string)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=model-id]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=model-id]
 
 [[ml-put-trained-model-vocabulary-request-body]]
 == {api-request-body-title}

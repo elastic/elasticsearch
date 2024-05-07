@@ -346,7 +346,8 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
                 }
                 if (dataStream.getLifecycle() != null) {
                     builder.field(LIFECYCLE_FIELD.getPreferredName());
-                    dataStream.getLifecycle().toXContent(builder, params, rolloverConfiguration, globalRetention);
+                    dataStream.getLifecycle()
+                        .toXContent(builder, params, rolloverConfiguration, dataStream.isSystem() ? null : globalRetention);
                 }
                 if (ilmPolicyName != null) {
                     builder.field(ILM_POLICY_FIELD.getPreferredName(), ilmPolicyName);
@@ -544,11 +545,15 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            Params withEffectiveRetentionParams = new DelegatingMapParams(DataStreamLifecycle.INCLUDE_EFFECTIVE_RETENTION_PARAMS, params);
             builder.startObject();
             builder.startArray(DATA_STREAMS_FIELD.getPreferredName());
             for (DataStreamInfo dataStream : dataStreams) {
-                dataStream.toXContent(builder, withEffectiveRetentionParams, rolloverConfiguration, globalRetention);
+                dataStream.toXContent(
+                    builder,
+                    DataStreamLifecycle.maybeAddEffectiveRetentionParams(params),
+                    rolloverConfiguration,
+                    globalRetention
+                );
             }
             builder.endArray();
             builder.endObject();

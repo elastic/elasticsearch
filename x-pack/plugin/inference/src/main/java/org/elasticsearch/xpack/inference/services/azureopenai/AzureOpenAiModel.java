@@ -23,25 +23,37 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
 import static org.elasticsearch.core.Strings.format;
 
 public abstract class AzureOpenAiModel extends Model {
 
     protected URI uri;
+    private final AzureOpenAiRateLimitServiceSettings rateLimitServiceSettings;
 
-    public AzureOpenAiModel(ModelConfigurations configurations, ModelSecrets secrets) {
+    public AzureOpenAiModel(
+        ModelConfigurations configurations,
+        ModelSecrets secrets,
+        AzureOpenAiRateLimitServiceSettings rateLimitServiceSettings
+    ) {
         super(configurations, secrets);
+
+        this.rateLimitServiceSettings = Objects.requireNonNull(rateLimitServiceSettings);
     }
 
     protected AzureOpenAiModel(AzureOpenAiModel model, TaskSettings taskSettings) {
         super(model, taskSettings);
+
         this.uri = model.getUri();
+        rateLimitServiceSettings = model.rateLimitServiceSettings();
     }
 
     protected AzureOpenAiModel(AzureOpenAiModel model, ServiceSettings serviceSettings) {
         super(model, serviceSettings);
+
         this.uri = model.getUri();
+        rateLimitServiceSettings = model.rateLimitServiceSettings();
     }
 
     public abstract ExecutableAction accept(AzureOpenAiActionVisitor creator, Map<String, Object> taskSettings);
@@ -77,6 +89,10 @@ public abstract class AzureOpenAiModel extends Model {
     // Needed for testing
     public void setUri(URI newUri) {
         this.uri = newUri;
+    }
+
+    public AzureOpenAiRateLimitServiceSettings rateLimitServiceSettings() {
+        return rateLimitServiceSettings;
     }
 
     // TODO: can be inferred directly from modelConfigurations.getServiceSettings(); will be addressed with separate refactoring

@@ -11,8 +11,9 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.InferenceServiceResults;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
-import org.elasticsearch.xpack.inference.external.http.sender.CohereRerankExecutableRequestCreator;
+import org.elasticsearch.xpack.inference.external.http.sender.CohereRerankRequestManager;
 import org.elasticsearch.xpack.inference.external.http.sender.InferenceInputs;
 import org.elasticsearch.xpack.inference.external.http.sender.Sender;
 import org.elasticsearch.xpack.inference.services.cohere.rerank.CohereRerankModel;
@@ -26,16 +27,16 @@ import static org.elasticsearch.xpack.inference.external.action.ActionUtils.wrap
 public class CohereRerankAction implements ExecutableAction {
     private final String failedToSendRequestErrorMessage;
     private final Sender sender;
-    private final CohereRerankExecutableRequestCreator requestCreator;
+    private final CohereRerankRequestManager requestCreator;
 
-    public CohereRerankAction(Sender sender, CohereRerankModel model) {
+    public CohereRerankAction(Sender sender, CohereRerankModel model, ThreadPool threadPool) {
         Objects.requireNonNull(model);
         this.sender = Objects.requireNonNull(sender);
         this.failedToSendRequestErrorMessage = constructFailedToSendRequestMessage(
             model.getServiceSettings().getCommonSettings().uri(),
             "Cohere rerank"
         );
-        requestCreator = new CohereRerankExecutableRequestCreator(model);
+        requestCreator = CohereRerankRequestManager.of(model, threadPool);
     }
 
     @Override

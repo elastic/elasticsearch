@@ -383,11 +383,11 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
                     throw new IllegalArgumentException(
                         SETTING_VERSION_COMPATIBILITY
                             + " ["
-                            + compatibilityVersion
+                            + compatibilityVersion.toReleaseVersion()
                             + "] must be >= "
                             + SETTING_VERSION_CREATED
                             + " ["
-                            + createdVersion
+                            + createdVersion.toReleaseVersion()
                             + "]"
                     );
                 }
@@ -2629,7 +2629,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
                             throw new IllegalStateException(
                                 "this method should only be used to parse older incompatible index metadata versions "
                                     + "but got "
-                                    + SETTING_INDEX_VERSION_COMPATIBILITY.get(settings)
+                                    + SETTING_INDEX_VERSION_COMPATIBILITY.get(settings).toReleaseVersion()
                             );
                         }
                         builder.settings(settings);
@@ -2752,7 +2752,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         Settings.Builder builder = Settings.builder().put(settings);
         IndexVersion version = SETTING_INDEX_VERSION_CREATED.get(settings);
         if (version.equals(IndexVersions.ZERO) == false) {
-            builder.put(SETTING_VERSION_CREATED_STRING, version.toString());
+            builder.put(SETTING_VERSION_CREATED_STRING, version.toReleaseVersion());
         }
         Long creationDate = settings.getAsLong(SETTING_CREATION_DATE, null);
         if (creationDate != null) {

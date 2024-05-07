@@ -57,6 +57,7 @@ public class AzureOpenAiEmbeddingsModelTests extends ESTestCase {
             null,
             false,
             null,
+            null,
             null
         );
 
@@ -109,7 +110,7 @@ public class AzureOpenAiEmbeddingsModelTests extends ESTestCase {
             inferenceEntityId,
             TaskType.TEXT_EMBEDDING,
             "service",
-            new AzureOpenAiEmbeddingsServiceSettings(resourceName, deploymentId, apiVersion, null, false, null, null),
+            new AzureOpenAiEmbeddingsServiceSettings(resourceName, deploymentId, apiVersion, null, false, null, null, null),
             new AzureOpenAiEmbeddingsTaskSettings(user),
             new AzureOpenAiSecretSettings(secureApiKey, secureEntraId)
         );
@@ -142,7 +143,8 @@ public class AzureOpenAiEmbeddingsModelTests extends ESTestCase {
                 dimensions,
                 dimensionsSetByUser,
                 maxInputTokens,
-                similarity
+                similarity,
+                null
             ),
             new AzureOpenAiEmbeddingsTaskSettings(user),
             new AzureOpenAiSecretSettings(secureApiKey, secureEntraId)

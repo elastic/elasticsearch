@@ -35,7 +35,7 @@ public class InternalAdjacencyMatrix extends InternalMultiBucketAggregation<Inte
     public static class InternalBucket extends InternalMultiBucketAggregation.InternalBucket implements AdjacencyMatrix.Bucket {
 
         private final String key;
-        private long docCount;
+        private final long docCount;
         InternalAggregations aggregations;
 
         public InternalBucket(String key, long docCount, InternalAggregations aggregations) {

@@ -21,9 +21,12 @@ import org.elasticsearch.xpack.ql.type.DataTypes;
 import java.math.BigInteger;
 import java.time.Duration;
 import java.time.Period;
+import java.time.temporal.TemporalAmount;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
+import java.util.function.BiFunction;
+import java.util.function.BinaryOperator;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.AbstractArithmeticTestCase.arithmeticExceptionOverflowCase;
@@ -43,20 +46,20 @@ public class AddTests extends AbstractFunctionTestCase {
         List<TestCaseSupplier> suppliers = new ArrayList<>();
         suppliers.addAll(
             TestCaseSupplier.forBinaryWithWidening(
-                new TestCaseSupplier.NumericTypeTestConfigs(
-                    new TestCaseSupplier.NumericTypeTestConfig(
+                new TestCaseSupplier.NumericTypeTestConfigs<Number>(
+                    new TestCaseSupplier.NumericTypeTestConfig<>(
                         (Integer.MIN_VALUE >> 1) - 1,
                         (Integer.MAX_VALUE >> 1) - 1,
                         (l, r) -> l.intValue() + r.intValue(),
                         "AddIntsEvaluator"
                     ),
-                    new TestCaseSupplier.NumericTypeTestConfig(
+                    new TestCaseSupplier.NumericTypeTestConfig<>(
                         (Long.MIN_VALUE >> 1) - 1,
                         (Long.MAX_VALUE >> 1) - 1,
                         (l, r) -> l.longValue() + r.longValue(),
                         "AddLongsEvaluator"
                     ),
-                    new TestCaseSupplier.NumericTypeTestConfig(
+                    new TestCaseSupplier.NumericTypeTestConfig<>(
                         Double.NEGATIVE_INFINITY,
                         Double.POSITIVE_INFINITY,
                         (l, r) -> l.doubleValue() + r.doubleValue(),
@@ -65,7 +68,7 @@ public class AddTests extends AbstractFunctionTestCase {
                 ),
                 "lhs",
                 "rhs",
-                List.of(),
+                (lhs, rhs) -> List.of(),
                 true
             )
         );
@@ -116,29 +119,35 @@ public class AddTests extends AbstractFunctionTestCase {
             )
         );
 
+        BinaryOperator<Object> result = (lhs, rhs) -> {
+            try {
+                return addDatesAndTemporalAmount(lhs, rhs);
+            } catch (ArithmeticException e) {
+                return null;
+            }
+        };
+        BiFunction<TestCaseSupplier.TypedData, TestCaseSupplier.TypedData, List<String>> warnings = (lhs, rhs) -> {
+            try {
+                addDatesAndTemporalAmount(lhs.data(), rhs.data());
+                return List.of();
+            } catch (ArithmeticException e) {
+                return List.of(
+                    "Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.",
+                    "Line -1:-1: java.lang.ArithmeticException: long overflow"
+                );
+            }
+        };
         suppliers.addAll(
             TestCaseSupplier.forBinaryNotCasting(
                 // TODO: There is an evaluator for Datetime + Period, so it should be tested. Similarly below.
                 "No evaluator, the tests only trigger the folding code since Period is not representable",
                 "lhs",
                 "rhs",
-                (lhs, rhs) -> {
-                    // this weird casting dance makes the expected value lambda symmetric
-                    Long date;
-                    Period period;
-                    if (lhs instanceof Long) {
-                        date = (Long) lhs;
-                        period = (Period) rhs;
-                    } else {
-                        date = (Long) rhs;
-                        period = (Period) lhs;
-                    }
-                    return asMillis(asDateTime(date).plus(period));
-                },
+                result,
                 DataTypes.DATETIME,
                 TestCaseSupplier.dateCases(),
                 TestCaseSupplier.datePeriodCases(),
-                List.of(),
+                warnings,
                 true
             )
         );
@@ -148,23 +157,11 @@ public class AddTests extends AbstractFunctionTestCase {
                 "No evaluator, the tests only trigger the folding code since Duration is not representable",
                 "lhs",
                 "rhs",
-                (lhs, rhs) -> {
-                    // this weird casting dance makes the expected value lambda symmetric
-                    Long date;
-                    Duration duration;
-                    if (lhs instanceof Long) {
-                        date = (Long) lhs;
-                        duration = (Duration) rhs;
-                    } else {
-                        date = (Long) rhs;
-                        duration = (Duration) lhs;
-                    }
-                    return asMillis(asDateTime(date).plus(duration));
-                },
+                result,
                 DataTypes.DATETIME,
                 TestCaseSupplier.dateCases(),
                 TestCaseSupplier.timeDurationCases(),
-                List.of(),
+                warnings,
                 true
             )
         );
@@ -267,6 +264,20 @@ public class AddTests extends AbstractFunctionTestCase {
             return "[+] has arguments with incompatible types [" + types.get(0).typeName() + "] and [" + types.get(1).typeName() + "]";
 
         }
+    }
+
+    private static Object addDatesAndTemporalAmount(Object lhs, Object rhs) {
+        // this weird casting dance makes the expected value lambda symmetric
+        Long date;
+        TemporalAmount period;
+        if (lhs instanceof Long) {
+            date = (Long) lhs;
+            period = (TemporalAmount) rhs;
+        } else {
+            date = (Long) rhs;
+            period = (TemporalAmount) lhs;
+        }
+        return asMillis(asDateTime(date).plus(period));
     }
 
     @Override

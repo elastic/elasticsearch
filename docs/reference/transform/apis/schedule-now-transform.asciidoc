@@ -35,7 +35,7 @@ called again in the meantime.
 
 `<transform_id>`::
 (Required, string)
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=transform-id]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=transform-id]
 
 [[schedule-now-transform-query-parms]]
 == {api-query-parms-title}

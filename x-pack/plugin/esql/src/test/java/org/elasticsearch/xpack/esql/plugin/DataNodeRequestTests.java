@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.plugin;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.index.shard.ShardId;
@@ -35,6 +36,7 @@ import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.ql.type.EsField;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -54,8 +56,10 @@ public class DataNodeRequestTests extends AbstractWireSerializingTestCase<DataNo
 
     @Override
     protected NamedWriteableRegistry getNamedWriteableRegistry() {
-        SearchModule searchModule = new SearchModule(Settings.EMPTY, List.of());
-        return new NamedWriteableRegistry(searchModule.getNamedWriteables());
+        List<NamedWriteableRegistry.Entry> writeables = new ArrayList<>();
+        writeables.addAll(new SearchModule(Settings.EMPTY, List.of()).getNamedWriteables());
+        writeables.addAll(Block.getNamedWriteables());
+        return new NamedWriteableRegistry(writeables);
     }
 
     @Override

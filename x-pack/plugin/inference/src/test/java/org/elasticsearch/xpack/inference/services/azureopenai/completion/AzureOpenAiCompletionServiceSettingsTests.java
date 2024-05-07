@@ -28,7 +28,7 @@ public class AzureOpenAiCompletionServiceSettingsTests extends AbstractWireSeria
         var deploymentId = randomAlphaOfLength(8);
         var apiVersion = randomAlphaOfLength(8);
 
-        return new AzureOpenAiCompletionServiceSettings(resourceName, deploymentId, apiVersion);
+        return new AzureOpenAiCompletionServiceSettings(resourceName, deploymentId, apiVersion, null);
     }
 
     public void testFromMap_Request_CreatesSettingsCorrectly() {
@@ -49,18 +49,18 @@ public class AzureOpenAiCompletionServiceSettingsTests extends AbstractWireSeria
             )
         );
 
-        assertThat(serviceSettings, is(new AzureOpenAiCompletionServiceSettings(resourceName, deploymentId, apiVersion)));
+        assertThat(serviceSettings, is(new AzureOpenAiCompletionServiceSettings(resourceName, deploymentId, apiVersion, null)));
     }
 
     public void testToXContent_WritesAllValues() throws IOException {
-        var entity = new AzureOpenAiCompletionServiceSettings("resource", "deployment", "2024");
+        var entity = new AzureOpenAiCompletionServiceSettings("resource", "deployment", "2024", null);
 
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
         entity.toXContent(builder, null);
         String xContentResult = Strings.toString(builder);
 
         assertThat(xContentResult, is("""
-            {"resource_name":"resource","deployment_id":"deployment","api_version":"2024"}"""));
+            {"resource_name":"resource","deployment_id":"deployment","api_version":"2024","rate_limit":{"requests_per_minute":1440}}"""));
     }
 
     @Override

@@ -288,7 +288,8 @@ public class AzureOpenAiService extends SenderService {
             embeddingSize,
             model.getServiceSettings().dimensionsSetByUser(),
             model.getServiceSettings().maxInputTokens(),
-            similarityToUse
+            similarityToUse,
+            model.getServiceSettings().rateLimitSettings()
         );
 
         return new AzureOpenAiEmbeddingsModel(model, serviceSettings);
@@ -296,6 +297,6 @@ public class AzureOpenAiService extends SenderService {
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.ML_INFERENCE_AZURE_OPENAI_EMBEDDINGS;
+        return TransportVersions.ML_INFERENCE_RATE_LIMIT_SETTINGS_ADDED;
     }
 }

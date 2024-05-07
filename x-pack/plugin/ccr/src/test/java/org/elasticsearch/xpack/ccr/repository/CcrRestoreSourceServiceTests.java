@@ -214,9 +214,9 @@ public class CcrRestoreSourceServiceTests extends IndexShardTestCase {
             sessionReader.readFileBytes(files.get(1).name(), new BytesArray(new byte[10]));
         }
 
-        assertTrue(EngineTestCase.hasSnapshottedCommits(IndexShardTestCase.getEngine(indexShard)));
+        assertTrue(EngineTestCase.hasAcquiredIndexCommits(IndexShardTestCase.getEngine(indexShard)));
         restoreSourceService.closeSession(sessionUUID);
-        assertFalse(EngineTestCase.hasSnapshottedCommits(IndexShardTestCase.getEngine(indexShard)));
+        assertFalse(EngineTestCase.hasAcquiredIndexCommits(IndexShardTestCase.getEngine(indexShard)));
 
         closeShards(indexShard);
         // Exception will be thrown if file is not closed.

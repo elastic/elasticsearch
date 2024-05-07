@@ -58,7 +58,7 @@ public class AzureOpenAiCompletionModel extends AzureOpenAiModel {
         AzureOpenAiCompletionTaskSettings taskSettings,
         @Nullable AzureOpenAiSecretSettings secrets
     ) {
-        super(new ModelConfigurations(inferenceEntityId, taskType, service, serviceSettings, taskSettings), new ModelSecrets(secrets));
+        super(new ModelConfigurations(inferenceEntityId, taskType, service, serviceSettings, taskSettings), new ModelSecrets(secrets), serviceSettings);
         try {
             this.uri = buildUriString();
         } catch (URISyntaxException e) {

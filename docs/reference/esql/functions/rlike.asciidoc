@@ -8,6 +8,8 @@ Use `RLIKE` to filter data based on string patterns using using
 the left-hand side of the operator, but it can also act on a constant (literal)
 expression. The right-hand side of the operator represents the pattern.
 
+include::./types/like.asciidoc[]
+
 [source.merge.styled,esql]
 ----
 include::{esql-specs}/docs.csv-spec[tag=rlike]

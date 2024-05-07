@@ -1,0 +1,5 @@
+pr: 108065
+summary: '`DenseVectorFieldMapper` fixed typo'
+area: Mapping
+type: bug
+issues: []

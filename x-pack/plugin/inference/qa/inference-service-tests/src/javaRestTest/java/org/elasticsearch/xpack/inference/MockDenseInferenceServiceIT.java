@@ -19,8 +19,7 @@ public class MockDenseInferenceServiceIT extends InferenceBaseRestTest {
     public void testMockService() throws IOException {
         String inferenceEntityId = "test-mock";
         var putModel = putModel(inferenceEntityId, mockDenseServiceModelConfig(), TaskType.TEXT_EMBEDDING);
-        var getModels = getModels(inferenceEntityId, TaskType.TEXT_EMBEDDING);
-        var model = ((List<Map<String, Object>>) getModels.get("models")).get(0);
+        var model = getModels(inferenceEntityId, TaskType.TEXT_EMBEDDING).get(0);
 
         for (var modelMap : List.of(putModel, model)) {
             assertEquals(inferenceEntityId, modelMap.get("model_id"));
@@ -51,8 +50,7 @@ public class MockDenseInferenceServiceIT extends InferenceBaseRestTest {
     public void testMockService_DoesNotReturnSecretsInGetResponse() throws IOException {
         String inferenceEntityId = "test-mock";
         var putModel = putModel(inferenceEntityId, mockDenseServiceModelConfig(), TaskType.TEXT_EMBEDDING);
-        var getModels = getModels(inferenceEntityId, TaskType.TEXT_EMBEDDING);
-        var model = ((List<Map<String, Object>>) getModels.get("models")).get(0);
+        var model = getModels(inferenceEntityId, TaskType.TEXT_EMBEDDING).get(0);
 
         var serviceSettings = (Map<String, Object>) model.get("service_settings");
         assertNull(serviceSettings.get("api_key"));

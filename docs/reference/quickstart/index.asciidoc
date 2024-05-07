@@ -3,7 +3,7 @@
 
 Get started quickly with {es}.
 
-* Learn how to run {es} (and {kib}) for <<run-elasticsearch-locally,Local development>>.
+* Learn how to run {es} (and {kib}) for <<run-elasticsearch-locally,local development>>.
 * Follow our <<getting-started,Quickstart guide>> to add data to {es} and query it.
 
 include::run-elasticsearch-locally.asciidoc[]

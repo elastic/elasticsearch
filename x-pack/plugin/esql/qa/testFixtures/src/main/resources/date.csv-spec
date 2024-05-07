@@ -621,7 +621,9 @@ dt:datetime              |plus_post:datetime |plus_pre:datetime
 2100-01-01T01:01:01.001Z |null               |null
 ;
 
-datePlusQuarter#[skip:-8.14.99, reason:quarter introduced in 8.15]
+datePlusQuarter
+# "quarter" introduced in 8.15
+required_feature: esql.metadata_fields
 row dt = to_dt("2100-01-01T01:01:01.000Z")
 | eval plusQuarter = dt + 2 quarters
 ;
@@ -630,7 +632,9 @@ dt:datetime              | plusQuarter:datetime
 2100-01-01T01:01:01.000Z | 2100-07-01T01:01:01.000Z
 ;
 
-datePlusAbbreviatedDurations#[skip:-8.14.99, reason:abbreviations introduced in 8.15]
+datePlusAbbreviatedDurations
+# abbreviations introduced in 8.15
+required_feature: esql.metadata_fields
 row dt = to_dt("2100-01-01T00:00:00.000Z")
 | eval plusDurations = dt + 1 h + 2 min + 2 sec + 1 s + 4 ms
 ;
@@ -639,7 +643,9 @@ dt:datetime              | plusDurations:datetime
 2100-01-01T00:00:00.000Z | 2100-01-01T01:02:03.004Z
 ;
 
-datePlusAbbreviatedPeriods#[skip:-8.14.99, reason:abbreviations introduced in 8.15]
+datePlusAbbreviatedPeriods
+# abbreviations introduced in 8.15
+required_feature: esql.metadata_fields
 row dt = to_dt("2100-01-01T00:00:00.000Z")
 | eval plusDurations = dt + 0 yr + 1y + 2 q + 3 mo + 4 w + 3 d
 ;

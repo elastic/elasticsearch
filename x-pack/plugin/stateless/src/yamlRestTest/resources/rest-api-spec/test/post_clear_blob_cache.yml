@@ -21,6 +21,10 @@ setup:
           text: "term term"
           keyword: "other"
 
+  # flush to force upload so that the refresh comes after uses cache on indexing node
+  - do:
+      indices.flush: {}
+
   - do:
       indices.refresh: {}
 

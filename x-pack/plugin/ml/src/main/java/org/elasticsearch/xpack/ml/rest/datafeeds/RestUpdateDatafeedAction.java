@@ -23,6 +23,7 @@ import java.io.IOException;
 import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.POST;
+import static org.elasticsearch.rest.RestUtils.getMasterNodeTimeout;
 import static org.elasticsearch.xpack.ml.MachineLearning.BASE_PATH;
 import static org.elasticsearch.xpack.ml.MachineLearning.PRE_V7_BASE_PATH;
 
@@ -57,8 +58,8 @@ public class RestUpdateDatafeedAction extends BaseRestHandler {
         try (XContentParser parser = restRequest.contentParser()) {
             updateDatafeedRequest = UpdateDatafeedAction.Request.parseRequest(datafeedId, indicesOptions, parser);
         }
-        updateDatafeedRequest.timeout(restRequest.paramAsTime("timeout", updateDatafeedRequest.timeout()));
-        updateDatafeedRequest.masterNodeTimeout(restRequest.paramAsTime("master_timeout", updateDatafeedRequest.masterNodeTimeout()));
+        updateDatafeedRequest.ackTimeout(restRequest.paramAsTime("timeout", updateDatafeedRequest.ackTimeout()));
+        updateDatafeedRequest.masterNodeTimeout(getMasterNodeTimeout(restRequest));
 
         return channel -> client.execute(UpdateDatafeedAction.INSTANCE, updateDatafeedRequest, new RestToXContentListener<>(channel));
     }

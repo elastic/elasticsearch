@@ -103,9 +103,9 @@ public final class RepositoriesModule {
                     throw new SnapshotRestoreException(
                         snapshot,
                         "the snapshot was created with Elasticsearch version ["
-                            + version
+                            + version.toReleaseVersion()
                             + "] which is below the current versions minimum index compatibility version ["
-                            + IndexVersions.MINIMUM_COMPATIBLE
+                            + IndexVersions.MINIMUM_COMPATIBLE.toReleaseVersion()
                             + "]"
                     );
                 }

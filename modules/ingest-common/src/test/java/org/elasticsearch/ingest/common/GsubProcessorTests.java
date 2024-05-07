@@ -44,7 +44,7 @@ public class GsubProcessorTests extends AbstractStringProcessorTestCase<String> 
             "targetField"
         );
         StringBuilder badSourceBuilder = new StringBuilder("key1=x key2=");
-        badSourceBuilder.append("x".repeat(3000));
+        badSourceBuilder.append("x".repeat(10000));
         Map<String, Object> source = Map.of("field", badSourceBuilder.toString());
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), source);
         IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> processor.execute(ingestDocument));

@@ -84,6 +84,7 @@ import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
@@ -884,6 +885,16 @@ public abstract class ESTestCase extends LuceneTestCase {
         return bytes;
     }
 
+    public static byte randomByteBetween(byte minInclusive, byte maxInclusive) {
+        return (byte) randomIntBetween(minInclusive, maxInclusive);
+    }
+
+    public static void randomBytesBetween(byte[] bytes, byte minInclusive, byte maxInclusive) {
+        for (int i = 0, len = bytes.length; i < len;) {
+            bytes[i++] = randomByteBetween(minInclusive, maxInclusive);
+        }
+    }
+
     public static BytesReference randomBytesReference(int length) {
         final var slices = new ArrayList<BytesReference>();
         var remaining = length;
@@ -1156,21 +1167,19 @@ public abstract class ESTestCase extends LuceneTestCase {
         return new HashSet<>(randomList(minSetSize, maxSetSize, valueConstructor));
     }
 
-    private static final String[] TIME_SUFFIXES = new String[] { "d", "h", "ms", "s", "m", "micros", "nanos" };
-
-    public static String randomTimeValue(int lower, int upper, String... suffixes) {
-        return randomIntBetween(lower, upper) + randomFrom(suffixes);
+    public static TimeValue randomTimeValue(int lower, int upper, TimeUnit... units) {
+        return new TimeValue(between(lower, upper), randomFrom(units));
     }
 
-    public static String randomTimeValue(int lower, int upper) {
-        return randomTimeValue(lower, upper, TIME_SUFFIXES);
+    public static TimeValue randomTimeValue(int lower, int upper) {
+        return randomTimeValue(lower, upper, TimeUnit.values());
     }
 
-    public static String randomTimeValue() {
+    public static TimeValue randomTimeValue() {
         return randomTimeValue(0, 1000);
     }
 
-    public static String randomPositiveTimeValue() {
+    public static TimeValue randomPositiveTimeValue() {
         return randomTimeValue(1, 1000);
     }
 

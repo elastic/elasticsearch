@@ -97,7 +97,7 @@ public class ModelRegistryIT extends ESSingleNodeTestCase {
             statusException.getRootCause().getMessage(),
             containsString("mapping set to strict, dynamic introduction of [unknown_field] within [_doc] is not allowed")
         );
-        assertThat(exceptionHolder.get().getMessage(), containsString("Failed to store inference model [" + inferenceEntityId + "]"));
+        assertThat(exceptionHolder.get().getMessage(), containsString("Failed to store inference endpoint [" + inferenceEntityId + "]"));
     }
 
     public void testGetModel() throws Exception {
@@ -144,7 +144,7 @@ public class ModelRegistryIT extends ESSingleNodeTestCase {
         assertThat(exceptionHolder.get(), not(nullValue()));
         assertThat(
             exceptionHolder.get().getMessage(),
-            containsString("Inference model [test-put-trained-model-config-exists] already exists")
+            containsString("Inference endpoint [test-put-trained-model-config-exists] already exists")
         );
     }
 
@@ -171,7 +171,7 @@ public class ModelRegistryIT extends ESSingleNodeTestCase {
 
         assertThat(exceptionHolder.get(), not(nullValue()));
         assertFalse(deleteResponseHolder.get());
-        assertThat(exceptionHolder.get().getMessage(), containsString("Model not found [model1]"));
+        assertThat(exceptionHolder.get().getMessage(), containsString("Inference endpoint not found [model1]"));
     }
 
     public void testGetModelsByTaskType() throws InterruptedException {

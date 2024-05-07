@@ -40,7 +40,7 @@ If no ID is specified, returns the status of all nodes being prepared for shutdo
 [[get-shutdown-api-params]]
 ==== {api-query-parms-title}
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
 
 [[get-shutdown-api-example]]
 ==== {api-examples-title}

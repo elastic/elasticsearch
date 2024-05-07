@@ -28,6 +28,7 @@ import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.plugins.Plugin;
@@ -158,14 +159,14 @@ public class RareClusterStateIT extends ESIntegTestCase {
         );
 
         logger.info("--> delete index");
-        assertFalse(indicesAdmin().prepareDelete("test").setTimeout("0s").get().isAcknowledged());
+        assertFalse(indicesAdmin().prepareDelete("test").setTimeout(TimeValue.ZERO).get().isAcknowledged());
         logger.info("--> and recreate it");
         assertFalse(
             prepareCreate("test").setSettings(
                 Settings.builder()
                     .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
                     .put(IndexMetadata.SETTING_WAIT_FOR_ACTIVE_SHARDS.getKey(), "0")
-            ).setTimeout("0s").get().isAcknowledged()
+            ).setTimeout(TimeValue.ZERO).get().isAcknowledged()
         );
 
         // unblock publications & do a trivial cluster state update to bring data node up to date

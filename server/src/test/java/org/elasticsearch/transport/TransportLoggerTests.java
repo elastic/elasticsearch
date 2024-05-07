@@ -8,13 +8,11 @@
 package org.elasticsearch.transport;
 
 import org.apache.logging.log4j.Level;
-import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.action.admin.cluster.stats.ClusterStatsAction;
 import org.elasticsearch.action.admin.cluster.stats.ClusterStatsRequest;
+import org.elasticsearch.action.admin.cluster.stats.TransportClusterStatsAction;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.RecyclerBytesStreamOutput;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -28,21 +26,6 @@ import static org.mockito.Mockito.mock;
 
 @TestLogging(value = "org.elasticsearch.transport.TransportLogger:trace", reason = "to ensure we log network events on TRACE level")
 public class TransportLoggerTests extends ESTestCase {
-
-    private MockLogAppender appender;
-
-    public void setUp() throws Exception {
-        super.setUp();
-        appender = new MockLogAppender();
-        Loggers.addAppender(LogManager.getLogger(TransportLogger.class), appender);
-        appender.start();
-    }
-
-    public void tearDown() throws Exception {
-        Loggers.removeAppender(LogManager.getLogger(TransportLogger.class), appender);
-        appender.stop();
-        super.tearDown();
-    }
 
     public void testLoggingHandler() throws IOException {
         final String writePattern = ".*\\[length: \\d+"
@@ -74,12 +57,15 @@ public class TransportLoggerTests extends ESTestCase {
             readPattern
         );
 
-        appender.addExpectation(writeExpectation);
-        appender.addExpectation(readExpectation);
-        BytesReference bytesReference = buildRequest();
-        TransportLogger.logInboundMessage(mock(TcpChannel.class), bytesReference.slice(6, bytesReference.length() - 6));
-        TransportLogger.logOutboundMessage(mock(TcpChannel.class), bytesReference);
-        appender.assertAllExpectationsMatched();
+        MockLogAppender appender = new MockLogAppender();
+        try (var ignored = appender.capturing(TransportLogger.class)) {
+            appender.addExpectation(writeExpectation);
+            appender.addExpectation(readExpectation);
+            BytesReference bytesReference = buildRequest();
+            TransportLogger.logInboundMessage(mock(TcpChannel.class), bytesReference.slice(6, bytesReference.length() - 6));
+            TransportLogger.logOutboundMessage(mock(TcpChannel.class), bytesReference);
+            appender.assertAllExpectationsMatched();
+        }
     }
 
     private BytesReference buildRequest() throws IOException {
@@ -90,7 +76,7 @@ public class TransportLoggerTests extends ESTestCase {
                 new ThreadContext(Settings.EMPTY),
                 new ClusterStatsRequest(),
                 TransportVersion.current(),
-                ClusterStatsAction.NAME,
+                TransportClusterStatsAction.TYPE.name(),
                 randomInt(30),
                 false,
                 compress

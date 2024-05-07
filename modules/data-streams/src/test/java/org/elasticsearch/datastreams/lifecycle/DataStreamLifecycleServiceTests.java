@@ -36,6 +36,8 @@ import org.elasticsearch.cluster.TestShardRoutingRoleStrategies;
 import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.metadata.DataStream;
+import org.elasticsearch.cluster.metadata.DataStreamFactoryRetention;
+import org.elasticsearch.cluster.metadata.DataStreamGlobalRetentionResolver;
 import org.elasticsearch.cluster.metadata.DataStreamLifecycle;
 import org.elasticsearch.cluster.metadata.DataStreamLifecycle.Downsampling;
 import org.elasticsearch.cluster.metadata.DataStreamLifecycle.Downsampling.Round;
@@ -134,6 +136,9 @@ public class DataStreamLifecycleServiceTests extends ESTestCase {
     private List<TransportRequest> clientSeenRequests;
     private DoExecuteDelegate clientDelegate;
     private ClusterService clusterService;
+    private final DataStreamGlobalRetentionResolver globalRetentionResolver = new DataStreamGlobalRetentionResolver(
+        DataStreamFactoryRetention.emptyFactoryRetention()
+    );
 
     @Before
     public void setupServices() {
@@ -179,7 +184,8 @@ public class DataStreamLifecycleServiceTests extends ESTestCase {
                 clusterService,
                 errorStore,
                 new FeatureService(List.of(new DataStreamFeatures()))
-            )
+            ),
+            globalRetentionResolver
         );
         clientDelegate = null;
         dataStreamLifecycleService.init();
@@ -1423,7 +1429,8 @@ public class DataStreamLifecycleServiceTests extends ESTestCase {
                 clusterService,
                 errorStore,
                 new FeatureService(List.of(new DataStreamFeatures()))
-            )
+            ),
+            globalRetentionResolver
         );
         assertThat(service.getLastRunDuration(), is(nullValue()));
         assertThat(service.getTimeBetweenStarts(), is(nullValue()));
@@ -1587,7 +1594,7 @@ public class DataStreamLifecycleServiceTests extends ESTestCase {
         ByteSizeValue minSize = randomBoolean() ? randomByteSizeValue() : null;
         ByteSizeValue minPrimaryShardSize = randomBoolean() ? randomByteSizeValue() : null;
         Long minDocs = randomBoolean() ? randomNonNegativeLong() : null;
-        TimeValue minAge = randomBoolean() ? TimeValue.parseTimeValue(randomPositiveTimeValue(), "rollover_action_test") : null;
+        TimeValue minAge = randomBoolean() ? randomPositiveTimeValue() : null;
         Long minPrimaryShardDocs = randomBoolean() ? randomNonNegativeLong() : null;
 
         return RolloverConditions.newBuilder()

@@ -134,17 +134,22 @@ public class TransportGetTopNFunctionsAction extends TransportAction<GetStackTra
             functions.sort(Collections.reverseOrder());
             long sumSelfCount = 0;
             long sumTotalCount = 0;
+            double sumAnnualCo2Tons = 0.0d;
+            double sumAnnualCostsUsd = 0.0d;
+
             for (int i = 0; i < functions.size(); i++) {
                 TopNFunction topNFunction = functions.get(i);
                 topNFunction.setRank(i + 1);
                 sumSelfCount += topNFunction.getSelfCount();
                 sumTotalCount += topNFunction.getTotalCount();
+                sumAnnualCo2Tons += topNFunction.getSelfAnnualCO2Tons();
+                sumAnnualCostsUsd += topNFunction.getSelfAnnualCostsUSD();
             }
             // limit at the end so global stats are independent of the limit
             if (limit != null && limit > 0 && limit < functions.size()) {
                 functions = functions.subList(0, limit);
             }
-            return new GetTopNFunctionsResponse(sumSelfCount, sumTotalCount, functions);
+            return new GetTopNFunctionsResponse(sumSelfCount, sumTotalCount, sumAnnualCo2Tons, sumAnnualCostsUsd, functions);
         }
 
         public boolean isExists(String frameGroupID) {

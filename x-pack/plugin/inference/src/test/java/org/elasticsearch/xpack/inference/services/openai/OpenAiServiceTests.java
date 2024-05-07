@@ -31,8 +31,7 @@ import org.elasticsearch.test.http.MockWebServer;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
-import org.elasticsearch.xpack.core.inference.results.ChunkedTextEmbeddingResults;
-import org.elasticsearch.xpack.core.ml.inference.results.ChunkedNlpInferenceResults;
+import org.elasticsearch.xpack.core.inference.results.ChunkedTextEmbeddingFloatResults;
 import org.elasticsearch.xpack.inference.external.http.HttpClientManager;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSenderTests;
@@ -60,7 +59,6 @@ import static org.elasticsearch.xpack.inference.Utils.mockClusterServiceEmpty;
 import static org.elasticsearch.xpack.inference.external.http.Utils.entityAsMap;
 import static org.elasticsearch.xpack.inference.external.http.Utils.getUrl;
 import static org.elasticsearch.xpack.inference.external.request.openai.OpenAiUtils.ORGANIZATION_HEADER;
-import static org.elasticsearch.xpack.inference.results.ChunkedTextEmbeddingResultsTests.asMapWithListsInsteadOfArrays;
 import static org.elasticsearch.xpack.inference.results.TextEmbeddingResultsTests.buildExpectation;
 import static org.elasticsearch.xpack.inference.services.ServiceComponentsTests.createWithEmptySettings;
 import static org.elasticsearch.xpack.inference.services.Utils.getInvalidModel;
@@ -1213,11 +1211,12 @@ public class OpenAiServiceTests extends ESTestCase {
         assertEquals("model", serviceSettings.get(ServiceFields.MODEL_ID));
     }
 
-    public void testChunkedInfer_CallsInfer_ConvertsFloatResponse() throws IOException {
+    public void testChunkedInfer_Batches() throws IOException {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
 
         try (var service = new OpenAiService(senderFactory, createWithEmptySettings(threadPool))) {
 
+            // response with 2 embeddings
             String responseJson = """
                 {
                   "object": "list",
@@ -1228,6 +1227,14 @@ public class OpenAiServiceTests extends ESTestCase {
                           "embedding": [
                               0.123,
                               -0.123
+                          ]
+                      },
+                      {
+                          "object": "embedding",
+                          "index": 1,
+                          "embedding": [
+                              0.223,
+                              -0.223
                           ]
                       }
                   ],
@@ -1244,7 +1251,7 @@ public class OpenAiServiceTests extends ESTestCase {
             PlainActionFuture<List<ChunkedInferenceServiceResults>> listener = new PlainActionFuture<>();
             service.chunkedInfer(
                 model,
-                List.of("abc"),
+                List.of("foo", "bar"),
                 new HashMap<>(),
                 InputType.INGEST,
                 new ChunkingOptions(null, null),
@@ -1252,25 +1259,23 @@ public class OpenAiServiceTests extends ESTestCase {
                 listener
             );
 
-            var result = listener.actionGet(TIMEOUT).get(0);
-            assertThat(result, CoreMatchers.instanceOf(ChunkedTextEmbeddingResults.class));
+            var results = listener.actionGet(TIMEOUT);
+            assertThat(results, hasSize(2));
+            {
+                assertThat(results.get(0), CoreMatchers.instanceOf(ChunkedTextEmbeddingFloatResults.class));
+                var floatResult = (ChunkedTextEmbeddingFloatResults) results.get(0);
+                assertThat(floatResult.chunks(), hasSize(1));
+                assertEquals("foo", floatResult.chunks().get(0).matchedText());
+                assertEquals(List.of(0.123f, -0.123f), floatResult.chunks().get(0).embedding());
+            }
+            {
+                assertThat(results.get(1), CoreMatchers.instanceOf(ChunkedTextEmbeddingFloatResults.class));
+                var floatResult = (ChunkedTextEmbeddingFloatResults) results.get(1);
+                assertThat(floatResult.chunks(), hasSize(1));
+                assertEquals("bar", floatResult.chunks().get(0).matchedText());
+                assertEquals(List.of(0.223f, -0.223f), floatResult.chunks().get(0).embedding());
+            }
 
-            assertThat(
-                asMapWithListsInsteadOfArrays((ChunkedTextEmbeddingResults) result),
-                Matchers.is(
-                    Map.of(
-                        ChunkedTextEmbeddingResults.FIELD_NAME,
-                        List.of(
-                            Map.of(
-                                ChunkedNlpInferenceResults.TEXT,
-                                "abc",
-                                ChunkedNlpInferenceResults.INFERENCE,
-                                List.of((double) 0.123f, (double) -0.123f)
-                            )
-                        )
-                    )
-                )
-            );
             assertThat(webServer.requests(), hasSize(1));
             assertNull(webServer.requests().get(0).getUri().getQuery());
             assertThat(webServer.requests().get(0).getHeader(HttpHeaders.CONTENT_TYPE), equalTo(XContentType.JSON.mediaType()));
@@ -1279,7 +1284,7 @@ public class OpenAiServiceTests extends ESTestCase {
 
             var requestMap = entityAsMap(webServer.requests().get(0).getBody());
             assertThat(requestMap.size(), Matchers.is(3));
-            assertThat(requestMap.get("input"), Matchers.is(List.of("abc")));
+            assertThat(requestMap.get("input"), Matchers.is(List.of("foo", "bar")));
             assertThat(requestMap.get("model"), Matchers.is("model"));
             assertThat(requestMap.get("user"), Matchers.is("user"));
         }

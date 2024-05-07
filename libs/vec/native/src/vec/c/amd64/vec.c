@@ -13,12 +13,12 @@
 #include <emmintrin.h>
 #include <immintrin.h>
 
-#ifndef DOT8_STRIDE_BYTES_LEN
-#define DOT8_STRIDE_BYTES_LEN 32
+#ifndef DOT7U_STRIDE_BYTES_LEN
+#define DOT7U_STRIDE_BYTES_LEN 32 // Must be a power of 2
 #endif
 
-#ifndef SQR8S_STRIDE_BYTES_LEN
-#define SQR8S_STRIDE_BYTES_LEN 16
+#ifndef SQR7U_STRIDE_BYTES_LEN
+#define SQR7U_STRIDE_BYTES_LEN 32 // Must be a power of 2
 #endif
 
 #ifdef _MSC_VER
@@ -74,59 +74,76 @@ EXPORT int vec_caps() {
     return 0;
 }
 
-EXPORT int dot8s_stride() {
-    return DOT8_STRIDE_BYTES_LEN;
-}
-
-EXPORT int sqr8s_stride() {
-    return SQR8S_STRIDE_BYTES_LEN;
-}
-
-EXPORT int32_t dot8s(int8_t* a, int8_t* b, size_t dims) {
+int32_t dot7u_inner(int8_t* a, int8_t* b, size_t dims) {
     // Init accumulator(s) with 0
     __m256i acc1 = _mm256_setzero_si256();
-    __m256i acc2 = _mm256_setzero_si256();
 
-    for(int i = 0; i < dims; i += DOT8_STRIDE_BYTES_LEN) {
-        // Load 32 packed 8-bit integers
-        __m128i va1 = _mm_lddqu_si128(a + i);
-        __m128i va2 = _mm_lddqu_si128(a + i + 16);
-        __m128i vb1 = _mm_lddqu_si128(b + i);
-        __m128i vb2 = _mm_lddqu_si128(b + i + 16);
+#pragma GCC unroll 4
+    for(int i = 0; i < dims; i += DOT7U_STRIDE_BYTES_LEN) {
+        // Load packed 8-bit integers
+        __m256i va1 = _mm256_loadu_si256(a + i);
+        __m256i vb1 = _mm256_loadu_si256(b + i);
 
-        // Sign extend packed 8-bit integers into packed 16-bit integers
-        const __m256i va1w = _mm256_cvtepi8_epi16(va1);
-        const __m256i va2w = _mm256_cvtepi8_epi16(va2);
-        const __m256i vb1w = _mm256_cvtepi8_epi16(vb1);
-        const __m256i vb2w = _mm256_cvtepi8_epi16(vb2);
-
-        // Vertically multiply each signed 16-bit integer from va* with the corresponding
-        // signed 16-bit integer from vb*, producing intermediate signed 32-bit integers.
-        // Horizontally add adjacent pairs of intermediate signed 32-bit integers, and pack the results.
-        acc1 = _mm256_add_epi32(_mm256_madd_epi16(va1w, vb1w), acc1);
-        acc2 = _mm256_add_epi32(_mm256_madd_epi16(va2w, vb2w), acc2);
+        // Perform multiplication and create 16-bit values
+        // Vertically multiply each unsigned 8-bit integer from va with the corresponding
+        // 8-bit integer from vb, producing intermediate signed 16-bit integers.
+        va1 = _mm256_maddubs_epi16(va1, vb1);
+        const __m256i ones = _mm256_set1_epi16(1);
+        // Horizontally add adjacent pairs of intermediate signed 16-bit integers, and pack the results.
+        acc1 = _mm256_add_epi32(_mm256_madd_epi16(ones, va1), acc1);
     }
 
-    // reduce (accumulate all)
-    return hsum_i32_8(_mm256_add_epi32(acc1, acc2));
+    // reduce (horizontally add all)
+    return hsum_i32_8(acc1);
 }
 
-EXPORT int32_t sqr8s(int8_t *a, int8_t *b, size_t dims) {
+EXPORT int32_t dot7u(int8_t* a, int8_t* b, size_t dims) {
+    int32_t res = 0;
+    int i = 0;
+    if (dims > DOT7U_STRIDE_BYTES_LEN) {
+        i += dims & ~(DOT7U_STRIDE_BYTES_LEN - 1);
+        res = dot7u_inner(a, b, i);
+    }
+    for (; i < dims; i++) {
+        res += a[i] * b[i];
+    }
+    return res;
+}
+
+EXPORT int32_t sqr7u_inner(int8_t *a, int8_t *b, size_t dims) {
     // Init accumulator(s) with 0
     __m256i acc1 = _mm256_setzero_si256();
 
-    for(int i = 0; i < dims; i += SQR8S_STRIDE_BYTES_LEN) {
-        // Load 16 packed 8-bit integers
-        __m128i va = _mm_lddqu_si128(a + i);
-        __m128i vb = _mm_lddqu_si128(b + i);
+    const __m256i ones = _mm256_set1_epi16(1);
 
-        const __m256i dist = _mm256_sub_epi16(_mm256_cvtepi8_epi16(va), _mm256_cvtepi8_epi16(vb));
+#pragma GCC unroll 4
+    for(int i = 0; i < dims; i += SQR7U_STRIDE_BYTES_LEN) {
+        // Load packed 8-bit integers
+        __m256i va1 = _mm256_loadu_si256(a + i);
+        __m256i vb1 = _mm256_loadu_si256(b + i);
 
-        const __m256i sqr_add = _mm256_madd_epi16(dist, dist);
-        acc1 = _mm256_add_epi32(sqr_add, acc1);
+        const __m256i dist1 = _mm256_sub_epi8(va1, vb1);
+        const __m256i abs_dist1 = _mm256_sign_epi8(dist1, dist1);
+
+        const __m256i sqr1 = _mm256_maddubs_epi16(abs_dist1, abs_dist1);
+        acc1 = _mm256_add_epi32(_mm256_madd_epi16(ones, sqr1), acc1);
     }
 
     // reduce (accumulate all)
     return hsum_i32_8(acc1);
+}
+
+EXPORT int32_t sqr7u(int8_t* a, int8_t* b, size_t dims) {
+    int32_t res = 0;
+    int i = 0;
+    if (i > SQR7U_STRIDE_BYTES_LEN) {
+        i += dims & ~(SQR7U_STRIDE_BYTES_LEN - 1);
+        res = sqr7u_inner(a, b, i);
+    }
+    for (; i < dims; i++) {
+        int32_t dist = a[i] - b[i];
+        res += dist * dist;
+    }
+    return res;
 }
 

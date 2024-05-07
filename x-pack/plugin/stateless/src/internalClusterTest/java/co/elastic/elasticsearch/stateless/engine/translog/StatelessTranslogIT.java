@@ -327,6 +327,7 @@ public class StatelessTranslogIT extends AbstractStatelessIntegTestCase {
             + "co.elastic.elasticsearch.stateless.engine.translog.TranslogReplicatorReader:debug",
         reason = "to ensure we translog events on DEBUG level"
     )
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch-serverless/issues/1858")
     public void testTranslogIsolatedNodeOnlyStressRecoveryTest() throws Exception {
         Settings isolatedNodeSettings = addIsolatedNodeSettings(Settings.builder()).build();
         runStressTest(2, isolatedNodeSettings, Failures.ISOLATED_INDEXING_NODE);

@@ -42,7 +42,6 @@ import static org.elasticsearch.xpack.security.support.SecurityIndexManager.SECU
 public class SecuritySystemIndices {
 
     public static final int INTERNAL_MAIN_INDEX_FORMAT = 6;
-    public static final int INTERNAL_MAIN_INDEX_MAPPINGS_FORMAT = SecurityMainIndexMappingVersion.latest().id;
     private static final int INTERNAL_TOKENS_INDEX_FORMAT = 7;
     private static final int INTERNAL_TOKENS_INDEX_MAPPINGS_FORMAT = 1;
     private static final int INTERNAL_PROFILE_INDEX_FORMAT = 8;
@@ -1029,7 +1028,9 @@ public class SecuritySystemIndices {
 
         ;
 
-        private static final SecurityMainIndexMappingVersion LATEST = Arrays.stream(values()).max(Comparator.comparingInt(v -> v.id)).get();
+        private static final SecurityMainIndexMappingVersion LATEST = Arrays.stream(values())
+            .max(Comparator.comparingInt(v -> v.id))
+            .orElseThrow();
 
         private final int id;
 
@@ -1047,5 +1048,4 @@ public class SecuritySystemIndices {
             return LATEST;
         }
     }
-
 }

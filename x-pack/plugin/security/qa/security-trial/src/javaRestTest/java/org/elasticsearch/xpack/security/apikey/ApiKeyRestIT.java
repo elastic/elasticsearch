@@ -97,7 +97,7 @@ public class ApiKeyRestIT extends SecurityOnTrialLicenseRestTestCase {
         createUser(MANAGE_API_KEY_USER, END_USER_PASSWORD, List.of("manage_api_key_role"));
         createRole("manage_api_key_role", Set.of("manage_api_key"));
         createUser(MANAGE_SECURITY_USER, END_USER_PASSWORD, List.of("manage_security_role"));
-        createRole("manage_security_role", Set.of("manage_security"), "Allows all security-related operations!");
+        createRoleWithDescription("manage_security_role", Set.of("manage_security"), "Allows all security-related operations!");
     }
 
     @After
@@ -2324,6 +2324,24 @@ public class ApiKeyRestIT extends SecurityOnTrialLicenseRestTestCase {
             ),
             null,
             null
+        );
+        getSecurityClient().putRole(role);
+    }
+
+    protected void createRoleWithDescription(String name, Collection<String> clusterPrivileges, String description) throws IOException {
+        final RoleDescriptor role = new RoleDescriptor(
+            name,
+            clusterPrivileges.toArray(String[]::new),
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            description
         );
         getSecurityClient().putRole(role);
     }

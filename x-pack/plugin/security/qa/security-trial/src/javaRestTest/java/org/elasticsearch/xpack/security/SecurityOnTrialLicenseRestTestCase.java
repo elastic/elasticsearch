@@ -84,10 +84,6 @@ public abstract class SecurityOnTrialLicenseRestTestCase extends ESRestTestCase 
     }
 
     protected void createRole(String name, Collection<String> clusterPrivileges) throws IOException {
-        this.createRole(name, clusterPrivileges, null);
-    }
-
-    protected void createRole(String name, Collection<String> clusterPrivileges, String description) throws IOException {
         final RoleDescriptor role = new RoleDescriptor(
             name,
             clusterPrivileges.toArray(String[]::new),
@@ -100,7 +96,7 @@ public abstract class SecurityOnTrialLicenseRestTestCase extends ESRestTestCase 
             null,
             null,
             null,
-            description
+            null
         );
         getSecurityClient().putRole(role);
     }

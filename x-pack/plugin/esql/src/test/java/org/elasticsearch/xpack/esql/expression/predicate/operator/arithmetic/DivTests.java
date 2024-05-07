@@ -16,6 +16,7 @@ import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.type.DataTypes;
+import org.hamcrest.Matcher;
 
 import java.math.BigInteger;
 import java.util.ArrayList;
@@ -23,6 +24,8 @@ import java.util.List;
 import java.util.Set;
 import java.util.function.BiFunction;
 import java.util.function.Supplier;
+
+import static org.hamcrest.Matchers.equalTo;
 
 public class DivTests extends AbstractFunctionTestCase {
     public DivTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
@@ -116,16 +119,18 @@ public class DivTests extends AbstractFunctionTestCase {
             for (DataType rhsType : numericTypes) {
                 DataType expected = TestCaseSupplier.widen(lhsType, rhsType);
                 TestCaseSupplier.NumericTypeTestConfig<Number> expectedTypeStuff = typeStuff.get(expected);
-                BiFunction<DataType, DataType, String> evaluatorToString = (lhs, rhs) -> expectedTypeStuff.evaluatorName()
-                    + "["
-                    + "lhs"
-                    + "="
-                    + TestCaseSupplier.getCastEvaluator("Attribute[channel=0]", lhs, expected)
-                    + ", "
-                    + "rhs"
-                    + "="
-                    + TestCaseSupplier.getCastEvaluator("Attribute[channel=1]", rhs, expected)
-                    + "]";
+                BiFunction<DataType, DataType, Matcher<String>> evaluatorToString = (lhs, rhs) -> equalTo(
+                    expectedTypeStuff.evaluatorName()
+                        + "["
+                        + "lhs"
+                        + "="
+                        + TestCaseSupplier.getCastEvaluator("Attribute[channel=0]", lhs, expected)
+                        + ", "
+                        + "rhs"
+                        + "="
+                        + TestCaseSupplier.getCastEvaluator("Attribute[channel=1]", rhs, expected)
+                        + "]"
+                );
                 TestCaseSupplier.casesCrossProduct(
                     (l1, r1) -> expectedTypeStuff.expected().apply((Number) l1, (Number) r1),
                     TestCaseSupplier.getSuppliersForNumericType(lhsType, expectedTypeStuff.min(), expectedTypeStuff.max(), true),

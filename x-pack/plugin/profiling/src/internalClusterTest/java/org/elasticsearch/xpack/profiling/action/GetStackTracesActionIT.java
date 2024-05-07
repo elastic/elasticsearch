@@ -28,6 +28,7 @@ public class GetStackTracesActionIT extends ProfilingTestCase {
             null,
             null,
             null,
+            null,
             null
         );
         request.setAdjustSampleCount(true);
@@ -68,6 +69,7 @@ public class GetStackTracesActionIT extends ProfilingTestCase {
             null,
             null,
             "service.name",
+            null,
             null,
             null,
             null,
@@ -116,11 +118,12 @@ public class GetStackTracesActionIT extends ProfilingTestCase {
             null,
             null,
             null,
+            null,
             null
         );
         request.setAdjustSampleCount(true);
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, client().execute(GetStackTracesAction.INSTANCE, request));
-        assertEquals("Requested custom event aggregation field [service.names] but only [service.name] is supported.", e.getMessage());
+        assertEquals("Requested custom event aggregation fields [service.names] but only [service.name] is supported.", e.getMessage());
     }
 
     public void testGetStackTracesFromAPMWithMatchNoDownsampling() throws Exception {
@@ -138,6 +141,7 @@ public class GetStackTracesActionIT extends ProfilingTestCase {
             new String[] { "apm-test-*", "apm-legacy-test-*" },
             "transaction.profiler_stack_trace_ids",
             "transaction.name",
+            null,
             null,
             null,
             null,
@@ -182,6 +186,7 @@ public class GetStackTracesActionIT extends ProfilingTestCase {
             query,
             new String[] { "apm-test-*" },
             "transaction.profiler_stack_trace_ids",
+            null,
             null,
             null,
             null,
@@ -237,6 +242,7 @@ public class GetStackTracesActionIT extends ProfilingTestCase {
             null,
             null,
             null,
+            null,
             null
         );
         GetStackTracesResponse response = client().execute(GetStackTracesAction.INSTANCE, request).get();
@@ -259,6 +265,7 @@ public class GetStackTracesActionIT extends ProfilingTestCase {
             null,
             null,
             null,
+            null,
             null
         );
         GetStackTracesResponse response = client().execute(GetStackTracesAction.INSTANCE, request).get();
@@ -276,6 +283,7 @@ public class GetStackTracesActionIT extends ProfilingTestCase {
             query,
             new String[] { "apm-legacy-test-*" },
             "transaction.profiler_stack_trace_ids",
+            null,
             null,
             null,
             null,

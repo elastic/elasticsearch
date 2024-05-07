@@ -7,12 +7,61 @@
 
 package org.elasticsearch.xpack.profiling.action;
 
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentType;
+
+import java.io.IOException;
+
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXContentEquivalent;
 
 public class SubGroupTests extends ESTestCase {
+    public void testToXContent() throws IOException {
+        XContentType contentType = randomFrom(XContentType.values());
+        // tag::noformat
+        XContentBuilder expectedRequest = XContentFactory.contentBuilder(contentType)
+            .startObject()
+                .startObject("transaction.name")
+                    .startObject("basket")
+                        .field("count", 7L)
+                    .endObject()
+                .endObject()
+            .endObject();
+        // end::noformat
+
+        XContentBuilder actualRequest = XContentFactory.contentBuilder(contentType);
+        actualRequest.startObject();
+        SubGroup g = SubGroup.root("transaction.name", false).addCount("basket", 7L);
+        g.toXContent(actualRequest, ToXContent.EMPTY_PARAMS);
+        actualRequest.endObject();
+
+        assertToXContentEquivalent(BytesReference.bytes(expectedRequest), BytesReference.bytes(actualRequest), contentType);
+    }
+
+    public void testRenderLegacyXContent() throws IOException {
+        XContentType contentType = randomFrom(XContentType.values());
+        // tag::noformat
+        XContentBuilder expectedRequest = XContentFactory.contentBuilder(contentType)
+            .startObject()
+                .field("basket", 7L)
+            .endObject();
+        // end::noformat
+
+        XContentBuilder actualRequest = XContentFactory.contentBuilder(contentType);
+        actualRequest.startObject();
+        SubGroup g = SubGroup.root("transaction.name", true).addCount("basket", 7L);
+        g.toXContent(actualRequest, ToXContent.EMPTY_PARAMS);
+        actualRequest.endObject();
+
+        assertToXContentEquivalent(BytesReference.bytes(expectedRequest), BytesReference.bytes(actualRequest), contentType);
+    }
+
     public void testMergeNoCommonRoot() {
-        SubGroup root1 = SubGroup.root("transaction.name");
-        SubGroup root2 = SubGroup.root("service.name");
+        SubGroup root1 = SubGroup.root("transaction.name", false);
+        SubGroup root2 = SubGroup.root("service.name", false);
 
         SubGroup toMerge = root1.copy();
 
@@ -22,7 +71,7 @@ public class SubGroupTests extends ESTestCase {
     }
 
     public void testMergeIdenticalTree() {
-        SubGroup g = SubGroup.root("transaction.name");
+        SubGroup g = SubGroup.root("transaction.name", false);
         g.addCount("basket", 5L);
         g.addCount("checkout", 7L);
 
@@ -35,11 +84,11 @@ public class SubGroupTests extends ESTestCase {
     }
 
     public void testMergeMixedTree() {
-        SubGroup g1 = SubGroup.root("transaction.name");
+        SubGroup g1 = SubGroup.root("transaction.name", false);
         g1.addCount("basket", 5L);
         g1.addCount("checkout", 7L);
 
-        SubGroup g2 = SubGroup.root("transaction.name");
+        SubGroup g2 = SubGroup.root("transaction.name", false);
         g2.addCount("catalog", 8L);
         g2.addCount("basket", 5L);
         g2.addCount("checkout", 2L);

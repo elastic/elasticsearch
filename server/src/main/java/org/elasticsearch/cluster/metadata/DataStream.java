@@ -74,7 +74,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
     public static final TransportVersion ADDED_AUTO_SHARDING_EVENT_VERSION = TransportVersions.DATA_STREAM_AUTO_SHARDING_EVENT;
 
     public static boolean isFailureStoreFeatureFlagEnabled() {
-        return FAILURE_STORE_FEATURE_FLAG.isEnabled();
+        return true;
     }
 
     public static final String BACKING_INDEX_PREFIX = ".ds-";

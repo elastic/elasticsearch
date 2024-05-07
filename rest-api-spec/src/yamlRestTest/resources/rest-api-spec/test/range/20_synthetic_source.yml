@@ -1,6 +1,6 @@
 setup:
-  - skip:
-      version: " - 8.14.99"
+  - requires:
+      cluster_features: "gte_v8.15.0"
       reason: synthetic source support added in 8.15
 
   - do:
@@ -515,7 +515,7 @@ setup:
         id: "7"
   - match:
       _source:
-        ip_range: { "gte": "0.0.0.0", "lte": "10.10.10.10" }
+        ip_range: { "gte": "::", "lte": "10.10.10.10" }
 
   - do:
       get:

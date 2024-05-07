@@ -30,22 +30,22 @@ import java.util.Objects;
  */
 public abstract class RankBuilder implements VersionedNamedWriteable, ToXContentObject {
 
-    public static final ParseField WINDOW_SIZE_FIELD = new ParseField("window_size");
+    public static final ParseField RANK_WINDOW_SIZE_FIELD = new ParseField("rank_window_size");
 
     public static final int DEFAULT_WINDOW_SIZE = SearchService.DEFAULT_SIZE;
 
-    private final int windowSize;
+    private final int rankWindowSize;
 
-    public RankBuilder(int windowSize) {
-        this.windowSize = windowSize;
+    public RankBuilder(int rankWindowSize) {
+        this.rankWindowSize = rankWindowSize;
     }
 
     public RankBuilder(StreamInput in) throws IOException {
-        windowSize = in.readVInt();
+        rankWindowSize = in.readVInt();
     }
 
     public final void writeTo(StreamOutput out) throws IOException {
-        out.writeVInt(windowSize);
+        out.writeVInt(rankWindowSize);
         doWriteTo(out);
     }
 
@@ -55,7 +55,7 @@ public abstract class RankBuilder implements VersionedNamedWriteable, ToXContent
     public final XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         builder.startObject(getWriteableName());
-        builder.field(WINDOW_SIZE_FIELD.getPreferredName(), windowSize);
+        builder.field(RANK_WINDOW_SIZE_FIELD.getPreferredName(), rankWindowSize);
         doXContent(builder, params);
         builder.endObject();
         builder.endObject();
@@ -64,8 +64,8 @@ public abstract class RankBuilder implements VersionedNamedWriteable, ToXContent
 
     protected abstract void doXContent(XContentBuilder builder, Params params) throws IOException;
 
-    public int windowSize() {
-        return windowSize;
+    public int rankWindowSize() {
+        return rankWindowSize;
     }
 
     /**
@@ -88,14 +88,14 @@ public abstract class RankBuilder implements VersionedNamedWriteable, ToXContent
         }
         @SuppressWarnings("unchecked")
         RankBuilder other = (RankBuilder) obj;
-        return Objects.equals(windowSize, other.windowSize()) && doEquals(other);
+        return Objects.equals(rankWindowSize, other.rankWindowSize()) && doEquals(other);
     }
 
     protected abstract boolean doEquals(RankBuilder other);
 
     @Override
     public final int hashCode() {
-        return Objects.hash(getClass(), windowSize, doHashCode());
+        return Objects.hash(getClass(), rankWindowSize, doHashCode());
     }
 
     protected abstract int doHashCode();

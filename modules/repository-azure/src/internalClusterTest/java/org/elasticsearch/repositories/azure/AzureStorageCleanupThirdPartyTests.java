@@ -14,7 +14,6 @@ import com.azure.storage.blob.BlobContainerClient;
 import com.azure.storage.blob.BlobServiceClient;
 import com.azure.storage.blob.models.BlobStorageException;
 
-import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
@@ -41,7 +40,6 @@ import static org.hamcrest.Matchers.blankOrNullString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
 
-@LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/107720")
 public class AzureStorageCleanupThirdPartyTests extends AbstractThirdPartyRepositoryTestCase {
     private static final boolean USE_FIXTURE = Booleans.parseBoolean(System.getProperty("test.azure.fixture", "true"));
 
@@ -51,6 +49,31 @@ public class AzureStorageCleanupThirdPartyTests extends AbstractThirdPartyReposi
         System.getProperty("test.azure.account"),
         System.getProperty("test.azure.container")
     );
+
+    @Override
+    public void testCreateSnapshot() {
+        super.testCreateSnapshot();
+    }
+
+    @Override
+    public void testIndexLatest() throws Exception {
+        super.testIndexLatest();
+    }
+
+    @Override
+    public void testListChildren() {
+        super.testListChildren();
+    }
+
+    @Override
+    public void testCleanup() throws Exception {
+        super.testCleanup();
+    }
+
+    @Override
+    public void testReadFromPositionWithLength() {
+        super.testReadFromPositionWithLength();
+    }
 
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {

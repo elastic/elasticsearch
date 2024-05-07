@@ -20,7 +20,6 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.shard.ShardId;
 
 import java.io.IOException;
-import java.util.concurrent.TimeUnit;
 
 // TODO: This request and its associated transport action can be folded into UpdateRequest which is its only concrete production code
 //       implementation
@@ -28,7 +27,7 @@ public abstract class InstanceShardOperationRequest<Request extends InstanceShar
     implements
         IndicesRequest {
 
-    public static final TimeValue DEFAULT_TIMEOUT = new TimeValue(1, TimeUnit.MINUTES);
+    public static final TimeValue DEFAULT_TIMEOUT = TimeValue.timeValueMinutes(1);
 
     protected TimeValue timeout = DEFAULT_TIMEOUT;
 
@@ -104,13 +103,6 @@ public abstract class InstanceShardOperationRequest<Request extends InstanceShar
     public final Request timeout(TimeValue timeout) {
         this.timeout = timeout;
         return (Request) this;
-    }
-
-    /**
-     * A timeout to wait if the index operation can't be performed immediately. Defaults to {@code 1m}.
-     */
-    public final Request timeout(String timeout) {
-        return timeout(TimeValue.parseTimeValue(timeout, null, getClass().getSimpleName() + ".timeout"));
     }
 
     public String concreteIndex() {

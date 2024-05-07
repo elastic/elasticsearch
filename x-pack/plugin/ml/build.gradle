@@ -1,6 +1,5 @@
 import org.elasticsearch.gradle.VersionProperties
 import org.elasticsearch.gradle.internal.dra.DraResolvePlugin
-import org.elasticsearch.gradle.internal.info.BuildParams
 
 apply plugin: 'elasticsearch.internal-es-plugin'
 apply plugin: 'elasticsearch.internal-cluster-test'
@@ -113,12 +112,6 @@ dependencies {
 artifacts {
   // normal es plugins do not publish the jar but we need to since users need it for extensions
   archives tasks.named("jar")
-}
-
-if (BuildParams.isSnapshotBuild() == false) {
-  tasks.named("test").configure {
-    systemProperty 'es.semantic_text_feature_flag_enabled', 'true'
-  }
 }
 
 tasks.register("extractNativeLicenses", Copy) {

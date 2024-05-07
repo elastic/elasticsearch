@@ -42,7 +42,7 @@ public interface CacheBlobReader {
      *
      * @param position            the position of the range to read into the cache
      * @param length              the length of the range to read into the cache
-     * @param remainingFileLength the remaining length of the file, those bytes are guaranteed to be avaialable.
+     * @param remainingFileLength the remaining length of the file, those bytes are guaranteed to be available.
      * @return the range to read into the cache
      */
     ByteRange getRange(long position, int length, long remainingFileLength);

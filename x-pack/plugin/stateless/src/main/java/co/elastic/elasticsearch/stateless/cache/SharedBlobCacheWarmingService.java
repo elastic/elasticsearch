@@ -97,6 +97,7 @@ public class SharedBlobCacheWarmingService {
         private final BlobRegion blobRegion;
         private final PriorityBlockingQueue<BlobRange> queue = new PriorityBlockingQueue<>();
         private final AtomicInteger counter = new AtomicInteger();
+        private final AtomicLong maxBlobLength = new AtomicLong();
 
         BlobRangesQueue(BlobRegion blobRegion) {
             this.blobRegion = Objects.requireNonNull(blobRegion);
@@ -114,8 +115,8 @@ public class SharedBlobCacheWarmingService {
          * @return {@code true} if a warming task must be created to warm the range, {@code false} otherwise
          */
         private boolean add(String fileName, BlobLocation blobLocation, long position, long length, ActionListener<Void> listener) {
+            maxBlobLength.accumulateAndGet(blobLocation.offset() + blobLocation.fileLength(), Math::max);
             queue.add(new BlobRange(fileName, blobLocation, position, length, listener));
-            // TODO Can we capture the max. seen file length here and use it to later fetch range?
             return counter.incrementAndGet() == 1;
         }
     }
@@ -486,7 +487,7 @@ public class SharedBlobCacheWarmingService {
                             var range = cacheBlobReader.getRange(
                                 item.position(),
                                 Math.toIntExact(item.length()),
-                                blobLocation.offset() + blobLocation.fileLength() - item.position()
+                                queue.maxBlobLength.get() - item.position()
                             );
                             cacheService.maybeFetchRange(
                                 cacheKey,

@@ -112,8 +112,6 @@ tasks {
                 excludeTestsMatching("*.StatelessSearchIT.testConcurrentFlushAndMultipleRefreshesWillSetMaxUploadGenOnlyOnce")
                 excludeTestsMatching("*.StatelessSearchIT.testSearchShardsNotifiedOnNewCommits")
                 excludeTestsMatching("*.StatelessSearchIT.testSearchWithWaitForCheckpoint")
-                excludeTestsMatching("*.StatelessTranslogIT.testTranslogReplaceOnlyStressRecoveryTest")
-                excludeTestsMatching("*.StatelessTranslogIT.testTranslogRestartOnlyStressRecoveryTest")
                 excludeTestsMatching("*.S3ObjectStoreTests.testShouldNotRetryForNoSuchFileException")
                 excludeTestsMatching("*.S3ObjectStoreTests.testShouldRetryMoreThanMaxRetriesForIndicesData")
                 excludeTestsMatching("*.VirtualBatchedCompoundCommitsIT.testGetVirtualBatchedCompoundCommitChunkOnLastVbcc")

@@ -115,6 +115,11 @@ public class EsqlFeatures implements FeatureSpecification {
      */
     public static final NodeFeature METADATA_FIELDS = new NodeFeature("esql.metadata_fields");
 
+    /**
+     * Cast string literals to a desired data type for IN predicate and more types for BinaryComparison.
+     */
+    public static final NodeFeature STRING_LITERAL_AUTO_CASTING_EXTENDED = new NodeFeature("esql.string_literal_auto_casting_extended");
+
     @Override
     public Set<NodeFeature> getFeatures() {
         return Set.of(
@@ -132,7 +137,8 @@ public class EsqlFeatures implements FeatureSpecification {
             ST_CONTAINS_WITHIN,
             ST_DISJOINT,
             STRING_LITERAL_AUTO_CASTING,
-            METADATA_FIELDS
+            METADATA_FIELDS,
+            STRING_LITERAL_AUTO_CASTING_EXTENDED
         );
     }
 

@@ -60,7 +60,7 @@ idle and can be closed and removed from the shared connection pool. Defaults to 
 the queue is full and a request is sent to the {infer} API, it will be rejected. Defaults to `2000`.
 
 [[xpack-inference-http-retry-settings]]
-==== Inference API HTTP Retry settings
+==== {infer-cap} API HTTP Retry settings
 
 When a third-party service returns a transient failure code (for example, 429), the request is retried by the {infer}
 API. These settings govern the retry behavior. When a request is retried, exponential backoff is used.

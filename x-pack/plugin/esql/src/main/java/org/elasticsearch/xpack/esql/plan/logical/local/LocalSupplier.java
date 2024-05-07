@@ -59,8 +59,8 @@ public interface LocalSupplier extends Supplier<Block[]>, Writeable {
         return new ImmediateLocalSupplier(blocks);
     }
 
-    static LocalSupplier readFrom(StreamInput in) throws IOException {
-        Block[] blocks = ((PlanStreamInput) in).readCachedBlockArray();
+    static LocalSupplier readFrom(PlanStreamInput in) throws IOException {
+        Block[] blocks = in.readCachedBlockArray();
         return blocks.length == 0 ? EMPTY : of(blocks);
     }
 }

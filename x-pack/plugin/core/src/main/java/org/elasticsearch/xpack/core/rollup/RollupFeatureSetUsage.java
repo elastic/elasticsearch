@@ -21,26 +21,19 @@ import static org.elasticsearch.TransportVersions.ROLLUP_USAGE;
 public class RollupFeatureSetUsage extends XPackFeatureSet.Usage {
 
     private final int numberOfRollupJobs;
-    private final int numberOfRollupIndices;
 
     public RollupFeatureSetUsage(StreamInput input) throws IOException {
         super(input);
         this.numberOfRollupJobs = input.getTransportVersion().onOrAfter(ROLLUP_USAGE) ? input.readVInt() : 0;
-        this.numberOfRollupIndices = input.getTransportVersion().onOrAfter(ROLLUP_USAGE) ? input.readVInt() : 0;
     }
 
-    public RollupFeatureSetUsage(int numberOfRollupIndices, int numberOfRollupJobs) {
+    public RollupFeatureSetUsage(int numberOfRollupJobs) {
         super(XPackField.ROLLUP, true, true);
         this.numberOfRollupJobs = numberOfRollupJobs;
-        this.numberOfRollupIndices = numberOfRollupIndices;
     }
 
     public int getNumberOfRollupJobs() {
         return numberOfRollupJobs;
-    }
-
-    public int getNumberOfRollupIndices() {
-        return numberOfRollupIndices;
     }
 
     @Override
@@ -49,16 +42,12 @@ public class RollupFeatureSetUsage extends XPackFeatureSet.Usage {
         if (out.getTransportVersion().onOrAfter(ROLLUP_USAGE)) {
             out.writeVInt(numberOfRollupJobs);
         }
-        if (out.getTransportVersion().onOrAfter(ROLLUP_USAGE)) {
-            out.writeVInt(numberOfRollupIndices);
-        }
     }
 
     @Override
     protected void innerXContent(XContentBuilder builder, Params params) throws IOException {
         super.innerXContent(builder, params);
         builder.field("number_of_rollup_jobs", numberOfRollupJobs);
-        builder.field("number_of_rollup_indices", numberOfRollupIndices);
     }
 
     @Override

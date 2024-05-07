@@ -52,7 +52,6 @@ public class RollupInfoTransportActionTests extends ESTestCase {
         assertThat(rollupUsage.enabled(), is(serializedUsage.enabled()));
         assertThat(rollupUsage.enabled(), is(serializedUsage.enabled()));
         assertThat(rollupUsage.getNumberOfRollupJobs(), equalTo(serializedUsage.getNumberOfRollupJobs()));
-        assertThat(rollupUsage.getNumberOfRollupIndices(), equalTo(serializedUsage.getNumberOfRollupIndices()));
     }
 
 }

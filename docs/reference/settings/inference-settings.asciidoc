@@ -30,7 +30,7 @@ message can be logged again. Defaults to one hour (`1h`).
 
 [[xpack-inference-http-settings]]
 // tag::inference-http-settings[]
-==== Inference API HTTP settings
+==== {infer-cap} API HTTP settings
 
 `xpack.inference.http.max_response_size`::
 (<<cluster-update-settings,Dynamic>>) Specifies the maximum size in bytes an HTTP response is allowed to have,

@@ -76,6 +76,15 @@ setup:
 ---
 "Inference fields do not create new mappings":
   - do:
+      index:
+        index: test-index
+        id: doc_1
+        body:
+          sparse_field: "inference test"
+          dense_field: "another inference test"
+          non_inference_field: "non inference test"
+
+  - do:
       indices.get_mapping:
         index: test-index
 

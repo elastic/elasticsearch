@@ -1,10 +1,10 @@
 # Distributed Area Internals
 
-The Distributed Area is split into Coordination and Indexing.
+The Distributed Area contains Indexing and Coordination.
 
 Indexing covers the index path, stretching from the user REST command through shard routing down to the translog and storage
-engine. It includes reindexing: copying from a source index to a destination index. Shard recovery and cross cluster replication
-also fall under indexing.
+engine. Reindexing is effectively reading from a source index and writing to a destination index. Shard recovery and cross
+cluster replication also fall under indexing.
 
 Coordination encompasses the distributed components relating to cluster coordination, networking, shard allocation decisions
 (i.e. the balancer algorithms), cluster autoscaling stats, the discovery plugin system, task management, and snapshot/restore.
@@ -263,10 +263,11 @@ works in parallel with the storage engine.)
 
 # Autoscaling
 
-Autoscaling in ES (Elasticsearch) is not an active process that moves data on its own initiative, but
-rather a recommendation system using cluster and node level statistics. ES Autoscaling is paired with
-an ES Cloud service that periodically polls the ES elected master node for suggested cluster changes.
-The cloud service will add more servers/nodes, or increase the resources of existing nodes.
+The Autoscaling API in ES (Elasticsearch) uses cluster and node level statistics to provide a recommendation
+for a cluster size to support the current cluster data and active workloads. ES Autoscaling is paired
+with an ES Cloud service that periodically polls the ES elected master node for suggested cluster
+changes. The cloud service will add more servers/nodes, or increase the resources of existing nodes.
+Elasticsearch by itself cannot automatically scale.
 
 Autoscaling recommendations are tailored for the user [based on user defined policies][], composed of data
 roles (hot, frozen, etc) and [deciders][]. There's a public [webinar on autoscaling][], as well as the
@@ -341,7 +342,7 @@ threshold settings with which the `DiskThresholdMonitor` runs.
 
 ### Deciders
 
-The `ReactiveStorageDeciderService` uses tracks information that demonstrates storage limitations are causing
+The `ReactiveStorageDeciderService` tracks information that demonstrates storage limitations are causing
 problems in the cluster. It uses [an algorithm defined here][]. Some examples are
 - information from the `DiskThresholdMonitor` to find out whether nodes are exceeding their storage capacity
 - number of unassigned shards that failed allocation because of insufficient storage
@@ -357,7 +358,7 @@ took place within the forecast window to [predict][] resources that will be need
 [index changes]: https://github.com/elastic/elasticsearch/blob/8.13/x-pack/plugin/autoscaling/src/main/java/org/elasticsearch/xpack/autoscaling/storage/ProactiveStorageDeciderService.java#L79-L82
 [predict]: https://github.com/elastic/elasticsearch/blob/8.13/x-pack/plugin/autoscaling/src/main/java/org/elasticsearch/xpack/autoscaling/storage/ProactiveStorageDeciderService.java#L85-L95
 
-There are several more Decider Services: grep for `implements AutoscalingDeciderService`.
+There are several more Decider Services: look for `AutoscalingDeciderService` implementations.
 
 # Snapshot / Restore
 

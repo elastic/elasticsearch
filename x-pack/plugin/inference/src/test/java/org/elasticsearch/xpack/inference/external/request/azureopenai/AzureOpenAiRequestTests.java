@@ -16,7 +16,8 @@ import org.elasticsearch.xpack.inference.services.azureopenai.AzureOpenAiSecretS
 
 import static org.elasticsearch.xpack.inference.external.request.azureopenai.AzureOpenAiRequest.MISSING_AUTHENTICATION_ERROR_MESSAGE;
 import static org.elasticsearch.xpack.inference.external.request.azureopenai.AzureOpenAiUtils.API_KEY_HEADER;
-import static org.elasticsearch.xpack.inference.services.azureopenai.AzureOpenAiSecretSettings.*;
+import static org.elasticsearch.xpack.inference.services.azureopenai.AzureOpenAiSecretSettings.API_KEY;
+import static org.elasticsearch.xpack.inference.services.azureopenai.AzureOpenAiSecretSettings.ENTRA_ID;
 import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;

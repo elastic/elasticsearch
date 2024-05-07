@@ -963,7 +963,7 @@ public class DataStreamLifecycleServiceIT extends ESIntegTestCase {
     public void testLifecycleAppliedToFailureStore() throws Exception {
         // We configure a lifecycle with downsampling to ensure it doesn't fail
         DataStreamLifecycle lifecycle = DataStreamLifecycle.newBuilder()
-            .dataRetention(2_000)
+            .dataRetention(20_000)
             .downsampling(
                 new DataStreamLifecycle.Downsampling(
                     List.of(
@@ -1034,6 +1034,8 @@ public class DataStreamLifecycleServiceIT extends ESIntegTestCase {
                 is(targetFloor.getStringRep())
             );
         });
+
+        updateLifecycle(dataStreamName, TimeValue.timeValueSeconds(1));
 
         // And finally apply retention
         assertBusy(() -> {

@@ -118,8 +118,10 @@ setup:
                     model_id: sparse-inference-id
                     model_text: "you know, for testing"
 
-  - match: { hits.total.value: 2 }
-  - match: { hits.total.relation: eq }
+  - match:  { hits.total.value: 2 }
+  - match:  { hits.total.relation: eq }
+  - length: { hits.hits.0._source.sparse_field.inference.chunks: 2 }
+  - length: { hits.hits.1._source.sparse_field.inference.chunks: 2 }
 
   # Search with inner hits
   - do:
@@ -139,11 +141,16 @@ setup:
                     model_id: sparse-inference-id
                     model_text: "you know, for testing"
 
-  - match: { hits.total.value: 2 }
-  - match: { hits.total.relation: eq }
-  - match: { hits.hits.0.inner_hits.sparse_field\.inference\.chunks.hits.total.value: 2 }
-  - exists:  hits.hits.0.inner_hits.sparse_field\.inference\.chunks.hits.hits.0.fields.sparse_field\.inference\.chunks.0.text
-  - exists:  hits.hits.0.inner_hits.sparse_field\.inference\.chunks.hits.hits.1.fields.sparse_field\.inference\.chunks.0.text
+  - match:  { hits.total.value: 2 }
+  - match:  { hits.total.relation: eq }
+  - match:  { hits.hits.0.inner_hits.sparse_field\.inference\.chunks.hits.total.value: 2 }
+  - match:  { hits.hits.0.inner_hits.sparse_field\.inference\.chunks.hits.total.value: 2 }
+  - match:  { hits.hits.0.inner_hits.sparse_field\.inference\.chunks.hits.total.relation: eq }
+
+  - length: { hits.hits.0.inner_hits.sparse_field\.inference\.chunks.hits.hits.0.fields.sparse_field\.inference\.chunks.0.text: 1 }
+  - length: { hits.hits.0.inner_hits.sparse_field\.inference\.chunks.hits.hits.1.fields.sparse_field\.inference\.chunks.0.text: 1 }
+  - length: { hits.hits.1.inner_hits.sparse_field\.inference\.chunks.hits.hits.0.fields.sparse_field\.inference\.chunks.0.text: 1 }
+  - length: { hits.hits.1.inner_hits.sparse_field\.inference\.chunks.hits.hits.1.fields.sparse_field\.inference\.chunks.0.text: 1 }
 
 
 ---
@@ -173,8 +180,10 @@ setup:
                       model_id: dense-inference-id
                       model_text: "you know, for testing"
 
-  - match: { hits.total.value: 2 }
-  - match: { hits.total.relation: eq }
+  - match:  { hits.total.value: 2 }
+  - match:  { hits.total.relation: eq }
+  - length: { hits.hits.0._source.dense_field.inference.chunks: 2 }
+  - length: { hits.hits.1._source.dense_field.inference.chunks: 2 }
 
   # Search with inner hits
   - do:
@@ -196,11 +205,17 @@ setup:
                       model_id: dense-inference-id
                       model_text: "you know, for testing"
 
-  - match: { hits.total.value: 2 }
-  - match: { hits.total.relation: eq }
-  - match: { hits.hits.0.inner_hits.dense_field\.inference\.chunks.hits.total.value: 2 }
-  - exists:  hits.hits.0.inner_hits.dense_field\.inference\.chunks.hits.hits.0.fields.dense_field\.inference\.chunks.0.text
-  - exists:  hits.hits.0.inner_hits.dense_field\.inference\.chunks.hits.hits.1.fields.dense_field\.inference\.chunks.0.text
+  - match:  { hits.total.value: 2 }
+  - match:  { hits.total.relation: eq }
+  - match:  { hits.hits.0.inner_hits.dense_field\.inference\.chunks.hits.total.value: 2 }
+  - match:  { hits.hits.0.inner_hits.dense_field\.inference\.chunks.hits.total.value: 2 }
+  - match:  { hits.hits.0.inner_hits.dense_field\.inference\.chunks.hits.total.relation: eq }
+
+  - length: { hits.hits.0.inner_hits.dense_field\.inference\.chunks.hits.hits.0.fields.dense_field\.inference\.chunks.0.text: 1 }
+  - length: { hits.hits.0.inner_hits.dense_field\.inference\.chunks.hits.hits.1.fields.dense_field\.inference\.chunks.0.text: 1 }
+  - length: { hits.hits.1.inner_hits.dense_field\.inference\.chunks.hits.hits.0.fields.dense_field\.inference\.chunks.0.text: 1 }
+  - length: { hits.hits.1.inner_hits.dense_field\.inference\.chunks.hits.hits.1.fields.dense_field\.inference\.chunks.0.text: 1 }
+
 
 
 ---

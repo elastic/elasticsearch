@@ -12,6 +12,7 @@ import org.elasticsearch.common.network.CIDRUtils;
 import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
+import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunction;
@@ -49,10 +50,18 @@ public class CIDRMatch extends EsqlScalarFunction {
     private final Expression ipField;
     private final List<Expression> matches;
 
-    @FunctionInfo(returnType = "boolean", description = "Returns true if the provided IP is contained in one of the provided CIDR blocks.")
+    @FunctionInfo(
+        returnType = "boolean",
+        description = "Returns true if the provided IP is contained in one of the provided CIDR blocks.",
+        examples = @Example(file = "ip", tag = "cdirMatchMultipleArgs")
+    )
     public CIDRMatch(
         Source source,
-        @Param(name = "ip", type = { "ip" }) Expression ipField,
+        @Param(
+            name = "ip",
+            type = { "ip" },
+            description = "IP address of type `ip` (both IPv4 and IPv6 are supported)."
+        ) Expression ipField,
         @Param(name = "blockX", type = { "keyword", "text" }, description = "CIDR block to test the IP against.") List<Expression> matches
     ) {
         super(source, CollectionUtils.combine(singletonList(ipField), matches));

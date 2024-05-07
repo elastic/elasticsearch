@@ -13,6 +13,7 @@ import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags;
 import org.elasticsearch.action.admin.indices.stats.IndexShardStats;
+import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
@@ -26,6 +27,7 @@ import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.env.ShardLockObtainFailedException;
@@ -270,7 +272,7 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
             indicesService.canDeleteShardContent(shardId, test.getIndexSettings()),
             ShardDeletionCheckResult.STILL_ALLOCATED
         );
-        test.removeShard(0, "boom");
+        test.removeShard(0, "boom", EsExecutors.DIRECT_EXECUTOR_SERVICE, ActionTestUtils.assertNoFailureListener(v -> {}));
         assertEquals(
             "shard is removed",
             indicesService.canDeleteShardContent(shardId, test.getIndexSettings()),
@@ -305,6 +307,7 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
         assertNotNull(meta);
         assertNotNull(meta.index("test"));
         assertAcked(client().admin().indices().prepareDelete("test"));
+        awaitIndexShardCloseAsyncTasks();
 
         assertFalse(firstPath.exists());
 

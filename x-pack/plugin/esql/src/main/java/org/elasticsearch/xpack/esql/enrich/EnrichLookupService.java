@@ -29,6 +29,7 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BlockStreamInput;
+import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
@@ -250,9 +251,10 @@ public class EnrichLookupService {
     ) {
         Block inputBlock = inputPage.getBlock(0);
         final IntBlock selectedPositions;
-        if (inputBlock instanceof OrdinalBytesRefBlock ordinalBytesRefBlock) {
-            inputBlock = ordinalBytesRefBlock.getDictionaryVector().asBlock();
-            selectedPositions = ordinalBytesRefBlock.getOrdinalsBlock();
+        final OrdinalBytesRefBlock ordinalsBytesRefBlock;
+        if (inputBlock instanceof BytesRefBlock bytesRefBlock && (ordinalsBytesRefBlock = bytesRefBlock.asOrdinals()) != null) {
+            inputBlock = ordinalsBytesRefBlock.getDictionaryVector().asBlock();
+            selectedPositions = ordinalsBytesRefBlock.getOrdinalsBlock();
             selectedPositions.mustIncRef();
         } else {
             selectedPositions = IntVector.range(0, inputBlock.getPositionCount(), blockFactory).asBlock();

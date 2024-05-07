@@ -2313,7 +2313,12 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             final boolean isSearchableSnapshot = SearchableSnapshotsSettings.isSearchableSnapshotStore(settings);
             final String indexMode = settings.get(IndexSettings.MODE.getKey());
             final boolean isTsdb = indexMode != null && IndexMode.TIME_SERIES.getName().equals(indexMode.toLowerCase(Locale.ROOT));
-            logger.warn("MPXX IndexMetadata creation in Builder for index {}: eventIngestedRange: {}", index, eventIngestedRange);
+            logger.warn(
+                "MPXX IndexMetadata creation in Builder for index {}: eventIngestedRange: {}; timestampRange: {}",
+                index,
+                eventIngestedRange,
+                timestampRange
+            );
             return new IndexMetadata(
                 new Index(index, uuid),
                 version,

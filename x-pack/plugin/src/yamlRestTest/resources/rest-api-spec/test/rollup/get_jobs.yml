@@ -103,8 +103,7 @@ setup:
 "Test get all jobs":
 
   - skip:
-      version: all
-      reason: Job ordering isn't guaranteed right now, cannot test
+      awaits_fix: "Job ordering isn't guaranteed right now, cannot test"
 
   - do:
       headers:

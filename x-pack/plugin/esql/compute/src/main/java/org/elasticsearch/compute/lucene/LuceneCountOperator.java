@@ -21,7 +21,6 @@ import org.elasticsearch.compute.operator.SourceOperator;
 import org.elasticsearch.core.Releasables;
 
 import java.io.IOException;
-import java.io.UncheckedIOException;
 import java.util.List;
 import java.util.function.Function;
 

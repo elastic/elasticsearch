@@ -74,7 +74,6 @@ public abstract class LuceneOperator extends SourceOperator {
         this.sliceQueue = sliceQueue;
     }
 
-
     protected abstract static class Factory implements SourceOperator.SourceOperatorFactory {
         protected final DataPartitioning dataPartitioning;
         protected final int taskConcurrency;

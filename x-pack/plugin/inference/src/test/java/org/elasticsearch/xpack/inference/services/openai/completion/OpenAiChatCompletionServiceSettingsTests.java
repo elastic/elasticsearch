@@ -211,6 +211,19 @@ public class OpenAiChatCompletionServiceSettingsTests extends AbstractWireSerial
             {"model_id":"model","rate_limit":{"requests_per_minute":500}}"""));
     }
 
+    public void testToXContent_WritesAllValues_Except_RateLimit() throws IOException {
+        var serviceSettings = new OpenAiChatCompletionServiceSettings("model", "url", "org", 1024, new RateLimitSettings(2));
+
+        XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
+        var filteredXContent = serviceSettings.getFilteredXContentObject();
+        filteredXContent.toXContent(builder, null);
+        String xContentResult = org.elasticsearch.common.Strings.toString(builder);
+
+        assertThat(xContentResult, is("""
+            {"model_id":"model","url":"url","organization_id":"org",""" + """
+            "max_input_tokens":1024}"""));
+    }
+
     @Override
     protected Writeable.Reader<OpenAiChatCompletionServiceSettings> instanceReader() {
         return OpenAiChatCompletionServiceSettings::new;

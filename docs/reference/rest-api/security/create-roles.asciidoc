@@ -74,7 +74,7 @@ that begin with `_` are reserved for system usage.
 For more information, see
 <<run-as-privilege>>.
 
-`remote_indices`:: beta:[] (list) A list of remote indices permissions entries.
+`remote_indices`:: (list) A list of remote indices permissions entries.
 +
 --
 NOTE: Remote indices are effective for <<remote-clusters-api-key,remote clusters configured with the API key based model>>.

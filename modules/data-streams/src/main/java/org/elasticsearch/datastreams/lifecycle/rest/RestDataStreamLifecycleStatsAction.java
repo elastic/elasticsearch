@@ -19,6 +19,7 @@ import org.elasticsearch.rest.action.RestRefCountedChunkedToXContentListener;
 import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
+import static org.elasticsearch.rest.RestUtils.getMasterNodeTimeout;
 
 @ServerlessScope(Scope.PUBLIC)
 public class RestDataStreamLifecycleStatsAction extends BaseRestHandler {
@@ -36,7 +37,7 @@ public class RestDataStreamLifecycleStatsAction extends BaseRestHandler {
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) {
         GetDataStreamLifecycleStatsAction.Request request = new GetDataStreamLifecycleStatsAction.Request();
-        request.masterNodeTimeout(restRequest.paramAsTime("master_timeout", request.masterNodeTimeout()));
+        request.masterNodeTimeout(getMasterNodeTimeout(restRequest));
         return channel -> client.execute(
             GetDataStreamLifecycleStatsAction.INSTANCE,
             request,

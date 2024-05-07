@@ -468,11 +468,41 @@ public class ClientYamlTestSuiteTests extends AbstractClientYamlTestFragmentPars
         assertThat(restTestSuite.getTestSections().get(0).getPrerequisiteSection().hasYamlRunnerFeature("skip_os"), equalTo(true));
     }
 
+    public void testMuteUsingAwaitsFix() throws Exception {
+        parser = createParser(YamlXContent.yamlXContent, """
+            "Mute":
+
+              - skip:
+                  awaits_fix: bugurl
+
+              - do:
+                  indices.get_mapping:
+                    index: test_index
+                    type: test_type
+
+              - match: {test_type.properties.text.type:     string}
+              - match: {test_type.properties.text.analyzer: whitespace}
+            """);
+
+        ClientYamlTestSuite restTestSuite = ClientYamlTestSuite.parse(getTestClass().getName(), getTestName(), Optional.empty(), parser);
+
+        assertThat(restTestSuite, notNullValue());
+        assertThat(restTestSuite.getName(), equalTo(getTestName()));
+        assertThat(restTestSuite.getFile().isPresent(), equalTo(false));
+        assertThat(restTestSuite.getTestSections().size(), equalTo(1));
+
+        assertThat(restTestSuite.getTestSections().get(0).getName(), equalTo("Mute"));
+        assertThat(restTestSuite.getTestSections().get(0).getPrerequisiteSection().isEmpty(), equalTo(false));
+    }
+
     public void testParseSkipAndRequireClusterFeatures() throws Exception {
         parser = createParser(YamlXContent.yamlXContent, """
             "Broken on some os":
 
               - skip:
+                  known_issues:
+                    - cluster_feature: buggy_feature
+                      fixed_by: buggy_feature_fix
                   cluster_features:     [unsupported-feature1, unsupported-feature2]
                   reason:      "unsupported-features are not supported"
               - requires:

@@ -1041,3 +1041,33 @@ required_feature: esql.agg_values
                       [1953-04-20T00:00:00Z, 1954-05-01T00:00:00Z] | Tech Lead
 [1955-01-21T00:00:00Z, 1957-05-23T00:00:00Z, 1959-12-03T00:00:00Z] | null
 ;
+
+implicitCastingNotEqual
+required_feature: esql.string_literal_auto_casting
+from employees | where birth_date != "1957-05-23T00:00:00Z" | keep emp_no, birth_date | sort emp_no | limit 3;
+
+emp_no:integer | birth_date:datetime
+10001          | 1953-09-02T00:00:00Z
+10002          | 1964-06-02T00:00:00Z
+10003          | 1959-12-03T00:00:00Z
+;
+
+implicitCastingLessThanOrEqual
+required_feature: esql.string_literal_auto_casting
+from employees | where birth_date <= "1957-05-20T00:00:00Z" | keep emp_no, birth_date | sort emp_no | limit 3;
+
+emp_no:integer | birth_date:datetime
+10001          | 1953-09-02T00:00:00Z
+10004          | 1954-05-01T00:00:00Z
+10005          | 1955-01-21T00:00:00Z
+;
+
+implicitCastingGreaterThan
+required_feature: esql.string_literal_auto_casting
+from employees | where birth_date > "1957-05-24T00:00:00Z" | keep emp_no, birth_date | sort emp_no | limit 3;
+
+emp_no:integer | birth_date:datetime
+10002          | 1964-06-02T00:00:00Z
+10003          | 1959-12-03T00:00:00Z
+10008          | 1958-02-19T00:00:00Z
+;

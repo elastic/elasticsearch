@@ -176,6 +176,6 @@ public class LuceneSourceOperator extends LuceneOperator {
 
     @Override
     protected void describe(StringBuilder sb) {
-        sb.append(", remainingDocs=").append(remainingDocs);
+        sb.append(", remainingDocs = ").append(remainingDocs);
     }
 }

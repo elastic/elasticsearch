@@ -15,16 +15,16 @@ import org.apache.lucene.util.quantization.ScalarQuantizedVectorSimilarity;
 import java.io.IOException;
 import java.lang.foreign.MemorySegment;
 
-// Scalar Quantized vectors are inherently bytes.
-public final class Euclidean extends AbstractScalarQuantizedVectorScorer {
+// Scalar Quantized vectors are inherently byte sized, so dims is equal to the length in bytes.
+public final class Int7DotProduct extends AbstractInt7ScalarQuantizedVectorScorer {
 
-    public Euclidean(int dims, int maxOrd, float scoreCorrectionConstant, IndexInput input) {
+    public Int7DotProduct(int dims, int maxOrd, float scoreCorrectionConstant, IndexInput input) {
         super(
             dims,
             maxOrd,
             scoreCorrectionConstant,
             input,
-            ScalarQuantizedVectorSimilarity.fromVectorSimilarity(VectorSimilarityFunction.EUCLIDEAN, scoreCorrectionConstant, (byte) 7)
+            ScalarQuantizedVectorSimilarity.fromVectorSimilarity(VectorSimilarityFunction.DOT_PRODUCT, scoreCorrectionConstant, (byte) 7)
         );
     }
 
@@ -38,12 +38,17 @@ public final class Euclidean extends AbstractScalarQuantizedVectorScorer {
         int secondByteOffset = secondOrd * (length + Float.BYTES);
 
         MemorySegment firstSeg = segmentSlice(firstByteOffset, length);
+        input.seek(firstByteOffset + length);
+        float firstOffset = Float.intBitsToFloat(input.readInt());
+
         MemorySegment secondSeg = segmentSlice(secondByteOffset, length);
+        input.seek(secondByteOffset + length);
+        float secondOffset = Float.intBitsToFloat(input.readInt());
 
         if (firstSeg != null && secondSeg != null) {
-            int squareDistance = squareDistance(firstSeg, secondSeg, length);
-            float adjustedDistance = squareDistance * scoreCorrectionConstant;
-            return 1 / (1f + adjustedDistance);
+            int dotProduct = dotProduct7u(firstSeg, secondSeg, length);
+            float adjustedDistance = dotProduct * scoreCorrectionConstant + firstOffset + secondOffset;
+            return (1 + adjustedDistance) / 2;
         } else {
             return fallbackScore(firstByteOffset, secondByteOffset);
         }

@@ -47,6 +47,18 @@ $else$
     private final $type$[] values;
 $endif$
 
+$if(int)$
+    /**
+     * The minimum value in the block.
+     */
+    private Integer min;
+
+    /**
+     * The minimum value in the block.
+     */
+    private Integer max;
+$endif$
+
     $Type$ArrayVector($if(BytesRef)$BytesRefArray$else$$type$[]$endif$ values, int positionCount, BlockFactory blockFactory) {
         super(positionCount, blockFactory);
         this.values = values;
@@ -157,6 +169,38 @@ $endif$
     public static long ramBytesEstimated($if(BytesRef)$BytesRefArray$else$$type$[]$endif$ values) {
         return BASE_RAM_BYTES_USED + RamUsageEstimator.sizeOf(values);
     }
+
+$if(int)$
+    /**
+     * The minimum value in the block.
+     */
+    @Override
+    public int min() {
+        if (min == null) {
+            int v = Integer.MAX_VALUE;
+            for (int i = 0; i < getPositionCount(); i++) {
+                v = Math.min(v, values[i]);
+            }
+            min = v;
+        }
+        return min;
+    }
+
+    /**
+     * The maximum value in the block.
+     */
+    @Override
+    public int max() {
+        if (max == null) {
+            int v = Integer.MIN_VALUE;
+            for (int i = 0; i < getPositionCount(); i++) {
+                v = Math.max(v, values[i]);
+            }
+            max = v;
+        }
+        return max;
+    }
+$endif$
 
     @Override
     public long ramBytesUsed() {

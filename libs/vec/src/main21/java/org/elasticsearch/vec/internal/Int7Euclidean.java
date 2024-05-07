@@ -16,19 +16,15 @@ import java.io.IOException;
 import java.lang.foreign.MemorySegment;
 
 // Scalar Quantized vectors are inherently bytes.
-public final class MaximumInnerProduct extends AbstractScalarQuantizedVectorScorer {
+public final class Int7Euclidean extends AbstractInt7ScalarQuantizedVectorScorer {
 
-    public MaximumInnerProduct(int dims, int maxOrd, float scoreCorrectionConstant, IndexInput input) {
+    public Int7Euclidean(int dims, int maxOrd, float scoreCorrectionConstant, IndexInput input) {
         super(
             dims,
             maxOrd,
             scoreCorrectionConstant,
             input,
-            ScalarQuantizedVectorSimilarity.fromVectorSimilarity(
-                VectorSimilarityFunction.MAXIMUM_INNER_PRODUCT,
-                scoreCorrectionConstant,
-                (byte) 7
-            )
+            ScalarQuantizedVectorSimilarity.fromVectorSimilarity(VectorSimilarityFunction.EUCLIDEAN, scoreCorrectionConstant, (byte) 7)
         );
     }
 
@@ -42,30 +38,14 @@ public final class MaximumInnerProduct extends AbstractScalarQuantizedVectorScor
         int secondByteOffset = secondOrd * (length + Float.BYTES);
 
         MemorySegment firstSeg = segmentSlice(firstByteOffset, length);
-        input.seek(firstByteOffset + length);
-        float firstOffset = Float.intBitsToFloat(input.readInt());
-
         MemorySegment secondSeg = segmentSlice(secondByteOffset, length);
-        input.seek(secondByteOffset + length);
-        float secondOffset = Float.intBitsToFloat(input.readInt());
 
         if (firstSeg != null && secondSeg != null) {
-            int dotProduct = dotProduct(firstSeg, secondSeg, length);
-            float adjustedDistance = dotProduct * scoreCorrectionConstant + firstOffset + secondOffset;
-            return scaleMaxInnerProductScore(adjustedDistance);
+            int squareDistance = squareDistance7u(firstSeg, secondSeg, length);
+            float adjustedDistance = squareDistance * scoreCorrectionConstant;
+            return 1 / (1f + adjustedDistance);
         } else {
             return fallbackScore(firstByteOffset, secondByteOffset);
         }
-    }
-
-    /**
-     * Returns a scaled score preventing negative scores for maximum-inner-product
-     * @param rawSimilarity the raw similarity between two vectors
-     */
-    static float scaleMaxInnerProductScore(float rawSimilarity) {
-        if (rawSimilarity < 0) {
-            return 1 / (1 + -1 * rawSimilarity);
-        }
-        return rawSimilarity + 1;
     }
 }

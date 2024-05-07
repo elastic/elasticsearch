@@ -15,16 +15,20 @@ import org.apache.lucene.util.quantization.ScalarQuantizedVectorSimilarity;
 import java.io.IOException;
 import java.lang.foreign.MemorySegment;
 
-// Scalar Quantized vectors are inherently byte sized, so dims is equal to the length in bytes.
-public final class DotProduct extends AbstractScalarQuantizedVectorScorer {
+// Scalar Quantized vectors are inherently bytes.
+public final class Int7MaximumInnerProduct extends AbstractInt7ScalarQuantizedVectorScorer {
 
-    public DotProduct(int dims, int maxOrd, float scoreCorrectionConstant, IndexInput input) {
+    public Int7MaximumInnerProduct(int dims, int maxOrd, float scoreCorrectionConstant, IndexInput input) {
         super(
             dims,
             maxOrd,
             scoreCorrectionConstant,
             input,
-            ScalarQuantizedVectorSimilarity.fromVectorSimilarity(VectorSimilarityFunction.DOT_PRODUCT, scoreCorrectionConstant, (byte) 7)
+            ScalarQuantizedVectorSimilarity.fromVectorSimilarity(
+                VectorSimilarityFunction.MAXIMUM_INNER_PRODUCT,
+                scoreCorrectionConstant,
+                (byte) 7
+            )
         );
     }
 
@@ -46,11 +50,22 @@ public final class DotProduct extends AbstractScalarQuantizedVectorScorer {
         float secondOffset = Float.intBitsToFloat(input.readInt());
 
         if (firstSeg != null && secondSeg != null) {
-            int dotProduct = dotProduct(firstSeg, secondSeg, length);
+            int dotProduct = dotProduct7u(firstSeg, secondSeg, length);
             float adjustedDistance = dotProduct * scoreCorrectionConstant + firstOffset + secondOffset;
-            return (1 + adjustedDistance) / 2;
+            return scaleMaxInnerProductScore(adjustedDistance);
         } else {
             return fallbackScore(firstByteOffset, secondByteOffset);
         }
+    }
+
+    /**
+     * Returns a scaled score preventing negative scores for maximum-inner-product
+     * @param rawSimilarity the raw similarity between two vectors
+     */
+    static float scaleMaxInnerProductScore(float rawSimilarity) {
+        if (rawSimilarity < 0) {
+            return 1 / (1 + -1 * rawSimilarity);
+        }
+        return rawSimilarity + 1;
     }
 }

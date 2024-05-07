@@ -17,11 +17,11 @@ import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ServiceSettings;
 import org.elasticsearch.inference.SimilarityMeasure;
-import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.ServiceUtils;
 import org.elasticsearch.xpack.inference.services.azureopenai.AzureOpenAiRateLimitServiceSettings;
+import org.elasticsearch.xpack.inference.services.settings.FilteredXContentObject;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 
 import java.io.IOException;
@@ -42,7 +42,10 @@ import static org.elasticsearch.xpack.inference.services.azureopenai.AzureOpenAi
 /**
  * Defines the service settings for interacting with OpenAI's text embedding models.
  */
-public class AzureOpenAiEmbeddingsServiceSettings implements ServiceSettings, AzureOpenAiRateLimitServiceSettings {
+public class AzureOpenAiEmbeddingsServiceSettings extends FilteredXContentObject
+    implements
+        ServiceSettings,
+        AzureOpenAiRateLimitServiceSettings {
 
     public static final String NAME = "azure_openai_embeddings_service_settings";
 
@@ -248,13 +251,15 @@ public class AzureOpenAiEmbeddingsServiceSettings implements ServiceSettings, Az
 
         toXContentFragmentOfExposedFields(builder, params);
 
+        rateLimitSettings.toXContent(builder, params);
         builder.field(DIMENSIONS_SET_BY_USER, dimensionsSetByUser);
 
         builder.endObject();
         return builder;
     }
 
-    private void toXContentFragmentOfExposedFields(XContentBuilder builder, Params params) throws IOException {
+    @Override
+    protected XContentBuilder toXContentFragmentOfExposedFields(XContentBuilder builder, Params params) throws IOException {
         builder.field(RESOURCE_NAME, resourceName);
         builder.field(DEPLOYMENT_ID, deploymentId);
         builder.field(API_VERSION, apiVersion);
@@ -268,19 +273,8 @@ public class AzureOpenAiEmbeddingsServiceSettings implements ServiceSettings, Az
         if (similarity != null) {
             builder.field(SIMILARITY, similarity);
         }
-        rateLimitSettings.toXContent(builder, params);
-    }
 
-    @Override
-    public ToXContentObject getFilteredXContentObject() {
-        return (builder, params) -> {
-            builder.startObject();
-
-            toXContentFragmentOfExposedFields(builder, params);
-
-            builder.endObject();
-            return builder;
-        };
+        return builder;
     }
 
     @Override

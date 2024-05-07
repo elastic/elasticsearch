@@ -36,6 +36,11 @@ final class ConstantBytesRefVector extends AbstractVector implements BytesRefVec
     }
 
     @Override
+    public OrdinalBytesRefVector asOrdinals() {
+        return null;
+    }
+
+    @Override
     public BytesRefVector filter(int... positions) {
         return blockFactory().newConstantBytesRefVector(value, positions.length);
     }

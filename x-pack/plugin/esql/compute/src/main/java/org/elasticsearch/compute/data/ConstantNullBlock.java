@@ -43,6 +43,11 @@ final class ConstantNullBlock extends AbstractNonThreadSafeRefCounted
     }
 
     @Override
+    public OrdinalBytesRefBlock asOrdinals() {
+        return null;
+    }
+
+    @Override
     public boolean isNull(int position) {
         return true;
     }

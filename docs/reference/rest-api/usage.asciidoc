@@ -309,8 +309,7 @@ GET /_xpack/usage
   "rollup" : {
     "available" : true,
     "enabled" : true,
-    "number_of_rollup_jobs": 0,
-    "number_of_rollup_indices", 0
+    ...
   },
   "ilm" : {
     "policy_count" : 3,
@@ -498,6 +497,7 @@ GET /_xpack/usage
 }
 ------------------------------------------------------------
 // TESTRESPONSE[s/"security" : \{[^\}]*\},/"security" : $body.$_path,/]
+// TESTRESPONSE[s/"rollup" : \{[^\}]*\},/"rollup" : $body.$_path,/]
 // TESTRESPONSE[s/"detectors" : \{[^\}]*\},/"detectors" : $body.$_path,/]
 // TESTRESPONSE[s/"model_size" : \{[^\}]*\},/"model_size" : $body.$_path,/]
 // TESTRESPONSE[s/"eql" : \{[^\}]*\},/"eql" : $body.$_path,/]

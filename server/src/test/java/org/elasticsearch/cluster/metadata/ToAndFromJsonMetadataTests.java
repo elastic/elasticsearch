@@ -354,7 +354,7 @@ public class ToAndFromJsonMetadataTests extends ESTestCase {
                       "shards" : [ ]
                     },
                     "event_ingested_range" : {
-                      "unknown" : true
+                      "shards" : [ ]
                     }
                   }
                 },
@@ -527,7 +527,7 @@ public class ToAndFromJsonMetadataTests extends ESTestCase {
                       "shards" : [ ]
                     },
                     "event_ingested_range" : {
-                      "unknown" : true
+                      "shards" : [ ]
                     }
                   }
                 },
@@ -640,7 +640,7 @@ public class ToAndFromJsonMetadataTests extends ESTestCase {
                       "shards" : [ ]
                     },
                     "event_ingested_range" : {
-                      "unknown" : true
+                      "shards" : [ ]
                     }
                   }
                 },
@@ -779,7 +779,7 @@ public class ToAndFromJsonMetadataTests extends ESTestCase {
                       "shards" : [ ]
                     },
                     "event_ingested_range" : {
-                      "unknown" : true
+                      "shards" : [ ]
                     }
                   }
                 },

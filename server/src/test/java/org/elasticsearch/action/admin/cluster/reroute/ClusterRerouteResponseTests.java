@@ -191,7 +191,7 @@ public class ClusterRerouteResponseTests extends ESTestCase {
                                 "shards": []
                               },
                               "event_ingested_range": {
-                                "unknown":true
+                                "shards": []
                               }
                             }
                           },
@@ -273,7 +273,7 @@ public class ClusterRerouteResponseTests extends ESTestCase {
                             "shards" : [ ]
                           },
                           "event_ingested_range" : {
-                            "unknown":true
+                            "shards": []
                           }
                         }
                       },

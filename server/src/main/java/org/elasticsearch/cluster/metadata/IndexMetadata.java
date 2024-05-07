@@ -1675,6 +1675,9 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             }
             if (out.getTransportVersion().onOrAfter(TransportVersions.EVENT_INGESTED_RANGE_IN_CLUSTER_STATE)) {
                 eventIngestedRange.writeTo(out);
+            } else {
+                assert eventIngestedRange == IndexLongFieldRange.UNKNOWN
+                    : "eventIngestedRange should be UNKNOWN in older versions but is " + eventIngestedRange;
             }
         }
 
@@ -1780,6 +1783,8 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         }
         if (in.getTransportVersion().onOrAfter(TransportVersions.EVENT_INGESTED_RANGE_IN_CLUSTER_STATE)) {
             builder.eventIngestedRange(IndexLongFieldRange.readFrom(in));
+        } else {
+            builder.eventIngestedRange(IndexLongFieldRange.UNKNOWN);
         }
         return builder.build(true);
     }
@@ -1832,6 +1837,9 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         }
         if (out.getTransportVersion().onOrAfter(TransportVersions.EVENT_INGESTED_RANGE_IN_CLUSTER_STATE)) {
             eventIngestedRange.writeTo(out);
+        } else {
+            assert eventIngestedRange == IndexLongFieldRange.UNKNOWN
+                : "eventIngestedRange should be UNKNOWN in older versions but is " + eventIngestedRange;
         }
     }
 
@@ -1879,7 +1887,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         private Integer routingNumShards;
         private boolean isSystem;
         private IndexLongFieldRange timestampRange = IndexLongFieldRange.NO_SHARDS;
-        private IndexLongFieldRange eventIngestedRange = IndexLongFieldRange.UNKNOWN; // since it may not be in cluster state of older SS
+        private IndexLongFieldRange eventIngestedRange = IndexLongFieldRange.NO_SHARDS;
         private LifecycleExecutionState lifecycleExecutionState = LifecycleExecutionState.EMPTY_STATE;
         private IndexMetadataStats stats = null;
         private Double indexWriteLoadForecast = null;

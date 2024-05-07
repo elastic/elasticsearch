@@ -206,8 +206,4 @@ public abstract class AbstractTestInferenceService implements InferenceService {
             return TransportVersion.current(); // fine for these tests but will not work for cluster upgrade tests
         }
     }
-
-    protected static float stringAsFloat(String value) {
-        return value.hashCode();
-    }
 }

@@ -293,7 +293,6 @@ public class SearchModule {
     /**
      * Metric name for aggregation usage statistics
      */
-    private static final String ES_SEARCH_QUERY_AGGREGATIONS_TOTAL_COUNT = "es.search.query.aggregations.total";
     private final TelemetryProvider telemetryProvider;
 
     private final Map<String, Highlighter> highlighters;
@@ -371,10 +370,7 @@ public class SearchModule {
     }
 
     private ValuesSourceRegistry registerAggregations(List<SearchPlugin> plugins) {
-        ValuesSourceRegistry.Builder builder = new ValuesSourceRegistry.Builder(
-            telemetryProvider.getMeterRegistry()
-                .registerLongCounter(ES_SEARCH_QUERY_AGGREGATIONS_TOTAL_COUNT, "Aggregations usage", "count")
-        );
+        ValuesSourceRegistry.Builder builder = new ValuesSourceRegistry.Builder(telemetryProvider.getMeterRegistry());
 
         registerAggregation(
             new AggregationSpec(AvgAggregationBuilder.NAME, AvgAggregationBuilder::new, AvgAggregationBuilder.PARSER).addResultReader(

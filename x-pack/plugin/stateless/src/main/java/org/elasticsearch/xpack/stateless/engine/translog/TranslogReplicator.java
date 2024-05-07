@@ -60,7 +60,6 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
-import java.util.List;
 import java.util.Map;
 import java.util.PriorityQueue;
 import java.util.Set;
@@ -171,7 +170,7 @@ public class TranslogReplicator extends AbstractLifecycleComponent {
     }
 
     public long getMaxUploadedFile() {
-        return nodeState.maxUploadedFileName.get();
+        return nodeState.maxUploadedGeneration.get();
     }
 
     public void markShardCommitUploaded(ShardId shardId, long translogStartFile) {
@@ -355,14 +354,14 @@ public class TranslogReplicator extends AbstractLifecycleComponent {
         }
     }
 
-    private class UploadTranslogTask extends RetryableAction<Void> implements Comparable<UploadTranslogTask> {
+    private class UploadTranslogTask extends RetryableAction<UploadTranslogTask> implements Comparable<UploadTranslogTask> {
 
         private final CompoundTranslog translog;
         private final RefCounted bytesToClose;
         private int uploadTryNumber = 0;
         private volatile boolean isUploaded = false;
 
-        private UploadTranslogTask(CompoundTranslog translog, ActionListener<Void> listener) {
+        private UploadTranslogTask(CompoundTranslog translog, ActionListener<UploadTranslogTask> listener) {
             super(
                 org.apache.logging.log4j.LogManager.getLogger(TranslogReplicator.class),
                 threadPool,
@@ -382,7 +381,7 @@ public class TranslogReplicator extends AbstractLifecycleComponent {
         }
 
         @Override
-        public void tryAction(ActionListener<Void> listener) {
+        public void tryAction(ActionListener<UploadTranslogTask> listener) {
             ++uploadTryNumber;
             // Retain the bytes to ensure that a cancel call does not corrupt them before upload
             if (bytesToClose.tryIncRef()) {
@@ -391,9 +390,8 @@ public class TranslogReplicator extends AbstractLifecycleComponent {
                     translog.metadata().name(),
                     translog.bytes().data(),
                     ActionListener.releaseAfter(ActionListener.wrap(unused -> {
-                        isUploaded = true;
                         logger.debug(() -> format("uploaded translog file [%s]", translog.metadata().name()));
-                        listener.onResponse(unused);
+                        listener.onResponse(this);
 
                     }, e -> {
                         org.apache.logging.log4j.util.Supplier<Object> messageSupplier = () -> format(
@@ -415,6 +413,12 @@ public class TranslogReplicator extends AbstractLifecycleComponent {
             }
         }
 
+        private void markUploaded() {
+            assert Thread.holdsLock(nodeState.ongoingUploads);
+            assert isUploaded == false;
+            isUploaded = true;
+        }
+
         @Override
         public boolean shouldRetry(Exception e) {
             return isOpen.get();
@@ -430,13 +434,18 @@ public class TranslogReplicator extends AbstractLifecycleComponent {
         public int compareTo(UploadTranslogTask o) {
             return Long.compare(translog.metadata().generation(), o.translog.metadata().generation());
         }
+
+        @Override
+        public String toString() {
+            return "UploadTranslogTask{" + "isUploaded=" + isUploaded + ", generation=" + translog.metadata().generation() + '}';
+        }
     }
 
     private UploadTranslogTask createUploadTask(CompoundTranslog translog) {
         UploadTranslogTask uploadTranslogTask = new UploadTranslogTask(translog, new ActionListener<>() {
             @Override
-            public void onResponse(Void unused) {
-                nodeState.markSyncFinished(translog.metadata().generation());
+            public void onResponse(UploadTranslogTask task) {
+                nodeState.markUploadFinished(task);
             }
 
             @Override
@@ -449,7 +458,7 @@ public class TranslogReplicator extends AbstractLifecycleComponent {
                 assert isOpen.get() == false;
             }
         });
-        nodeState.markSyncStarting(uploadTranslogTask);
+        nodeState.markUploadStarting(uploadTranslogTask);
         return uploadTranslogTask;
 
     }
@@ -638,25 +647,25 @@ public class TranslogReplicator extends AbstractLifecycleComponent {
 
     private class NodeSyncState {
 
-        private final AtomicLong maxUploadedFileName = new AtomicLong(-1);
+        private final AtomicLong maxUploadedGeneration = new AtomicLong(-1);
 
         private final AtomicLong compoundTranslogGeneration = new AtomicLong(0);
-        private final PriorityQueue<UploadTranslogTask> ongoingSyncs = new PriorityQueue<>();
+        private final PriorityQueue<UploadTranslogTask> ongoingUploads = new PriorityQueue<>();
 
         private final AtomicLong validateClusterStateGeneration = new AtomicLong(0);
         private final PriorityQueue<ValidateClusterStateTask> ongoingValidateClusterState = new PriorityQueue<>();
 
-        private final Map<Long, BlobTranslogFile> syncingTranslogFiles = ConcurrentCollections.newConcurrentMap();
+        private final Map<Long, BlobTranslogFile> uploadingTranslogFiles = ConcurrentCollections.newConcurrentMap();
         private final Set<BlobTranslogFile> activeTranslogFiles = ConcurrentCollections.newConcurrentSet();
         private final Set<BlobTranslogFile> translogFilesToDelete = ConcurrentCollections.newConcurrentSet();
 
-        private void markSyncStarting(final UploadTranslogTask uploadTranslogTask) {
-            synchronized (ongoingSyncs) {
-                ongoingSyncs.add(uploadTranslogTask);
+        private void markUploadStarting(final UploadTranslogTask uploadTranslogTask) {
+            synchronized (ongoingUploads) {
+                ongoingUploads.add(uploadTranslogTask);
 
                 CompoundTranslogMetadata metadata = uploadTranslogTask.translog.metadata();
                 BlobTranslogFileImpl translogFile = new BlobTranslogFileImpl(metadata);
-                syncingTranslogFiles.put(metadata.generation(), translogFile);
+                uploadingTranslogFiles.put(metadata.generation(), translogFile);
                 for (Map.Entry<ShardId, ShardSyncState.SyncMarker> entry : metadata.syncedLocations().entrySet()) {
                     assert translogFile.checkpoints().get(entry.getKey()).totalOps() > 0;
                     ShardSyncState shardSyncState = shardSyncStates.get(entry.getKey());
@@ -669,13 +678,16 @@ public class TranslogReplicator extends AbstractLifecycleComponent {
             }
         }
 
-        private void markSyncFinished(long nodeTranslogGeneration) {
-            maxUploadedFileName.getAndAccumulate(nodeTranslogGeneration, Math::max);
+        private void markUploadFinished(UploadTranslogTask uploadTask) {
+            long uploadedNodeTranslogGeneration = uploadTask.translog.metadata().generation();
+            maxUploadedGeneration.getAndAccumulate(uploadedNodeTranslogGeneration, Math::max);
             // We lock on ongoingSyncs to ensure that we transition all synced translog files to the validate step.
-            synchronized (ongoingSyncs) {
-                if (ongoingSyncs.isEmpty() == false && ongoingSyncs.peek().translog.metadata().generation() == nodeTranslogGeneration) {
+            synchronized (ongoingUploads) {
+                assert ongoingUploads.isEmpty() == false;
+                uploadTask.markUploaded();
+                if (ongoingUploads.peek() == uploadTask) {
                     ArrayList<CompoundTranslogMetadata> completedSyncs = new ArrayList<>(2);
-                    Iterator<UploadTranslogTask> iterator = ongoingSyncs.iterator();
+                    Iterator<UploadTranslogTask> iterator = ongoingUploads.iterator();
                     while (iterator.hasNext()) {
                         UploadTranslogTask entry = iterator.next();
                         if (entry.isUploaded) {
@@ -689,27 +701,21 @@ public class TranslogReplicator extends AbstractLifecycleComponent {
                     // Submit the cluster state validate under lock so that the validate generations increase in order.
                     triggerClusterStateValidate(completedSyncs);
                 } else {
-                    assert checkUploadTranslogTask(nodeTranslogGeneration)
+                    assert checkUploadTranslogTask(uploadedNodeTranslogGeneration)
                         : "Unable to find upload translog task with generation: "
-                            + nodeTranslogGeneration
-                            + " in ongoing sync generations: "
-                            + ongoingSyncGenerations();
+                            + uploadedNodeTranslogGeneration
+                            + " in ongoing upload generations: "
+                            + ongoingUploads;
                 }
             }
         }
 
         private boolean checkUploadTranslogTask(long nodeTranslogGeneration) {
-            return ongoingSyncs.stream()
+            return ongoingUploads.stream()
                 .filter(t -> t.translog.metadata().generation == nodeTranslogGeneration)
                 .findAny()
                 .map(t -> t.isUploaded)
                 .orElse(false);
-        }
-
-        record GenerationUploaded(long generation, boolean uploaded) {}
-
-        private List<GenerationUploaded> ongoingSyncGenerations() {
-            return ongoingSyncs.stream().map(t -> new GenerationUploaded(t.translog.metadata.generation, t.isUploaded)).toList();
         }
 
         private void triggerClusterStateValidate(ArrayList<CompoundTranslogMetadata> completedSyncs) {
@@ -731,7 +737,7 @@ public class TranslogReplicator extends AbstractLifecycleComponent {
                     // Complete any validate listeners with a generation less or equal to the completed generation
                     if (validateGeneration >= task.validateGeneration) {
                         task.completedSyncs.forEach(sync -> {
-                            BlobTranslogFile translogFile = syncingTranslogFiles.remove(sync.generation());
+                            BlobTranslogFile translogFile = uploadingTranslogFiles.remove(sync.generation());
                             assert translogFile != null;
                             try {
                                 activeTranslogFiles.add(translogFile);
@@ -848,9 +854,9 @@ public class TranslogReplicator extends AbstractLifecycleComponent {
         }
 
         public void close() {
-            synchronized (ongoingSyncs) {
+            synchronized (ongoingUploads) {
                 // Don't remove. Just cancel since this only happens on shutdown.
-                ongoingSyncs.forEach(r -> r.cancel(new ElasticsearchException("Node shutting down")));
+                ongoingUploads.forEach(r -> r.cancel(new ElasticsearchException("Node shutting down")));
             }
         }
     }

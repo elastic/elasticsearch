@@ -174,13 +174,7 @@ public class TransportBulkActionIngestTests extends ESTestCase {
         }
 
         @Override
-        void createIndex(
-            String index,
-            boolean requireDataStream,
-            TimeValue timeout,
-            ActionListener<CreateIndexResponse> listener,
-            boolean isSimulated
-        ) {
+        void createIndex(String index, boolean requireDataStream, TimeValue timeout, ActionListener<CreateIndexResponse> listener) {
             indexCreated = true;
             listener.onResponse(null);
         }

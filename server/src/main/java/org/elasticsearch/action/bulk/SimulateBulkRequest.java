@@ -83,4 +83,14 @@ public class SimulateBulkRequest extends BulkRequest {
     public void nullifyRequest(int i) {
         // do nothing because in simulate we want to return information from the request regardless of success
     }
+
+    @Override
+    public boolean isSimulated() {
+        return true;
+    }
+
+    @Override
+    public BulkRequest cloneForModification() {
+        return new SimulateBulkRequest(this.pipelineSubstitutions);
+    }
 }

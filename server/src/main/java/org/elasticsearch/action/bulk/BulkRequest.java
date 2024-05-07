@@ -466,4 +466,12 @@ public class BulkRequest extends ActionRequest
     public Set<String> getIndices() {
         return Collections.unmodifiableSet(indices);
     }
+
+    public boolean isSimulated() {
+        return false;
+    }
+
+    public BulkRequest cloneForModification() {
+        return new BulkRequest();
+    }
 }

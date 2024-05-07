@@ -263,9 +263,8 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
 
         IndexShard shard = mock(IndexShard.class);
         when(shard.shardId()).thenReturn(shardId);
-        when(shard.applyIndexOperationOnPrimary(anyLong(), any(), any(), anyLong(), anyLong(), anyLong(), anyBoolean())).thenReturn(
-            mappingUpdate
-        );
+        when(shard.applyIndexOperationOnPrimary(anyLong(), any(), any(), anyLong(), anyLong(), anyLong(), anyBoolean(), anyBoolean()))
+            .thenReturn(mappingUpdate);
         MapperService mapperService = mock(MapperService.class);
         when(shard.mapperService()).thenReturn(mapperService);
         addMockCloseImplementation(shard);
@@ -293,11 +292,19 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
         assertThat("mappings were \"updated\" once", updateCalled.get(), equalTo(1));
 
         // Verify that the shard "executed" the operation once
-        verify(shard, times(1)).applyIndexOperationOnPrimary(anyLong(), any(), any(), anyLong(), anyLong(), anyLong(), anyBoolean());
-
-        when(shard.applyIndexOperationOnPrimary(anyLong(), any(), any(), anyLong(), anyLong(), anyLong(), anyBoolean())).thenReturn(
-            success
+        verify(shard, times(1)).applyIndexOperationOnPrimary(
+            anyLong(),
+            any(),
+            any(),
+            anyLong(),
+            anyLong(),
+            anyLong(),
+            anyBoolean(),
+            anyBoolean()
         );
+
+        when(shard.applyIndexOperationOnPrimary(anyLong(), any(), any(), anyLong(), anyLong(), anyLong(), anyBoolean(), anyBoolean()))
+            .thenReturn(success);
 
         TransportShardBulkAction.executeBulkItemRequest(
             context,
@@ -311,7 +318,16 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
 
         // Verify that the shard "executed" the operation only once (1 for previous invocations plus
         // 1 for this execution)
-        verify(shard, times(2)).applyIndexOperationOnPrimary(anyLong(), any(), any(), anyLong(), anyLong(), anyLong(), anyBoolean());
+        verify(shard, times(2)).applyIndexOperationOnPrimary(
+            anyLong(),
+            any(),
+            any(),
+            anyLong(),
+            anyLong(),
+            anyLong(),
+            anyBoolean(),
+            anyBoolean()
+        );
 
         BulkItemResponse primaryResponse = bulkShardRequest.items()[0].getPrimaryResponse();
 
@@ -540,9 +556,8 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
         Exception err = new ElasticsearchException("I'm dead <(x.x)>");
         Engine.IndexResult indexResult = new Engine.IndexResult(err, 0, 0, 0, "id");
         IndexShard shard = mock(IndexShard.class);
-        when(shard.applyIndexOperationOnPrimary(anyLong(), any(), any(), anyLong(), anyLong(), anyLong(), anyBoolean())).thenReturn(
-            indexResult
-        );
+        when(shard.applyIndexOperationOnPrimary(anyLong(), any(), any(), anyLong(), anyLong(), anyLong(), anyBoolean(), anyBoolean()))
+            .thenReturn(indexResult);
         when(shard.indexSettings()).thenReturn(indexSettings);
 
         UpdateHelper updateHelper = mock(UpdateHelper.class);
@@ -600,9 +615,8 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
         Exception err = new VersionConflictEngineException(shardId, "id", "I'm conflicted <(;_;)>");
         Engine.IndexResult indexResult = new Engine.IndexResult(err, 0, 0, 0, "id");
         IndexShard shard = mock(IndexShard.class);
-        when(shard.applyIndexOperationOnPrimary(anyLong(), any(), any(), anyLong(), anyLong(), anyLong(), anyBoolean())).thenReturn(
-            indexResult
-        );
+        when(shard.applyIndexOperationOnPrimary(anyLong(), any(), any(), anyLong(), anyLong(), anyLong(), anyBoolean(), anyBoolean()))
+            .thenReturn(indexResult);
         when(shard.indexSettings()).thenReturn(indexSettings);
 
         UpdateHelper updateHelper = mock(UpdateHelper.class);
@@ -660,9 +674,8 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
         Translog.Location resultLocation = new Translog.Location(42, 42, 42);
         Engine.IndexResult indexResult = new FakeIndexResult(1, 1, 13, created, resultLocation, "id");
         IndexShard shard = mock(IndexShard.class);
-        when(shard.applyIndexOperationOnPrimary(anyLong(), any(), any(), anyLong(), anyLong(), anyLong(), anyBoolean())).thenReturn(
-            indexResult
-        );
+        when(shard.applyIndexOperationOnPrimary(anyLong(), any(), any(), anyLong(), anyLong(), anyLong(), anyBoolean(), anyBoolean()))
+            .thenReturn(indexResult);
         when(shard.indexSettings()).thenReturn(indexSettings);
         when(shard.shardId()).thenReturn(shardId);
 
@@ -885,16 +898,17 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
         Engine.IndexResult success = new FakeIndexResult(1, 1, 13, true, resultLocation, "id");
 
         IndexShard shard = mock(IndexShard.class);
-        when(shard.applyIndexOperationOnPrimary(anyLong(), any(), any(), anyLong(), anyLong(), anyLong(), anyBoolean())).thenAnswer(ir -> {
-            if (randomBoolean()) {
-                return conflictedResult;
-            }
-            if (randomBoolean()) {
-                return mappingUpdate;
-            } else {
-                return success;
-            }
-        });
+        when(shard.applyIndexOperationOnPrimary(anyLong(), any(), any(), anyLong(), anyLong(), anyLong(), anyBoolean(), anyBoolean()))
+            .thenAnswer(ir -> {
+                if (randomBoolean()) {
+                    return conflictedResult;
+                }
+                if (randomBoolean()) {
+                    return mappingUpdate;
+                } else {
+                    return success;
+                }
+            });
         when(shard.indexSettings()).thenReturn(indexSettings);
         when(shard.shardId()).thenReturn(shardId);
         MapperService mapperService = mock(MapperService.class);
@@ -984,11 +998,8 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
 
             IndexShard shard = mock(IndexShard.class);
             when(shard.shardId()).thenReturn(shardId);
-            when(shard.applyIndexOperationOnPrimary(anyLong(), any(), any(), anyLong(), anyLong(), anyLong(), anyBoolean())).thenReturn(
-                success1,
-                mappingUpdate,
-                success2
-            );
+            when(shard.applyIndexOperationOnPrimary(anyLong(), any(), any(), anyLong(), anyLong(), anyLong(), anyBoolean(), anyBoolean()))
+                .thenReturn(success1, mappingUpdate, success2);
             when(shard.getFailedIndexResult(any(EsRejectedExecutionException.class), anyLong(), anyString())).thenCallRealMethod();
             MapperService mapperService = mock(MapperService.class);
             when(shard.mapperService()).thenReturn(mapperService);
@@ -1032,7 +1043,16 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
 
             assertThat("mappings were \"updated\" once", updateCalled.get(), equalTo(1));
 
-            verify(shard, times(2)).applyIndexOperationOnPrimary(anyLong(), any(), any(), anyLong(), anyLong(), anyLong(), anyBoolean());
+            verify(shard, times(2)).applyIndexOperationOnPrimary(
+                anyLong(),
+                any(),
+                any(),
+                anyLong(),
+                anyLong(),
+                anyLong(),
+                anyBoolean(),
+                anyBoolean()
+            );
 
             BulkItemResponse primaryResponse1 = bulkShardRequest.items()[0].getPrimaryResponse();
             assertThat(primaryResponse1.getItemId(), equalTo(0));
@@ -1110,9 +1130,8 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
         );
 
         IndexShard shard = mockShard();
-        when(shard.applyIndexOperationOnPrimary(anyLong(), any(), any(), anyLong(), anyLong(), anyLong(), anyBoolean())).thenReturn(
-            mappingUpdate
-        );
+        when(shard.applyIndexOperationOnPrimary(anyLong(), any(), any(), anyLong(), anyLong(), anyLong(), anyBoolean(), anyBoolean()))
+            .thenReturn(mappingUpdate);
         MapperService mapperService = mock(MapperService.class);
         when(shard.mapperService()).thenReturn(mapperService);
 
@@ -1167,16 +1186,17 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
         Engine.IndexResult successfulResult = new FakeIndexResult(1, 1, 10, true, resultLocation, "id");
 
         IndexShard shard = mockShard();
-        when(shard.applyIndexOperationOnPrimary(anyLong(), any(), any(), anyLong(), anyLong(), anyLong(), anyBoolean())).thenReturn(
-            // on the first invocation, return a result that attempts a mapping update
-            // the mapping update will be a noop and the operation is retired without contacting the master
-            mappingUpdate,
-            // the second invocation also returns a mapping update result
-            // this doesn't trigger the infinite loop detection because MapperService#mappingVersion returns a different mapping version
-            mappingUpdate,
-            // on the third attempt, return a successful result, indicating that no mapping update needs to be executed
-            successfulResult
-        );
+        when(shard.applyIndexOperationOnPrimary(anyLong(), any(), any(), anyLong(), anyLong(), anyLong(), anyBoolean(), anyBoolean()))
+            .thenReturn(
+                // on the first invocation, return a result that attempts a mapping update
+                // the mapping update will be a noop and the operation is retired without contacting the master
+                mappingUpdate,
+                // the second invocation also returns a mapping update result
+                // this doesn't trigger the infinite loop detection because MapperService#mappingVersion returns a different mapping version
+                mappingUpdate,
+                // on the third attempt, return a successful result, indicating that no mapping update needs to be executed
+                successfulResult
+            );
 
         MapperService mapperService = mock(MapperService.class);
         when(shard.mapperService()).thenReturn(mapperService);

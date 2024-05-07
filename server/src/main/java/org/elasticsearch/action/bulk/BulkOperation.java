@@ -297,7 +297,7 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
                     shardId,
                     bulkRequest.getRefreshPolicy(),
                     requests.toArray(new BulkItemRequest[0]),
-                    bulkRequest instanceof SimulateBulkRequest
+                    bulkRequest.isSimulated()
                 );
                 bulkShardRequest.waitForActiveShards(bulkRequest.waitForActiveShards());
                 bulkShardRequest.timeout(bulkRequest.timeout());

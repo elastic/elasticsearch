@@ -84,13 +84,7 @@ public class TransportSimulateBulkActionTests extends ESTestCase {
         }
 
         @Override
-        void createIndex(
-            String index,
-            boolean requireDataStream,
-            TimeValue timeout,
-            ActionListener<CreateIndexResponse> listener,
-            boolean isSimulated
-        ) {
+        void createIndex(String index, boolean requireDataStream, TimeValue timeout, ActionListener<CreateIndexResponse> listener) {
             indexCreated = true;
             if (beforeIndexCreation != null) {
                 beforeIndexCreation.run();

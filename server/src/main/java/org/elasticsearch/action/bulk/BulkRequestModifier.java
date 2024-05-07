@@ -86,7 +86,7 @@ final class BulkRequestModifier implements Iterator<DocWriteRequest<?>> {
         if (itemResponses.isEmpty()) {
             return bulkRequest;
         } else {
-            BulkRequest modifiedBulkRequest = new BulkRequest();
+            BulkRequest modifiedBulkRequest = bulkRequest.cloneForModification();
             modifiedBulkRequest.setRefreshPolicy(bulkRequest.getRefreshPolicy());
             modifiedBulkRequest.waitForActiveShards(bulkRequest.waitForActiveShards());
             modifiedBulkRequest.timeout(bulkRequest.timeout());

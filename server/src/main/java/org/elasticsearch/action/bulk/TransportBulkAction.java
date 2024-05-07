@@ -429,23 +429,25 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
         try (RefCountingRunnable refs = new RefCountingRunnable(executeBulkRunnable)) {
             for (Map.Entry<String, Boolean> indexEntry : indicesToAutoCreate.entrySet()) {
                 final String index = indexEntry.getKey();
-                createIndex(index, indexEntry.getValue(), bulkRequest.timeout(), ActionListener.releaseAfter(new ActionListener<>() {
-                    @Override
-                    public void onResponse(CreateIndexResponse createIndexResponse) {}
+                if (bulkRequest.isSimulated() == false) {
+                    createIndex(index, indexEntry.getValue(), bulkRequest.timeout(), ActionListener.releaseAfter(new ActionListener<>() {
+                        @Override
+                        public void onResponse(CreateIndexResponse createIndexResponse) {}
 
-                    @Override
-                    public void onFailure(Exception e) {
-                        final Throwable cause = ExceptionsHelper.unwrapCause(e);
-                        if (cause instanceof IndexNotFoundException indexNotFoundException) {
-                            synchronized (indicesThatCannotBeCreated) {
-                                indicesThatCannotBeCreated.put(index, indexNotFoundException);
+                        @Override
+                        public void onFailure(Exception e) {
+                            final Throwable cause = ExceptionsHelper.unwrapCause(e);
+                            if (cause instanceof IndexNotFoundException indexNotFoundException) {
+                                synchronized (indicesThatCannotBeCreated) {
+                                    indicesThatCannotBeCreated.put(index, indexNotFoundException);
+                                }
+                            } else if ((cause instanceof ResourceAlreadyExistsException) == false) {
+                                // fail all requests involving this index, if create didn't work
+                                failRequestsWhenPrerequisiteActionFailed(index, bulkRequest, responses, e);
                             }
-                        } else if ((cause instanceof ResourceAlreadyExistsException) == false) {
-                            // fail all requests involving this index, if create didn't work
-                            failRequestsWhenPrerequisiteActionFailed(index, bulkRequest, responses, e);
                         }
-                    }
-                }, refs.acquire()), bulkRequest instanceof SimulateBulkRequest);
+                    }, refs.acquire()));
+                }
             }
             for (String dataStream : dataStreamsToBeRolledOver) {
                 lazyRolloverDataStream(dataStream, bulkRequest.timeout(), ActionListener.releaseAfter(new ActionListener<>() {
@@ -576,23 +578,13 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
         }
     }
 
-    void createIndex(
-        String index,
-        boolean requireDataStream,
-        TimeValue timeout,
-        ActionListener<CreateIndexResponse> listener,
-        boolean isSimulated
-    ) {
-        if (isSimulated) {
-            listener.onResponse(null);
-        } else {
-            CreateIndexRequest createIndexRequest = new CreateIndexRequest();
-            createIndexRequest.index(index);
-            createIndexRequest.requireDataStream(requireDataStream);
-            createIndexRequest.cause("auto(bulk api)");
-            createIndexRequest.masterNodeTimeout(timeout);
-            client.execute(AutoCreateAction.INSTANCE, createIndexRequest, listener);
-        }
+    void createIndex(String index, boolean requireDataStream, TimeValue timeout, ActionListener<CreateIndexResponse> listener) {
+        CreateIndexRequest createIndexRequest = new CreateIndexRequest();
+        createIndexRequest.index(index);
+        createIndexRequest.requireDataStream(requireDataStream);
+        createIndexRequest.cause("auto(bulk api)");
+        createIndexRequest.masterNodeTimeout(timeout);
+        client.execute(AutoCreateAction.INSTANCE, createIndexRequest, listener);
     }
 
     void lazyRolloverDataStream(String dataStream, TimeValue timeout, ActionListener<RolloverResponse> listener) {

@@ -59,6 +59,6 @@ public class DummyRollupUsageTransportAction extends XPackUsageFeatureTransportA
         ClusterState state,
         ActionListener<XPackUsageFeatureResponse> listener
     ) throws Exception {
-        listener.onResponse(new XPackUsageFeatureResponse(new RollupFeatureSetUsage()));
+        listener.onResponse(new XPackUsageFeatureResponse(new RollupFeatureSetUsage(0)));
     }
 }

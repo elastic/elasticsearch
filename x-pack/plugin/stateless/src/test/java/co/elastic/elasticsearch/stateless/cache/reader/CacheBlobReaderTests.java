@@ -37,6 +37,8 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionRunnable;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.blobcache.BlobCacheUtils;
 import org.elasticsearch.blobcache.common.ByteRange;
 import org.elasticsearch.blobcache.shared.SharedBlobCacheService;
@@ -65,6 +67,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Queue;
 import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
 import java.util.function.LongFunction;
@@ -156,23 +159,34 @@ public class CacheBlobReaderTests extends ESTestCase {
         }
 
         public synchronized BatchedCompoundCommit uploadVirtualBatchedCompoundCommit() throws IOException {
-            if (virtualBatchedCompoundCommit.freeze() == false) {
-                return null;
-            }
+            PlainActionFuture<BatchedCompoundCommit> future = new PlainActionFuture<>();
+            // move to a thread pool that allows reading data from vbcc.
+            threadPool.executor(Stateless.SHARD_WRITE_THREAD_POOL).execute(ActionRunnable.supply(future, () -> {
+                if (virtualBatchedCompoundCommit.freeze() == false) {
+                    return null;
+                }
 
-            // Upload vBCC to blob store
-            SetOnce<BatchedCompoundCommit> bcc = new SetOnce<>();
-            var indexBlobContainer = indexingDirectory.getSearchDirectory().getBlobContainer(getPrimaryTerm());
-            indexBlobContainer.writeMetadataBlob(OperationPurpose.INDICES, virtualBatchedCompoundCommit.getBlobName(), false, true, out -> {
-                bcc.set(virtualBatchedCompoundCommit.writeToStore(out));
-            });
-            virtualBatchedCompoundCommit.decRef();
+                // Upload vBCC to blob store
+                SetOnce<BatchedCompoundCommit> bcc = new SetOnce<>();
+                var indexBlobContainer = indexingDirectory.getSearchDirectory().getBlobContainer(getPrimaryTerm());
+                indexBlobContainer.writeMetadataBlob(
+                    OperationPurpose.INDICES,
+                    virtualBatchedCompoundCommit.getBlobName(),
+                    false,
+                    true,
+                    out -> {
+                        bcc.set(virtualBatchedCompoundCommit.writeToStore(out));
+                    }
+                );
+                virtualBatchedCompoundCommit.decRef();
 
-            SearchDirectoryTestUtils.updateLastUploadedTermAndGen(
-                searchDirectory,
-                virtualBatchedCompoundCommit.getPrimaryTermAndGeneration()
-            );
-            return Objects.requireNonNull(bcc.get());
+                SearchDirectoryTestUtils.updateLastUploadedTermAndGen(
+                    searchDirectory,
+                    virtualBatchedCompoundCommit.getPrimaryTermAndGeneration()
+                );
+                return Objects.requireNonNull(bcc.get());
+            }));
+            return future.actionGet(30, TimeUnit.SECONDS);
         }
 
         @Override

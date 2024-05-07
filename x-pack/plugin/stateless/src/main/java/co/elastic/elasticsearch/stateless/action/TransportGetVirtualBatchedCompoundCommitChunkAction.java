@@ -176,7 +176,7 @@ public class TransportGetVirtualBatchedCompoundCommitChunkAction extends Transpo
         GetVirtualBatchedCompoundCommitChunkRequest request,
         ActionListener<GetVirtualBatchedCompoundCommitChunkResponse> listener
     ) {
-        if (isPrimaryShardStartedOrDeleted(clusterState, request.getShardId())) {
+        if (isPrimaryShardActiveOrDeleted(clusterState, request.getShardId())) {
             ShardRouting primaryShardRouting = clusterState.routingTable().shardRoutingTable(request.getShardId()).primaryShard();
             sendRequestToPrimaryNode(primaryShardRouting, clusterState, request, listener);
         } else {
@@ -214,7 +214,7 @@ public class TransportGetVirtualBatchedCompoundCommitChunkAction extends Transpo
                         )
                     );
                 }
-            }, newState -> isPrimaryShardStartedOrDeleted(newState, request.getShardId()));
+            }, newState -> isPrimaryShardActiveOrDeleted(newState, request.getShardId()));
         }
     }
 
@@ -222,7 +222,7 @@ public class TransportGetVirtualBatchedCompoundCommitChunkAction extends Transpo
      * Returns true if the primary shard is found and is started, or if the primary shard is not found in the cluster state.
      * Returns false if the primary shard is found and is not started.
      */
-    private boolean isPrimaryShardStartedOrDeleted(ClusterState clusterState, ShardId shardId) {
+    private boolean isPrimaryShardActiveOrDeleted(ClusterState clusterState, ShardId shardId) {
         var indexRoutingTable = clusterState.routingTable().index(shardId.getIndex());
         if (indexRoutingTable == null) {
             return true; // index is not in the cluster state, return true, so that an IndexNotFoundException is thrown downstream.
@@ -231,7 +231,7 @@ public class TransportGetVirtualBatchedCompoundCommitChunkAction extends Transpo
         if (shardRoutingTable == null) {
             return true; // shard is not in the cluster state, so that an ShardNotFoundException is thrown downstream.
         }
-        return shardRoutingTable.primaryShard().started();
+        return shardRoutingTable.primaryShard().active();
     }
 
     private void sendRequestToPrimaryNode(

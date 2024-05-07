@@ -160,6 +160,7 @@ import static org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata.Type
 import static org.elasticsearch.cluster.routing.UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING;
 import static org.elasticsearch.cluster.routing.allocation.decider.MaxRetryAllocationDecider.SETTING_ALLOCATION_MAX_RETRY;
 import static org.elasticsearch.discovery.PeerFinder.DISCOVERY_FIND_PEERS_INTERVAL_SETTING;
+import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
@@ -2013,7 +2014,7 @@ public class StatelessRecoveryIT extends AbstractStatelessIntegTestCase {
         assertThat(searchGeneration, equalTo(newCommitNotificationResponseGeneration.get()));
 
         // Assert that a search returns all the documents
-        assertResponse(prepareSearch(indexName).setQuery(QueryBuilders.matchAllQuery()), searchResponse -> {
+        assertResponse(prepareSearch(indexName).setQuery(matchAllQuery()), searchResponse -> {
             assertNoFailures(searchResponse);
             assertEquals(totalDocs, searchResponse.getHits().getTotalHits().value);
         });
@@ -2050,7 +2051,7 @@ public class StatelessRecoveryIT extends AbstractStatelessIntegTestCase {
         var refreshResponse = future.get();
         assertThat("Refresh should have been successful", refreshResponse.getSuccessfulShards(), equalTo(1));
 
-        assertResponse(prepareSearch(indexName).setQuery(QueryBuilders.matchAllQuery()), searchResponse -> {
+        assertResponse(prepareSearch(indexName).setQuery(matchAllQuery()), searchResponse -> {
             assertNoFailures(searchResponse);
             assertEquals(totalDocs, searchResponse.getHits().getTotalHits().value);
         });
@@ -2594,5 +2595,69 @@ public class StatelessRecoveryIT extends AbstractStatelessIntegTestCase {
             ensureGreen(indexName);
             indexNodeClusterService.removeApplier(delayingApplier);
         }
+    }
+
+    // test for ES-8431
+    public void testRelocationsWithUploadDelayed() throws Exception {
+        var maxNonUploadedCommits = randomIntBetween(4, 5);
+        var nodeSettings = Settings.builder()
+            .put(StatelessCommitService.STATELESS_UPLOAD_DELAYED.getKey(), true)
+            .put(StatelessCommitService.STATELESS_UPLOAD_MAX_AMOUNT_COMMITS.getKey(), maxNonUploadedCommits)
+            .build();
+        startIndexNode(nodeSettings);
+        startSearchNode(nodeSettings);
+        ensureStableCluster(3);
+
+        var indexName = randomIdentifier();
+        createIndex(indexName, 1, 1);
+        ensureGreen(indexName);
+
+        var running = new AtomicBoolean(true);
+
+        CountDownLatch indexingStarted = new CountDownLatch(1);
+        CountDownLatch searchingStarted = new CountDownLatch(1);
+
+        var indexingThread = new Thread(() -> {
+            while (running.get()) {
+                try {
+                    // the refresh is important to provoke the original deadlock issue.
+                    indexDocsAndRefresh(indexName, randomIntBetween(10, 50));
+                } catch (Exception e) {
+                    throw new RuntimeException(e);
+                }
+                indexingStarted.countDown();
+            }
+        }, "indexing-thread");
+
+        var searchingThread = new Thread(() -> {
+            while (running.get()) {
+                assertResponse(prepareSearch(indexName).setQuery(matchAllQuery()), response -> {});
+                searchingStarted.countDown();
+            }
+        }, "search-thread");
+
+        indexingThread.start();
+        searchingThread.start();
+
+        try {
+            // not sure this is necessary, but original test had a sleep and this ensures we wait 10s or until we have activity.
+            indexingStarted.await(10, TimeUnit.SECONDS);
+            safeAwait(searchingStarted);
+
+            var newIndexNode = startIndexNode(nodeSettings);
+
+            logger.info("--> relocating index shard into {}", newIndexNode);
+            updateIndexSettings(Settings.builder().put("index.routing.allocation.require._name", newIndexNode), indexName);
+
+            // also waits for no relocating shards.
+            ensureGreen(indexName);
+        } finally {
+            running.set(false);
+
+            indexingThread.join(30000);
+            searchingThread.join(10000);
+        }
+        assertThat(indexingThread.isAlive(), is(false));
+        assertThat(searchingThread.isAlive(), is(false));
     }
 }

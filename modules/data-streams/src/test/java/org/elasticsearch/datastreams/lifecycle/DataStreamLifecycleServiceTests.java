@@ -284,7 +284,7 @@ public class DataStreamLifecycleServiceTests extends ESTestCase {
 
         ClusterState state = ClusterState.builder(ClusterName.DEFAULT).metadata(builder).build();
         dataStreamLifecycleService.run(state);
-        assertThat(clientSeenRequests.size(), is(5)); // rollover the 2 write index, and force merge the other three
+        assertThat(clientSeenRequests.size(), is(5)); // roll over the 2 write indices, and force merge the other three
         assertThat(clientSeenRequests.get(0), instanceOf(RolloverRequest.class));
         assertThat(clientSeenRequests.get(1), instanceOf(RolloverRequest.class));
     }

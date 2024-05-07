@@ -410,6 +410,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
             // TODO: we can also check whether we need upload before appending to avoid creating VBCC just above the cache region size
 
             final VirtualBatchedCompoundCommit virtualBcc;
+            final IndexShardRoutingTable shardRoutingTable;
             synchronized (commitState) {
                 // Have to check under lock before creating vbcc to ensure that the shard has not closed.
                 if (commitState.isClosed()) {
@@ -424,17 +425,29 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                     return;
                 }
                 virtualBcc = commitState.appendCommit(reference);
+                // only need to check `isDeleted` under lock, but the rest does very little work and no synchronization.
+                if (statelessUploadDelayed && commitState.isInitializingNoSearch() == false && commitState.isDeleted == false) {
+                    IndexShardRoutingTable localRoutingTable = null;
+                    try {
+                        localRoutingTable = shardRoutingFinder.apply(shardId);
+                    } catch (IndexNotFoundException e) {
+                        logger.warn("index not found for shard [{}]", shardId);
+                    }
+                    shardRoutingTable = localRoutingTable;
+                } else {
+                    shardRoutingTable = null;
+                }
             }
             success = true;
 
             if (statelessUploadDelayed) {
-                if (commitState.isInitializingNoSearch()) {
+                if (shardRoutingTable == null) {
                     // for initializing shards, the applied state may not yet be available in `ClusterService.state()`.
                     // however, except for peer recovery, we can safely assume no search shards.
                     commitState.notifyCommitSuccessListeners(generation);
                 } else {
                     final var request = new NewCommitNotificationRequest(
-                        shardRoutingFinder.apply(shardId),
+                        shardRoutingTable,
                         virtualBcc.lastCompoundCommit(),
                         virtualBcc.getPrimaryTermAndGeneration().generation(),
                         commitState.getMaxUploadedBccTermAndGen()

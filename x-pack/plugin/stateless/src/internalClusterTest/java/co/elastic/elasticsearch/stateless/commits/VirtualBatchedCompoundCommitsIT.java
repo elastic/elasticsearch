@@ -70,6 +70,7 @@ import java.nio.file.NoSuchFileException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BooleanSupplier;
@@ -458,6 +459,15 @@ public class VirtualBatchedCompoundCommitsIT extends AbstractStatelessIntegTestC
             handler.messageReceived(request, channel, task);
         });
 
+        CyclicBarrier chunkBarrier = new CyclicBarrier(2);
+        IndexNodeATransportService.addRequestHandlingBehavior(
+            TransportGetVirtualBatchedCompoundCommitChunkAction.NAME + "[p]",
+            (handler, request, channel, task) -> {
+                safeAwait(chunkBarrier);
+                handler.messageReceived(request, channel, task);
+            }
+        );
+
         logger.info("--> excluding {}", indexNodeA);
         updateIndexSettings(Settings.builder().put("index.routing.allocation.exclude._name", indexNodeA), indexName);
         safeAwait(relocationStarted);
@@ -471,13 +481,13 @@ public class VirtualBatchedCompoundCommitsIT extends AbstractStatelessIntegTestC
         int length = randomIntBetween(5, 20);
         CountDownLatch exceptionThrown = new CountDownLatch(1);
         new Thread(() -> {
-            try (var inputStream = indexingShardCacheBlobReader.getRangeInputStream(randomLongBetween(0, Long.MAX_VALUE - 1), length)) {
+            try (var inputStream = indexingShardCacheBlobReader.getRangeInputStream(0, length)) {
                 assert false : "exception expected";
             } catch (Exception e) {
                 if (failureType == FailureType.INDEX_CLOSED) {
                     assertThat(e.getCause(), instanceOf(IndexClosedException.class));
                 } else {
-                    assertThat(e, instanceOf(IndexNotFoundException.class));
+                    assertThat(e.getCause(), instanceOf(IndexNotFoundException.class));
                 }
                 exceptionThrown.countDown();
             }
@@ -495,6 +505,7 @@ public class VirtualBatchedCompoundCommitsIT extends AbstractStatelessIntegTestC
             default:
                 assert false : "unexpected failure type: " + failureType;
         }
+        safeAwait(chunkBarrier);
         continueRelocation.countDown();
         safeAwait(exceptionThrown); // does not depend on the `continueRelocation.countDown()` command necessarily
     }

@@ -41,7 +41,7 @@ class ImmediateLocalSupplier implements LocalSupplier {
 
     @Override
     public boolean equals(Object obj) {
-        if (obj == null || obj.getClass() != ImmediateLocalSupplier.class) {
+        if (obj == null || obj.getClass() != getClass()) {
             return false;
         }
         ImmediateLocalSupplier other = (ImmediateLocalSupplier) obj;

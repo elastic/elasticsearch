@@ -131,6 +131,11 @@ public class EsqlFeatures implements FeatureSpecification {
      */
     public static final NodeFeature STRING_LITERAL_AUTO_CASTING_EXTENDED = new NodeFeature("esql.string_literal_auto_casting_extended");
 
+    /**
+     * Support for metadata fields.
+     */
+    public static final NodeFeature METADATA_FIELDS = new NodeFeature("esql.metadata_fields");
+
     @Override
     public Set<NodeFeature> getFeatures() {
         return Set.of(
@@ -151,7 +156,8 @@ public class EsqlFeatures implements FeatureSpecification {
             CASTING_OPERATOR,
             MV_ORDERING_SORTED_ASCENDING,
             METRICS_COUNTER_FIELDS,
-            STRING_LITERAL_AUTO_CASTING_EXTENDED
+            STRING_LITERAL_AUTO_CASTING_EXTENDED,
+            METADATA_FIELDS
         );
     }
 

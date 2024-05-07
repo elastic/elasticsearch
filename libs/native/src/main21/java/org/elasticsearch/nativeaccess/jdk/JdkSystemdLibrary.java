@@ -63,9 +63,11 @@ class JdkSystemdLibrary implements SystemdLibrary {
         final String libpath = System.getProperty("java.library.path");
         return Arrays.stream(libpath.split(":")).map(Paths::get).filter(Files::exists).flatMap(p -> {
             try {
-                return Files.find(p, Integer.MAX_VALUE, (fp, attrs) -> (
-                        attrs.isDirectory() == false && fp.getFileName().equals(libsystemd)
-                ));
+                return Files.find(
+                    p,
+                    Integer.MAX_VALUE,
+                    (fp, attrs) -> (attrs.isDirectory() == false && fp.getFileName().equals(libsystemd))
+                );
             } catch (IOException e) {
                 throw new UncheckedIOException(e);
             }

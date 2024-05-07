@@ -47,7 +47,7 @@ setup:
       features: headers
 
   - skip:
-      version: ' - 8.13.99'
+      version: ' - 8.14.99'
       reason: 'ingest simulate index mapping validation added in 8.14'
 
   - do:

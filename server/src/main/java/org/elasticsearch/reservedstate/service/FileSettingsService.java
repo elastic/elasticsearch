@@ -102,7 +102,7 @@ public class FileSettingsService extends MasterNodeFileWatchingService implement
         // We check if the version was reset to 0, and force an update if a file exists. This can happen in situations
         // like snapshot restores.
         ReservedStateMetadata fileSettingsMetadata = clusterState.metadata().reservedStateMetadata().get(NAMESPACE);
-        return fileSettingsMetadata != null && fileSettingsMetadata.version() == 0L;
+        return fileSettingsMetadata != null && fileSettingsMetadata.version().equals(ReservedStateMetadata.RESTORED_VERSION);
     }
 
     /**

@@ -136,6 +136,12 @@ public class EsqlFeatures implements FeatureSpecification {
      */
     public static final NodeFeature METADATA_FIELDS = new NodeFeature("esql.metadata_fields");
 
+    /**
+     * Support for loading values over enrich. This is supported by all versions of ESQL but not
+     * the unit test CsvTests.
+     */
+    public static final NodeFeature ENRICH_LOAD = new NodeFeature("esql.enrich_load");
+
     @Override
     public Set<NodeFeature> getFeatures() {
         return Set.of(
@@ -168,7 +174,8 @@ public class EsqlFeatures implements FeatureSpecification {
             Map.entry(MV_WARN, Version.V_8_12_0),
             Map.entry(SPATIAL_POINTS, Version.V_8_12_0),
             Map.entry(CONVERT_WARN, Version.V_8_12_0),
-            Map.entry(POW_DOUBLE, Version.V_8_12_0)
+            Map.entry(POW_DOUBLE, Version.V_8_12_0),
+            Map.entry(ENRICH_LOAD, Version.V_8_12_0)
         );
     }
 }

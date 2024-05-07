@@ -109,6 +109,10 @@ public abstract class LuceneOperator extends SourceOperator {
         return currentScorer;
     }
 
+    LeafReaderContext getCurrentLeafContext() {
+        return currentScorer.leafReaderContext();
+    }
+
     /**
      * Wraps a {@link BulkScorer} with shard information
      */

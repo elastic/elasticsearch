@@ -1,6 +1,8 @@
 package org.elasticsearch.compute.lucene;
 
 import org.apache.lucene.document.Field;
+import org.apache.lucene.document.IntField;
+import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.document.TextField;
 import org.apache.lucene.index.IndexReader;
@@ -108,6 +110,7 @@ public class LuceneRetrieveOperatorTests extends AnyOperatorTestCase {
             List.of(ctx),
             queryFunction,
             new ArrayList<>(),
+            new ArrayList<>(),
             dataPartitioning,
             taskConcurrency,
             maxPageSize,
@@ -173,6 +176,7 @@ public class LuceneRetrieveOperatorTests extends AnyOperatorTestCase {
         testWithQuery(
             QueryBuilders.matchQuery("stored_text", "time").toQuery(sec),
             new ArrayList<>(),
+            new ArrayList<>(),
             List.of("3", "4", "1", "2"),
             ctx
         );
@@ -206,6 +210,47 @@ public class LuceneRetrieveOperatorTests extends AnyOperatorTestCase {
                 new Tuple<>(firstRescorer, 3),
                 new Tuple<>(secondRescorer, 2)
             ),
+            new ArrayList<>(),
+            List.of("1", "3"),
+            ctx
+        );
+    }
+
+    public void testEverything() throws IOException {
+        initMapping();
+        initIndex();
+        ShardContext ctx = new LuceneSourceOperatorTests.MockShardContext(reader, 0);
+        SearchExecutionContext sec = getSearchExecutionContext(ctx.searcher());
+
+        Query query = QueryBuilders.matchQuery("stored_text", "time wheel").toQuery(sec);
+        Rescorer firstRescorer = new QueryRescorer(query) {
+            @Override
+            protected float combine(float firstPassScore, boolean secondPassMatches, float secondPassScore) {
+                return secondPassScore;
+            }
+        };
+
+        Rescorer secondRescorer = new QueryRescorer(query) {
+            @Override
+            protected float combine(float firstPassScore, boolean secondPassMatches, float secondPassScore) {
+                // this will flip the order of the results
+                return 10000 - secondPassScore;
+            }
+        };
+
+        Query featureQuery1 = QueryBuilders.matchQuery("stored_text", "history").toQuery(sec);
+        Query featureQuery2 = QueryBuilders.matchQuery("stored_text", "kill").toQuery(sec);
+
+        testWithQuery(
+            QueryBuilders.matchQuery("stored_text", "time").toQuery(sec),
+            List.of(
+                new Tuple<>(firstRescorer, 3),
+                new Tuple<>(secondRescorer, 2)
+            ),
+           List.of(
+                new Tuple<>("my_feature1", featureQuery1),
+                new Tuple<>("my_feature2", featureQuery2)
+            ),
             List.of("1", "3"),
             ctx
         );
@@ -214,6 +259,7 @@ public class LuceneRetrieveOperatorTests extends AnyOperatorTestCase {
     private void testWithQuery(
         Query query,
         List<Tuple<Rescorer, Integer>> rescorers,
+        List<Tuple<String, Query>> features,
         List<String> expectedOrderedIds,
         ShardContext shardContext
     ) throws IOException {
@@ -226,7 +272,8 @@ public class LuceneRetrieveOperatorTests extends AnyOperatorTestCase {
             10_000,
             100,
             query,
-            rescorers
+            rescorers,
+            features
         );
 
         Operator op =  new ValuesSourceReaderOperator.Factory(
@@ -314,6 +361,9 @@ public class LuceneRetrieveOperatorTests extends AnyOperatorTestCase {
             b.startObject("stored_text");
             b.field("type", "text");
             b.endObject();
+            b.startObject("page_count");
+            b.field("type", "long");
+            b.endObject();
         }));
     }
 
@@ -328,25 +378,29 @@ public class LuceneRetrieveOperatorTests extends AnyOperatorTestCase {
             writer.addDocument(
                 Arrays.asList(
                     IdFieldMapper.standardIdField("1"),
-                    new TextField("stored_text", "A brief history of time", Field.Store.YES)
+                    new TextField("stored_text", "A brief history of time", Field.Store.YES),
+                    new NumericDocValuesField("page_count", 250)
                 )
             );
             writer.addDocument(
                 Arrays.asList(
                     IdFieldMapper.standardIdField("2"),
-                    new TextField("stored_text", "In search of lost time", Field.Store.YES)
+                    new TextField("stored_text", "In search of lost time", Field.Store.YES),
+                    new NumericDocValuesField("page_count", 4200)
                 )
             );
             writer.addDocument(
                 Arrays.asList(
                     IdFieldMapper.standardIdField("3"),
-                    new TextField("stored_text", "A time to kill", Field.Store.YES)
+                    new TextField("stored_text", "A time to kill", Field.Store.YES),
+                    new NumericDocValuesField("page_count", 650)
                 )
             );
             writer.addDocument(
                 Arrays.asList(
                     IdFieldMapper.standardIdField("4"),
-                    new TextField("stored_text", "The wheel of time", Field.Store.YES)
+                    new TextField("stored_text", "The wheel of time", Field.Store.YES),
+                    new NumericDocValuesField("page_count", 12_000)
                 )
             );
             writer.commit();
@@ -391,7 +445,15 @@ public class LuceneRetrieveOperatorTests extends AnyOperatorTestCase {
         );
     }
 
-    private LuceneRetrieveOperator.Factory getFactory(ShardContext ctx, DataPartitioning dataPartitioning, int size, int limit, Query query, List<Tuple<Rescorer, Integer>> rescorers) throws IOException {
+    private LuceneRetrieveOperator.Factory getFactory(
+        ShardContext ctx,
+        DataPartitioning dataPartitioning,
+        int size,
+        int limit,
+        Query query,
+        List<Tuple<Rescorer, Integer>> rescorers,
+        List<Tuple<String, Query>> features
+        ) throws IOException {
         Function<ShardContext, Query> queryFunction = c -> query;
         int taskConcurrency = 0;
         int maxPageSize = between(10, Math.max(10, size));
@@ -399,6 +461,7 @@ public class LuceneRetrieveOperatorTests extends AnyOperatorTestCase {
             List.of(ctx),
             queryFunction,
             rescorers,
+            features,
             dataPartitioning,
             taskConcurrency,
             maxPageSize,

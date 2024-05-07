@@ -128,11 +128,6 @@ public class DocBlock extends AbstractVectorBlock implements Block {
             return this;
         }
 
-        public Builder appendScore(float score) {
-            scores.appendDouble(score);
-            return this;
-        }
-
         @Override
         public Builder appendNull() {
             throw new UnsupportedOperationException("doc blocks can't contain null");

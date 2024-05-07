@@ -9,7 +9,6 @@ package org.elasticsearch.test;
 
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.core.LogEvent;
 import org.apache.logging.log4j.core.appender.AbstractAppender;
 import org.apache.logging.log4j.core.config.Property;
@@ -23,7 +22,6 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.regex.Pattern;
 
 import static org.hamcrest.CoreMatchers.equalTo;
@@ -35,11 +33,10 @@ import static org.hamcrest.Matchers.is;
  */
 public class MockLogAppender {
 
-    private static final Logger logger = LogManager.getLogger(MockLogAppender.class);
     private static final Map<String, List<MockLogAppender>> mockAppenders = new ConcurrentHashMap<>();
     private static final RealMockAppender parent = new RealMockAppender();
     private final List<WrappedLoggingExpectation> expectations;
-    private final AtomicBoolean isAlive = new AtomicBoolean(true);
+    private volatile boolean isAlive = true;
 
     private static class RealMockAppender extends AbstractAppender {
 
@@ -51,7 +48,7 @@ public class MockLogAppender {
         public void append(LogEvent event) {
             List<MockLogAppender> appenders = mockAppenders.getOrDefault(event.getLoggerName(), List.of());
             for (MockLogAppender appender : appenders) {
-                if (appender.isAlive.get() == false) {
+                if (appender.isAlive == false) {
                     continue;
                 }
                 for (LoggingExpectation expectation : appender.expectations) {
@@ -239,7 +236,7 @@ public class MockLogAppender {
      */
     private static class WrappedLoggingExpectation implements LoggingExpectation {
 
-        private final AtomicBoolean assertMatchedCalled = new AtomicBoolean(false);
+        private volatile boolean assertMatchedCalled = false;
         private final LoggingExpectation delegate;
 
         private WrappedLoggingExpectation(LoggingExpectation delegate) {
@@ -256,7 +253,7 @@ public class MockLogAppender {
             try {
                 delegate.assertMatched();
             } finally {
-                assertMatchedCalled.set(true);
+                assertMatchedCalled = true;
             }
         }
 
@@ -293,7 +290,7 @@ public class MockLogAppender {
             });
         }
         return () -> {
-            isAlive.set(false);
+            isAlive = false;
             for (String logger : loggers) {
                 mockAppenders.compute(logger, (k, v) -> {
                     assert v != null;
@@ -305,7 +302,7 @@ public class MockLogAppender {
             for (WrappedLoggingExpectation expectation : expectations) {
                 assertThat(
                     "Method assertMatched() not called on LoggingExpectation instance before release: " + expectation,
-                    expectation.assertMatchedCalled.get(),
+                    expectation.assertMatchedCalled,
                     is(true)
                 );
             }

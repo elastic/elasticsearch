@@ -273,13 +273,4 @@ public class Mapper {
         }
         throw new EsqlIllegalArgumentException("unsupported unary logical plan node [" + p.nodeName() + "]");
     }
-
-    private PhysicalPlan addExchangeForFragment(PhysicalPlan child) {
-        // NOCOMMIT this seems bad
-        // NOCOMMIT what in the world is this? FROM test | LOOKUP t1 ON a | STATS MAX(v1) BY a
-        if (child instanceof FragmentExec) {
-            child = new ExchangeExec(child.source(), child);
-        }
-        return child;
-    }
 }

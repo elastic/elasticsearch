@@ -7,11 +7,14 @@
 
 package org.elasticsearch.xpack.esql.plan.physical;
 
+import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
+import org.elasticsearch.xpack.esql.io.stream.PlanStreamOutput;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalSupplier;
 import org.elasticsearch.xpack.ql.expression.Attribute;
 import org.elasticsearch.xpack.ql.tree.NodeInfo;
 import org.elasticsearch.xpack.ql.tree.Source;
 
+import java.io.IOException;
 import java.util.List;
 import java.util.Objects;
 
@@ -24,6 +27,18 @@ public class LocalSourceExec extends LeafExec {
         super(source);
         this.output = output;
         this.supplier = supplier;
+    }
+
+    public LocalSourceExec(PlanStreamInput in) throws IOException {
+        super(in.readSource());
+        this.output = in.readCollectionAsList(i -> ((PlanStreamInput) i).readAttribute());
+        this.supplier = LocalSupplier.readFrom(in);
+    }
+
+    public void writeTo(PlanStreamOutput out) throws IOException {
+        out.writeSource(source());
+        out.writeCollection(output, (o, v) -> ((PlanStreamOutput) o).writeAttribute(v));
+        supplier.writeTo(out);
     }
 
     @Override

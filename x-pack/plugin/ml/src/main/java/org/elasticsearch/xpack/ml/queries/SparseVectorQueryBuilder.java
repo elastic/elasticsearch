@@ -40,6 +40,7 @@ import org.elasticsearch.xpack.core.ml.inference.results.WarningInferenceResults
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextExpansionConfigUpdate;
 import org.elasticsearch.xpack.core.ml.search.TokenPruningConfig;
 import org.elasticsearch.xpack.core.ml.search.WeightedToken;
+import org.elasticsearch.xpack.core.ml.search.WeightedTokensQueryBuilder;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -239,7 +240,6 @@ public class SparseVectorQueryBuilder extends AbstractQueryBuilder<SparseVectorQ
 
     @Override
     protected Query doToQuery(SearchExecutionContext context) throws IOException {
-
         if (queryVectors == null) {
             return new MatchNoDocsQuery("Empty query vectors");
         }
@@ -264,21 +264,21 @@ public class SparseVectorQueryBuilder extends AbstractQueryBuilder<SparseVectorQ
     @Override
     protected QueryBuilder doRewrite(QueryRewriteContext queryRewriteContext) {
 
+        // Note: We return a WeightedTokensQueryBuilder here instead of a SparseVectorQueryBuilder, so that this
+        // query will work when search.check_ccs_compatibility is set to true. This will eventually be removed
+        // when it is no longer needed for compatibility.
         if (queryVectors != null) {
-            return this;
+            // TODO return `this`
+            return new WeightedTokensQueryBuilder(fieldName, queryVectors, tokenPruningConfig);
         } else if (weightedTokensSupplier != null) {
             TextExpansionResults textExpansionResults = weightedTokensSupplier.get();
             if (textExpansionResults == null) {
                 return this;
             }
-            return new SparseVectorQueryBuilder(
-                fieldName,
-                textExpansionResults.getWeightedTokens(),
-                null,
-                null,
-                shouldPruneTokens,
-                tokenPruningConfig
-            );
+
+            // TODO - Replace this with a new instance of SparseVectorQueryBuilder that uses `textExpansionResults.getWeightedTokens()`
+            // as the input query vectors
+            return new WeightedTokensQueryBuilder(fieldName, textExpansionResults.getWeightedTokens(), tokenPruningConfig);
         }
 
         CoordinatedInferenceAction.Request inferRequest = CoordinatedInferenceAction.Request.forTextInput(

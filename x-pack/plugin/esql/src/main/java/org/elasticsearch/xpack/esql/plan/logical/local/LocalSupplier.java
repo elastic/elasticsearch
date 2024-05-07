@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.esql.plan.logical.local;
 
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.compute.data.Block;

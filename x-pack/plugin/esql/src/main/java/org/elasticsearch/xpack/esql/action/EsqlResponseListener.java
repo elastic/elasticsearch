@@ -154,13 +154,20 @@ public final class EsqlResponseListener extends RestRefCountedChunkedToXContentL
     }
 
     /**
-     * Log the execution time and query when handling an ES|QL response.
+     * Log internal server errors all the time and log queries if debug is enabled.
      */
     public ActionListener<EsqlQueryResponse> wrapWithLogging() {
+        ActionListener<EsqlQueryResponse> listener = ActionListener.wrap(this::onResponse, ex -> {
+            logOnFailure(LOGGER, ex);
+            onFailure(ex);
+        });
+        if (LOGGER.isDebugEnabled() == false) {
+            return listener;
+        }
         return ActionListener.wrap(r -> {
-            onResponse(r);
+            listener.onResponse(r);
             // At this point, the StopWatch should already have been stopped, so we log a consistent time.
-            LOGGER.info(
+            LOGGER.debug(
                 "Finished execution of ESQL query.\nQuery string: [{}]\nExecution time: [{}]ms",
                 esqlQuery,
                 stopWatch.stop().getMillis()
@@ -168,9 +175,8 @@ public final class EsqlResponseListener extends RestRefCountedChunkedToXContentL
         }, ex -> {
             // In case of failure, stop the time manually before sending out the response.
             long timeMillis = stopWatch.stop().getMillis();
-            LOGGER.info("Failed execution of ESQL query.\nQuery string: [{}]\nExecution time: [{}]ms", esqlQuery, timeMillis);
-            logOnFailure(LOGGER, ex);
-            onFailure(ex);
+            LOGGER.debug("Failed execution of ESQL query.\nQuery string: [{}]\nExecution time: [{}]ms", esqlQuery, timeMillis);
+            listener.onFailure(ex);
         });
     }
 }

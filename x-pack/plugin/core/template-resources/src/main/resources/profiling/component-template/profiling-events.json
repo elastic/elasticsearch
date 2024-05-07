@@ -10,11 +10,10 @@
         "sort": {
           "field": [
             "profiling.project.id",
-            "@timestamp",
             "orchestrator.resource.name",
+            "host.name",
             "container.name",
-            "process.thread.name",
-            "host.id"
+            "process.thread.name"
           ]
         }
       },

@@ -31,7 +31,7 @@ That way you can transition to the new abstraction at your own pace without
 mixing syntaxes.
 * <<knn-retriever,*kNN Retriever*>>. Returns top documents from a <<search-api-knn,knn search>>, 
 in the context of a retriever framework.
-* <<rrf-retriever,*RRF Retriever*>>. Combines and ranks multiple standard retrievers using
+* <<rrf-retriever,*RRF Retriever*>>. Combines and ranks multiple first-stage retrievers using
 the reciprocal rank fusion (RRF) algorithm. Allows you to combine multiple result sets 
 with different relevance indicators into a single result set.
 An RRF retriever is a *compound retriever*, where its `filter` element is 
@@ -48,7 +48,7 @@ Stay tuned for more retriever types in future releases!
 ====
 
 [discrete]
-=== What Makes Retrievers Useful? 
+=== What makes retrievers useful? 
 
 Here's an overview of what makes retrievers useful and how they differ from 
 regular queries. 
@@ -119,11 +119,8 @@ GET example-index/_search
         {
           "standard": {
             "query": {
-              "multi_match": {
-                "query": "blue shoes sale",
-                "fields": [
-                  "text"
-                ]
+              "match": {
+                "text": "blue shoes sale"
               }
             }
           }
@@ -148,47 +145,46 @@ Compare to `RRF` with `sub_searches` approach:
 ----
 GET example-index/_search
 {
-    "sub_searches": [
-        {
-            "query": {
-                "term": {
-                    "text": "blue shoes sale"
-                }
-            }
-        },
-        {
-            "query": {
-                "text_expansion":{
-                    "ml.tokens":{
-                        "model_id":"my_elser_model",
-                        "model_text":"What blue shoes are on sale?"
-                     }
-                }
-            }
+  "sub_searches":[
+    {
+      "query":{
+        "match":{
+          "text":"blue shoes sale"
         }
-    ],
-    "rank": {
-        "rrf": {
-            "window_size": 50,
-            "rank_constant": 20
+      }
+    },
+    {
+      "query":{
+        "text_expansion":{
+          "vector.tokens":{
+            "model_id":".elser_model_2",
+            "model_text":"What blue shoes are on sale?"
+          }
         }
+      }
     }
+  ],
+  "rank":{
+    "rrf":{
+      "window_size":50,
+      "rank_constant":20
+    }
+  }
 }
 ----
 //NOTCONSOLE
 ==============
 
-// TODO: Add concrete example(s) sourced from the hive mind
-
 [discrete]
 [[retrievers-overview-glossary]]
 === Glossary
-// TODO: Probably remove this, is it useful?
 
 Here are some important terms: 
 
 * *Retrieval Pipeline*. Defines the entire retrieval and ranking logic to 
 produce top hits.
+* *Retriever Tree*. A hierarchical structure that defines how retrievers interact.
+* *First-stage Retriever*. Returns an initial set of candidate documents.
 * *Compound Retriever*. Builds on one or more retrievers, 
 enhancing document retrieval and ranking logic.
 * *Combiners*. Compound retrievers that merge top hits 
@@ -199,7 +195,7 @@ from multiple sub-retrievers.
 [[retrievers-overview-play-in-search]]
 === Retrievers in action
 
-The Search Playground, builds Elasticsearch queries using the retriever abstraction.
+The Search Playground builds Elasticsearch queries using the retriever abstraction.
 It automatically detects the fields and types in your index and builds a retriever tree based on your selections.
 
 You can use the Playground to experiment with different retriever configurations and see how they affect search results.

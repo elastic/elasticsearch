@@ -336,7 +336,9 @@ public class GenerationalDocValuesIT extends AbstractStatelessIntegTestCase {
         );
 
         assertThat(indexEngine.getCurrentGeneration(), equalTo(7L));
-        assertBusyFilesLocations(indexDirectory, expectedLocations);
+        // The indexDirectory updates its searchDirectory on upload.
+        // Since refresh does not upload, we skip assertions for its searchDirectory.
+        assertDirectoryContents(indexDirectory, expectedLocations);
         assertBusyFilesLocations(searchDirectory, expectedLocations);
         assertThat(searchEngine.getLastCommittedSegmentInfos().getGeneration(), equalTo(7L));
         assertThat(
@@ -428,8 +430,12 @@ public class GenerationalDocValuesIT extends AbstractStatelessIntegTestCase {
                     equalTo(expected.getValue())
                 );
             }
-            assertThat(List.of(directory.listAll()), equalTo(expectedLocations.keySet().stream().sorted(String::compareTo).toList()));
+            assertDirectoryContents(directory, expectedLocations);
         });
+    }
+
+    private static void assertDirectoryContents(Directory directory, Map<String, Long> expectedLocations) throws IOException {
+        assertThat(List.of(directory.listAll()), equalTo(expectedLocations.keySet().stream().sorted(String::compareTo).toList()));
     }
 
     /**

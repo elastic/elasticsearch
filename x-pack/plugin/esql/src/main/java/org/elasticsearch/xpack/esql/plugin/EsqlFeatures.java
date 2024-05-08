@@ -140,14 +140,20 @@ public class EsqlFeatures implements FeatureSpecification {
     public static final NodeFeature METADATA_FIELDS = new NodeFeature("esql.metadata_fields");
 
     /**
-     * Support for {@code LOOKUP} command.
+     * Support for loading values over enrich. This is supported by all versions of ESQL but not
+     * the unit test CsvTests.
      */
-    public static final NodeFeature LOOKUP_COMMAND = new NodeFeature("esql.lookup_command");
+    public static final NodeFeature ENRICH_LOAD = new NodeFeature("esql.enrich_load");
 
     /**
      * Support for timespan units abbreviations
      */
     public static final NodeFeature TIMESPAN_ABBREVIATIONS = new NodeFeature("esql.timespan_abbreviations");
+
+    /**
+     * Support for {@code LOOKUP} command.
+     */
+    public static final NodeFeature LOOKUP_COMMAND = new NodeFeature("esql.lookup_command");
 
     @Override
     public Set<NodeFeature> getFeatures() {
@@ -189,7 +195,8 @@ public class EsqlFeatures implements FeatureSpecification {
             Map.entry(MV_WARN, Version.V_8_12_0),
             Map.entry(SPATIAL_POINTS, Version.V_8_12_0),
             Map.entry(CONVERT_WARN, Version.V_8_12_0),
-            Map.entry(POW_DOUBLE, Version.V_8_12_0)
+            Map.entry(POW_DOUBLE, Version.V_8_12_0),
+            Map.entry(ENRICH_LOAD, Version.V_8_12_0)
         );
     }
 }

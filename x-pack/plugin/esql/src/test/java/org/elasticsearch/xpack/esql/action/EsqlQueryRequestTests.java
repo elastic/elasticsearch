@@ -562,6 +562,7 @@ public class EsqlQueryRequestTests extends ESTestCase {
                     () -> new TypedParamValue(null, "long", randomLong(), hasExplicitType),
                     () -> new TypedParamValue(null, "double", randomDouble(), hasExplicitType),
                     () -> new TypedParamValue(null, "null", null, hasExplicitType),
+                    () -> new TypedParamValue(null, null, null, hasExplicitType),
                     () -> new TypedParamValue(null, "keyword", randomAlphaOfLength(10), hasExplicitType)
                 );
                 arr.add(supplier.get());

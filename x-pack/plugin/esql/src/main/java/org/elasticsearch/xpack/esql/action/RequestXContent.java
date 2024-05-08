@@ -173,7 +173,8 @@ final class RequestXContent {
                     assert param.getFields().size() <= 1;
                     if (param.getFields().size() == 0) {
                         // value and type should be specified as a pair
-                        if ((param.type != null && param.value == null) || (param.value != null && param.type == null)) {
+                        if ((param.type != null && param.type.equalsIgnoreCase("null") != true && param.value == null)
+                            || (param.value != null && param.type == null)) {
                             throw new InvalidArgumentException("Required a [value] and [type] pair");
                         }
                         currentParam = new TypedParamValue(null, param.type, param.value);

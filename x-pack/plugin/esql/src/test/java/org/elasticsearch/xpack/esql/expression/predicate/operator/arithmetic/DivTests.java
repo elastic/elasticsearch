@@ -16,6 +16,7 @@ import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.type.DataTypes;
+import org.hamcrest.Matcher;
 
 import java.math.BigInteger;
 import java.util.ArrayList;
@@ -23,6 +24,8 @@ import java.util.List;
 import java.util.Set;
 import java.util.function.BiFunction;
 import java.util.function.Supplier;
+
+import static org.hamcrest.Matchers.equalTo;
 
 public class DivTests extends AbstractFunctionTestCase {
     public DivTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
@@ -34,20 +37,20 @@ public class DivTests extends AbstractFunctionTestCase {
         List<TestCaseSupplier> suppliers = new ArrayList<>();
         suppliers.addAll(
             TestCaseSupplier.forBinaryWithWidening(
-                new TestCaseSupplier.NumericTypeTestConfigs(
-                    new TestCaseSupplier.NumericTypeTestConfig(
+                new TestCaseSupplier.NumericTypeTestConfigs<Number>(
+                    new TestCaseSupplier.NumericTypeTestConfig<>(
                         (Integer.MIN_VALUE >> 1) - 1,
                         (Integer.MAX_VALUE >> 1) - 1,
                         (l, r) -> l.intValue() / r.intValue(),
                         "DivIntsEvaluator"
                     ),
-                    new TestCaseSupplier.NumericTypeTestConfig(
+                    new TestCaseSupplier.NumericTypeTestConfig<>(
                         (Long.MIN_VALUE >> 1) - 1,
                         (Long.MAX_VALUE >> 1) - 1,
                         (l, r) -> l.longValue() / r.longValue(),
                         "DivLongsEvaluator"
                     ),
-                    new TestCaseSupplier.NumericTypeTestConfig(Double.NEGATIVE_INFINITY, Double.POSITIVE_INFINITY, (l, r) -> {
+                    new TestCaseSupplier.NumericTypeTestConfig<>(Double.NEGATIVE_INFINITY, Double.POSITIVE_INFINITY, (l, r) -> {
                         double v = l.doubleValue() / r.doubleValue();
                         if (Double.isFinite(v)) {
                             return v;
@@ -90,20 +93,20 @@ public class DivTests extends AbstractFunctionTestCase {
         suppliers = errorsForCasesWithoutExamples(anyNullIsNull(true, suppliers), DivTests::divErrorMessageString);
 
         // Divide by zero cases - all of these should warn and return null
-        TestCaseSupplier.NumericTypeTestConfigs typeStuff = new TestCaseSupplier.NumericTypeTestConfigs(
-            new TestCaseSupplier.NumericTypeTestConfig(
+        TestCaseSupplier.NumericTypeTestConfigs<Number> typeStuff = new TestCaseSupplier.NumericTypeTestConfigs<>(
+            new TestCaseSupplier.NumericTypeTestConfig<>(
                 (Integer.MIN_VALUE >> 1) - 1,
                 (Integer.MAX_VALUE >> 1) - 1,
                 (l, r) -> null,
                 "DivIntsEvaluator"
             ),
-            new TestCaseSupplier.NumericTypeTestConfig(
+            new TestCaseSupplier.NumericTypeTestConfig<>(
                 (Long.MIN_VALUE >> 1) - 1,
                 (Long.MAX_VALUE >> 1) - 1,
                 (l, r) -> null,
                 "DivLongsEvaluator"
             ),
-            new TestCaseSupplier.NumericTypeTestConfig(
+            new TestCaseSupplier.NumericTypeTestConfig<>(
                 Double.NEGATIVE_INFINITY,
                 Double.POSITIVE_INFINITY,
                 (l, r) -> null,
@@ -115,17 +118,19 @@ public class DivTests extends AbstractFunctionTestCase {
         for (DataType lhsType : numericTypes) {
             for (DataType rhsType : numericTypes) {
                 DataType expected = TestCaseSupplier.widen(lhsType, rhsType);
-                TestCaseSupplier.NumericTypeTestConfig expectedTypeStuff = typeStuff.get(expected);
-                BiFunction<DataType, DataType, String> evaluatorToString = (lhs, rhs) -> expectedTypeStuff.evaluatorName()
-                    + "["
-                    + "lhs"
-                    + "="
-                    + TestCaseSupplier.getCastEvaluator("Attribute[channel=0]", lhs, expected)
-                    + ", "
-                    + "rhs"
-                    + "="
-                    + TestCaseSupplier.getCastEvaluator("Attribute[channel=1]", rhs, expected)
-                    + "]";
+                TestCaseSupplier.NumericTypeTestConfig<Number> expectedTypeStuff = typeStuff.get(expected);
+                BiFunction<DataType, DataType, Matcher<String>> evaluatorToString = (lhs, rhs) -> equalTo(
+                    expectedTypeStuff.evaluatorName()
+                        + "["
+                        + "lhs"
+                        + "="
+                        + TestCaseSupplier.getCastEvaluator("Attribute[channel=0]", lhs, expected)
+                        + ", "
+                        + "rhs"
+                        + "="
+                        + TestCaseSupplier.getCastEvaluator("Attribute[channel=1]", rhs, expected)
+                        + "]"
+                );
                 TestCaseSupplier.casesCrossProduct(
                     (l1, r1) -> expectedTypeStuff.expected().apply((Number) l1, (Number) r1),
                     TestCaseSupplier.getSuppliersForNumericType(lhsType, expectedTypeStuff.min(), expectedTypeStuff.max(), true),

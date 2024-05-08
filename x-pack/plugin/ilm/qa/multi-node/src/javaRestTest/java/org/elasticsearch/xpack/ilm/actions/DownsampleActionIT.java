@@ -395,7 +395,6 @@ public class DownsampleActionIT extends ESRestTestCase {
         }, 30, TimeUnit.SECONDS);
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/103981")
     @TestLogging(value = "org.elasticsearch.xpack.ilm:TRACE", reason = "https://github.com/elastic/elasticsearch/issues/103981")
     public void testRollupNonTSIndex() throws Exception {
         createIndex(index, alias, false);
@@ -407,7 +406,11 @@ public class DownsampleActionIT extends ESRestTestCase {
         updatePolicy(client(), index, policy);
 
         try {
-            assertBusy(() -> assertThat(getStepKeyForIndex(client(), index), equalTo(PhaseCompleteStep.finalStep(phaseName).getKey())));
+            assertBusy(
+                () -> assertThat(getStepKeyForIndex(client(), index), equalTo(PhaseCompleteStep.finalStep(phaseName).getKey())),
+                120,
+                TimeUnit.SECONDS
+            );
             String rollupIndex = getRollupIndexName(client(), index, fixedInterval);
             assertNull("Rollup index should not have been created", rollupIndex);
             assertTrue("Source index should not have been deleted", indexExists(index));

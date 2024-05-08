@@ -67,7 +67,6 @@ import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockLogAppender;
 import org.elasticsearch.test.TransportVersionUtils;
-import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.test.XContentTestUtils;
 import org.elasticsearch.threadpool.FixedExecutorBuilder;
 import org.elasticsearch.threadpool.TestThreadPool;
@@ -106,6 +105,8 @@ import org.elasticsearch.xpack.core.security.authc.support.Hasher;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptorTests;
 import org.elasticsearch.xpack.core.security.authz.RoleRestrictionTests;
+import org.elasticsearch.xpack.core.security.authz.permission.RemoteClusterPermissionGroup;
+import org.elasticsearch.xpack.core.security.authz.permission.RemoteClusterPermissions;
 import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilege;
 import org.elasticsearch.xpack.core.security.authz.privilege.ClusterPrivilegeResolver;
 import org.elasticsearch.xpack.core.security.authz.store.RoleReference;
@@ -151,6 +152,7 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
+import static org.elasticsearch.TransportVersions.ROLE_REMOTE_CLUSTER_PRIVS;
 import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_PRIMARY_TERM;
 import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
 import static org.elasticsearch.test.ActionListenerUtils.anyActionListener;
@@ -1039,7 +1041,7 @@ public class ApiKeyServiceTests extends ESTestCase {
         final String roleDescriptor = switch (crossClusterAccessLevel) {
             case 0 -> """
                 {
-                  "cluster": ["cross_cluster_search"]
+                  "cluster": ["cross_cluster_search", "monitor_enrich"]
                 }""";
             case 1 -> """
                 {
@@ -1047,7 +1049,7 @@ public class ApiKeyServiceTests extends ESTestCase {
                 }""";
             default -> """
                 {
-                  "cluster": ["cross_cluster_search", "cross_cluster_replication"]
+                  "cluster": ["cross_cluster_search", "monitor_enrich", "cross_cluster_replication"]
                 }""";
         };
         final int docId = randomIntBetween(0, Integer.MAX_VALUE);
@@ -1161,7 +1163,7 @@ public class ApiKeyServiceTests extends ESTestCase {
             Instant.now().plus(expiry),
             keyRoles,
             type,
-            Version.CURRENT,
+            ApiKey.CURRENT_API_KEY_VERSION,
             metadataMap
         );
         Map<String, Object> keyMap = XContentHelper.convertToMap(BytesReference.bytes(docSource), true, XContentType.JSON).v2();
@@ -1511,10 +1513,8 @@ public class ApiKeyServiceTests extends ESTestCase {
         final Logger logger = LogManager.getLogger(ApiKeyService.class);
         Loggers.setLevel(logger, Level.TRACE);
         final MockLogAppender appender = new MockLogAppender();
-        Loggers.addAppender(logger, appender);
-        appender.start();
 
-        try {
+        try (var ignored = appender.capturing(ApiKeyService.class)) {
             appender.addExpectation(
                 new MockLogAppender.PatternSeenEventExpectation(
                     "evict",
@@ -1557,9 +1557,7 @@ public class ApiKeyServiceTests extends ESTestCase {
             apiKeyAuthCache.invalidateAll();
             appender.assertAllExpectationsMatched();
         } finally {
-            appender.stop();
             Loggers.setLevel(logger, Level.INFO);
-            Loggers.removeAppender(logger, appender);
         }
     }
 
@@ -1576,10 +1574,8 @@ public class ApiKeyServiceTests extends ESTestCase {
         final Logger logger = LogManager.getLogger(ApiKeyService.class);
         Loggers.setLevel(logger, Level.TRACE);
         final MockLogAppender appender = new MockLogAppender();
-        Loggers.addAppender(logger, appender);
-        appender.start();
 
-        try {
+        try (var ignored = appender.capturing(ApiKeyService.class)) {
             appender.addExpectation(
                 new MockLogAppender.UnseenEventExpectation(
                     "evict",
@@ -1597,9 +1593,7 @@ public class ApiKeyServiceTests extends ESTestCase {
             assertEquals(1, apiKeyAuthCache.count());
             appender.assertAllExpectationsMatched();
         } finally {
-            appender.stop();
             Loggers.setLevel(logger, Level.INFO);
-            Loggers.removeAppender(logger, appender);
         }
     }
 
@@ -1613,10 +1607,8 @@ public class ApiKeyServiceTests extends ESTestCase {
         final Logger logger = LogManager.getLogger(ApiKeyService.class);
         Loggers.setLevel(logger, Level.TRACE);
         final MockLogAppender appender = new MockLogAppender();
-        Loggers.addAppender(logger, appender);
-        appender.start();
 
-        try {
+        try (var ignored = appender.capturing(ApiKeyService.class)) {
             // Prepare the warning logging to trigger
             service.getEvictionCounter().add(4500);
             final long thrashingCheckIntervalInSeconds = 300L;
@@ -1671,9 +1663,7 @@ public class ApiKeyServiceTests extends ESTestCase {
             apiKeyAuthCache.put(randomAlphaOfLength(23), new ListenableFuture<>());
             appender.assertAllExpectationsMatched();
         } finally {
-            appender.stop();
             Loggers.setLevel(logger, Level.INFO);
-            Loggers.removeAppender(logger, appender);
         }
     }
 
@@ -1866,7 +1856,10 @@ public class ApiKeyServiceTests extends ESTestCase {
         final String apiKey3 = randomAlphaOfLength(16);
         ApiKeyCredentials apiKeyCredentials3 = getApiKeyCredentials(docId3, apiKey3, type);
         final List<RoleDescriptor> keyRoles = List.of(
-            RoleDescriptor.parse("key-role", new BytesArray("{\"cluster\":[\"monitor\"]}"), true, XContentType.JSON)
+            RoleDescriptor.parserBuilder()
+                .allow2xFormat(true)
+                .build()
+                .parse("key-role", new BytesArray("{\"cluster\":[\"monitor\"]}"), XContentType.JSON)
         );
         final Map<String, Object> metadata3 = mockKeyDocument(
             docId3,
@@ -2365,7 +2358,7 @@ public class ApiKeyServiceTests extends ESTestCase {
         final long now = randomMillisUpToYear9999();
         when(clock.instant()).thenReturn(Instant.ofEpochMilli(now));
         final Map<String, Object> oldMetadata = ApiKeyTests.randomMetadata();
-        final Version oldVersion = VersionUtils.randomVersion(random());
+        final ApiKey.Version oldVersion = new ApiKey.Version(randomIntBetween(1, ApiKey.CURRENT_API_KEY_VERSION.version()));
         final ApiKeyDoc oldApiKeyDoc = ApiKeyDoc.fromXContent(
             XContentHelper.createParser(
                 XContentParserConfiguration.EMPTY,
@@ -2416,8 +2409,8 @@ public class ApiKeyServiceTests extends ESTestCase {
         final Map<String, Object> newMetadata = changeMetadata
             ? randomValueOtherThanMany(md -> md == null || md.equals(oldMetadata), ApiKeyTests::randomMetadata)
             : (randomBoolean() ? oldMetadata : null);
-        final Version newVersion = changeVersion
-            ? randomValueOtherThan(oldVersion, () -> VersionUtils.randomVersion(random()))
+        final ApiKey.Version newVersion = changeVersion
+            ? randomValueOtherThan(oldVersion, ApiKeyServiceTests::randomApiKeyVersion)
             : oldVersion;
         final Authentication newAuthentication = changeCreator
             ? randomValueOtherThanMany(
@@ -2465,7 +2458,7 @@ public class ApiKeyServiceTests extends ESTestCase {
             assertEquals(oldApiKeyDoc.hash, updatedApiKeyDoc.hash);
             assertEquals(oldApiKeyDoc.creationTime, updatedApiKeyDoc.creationTime);
             assertEquals(oldApiKeyDoc.invalidated, updatedApiKeyDoc.invalidated);
-            assertEquals(newVersion.id, updatedApiKeyDoc.version);
+            assertEquals(newVersion.version(), updatedApiKeyDoc.version);
             final var actualUserRoles = service.parseRoleDescriptorsBytes(
                 "",
                 updatedApiKeyDoc.limitedByRoleDescriptorsBytes,
@@ -2589,7 +2582,7 @@ public class ApiKeyServiceTests extends ESTestCase {
     public void testMaybeRemoveRemoteIndicesPrivilegesWithUnsupportedVersion() {
         final String apiKeyId = randomAlphaOfLengthBetween(5, 8);
         final Set<RoleDescriptor> userRoleDescriptors = Set.copyOf(
-            randomList(2, 5, () -> RoleDescriptorTests.randomRoleDescriptor(randomBoolean(), randomBoolean(), randomBoolean()))
+            randomList(2, 5, () -> RoleDescriptorTests.randomRoleDescriptor(randomBoolean(), randomBoolean(), randomBoolean(), false))
         );
 
         // Selecting random unsupported version.
@@ -2599,11 +2592,7 @@ public class ApiKeyServiceTests extends ESTestCase {
             TransportVersionUtils.getPreviousVersion(TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY)
         );
 
-        final Set<RoleDescriptor> result = ApiKeyService.maybeRemoveRemoteIndicesPrivileges(
-            userRoleDescriptors,
-            minTransportVersion,
-            apiKeyId
-        );
+        final Set<RoleDescriptor> result = ApiKeyService.maybeRemoveRemotePrivileges(userRoleDescriptors, minTransportVersion, apiKeyId);
         assertThat(result.stream().anyMatch(RoleDescriptor::hasRemoteIndicesPrivileges), equalTo(false));
         assertThat(result.size(), equalTo(userRoleDescriptors.size()));
 
@@ -2619,29 +2608,61 @@ public class ApiKeyServiceTests extends ESTestCase {
                 "Removed API key's remote indices privileges from role(s) "
                     + userRoleNamesWithRemoteIndicesPrivileges
                     + ". Remote indices are not supported by all nodes in the cluster. "
-                    + "Use the update API Key API to re-assign remote indices to the API key(s), after the cluster upgrade is complete."
             );
         }
     }
 
-    public void testMaybeRemoveRemoteIndicesPrivilegesWithSupportedVersion() {
+    public void testMaybeRemoveRemoteClusterPrivilegesWithUnsupportedVersion() {
         final String apiKeyId = randomAlphaOfLengthBetween(5, 8);
         final Set<RoleDescriptor> userRoleDescriptors = Set.copyOf(
-            randomList(1, 3, ApiKeyServiceTests::randomRoleDescriptorWithRemoteIndexPrivileges)
+            randomList(
+                2,
+                5,
+                () -> RoleDescriptorTests.randomRoleDescriptor(randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean())
+            )
+        );
+
+        // Selecting random unsupported version.
+        final TransportVersion minTransportVersion = TransportVersionUtils.randomVersionBetween(
+            random(),
+            TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY,
+            TransportVersionUtils.getPreviousVersion(ROLE_REMOTE_CLUSTER_PRIVS)
+        );
+
+        final Set<RoleDescriptor> result = ApiKeyService.maybeRemoveRemotePrivileges(userRoleDescriptors, minTransportVersion, apiKeyId);
+        assertThat(result.stream().anyMatch(RoleDescriptor::hasRemoteClusterPermissions), equalTo(false));
+        assertThat(result.size(), equalTo(userRoleDescriptors.size()));
+
+        // Roles for which warning headers are added.
+        final List<String> userRoleNamesWithRemoteClusterPrivileges = userRoleDescriptors.stream()
+            .filter(RoleDescriptor::hasRemoteClusterPermissions)
+            .map(RoleDescriptor::getName)
+            .sorted()
+            .toList();
+
+        if (false == userRoleNamesWithRemoteClusterPrivileges.isEmpty()) {
+            assertWarnings(
+                "Removed API key's remote cluster privileges from role(s) "
+                    + userRoleNamesWithRemoteClusterPrivileges
+                    + ". Remote cluster privileges are not supported by all nodes in the cluster."
+            );
+        }
+    }
+
+    public void testMaybeRemoveRemotePrivilegesWithSupportedVersion() {
+        final String apiKeyId = randomAlphaOfLengthBetween(5, 8);
+        final Set<RoleDescriptor> userRoleDescriptors = Set.copyOf(
+            randomList(1, 3, ApiKeyServiceTests::randomRoleDescriptorWithRemotePrivileges)
         );
 
         // Selecting random supported version.
         final TransportVersion minTransportVersion = TransportVersionUtils.randomVersionBetween(
             random(),
-            TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY,
+            ROLE_REMOTE_CLUSTER_PRIVS,
             TransportVersion.current()
         );
 
-        final Set<RoleDescriptor> result = ApiKeyService.maybeRemoveRemoteIndicesPrivileges(
-            userRoleDescriptors,
-            minTransportVersion,
-            apiKeyId
-        );
+        final Set<RoleDescriptor> result = ApiKeyService.maybeRemoveRemotePrivileges(userRoleDescriptors, minTransportVersion, apiKeyId);
 
         // User roles should be unchanged.
         assertThat(result, equalTo(userRoleDescriptors));
@@ -2707,8 +2728,8 @@ public class ApiKeyServiceTests extends ESTestCase {
         assertThat(
             e.getMessage(),
             containsString(
-                "all nodes must have transport version ["
-                    + TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY
+                "all nodes must have version ["
+                    + TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY.toReleaseVersion()
                     + "] or higher to support creating cross cluster API keys"
             )
         );
@@ -2853,8 +2874,8 @@ public class ApiKeyServiceTests extends ESTestCase {
         assertThat(
             e1.getMessage(),
             containsString(
-                "all nodes must have transport version ["
-                    + WORKFLOWS_RESTRICTION_VERSION
+                "all nodes must have version ["
+                    + WORKFLOWS_RESTRICTION_VERSION.toReleaseVersion()
                     + "] or higher to support restrictions for API keys"
             )
         );
@@ -2871,8 +2892,8 @@ public class ApiKeyServiceTests extends ESTestCase {
         assertThat(
             e2.getMessage(),
             containsString(
-                "all nodes must have transport version ["
-                    + WORKFLOWS_RESTRICTION_VERSION
+                "all nodes must have version ["
+                    + WORKFLOWS_RESTRICTION_VERSION.toReleaseVersion()
                     + "] or higher to support restrictions for API keys"
             )
         );
@@ -2910,7 +2931,7 @@ public class ApiKeyServiceTests extends ESTestCase {
         final List<RoleDescriptor> requestRoleDescriptors = randomList(
             0,
             1,
-            () -> RoleDescriptorTests.randomRoleDescriptor(randomBoolean(), false, randomBoolean())
+            () -> RoleDescriptorTests.randomRoleDescriptor(randomBoolean(), false, randomBoolean(), false)
         );
 
         final AbstractCreateApiKeyRequest createRequest = mock(AbstractCreateApiKeyRequest.class);
@@ -2934,7 +2955,7 @@ public class ApiKeyServiceTests extends ESTestCase {
         assertThat(e2.getMessage(), containsString("owner user role descriptors must not include restriction"));
     }
 
-    private static RoleDescriptor randomRoleDescriptorWithRemoteIndexPrivileges() {
+    private static RoleDescriptor randomRoleDescriptorWithRemotePrivileges() {
         return new RoleDescriptor(
             randomAlphaOfLengthBetween(3, 90),
             randomSubsetOf(ClusterPrivilegeResolver.names()).toArray(String[]::new),
@@ -2945,6 +2966,9 @@ public class ApiKeyServiceTests extends ESTestCase {
             RoleDescriptorTests.randomRoleDescriptorMetadata(randomBoolean()),
             Map.of(),
             RoleDescriptorTests.randomRemoteIndicesPrivileges(1, 3),
+            new RemoteClusterPermissions().addGroup(
+                new RemoteClusterPermissionGroup(new String[] { "monitor_enrich" }, new String[] { "*" })
+            ),
             RoleRestrictionTests.randomWorkflowsRestriction(1, 3)
         );
     }
@@ -2959,6 +2983,7 @@ public class ApiKeyServiceTests extends ESTestCase {
             generateRandomStringArray(5, randomIntBetween(2, 8), false, true),
             RoleDescriptorTests.randomRoleDescriptorMetadata(randomBoolean()),
             Map.of(),
+            null,
             null,
             RoleRestrictionTests.randomWorkflowsRestriction(1, 3)
         );
@@ -2988,7 +3013,7 @@ public class ApiKeyServiceTests extends ESTestCase {
                 Instant.now().plus(Duration.ofSeconds(3600)),
                 keyRoles,
                 ApiKey.Type.REST,
-                Version.CURRENT,
+                ApiKey.CURRENT_API_KEY_VERSION,
                 randomBoolean() ? null : Map.of(randomAlphaOfLengthBetween(3, 8), randomAlphaOfLengthBetween(3, 8))
             );
             final ApiKeyDoc apiKeyDoc = ApiKeyDoc.fromXContent(
@@ -3203,5 +3228,9 @@ public class ApiKeyServiceTests extends ESTestCase {
             randomBoolean(),
             mock(Realms.class)
         );
+    }
+
+    private static ApiKey.Version randomApiKeyVersion() {
+        return new ApiKey.Version(randomIntBetween(1, ApiKey.CURRENT_API_KEY_VERSION.version()));
     }
 }

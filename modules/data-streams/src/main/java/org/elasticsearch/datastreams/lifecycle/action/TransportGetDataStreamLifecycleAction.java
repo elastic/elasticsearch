@@ -9,13 +9,14 @@ package org.elasticsearch.datastreams.lifecycle.action;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.datastreams.DataStreamsActionUtil;
+import org.elasticsearch.action.datastreams.lifecycle.GetDataStreamLifecycleAction;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.TransportMasterNodeReadAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.DataStream;
-import org.elasticsearch.cluster.metadata.DataStreamGlobalRetention;
+import org.elasticsearch.cluster.metadata.DataStreamGlobalRetentionResolver;
 import org.elasticsearch.cluster.metadata.DataStreamLifecycle;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -39,6 +40,7 @@ public class TransportGetDataStreamLifecycleAction extends TransportMasterNodeRe
     GetDataStreamLifecycleAction.Request,
     GetDataStreamLifecycleAction.Response> {
     private final ClusterSettings clusterSettings;
+    private final DataStreamGlobalRetentionResolver globalRetentionResolver;
 
     @Inject
     public TransportGetDataStreamLifecycleAction(
@@ -46,7 +48,8 @@ public class TransportGetDataStreamLifecycleAction extends TransportMasterNodeRe
         ClusterService clusterService,
         ThreadPool threadPool,
         ActionFilters actionFilters,
-        IndexNameExpressionResolver indexNameExpressionResolver
+        IndexNameExpressionResolver indexNameExpressionResolver,
+        DataStreamGlobalRetentionResolver globalRetentionResolver
     ) {
         super(
             GetDataStreamLifecycleAction.INSTANCE.name(),
@@ -60,6 +63,7 @@ public class TransportGetDataStreamLifecycleAction extends TransportMasterNodeRe
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
         clusterSettings = clusterService.getClusterSettings();
+        this.globalRetentionResolver = globalRetentionResolver;
     }
 
     @Override
@@ -85,13 +89,14 @@ public class TransportGetDataStreamLifecycleAction extends TransportMasterNodeRe
                     .map(
                         dataStream -> new GetDataStreamLifecycleAction.Response.DataStreamLifecycle(
                             dataStream.getName(),
-                            dataStream.getLifecycle()
+                            dataStream.getLifecycle(),
+                            dataStream.isSystem()
                         )
                     )
                     .sorted(Comparator.comparing(GetDataStreamLifecycleAction.Response.DataStreamLifecycle::dataStreamName))
                     .toList(),
                 request.includeDefaults() ? clusterSettings.get(DataStreamLifecycle.CLUSTER_LIFECYCLE_DEFAULT_ROLLOVER_SETTING) : null,
-                DataStreamGlobalRetention.getFromClusterState(state)
+                globalRetentionResolver.resolve(state)
             )
         );
     }

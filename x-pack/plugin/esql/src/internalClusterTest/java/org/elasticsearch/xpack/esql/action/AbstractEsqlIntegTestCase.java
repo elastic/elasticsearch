@@ -25,6 +25,7 @@ import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.junit.annotations.TestLogging;
+import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.esql.plugin.TransportEsqlQueryAction;
@@ -39,6 +40,21 @@ import static org.hamcrest.Matchers.equalTo;
 
 @TestLogging(value = "org.elasticsearch.xpack.esql.session:DEBUG", reason = "to better understand planning")
 public abstract class AbstractEsqlIntegTestCase extends ESIntegTestCase {
+    public static EsqlQueryRequest asyncSyncRequestOnLatestVersion() {
+        EsqlQueryRequest request = EsqlQueryRequest.asyncEsqlQueryRequest();
+        applyLatestVersion(request);
+        return request;
+    }
+
+    public static EsqlQueryRequest syncRequestOnLatestVersion() {
+        EsqlQueryRequest request = EsqlQueryRequest.syncEsqlQueryRequest();
+        applyLatestVersion(request);
+        return request;
+    }
+
+    private static void applyLatestVersion(EsqlQueryRequest request) {
+        request.esqlVersion(EsqlTestUtils.latestEsqlVersionOrSnapshot());
+    }
 
     @After
     public void ensureExchangesAreReleased() throws Exception {
@@ -138,9 +154,18 @@ public abstract class AbstractEsqlIntegTestCase extends ESIntegTestCase {
     }
 
     protected EsqlQueryResponse run(String esqlCommands, QueryPragmas pragmas, QueryBuilder filter) {
-        EsqlQueryRequest request = new EsqlQueryRequest();
+        return run(esqlCommands, pragmas, filter, null);
+    }
+
+    protected EsqlQueryResponse run(String esqlCommands, QueryPragmas pragmas, QueryBuilder filter, String version) {
+        EsqlQueryRequest request = syncRequestOnLatestVersion();
+        if (version != null) {
+            request.esqlVersion(version);
+        }
         request.query(esqlCommands);
-        request.pragmas(pragmas);
+        if (pragmas != null) {
+            request.pragmas(pragmas);
+        }
         if (filter != null) {
             request.filter(filter);
         }

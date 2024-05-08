@@ -459,7 +459,7 @@ public class ExpressionRoleMappingTests extends ESTestCase {
         return mapping;
     }
 
-    private ExpressionRoleMapping randomRoleMapping(boolean acceptRoleTemplates) {
+    public static ExpressionRoleMapping randomRoleMapping(boolean acceptRoleTemplates) {
         final boolean useTemplate = acceptRoleTemplates && randomBoolean();
         final List<String> roles;
         final List<TemplateRoleName> templates;

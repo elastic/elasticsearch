@@ -15,8 +15,6 @@ import org.elasticsearch.test.AbstractXContentTestCase;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.ToXContent;
 
-import static org.elasticsearch.core.TimeValue.parseTimeValue;
-
 /**
  * Shared superclass for testing reindex and friends. In particular it makes sure to test the slice features.
  */
@@ -28,11 +26,11 @@ public abstract class AbstractBulkByScrollRequestTestCase<R extends AbstractBulk
         extraRandomizationForSlice(original);
         original.setAbortOnVersionConflict(randomBoolean());
         original.setRefresh(randomBoolean());
-        original.setTimeout(parseTimeValue(randomPositiveTimeValue(), "timeout"));
+        original.setTimeout(randomPositiveTimeValue());
         original.setWaitForActiveShards(
             randomFrom(ActiveShardCount.ALL, ActiveShardCount.NONE, ActiveShardCount.ONE, ActiveShardCount.DEFAULT)
         );
-        original.setRetryBackoffInitialTime(parseTimeValue(randomPositiveTimeValue(), "retry_backoff_initial_time"));
+        original.setRetryBackoffInitialTime(randomPositiveTimeValue());
         original.setMaxRetries(between(0, 1000));
         original.setRequestsPerSecond(
             randomBoolean() ? Float.POSITIVE_INFINITY : randomValueOtherThanMany(r -> r < 0, ESTestCase::randomFloat)

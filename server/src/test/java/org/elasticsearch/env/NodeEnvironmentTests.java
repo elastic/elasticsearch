@@ -601,7 +601,7 @@ public class NodeEnvironmentTests extends ESTestCase {
                 ex.getMessage(),
                 allOf(
                     containsString("Cannot start this node"),
-                    containsString("it holds metadata for indices with version [" + oldIndexVersion + "]"),
+                    containsString("it holds metadata for indices with version [" + oldIndexVersion.toReleaseVersion() + "]"),
                     containsString(
                         "Revert this node to version ["
                             + (previousNodeVersion.major == Version.V_8_0_0.major ? Version.V_7_17_0 : previousNodeVersion)

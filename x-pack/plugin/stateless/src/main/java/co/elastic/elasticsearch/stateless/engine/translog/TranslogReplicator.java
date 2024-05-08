@@ -42,6 +42,7 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.Releasable;
@@ -216,6 +217,16 @@ public class TranslogReplicator extends AbstractLifecycleComponent {
             @Override
             public void onFailure(Exception e) {
                 logger.error("unexpected exception when running translog replication task", e);
+                assert false : e;
+            }
+
+            @Override
+            public void onRejection(Exception e) {
+                if (e instanceof EsRejectedExecutionException esre && esre.isExecutorShutdown()) {
+                    logger.debug("translog replication task rejected due to shutdown");
+                } else {
+                    onFailure(e);
+                }
             }
         }, FLUSH_CHECK_INTERVAL, executor);
     }

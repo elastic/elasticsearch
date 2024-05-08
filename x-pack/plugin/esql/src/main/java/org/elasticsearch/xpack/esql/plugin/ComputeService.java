@@ -205,6 +205,7 @@ public class ComputeService {
             RefCountingListener refs = new RefCountingListener(listener.map(unused -> new Result(collectedPages, collectedProfiles)))
         ) {
             // run compute on the coordinator
+            exchangeSource.addCompletionListener(refs.acquire());
             runCompute(
                 rootTask,
                 new ComputeContext(sessionId, RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY, List.of(), configuration, exchangeSource, null),
@@ -722,6 +723,7 @@ public class ComputeService {
             var externalSink = exchangeService.getSinkHandler(externalId);
             task.addListener(() -> exchangeService.finishSinkHandler(externalId, new TaskCancelledException(task.getReasonCancelled())));
             var exchangeSource = new ExchangeSourceHandler(1, esqlExecutor);
+            exchangeSource.addCompletionListener(refs.acquire());
             exchangeSource.addRemoteSink(internalSink::fetchPageAsync, 1);
             ActionListener<Void> reductionListener = cancelOnFailure(task, cancelled, refs.acquire());
             runCompute(
@@ -854,6 +856,7 @@ public class ComputeService {
             RefCountingListener refs = new RefCountingListener(listener.map(unused -> new ComputeResponse(collectedProfiles)))
         ) {
             exchangeSink.addCompletionListener(refs.acquire());
+            exchangeSource.addCompletionListener(refs.acquire());
             PhysicalPlan coordinatorPlan = new ExchangeSinkExec(
                 plan.source(),
                 plan.output(),

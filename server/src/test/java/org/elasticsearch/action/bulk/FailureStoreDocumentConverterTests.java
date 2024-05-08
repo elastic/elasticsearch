@@ -11,6 +11,7 @@ package org.elasticsearch.action.bulk;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.ingest.CompoundProcessor;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.RemoteTransportException;
 import org.elasticsearch.xcontent.ObjectPath;
@@ -33,9 +34,9 @@ public class FailureStoreDocumentConverterTests extends ESTestCase {
 
         // The exception will be wrapped for the test to make sure the converter correctly unwraps it
         ElasticsearchException exception = new ElasticsearchException("Test exception please ignore");
-        exception.addHeader("pipeline_origin", List.of("some-pipeline", "some-failing-pipeline"));
-        exception.addHeader("processor_tag", "foo-tag");
-        exception.addHeader("processor_type", "bar-type");
+        exception.addHeader(CompoundProcessor.PIPELINE_ORIGIN_EXCEPTION_HEADER, List.of("some-pipeline", "some-failing-pipeline"));
+        exception.addHeader(CompoundProcessor.PROCESSOR_TAG_EXCEPTION_HEADER, "foo-tag");
+        exception.addHeader(CompoundProcessor.PROCESSOR_TYPE_EXCEPTION_HEADER, "bar-type");
         exception = new RemoteTransportException("Test exception wrapper, please ignore", exception);
 
         String targetIndexName = "rerouted_index";

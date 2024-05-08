@@ -31,6 +31,7 @@ import org.elasticsearch.xpack.ql.expression.TypedAttribute;
 import org.elasticsearch.xpack.ql.expression.function.scalar.ScalarFunction;
 import org.elasticsearch.xpack.ql.expression.predicate.Range;
 import org.elasticsearch.xpack.ql.expression.predicate.logical.And;
+import org.elasticsearch.xpack.ql.expression.predicate.logical.Not;
 import org.elasticsearch.xpack.ql.expression.predicate.logical.Or;
 import org.elasticsearch.xpack.ql.expression.predicate.nulls.IsNotNull;
 import org.elasticsearch.xpack.ql.expression.predicate.nulls.IsNull;
@@ -44,6 +45,7 @@ import org.elasticsearch.xpack.ql.querydsl.query.MatchAll;
 import org.elasticsearch.xpack.ql.querydsl.query.NotQuery;
 import org.elasticsearch.xpack.ql.querydsl.query.Query;
 import org.elasticsearch.xpack.ql.querydsl.query.RangeQuery;
+import org.elasticsearch.xpack.ql.querydsl.query.ScriptQuery;
 import org.elasticsearch.xpack.ql.querydsl.query.TermQuery;
 import org.elasticsearch.xpack.ql.querydsl.query.TermsQuery;
 import org.elasticsearch.xpack.ql.tree.Source;
@@ -86,7 +88,7 @@ public final class EsqlExpressionTranslators {
         new BinaryLogic(),
         new IsNulls(),
         new IsNotNulls(),
-        new ExpressionTranslators.Nots(),
+        new Nots(),
         new ExpressionTranslators.Likes(),
         new ExpressionTranslators.InComparisons(),
         new ExpressionTranslators.StringQueries(),
@@ -520,6 +522,24 @@ public final class EsqlExpressionTranslators {
 
         private static Query translate(IsNotNull isNotNull, TranslatorHandler handler) {
             return new ExistsQuery(isNotNull.source(), handler.nameOf(isNotNull.field()));
+        }
+    }
+
+    public static class Nots extends ExpressionTranslator<Not> {
+
+        @Override
+        protected Query asQuery(Not not, TranslatorHandler handler) {
+            return doTranslate(not, handler);
+        }
+
+        public static Query doTranslate(Not not, TranslatorHandler handler) {
+            Expression e = not.field();
+            Query wrappedQuery = handler.asQuery(not.field());
+            Query q = wrappedQuery instanceof ScriptQuery
+                ? new ScriptQuery(not.source(), not.asScript())
+                : wrappedQuery.negate(not.source());
+
+            return wrapIfNested(q, e);
         }
     }
 

@@ -25,7 +25,7 @@ final class BooleanArrayVector extends AbstractVector implements BooleanVector {
         // TODO: remove these extra bytes once `asBlock` returns a block with a separate reference to the vector.
         + RamUsageEstimator.shallowSizeOfInstance(BooleanVectorBlock.class)
         // TODO: remove this if/when we account for memory used by Pages
-        + RamUsageEstimator.NUM_BYTES_OBJECT_ALIGNMENT;
+        + Block.PAGE_MEM_OVERHEAD_PER_BLOCK;
 
     private final boolean[] values;
 

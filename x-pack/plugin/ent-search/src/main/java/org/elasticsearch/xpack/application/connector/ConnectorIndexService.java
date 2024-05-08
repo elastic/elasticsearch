@@ -647,7 +647,7 @@ public class ConnectorIndexService {
                             Connector.IS_NATIVE_FIELD.getPreferredName(),
                             request.isNative(),
                             Connector.STATUS_FIELD.getPreferredName(),
-                            ConnectorStatus.CONFIGURED
+                            ConnectorStatus.CONFIGURED.toString()
                         )
                     )
 
@@ -789,7 +789,7 @@ public class ConnectorIndexService {
                                 Connector.SERVICE_TYPE_FIELD.getPreferredName(),
                                 request.getServiceType(),
                                 Connector.STATUS_FIELD.getPreferredName(),
-                                newStatus
+                                newStatus.toString()
                             )
                         )
 

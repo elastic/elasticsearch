@@ -425,7 +425,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
     @Override
     public PlanFactory visitLookupCommand(EsqlBaseParser.LookupCommandContext ctx) {
         if (false == Build.current().isSnapshot()) {
-            throw new ParsingException(source(ctx), "LOOKUP is in preview and only available in SNAPSHOT releases");
+            throw new ParsingException(source(ctx), "LOOKUP is in preview and only available in SNAPSHOT build");
         }
         var source = source(ctx);
 

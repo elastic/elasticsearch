@@ -298,7 +298,7 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
                     .field(DataStream.NAME_FIELD.getPreferredName(), DataStream.TIMESTAMP_FIELD_NAME)
                     .endObject();
 
-                addIndices(builder, dataStream.getIndices());
+                indicesToXContent(builder, dataStream.getIndices());
                 builder.field(DataStream.GENERATION_FIELD.getPreferredName(), dataStream.getGeneration());
                 if (dataStream.getMetadata() != null) {
                     builder.field(DataStream.METADATA_FIELD.getPreferredName(), dataStream.getMetadata());
@@ -328,7 +328,7 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
                         DataStream.ROLLOVER_ON_WRITE_FIELD.getPreferredName(),
                         dataStream.getFailureIndices().isRolloverOnWrite()
                     );
-                    addIndices(builder, dataStream.getFailureIndices().getIndices());
+                    indicesToXContent(builder, dataStream.getFailureIndices().getIndices());
                     addAutoShardingEvent(builder, params, dataStream.getFailureIndices().getAutoShardingEvent());
                     builder.endObject();
                 }
@@ -351,7 +351,7 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
                 return builder;
             }
 
-            private void addIndices(XContentBuilder builder, List<Index> indices) throws IOException {
+            private XContentBuilder indicesToXContent(XContentBuilder builder, List<Index> indices) throws IOException {
                 builder.field(DataStream.INDICES_FIELD.getPreferredName());
                 builder.startArray();
                 for (Index index : indices) {
@@ -368,6 +368,7 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
                     builder.endObject();
                 }
                 builder.endArray();
+                return builder;
             }
 
             private void addAutoShardingEvent(XContentBuilder builder, Params params, DataStreamAutoShardingEvent autoShardingEvent)

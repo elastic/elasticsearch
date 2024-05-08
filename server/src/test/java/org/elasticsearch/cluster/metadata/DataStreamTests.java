@@ -116,6 +116,7 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
                 isReplicated = isReplicated == false;
                 // Replicated data streams cannot be marked for lazy rollover.
                 rolloverOnWrite = isReplicated == false && rolloverOnWrite;
+                failureRolloverOnWrite = isReplicated == false && failureRolloverOnWrite;
             }
             case 6 -> {
                 if (isSystem == false) {
@@ -1992,7 +1993,7 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
             randomBoolean() ? IndexMode.STANDARD : IndexMode.TIME_SERIES,
             DataStreamLifecycleTests.randomLifecycle(),
             false,
-            null,
+            List.of(),
             replicated == false && randomBoolean(),
             null
         );
@@ -2059,7 +2060,7 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
             randomBoolean() ? IndexMode.STANDARD : IndexMode.TIME_SERIES,
             DataStreamLifecycleTests.randomLifecycle(),
             false,
-            null,
+            List.of(),
             replicated == false && randomBoolean(),
             null
         );

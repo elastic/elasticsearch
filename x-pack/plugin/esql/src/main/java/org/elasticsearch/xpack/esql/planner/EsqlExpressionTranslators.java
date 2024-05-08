@@ -27,6 +27,7 @@ import org.elasticsearch.xpack.esql.querydsl.query.SpatialRelatesQuery;
 import org.elasticsearch.xpack.ql.QlIllegalArgumentException;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.Expressions;
+import org.elasticsearch.xpack.ql.expression.MetadataAttribute;
 import org.elasticsearch.xpack.ql.expression.TypedAttribute;
 import org.elasticsearch.xpack.ql.expression.function.scalar.ScalarFunction;
 import org.elasticsearch.xpack.ql.expression.predicate.Range;
@@ -36,6 +37,10 @@ import org.elasticsearch.xpack.ql.expression.predicate.logical.Or;
 import org.elasticsearch.xpack.ql.expression.predicate.nulls.IsNotNull;
 import org.elasticsearch.xpack.ql.expression.predicate.nulls.IsNull;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.BinaryComparison;
+import org.elasticsearch.xpack.ql.expression.predicate.regex.Like;
+import org.elasticsearch.xpack.ql.expression.predicate.regex.RLike;
+import org.elasticsearch.xpack.ql.expression.predicate.regex.RegexMatch;
+import org.elasticsearch.xpack.ql.expression.predicate.regex.WildcardLike;
 import org.elasticsearch.xpack.ql.planner.ExpressionTranslator;
 import org.elasticsearch.xpack.ql.planner.ExpressionTranslators;
 import org.elasticsearch.xpack.ql.planner.TranslatorHandler;
@@ -45,9 +50,11 @@ import org.elasticsearch.xpack.ql.querydsl.query.MatchAll;
 import org.elasticsearch.xpack.ql.querydsl.query.NotQuery;
 import org.elasticsearch.xpack.ql.querydsl.query.Query;
 import org.elasticsearch.xpack.ql.querydsl.query.RangeQuery;
+import org.elasticsearch.xpack.ql.querydsl.query.RegexQuery;
 import org.elasticsearch.xpack.ql.querydsl.query.ScriptQuery;
 import org.elasticsearch.xpack.ql.querydsl.query.TermQuery;
 import org.elasticsearch.xpack.ql.querydsl.query.TermsQuery;
+import org.elasticsearch.xpack.ql.querydsl.query.WildcardQuery;
 import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.type.DataTypes;
@@ -89,7 +96,7 @@ public final class EsqlExpressionTranslators {
         new IsNulls(),
         new IsNotNulls(),
         new Nots(),
-        new ExpressionTranslators.Likes(),
+        new Likes(),
         new ExpressionTranslators.InComparisons(),
         new ExpressionTranslators.StringQueries(),
         new ExpressionTranslators.Matches(),
@@ -540,6 +547,44 @@ public final class EsqlExpressionTranslators {
                 : wrappedQuery.negate(not.source());
 
             return wrapIfNested(q, e);
+        }
+    }
+
+    // TODO: see whether escaping is needed
+    @SuppressWarnings("rawtypes")
+    public static class Likes extends ExpressionTranslator<RegexMatch> {
+
+        @Override
+        protected Query asQuery(RegexMatch e, TranslatorHandler handler) {
+            return doTranslate(e, handler);
+        }
+
+        public static Query doTranslate(RegexMatch e, TranslatorHandler handler) {
+            Query q;
+            Expression field = e.field();
+
+            if (field instanceof org.elasticsearch.xpack.ql.expression.FieldAttribute fa) {
+                return handler.wrapFunctionQuery(e, fa, () -> translateField(e, handler.nameOf(fa.exactAttribute())));
+            } else if (field instanceof MetadataAttribute ma) {
+                q = translateField(e, handler.nameOf(ma));
+            } else {
+                q = new ScriptQuery(e.source(), e.asScript());
+            }
+
+            return wrapIfNested(q, field);
+        }
+
+        private static Query translateField(RegexMatch e, String targetFieldName) {
+            if (e instanceof Like l) {
+                return new WildcardQuery(e.source(), targetFieldName, l.pattern().asLuceneWildcard(), l.caseInsensitive());
+            }
+            if (e instanceof WildcardLike l) {
+                return new WildcardQuery(e.source(), targetFieldName, l.pattern().asLuceneWildcard(), l.caseInsensitive());
+            }
+            if (e instanceof RLike rl) {
+                return new RegexQuery(e.source(), targetFieldName, rl.pattern().asJavaRegex(), rl.caseInsensitive());
+            }
+            return null;
         }
     }
 

@@ -10,11 +10,6 @@ package org.elasticsearch.compute.operator;
 import org.elasticsearch.compute.aggregation.AggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.AggregatorMode;
 import org.elasticsearch.compute.aggregation.GroupingAggregator;
-import org.elasticsearch.compute.aggregation.ValuesBooleanAggregatorFunctionSupplier;
-import org.elasticsearch.compute.aggregation.ValuesBytesRefAggregatorFunctionSupplier;
-import org.elasticsearch.compute.aggregation.ValuesDoubleAggregatorFunctionSupplier;
-import org.elasticsearch.compute.aggregation.ValuesIntAggregatorFunctionSupplier;
-import org.elasticsearch.compute.aggregation.ValuesLongAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.blockhash.BlockHash;
 import org.elasticsearch.compute.aggregation.blockhash.TimeSeriesBlockHash;
 import org.elasticsearch.compute.data.ElementType;
@@ -147,11 +142,11 @@ public final class TimeSeriesAggregationOperatorFactories {
                 final List<Integer> channels = List.of(g.channel());
                 // TODO: perhaps introduce a specialized aggregator for this?
                 var aggregatorSupplier = (switch (g.elementType()) {
-                    case BYTES_REF -> new ValuesBytesRefAggregatorFunctionSupplier(channels);
-                    case DOUBLE -> new ValuesDoubleAggregatorFunctionSupplier(channels);
-                    case INT -> new ValuesIntAggregatorFunctionSupplier(channels);
-                    case LONG -> new ValuesLongAggregatorFunctionSupplier(channels);
-                    case BOOLEAN -> new ValuesBooleanAggregatorFunctionSupplier(channels);
+                    case BYTES_REF -> new org.elasticsearch.compute.aggregation.ValuesBytesRefAggregatorFunctionSupplier(channels);
+                    case DOUBLE -> new org.elasticsearch.compute.aggregation.ValuesDoubleAggregatorFunctionSupplier(channels);
+                    case INT -> new org.elasticsearch.compute.aggregation.ValuesIntAggregatorFunctionSupplier(channels);
+                    case LONG -> new org.elasticsearch.compute.aggregation.ValuesLongAggregatorFunctionSupplier(channels);
+                    case BOOLEAN -> new org.elasticsearch.compute.aggregation.ValuesBooleanAggregatorFunctionSupplier(channels);
                     case NULL, DOC, UNKNOWN -> throw new IllegalArgumentException("unsupported grouping type");
                 });
                 aggregators.add(aggregatorSupplier.groupingAggregatorFactory(AggregatorMode.SINGLE));

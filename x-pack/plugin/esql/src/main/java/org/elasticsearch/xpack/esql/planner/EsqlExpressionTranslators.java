@@ -31,6 +31,7 @@ import org.elasticsearch.xpack.ql.expression.Expressions;
 import org.elasticsearch.xpack.ql.expression.MetadataAttribute;
 import org.elasticsearch.xpack.ql.expression.TypedAttribute;
 import org.elasticsearch.xpack.ql.expression.function.scalar.ScalarFunction;
+import org.elasticsearch.xpack.ql.expression.function.scalar.string.StartsWith;
 import org.elasticsearch.xpack.ql.expression.predicate.Range;
 import org.elasticsearch.xpack.ql.expression.predicate.fulltext.MatchQueryPredicate;
 import org.elasticsearch.xpack.ql.expression.predicate.fulltext.MultiMatchQueryPredicate;
@@ -48,7 +49,6 @@ import org.elasticsearch.xpack.ql.expression.predicate.regex.RLike;
 import org.elasticsearch.xpack.ql.expression.predicate.regex.RegexMatch;
 import org.elasticsearch.xpack.ql.expression.predicate.regex.WildcardLike;
 import org.elasticsearch.xpack.ql.planner.ExpressionTranslator;
-import org.elasticsearch.xpack.ql.planner.ExpressionTranslators;
 import org.elasticsearch.xpack.ql.planner.TranslatorHandler;
 import org.elasticsearch.xpack.ql.querydsl.query.BoolQuery;
 import org.elasticsearch.xpack.ql.querydsl.query.ExistsQuery;
@@ -153,7 +153,7 @@ public final class EsqlExpressionTranslators {
         static Query translate(InsensitiveEquals bc) {
             TypedAttribute attribute = checkIsPushableAttribute(bc.left());
             Source source = bc.source();
-            BytesRef value = BytesRefs.toBytesRef(ExpressionTranslators.valueOf(bc.right()));
+            BytesRef value = BytesRefs.toBytesRef(valueOf(bc.right()));
             String name = pushableAttributeName(attribute);
             return new TermQuery(source, name, value.utf8ToString(), true);
         }
@@ -277,7 +277,7 @@ public final class EsqlExpressionTranslators {
                 return null;
             }
             Source source = bc.source();
-            Object value = ExpressionTranslators.valueOf(bc.right());
+            Object value = valueOf(bc.right());
 
             // Comparisons with multi-values always return null in ESQL.
             if (value instanceof List<?>) {

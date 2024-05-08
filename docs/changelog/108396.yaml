@@ -2,4 +2,5 @@ pr: 108396
 summary: "Apm-data: improve default pipeline performance"
 area: Data streams
 type: enhancement
-issues: []
+issues:
+ - 108290

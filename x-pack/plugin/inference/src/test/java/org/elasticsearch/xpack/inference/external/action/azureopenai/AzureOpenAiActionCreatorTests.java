@@ -470,7 +470,7 @@ public class AzureOpenAiActionCreatorTests extends ESTestCase {
             var model = createCompletionModel("resource", "deployment", "apiversion", originalUser, apiKey, null, "id");
             model.setUri(new URI(getUrl(webServer)));
             var actionCreator = new AzureOpenAiActionCreator(sender, createWithEmptySettings(threadPool));
-            var taskSettingsWithUserOverride = getRequestTaskSettingsMap(overriddenUser);
+            var taskSettingsWithUserOverride = createRequestTaskSettingsMap(overriddenUser);
             var action = (AzureOpenAiCompletionAction) actionCreator.create(model, taskSettingsWithUserOverride);
 
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
@@ -526,7 +526,7 @@ public class AzureOpenAiActionCreatorTests extends ESTestCase {
             var model = createCompletionModel("resource", "deployment", "apiversion", null, apiKey, null, "id");
             model.setUri(new URI(getUrl(webServer)));
             var actionCreator = new AzureOpenAiActionCreator(sender, createWithEmptySettings(threadPool));
-            var requestTaskSettingsWithoutUser = getRequestTaskSettingsMap(null);
+            var requestTaskSettingsWithoutUser = createRequestTaskSettingsMap(null);
             var action = (AzureOpenAiCompletionAction) actionCreator.create(model, requestTaskSettingsWithoutUser);
 
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
@@ -584,7 +584,7 @@ public class AzureOpenAiActionCreatorTests extends ESTestCase {
             var model = createCompletionModel("resource", "deployment", "apiversion", null, apiKey, null, "id");
             model.setUri(new URI(getUrl(webServer)));
             var actionCreator = new AzureOpenAiActionCreator(sender, createWithEmptySettings(threadPool));
-            var requestTaskSettingsWithoutUser = getRequestTaskSettingsMap(userOverride);
+            var requestTaskSettingsWithoutUser = createRequestTaskSettingsMap(userOverride);
             var action = (AzureOpenAiCompletionAction) actionCreator.create(model, requestTaskSettingsWithoutUser);
 
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();

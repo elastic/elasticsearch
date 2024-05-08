@@ -16,9 +16,9 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ServiceSettings;
 import org.elasticsearch.xcontent.ToXContent;
-import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.inference.services.azureopenai.AzureOpenAiRateLimitServiceSettings;
+import org.elasticsearch.xpack.inference.services.settings.FilteredXContentObject;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 
 import java.io.IOException;
@@ -30,7 +30,10 @@ import static org.elasticsearch.xpack.inference.services.azureopenai.AzureOpenAi
 import static org.elasticsearch.xpack.inference.services.azureopenai.AzureOpenAiServiceFields.DEPLOYMENT_ID;
 import static org.elasticsearch.xpack.inference.services.azureopenai.AzureOpenAiServiceFields.RESOURCE_NAME;
 
-public class AzureOpenAiCompletionServiceSettings implements ServiceSettings, AzureOpenAiRateLimitServiceSettings {
+public class AzureOpenAiCompletionServiceSettings extends FilteredXContentObject
+    implements
+        ServiceSettings,
+        AzureOpenAiRateLimitServiceSettings {
 
     public static final String NAME = "azure_openai_completions_service_settings";
 
@@ -140,22 +143,13 @@ public class AzureOpenAiCompletionServiceSettings implements ServiceSettings, Az
         return builder;
     }
 
-    private void toXContentFragmentOfExposedFields(XContentBuilder builder, ToXContent.Params params) throws IOException {
+    @Override
+    protected XContentBuilder toXContentFragmentOfExposedFields(XContentBuilder builder, ToXContent.Params params) throws IOException {
         builder.field(RESOURCE_NAME, resourceName);
         builder.field(DEPLOYMENT_ID, deploymentId);
         builder.field(API_VERSION, apiVersion);
-    }
 
-    @Override
-    public ToXContentObject getFilteredXContentObject() {
-        return (builder, params) -> {
-            builder.startObject();
-
-            toXContentFragmentOfExposedFields(builder, params);
-
-            builder.endObject();
-            return builder;
-        };
+        return builder;
     }
 
     @Override

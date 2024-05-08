@@ -20,6 +20,8 @@ import org.gradle.api.tasks.TaskProvider;
 import static org.elasticsearch.gradle.internal.test.rest.RestTestUtil.registerTestTask;
 import static org.elasticsearch.gradle.internal.test.rest.RestTestUtil.setupYamlRestTestDependenciesDefaults;
 
+import com.gradle.enterprise.gradleplugin.testdistribution.TestDistributionExtension;
+
 /**
  * Apply this plugin to run the YAML based REST tests.
  */
@@ -37,6 +39,11 @@ public class InternalYamlRestTestPlugin implements Plugin<Project> {
         SourceSet yamlTestSourceSet = sourceSets.create(SOURCE_SET_NAME);
 
         TaskProvider<RestIntegTestTask> testTask = registerTestTask(project, yamlTestSourceSet, SOURCE_SET_NAME, RestIntegTestTask.class);
+        testTask.get().useJUnitPlatform();
+        testTask.get().getExtensions().configure(TestDistributionExtension.class, config -> {
+            config.getEnabled().set(true);
+            config.getMaxLocalExecutors().set(0);
+        });
 
         project.getTasks().named(JavaBasePlugin.CHECK_TASK_NAME).configure(check -> check.dependsOn(testTask));
 

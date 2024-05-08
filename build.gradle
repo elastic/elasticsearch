@@ -340,15 +340,15 @@ allprojects {
 
   apply plugin: 'elasticsearch.formatting'
 
-  ['yamlRestTest', 'javaRestTest'].each { taskName ->
-    maybeConfigure(project.tasks, taskName) {
-      it.useJUnitPlatform()
-      it.distribution {
-        enabled = true
-        maxLocalExecutors = 0
-      }
-    }
-  }
+  // ['yamlRestTest', 'javaRestTest'].each { taskName ->
+  //   maybeConfigure(project.tasks, taskName) {
+  //     it.useJUnitPlatform()
+  //     it.distribution {
+  //       enabled = true
+  //       maxLocalExecutors = 0
+  //     }
+  //   }
+  // }
 }
 
 tasks.register("verifyBwcTestsEnabled") {

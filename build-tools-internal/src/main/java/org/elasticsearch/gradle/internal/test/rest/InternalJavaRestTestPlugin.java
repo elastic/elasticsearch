@@ -20,6 +20,8 @@ import org.gradle.api.tasks.TaskProvider;
 import static org.elasticsearch.gradle.internal.test.rest.RestTestUtil.registerTestTask;
 import static org.elasticsearch.gradle.internal.test.rest.RestTestUtil.setupJavaRestTestDependenciesDefaults;
 
+import com.gradle.enterprise.gradleplugin.testdistribution.TestDistributionExtension;
+
 /**
  * Apply this plugin to run the Java based REST tests.
  */
@@ -41,6 +43,11 @@ public class InternalJavaRestTestPlugin implements Plugin<Project> {
 
         // setup the javaRestTest task
         TaskProvider<RestIntegTestTask> testTask = registerTestTask(project, javaTestSourceSet, SOURCE_SET_NAME, RestIntegTestTask.class);
+        testTask.get().useJUnitPlatform();
+        testTask.get().getExtensions().configure(TestDistributionExtension.class, config -> {
+            config.getEnabled().set(true);
+            config.getMaxLocalExecutors().set(0);
+        });
 
         project.getTasks().named(JavaBasePlugin.CHECK_TASK_NAME).configure(check -> check.dependsOn(testTask));
 

@@ -80,10 +80,9 @@ public final class RankFeatureShardPhase {
                 if (fetchSearchResult == null || fetchSearchResult.hits() == null) {
                     return;
                 }
+                // this cannot be null; as we have either already checked for it, or we would have thrown in
+                // FetchSearchResult#shardResult()
                 hits = fetchSearchResult.hits();
-                if (hits == null) {
-                    return;
-                }
                 featureRankShardResult = (RankFeatureShardResult) rankFeaturePhaseRankShardContext.buildRankFeatureShardResult(
                     hits,
                     searchContext.shardTarget().getShardId().id()

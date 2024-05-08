@@ -34,7 +34,7 @@ public class TestRankBuilder extends RankBuilder {
 
     static final ConstructingObjectParser<TestRankBuilder, Void> PARSER = new ConstructingObjectParser<>(
         NAME,
-        args -> new TestRankBuilder(args[0] == null ? DEFAULT_WINDOW_SIZE : (int) args[0])
+        args -> new TestRankBuilder(args[0] == null ? DEFAULT_RANK_WINDOW_SIZE : (int) args[0])
     );
 
     static {
@@ -75,6 +75,11 @@ public class TestRankBuilder extends RankBuilder {
     @Override
     protected void doXContent(XContentBuilder builder, Params params) throws IOException {
         // do nothing
+    }
+
+    @Override
+    public boolean isCompoundBuilder() {
+        return true;
     }
 
     @Override

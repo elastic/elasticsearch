@@ -1111,6 +1111,11 @@ public class RankFeaturePhaseTests extends ESTestCase {
             }
 
             @Override
+            public boolean isCompoundBuilder() {
+                return true;
+            }
+
+            @Override
             public QueryPhaseRankShardContext buildQueryPhaseShardContext(List<Query> queries, int from) {
                 return queryPhaseRankShardContext;
             }

@@ -33,6 +33,7 @@ import org.elasticsearch.xpack.ql.expression.TypedAttribute;
 import org.elasticsearch.xpack.ql.expression.function.scalar.ScalarFunction;
 import org.elasticsearch.xpack.ql.expression.predicate.Range;
 import org.elasticsearch.xpack.ql.expression.predicate.fulltext.MatchQueryPredicate;
+import org.elasticsearch.xpack.ql.expression.predicate.fulltext.MultiMatchQueryPredicate;
 import org.elasticsearch.xpack.ql.expression.predicate.fulltext.StringQueryPredicate;
 import org.elasticsearch.xpack.ql.expression.predicate.logical.And;
 import org.elasticsearch.xpack.ql.expression.predicate.logical.Not;
@@ -53,6 +54,7 @@ import org.elasticsearch.xpack.ql.querydsl.query.BoolQuery;
 import org.elasticsearch.xpack.ql.querydsl.query.ExistsQuery;
 import org.elasticsearch.xpack.ql.querydsl.query.MatchAll;
 import org.elasticsearch.xpack.ql.querydsl.query.MatchQuery;
+import org.elasticsearch.xpack.ql.querydsl.query.MultiMatchQuery;
 import org.elasticsearch.xpack.ql.querydsl.query.NotQuery;
 import org.elasticsearch.xpack.ql.querydsl.query.Query;
 import org.elasticsearch.xpack.ql.querydsl.query.QueryStringQuery;
@@ -108,7 +110,7 @@ public final class EsqlExpressionTranslators {
         new InComparisons(),
         new StringQueries(),
         new Matches(),
-        new ExpressionTranslators.MultiMatches(),
+        new MultiMatches(),
         new Scalars()
     );
 
@@ -774,6 +776,18 @@ public final class EsqlExpressionTranslators {
 
         public static Query doTranslate(MatchQueryPredicate q, TranslatorHandler handler) {
             return new MatchQuery(q.source(), handler.nameOf(q.field()), q.query(), q);
+        }
+    }
+
+    public static class MultiMatches extends ExpressionTranslator<MultiMatchQueryPredicate> {
+
+        @Override
+        protected Query asQuery(MultiMatchQueryPredicate q, TranslatorHandler handler) {
+            return doTranslate(q, handler);
+        }
+
+        public static Query doTranslate(MultiMatchQueryPredicate q, TranslatorHandler handler) {
+            return new MultiMatchQuery(q.source(), q.query(), q.fields(), q);
         }
     }
 

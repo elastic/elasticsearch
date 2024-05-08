@@ -134,6 +134,7 @@ public class AzureOpenAiCompletionServiceSettings implements ServiceSettings, Az
         builder.startObject();
 
         toXContentFragmentOfExposedFields(builder, params);
+        rateLimitSettings.toXContent(builder, params);
 
         builder.endObject();
         return builder;
@@ -143,7 +144,6 @@ public class AzureOpenAiCompletionServiceSettings implements ServiceSettings, Az
         builder.field(RESOURCE_NAME, resourceName);
         builder.field(DEPLOYMENT_ID, deploymentId);
         builder.field(API_VERSION, apiVersion);
-        rateLimitSettings.toXContent(builder, params);
     }
 
     @Override

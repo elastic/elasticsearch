@@ -60,7 +60,19 @@ public class AzureOpenAiCompletionServiceSettingsTests extends AbstractWireSeria
         String xContentResult = Strings.toString(builder);
 
         assertThat(xContentResult, is("""
-            {"resource_name":"resource","deployment_id":"deployment","api_version":"2024","rate_limit":{"requests_per_minute":1440}}"""));
+            {"resource_name":"resource","deployment_id":"deployment","api_version":"2024","rate_limit":{"requests_per_minute":120}}"""));
+    }
+
+    public void testToFilteredXContent_WritesAllValues_Except_RateLimit() throws IOException {
+        var entity = new AzureOpenAiCompletionServiceSettings("resource", "deployment", "2024", null);
+
+        XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
+        var filteredXContent = entity.getFilteredXContentObject();
+        filteredXContent.toXContent(builder, null);
+        String xContentResult = Strings.toString(builder);
+
+        assertThat(xContentResult, is("""
+            {"resource_name":"resource","deployment_id":"deployment","api_version":"2024"}"""));
     }
 
     @Override

@@ -9,8 +9,6 @@
 package org.elasticsearch.search.rank.reranking;
 
 import org.apache.lucene.search.ScoreDoc;
-import org.elasticsearch.search.SearchPhaseResult;
-import org.elasticsearch.search.query.QuerySearchResult;
 import org.elasticsearch.search.rank.context.RankFeaturePhaseRankCoordinatorContext;
 import org.elasticsearch.search.rank.feature.RankFeatureDoc;
 import org.elasticsearch.search.rank.feature.RankFeatureResult;
@@ -35,8 +33,7 @@ public abstract class RerankingRankFeaturePhaseCoordinatorContext extends RankFe
     protected abstract void computeScores(RankFeatureDoc[] featureDocs, BiConsumer<Integer, Float> scoreConsumer, Runnable onFinish);
 
     @Override
-    public void rankGlobalResults(List<SearchPhaseResult> phaseResultsPerShard, Consumer<ScoreDoc[]> onFinish) {
-        assert phaseResultsPerShard.stream().allMatch(x -> x instanceof RankFeatureResult);
+    public void rankGlobalResults(List<RankFeatureResult> phaseResultsPerShard, Consumer<ScoreDoc[]> onFinish) {
         // read feature data from all shards
         RankFeatureDoc[] featureDocs = extractFeatures(phaseResultsPerShard);
         // create a consumer to in-place update doc scores based on the computeScores method
@@ -55,20 +52,11 @@ public abstract class RerankingRankFeaturePhaseCoordinatorContext extends RankFe
         });
     }
 
-    private RankFeatureDoc[] extractFeatures(List<SearchPhaseResult> searchPhaseResults) {
+    private RankFeatureDoc[] extractFeatures(List<RankFeatureResult> searchPhaseResults) {
         List<RankFeatureDoc> docFeatures = new ArrayList<>();
-        for (SearchPhaseResult searchPhaseResult : searchPhaseResults) {
-            if (searchPhaseResult instanceof RankFeatureResult rankFeatureResult) {
-                RankFeatureShardResult shardResult = rankFeatureResult.shardResult();
-                docFeatures.addAll(Arrays.stream(shardResult.rankFeatureDocs).toList());
-            } else if (searchPhaseResult instanceof QuerySearchResult queryPhaseResult) {
-                if (queryPhaseResult.topDocs() == null) {
-                    continue;
-                }
-                for (ScoreDoc scoreDoc : queryPhaseResult.topDocs().topDocs.scoreDocs) {
-                    docFeatures.add(new RankFeatureDoc(scoreDoc.doc, scoreDoc.score, scoreDoc.shardIndex));
-                }
-            }
+        for (RankFeatureResult rankFeatureResult : searchPhaseResults) {
+            RankFeatureShardResult shardResult = rankFeatureResult.shardResult();
+            docFeatures.addAll(Arrays.stream(shardResult.rankFeatureDocs).toList());
         }
         return docFeatures.toArray(new RankFeatureDoc[0]);
     }

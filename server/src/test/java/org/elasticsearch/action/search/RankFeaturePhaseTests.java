@@ -985,11 +985,9 @@ public class RankFeaturePhaseTests extends ESTestCase {
     private RankFeaturePhaseRankCoordinatorContext defaultRankFeaturePhaseRankCoordinatorContext(int size, int from, int rankWindowSize) {
         return new RankFeaturePhaseRankCoordinatorContext(size, from, rankWindowSize) {
             @Override
-            public void rankGlobalResults(List<SearchPhaseResult> rankSearchResults, Consumer<ScoreDoc[]> onFinish) {
+            public void rankGlobalResults(List<RankFeatureResult> rankSearchResults, Consumer<ScoreDoc[]> onFinish) {
                 List<RankFeatureDoc> features = new ArrayList<>();
-                for (SearchPhaseResult phaseResult : rankSearchResults) {
-                    assert phaseResult instanceof RankFeatureResult;
-                    RankFeatureResult rankFeatureResult = (RankFeatureResult) phaseResult;
+                for (RankFeatureResult rankFeatureResult : rankSearchResults) {
                     RankFeatureShardResult shardResult = rankFeatureResult.shardResult();
                     features.addAll(Arrays.stream(shardResult.rankFeatureDocs).toList());
                 }

@@ -9,7 +9,7 @@
 package org.elasticsearch.search.rank.context;
 
 import org.apache.lucene.search.ScoreDoc;
-import org.elasticsearch.search.SearchPhaseResult;
+import org.elasticsearch.search.rank.feature.RankFeatureResult;
 
 import java.util.List;
 import java.util.function.Consumer;
@@ -43,5 +43,5 @@ public abstract class RankFeaturePhaseRankCoordinatorContext {
      * @param phaseResultsPerShard a list of the appropriate phase results from each shard
      * @param onFinish a consumer to be called once the global ranking is complete
      */
-    public abstract void rankGlobalResults(List<SearchPhaseResult> phaseResultsPerShard, Consumer<ScoreDoc[]> onFinish);
+    public abstract void rankGlobalResults(List<RankFeatureResult> phaseResultsPerShard, Consumer<ScoreDoc[]> onFinish);
 }

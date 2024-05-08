@@ -99,7 +99,7 @@ public class RankFeaturePhase extends SearchPhase {
             final CountedCollector<SearchPhaseResult> rankRequestCounter = new CountedCollector<>(
                 rankPhaseResults,
                 context.getNumShards(),
-                () -> onPhaseDone(rankFeaturePhaseRankCoordinatorContext, rankPhaseResults, reducedQueryPhase),
+                () -> onPhaseDone(rankFeaturePhaseRankCoordinatorContext, reducedQueryPhase),
                 context
             );
 
@@ -173,15 +173,16 @@ public class RankFeaturePhase extends SearchPhase {
 
     private void onPhaseDone(
         RankFeaturePhaseRankCoordinatorContext rankFeaturePhaseRankCoordinatorContext,
-        SearchPhaseResults<SearchPhaseResult> phaseResults,
         SearchPhaseController.ReducedQueryPhase reducedQueryPhase
     ) {
         assert rankFeaturePhaseRankCoordinatorContext != null;
-        List<SearchPhaseResult> rankedResultsPerShard = phaseResults.getAtomicArray().asList();
-        rankFeaturePhaseRankCoordinatorContext.rankGlobalResults(rankedResultsPerShard, (scoreDocs) -> {
-            SearchPhaseController.ReducedQueryPhase reducedRankFeaturePhase = newReducedQueryPhaseResults(reducedQueryPhase, scoreDocs);
-            moveToNextPhase(phaseResults, reducedRankFeaturePhase);
-        });
+        rankFeaturePhaseRankCoordinatorContext.rankGlobalResults(
+            rankPhaseResults.getAtomicArray().asList().stream().map(SearchPhaseResult::rankFeatureResult).toList(),
+            (scoreDocs) -> {
+                SearchPhaseController.ReducedQueryPhase reducedRankFeaturePhase = newReducedQueryPhaseResults(reducedQueryPhase, scoreDocs);
+                moveToNextPhase(rankPhaseResults, reducedRankFeaturePhase);
+            }
+        );
     }
 
     private SearchPhaseController.ReducedQueryPhase newReducedQueryPhaseResults(

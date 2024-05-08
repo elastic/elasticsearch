@@ -45,9 +45,7 @@ public final class RankFeatureShardPhase {
             throw new TaskCancelledException("cancelled");
         }
 
-        RankFeaturePhaseRankShardContext rankFeaturePhaseRankShardContext = searchContext.request().source().rankBuilder() != null
-            ? searchContext.request().source().rankBuilder().buildRankFeaturePhaseShardContext()
-            : null;
+        RankFeaturePhaseRankShardContext rankFeaturePhaseRankShardContext = shardContext(searchContext);
         if (rankFeaturePhaseRankShardContext != null) {
             assert rankFeaturePhaseRankShardContext.getField() != null : "field must not be null";
             searchContext.fetchFieldsContext(
@@ -98,5 +96,11 @@ public final class RankFeatureShardPhase {
                 searchContext.rankFeatureResult().incRef();
             }
         }
+    }
+
+    private RankFeaturePhaseRankShardContext shardContext(SearchContext searchContext) {
+        return searchContext.request().source().rankBuilder() != null
+            ? searchContext.request().source().rankBuilder().buildRankFeaturePhaseShardContext()
+            : null;
     }
 }

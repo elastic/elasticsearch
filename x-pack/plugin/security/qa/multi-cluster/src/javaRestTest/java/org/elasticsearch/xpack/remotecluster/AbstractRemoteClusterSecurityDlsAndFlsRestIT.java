@@ -31,6 +31,7 @@ import static org.hamcrest.Matchers.notNullValue;
 
 public abstract class AbstractRemoteClusterSecurityDlsAndFlsRestIT extends AbstractRemoteClusterSecurityTestCase {
 
+    protected static final String REMOTE_SEARCH_USER_ALL = REMOTE_SEARCH_USER + "_all";
     protected static final String REMOTE_SEARCH_USER_NO_DLS_FLS = REMOTE_SEARCH_USER + "_no_dls_fls";
     protected static final String REMOTE_SEARCH_USER_DLS_FLS = REMOTE_SEARCH_USER + "_dls_fls";
     protected static final String REMOTE_SEARCH_USER_DLS = REMOTE_SEARCH_USER + "_dls";
@@ -42,6 +43,18 @@ public abstract class AbstractRemoteClusterSecurityDlsAndFlsRestIT extends Abstr
      * @throws IOException in case of an I/O errors
      */
     private void createRemoteSearchUsers() throws IOException {
+
+        createRemoteSearchUserAndRole(REMOTE_SEARCH_USER_ALL, REMOTE_SEARCH_USER_ALL + "_role", """
+            {
+              "cluster": ["all"],
+              "remote_indices": [
+                {
+                  "names": ["*"],
+                  "privileges": ["all"],
+                  "clusters": ["*"]
+                }
+              ]
+            }""");
 
         createRemoteSearchUserAndRole(REMOTE_SEARCH_USER_NO_DLS_FLS, REMOTE_SEARCH_USER_NO_DLS_FLS + "_role", """
             {

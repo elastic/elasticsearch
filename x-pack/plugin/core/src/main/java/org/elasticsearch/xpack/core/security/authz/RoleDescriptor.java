@@ -1319,6 +1319,10 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
             return this.query;
         }
 
+        public void setQuery(BytesReference query) {
+            this.query = query;
+        }
+
         public boolean isUsingDocumentLevelSecurity() {
             return query != null;
         }

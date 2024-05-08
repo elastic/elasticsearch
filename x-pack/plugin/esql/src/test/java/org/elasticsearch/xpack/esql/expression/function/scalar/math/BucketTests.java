@@ -46,14 +46,16 @@ public class BucketTests extends AbstractFunctionTestCase {
             "fixed date with period",
             () -> DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parseMillis("2023-01-01T00:00:00.00Z"),
             EsqlDataTypes.DATE_PERIOD,
-            Period.ofYears(1)
+            Period.ofYears(1),
+            "[YEAR_OF_CENTURY in Z][fixed to midnight]"
         );
         dateCasesWithSpan(
             suppliers,
             "fixed date with duration",
             () -> DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parseMillis("2023-02-17T09:00:00.00Z"),
             EsqlDataTypes.TIME_DURATION,
-            Duration.ofDays(1L)
+            Duration.ofDays(1L),
+            "[86400000 in Z][fixed]"
         );
         numberCases(suppliers, "fixed long", DataTypes.LONG, () -> 100L);
         numberCasesWithSpan(suppliers, "fixed long with span", DataTypes.LONG, () -> 100L);
@@ -68,7 +70,7 @@ public class BucketTests extends AbstractFunctionTestCase {
                 (nullPosition, nullValueDataType, original) -> nullPosition == 0 && nullValueDataType == DataTypes.NULL
                     ? DataTypes.NULL
                     : original.expectedType(),
-                (nullPosition, original) -> nullPosition == 0 ? original : equalTo("LiteralsEvaluator[lit=null]")
+                (nullPosition, nullData, original) -> nullPosition == 0 ? original : equalTo("LiteralsEvaluator[lit=null]")
             )
         );
     }
@@ -112,7 +114,8 @@ public class BucketTests extends AbstractFunctionTestCase {
         String name,
         LongSupplier date,
         DataType spanType,
-        Object span
+        Object span,
+        String spanStr
     ) {
         suppliers.add(new TestCaseSupplier(name, List.of(DataTypes.DATETIME, spanType), () -> {
             List<TestCaseSupplier.TypedData> args = new ArrayList<>();
@@ -120,7 +123,7 @@ public class BucketTests extends AbstractFunctionTestCase {
             args.add(new TestCaseSupplier.TypedData(span, spanType, "buckets").forceLiteral());
             return new TestCaseSupplier.TestCase(
                 args,
-                "DateTruncEvaluator[fieldVal=Attribute[channel=0], rounding=Rounding[DAY_OF_MONTH in Z][fixed to midnight]]",
+                "DateTruncEvaluator[fieldVal=Attribute[channel=0], rounding=Rounding" + spanStr + "]",
                 DataTypes.DATETIME,
                 dateResultsMatcher(args)
             );

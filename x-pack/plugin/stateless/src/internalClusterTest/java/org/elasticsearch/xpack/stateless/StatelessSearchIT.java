@@ -378,6 +378,15 @@ public class StatelessSearchIT extends AbstractStatelessIntegTestCase {
             );
         }
 
+        final AtomicInteger numberOfUploadedBCCs = new AtomicInteger(0);
+        final Index index = resolveIndex(indexName);
+        for (int i = 0; i < numShards; i++) {
+            final IndexShard indexShard = findIndexShard(index, i);
+            final IndexEngine indexEngine = (IndexEngine) indexShard.getEngineOrNull();
+            indexEngine.getStatelessCommitService()
+                .addConsumerForNewUploadedBcc(indexShard.shardId(), ignore -> numberOfUploadedBCCs.incrementAndGet());
+        }
+
         final int beginningNumberOfCreatedCommits = getNumberOfCreatedCommits();
 
         final int iters = randomIntBetween(1, 20);
@@ -390,13 +399,15 @@ public class StatelessSearchIT extends AbstractStatelessIntegTestCase {
             }
         }
 
-        // TODO: notificationPerBcc needs to be determined from a node setting
-        final int notificationPerBcc = STATELESS_UPLOAD_DELAYED ? 2 : 1;
         assertBusy(() -> {
+            final int nonUploadedNotification = STATELESS_UPLOAD_DELAYED
+                ? (getNumberOfCreatedCommits() - beginningNumberOfCreatedCommits) * numReplicas
+                : 0;
+            final int uploadedNotification = numberOfUploadedBCCs.get() * numReplicas;
             assertThat(
                 "Search shard notifications should be equal to the number of created commits multiplied by the number of replicas.",
                 searchNotifications.get(),
-                equalTo((getNumberOfCreatedCommits() - beginningNumberOfCreatedCommits) * numReplicas * notificationPerBcc)
+                equalTo(nonUploadedNotification + uploadedNotification)
             );
         });
     }
@@ -495,7 +506,7 @@ public class StatelessSearchIT extends AbstractStatelessIntegTestCase {
     }
 
     // TODO move this test to a separate test class for refresh cost optimization
-    public void testConcurrentFlushAndMultipleRefreshesWillSetMaxUploadGenOnlyOnce() throws InterruptedException {
+    public void testConcurrentFlushAndMultipleRefreshesWillSetMaxUploadGenOnlyOnce() throws Exception {
         final String indexNode = startIndexNode();
         startSearchNode();
         final String indexName = randomIdentifier();
@@ -562,8 +573,14 @@ public class StatelessSearchIT extends AbstractStatelessIntegTestCase {
             assertThat(statelessCommitService.invocationCounters.get(shardId).get(), equalTo(count + 1));
             previousGeneration = generation;
         }
+        // The last commit may be a refresh and not uploaded when BCC can contain more than 1 CC
+        if (STATELESS_UPLOAD_DELAYED && STATELESS_UPLOAD_MAX_COMMITS > 1) {
+            flushNoForceNoWait(indexName);
+            assertThat(indexShard.getEngineOrNull().getLastCommittedSegmentInfos().getGeneration(), equalTo(previousGeneration));
+        }
         // All commits are uploaded
         assertThat(statelessCommitService.getCurrentVirtualBcc(shardId), nullValue());
+
     }
 
     // TODO move this test to a separate test class for refresh cost optimization
@@ -1177,12 +1194,16 @@ public class StatelessSearchIT extends AbstractStatelessIntegTestCase {
         boolean refreshBefore = randomBoolean();
         if (refreshBefore) {
             refresh(indexName);
+            // TODO Revisit the following flush call once ES-8275 is resolved
+            flushNoForceNoWait(indexName);
         }
         var searchFuture = client().prepareSearch(indexName)
             .setWaitForCheckpoints(Map.of(indexName, new long[] { seqNoStats.getGlobalCheckpoint() }))
             .execute();
         if (refreshBefore == false) {
             refresh(indexName);
+            // TODO Revisit the following flush call once ES-8275 is resolved
+            flushNoForceNoWait(indexName);
         }
         assertHitCount(searchFuture, docCount);
     }

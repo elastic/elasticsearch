@@ -59,6 +59,7 @@ import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
 import java.util.stream.IntStream;
@@ -284,32 +285,42 @@ public class StatelessBatchedBehavioursIT extends AbstractStatelessIntegTestCase
             connection.sendRequest(requestId, action, request, options);
         });
 
+        final var indexShard = findIndexShard(indexName);
+        // First empty commit is always uploaded
+        final AtomicLong latestUploadedGeneration = new AtomicLong(
+            indexShard.getEngineOrNull().getLastCommittedSegmentInfos().getGeneration()
+        );
         final int numberOfRuns = between(1, 5);
-        for (int i = 0; i < numberOfRuns; i++) {
+        for (int i = 1; i <= numberOfRuns; i++) {
             indexDocs(indexName, randomIntBetween(1, 100));
             refresh(indexName);
+            final boolean isUpload = i % STATELESS_UPLOAD_MAX_COMMITS == 0;
             assertBusy(() -> {
                 final List<NewCommitNotificationRequest> requestList = List.copyOf(requests);
-                assertThat(requestList.size(), equalTo(2));
+                assertThat(requestList.size(), equalTo(1 + (isUpload ? 1 : 0)));
+
                 final var creationNotificationRequest = requestList.get(0);
-                final var uploadNotificationRequest = requestList.get(1);
                 assertThat(creationNotificationRequest.isUploaded(), is(false));
-                assertThat(uploadNotificationRequest.isUploaded(), is(true));
-
-                assertThat(creationNotificationRequest.getCompoundCommit(), equalTo(uploadNotificationRequest.getCompoundCommit()));
-                assertThat(
-                    creationNotificationRequest.getBatchedCompoundCommitGeneration(),
-                    equalTo(uploadNotificationRequest.getBatchedCompoundCommitGeneration())
-                );
-
+                assertThat(creationNotificationRequest.getBatchedCompoundCommitGeneration(), equalTo(latestUploadedGeneration.get() + 1L));
                 assertThat(
                     creationNotificationRequest.getLatestUploadedBatchedCompoundCommitTermAndGen().generation(),
-                    equalTo(creationNotificationRequest.getBatchedCompoundCommitGeneration() - 1L)
+                    equalTo(latestUploadedGeneration.get())
                 );
-                assertThat(
-                    uploadNotificationRequest.getLatestUploadedBatchedCompoundCommitTermAndGen().generation(),
-                    equalTo(uploadNotificationRequest.getBatchedCompoundCommitGeneration())
-                );
+
+                if (isUpload) {
+                    final var uploadNotificationRequest = requestList.get(1);
+                    assertThat(uploadNotificationRequest.isUploaded(), is(true));
+                    assertThat(creationNotificationRequest.getCompoundCommit(), equalTo(uploadNotificationRequest.getCompoundCommit()));
+                    assertThat(
+                        creationNotificationRequest.getBatchedCompoundCommitGeneration(),
+                        equalTo(uploadNotificationRequest.getBatchedCompoundCommitGeneration())
+                    );
+                    assertThat(
+                        uploadNotificationRequest.getLatestUploadedBatchedCompoundCommitTermAndGen().generation(),
+                        equalTo(uploadNotificationRequest.getBatchedCompoundCommitGeneration())
+                    );
+                    latestUploadedGeneration.set(uploadNotificationRequest.getBatchedCompoundCommitGeneration());
+                }
 
                 requests.clear();
             });

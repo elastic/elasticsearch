@@ -73,6 +73,10 @@ public class RestTestUtil {
             if (useNewTestClusters) {
                 project.getDependencies().add(sourceSet.getImplementationConfigurationName(), project.project(":test:test-clusters"));
             }
+
+            project.getDependencies().add(sourceSet.getImplementationConfigurationName(), "org.junit.vintage:junit-vintage-engine:5.8.1");
+            project.getDependencies().add(sourceSet.getImplementationConfigurationName(), "org.junit.platform:junit-platform-launcher:1.8.1");
+            project.getDependencies().add(sourceSet.getImplementationConfigurationName(), "org.junit.jupiter:junit-jupiter:5.8.1");
         }
     }
 
@@ -86,5 +90,9 @@ public class RestTestUtil {
         if (yamlTestRunnerProject != null) {
             project.getDependencies().add(sourceSet.getImplementationConfigurationName(), yamlTestRunnerProject);
         }
+
+        project.getDependencies().add(sourceSet.getImplementationConfigurationName(), "org.junit.vintage:junit-vintage-engine:5.8.1");
+        project.getDependencies().add(sourceSet.getImplementationConfigurationName(), "org.junit.platform:junit-platform-launcher:1.8.1");
+        project.getDependencies().add(sourceSet.getImplementationConfigurationName(), "org.junit.jupiter:junit-jupiter:5.8.1");
     }
 }

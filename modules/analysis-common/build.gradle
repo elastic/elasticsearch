@@ -32,9 +32,9 @@ dependencies {
   testImplementation "org.junit.platform:junit-platform-launcher:1.8.1"
   testImplementation "org.junit.jupiter:junit-jupiter:5.8.1"
 
-  yamlRestTestImplementation "org.junit.vintage:junit-vintage-engine:5.8.1"
-  yamlRestTestImplementation "org.junit.platform:junit-platform-launcher:1.8.1"
-  yamlRestTestImplementation "org.junit.jupiter:junit-jupiter:5.8.1"
+  // yamlRestTestImplementation "org.junit.vintage:junit-vintage-engine:5.8.1"
+  // yamlRestTestImplementation "org.junit.platform:junit-platform-launcher:1.8.1"
+  // yamlRestTestImplementation "org.junit.jupiter:junit-jupiter:5.8.1"
 }
 
 tasks.named("yamlRestTestV7CompatTransform").configure { task ->
@@ -44,31 +44,31 @@ tasks.named("yamlRestTestV7CompatTransform").configure { task ->
   task.skipTest("search.query/50_queries_with_synonyms/Test common terms query with stacked tokens", "#42654 -  `common` query throws an exception")
 }
 
-test {
-    useJUnitPlatform()
+// test {
+//     useJUnitPlatform()
 
-    // useJUnitPlatform {
-    //   includeEngines 'junit-vintage'
-    // }
+//     // useJUnitPlatform {
+//     //   includeEngines 'junit-vintage'
+//     // }
 
-    distribution {
-      enabled = true
-      maxLocalExecutors = 0
-    }
-    // javaLauncher = javaToolchains.launcherFor {
-    //   languageVersion = JavaLanguageVersion.of(18)
-    // }
-}
+//     distribution {
+//       enabled = true
+//       maxLocalExecutors = 0
+//     }
+//     // javaLauncher = javaToolchains.launcherFor {
+//     //   languageVersion = JavaLanguageVersion.of(18)
+//     // }
+// }
 
 tasks.named('yamlRestTest').configure {
-    testLogging {
-        outputs.upToDateWhen {false}
-        showStandardStreams = true
-    }
-    useJUnitPlatform()
-    distribution {
-      enabled = true
-      maxLocalExecutors = 0
-    }
-    javaLauncher = javaToolchains.launcherFor { }
+    // testLogging {
+    //     outputs.upToDateWhen {false}
+    //     showStandardStreams = true
+    // }
+    // useJUnitPlatform()
+    // distribution {
+    //   enabled = true
+    //   maxLocalExecutors = 0
+    // }
+    // javaLauncher = javaToolchains.launcherFor { }
 }

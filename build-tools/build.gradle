@@ -166,16 +166,16 @@ tasks.withType(JavaCompile).configureEach {
   options.incremental = System.getenv("JENKINS_URL") == null && System.getenv("BUILDKITE_BUILD_URL") == null && System.getProperty("isCI") == null
 }
 
-test {
-        useJUnitPlatform {
-      includeEngines 'junit-vintage'
-    }
+// test {
+//         useJUnitPlatform {
+//       includeEngines 'junit-vintage'
+//     }
 
-    // distribution {
-    //   enabled = true
-    //   maxLocalExecutors = 0
-    // }
-}
+//     // distribution {
+//     //   enabled = true
+//     //   maxLocalExecutors = 0
+//     // }
+// }
 
 // tasks.register("integTest", Test) {
 //     testClassesDirs = sourceSets.integTest.output.classesDirs

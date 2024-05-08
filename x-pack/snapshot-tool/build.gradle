@@ -46,8 +46,8 @@ dependencies {
   api 'com.google.api:api-common:2.3.1'
   api 'com.google.api:gax:2.20.1'
   api 'org.threeten:threetenbp:1.6.5'
-  api 'com.google.protobuf:protobuf-java-util:3.17.3'
-  api 'com.google.protobuf:protobuf-java:3.21.7'
+  api "com.google.protobuf:protobuf-java-util:${versions.protobuf}"
+  api "com.google.protobuf:protobuf-java:${versions.protobuf}"
   api 'com.google.code.gson:gson:2.10'
   api 'com.google.api.grpc:proto-google-common-protos:2.9.6'
   api 'com.google.api.grpc:proto-google-iam-v1:1.6.2'

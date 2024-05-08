@@ -39,8 +39,10 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.is;
 
 /**
  * Create a simple "daemon controller", put it in the right place and check that it runs.
@@ -70,7 +72,7 @@ public class SpawnerNoBootstrapTests extends LuceneTestCase {
         final String expectedLogger;
         final String expectedMessage;
         final CountDownLatch matchCalledLatch;
-        boolean saw;
+        volatile boolean saw;
 
         ExpectedStreamMessage(String logger, String message, CountDownLatch matchCalledLatch) {
             this.expectedLogger = logger;
@@ -84,8 +86,8 @@ public class SpawnerNoBootstrapTests extends LuceneTestCase {
                 && event.getLevel().equals(Level.WARN)
                 && event.getMessage().getFormattedMessage().equals(expectedMessage)) {
                 saw = true;
+                matchCalledLatch.countDown();
             }
-            matchCalledLatch.countDown();
         }
 
         @Override
@@ -129,7 +131,7 @@ public class SpawnerNoBootstrapTests extends LuceneTestCase {
 
         try (Spawner spawner = new Spawner()) {
             spawner.spawnNativeControllers(environment);
-            assertThat(spawner.getProcesses(), hasSize(0));
+            assertThat(spawner.getProcesses(), is(empty()));
         }
     }
 
@@ -228,7 +230,7 @@ public class SpawnerNoBootstrapTests extends LuceneTestCase {
                 // fail if the process does not die within one second; usually it will be even quicker but it depends on OS scheduling
                 assertTrue(process.waitFor(1, TimeUnit.SECONDS));
             } else {
-                assertThat(processes, hasSize(0));
+                assertThat(processes, is(empty()));
             }
             appender.assertAllExpectationsMatched();
         }

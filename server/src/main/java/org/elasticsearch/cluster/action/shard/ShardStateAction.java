@@ -620,12 +620,9 @@ public class ShardStateAction {
             Set<ShardRouting> seenShardRoutings = new HashSet<>(); // to prevent duplicates
             final Map<Index, ClusterStateTimeRanges> updatedTimestampRanges = new HashMap<>();
             final ClusterState initialState = batchExecutionContext.initialState();
-            logger.warn("MPXX SSAction.execute DEBUG 1");
             for (var taskContext : batchExecutionContext.taskContexts()) {
                 final var task = taskContext.getTask();
                 StartedShardEntry startedShardEntry = task.getEntry();
-                logger.warn("MPXX SSAction.execute DEBUG 1a: " + startedShardEntry.timestampRange);
-                logger.warn("MPXX SSAction.execute DEBUG 1b: " + startedShardEntry.eventIngestedRange);
                 final ShardRouting matched = initialState.getRoutingTable()
                     .getByAllocationId(startedShardEntry.shardId, startedShardEntry.allocationId);
                 if (matched == null) {
@@ -684,7 +681,6 @@ public class ShardStateAction {
                             );
                             tasksToBeApplied.add(taskContext);
                         } else {
-                            logger.warn("MPXX SSAction.execute DEBUG 2");
                             logger.debug(
                                 "{} starting shard {} (shard started task: [{}])",
                                 startedShardEntry.shardId,
@@ -705,22 +701,12 @@ public class ShardStateAction {
                                 ? null
                                 : clusterStateTimeRanges.eventIngestedRange();
 
-                            logger.warn(
-                                "MPXX SSAction.execute DEBUG 3: clusterStateTimeRanges for index: {}, {}",
-                                index.getName(),
-                                clusterStateTimeRanges
-                            );
-
                             final IndexMetadata indexMetadata = initialState.metadata().index(index);
                             if (currentTimestampMillisRange == null) {
                                 currentTimestampMillisRange = indexMetadata.getTimestampRange();
-                                logger.warn("MPXX SSAction.execute DEBUG 4: currentTimestampMillisRange: " + currentTimestampMillisRange);
                             }
                             if (currentEventIngestedMillisRange == null) {
                                 currentEventIngestedMillisRange = indexMetadata.getEventIngestedRange();
-                                logger.warn(
-                                    "MPXX SSAction.execute DEBUG 5: currentEventIngestedMillisRange: " + currentEventIngestedMillisRange
-                                );
                             }
 
                             final IndexLongFieldRange newTimestampMillisRange = currentTimestampMillisRange.extendWithShardRange(
@@ -728,7 +714,6 @@ public class ShardStateAction {
                                 indexMetadata.getNumberOfShards(),
                                 startedShardEntry.timestampRange
                             );
-                            logger.warn("MPXX SSAction.execute DEBUG 6: newTimestampMillisRange: " + newTimestampMillisRange);
                             /*
                              * Only track 'event.ingested' range this if the cluster state min transport version is on/after the version
                              * where we added 'event.ingested'. If we don't do that, we will have different cluster states on different
@@ -736,25 +721,16 @@ public class ShardStateAction {
                              */
                             IndexLongFieldRange newEventIngestedMillisRange = IndexLongFieldRange.UNKNOWN;
                             TransportVersion minTransportVersion = batchExecutionContext.initialState().getMinTransportVersion();
-                            logger.warn(
-                                "MPXX SSAction.execute DEBUG 7: transport-version test result: "
-                                    + minTransportVersion.onOrAfter(TransportVersions.EVENT_INGESTED_RANGE_IN_CLUSTER_STATE)
-                            );
                             if (minTransportVersion.onOrAfter(TransportVersions.EVENT_INGESTED_RANGE_IN_CLUSTER_STATE)) {
                                 newEventIngestedMillisRange = currentEventIngestedMillisRange.extendWithShardRange(
                                     startedShardEntry.shardId.id(),
                                     indexMetadata.getNumberOfShards(),
                                     startedShardEntry.eventIngestedRange
                                 );
-                                logger.warn("MPXX SSAction.execute DEBUG 8: newEventIngestedMillisRange: " + newEventIngestedMillisRange);
                             }
-                            logger.warn("MPXX SSAction.execute DEBUG 9: newEventIngestedMillisRange: " + newEventIngestedMillisRange);
 
                             if (newTimestampMillisRange != currentTimestampMillisRange
                                 || newEventIngestedMillisRange != currentEventIngestedMillisRange) {
-                                boolean testA = newTimestampMillisRange != currentTimestampMillisRange;
-                                boolean testB = newEventIngestedMillisRange != currentEventIngestedMillisRange;
-                                logger.warn("MPXX SSAction.execute DEBUG 10 doing update bcs: testA: {}, testB: {}", testA, testB);
                                 updatedTimestampRanges.put(
                                     index,
                                     new ClusterStateTimeRanges(newTimestampMillisRange, newEventIngestedMillisRange)
@@ -769,34 +745,18 @@ public class ShardStateAction {
             ClusterState maybeUpdatedState = initialState;
             try {
                 maybeUpdatedState = allocationService.applyStartedShards(initialState, shardRoutingsToBeApplied);
-                // logger.warn("MPXX SSAction.execute DEBUG 10: maybeUpdatedState: " + maybeUpdatedState);
 
                 if (updatedTimestampRanges.isEmpty() == false) {
-                    logger.warn("MPXX SSAction.execute DEBUG 11: updatedTimestampRanges.isEmpty() == false");
                     final Metadata.Builder metadataBuilder = Metadata.builder(maybeUpdatedState.metadata());
                     for (Map.Entry<Index, ClusterStateTimeRanges> updatedTimeRangesEntry : updatedTimestampRanges.entrySet()) {
-                        logger.warn(
-                            "MPXX SSAction.execute DEBUG 12: updatedTimeRangesEntry key: {}; value: {}",
-                            updatedTimeRangesEntry.getKey(),
-                            updatedTimeRangesEntry.getValue()
-                        );
                         ClusterStateTimeRanges timeRanges = updatedTimeRangesEntry.getValue();
                         metadataBuilder.put(
                             IndexMetadata.builder(metadataBuilder.getSafe(updatedTimeRangesEntry.getKey()))
                                 .timestampRange(timeRanges.timestampRange())
                                 .eventIngestedRange(timeRanges.eventIngestedRange())
                         );
-                        logger.warn(
-                            "MPXX SSAction.execute DEBUG 13: ClusterStateTimeRanges for index {}: timeRanges: {}",
-                            updatedTimeRangesEntry.getKey(),
-                            timeRanges
-                        );
                     }
                     maybeUpdatedState = ClusterState.builder(maybeUpdatedState).metadata(metadataBuilder).build();
-                    logger.warn(
-                        "MPXX SSAction.execute DEBUG 14: BUILT new cluster state into maybeUpdatedState ref: indices: {}",
-                        maybeUpdatedState.metadata().indices().keySet()
-                    );
                 }
 
                 assert assertStartedIndicesHaveCompleteTimestampRanges(maybeUpdatedState);
@@ -826,35 +786,14 @@ public class ShardStateAction {
                         + " for "
                         + cursor.getValue().prettyPrint();
 
-                boolean assertCondition = cursor.getValue().allPrimaryShardsActive() == false
-                    || clusterState.metadata().index(cursor.getKey()).getEventIngestedRange().isComplete();
-
-                logger.warn(
-                    "MPXX DEBUG 100 Testing ShardStateAction assert in ShardStateAction for event.ingested for {}",
-                    cursor.getKey()
-                );
-                if (assertCondition == false) {
-                    String msg = "index ["
+                assert cursor.getValue().allPrimaryShardsActive() == false
+                    || clusterState.metadata().index(cursor.getKey()).getEventIngestedRange().isComplete()
+                    : "index ["
                         + cursor.getKey()
                         + "] should have complete event.ingested range, but got "
                         + clusterState.metadata().index(cursor.getKey()).getEventIngestedRange()
                         + " for "
                         + cursor.getValue().prettyPrint();
-                    logger.warn("MPXX DEBUG 101 ASSERT FAILED: " + msg);
-                    throw new AssertionError(msg);
-                } else {
-                    logger.warn("MPXX: DEBUG 102 assert passed for " + clusterState.metadata().index(cursor.getKey()));
-                }
-
-                // assert cursor.getValue().allPrimaryShardsActive() == false
-                // || clusterState.metadata().index(cursor.getKey()).getEventIngestedRange().isComplete()
-                // || clusterState.metadata().index(cursor.getKey()).getEventIngestedRange() == IndexLongFieldRange.UNKNOWN
-                // : "MPXX index ["
-                // + cursor.getKey()
-                // + "] should have complete event.ingested range, but got "
-                // + clusterState.metadata().index(cursor.getKey()).getEventIngestedRange()
-                // + " for "
-                // + cursor.getValue().prettyPrint();
             }
             return true;
         }

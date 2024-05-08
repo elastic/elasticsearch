@@ -2321,19 +2321,6 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             final boolean isSearchableSnapshot = SearchableSnapshotsSettings.isSearchableSnapshotStore(settings);
             final String indexMode = settings.get(IndexSettings.MODE.getKey());
             final boolean isTsdb = indexMode != null && IndexMode.TIME_SERIES.getName().equals(indexMode.toLowerCase(Locale.ROOT));
-            logger.warn(
-                "MPXX IndexMetadata creation in Builder for index {}: eventIngestedRange: {}; timestampRange: {}",
-                index,
-                eventIngestedRange,
-                timestampRange
-            );
-            if (eventIngestedRange == IndexLongFieldRange.NO_SHARDS && timestampRange == IndexLongFieldRange.UNKNOWN) {
-                try {
-                    throw new RuntimeException("MPXX - IndexMetadata build with evIng=NO_SHARDS called from:");
-                } catch (RuntimeException e) {
-                    logger.warn(e.getMessage() + " stack trace ", e);
-                }
-            }
             return new IndexMetadata(
                 new Index(index, uuid),
                 version,
@@ -2534,7 +2521,8 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             }
             XContentParserUtils.ensureExpectedToken(XContentParser.Token.FIELD_NAME, parser.currentToken(), parser);
             Builder builder = new Builder(parser.currentName());
-
+            // default to UNKNOWN so that older versions without that range handle it properly
+            builder.eventIngestedRange(IndexLongFieldRange.UNKNOWN);
             String currentFieldName;
             XContentParser.Token token = parser.nextToken();
             XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_OBJECT, token, parser);

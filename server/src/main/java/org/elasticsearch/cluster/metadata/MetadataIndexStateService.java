@@ -884,10 +884,6 @@ public class MetadataIndexStateService {
                 blocks.removeIndexBlockWithId(index.getName(), INDEX_CLOSED_BLOCK_ID);
                 blocks.addIndexBlock(index.getName(), INDEX_CLOSED_BLOCK);
                 final IndexMetadata.Builder updatedMetadata = IndexMetadata.builder(indexMetadata).state(IndexMetadata.State.CLOSE);
-                logger.warn(
-                    "MPXX MetadataIndexStateService.closeRoutingTable for {} is setting " + "event.ingested to NO_SHARDS",
-                    index.getName()
-                );
                 metadata.put(
                     updatedMetadata.timestampRange(IndexLongFieldRange.NO_SHARDS)
                         .eventIngestedRange(IndexLongFieldRange.NO_SHARDS)
@@ -1132,10 +1128,6 @@ public class MetadataIndexStateService {
                     final Settings.Builder updatedSettings = Settings.builder().put(indexMetadata.getSettings());
                     updatedSettings.remove(VERIFIED_BEFORE_CLOSE_SETTING.getKey());
 
-                    logger.warn(
-                        "MPXX MetadataIndexStateService.OpenIndicesExecutor.openIndices for {} is setting " + "event.ingested to NO_SHARDS",
-                        index.getName()
-                    );
                     IndexMetadata newIndexMetadata = IndexMetadata.builder(indexMetadata)
                         .state(IndexMetadata.State.OPEN)
                         .settingsVersion(indexMetadata.getSettingsVersion() + 1)

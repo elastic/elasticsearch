@@ -14,6 +14,7 @@ import org.elasticsearch.xpack.core.security.authz.privilege.ClusterPrivilegeRes
 import org.elasticsearch.xpack.core.security.authz.privilege.IndexPrivilege;
 import org.elasticsearch.xpack.core.security.authz.restriction.WorkflowResolver;
 import org.elasticsearch.xpack.core.security.support.MetadataUtils;
+import org.elasticsearch.xpack.core.security.support.Validation;
 
 import java.util.Arrays;
 import java.util.Set;
@@ -100,6 +101,12 @@ public class RoleDescriptorRequestValidator {
                 } catch (IllegalArgumentException e) {
                     validationException = addValidationError(e.getMessage(), validationException);
                 }
+            }
+        }
+        if (roleDescriptor.hasDescription()) {
+            Validation.Error error = Validation.Roles.validateRoleDescription(roleDescriptor.getDescription());
+            if (error != null) {
+                validationException = addValidationError(error.toString(), validationException);
             }
         }
         return validationException;

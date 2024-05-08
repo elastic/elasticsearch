@@ -10,7 +10,6 @@ package org.elasticsearch.compute.lucene;
 import org.apache.lucene.search.LeafCollector;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.Scorable;
-import org.apache.lucene.search.ScoreMode;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.DocVector;
 import org.elasticsearch.compute.data.IntBlock;
@@ -21,7 +20,6 @@ import org.elasticsearch.compute.operator.SourceOperator;
 import org.elasticsearch.core.Releasables;
 
 import java.io.IOException;
-import java.io.UncheckedIOException;
 import java.util.List;
 import java.util.function.Function;
 
@@ -37,12 +35,9 @@ public class LuceneSourceOperator extends LuceneOperator {
     private final LeafCollector leafCollector;
     private final int minPageSize;
 
-    public static class Factory implements LuceneOperator.Factory {
-        private final DataPartitioning dataPartitioning;
-        private final int taskConcurrency;
+    public static class Factory extends LuceneOperator.Factory {
+
         private final int maxPageSize;
-        private final int limit;
-        private final LuceneSliceQueue sliceQueue;
 
         public Factory(
             List<? extends ShardContext> contexts,
@@ -52,12 +47,8 @@ public class LuceneSourceOperator extends LuceneOperator {
             int maxPageSize,
             int limit
         ) {
+            super(contexts, queryFunction, dataPartitioning, taskConcurrency, limit);
             this.maxPageSize = maxPageSize;
-            this.limit = limit;
-            this.dataPartitioning = dataPartitioning;
-            var weightFunction = weightFunction(queryFunction, ScoreMode.COMPLETE_NO_SCORES);
-            this.sliceQueue = LuceneSliceQueue.create(contexts, weightFunction, dataPartitioning, taskConcurrency);
-            this.taskConcurrency = Math.min(sliceQueue.totalSlices(), taskConcurrency);
         }
 
         @Override
@@ -65,17 +56,8 @@ public class LuceneSourceOperator extends LuceneOperator {
             return new LuceneSourceOperator(driverContext.blockFactory(), maxPageSize, sliceQueue, limit);
         }
 
-        @Override
-        public int taskConcurrency() {
-            return taskConcurrency;
-        }
-
         public int maxPageSize() {
             return maxPageSize;
-        }
-
-        public int limit() {
-            return limit;
         }
 
         @Override
@@ -123,7 +105,7 @@ public class LuceneSourceOperator extends LuceneOperator {
     }
 
     @Override
-    public Page getOutput() {
+    public Page getCheckedOutput() throws IOException {
         if (isFinished()) {
             assert currentPagePos == 0 : currentPagePos;
             return null;
@@ -162,8 +144,6 @@ public class LuceneSourceOperator extends LuceneOperator {
                 currentPagePos = 0;
             }
             return page;
-        } catch (IOException e) {
-            throw new UncheckedIOException(e);
         } finally {
             processingNanos += System.nanoTime() - start;
         }

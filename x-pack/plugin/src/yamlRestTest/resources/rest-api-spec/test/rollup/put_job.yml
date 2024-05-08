@@ -94,6 +94,11 @@ setup:
           status:
             job_state: "stopped"
 
+  - do: {xpack.usage: {}}
+  - match: { rollup.available: true }
+  - match: { rollup.enabled: true }
+  - match: { rollup.number_of_rollup_jobs: 1 }
+
 ---
 "Test put_job with existing name":
 

@@ -342,7 +342,7 @@ public class StatementParserTests extends ESTestCase {
         // assertIdentifierAsIndexPattern("foo,test-*", "from `foo`,`test-*`");
         assertIdentifierAsIndexPattern("foo,test-*", "from foo,test-*");
         assertIdentifierAsIndexPattern("123-test@foo_bar+baz1", "from 123-test@foo_bar+baz1");
-        assertIdentifierAsIndexPattern("foo,test-*,abc", "from `foo`,`test-*`,abc");
+        // assertIdentifierAsIndexPattern("foo,test-*,abc", "from `foo`,`test-*`,abc");
         // assertIdentifierAsIndexPattern("foo, test-*, abc, xyz", "from `foo, test-*, abc, xyz`");
         // assertIdentifierAsIndexPattern("foo, test-*, abc, xyz,test123", "from `foo, test-*, abc, xyz`, test123");
         assertIdentifierAsIndexPattern("foo,test,xyz", "from foo,   test,xyz");

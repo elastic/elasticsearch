@@ -1775,7 +1775,6 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
             List<ActionListener<Void>> listenersToFail = closeAndGetListeners();
             final var virtualBcc = currentVirtualBcc;
             if (virtualBcc != null) {
-                assert relocated == false : "relocation should have gracefully reset current VBCC";
                 // Release commit references held by the current VBCC
                 // TODO: maybe upload before releasing in some cases as a future optimization?
                 IOUtils.closeWhileHandlingException(virtualBcc);

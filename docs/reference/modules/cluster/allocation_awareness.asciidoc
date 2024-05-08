@@ -30,7 +30,7 @@ To enable shard allocation awareness:
 if you want Elasticsearch to distribute shards across different racks, you might 
 use an awareness attribute called `rack_id`. 
 +
-You can set custom attributes in one of two ways:
+You can set custom attributes in two ways:
 
 - By editing the `elasticsearch.yml` config file:
 +

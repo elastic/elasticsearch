@@ -32,6 +32,7 @@ import org.elasticsearch.xpack.ql.expression.MetadataAttribute;
 import org.elasticsearch.xpack.ql.expression.TypedAttribute;
 import org.elasticsearch.xpack.ql.expression.function.scalar.ScalarFunction;
 import org.elasticsearch.xpack.ql.expression.predicate.Range;
+import org.elasticsearch.xpack.ql.expression.predicate.fulltext.MatchQueryPredicate;
 import org.elasticsearch.xpack.ql.expression.predicate.fulltext.StringQueryPredicate;
 import org.elasticsearch.xpack.ql.expression.predicate.logical.And;
 import org.elasticsearch.xpack.ql.expression.predicate.logical.Not;
@@ -51,6 +52,7 @@ import org.elasticsearch.xpack.ql.planner.TranslatorHandler;
 import org.elasticsearch.xpack.ql.querydsl.query.BoolQuery;
 import org.elasticsearch.xpack.ql.querydsl.query.ExistsQuery;
 import org.elasticsearch.xpack.ql.querydsl.query.MatchAll;
+import org.elasticsearch.xpack.ql.querydsl.query.MatchQuery;
 import org.elasticsearch.xpack.ql.querydsl.query.NotQuery;
 import org.elasticsearch.xpack.ql.querydsl.query.Query;
 import org.elasticsearch.xpack.ql.querydsl.query.QueryStringQuery;
@@ -105,7 +107,7 @@ public final class EsqlExpressionTranslators {
         new Likes(),
         new InComparisons(),
         new StringQueries(),
-        new ExpressionTranslators.Matches(),
+        new Matches(),
         new ExpressionTranslators.MultiMatches(),
         new Scalars()
     );
@@ -760,6 +762,18 @@ public final class EsqlExpressionTranslators {
 
         public static Query doTranslate(StringQueryPredicate q, TranslatorHandler handler) {
             return new QueryStringQuery(q.source(), q.query(), q.fields(), q);
+        }
+    }
+
+    public static class Matches extends ExpressionTranslator<MatchQueryPredicate> {
+
+        @Override
+        protected Query asQuery(MatchQueryPredicate q, TranslatorHandler handler) {
+            return doTranslate(q, handler);
+        }
+
+        public static Query doTranslate(MatchQueryPredicate q, TranslatorHandler handler) {
+            return new MatchQuery(q.source(), handler.nameOf(q.field()), q.query(), q);
         }
     }
 

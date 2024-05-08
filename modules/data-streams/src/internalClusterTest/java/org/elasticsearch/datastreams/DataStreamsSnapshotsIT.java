@@ -220,63 +220,54 @@ public class DataStreamsSnapshotsIT extends AbstractSnapshotIntegTestCase {
         );
     }
 
-    public void testFailureStoreSnapshotAndRestore() throws Exception {
+    public void testSnapshotAndRestoreAllDataStreamsInPlace() throws Exception {
         CreateSnapshotResponse createSnapshotResponse = client.admin()
-            .cluster()
-            .prepareCreateSnapshot(REPO, SNAPSHOT)
-            .setWaitForCompletion(true)
-            .setIndices("with-fs")
-            .setIncludeGlobalState(false)
-            .get();
+                .cluster()
+                .prepareCreateSnapshot(REPO, SNAPSHOT)
+                .setWaitForCompletion(true)
+                .setIndices("ds")
+                .setIncludeGlobalState(false)
+                .get();
 
         RestStatus status = createSnapshotResponse.getSnapshotInfo().status();
         assertEquals(RestStatus.OK, status);
 
-        assertThat(getSnapshot(REPO, SNAPSHOT).indices(), containsInAnyOrder(fsBackingIndexName, fsFailureIndexName));
+        assertEquals(Collections.singletonList(dsBackingIndexName), getSnapshot(REPO, SNAPSHOT).indices());
 
-        assertAcked(client.execute(DeleteDataStreamAction.INSTANCE, new DeleteDataStreamAction.Request("with-fs")));
+        // Close all indices:
+        CloseIndexRequest closeIndexRequest = new CloseIndexRequest("*");
+        closeIndexRequest.indicesOptions(IndicesOptions.strictExpandHidden());
+        assertAcked(client.admin().indices().close(closeIndexRequest).actionGet());
 
-        {
-            RestoreSnapshotResponse restoreSnapshotResponse = client.admin()
+        RestoreSnapshotResponse restoreSnapshotResponse = client.admin()
                 .cluster()
                 .prepareRestoreSnapshot(REPO, SNAPSHOT)
                 .setWaitForCompletion(true)
-                .setIndices("with-fs")
+                .setIndices("ds")
                 .get();
+        assertEquals(1, restoreSnapshotResponse.getRestoreInfo().successfulShards());
 
-            assertEquals(2, restoreSnapshotResponse.getRestoreInfo().successfulShards());
+        assertEquals(DOCUMENT_SOURCE, client.prepareGet(dsBackingIndexName, id).get().getSourceAsMap());
+        assertResponse(client.prepareSearch("ds"), response -> {
+            SearchHit[] hits = response.getHits().getHits();
+            assertEquals(1, hits.length);
+            assertEquals(DOCUMENT_SOURCE, hits[0].getSourceAsMap());
+        });
 
-            GetDataStreamAction.Response ds = client.execute(
-                GetDataStreamAction.INSTANCE,
-                new GetDataStreamAction.Request(new String[] { "with-fs" })
-            ).get();
-            assertEquals(1, ds.getDataStreams().size());
-            assertEquals(1, ds.getDataStreams().get(0).getDataStream().getIndices().size());
-            assertEquals(fsBackingIndexName, ds.getDataStreams().get(0).getDataStream().getIndices().get(0).getName());
-            assertEquals(fsFailureIndexName, ds.getDataStreams().get(0).getDataStream().getFailureIndices().get(0).getName());
-        }
-        {
-            // With rename pattern
-            RestoreSnapshotResponse restoreSnapshotResponse = client.admin()
-                .cluster()
-                .prepareRestoreSnapshot(REPO, SNAPSHOT)
-                .setWaitForCompletion(true)
-                .setIndices("with-fs")
-                .setRenamePattern("-fs")
-                .setRenameReplacement("-fs2")
-                .get();
-
-            assertEquals(2, restoreSnapshotResponse.getRestoreInfo().successfulShards());
-
-            GetDataStreamAction.Response ds = client.execute(
-                GetDataStreamAction.INSTANCE,
-                new GetDataStreamAction.Request(new String[] { "with-fs2" })
-            ).get();
-            assertEquals(1, ds.getDataStreams().size());
-            assertEquals(1, ds.getDataStreams().get(0).getDataStream().getIndices().size());
-            assertEquals(fs2BackingIndexName, ds.getDataStreams().get(0).getDataStream().getIndices().get(0).getName());
-            assertEquals(fs2FailureIndexName, ds.getDataStreams().get(0).getDataStream().getFailureIndices().get(0).getName());
-        }
+        GetDataStreamAction.Request getDataSteamRequest = new GetDataStreamAction.Request(new String[] { "*" });
+        GetDataStreamAction.Response ds = client.execute(GetDataStreamAction.INSTANCE, getDataSteamRequest).get();
+        assertThat(
+                ds.getDataStreams().stream().map(e -> e.getDataStream().getName()).collect(Collectors.toList()),
+                contains(equalTo("ds"), equalTo("other-ds"), equalTo("with-fs"))
+        );
+        List<Index> backingIndices = ds.getDataStreams().get(0).getDataStream().getIndices();
+        assertThat(backingIndices.stream().map(Index::getName).collect(Collectors.toList()), contains(dsBackingIndexName));
+        backingIndices = ds.getDataStreams().get(1).getDataStream().getIndices();
+        assertThat(backingIndices.stream().map(Index::getName).collect(Collectors.toList()), contains(otherDsBackingIndexName));
+        backingIndices = ds.getDataStreams().get(2).getDataStream().getIndices();
+        assertThat(backingIndices.stream().map(Index::getName).collect(Collectors.toList()), contains(fsBackingIndexName));
+        List<Index> failureIndices = ds.getDataStreams().get(2).getDataStream().getFailureIndices();
+        assertThat(failureIndices.stream().map(Index::getName).collect(Collectors.toList()), contains(fsFailureIndexName));
     }
 
     public void testSnapshotAndRestoreInPlace() {
@@ -339,6 +330,65 @@ public class DataStreamsSnapshotsIT extends AbstractSnapshotIntegTestCase {
         rolloverResponse = client.admin().indices().rolloverIndex(rolloverRequest).actionGet();
         assertThat(rolloverResponse.isRolledOver(), is(true));
         assertThat(rolloverResponse.getNewIndex(), equalTo(DataStream.getDefaultBackingIndexName("ds", 3)));
+    }
+
+    public void testFailureStoreSnapshotAndRestore() throws Exception {
+        CreateSnapshotResponse createSnapshotResponse = client.admin()
+                .cluster()
+                .prepareCreateSnapshot(REPO, SNAPSHOT)
+                .setWaitForCompletion(true)
+                .setIndices("with-fs")
+                .setIncludeGlobalState(false)
+                .get();
+
+        RestStatus status = createSnapshotResponse.getSnapshotInfo().status();
+        assertEquals(RestStatus.OK, status);
+
+        assertThat(getSnapshot(REPO, SNAPSHOT).indices(), containsInAnyOrder(fsBackingIndexName, fsFailureIndexName));
+
+        assertAcked(client.execute(DeleteDataStreamAction.INSTANCE, new DeleteDataStreamAction.Request("with-fs")));
+
+        {
+            RestoreSnapshotResponse restoreSnapshotResponse = client.admin()
+                    .cluster()
+                    .prepareRestoreSnapshot(REPO, SNAPSHOT)
+                    .setWaitForCompletion(true)
+                    .setIndices("with-fs")
+                    .get();
+
+            assertEquals(2, restoreSnapshotResponse.getRestoreInfo().successfulShards());
+
+            GetDataStreamAction.Response ds = client.execute(
+                    GetDataStreamAction.INSTANCE,
+                    new GetDataStreamAction.Request(new String[] { "with-fs" })
+            ).get();
+            assertEquals(1, ds.getDataStreams().size());
+            assertEquals(1, ds.getDataStreams().get(0).getDataStream().getIndices().size());
+            assertEquals(fsBackingIndexName, ds.getDataStreams().get(0).getDataStream().getIndices().get(0).getName());
+            assertEquals(fsFailureIndexName, ds.getDataStreams().get(0).getDataStream().getFailureIndices().get(0).getName());
+        }
+        {
+            // With rename pattern
+            RestoreSnapshotResponse restoreSnapshotResponse = client.admin()
+                    .cluster()
+                    .prepareRestoreSnapshot(REPO, SNAPSHOT)
+                    .setWaitForCompletion(true)
+                    .setIndices("with-fs")
+                    .setRenamePattern("-fs")
+                    .setRenameReplacement("-fs2")
+                    .get();
+
+            assertEquals(2, restoreSnapshotResponse.getRestoreInfo().successfulShards());
+
+            GetDataStreamAction.Response ds = client.execute(
+                    GetDataStreamAction.INSTANCE,
+                    new GetDataStreamAction.Request(new String[] { "with-fs2" })
+            ).get();
+            assertEquals(1, ds.getDataStreams().size());
+            assertEquals(1, ds.getDataStreams().get(0).getDataStream().getIndices().size());
+            assertEquals(fs2BackingIndexName, ds.getDataStreams().get(0).getDataStream().getIndices().get(0).getName());
+            assertEquals(fs2FailureIndexName, ds.getDataStreams().get(0).getDataStream().getFailureIndices().get(0).getName());
+        }
     }
 
     public void testSnapshotAndRestoreAllIncludeSpecificDataStream() throws Exception {

@@ -30,10 +30,13 @@ import org.elasticsearch.xpack.ql.expression.Expressions;
 import org.elasticsearch.xpack.ql.expression.TypedAttribute;
 import org.elasticsearch.xpack.ql.expression.function.scalar.ScalarFunction;
 import org.elasticsearch.xpack.ql.expression.predicate.Range;
+import org.elasticsearch.xpack.ql.expression.predicate.logical.And;
+import org.elasticsearch.xpack.ql.expression.predicate.logical.Or;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.BinaryComparison;
 import org.elasticsearch.xpack.ql.planner.ExpressionTranslator;
 import org.elasticsearch.xpack.ql.planner.ExpressionTranslators;
 import org.elasticsearch.xpack.ql.planner.TranslatorHandler;
+import org.elasticsearch.xpack.ql.querydsl.query.BoolQuery;
 import org.elasticsearch.xpack.ql.querydsl.query.MatchAll;
 import org.elasticsearch.xpack.ql.querydsl.query.NotQuery;
 import org.elasticsearch.xpack.ql.querydsl.query.Query;
@@ -44,6 +47,7 @@ import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.type.DataTypes;
 import org.elasticsearch.xpack.ql.util.Check;
+import org.elasticsearch.xpack.ql.util.CollectionUtils;
 import org.elasticsearch.xpack.versionfield.Version;
 
 import java.math.BigDecimal;
@@ -52,6 +56,7 @@ import java.time.OffsetTime;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.time.temporal.TemporalAccessor;
+import java.util.Arrays;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
@@ -75,7 +80,7 @@ public final class EsqlExpressionTranslators {
         new BinaryComparisons(),
         new SpatialRelatesTranslator(),
         new Ranges(),
-        new ExpressionTranslators.BinaryLogic(),
+        new BinaryLogic(),
         new ExpressionTranslators.IsNulls(),
         new ExpressionTranslators.IsNotNulls(),
         new ExpressionTranslators.Nots(),
@@ -469,10 +474,53 @@ public final class EsqlExpressionTranslators {
         }
     }
 
+    public static class BinaryLogic extends ExpressionTranslator<org.elasticsearch.xpack.ql.expression.predicate.logical.BinaryLogic> {
+
+        @Override
+        protected Query asQuery(org.elasticsearch.xpack.ql.expression.predicate.logical.BinaryLogic e, TranslatorHandler handler) {
+            if (e instanceof And) {
+                return and(e.source(), handler.asQuery(e.left()), handler.asQuery(e.right()));
+            }
+            if (e instanceof Or) {
+                return or(e.source(), handler.asQuery(e.left()), handler.asQuery(e.right()));
+            }
+
+            return null;
+        }
+    }
+
     private static Object valueOf(Expression e) {
         if (e.foldable()) {
             return e.fold();
         }
         throw new QlIllegalArgumentException("Cannot determine value for {}", e);
+    }
+
+    private static Query or(Source source, Query left, Query right) {
+        return boolQuery(source, left, right, false);
+    }
+
+    private static Query and(Source source, Query left, Query right) {
+        return boolQuery(source, left, right, true);
+    }
+
+    private static Query boolQuery(Source source, Query left, Query right, boolean isAnd) {
+        Check.isTrue(left != null || right != null, "Both expressions are null");
+        if (left == null) {
+            return right;
+        }
+        if (right == null) {
+            return left;
+        }
+        List<Query> queries;
+        // check if either side is already a bool query to an extra bool query
+        if (left instanceof BoolQuery bool && bool.isAnd() == isAnd) {
+            queries = CollectionUtils.combine(bool.queries(), right);
+        } else if (right instanceof BoolQuery bool && bool.isAnd() == isAnd) {
+            queries = CollectionUtils.combine(bool.queries(), left);
+        } else {
+            queries = Arrays.asList(left, right);
+        }
+        return new BoolQuery(source, isAnd, queries);
     }
 }

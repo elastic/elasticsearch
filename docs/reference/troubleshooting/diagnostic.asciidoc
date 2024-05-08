@@ -1,115 +1,151 @@
 [[diagnostic]]
-=== Diagnostic
+== Capturing diagnostics
 ++++
-<titleabbrev>Capturing Diagnostic</titleabbrev>
+<titleabbrev>Capture diagnostics</titleabbrev>
 ++++
 :keywords: Elasticsearch diagnostic, diagnostics
 
-An https://github.com/elastic/support-diagnostics[{es} diagnostic] allows 
-you to capture a point-in-time snapshot of cluster statistics and most settings. 
-It works against all {es} versions and requires JRE/JDK ≥v1.8. It is 
-useful when escalting to https://support.elastic.co[Elastic Support] or 
+The {es} https://github.com/elastic/support-diagnostics[Support Diagnostic] tool captures a point-in-time snapshot of cluster statistics and most settings. 
+It works against all {es} versions. 
+
+This information can be used to troubleshoot problems with your cluster. For examples of issues that you can troubleshoot using Support Diagnostic tool output, refer to https://www.elastic.co/blog/why-does-elastic-support-keep-asking-for-diagnostic-files[the Elastic blog].
+
+You can generate diagnostic information using this tool before you contact https://support.elastic.co[Elastic Support] or 
 https://discuss.elastic.co[Elastic Discuss] to minimize turnaround time. 
-It's point-in-time view is also useful when troubleshooting, see 
-https://www.elastic.co/blog/why-does-elastic-support-keep-asking-for-diagnostic-files[this 
-for examples].
 
-[TIP]
-====
-The {es} diagnostic is included as a sub-library within Elastic's platforms: 
+[discrete]
+[[diagnostic-tool-requirements]]
+=== Requirements
 
-* {ece} which you can pull under {ece} > Deployment > Operations > 
-Prepare Bundle > {es}. 
-* {eck}'s https://www.elastic.co/guide/en/cloud-on-k8s/current/k8s-take-eck-dump.html[diagnostic] 
-pulls this by default. 
-====
+-  Java Runtime Environment or Java Development Kit v1.8 or higher
+
+[discrete]
+[[diagnostic-tool-access]]
+=== Access the tool
+
+The Suppor Diagnostic tool is included as a sub-library in some Elastic deployments: 
+
+* {ece}: Located under **{ece}** > **Deployment** > **Operations** > 
+**Prepare Bundle** > **{es}**. 
+* {eck}: Run as https://www.elastic.co/guide/en/cloud-on-k8s/current/k8s-take-eck-dump.html[`eck-diagnostics`].
+
+You can also directly download the `diagnostics-X.X.X-dist.zip` file for the latest Support Diagnostic release
+from https://github.com/elastic/support-diagnostics/releases/latest[the `support-diagnostic` repo].
+
 
 [discrete]
 [[diagnostic-capture]]
-==== Capture
+=== Capture diagnostic information
 
 To capture an {es} diagnostic: 
 
-. Download latest `diagnostics-X.X.X-dist.zip` (_not_ the "source code") file 
-from https://github.com/elastic/support-diagnostics/releases/latest[its 
-latest releases]. We will reference the unzipped execution file below as 
-`./diagnostics.sh` below which is for Unix-based systems though Windows will 
-replace this for `.\diagnostics.bat`. 
-
-. There's https://github.com/elastic/support-diagnostics#diagnostic-types[three 
-available `type`'s'] to capture your {es} diagnostic. 
-
-** `local` (default, **recommended**): polls the <<rest-apis,{es} API>>, 
-gathers Operating System info, and captures cluster and GC logs. 
-Alternatively, you can use `remote` which will establish an ssh session 
-to the applicable target server to pull the same info.
-
-** `api` polls the <<rest-apis,{es} API>> but all other data must be 
-collected manually.
-
-. Verify network and user permissions are sufficient to connect to your {es} 
-cluster by checking its <<cluster-health,Cluster Health>>. For example, 
-for `host:localhost`, `port:9200`, and `username:elastic` this would curl as: 
-+ 
+. In a terminal, verify that your network and user permissions are sufficient to connect to your {es} 
+cluster by polling the cluster's <<cluster-health,health>>.
++
+For example, with the parameters `host:localhost`, `port:9200`, and `username:elastic`, you'd use the following curl request:
++
 [source,sh]
----
+----
 curl -X GET -k -u elastic -p https://localhost:9200/_cluster/health
----
+----
++
+If you receive a an HTTP 200 `OK` response, then you can proceed to the next step. If you receive a different 
+response code, then <<diagnostic-non-200,diagnose the issue>> before proceeding.
 
-. You're expecting an HTTP 200 `OK` response that reports the cluster's 
-`status`. If you can't successfully curl your {es} host, please 
-pause and review the resulting error as the diagnostic will potentially 
-not have the expected results. Outlining common errors and their next steps:
+. Using the same environment parameters, run the diagnostic tool script. 
++
+For information about the parameters that you can pass to the tool, refer to the https://github.com/elastic/support-diagnostics#standard-options[diagnostic 
+parameter reference]. 
++
+The following command options are recommended:
++
+**Unix-based systems**
++
+[source,sh]
+----
+sudo ./diagnostics.sh --type local --host localhost --port 9200 -u elastic -p --bypassDiagVerify --ssl --noVerify
+----
++
+**Windows**
++
+[source,sh]
+----
+sudo .\diagnostics.bat --type local --host localhost --port 9200 -u elastic -p --bypassDiagVerify --ssl --noVerify
+----
++
+[TIP]
+.Script execution modes
+====
+You can execute the script in three https://github.com/elastic/support-diagnostics#diagnostic-types[modes]: 
 
-** HTTP 401 `UNAUTHENTICATED`: the error will usually tell you either 
-that your `username:password` pair is invalid or that your `.security` 
-index is unavailable and you'll need to setup a temporary 
+* `local` (default, recommended): Polls the <<rest-apis,{es} API>>, 
+gathers operating system info, and captures cluster and GC logs. 
+
+* `remote`: Establishes an ssh session 
+to the applicable target server to pull the same information as `local`.
+
+* `api`: Polls the <<rest-apis,{es} API>>. All other data must be 
+collected manually.
+====
+
+. When the script has completed, verify that no errors were logged to `diagnostic.log`. 
+If the log file contains errors, then refer to <<diagnostic-log-errors,Diagnose errors in `diagnostic.log`>>.
+
+. If the script completed without errors, then an archive with the format `<diagnostic type>-diagnostics-<DateTimeStamp>.zip` is created in the working directory, or an output directory you have specified. You can review or share the diagnostic archive as needed.
+
+[discrete]
+[[diagnostic-non-200]]
+=== Diagnose a non-200 cluster health response
+
+When you poll your cluster health, if you receive any response other than `200 0K`, then the diagnostic tool 
+might not work as intended. The following are possible error codes and their resolutions:
+
+HTTP 401 `UNAUTHENTICATED`::
+Additional information in the error will usually indicate either 
+that your `username:password` pair is invalid, or that your `.security` 
+index is unavailable and you need to setup a temporary 
 <<file-realm,file-based realm>> user with `role:superuser` to authenticate.
 
-** HTTP 403 `UNAUTHORIZED`: your attempted `username` is recognized but 
+HTTP 403 `UNAUTHORIZED`::
+Your `username` is recognized but 
 has insufficient permissions to run the diagnostic. Either use a different 
-username or elevate this user's privileges.
+username or elevate the user's privileges.
 
-** HTTP 429 `TOO_MANY_REQUESTS` (for example `circuit_breaking_exception`): 
-your username authenticated and authorized but the cluster is under 
+HTTP 429 `TOO_MANY_REQUESTS` (for example, `circuit_breaking_exception`)::
+Your username authenticated and authorized, but the cluster is under 
 sufficiently high strain that it's not responding to API calls. These 
-responses are usually hit and miss, so potentially indicate that you can 
-proceed with running the diagnostic (which will pull what it can). 
+responses are usually intermittent. You can proceed with running the diagnostic, 
+but the diagnostic results might be incomplete.
 
-** HTTP 504 `BAD_GATEWAY`: your network is experiencing issues reaching 
-the cluster (for example because of proxy or firewall). You might 
-change where you attempt from, confirm your port, or attempt targeting 
-the host's IP instead of its URL domain. 
+HTTP 504 `BAD_GATEWAY`::
+Your network is experiencing issues reaching the cluster. You might be using a proxy or firewall. 
+Consider running the diagnostic tool from a different location, confirming your port, or using an IP
+instead of a URL domain. 
 
-** HTTP 503 `SERVICE_UNAVAILABLE` (for example `master_not_discovered_exception`): 
-your cluster does not currently have an elected master node (which is 
-required for it to be API-responsive). This may be temporary while master 
-node rotates. Otherwise, do not run Step#5 but pivot towards investigating 
-and first resolve  <<cluster-fault-detection,cluster fault detection>> 
+HTTP 503 `SERVICE_UNAVAILABLE` (for example, `master_not_discovered_exception`)::
+Your cluster does not currently have an elected master node, which is 
+required for it to be API-responsive. This might be temporary while the master 
+node rotates. If the issue persists, then <<cluster-fault-detection,investigate the cause>> 
 before proceeding. 
 
-. Once you have a working curl request, use those same parameters to fill-in 
-the https://github.com/elastic/support-diagnostics#standard-options[diagnostic 
-parameters]. From our example, most common results will appear:
+[discrete]
+[[diagnostic-log-errors]]
+=== Diagnose errors in `diagnostic.log`
+
+The following are common errors that you might encounter when running the diagnostic tool:
+
+* `Error: Could not find or load main class com.elastic.support.diagnostics.DiagnosticApp`
++
+This indicates that you accidentally downloaded the source code file 
+instead of `diagnostics-X.X.X-dist.zip` from the releases page.
+
+* `Could not retrieve the Elasticsearch version due to a system or network error - unable to continue.` 
 + 
-[source,sh]
----
-sudo ./diagnostics.sh --type local --host localhost --port 9200 -u elastic -p --bypassDiagVerify --ssl --noVerify
----
+This indicates that the diagnostic couldn't run commands against the cluster. 
+Poll the cluster's health again, and ensure that you're using the same parameters 
+when you run the dianostic batch or shell file.
 
-. Once this script has completed, verify no errors emitted in the 
-`diagnostic.log`. Common errors to resolve: 
-
-** `Error: Could not find or load main class com.elastic.support.diagnostics.DiagnosticApp` 
-indicates that you accidentally downloaded the "source code" file 
-instead of the diagnostic in Step#1 above.
-
-** `Could not retrieve the {es} version due to a system or network error - unable to continue.` 
-indicates an issue for the diagnostic to curl the cluster. You should 
-expect either Step#3 failed or there's a parameter disconnect between 
-Step#3 and Step#5 above. 
-
-** `security_exception` with `is unauthorized for user` suggests 
-insufficient admin permissions to run the diagnostic tool and another 
-user should be used or current user granted `role:superuser` privileges 
-to run diagnostic. 
+* A `security_exception` that includes `is unauthorized for user`:
++
+The provided user has insufficient admin permissions to run the diagnostic tool. Use another
+user, or grant the user `role:superuser` privileges.

@@ -46,6 +46,7 @@ public class SystemUser extends InternalUser {
         null,
         null,
         null,
+        null,
         null
     );
 

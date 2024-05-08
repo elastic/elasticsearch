@@ -12,6 +12,7 @@ import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.data.TestBlockFactory;
 import org.elasticsearch.core.ReleasableIterator;
+import org.hamcrest.Matcher;
 
 import java.util.List;
 import java.util.stream.LongStream;
@@ -105,12 +106,12 @@ public class IteratorAppendPageTests extends OperatorTestCase {
     }
 
     @Override
-    protected String expectedDescriptionOfSimple() {
-        return "IteratorAppendPage[]";
+    protected Matcher<String> expectedDescriptionOfSimple() {
+        return equalTo("IteratorAppendPage[]");
     }
 
     @Override
-    protected String expectedToStringOfSimple() {
+    protected Matcher<String> expectedToStringOfSimple() {
         return expectedDescriptionOfSimple();
     }
 }

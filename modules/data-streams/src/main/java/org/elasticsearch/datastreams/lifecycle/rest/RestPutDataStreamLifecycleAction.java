@@ -22,6 +22,7 @@ import java.io.IOException;
 import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.PUT;
+import static org.elasticsearch.rest.RestUtils.getMasterNodeTimeout;
 
 @ServerlessScope(Scope.PUBLIC)
 public class RestPutDataStreamLifecycleAction extends BaseRestHandler {
@@ -41,7 +42,7 @@ public class RestPutDataStreamLifecycleAction extends BaseRestHandler {
         try (XContentParser parser = request.contentParser()) {
             PutDataStreamLifecycleAction.Request putLifecycleRequest = PutDataStreamLifecycleAction.Request.parseRequest(parser);
             putLifecycleRequest.indices(Strings.splitStringByCommaToArray(request.param("name")));
-            putLifecycleRequest.masterNodeTimeout(request.paramAsTime("master_timeout", putLifecycleRequest.masterNodeTimeout()));
+            putLifecycleRequest.masterNodeTimeout(getMasterNodeTimeout(request));
             putLifecycleRequest.ackTimeout(request.paramAsTime("timeout", putLifecycleRequest.ackTimeout()));
             putLifecycleRequest.indicesOptions(IndicesOptions.fromRequest(request, putLifecycleRequest.indicesOptions()));
             return channel -> client.execute(

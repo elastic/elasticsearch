@@ -4,7 +4,7 @@
 <titleabbrev>Update connector filtering</titleabbrev>
 ++++
 
-preview::[]
+beta::[]
 
 Updates the draft `filtering` configuration of a connector and marks the draft validation state as `edited`. The filtering configuration can be activated once validated by the Elastic connector service.
 
@@ -14,6 +14,7 @@ The filtering property is used to configure sync rules (both basic and advanced)
 ==== {api-request-title}
 
 `PUT _connector/<connector_id>/_filtering`
+
 `PUT _connector/<connector_id>/_filtering/_activate`
 
 [[update-connector-filtering-api-prereq]]

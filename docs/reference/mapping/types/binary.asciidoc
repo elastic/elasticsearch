@@ -44,7 +44,8 @@ The following parameters are accepted by `binary` fields:
 
     Should the field be stored on disk in a column-stride fashion, so that it
     can later be used for sorting, aggregations, or scripting? Accepts `true`
-    or `false` (default).
+    or `false` (default). This parameter will be automatically set to `true` for TSDB indices
+(indices that have `index.mode` set to `time_series`).
 
 <<mapping-store,`store`>>::
 

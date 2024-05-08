@@ -26,7 +26,6 @@ import org.elasticsearch.xpack.esql.planner.ToAggregator;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.Literal;
 import org.elasticsearch.xpack.ql.expression.function.OptionalArgument;
-import org.elasticsearch.xpack.ql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.ql.tree.NodeInfo;
 import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataType;
@@ -90,7 +89,7 @@ public class CountDistinct extends AggregateFunction implements OptionalArgument
             dt -> resolved && dt != DataTypes.UNSIGNED_LONG,
             sourceText(),
             DEFAULT,
-            "any exact type except unsigned_long"
+            "any exact type except unsigned_long or counter types"
         );
         if (resolution.unresolved() || precision == null) {
             return resolution;

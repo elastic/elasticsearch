@@ -20,6 +20,7 @@ import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.DataStreamAutoShardingEvent;
 import org.elasticsearch.cluster.metadata.DataStreamGlobalRetention;
+import org.elasticsearch.cluster.metadata.DataStreamLifecycle;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -309,7 +310,8 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
                 }
                 if (dataStream.getLifecycle() != null) {
                     builder.field(LIFECYCLE_FIELD.getPreferredName());
-                    dataStream.getLifecycle().toXContent(builder, params, rolloverConfiguration, globalRetention);
+                    dataStream.getLifecycle()
+                        .toXContent(builder, params, rolloverConfiguration, dataStream.isSystem() ? null : globalRetention);
                 }
                 if (ilmPolicyName != null) {
                     builder.field(ILM_POLICY_FIELD.getPreferredName(), ilmPolicyName);
@@ -543,7 +545,12 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
             builder.startObject();
             builder.startArray(DATA_STREAMS_FIELD.getPreferredName());
             for (DataStreamInfo dataStream : dataStreams) {
-                dataStream.toXContent(builder, params, rolloverConfiguration, globalRetention);
+                dataStream.toXContent(
+                    builder,
+                    DataStreamLifecycle.maybeAddEffectiveRetentionParams(params),
+                    rolloverConfiguration,
+                    globalRetention
+                );
             }
             builder.endArray();
             builder.endObject();

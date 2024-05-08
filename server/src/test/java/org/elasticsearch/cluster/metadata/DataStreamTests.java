@@ -1799,14 +1799,15 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
         }
 
         DataStreamLifecycle lifecycle = new DataStreamLifecycle();
+        boolean isSystem = randomBoolean();
         DataStream dataStream = new DataStream(
             dataStreamName,
             indices,
             generation,
             metadata,
+            isSystem,
             randomBoolean(),
-            randomBoolean(),
-            false, // Some tests don't work well with system data streams, since these data streams require special handling
+            isSystem,
             randomBoolean(),
             randomBoolean() ? IndexMode.STANDARD : null, // IndexMode.TIME_SERIES triggers validation that many unit tests doesn't pass
             lifecycle,
@@ -1832,7 +1833,13 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
             }
             // We check that even if there was no retention provided by the user, the global retention applies
             assertThat(serialized, not(containsString("data_retention")));
-            assertThat(serialized, containsString("effective_retention"));
+            if (dataStream.isSystem() == false
+                && (globalRetention.getDefaultRetention() != null || globalRetention.getMaxRetention() != null)) {
+                assertThat(serialized, containsString("effective_retention"));
+            } else {
+                assertThat(serialized, not(containsString("effective_retention")));
+            }
+
         }
     }
 

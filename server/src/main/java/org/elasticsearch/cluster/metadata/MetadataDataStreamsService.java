@@ -214,12 +214,17 @@ public class MetadataDataStreamsService {
     ClusterState updateDataLifecycle(ClusterState currentState, List<String> dataStreamNames, @Nullable DataStreamLifecycle lifecycle) {
         Metadata metadata = currentState.metadata();
         Metadata.Builder builder = Metadata.builder(metadata);
+        boolean atLeastOneDataStreamIsNotSystem = false;
         for (var dataStreamName : dataStreamNames) {
             var dataStream = validateDataStream(metadata, dataStreamName);
             builder.put(dataStream.copy().setLifecycle(lifecycle).build());
+            atLeastOneDataStreamIsNotSystem = atLeastOneDataStreamIsNotSystem || dataStream.isSystem() == false;
         }
         if (lifecycle != null) {
-            lifecycle.addWarningHeaderIfDataRetentionNotEffective(globalRetentionResolver.resolve(currentState));
+            if (atLeastOneDataStreamIsNotSystem) {
+                // We don't issue any warnings if all data streams are system data streams
+                lifecycle.addWarningHeaderIfDataRetentionNotEffective(globalRetentionResolver.resolve(currentState));
+            }
         }
         return ClusterState.builder(currentState).metadata(builder.build()).build();
     }

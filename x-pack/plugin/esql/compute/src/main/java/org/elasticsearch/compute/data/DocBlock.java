@@ -8,6 +8,8 @@
 package org.elasticsearch.compute.data;
 
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.core.ReleasableIterator;
 import org.elasticsearch.core.Releasables;
 
 import java.io.IOException;
@@ -46,6 +48,11 @@ public class DocBlock extends AbstractVectorBlock implements Block {
     @Override
     public Block filter(int... positions) {
         return new DocBlock(asVector().filter(positions));
+    }
+
+    @Override
+    public ReleasableIterator<? extends Block> lookup(IntBlock positions, ByteSizeValue targetBlockSize) {
+        throw new UnsupportedOperationException();
     }
 
     @Override

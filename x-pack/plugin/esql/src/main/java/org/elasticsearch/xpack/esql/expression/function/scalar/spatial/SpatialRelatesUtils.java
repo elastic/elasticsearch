@@ -28,7 +28,7 @@ import org.elasticsearch.xpack.ql.util.SpatialCoordinateTypes;
 
 import java.io.IOException;
 
-import static org.elasticsearch.xpack.ql.planner.ExpressionTranslators.valueOf;
+import static org.elasticsearch.xpack.esql.planner.EsqlExpressionTranslators.valueOf;
 
 public class SpatialRelatesUtils {
 

@@ -7,8 +7,8 @@
 
 package org.elasticsearch.xpack.esql.planner;
 
+import org.elasticsearch.xpack.esql.expression.FieldAttribute;
 import org.elasticsearch.xpack.ql.expression.Expression;
-import org.elasticsearch.xpack.ql.expression.FieldAttribute;
 import org.elasticsearch.xpack.ql.expression.MetadataAttribute;
 import org.elasticsearch.xpack.ql.expression.TypedAttribute;
 import org.elasticsearch.xpack.ql.querydsl.query.NestedQuery;

@@ -572,7 +572,7 @@ public final class EsqlExpressionTranslators {
             Query q;
             Expression field = e.field();
 
-            if (field instanceof org.elasticsearch.xpack.ql.expression.FieldAttribute fa) {
+            if (field instanceof FieldAttribute fa) {
                 return handler.wrapFunctionQuery(e, fa, () -> translateField(e, handler.nameOf(fa.exactAttribute())));
             } else if (field instanceof MetadataAttribute ma) {
                 q = translateField(e, handler.nameOf(ma));
@@ -809,10 +809,8 @@ public final class EsqlExpressionTranslators {
 
         public static Query doKnownTranslate(ScalarFunction f, EsqlTranslatorHandler handler) {
             if (f instanceof StartsWith sw) {
-                if (sw.input() instanceof org.elasticsearch.xpack.ql.expression.FieldAttribute && sw.pattern().foldable()) {
-                    String targetFieldName = handler.nameOf(
-                        ((org.elasticsearch.xpack.ql.expression.FieldAttribute) sw.input()).exactAttribute()
-                    );
+                if (sw.input() instanceof FieldAttribute && sw.pattern().foldable()) {
+                    String targetFieldName = handler.nameOf(((FieldAttribute) sw.input()).exactAttribute());
                     String pattern = (String) sw.pattern().fold();
 
                     return new PrefixQuery(f.source(), targetFieldName, pattern, sw.isCaseInsensitive());
@@ -822,7 +820,7 @@ public final class EsqlExpressionTranslators {
         }
     }
 
-    private static Object valueOf(Expression e) {
+    public static Object valueOf(Expression e) {
         if (e.foldable()) {
             return e.fold();
         }

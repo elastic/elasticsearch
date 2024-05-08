@@ -17,7 +17,7 @@ import org.elasticsearch.xpack.ql.expression.MetadataAttribute;
 import org.elasticsearch.xpack.ql.expression.function.scalar.ScalarFunction;
 import org.elasticsearch.xpack.ql.expression.predicate.nulls.IsNotNull;
 import org.elasticsearch.xpack.ql.expression.predicate.nulls.IsNull;
-import org.elasticsearch.xpack.ql.planner.ExpressionTranslator;
+import org.elasticsearch.xpack.ql.querydsl.query.NestedQuery;
 import org.elasticsearch.xpack.ql.querydsl.query.Query;
 import org.elasticsearch.xpack.ql.type.DataType;
 
@@ -46,7 +46,7 @@ public final class EsqlTranslatorHandler {
             if ((sf instanceof IsNull || sf instanceof IsNotNull) == false) {
                 query = new SingleValueQuery(query, fa.name());
             }
-            return ExpressionTranslator.wrapIfNested(query, field);
+            return wrapIfNested(query, field);
         }
         if (field instanceof MetadataAttribute) {
             return querySupplier.get(); // MetadataAttributes are always single valued
@@ -56,5 +56,14 @@ public final class EsqlTranslatorHandler {
 
     public String nameOf(Expression e) {
         return Expressions.name(e);
+    }
+
+    private static Query wrapIfNested(Query query, Expression exp) {
+        if (query != null && exp instanceof FieldAttribute fa) {
+            if (fa.isNested()) {
+                return new NestedQuery(fa.source(), fa.nestedParent().name(), query);
+            }
+        }
+        return query;
     }
 }

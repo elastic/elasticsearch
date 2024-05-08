@@ -222,12 +222,12 @@ public class DataStreamsSnapshotsIT extends AbstractSnapshotIntegTestCase {
 
     public void testSnapshotAndRestoreAllDataStreamsInPlace() throws Exception {
         CreateSnapshotResponse createSnapshotResponse = client.admin()
-                .cluster()
-                .prepareCreateSnapshot(REPO, SNAPSHOT)
-                .setWaitForCompletion(true)
-                .setIndices("ds")
-                .setIncludeGlobalState(false)
-                .get();
+            .cluster()
+            .prepareCreateSnapshot(REPO, SNAPSHOT)
+            .setWaitForCompletion(true)
+            .setIndices("ds")
+            .setIncludeGlobalState(false)
+            .get();
 
         RestStatus status = createSnapshotResponse.getSnapshotInfo().status();
         assertEquals(RestStatus.OK, status);
@@ -240,11 +240,11 @@ public class DataStreamsSnapshotsIT extends AbstractSnapshotIntegTestCase {
         assertAcked(client.admin().indices().close(closeIndexRequest).actionGet());
 
         RestoreSnapshotResponse restoreSnapshotResponse = client.admin()
-                .cluster()
-                .prepareRestoreSnapshot(REPO, SNAPSHOT)
-                .setWaitForCompletion(true)
-                .setIndices("ds")
-                .get();
+            .cluster()
+            .prepareRestoreSnapshot(REPO, SNAPSHOT)
+            .setWaitForCompletion(true)
+            .setIndices("ds")
+            .get();
         assertEquals(1, restoreSnapshotResponse.getRestoreInfo().successfulShards());
 
         assertEquals(DOCUMENT_SOURCE, client.prepareGet(dsBackingIndexName, id).get().getSourceAsMap());
@@ -257,8 +257,8 @@ public class DataStreamsSnapshotsIT extends AbstractSnapshotIntegTestCase {
         GetDataStreamAction.Request getDataSteamRequest = new GetDataStreamAction.Request(new String[] { "*" });
         GetDataStreamAction.Response ds = client.execute(GetDataStreamAction.INSTANCE, getDataSteamRequest).get();
         assertThat(
-                ds.getDataStreams().stream().map(e -> e.getDataStream().getName()).collect(Collectors.toList()),
-                contains(equalTo("ds"), equalTo("other-ds"), equalTo("with-fs"))
+            ds.getDataStreams().stream().map(e -> e.getDataStream().getName()).collect(Collectors.toList()),
+            contains(equalTo("ds"), equalTo("other-ds"), equalTo("with-fs"))
         );
         List<Index> backingIndices = ds.getDataStreams().get(0).getDataStream().getIndices();
         assertThat(backingIndices.stream().map(Index::getName).collect(Collectors.toList()), contains(dsBackingIndexName));
@@ -334,12 +334,12 @@ public class DataStreamsSnapshotsIT extends AbstractSnapshotIntegTestCase {
 
     public void testFailureStoreSnapshotAndRestore() throws Exception {
         CreateSnapshotResponse createSnapshotResponse = client.admin()
-                .cluster()
-                .prepareCreateSnapshot(REPO, SNAPSHOT)
-                .setWaitForCompletion(true)
-                .setIndices("with-fs")
-                .setIncludeGlobalState(false)
-                .get();
+            .cluster()
+            .prepareCreateSnapshot(REPO, SNAPSHOT)
+            .setWaitForCompletion(true)
+            .setIndices("with-fs")
+            .setIncludeGlobalState(false)
+            .get();
 
         RestStatus status = createSnapshotResponse.getSnapshotInfo().status();
         assertEquals(RestStatus.OK, status);
@@ -350,17 +350,17 @@ public class DataStreamsSnapshotsIT extends AbstractSnapshotIntegTestCase {
 
         {
             RestoreSnapshotResponse restoreSnapshotResponse = client.admin()
-                    .cluster()
-                    .prepareRestoreSnapshot(REPO, SNAPSHOT)
-                    .setWaitForCompletion(true)
-                    .setIndices("with-fs")
-                    .get();
+                .cluster()
+                .prepareRestoreSnapshot(REPO, SNAPSHOT)
+                .setWaitForCompletion(true)
+                .setIndices("with-fs")
+                .get();
 
             assertEquals(2, restoreSnapshotResponse.getRestoreInfo().successfulShards());
 
             GetDataStreamAction.Response ds = client.execute(
-                    GetDataStreamAction.INSTANCE,
-                    new GetDataStreamAction.Request(new String[] { "with-fs" })
+                GetDataStreamAction.INSTANCE,
+                new GetDataStreamAction.Request(new String[] { "with-fs" })
             ).get();
             assertEquals(1, ds.getDataStreams().size());
             assertEquals(1, ds.getDataStreams().get(0).getDataStream().getIndices().size());
@@ -370,19 +370,19 @@ public class DataStreamsSnapshotsIT extends AbstractSnapshotIntegTestCase {
         {
             // With rename pattern
             RestoreSnapshotResponse restoreSnapshotResponse = client.admin()
-                    .cluster()
-                    .prepareRestoreSnapshot(REPO, SNAPSHOT)
-                    .setWaitForCompletion(true)
-                    .setIndices("with-fs")
-                    .setRenamePattern("-fs")
-                    .setRenameReplacement("-fs2")
-                    .get();
+                .cluster()
+                .prepareRestoreSnapshot(REPO, SNAPSHOT)
+                .setWaitForCompletion(true)
+                .setIndices("with-fs")
+                .setRenamePattern("-fs")
+                .setRenameReplacement("-fs2")
+                .get();
 
             assertEquals(2, restoreSnapshotResponse.getRestoreInfo().successfulShards());
 
             GetDataStreamAction.Response ds = client.execute(
-                    GetDataStreamAction.INSTANCE,
-                    new GetDataStreamAction.Request(new String[] { "with-fs2" })
+                GetDataStreamAction.INSTANCE,
+                new GetDataStreamAction.Request(new String[] { "with-fs2" })
             ).get();
             assertEquals(1, ds.getDataStreams().size());
             assertEquals(1, ds.getDataStreams().get(0).getDataStream().getIndices().size());

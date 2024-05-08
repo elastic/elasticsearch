@@ -136,7 +136,6 @@ public class StatelessBatchedBehavioursIT extends AbstractStatelessIntegTestCase
         });
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch-serverless/issues/1917")
     public void testFlushAfterRelocationWillThrowOnlyExpectedError() throws Exception {
         startMasterOnlyNode();
         final String oldIndexNode = startIndexNode();
@@ -167,7 +166,8 @@ public class StatelessBatchedBehavioursIT extends AbstractStatelessIntegTestCase
         });
 
         logger.info("--> indexing docs and refresh");
-        indexDocsAndRefresh(indexName, 10);
+        indexDocs(indexName, 10);
+        refresh(indexName);
         indexDocs(indexName, 1);
 
         final String newIndexNode = startIndexNode();

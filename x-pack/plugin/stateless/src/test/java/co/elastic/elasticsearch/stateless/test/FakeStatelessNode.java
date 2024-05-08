@@ -56,6 +56,7 @@ import org.elasticsearch.action.ActionType;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -163,6 +164,12 @@ public class FakeStatelessNode implements Closeable {
         long primaryTerm
     ) throws IOException {
         this.primaryTerm = primaryTerm;
+        DiscoveryNodeUtils.create(
+            "node",
+            ESTestCase.buildNewFakeTransportAddress(),
+            Map.of(),
+            Set.copyOf(ESTestCase.randomSubsetOf(DiscoveryNodeRole.roles()))
+        );
         node = DiscoveryNodeUtils.create("node", ESTestCase.buildNewFakeTransportAddress(), Version.CURRENT);
         repoPath = LuceneTestCase.createTempDir();
         pathHome = LuceneTestCase.createTempDir().toAbsolutePath();

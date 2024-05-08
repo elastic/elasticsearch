@@ -23,7 +23,11 @@ import co.elastic.elasticsearch.stateless.test.FakeStatelessNode;
 import org.apache.lucene.index.IndexFileNames;
 import org.apache.lucene.tests.mockfile.FilterFileSystemProvider;
 import org.apache.lucene.tests.util.LuceneTestCase;
+import org.elasticsearch.action.ActionRunnable;
+import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.action.support.RefCountingListener;
+import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.coordination.CoordinationMetadata;
@@ -64,6 +68,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Function;
 
@@ -332,6 +337,39 @@ public class StatelessPersistedStateTests extends ESTestCase {
             getPersistedStateForTerm(persistedState, term);
         } finally {
             PathUtilsForTesting.teardown();
+        }
+    }
+
+    public void testConcurrentStateDownloads() throws Exception {
+        try (var ctx = createTestContext()) {
+            var localNode = ctx.getLocalNode();
+            var persistedState = ctx.persistedState();
+
+            long term = randomNonNegativeLong();
+            persistedState.setCurrentTerm(term);
+            persistedState.setLastAcceptedState(createClusterStateWithLocalNodeAsMaster(term, 1, localNode));
+
+            final var latch = new CountDownLatch(1);
+            try (var listeners = new RefCountingListener(ActionTestUtils.assertNoFailureListener(ignored -> latch.countDown()))) {
+                for (int i = between(1, 10); i > 0; i--) {
+                    SubscribableListener
+
+                        .<Optional<PersistedClusterState>>newForked(
+                            l -> ctx.clusterStateService()
+                                .getClusterStateDownloadsThreadPool()
+                                .execute(ActionRunnable.wrap(l, ll -> persistedState.readLatestClusterStateForTerm(term, ll)))
+                        )
+
+                        .addListener(listeners.acquire(optionalClusterState -> {
+                            final var persistedClusterState = optionalClusterState.orElseThrow(AssertionError::new);
+                            assertThat(persistedClusterState.term(), is(equalTo(term)));
+                        }));
+                }
+            }
+            safeAwait(latch);
+
+            // The final read should clean up any leftovers from the previous reads
+            getPersistedStateForTerm(persistedState, term);
         }
     }
 

@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.inference.services.azureaistudio;
 
+import org.apache.http.HttpHeaders;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
@@ -14,6 +16,8 @@ import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.inference.ChunkedInferenceServiceResults;
+import org.elasticsearch.inference.ChunkingOptions;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.Model;
@@ -22,23 +26,35 @@ import org.elasticsearch.inference.ModelSecrets;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.http.MockResponse;
 import org.elasticsearch.test.http.MockWebServer;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
+import org.elasticsearch.xpack.core.inference.results.ChatCompletionResults;
+import org.elasticsearch.xpack.core.inference.results.ChunkedTextEmbeddingResults;
+import org.elasticsearch.xpack.core.ml.inference.results.ChunkedNlpInferenceResults;
 import org.elasticsearch.xpack.inference.external.http.HttpClientManager;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
+import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSenderTests;
 import org.elasticsearch.xpack.inference.external.http.sender.Sender;
 import org.elasticsearch.xpack.inference.logging.ThrottlerManager;
 import org.elasticsearch.xpack.inference.services.azureaistudio.completion.AzureAiStudioChatCompletionModel;
+import org.elasticsearch.xpack.inference.services.azureaistudio.completion.AzureAiStudioChatCompletionModelTests;
 import org.elasticsearch.xpack.inference.services.azureaistudio.completion.AzureAiStudioChatCompletionServiceSettingsTests;
 import org.elasticsearch.xpack.inference.services.azureaistudio.completion.AzureAiStudioChatCompletionTaskSettingsTests;
 import org.elasticsearch.xpack.inference.services.azureaistudio.embeddings.AzureAiStudioEmbeddingsModel;
+import org.elasticsearch.xpack.inference.services.azureaistudio.embeddings.AzureAiStudioEmbeddingsModelTests;
 import org.elasticsearch.xpack.inference.services.azureaistudio.embeddings.AzureAiStudioEmbeddingsServiceSettingsTests;
 import org.elasticsearch.xpack.inference.services.azureaistudio.embeddings.AzureAiStudioEmbeddingsTaskSettingsTests;
+import org.hamcrest.CoreMatchers;
+import org.hamcrest.MatcherAssert;
+import org.hamcrest.Matchers;
 import org.junit.After;
 import org.junit.Before;
 
 import java.io.IOException;
+import java.net.URISyntaxException;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -47,11 +63,17 @@ import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.xpack.inference.Utils.inferenceUtilityPool;
 import static org.elasticsearch.xpack.inference.Utils.mockClusterServiceEmpty;
+import static org.elasticsearch.xpack.inference.external.http.Utils.entityAsMap;
+import static org.elasticsearch.xpack.inference.external.http.Utils.getUrl;
+import static org.elasticsearch.xpack.inference.external.request.azureopenai.AzureOpenAiUtils.API_KEY_HEADER;
+import static org.elasticsearch.xpack.inference.results.ChunkedTextEmbeddingResultsTests.asMapWithListsInsteadOfArrays;
 import static org.elasticsearch.xpack.inference.services.ServiceComponentsTests.createWithEmptySettings;
 import static org.elasticsearch.xpack.inference.services.Utils.getInvalidModel;
-import static org.elasticsearch.xpack.inference.services.azureopenai.AzureOpenAiSecretSettings.API_KEY;
+import static org.elasticsearch.xpack.inference.services.azureaistudio.AzureAiStudioConstants.API_KEY_FIELD;
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
@@ -422,8 +444,6 @@ public class AzureAiStudioServiceTests extends ESTestCase {
         }
     }
 
-    // ----------------------------------------------------------------
-
     public void testParsePersistedConfig_CreatesAnAzureAiStudioEmbeddingsModel() throws IOException {
         try (var service = createService()) {
             var config = getPersistedConfigMap(
@@ -460,14 +480,14 @@ public class AzureAiStudioServiceTests extends ESTestCase {
 
             assertThat(model, instanceOf(AzureAiStudioChatCompletionModel.class));
 
-            var embeddingsModel = (AzureAiStudioChatCompletionModel) model;
-            assertThat(embeddingsModel.getServiceSettings().target(), is("http://target.local"));
-            assertThat(embeddingsModel.getServiceSettings().provider(), is(AzureAiStudioProvider.OPENAI));
-            assertThat(embeddingsModel.getServiceSettings().endpointType(), is(AzureAiStudioEndpointType.TOKEN));
-            assertThat(embeddingsModel.getTaskSettings().temperature(), is(1.0f));
-            assertThat(embeddingsModel.getTaskSettings().topP(), is(2.0f));
-            assertThat(embeddingsModel.getTaskSettings().doSample(), is(true));
-            assertThat(embeddingsModel.getTaskSettings().maxNewTokens(), is(512));
+            var chatCompletionModel = (AzureAiStudioChatCompletionModel) model;
+            assertThat(chatCompletionModel.getServiceSettings().target(), is("http://target.local"));
+            assertThat(chatCompletionModel.getServiceSettings().provider(), is(AzureAiStudioProvider.OPENAI));
+            assertThat(chatCompletionModel.getServiceSettings().endpointType(), is(AzureAiStudioEndpointType.TOKEN));
+            assertThat(chatCompletionModel.getTaskSettings().temperature(), is(1.0f));
+            assertThat(chatCompletionModel.getTaskSettings().topP(), is(2.0f));
+            assertThat(chatCompletionModel.getTaskSettings().doSample(), is(true));
+            assertThat(chatCompletionModel.getTaskSettings().maxNewTokens(), is(512));
         }
     }
 
@@ -616,7 +636,183 @@ public class AzureAiStudioServiceTests extends ESTestCase {
         }
     }
 
-    // ----------------------------------------------------------------
+    public void testParsePersistedConfig_WithoutSecretsCreatesEmbeddingsModel() throws IOException {
+        try (var service = createService()) {
+            var config = getPersistedConfigMap(
+                getEmbeddingsServiceSettingsMap("http://target.local", "openai", "token", 1024, true, 512, null),
+                getEmbeddingsTaskSettingsMap("user"),
+                Map.of()
+            );
+
+            var model = service.parsePersistedConfig("id", TaskType.TEXT_EMBEDDING, config.config());
+
+            assertThat(model, instanceOf(AzureAiStudioEmbeddingsModel.class));
+
+            var embeddingsModel = (AzureAiStudioEmbeddingsModel) model;
+            assertThat(embeddingsModel.getServiceSettings().target(), is("http://target.local"));
+            assertThat(embeddingsModel.getServiceSettings().provider(), is(AzureAiStudioProvider.OPENAI));
+            assertThat(embeddingsModel.getServiceSettings().endpointType(), is(AzureAiStudioEndpointType.TOKEN));
+            assertThat(embeddingsModel.getServiceSettings().dimensions(), is(1024));
+            assertThat(embeddingsModel.getServiceSettings().dimensionsSetByUser(), is(true));
+            assertThat(embeddingsModel.getServiceSettings().maxInputTokens(), is(512));
+            assertThat(embeddingsModel.getTaskSettings().user(), is("user"));
+        }
+    }
+
+    public void testParsePersistedConfig_WithoutSecretsCreatesChatCompletionModel() throws IOException {
+        try (var service = createService()) {
+            var config = getPersistedConfigMap(
+                getChatCompletionServiceSettingsMap("http://target.local", "openai", "token"),
+                getChatCompletionTaskSettingsMap(1.0f, 2.0f, true, 512),
+                Map.of()
+            );
+
+            var model = service.parsePersistedConfig("id", TaskType.COMPLETION, config.config());
+
+            assertThat(model, instanceOf(AzureAiStudioChatCompletionModel.class));
+
+            var chatCompletionModel = (AzureAiStudioChatCompletionModel) model;
+            assertThat(chatCompletionModel.getServiceSettings().target(), is("http://target.local"));
+            assertThat(chatCompletionModel.getServiceSettings().provider(), is(AzureAiStudioProvider.OPENAI));
+            assertThat(chatCompletionModel.getServiceSettings().endpointType(), is(AzureAiStudioEndpointType.TOKEN));
+            assertThat(chatCompletionModel.getTaskSettings().temperature(), is(1.0f));
+            assertThat(chatCompletionModel.getTaskSettings().topP(), is(2.0f));
+            assertThat(chatCompletionModel.getTaskSettings().doSample(), is(true));
+            assertThat(chatCompletionModel.getTaskSettings().maxNewTokens(), is(512));
+        }
+    }
+
+    public void testCheckModelConfig_ForEmbeddingsModel_Works() throws IOException {
+        var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
+
+        try (var service = new AzureAiStudioService(senderFactory, createWithEmptySettings(threadPool))) {
+            webServer.enqueue(new MockResponse().setResponseCode(200).setBody(testEmbeddingResultJson));
+
+            var model = AzureAiStudioEmbeddingsModelTests.createModel(
+                "id",
+                getUrl(webServer),
+                AzureAiStudioProvider.OPENAI,
+                AzureAiStudioEndpointType.TOKEN,
+                "apikey",
+                null,
+                false,
+                null,
+                null,
+                null,
+                null
+            );
+
+            PlainActionFuture<Model> listener = new PlainActionFuture<>();
+            service.checkModelConfig(model, listener);
+
+            var result = listener.actionGet(TIMEOUT);
+            assertThat(
+                result,
+                is(
+                    AzureAiStudioEmbeddingsModelTests.createModel(
+                        "id",
+                        getUrl(webServer),
+                        AzureAiStudioProvider.OPENAI,
+                        AzureAiStudioEndpointType.TOKEN,
+                        "apikey",
+                        2,
+                        false,
+                        null,
+                        SimilarityMeasure.DOT_PRODUCT,
+                        null,
+                        null
+                    )
+                )
+            );
+
+            assertThat(webServer.requests(), hasSize(1));
+
+            var requestMap = entityAsMap(webServer.requests().get(0).getBody());
+            MatcherAssert.assertThat(requestMap, Matchers.is(Map.of("input", List.of("how big"))));
+        }
+    }
+
+    public void testCheckModelConfig_ForEmbeddingsModel_ThrowsIfEmbeddingSizeDoesNotMatchValueSetByUser() throws IOException {
+        var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
+
+        try (var service = new AzureAiStudioService(senderFactory, createWithEmptySettings(threadPool))) {
+            webServer.enqueue(new MockResponse().setResponseCode(200).setBody(testEmbeddingResultJson));
+
+            var model = AzureAiStudioEmbeddingsModelTests.createModel(
+                "id",
+                getUrl(webServer),
+                AzureAiStudioProvider.OPENAI,
+                AzureAiStudioEndpointType.TOKEN,
+                "apikey",
+                3,
+                true,
+                null,
+                null,
+                null,
+                null
+            );
+
+            PlainActionFuture<Model> listener = new PlainActionFuture<>();
+            service.checkModelConfig(model, listener);
+
+            var exception = expectThrows(ElasticsearchStatusException.class, () -> listener.actionGet(TIMEOUT));
+            assertThat(
+                exception.getMessage(),
+                is(
+                    "The retrieved embeddings size [2] does not match the size specified in the settings [3]. "
+                        + "Please recreate the [id] configuration with the correct dimensions"
+                )
+            );
+
+            assertThat(webServer.requests(), hasSize(1));
+
+            var requestMap = entityAsMap(webServer.requests().get(0).getBody());
+            MatcherAssert.assertThat(requestMap, Matchers.is(Map.of("input", List.of("how big"), "dimensions", 3)));
+        }
+    }
+
+    public void testCheckModelConfig_WorksForChatCompletionsModel() throws IOException {
+        var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
+
+        try (var service = new AzureAiStudioService(senderFactory, createWithEmptySettings(threadPool))) {
+            webServer.enqueue(new MockResponse().setResponseCode(200).setBody(testChatCompletionResultJson));
+
+            var model = AzureAiStudioChatCompletionModelTests.createModel(
+                "id",
+                getUrl(webServer),
+                AzureAiStudioProvider.OPENAI,
+                AzureAiStudioEndpointType.TOKEN,
+                "apikey",
+                null,
+                null,
+                null,
+                null,
+                null
+            );
+
+            PlainActionFuture<Model> listener = new PlainActionFuture<>();
+            service.checkModelConfig(model, listener);
+
+            var result = listener.actionGet(TIMEOUT);
+            assertThat(
+                result,
+                is(
+                    AzureAiStudioChatCompletionModelTests.createModel(
+                        "id",
+                        getUrl(webServer),
+                        AzureAiStudioProvider.OPENAI,
+                        AzureAiStudioEndpointType.TOKEN,
+                        "apikey",
+                        null,
+                        null,
+                        null,
+                        null,
+                        null
+                    )
+                )
+            );
+        }
+    }
 
     public void testInfer_ThrowsErrorWhenModelIsNotAzureAiStudioModel() throws IOException {
         var sender = mock(Sender.class);
@@ -651,6 +847,202 @@ public class AzureAiStudioServiceTests extends ESTestCase {
         verify(sender, times(1)).close();
         verifyNoMoreInteractions(factory);
         verifyNoMoreInteractions(sender);
+    }
+
+    public void testChunkedInfer_Embeddings_CallsInfer_ConvertsFloatResponse() throws IOException, URISyntaxException {
+        var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
+
+        try (var service = new AzureAiStudioService(senderFactory, createWithEmptySettings(threadPool))) {
+
+            String responseJson = """
+                {
+                    "object": "list",
+                    "data": [
+                        {
+                            "object": "embedding",
+                            "index": 0,
+                            "embedding": [
+                                0.0123,
+                                -0.0123
+                            ]
+                        }
+                    ],
+                    "model": "text-embedding-ada-002-v2",
+                    "usage": {
+                        "prompt_tokens": 8,
+                        "total_tokens": 8
+                    }
+                }
+                """;
+            webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
+
+            var model = AzureAiStudioEmbeddingsModelTests.createModel(
+                "id",
+                getUrl(webServer),
+                AzureAiStudioProvider.OPENAI,
+                AzureAiStudioEndpointType.TOKEN,
+                "apikey",
+                null,
+                false,
+                null,
+                null,
+                "user",
+                null
+            );
+            PlainActionFuture<List<ChunkedInferenceServiceResults>> listener = new PlainActionFuture<>();
+            service.chunkedInfer(
+                model,
+                List.of("abc"),
+                new HashMap<>(),
+                InputType.INGEST,
+                new ChunkingOptions(null, null),
+                InferenceAction.Request.DEFAULT_TIMEOUT,
+                listener
+            );
+
+            var result = listener.actionGet(TIMEOUT).get(0);
+            assertThat(result, CoreMatchers.instanceOf(ChunkedTextEmbeddingResults.class));
+
+            assertThat(
+                asMapWithListsInsteadOfArrays((ChunkedTextEmbeddingResults) result),
+                Matchers.is(
+                    Map.of(
+                        ChunkedTextEmbeddingResults.FIELD_NAME,
+                        List.of(
+                            Map.of(
+                                ChunkedNlpInferenceResults.TEXT,
+                                "abc",
+                                ChunkedNlpInferenceResults.INFERENCE,
+                                List.of((double) 0.0123f, (double) -0.0123f)
+                            )
+                        )
+                    )
+                )
+            );
+            assertThat(webServer.requests(), hasSize(1));
+            assertNull(webServer.requests().get(0).getUri().getQuery());
+            assertThat(webServer.requests().get(0).getHeader(HttpHeaders.CONTENT_TYPE), equalTo(XContentType.JSON.mediaType()));
+            assertThat(webServer.requests().get(0).getHeader(API_KEY_HEADER), equalTo("apikey"));
+
+            var requestMap = entityAsMap(webServer.requests().get(0).getBody());
+            assertThat(requestMap.size(), Matchers.is(2));
+            assertThat(requestMap.get("input"), Matchers.is(List.of("abc")));
+            assertThat(requestMap.get("user"), Matchers.is("user"));
+        }
+    }
+
+    public void testInfer_ThrowsWhenQueryIsPresent() throws IOException {
+        var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
+
+        try (var service = new AzureAiStudioService(senderFactory, createWithEmptySettings(threadPool))) {
+            webServer.enqueue(new MockResponse().setResponseCode(200).setBody(testChatCompletionResultJson));
+
+            var model = AzureAiStudioChatCompletionModelTests.createModel(
+                "id",
+                getUrl(webServer),
+                AzureAiStudioProvider.OPENAI,
+                AzureAiStudioEndpointType.TOKEN,
+                "apikey"
+            );
+
+            PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
+            UnsupportedOperationException exception = expectThrows(
+                UnsupportedOperationException.class,
+                () -> service.infer(
+                    model,
+                    "should throw",
+                    List.of("abc"),
+                    new HashMap<>(),
+                    InputType.INGEST,
+                    InferenceAction.Request.DEFAULT_TIMEOUT,
+                    listener
+                )
+            );
+
+            assertThat(exception.getMessage(), is("Azure AI Studio service does not support inference with query input"));
+        }
+    }
+
+    public void testInfer_WithChatCompletionModel() throws IOException {
+        var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
+
+        try (var service = new AzureAiStudioService(senderFactory, createWithEmptySettings(threadPool))) {
+            webServer.enqueue(new MockResponse().setResponseCode(200).setBody(testChatCompletionResultJson));
+
+            var model = AzureAiStudioChatCompletionModelTests.createModel(
+                "id",
+                getUrl(webServer),
+                AzureAiStudioProvider.OPENAI,
+                AzureAiStudioEndpointType.TOKEN,
+                "apikey"
+            );
+
+            PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
+            service.infer(
+                model,
+                null,
+                List.of("abc"),
+                new HashMap<>(),
+                InputType.INGEST,
+                InferenceAction.Request.DEFAULT_TIMEOUT,
+                listener
+            );
+
+            var result = listener.actionGet(TIMEOUT);
+            assertThat(result, CoreMatchers.instanceOf(ChatCompletionResults.class));
+
+            var completionResults = (ChatCompletionResults) result;
+            assertThat(completionResults.getResults().size(), is(1));
+            assertThat(completionResults.getResults().get(0).content(), is("test completion content"));
+        }
+    }
+
+    public void testInfer_UnauthorisedResponse() throws IOException {
+        var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
+
+        try (var service = new AzureAiStudioService(senderFactory, createWithEmptySettings(threadPool))) {
+
+            String responseJson = """
+                {
+                    "error": {
+                        "message": "Incorrect API key provided:",
+                        "type": "invalid_request_error",
+                        "param": null,
+                        "code": "invalid_api_key"
+                    }
+                }
+                """;
+            webServer.enqueue(new MockResponse().setResponseCode(401).setBody(responseJson));
+
+            var model = AzureAiStudioEmbeddingsModelTests.createModel(
+                "id",
+                getUrl(webServer),
+                AzureAiStudioProvider.OPENAI,
+                AzureAiStudioEndpointType.TOKEN,
+                "apikey",
+                null,
+                false,
+                null,
+                null,
+                "user",
+                null
+            );
+            PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
+            service.infer(
+                model,
+                null,
+                List.of("abc"),
+                new HashMap<>(),
+                InputType.INGEST,
+                InferenceAction.Request.DEFAULT_TIMEOUT,
+                listener
+            );
+
+            var error = expectThrows(ElasticsearchException.class, () -> listener.actionGet(TIMEOUT));
+            assertThat(error.getMessage(), containsString("Received an authentication error status code for request"));
+            assertThat(error.getMessage(), containsString("Error message: [Incorrect API key provided:]"));
+            assertThat(webServer.requests(), hasSize(1));
+        }
     }
 
     // ----------------------------------------------------------------
@@ -733,6 +1125,52 @@ public class AzureAiStudioServiceTests extends ESTestCase {
     }
 
     private static Map<String, Object> getSecretSettingsMap(String apiKey) {
-        return new HashMap<>(Map.of(API_KEY, apiKey));
+        return new HashMap<>(Map.of(API_KEY_FIELD, apiKey));
     }
+
+    private static final String testEmbeddingResultJson = """
+        {
+          "object": "list",
+          "data": [
+              {
+                  "object": "embedding",
+                  "index": 0,
+                  "embedding": [
+                      0.0123,
+                      -0.0123
+                  ]
+              }
+          ],
+          "model": "text-embedding-ada-002-v2",
+          "usage": {
+              "prompt_tokens": 8,
+              "total_tokens": 8
+          }
+        }
+        """;
+
+    private static final String testChatCompletionResultJson = """
+        {
+            "choices": [
+                {
+                    "finish_reason": "stop",
+                    "index": 0,
+                    "message": {
+                        "content": "test completion content",
+                        "role": "assistant",
+                        "tool_calls": null
+                    }
+                }
+            ],
+            "created": 1714006424,
+            "id": "f92b5b4d-0de3-4152-a3c6-5aae8a74555c",
+            "model": "",
+            "object": "chat.completion",
+            "usage": {
+                "completion_tokens": 35,
+                "prompt_tokens": 8,
+                "total_tokens": 43
+            }
+        }
+        """;
 }

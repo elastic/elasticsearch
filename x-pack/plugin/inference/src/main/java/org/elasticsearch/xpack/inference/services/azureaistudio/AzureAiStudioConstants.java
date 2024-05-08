@@ -15,6 +15,7 @@ public class AzureAiStudioConstants {
     public static final String TARGET_FIELD = "target";
     public static final String ENDPOINT_TYPE_FIELD = "endpoint_type";
     public static final String PROVIDER_FIELD = "provider";
+    public static final String API_KEY_FIELD = "api_key";
 
     // embeddings service and request settings
     public static final String INPUT_FIELD = "input";

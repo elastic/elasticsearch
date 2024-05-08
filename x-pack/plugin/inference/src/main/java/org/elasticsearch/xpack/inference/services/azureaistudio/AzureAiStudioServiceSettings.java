@@ -12,6 +12,7 @@ import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ServiceSettings;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -96,6 +97,11 @@ public abstract class AzureAiStudioServiceSettings implements ServiceSettings {
         RateLimitSettings rateLimitSettings
     ) {}
 
+    @Override
+    public DenseVectorFieldMapper.ElementType elementType() {
+        return DenseVectorFieldMapper.ElementType.FLOAT;
+    }
+
     public String target() {
         return this.target;
     }
@@ -117,9 +123,7 @@ public abstract class AzureAiStudioServiceSettings implements ServiceSettings {
         out.writeString(target);
         out.writeEnum(provider);
         out.writeEnum(endpointType);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.ML_INFERENCE_RATE_LIMIT_SETTINGS_ADDED)) {
-            rateLimitSettings.writeTo(out);
-        }
+        rateLimitSettings.writeTo(out);
     }
 
     protected void addXContentFields(XContentBuilder builder, Params params) throws IOException {

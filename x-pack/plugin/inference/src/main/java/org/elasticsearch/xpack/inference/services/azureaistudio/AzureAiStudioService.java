@@ -281,7 +281,8 @@ public class AzureAiStudioService extends SenderService {
                 listener.delegateFailureAndWrap((l, size) -> l.onResponse(updateEmbeddingModelConfig(embeddingsModel, size)))
             );
         } else if (model instanceof AzureAiStudioChatCompletionModel completionModel) {
-            listener.delegateFailureAndWrap((l, _discard) -> l.onResponse(updateChatCompletionModelConfig(completionModel)));
+            // nothing to do - just return the model
+            listener.onResponse(completionModel);
         } else {
             listener.onResponse(model);
         }
@@ -310,7 +311,7 @@ public class AzureAiStudioService extends SenderService {
             embeddingsModel.getServiceSettings().target(),
             embeddingsModel.getServiceSettings().provider(),
             embeddingsModel.getServiceSettings().endpointType(),
-            embeddingsModel.getServiceSettings().dimensions(),
+            embeddingsSize,
             embeddingsModel.getServiceSettings().dimensionsSetByUser(),
             embeddingsModel.getServiceSettings().maxInputTokens(),
             similarityToUse,
@@ -318,11 +319,6 @@ public class AzureAiStudioService extends SenderService {
         );
 
         return new AzureAiStudioEmbeddingsModel(embeddingsModel, serviceSettings);
-    }
-
-    private AzureAiStudioChatCompletionModel updateChatCompletionModelConfig(AzureAiStudioChatCompletionModel completionModel) {
-        // nothing to check on retrieval
-        return completionModel;
     }
 
     private static void checkProviderAndEndpointTypeForTask(

@@ -264,6 +264,7 @@ public class VirtualBatchedCompoundCommitTests extends ESTestCase {
         }
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch-serverless/issues/1918")
     public void testGetVirtualBatchedCompoundCommitBytesByRangeWithConcurrentAppends() throws Exception {
         var primaryTerm = 1;
         try (var fakeNode = createFakeNode(primaryTerm)) {

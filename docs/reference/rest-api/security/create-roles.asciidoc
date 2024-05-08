@@ -50,6 +50,9 @@ privilege or action.
 `cluster`:: (list) A list of cluster privileges. These privileges define the
 cluster level actions that users with this role are able to execute.
 
+`description`:: (string) Allows providing additional context about this role.
+The maximum length is `1000` chars.
+
 `global`:: (object) An object defining global privileges. A global privilege is
 a form of cluster privilege that is request-aware. Support for global privileges
 is currently limited to the management of application privileges.

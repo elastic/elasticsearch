@@ -46,7 +46,6 @@ import org.elasticsearch.xpack.ql.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.ql.expression.function.UnresolvedFunction;
 import org.elasticsearch.xpack.ql.expression.predicate.logical.Not;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.BinaryComparison;
-import org.elasticsearch.xpack.ql.options.EsSourceOptions;
 import org.elasticsearch.xpack.ql.plan.TableIdentifier;
 import org.elasticsearch.xpack.ql.plan.logical.Filter;
 import org.elasticsearch.xpack.ql.plan.logical.Limit;
@@ -1053,40 +1052,175 @@ public class StatementParserTests extends ESTestCase {
         expectError("ROW 3::BYTE", "line 1:6: Unsupported conversion to type [BYTE]");
     }
 
-    public void testMetrics() {
+    public void testMetricsWithoutStats() {
         assumeTrue("requires snapshot build", Build.current().isSnapshot());
-        assertThat(
-            statement("METRICS foo-index"),
-            equalTo(
-                new UnresolvedMetrics(
-                    EMPTY,
-                    new TableIdentifier(EMPTY, null, "foo-index"),
-                    List.of(),
-                    new EsSourceOptions(),
-                    null,
-                    List.of(),
-                    List.of()
+
+        assertStatement("METRICS foo", new UnresolvedMetrics(EMPTY, new TableIdentifier(EMPTY, null, "foo"), null, List.of(), List.of()));
+        assertStatement(
+            "METRICS foo,bar",
+            new UnresolvedMetrics(EMPTY, new TableIdentifier(EMPTY, null, "foo,bar"), null, List.of(), List.of())
+        );
+        assertStatement(
+            "METRICS foo*,bar",
+            new UnresolvedMetrics(EMPTY, new TableIdentifier(EMPTY, null, "foo*,bar"), null, List.of(), List.of())
+        );
+        assertStatement(
+            "METRICS `foo-*`,bar",
+            new UnresolvedMetrics(EMPTY, new TableIdentifier(EMPTY, null, "foo-*,bar"), null, List.of(), List.of())
+        );
+        assertStatement(
+            "METRICS `foo-*`,bar+*",
+            new UnresolvedMetrics(EMPTY, new TableIdentifier(EMPTY, null, "foo-*,bar+*"), null, List.of(), List.of())
+        );
+    }
+
+    public void testMetricsIdentifiers() {
+        assumeTrue("requires snapshot build", Build.current().isSnapshot());
+        Map<String, String> patterns = Map.of(
+            "metrics `foo`",
+            "foo",
+            "metrics `foo`,`test-*`",
+            "foo,test-*",
+            "metrics foo,test-*",
+            "foo,test-*",
+            "metrics 123-test@foo_bar+baz1",
+            "123-test@foo_bar+baz1",
+            "metrics `foo`,`test-*`,abc",
+            "foo,test-*,abc",
+            "metrics `foo,     test-*, abc, xyz`",
+            "foo,     test-*, abc, xyz",
+            "metrics `foo,     test-*, abc, xyz`,     test123",
+            "foo,     test-*, abc, xyz,test123",
+            "metrics foo,   test,xyz",
+            "foo,test,xyz",
+            "metrics <logstash-{now/M{yyyy.MM}}>, `<logstash-{now/d{yyyy.MM.dd|+12:00}}>`",
+            "<logstash-{now/M{yyyy.MM}}>,<logstash-{now/d{yyyy.MM.dd|+12:00}}>"
+        );
+        for (Map.Entry<String, String> e : patterns.entrySet()) {
+            assertStatement(
+                e.getKey(),
+                new UnresolvedMetrics(EMPTY, new TableIdentifier(EMPTY, null, e.getValue()), null, List.of(), List.of())
+            );
+        }
+    }
+
+    public void testSimpleMetricsWithStats() {
+        assumeTrue("requires snapshot build", Build.current().isSnapshot());
+        assertStatement(
+            "METRICS foo load=avg(cpu) BY ts",
+            new UnresolvedMetrics(
+                EMPTY,
+                new TableIdentifier(EMPTY, null, "foo"),
+                null,
+                List.of(attribute("ts")),
+                List.of(new Alias(EMPTY, "load", new UnresolvedFunction(EMPTY, "avg", DEFAULT, List.of(attribute("cpu")))), attribute("ts"))
+            )
+        );
+        assertStatement(
+            "METRICS foo,bar load=avg(cpu) BY ts",
+            new UnresolvedMetrics(
+                EMPTY,
+                new TableIdentifier(EMPTY, null, "foo,bar"),
+                null,
+                List.of(attribute("ts")),
+                List.of(new Alias(EMPTY, "load", new UnresolvedFunction(EMPTY, "avg", DEFAULT, List.of(attribute("cpu")))), attribute("ts"))
+            )
+        );
+        assertStatement(
+            "METRICS foo,bar load=avg(cpu),max(rate(requests)) BY ts",
+            new UnresolvedMetrics(
+                EMPTY,
+                new TableIdentifier(EMPTY, null, "foo,bar"),
+                null,
+                List.of(attribute("ts")),
+                List.of(
+                    new Alias(EMPTY, "load", new UnresolvedFunction(EMPTY, "avg", DEFAULT, List.of(attribute("cpu")))),
+                    new Alias(
+                        EMPTY,
+                        "max(rate(requests))",
+                        new UnresolvedFunction(
+                            EMPTY,
+                            "max",
+                            DEFAULT,
+                            List.of(new UnresolvedFunction(EMPTY, "rate", DEFAULT, List.of(attribute("requests"))))
+                        )
+                    ),
+                    attribute("ts")
                 )
             )
         );
-        LogicalPlan metrics = statement("METRICS foo-index STATS load=avg(cpu) BY ts");
-        assertThat(
-            metrics,
-            equalTo(
-                new UnresolvedMetrics(
-                    EMPTY,
-                    new TableIdentifier(EMPTY, null, "foo-index"),
-                    List.of(),
-                    new EsSourceOptions(),
-                    null,
-                    List.of(attribute("ts")),
-                    List.of(
-                        new Alias(EMPTY, "load", new UnresolvedFunction(EMPTY, "avg", DEFAULT, List.of(attribute("cpu")))),
-                        attribute("ts")
-                    )
+        assertStatement(
+            "METRICS foo* count(errors)",
+            new UnresolvedMetrics(
+                EMPTY,
+                new TableIdentifier(EMPTY, null, "foo*"),
+                null,
+                List.of(),
+                List.of(new Alias(EMPTY, "count(errors)", new UnresolvedFunction(EMPTY, "count", DEFAULT, List.of(attribute("errors")))))
+            )
+        );
+        assertStatement(
+            "METRICS foo* a(b)",
+            new UnresolvedMetrics(
+                EMPTY,
+                new TableIdentifier(EMPTY, null, "foo*"),
+                null,
+                List.of(),
+                List.of(new Alias(EMPTY, "a(b)", new UnresolvedFunction(EMPTY, "a", DEFAULT, List.of(attribute("b")))))
+            )
+        );
+        assertStatement(
+            "METRICS foo* a(b)",
+            new UnresolvedMetrics(
+                EMPTY,
+                new TableIdentifier(EMPTY, null, "foo*"),
+                null,
+                List.of(),
+                List.of(new Alias(EMPTY, "a(b)", new UnresolvedFunction(EMPTY, "a", DEFAULT, List.of(attribute("b")))))
+            )
+        );
+        assertStatement(
+            "METRICS foo* a1(b2)",
+            new UnresolvedMetrics(
+                EMPTY,
+                new TableIdentifier(EMPTY, null, "foo*"),
+                null,
+                List.of(),
+                List.of(new Alias(EMPTY, "a1(b2)", new UnresolvedFunction(EMPTY, "a1", DEFAULT, List.of(attribute("b2")))))
+            )
+        );
+        assertStatement(
+            "METRICS foo*,bar* b = min(a) by c, d.e",
+            new UnresolvedMetrics(
+                EMPTY,
+                new TableIdentifier(EMPTY, null, "foo*,bar*"),
+                null,
+                List.of(attribute("c"), attribute("d.e")),
+                List.of(
+                    new Alias(EMPTY, "b", new UnresolvedFunction(EMPTY, "min", DEFAULT, List.of(attribute("a")))),
+                    attribute("c"),
+                    attribute("d.e")
                 )
             )
         );
+    }
+
+    public void testMetricWithGroupKeyAsAgg() {
+        assumeTrue("requires snapshot build", Build.current().isSnapshot());
+        var queries = List.of("METRICS foo a BY a");
+        for (String query : queries) {
+            expectVerificationError(query, "grouping key [a] already specified in the STATS BY clause");
+        }
+    }
+
+    private void assertStatement(String statement, LogicalPlan expected) {
+        final LogicalPlan actual;
+        try {
+            actual = statement(statement);
+        } catch (Exception e) {
+            throw new AssertionError("parsing error for [" + statement + "]", e);
+        }
+        assertThat(statement, actual, equalTo(expected));
     }
 
     private LogicalPlan statement(String e) {

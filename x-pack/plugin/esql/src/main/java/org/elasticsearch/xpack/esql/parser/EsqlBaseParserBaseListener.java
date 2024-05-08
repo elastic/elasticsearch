@@ -449,13 +449,13 @@ public class EsqlBaseParserBaseListener implements EsqlBaseParserListener {
    *
    * <p>The default implementation does nothing.</p>
    */
-  @Override public void enterStatsOption(EsqlBaseParser.StatsOptionContext ctx) { }
+  @Override public void enterMetricsIdentifier(EsqlBaseParser.MetricsIdentifierContext ctx) { }
   /**
    * {@inheritDoc}
    *
    * <p>The default implementation does nothing.</p>
    */
-  @Override public void exitStatsOption(EsqlBaseParser.StatsOptionContext ctx) { }
+  @Override public void exitMetricsIdentifier(EsqlBaseParser.MetricsIdentifierContext ctx) { }
   /**
    * {@inheritDoc}
    *

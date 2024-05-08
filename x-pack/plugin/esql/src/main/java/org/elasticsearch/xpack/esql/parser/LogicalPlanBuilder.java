@@ -208,9 +208,10 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
     public LogicalPlan visitFromCommand(EsqlBaseParser.FromCommandContext ctx) {
         Source source = source(ctx);
         TableIdentifier table = new TableIdentifier(source, null, visitFromIdentifiers(ctx.fromIdentifier()));
-        MetadataOptionContext metadataOption = null;
+        Map<String, Attribute> metadataMap = new LinkedHashMap<>();
         if (ctx.metadata() != null) {
             var deprecatedContext = ctx.metadata().deprecated_metadata();
+            MetadataOptionContext metadataOptionContext = null;
             if (deprecatedContext != null) {
                 var s = source(deprecatedContext).source();
                 addWarning(
@@ -218,18 +219,26 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
                     s.getLineNumber(),
                     s.getColumnNumber()
                 );
-                metadataOption = deprecatedContext.metadataOption();
+                metadataOptionContext = deprecatedContext.metadataOption();
             } else {
-                metadataOption = ctx.metadata().metadataOption();
+                metadataOptionContext = ctx.metadata().metadataOption();
+
+            }
+            for (var c : metadataOptionContext.fromIdentifier()) {
+                String id = visitFromIdentifier(c);
+                Source src = source(c);
+                if (MetadataAttribute.isSupported(id) == false) {
+                    throw new ParsingException(src, "unsupported metadata field [" + id + "]");
+                }
+                Attribute a = metadataMap.put(id, MetadataAttribute.create(src, id));
+                if (a != null) {
+                    throw new ParsingException(src, "metadata field [" + id + "] already declared [" + a.source().source() + "]");
+                }
             }
         }
-        return new EsqlUnresolvedRelation(source, table, metadataOptions(metadataOption), esSourceOptions(ctx.fromOptions()));
-    }
-
-    private EsSourceOptions esSourceOptions(EsqlBaseParser.FromOptionsContext ctx) {
         EsSourceOptions esSourceOptions = new EsSourceOptions();
-        if (ctx != null) {
-            for (var o : ctx.configOption()) {
+        if (ctx.fromOptions() != null) {
+            for (var o : ctx.fromOptions().configOption()) {
                 var nameContext = o.string().get(0);
                 String name = visitString(nameContext).fold().toString();
                 String value = visitString(o.string().get(1)).fold().toString();
@@ -241,26 +250,16 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
                 }
             }
         }
-        return esSourceOptions;
+        return new EsqlUnresolvedRelation(source, table, Arrays.asList(metadataMap.values().toArray(Attribute[]::new)), esSourceOptions);
     }
 
-    private List<Attribute> metadataOptions(MetadataOptionContext ctx) {
-        if (ctx == null) {
-            return List.of();
+    @Override
+    public PlanFactory visitStatsCommand(EsqlBaseParser.StatsCommandContext ctx) {
+        final Stats stats = stats(source(ctx), ctx.grouping, ctx.stats);
+        if (stats.aggregates.isEmpty() && stats.groupings.isEmpty()) {
+            throw new ParsingException(source(ctx), "At least one aggregation or grouping expression required in [{}]", ctx.getText());
         }
-        Map<String, Attribute> metadataMap = new LinkedHashMap<>();
-        for (var c : ctx.fromIdentifier()) {
-            String id = visitFromIdentifier(c);
-            Source src = source(c);
-            if (MetadataAttribute.isSupported(id) == false) {
-                throw new ParsingException(src, "unsupported metadata field [" + id + "]");
-            }
-            Attribute a = metadataMap.put(id, MetadataAttribute.create(src, id));
-            if (a != null) {
-                throw new ParsingException(src, "metadata field [" + id + "] already declared [" + a.source().source() + "]");
-            }
-        }
-        return metadataMap.values().stream().toList();
+        return input -> new EsqlAggregate(source(ctx), input, stats.groupings, stats.aggregates);
     }
 
     private record Stats(List<Expression> groupings, List<? extends NamedExpression> aggregates) {
@@ -295,13 +294,6 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
             aggregates.add(Expressions.attribute(group));
         }
         return new Stats(new ArrayList<>(groupings), aggregates);
-    }
-
-    @Override
-    public PlanFactory visitStatsCommand(EsqlBaseParser.StatsCommandContext ctx) {
-        Source source = source(ctx);
-        Stats stats = stats(source, ctx.grouping, ctx.stats);
-        return input -> new EsqlAggregate(source, input, stats.groupings, stats.aggregates);
     }
 
     private void fail(Expression exp, String message, Object... args) {
@@ -454,12 +446,14 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
             throw new IllegalArgumentException("METRICS command currently requires a snapshot build");
         }
         Source source = source(ctx);
-        TableIdentifier table = new TableIdentifier(source, null, visitFromIdentifiers(ctx.fromIdentifier()));
-        EsSourceOptions esSourceOptions = esSourceOptions(ctx.fromOptions());
-        List<Attribute> metadataFields = metadataOptions(ctx.metadataOption());
-        EsqlBaseParser.StatsOptionContext statsCtx = ctx.statsOption();
-        Stats stats = statsCtx != null ? stats(source, statsCtx.grouping, statsCtx.aggregates) : new Stats(List.of(), List.of());
-        return new UnresolvedMetrics(source, table, metadataFields, esSourceOptions, null, stats.groupings, stats.aggregates());
+        TableIdentifier table = new TableIdentifier(source, null, visitMetricsIdentifiers(ctx.metricsIdentifier()));
+        final Stats stats;
+        if (ctx.aggregates != null || ctx.grouping != null) {
+            stats = stats(source, ctx.grouping, ctx.aggregates);
+        } else {
+            stats = new Stats(List.of(), List.of());
+        }
+        return new UnresolvedMetrics(source, table, null, stats.groupings, stats.aggregates());
     }
 
     interface PlanFactory extends Function<LogicalPlan, LogicalPlan> {}

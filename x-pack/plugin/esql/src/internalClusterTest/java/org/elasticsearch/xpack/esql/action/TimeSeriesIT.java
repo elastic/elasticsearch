@@ -76,7 +76,7 @@ public class TimeSeriesIT extends AbstractEsqlIntegTestCase {
         }
         List<String> sortedGroups = cpus.keySet().stream().sorted().toList();
         client().admin().indices().prepareRefresh("pods").get();
-        try (EsqlQueryResponse resp = run("METRICS pods STATS load=avg(cpu) BY pod | SORT pod")) {
+        try (EsqlQueryResponse resp = run("METRICS pods load=avg(cpu) BY pod | SORT pod")) {
             List<List<Object>> rows = EsqlTestUtils.getValuesList(resp);
             assertThat(rows, hasSize(sortedGroups.size()));
             for (int i = 0; i < rows.size(); i++) {

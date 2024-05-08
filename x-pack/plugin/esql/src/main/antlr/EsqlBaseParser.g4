@@ -135,11 +135,12 @@ deprecated_metadata
     ;
 
 metricsCommand
-    : METRICS fromIdentifier (COMMA fromIdentifier)* metadataOption? fromOptions? statsOption?
+    : METRICS metricsIdentifier (COMMA metricsIdentifier)* aggregates=fields? (BY grouping=fields)?
     ;
 
-statsOption
-    : STATS aggregates=fields? (BY grouping=fields)?
+metricsIdentifier
+    : METRICS_UNQUOTED_IDENTIFIER
+    | QUOTED_IDENTIFIER
     ;
 
 evalCommand

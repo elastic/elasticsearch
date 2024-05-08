@@ -406,15 +406,15 @@ public interface EsqlBaseParserListener extends ParseTreeListener {
    */
   void exitMetricsCommand(EsqlBaseParser.MetricsCommandContext ctx);
   /**
-   * Enter a parse tree produced by {@link EsqlBaseParser#statsOption}.
+   * Enter a parse tree produced by {@link EsqlBaseParser#metricsIdentifier}.
    * @param ctx the parse tree
    */
-  void enterStatsOption(EsqlBaseParser.StatsOptionContext ctx);
+  void enterMetricsIdentifier(EsqlBaseParser.MetricsIdentifierContext ctx);
   /**
-   * Exit a parse tree produced by {@link EsqlBaseParser#statsOption}.
+   * Exit a parse tree produced by {@link EsqlBaseParser#metricsIdentifier}.
    * @param ctx the parse tree
    */
-  void exitStatsOption(EsqlBaseParser.StatsOptionContext ctx);
+  void exitMetricsIdentifier(EsqlBaseParser.MetricsIdentifierContext ctx);
   /**
    * Enter a parse tree produced by {@link EsqlBaseParser#evalCommand}.
    * @param ctx the parse tree

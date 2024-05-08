@@ -6,7 +6,7 @@ ENRICH : 'enrich'             -> pushMode(ENRICH_MODE);
 EVAL : 'eval'                 -> pushMode(EXPRESSION_MODE);
 EXPLAIN : 'explain'           -> pushMode(EXPLAIN_MODE);
 FROM : 'from'                 -> pushMode(FROM_MODE);
-METRICS : 'metrics'           -> pushMode(FROM_MODE);
+METRICS : 'metrics'           -> pushMode(METRICS_MODE);
 GROK : 'grok'                 -> pushMode(EXPRESSION_MODE);
 INLINESTATS : 'inlinestats'   -> pushMode(EXPRESSION_MODE);
 KEEP : 'keep'                 -> pushMode(PROJECT_MODE);
@@ -184,7 +184,6 @@ EXPR_WS
 //
 mode FROM_MODE;
 FROM_PIPE : PIPE -> type(PIPE), popMode;
-FROM_STATS: 'stats' -> type(STATS), popMode, pushMode(EXPRESSION_MODE);
 FROM_OPENING_BRACKET : OPENING_BRACKET -> type(OPENING_BRACKET);
 FROM_CLOSING_BRACKET : CLOSING_BRACKET -> type(CLOSING_BRACKET);
 FROM_COMMA : COMMA -> type(COMMA);
@@ -430,3 +429,68 @@ SETTING_WS
     : WS -> channel(HIDDEN)
     ;
 
+
+//
+// METRICS command
+//
+mode METRICS_MODE;
+METRICS_PIPE : PIPE -> type(PIPE), popMode;
+
+fragment METRICS_UNQUOTED_IDENTIFIER_PART
+    : ~[=`|,[\]/ \t\r\n]
+    | '/' ~[*/] // allow single / but not followed by another / or * which would start a comment
+    ;
+
+METRICS_UNQUOTED_IDENTIFIER
+    : METRICS_UNQUOTED_IDENTIFIER_PART+ -> popMode, pushMode(CLOSING_METRICS_MODE)
+    ;
+
+METRICS_QUOTED_IDENTIFIER
+    : QUOTED_IDENTIFIER -> type(QUOTED_IDENTIFIER), popMode, pushMode(CLOSING_METRICS_MODE)
+    ;
+
+METRICS_LINE_COMMENT
+    : LINE_COMMENT -> channel(HIDDEN)
+    ;
+
+METRICS_MULTILINE_COMMENT
+    : MULTILINE_COMMENT -> channel(HIDDEN)
+    ;
+
+METRICS_WS
+    : WS -> channel(HIDDEN)
+    ;
+
+mode CLOSING_METRICS_MODE;
+
+CLOSING_METRICS_COMMA
+    : COMMA -> type(COMMA), popMode, pushMode(METRICS_MODE)
+    ;
+
+CLOSING_METRICS_LINE_COMMENT
+    : LINE_COMMENT -> channel(HIDDEN)
+    ;
+
+CLOSING_METRICS_MULTILINE_COMMENT
+    : MULTILINE_COMMENT -> channel(HIDDEN)
+    ;
+
+CLOSING_METRICS_WS
+    : WS -> channel(HIDDEN)
+    ;
+
+CLOSING_METRICS_QUOTED_IDENTIFIER
+    : QUOTED_IDENTIFIER -> popMode, pushMode(EXPRESSION_MODE), type(QUOTED_IDENTIFIER)
+    ;
+
+CLOSING_METRICS_UNQUOTED_IDENTIFIER
+    :UNQUOTED_IDENTIFIER -> popMode, pushMode(EXPRESSION_MODE), type(UNQUOTED_IDENTIFIER)
+    ;
+
+CLOSING_METRICS_BY
+    :BY -> popMode, pushMode(EXPRESSION_MODE), type(BY)
+    ;
+
+CLOSING_METRICS_PIPE
+    : PIPE -> type(PIPE), popMode
+    ;

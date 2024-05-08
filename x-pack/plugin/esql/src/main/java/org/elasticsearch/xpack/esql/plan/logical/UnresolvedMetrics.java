@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.esql.plan.logical;
 
 import org.elasticsearch.xpack.ql.capabilities.Resolvables;
-import org.elasticsearch.xpack.ql.expression.Attribute;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.NamedExpression;
 import org.elasticsearch.xpack.ql.options.EsSourceOptions;
@@ -30,29 +29,18 @@ public final class UnresolvedMetrics extends EsqlUnresolvedRelation {
     public UnresolvedMetrics(
         Source source,
         TableIdentifier table,
-        List<Attribute> metadataFields,
-        EsSourceOptions esSourceOptions,
         String unresolvedMessage,
         List<Expression> groupings,
         List<? extends NamedExpression> aggregates
     ) {
-        super(source, table, metadataFields, esSourceOptions, unresolvedMessage);
+        super(source, table, List.of(), new EsSourceOptions(), unresolvedMessage);
         this.groupings = groupings;
         this.aggregates = aggregates;
     }
 
     @Override
     protected NodeInfo<UnresolvedRelation> info() {
-        return NodeInfo.create(
-            this,
-            UnresolvedMetrics::new,
-            table(),
-            metadataFields(),
-            esSourceOptions(),
-            unresolvedMessage(),
-            groupings,
-            aggregates
-        );
+        return NodeInfo.create(this, UnresolvedMetrics::new, table(), unresolvedMessage(), groupings, aggregates);
     }
 
     @Override

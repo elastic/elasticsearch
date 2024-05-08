@@ -94,11 +94,7 @@ public class RankFeaturePhase extends SearchPhase {
         SearchPhaseController.ReducedQueryPhase reducedQueryPhase = queryPhaseResults.reduce();
         RankFeaturePhaseRankCoordinatorContext rankFeaturePhaseRankCoordinatorContext = coordinatorContext(context.getRequest().source());
         if (rankFeaturePhaseRankCoordinatorContext != null) {
-            if (false == rankFeaturePhaseRankCoordinatorContext.needsFieldData()) {
-                onPhaseDone(rankFeaturePhaseRankCoordinatorContext, queryPhaseResults, reducedQueryPhase);
-                return;
-            }
-            ScoreDoc[] queryScoreDocs = reducedQueryPhase.sortedTopDocs().scoreDocs();
+            ScoreDoc[] queryScoreDocs = reducedQueryPhase.sortedTopDocs().scoreDocs(); // rank_window_size
             final List<Integer>[] docIdsToLoad = SearchPhaseController.fillDocIdsToLoad(context.getNumShards(), queryScoreDocs);
             final CountedCollector<SearchPhaseResult> rankRequestCounter = new CountedCollector<>(
                 rankPhaseResults,

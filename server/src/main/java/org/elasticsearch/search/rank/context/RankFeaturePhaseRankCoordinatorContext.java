@@ -44,8 +44,4 @@ public abstract class RankFeaturePhaseRankCoordinatorContext {
      * @param onFinish a consumer to be called once the global ranking is complete
      */
     public abstract void rankGlobalResults(List<SearchPhaseResult> phaseResultsPerShard, Consumer<ScoreDoc[]> onFinish);
-
-    public boolean needsFieldData() {
-        return true;
-    }
 }

@@ -294,9 +294,9 @@ public class RankFeaturePhaseTests extends ESTestCase {
         RankBuilder rankBuilder = rankBuilder(
             DEFAULT_RANK_WINDOW_SIZE,
             defaultQueryPhaseRankShardContext(Collections.emptyList(), DEFAULT_RANK_WINDOW_SIZE),
-            defaultQueryPhaseRankCoordinatorContext(DEFAULT_RANK_WINDOW_SIZE),
+            negatingScoresQueryFeaturePhaseRankCoordinatorContext(DEFAULT_SIZE, DEFAULT_FROM, DEFAULT_RANK_WINDOW_SIZE),
             null,
-            negatingScoresRankFeaturePhaseRankCoordinatorContext(DEFAULT_SIZE, DEFAULT_FROM, DEFAULT_RANK_WINDOW_SIZE)
+            null
         );
         // create a SearchSource to attach to the request
         SearchSourceBuilder searchSourceBuilder = searchSourceWithRankBuilder(rankBuilder);
@@ -1008,18 +1008,16 @@ public class RankFeaturePhaseTests extends ESTestCase {
         };
     }
 
-    private RankFeaturePhaseRankCoordinatorContext negatingScoresRankFeaturePhaseRankCoordinatorContext(
-        int size,
-        int from,
-        int rankWindowSize
-    ) {
-        return new RankFeaturePhaseRankCoordinatorContext(size, from, rankWindowSize) {
+    private QueryPhaseRankCoordinatorContext negatingScoresQueryFeaturePhaseRankCoordinatorContext(int size, int from, int rankWindowSize) {
+        return new QueryPhaseRankCoordinatorContext(rankWindowSize) {
             @Override
-            public void rankGlobalResults(List<SearchPhaseResult> rankSearchResults, Consumer<ScoreDoc[]> onFinish) {
+            public ScoreDoc[] rankQueryPhaseResults(
+                List<QuerySearchResult> rankSearchResults,
+                SearchPhaseController.TopDocsStats topDocsStats
+            ) {
                 List<ScoreDoc> docScores = new ArrayList<>();
-                for (SearchPhaseResult phaseResults : rankSearchResults) {
-                    assert phaseResults instanceof QuerySearchResult;
-                    docScores.addAll(Arrays.asList(((QuerySearchResult) phaseResults).topDocs().topDocs.scoreDocs));
+                for (QuerySearchResult phaseResults : rankSearchResults) {
+                    docScores.addAll(Arrays.asList(phaseResults.topDocs().topDocs.scoreDocs));
                 }
                 ScoreDoc[] sortedDocs = docScores.toArray(new ScoreDoc[0]);
                 // negating scores
@@ -1034,13 +1032,8 @@ public class RankFeaturePhaseTests extends ESTestCase {
                     topResults[rank] = new RankFeatureDoc(base.doc, base.score, base.shardIndex);
                     topResults[rank].rank = from + rank + 1;
                 }
-                onFinish.accept(topResults);
-                onFinish.accept(topResults);
-            }
-
-            @Override
-            public boolean needsFieldData() {
-                return false;
+                topDocsStats.fetchHits = topResults.length;
+                return topResults;
             }
         };
     }

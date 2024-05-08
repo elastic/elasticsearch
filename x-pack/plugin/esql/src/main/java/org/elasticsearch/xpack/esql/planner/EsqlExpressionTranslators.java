@@ -29,6 +29,7 @@ import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.Expressions;
 import org.elasticsearch.xpack.ql.expression.TypedAttribute;
 import org.elasticsearch.xpack.ql.expression.function.scalar.ScalarFunction;
+import org.elasticsearch.xpack.ql.expression.predicate.Range;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.BinaryComparison;
 import org.elasticsearch.xpack.ql.planner.ExpressionTranslator;
 import org.elasticsearch.xpack.ql.planner.ExpressionTranslators;
@@ -50,6 +51,7 @@ import java.math.BigInteger;
 import java.time.OffsetTime;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
+import java.time.temporal.TemporalAccessor;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
@@ -65,12 +67,14 @@ import static org.elasticsearch.xpack.ql.type.DataTypes.VERSION;
 import static org.elasticsearch.xpack.ql.util.NumericUtils.unsignedLongAsNumber;
 
 public final class EsqlExpressionTranslators {
+    public static final String DATE_FORMAT = "strict_date_optional_time_nanos";
+    public static final String TIME_FORMAT = "strict_hour_minute_second_fraction";
 
     public static final List<ExpressionTranslator<?>> QUERY_TRANSLATORS = List.of(
         new EqualsIgnoreCaseTranslator(),
         new BinaryComparisons(),
         new SpatialRelatesTranslator(),
-        new ExpressionTranslators.Ranges(),
+        new Ranges(),
         new ExpressionTranslators.BinaryLogic(),
         new ExpressionTranslators.IsNulls(),
         new ExpressionTranslators.IsNotNulls(),
@@ -414,5 +418,61 @@ public final class EsqlExpressionTranslators {
                 throw new QlIllegalArgumentException(e.getMessage(), e);
             }
         }
+    }
+
+    public static class Ranges extends ExpressionTranslator<Range> {
+
+        @Override
+        protected Query asQuery(Range r, TranslatorHandler handler) {
+            return doTranslate(r, handler);
+        }
+
+        public static Query doTranslate(Range r, TranslatorHandler handler) {
+            return handler.wrapFunctionQuery(r, r.value(), () -> translate(r, handler));
+        }
+
+        private static RangeQuery translate(Range r, TranslatorHandler handler) {
+            Object lower = valueOf(r.lower());
+            Object upper = valueOf(r.upper());
+            String format = null;
+
+            // for a date constant comparison, we need to use a format for the date, to make sure that the format is the same
+            // no matter the timezone provided by the user
+            DateFormatter formatter = null;
+            if (lower instanceof ZonedDateTime || upper instanceof ZonedDateTime) {
+                formatter = DateFormatter.forPattern(DATE_FORMAT);
+            } else if (lower instanceof OffsetTime || upper instanceof OffsetTime) {
+                formatter = DateFormatter.forPattern(TIME_FORMAT);
+            }
+            if (formatter != null) {
+                // RangeQueryBuilder accepts an Object as its parameter, but it will call .toString() on the ZonedDateTime
+                // instance which can have a slightly different format depending on the ZoneId used to create the ZonedDateTime
+                // Since RangeQueryBuilder can handle date as String as well, we'll format it as String and provide the format.
+                if (lower instanceof ZonedDateTime || lower instanceof OffsetTime) {
+                    lower = formatter.format((TemporalAccessor) lower);
+                }
+                if (upper instanceof ZonedDateTime || upper instanceof OffsetTime) {
+                    upper = formatter.format((TemporalAccessor) upper);
+                }
+                format = formatter.pattern();
+            }
+            return new RangeQuery(
+                r.source(),
+                handler.nameOf(r.value()),
+                lower,
+                r.includeLower(),
+                upper,
+                r.includeUpper(),
+                format,
+                r.zoneId()
+            );
+        }
+    }
+
+    private static Object valueOf(Expression e) {
+        if (e.foldable()) {
+            return e.fold();
+        }
+        throw new QlIllegalArgumentException("Cannot determine value for {}", e);
     }
 }

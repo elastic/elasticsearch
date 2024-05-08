@@ -56,6 +56,7 @@ import org.elasticsearch.xpack.ql.querydsl.query.MatchAll;
 import org.elasticsearch.xpack.ql.querydsl.query.MatchQuery;
 import org.elasticsearch.xpack.ql.querydsl.query.MultiMatchQuery;
 import org.elasticsearch.xpack.ql.querydsl.query.NotQuery;
+import org.elasticsearch.xpack.ql.querydsl.query.PrefixQuery;
 import org.elasticsearch.xpack.ql.querydsl.query.Query;
 import org.elasticsearch.xpack.ql.querydsl.query.QueryStringQuery;
 import org.elasticsearch.xpack.ql.querydsl.query.RangeQuery;
@@ -384,7 +385,7 @@ public final class EsqlExpressionTranslators {
                 }
             }
 
-            return ExpressionTranslators.Scalars.doTranslate(f, handler);
+            return QLScalars.doTranslate(f, handler);
         }
     }
 
@@ -653,7 +654,7 @@ public final class EsqlExpressionTranslators {
         }
     }
 
-    // TODO: Copied over from org.elasticsearch.xpack.ql.planner.ExpressionTranslators.BinaryComparisons
+    // TODO: Copied from org.elasticsearch.xpack.ql.planner.ExpressionTranslators.BinaryComparisons
     // and can likely be merged with BinaryComparisons here.
     // assume the Optimizer properly orders the predicates to ease the translation
     public static class QLBinaryComparisons extends ExpressionTranslator<BinaryComparison> {
@@ -788,6 +789,38 @@ public final class EsqlExpressionTranslators {
 
         public static Query doTranslate(MultiMatchQueryPredicate q, TranslatorHandler handler) {
             return new MultiMatchQuery(q.source(), q.query(), q.fields(), q);
+        }
+    }
+
+    // TODO: Copied from org.elasticsearch.xpack.ql.planner.ExpressionTranslators.Scalars
+    // and can likely be merged with Scalars here.
+    public static class QLScalars extends ExpressionTranslator<ScalarFunction> {
+
+        @Override
+        protected Query asQuery(ScalarFunction f, TranslatorHandler handler) {
+            return doTranslate(f, handler);
+        }
+
+        public static Query doTranslate(ScalarFunction f, TranslatorHandler handler) {
+            Query q = doKnownTranslate(f, handler);
+            if (q != null) {
+                return q;
+            }
+            return handler.wrapFunctionQuery(f, f, () -> new ScriptQuery(f.source(), f.asScript()));
+        }
+
+        public static Query doKnownTranslate(ScalarFunction f, TranslatorHandler handler) {
+            if (f instanceof StartsWith sw) {
+                if (sw.input() instanceof org.elasticsearch.xpack.ql.expression.FieldAttribute && sw.pattern().foldable()) {
+                    String targetFieldName = handler.nameOf(
+                        ((org.elasticsearch.xpack.ql.expression.FieldAttribute) sw.input()).exactAttribute()
+                    );
+                    String pattern = (String) sw.pattern().fold();
+
+                    return new PrefixQuery(f.source(), targetFieldName, pattern, sw.isCaseInsensitive());
+                }
+            }
+            return null;
         }
     }
 

@@ -1619,10 +1619,10 @@ public class DenseVectorFieldMapper extends FieldMapper {
 
         @Override
         public DocValuesLoader docValuesLoader(LeafReader leafReader, int[] docIdsInLeaf) throws IOException {
-            values = leafReader.getFloatVectorValues(name());
+            values = leafReader.getFloatVectorValues(fieldName());
             if (values != null) {
                 if (indexCreatedVersion.onOrAfter(NORMALIZE_COSINE) && VectorSimilarity.COSINE.equals(vectorSimilarity)) {
-                    magnitudeReader = leafReader.getNumericDocValues(name() + COSINE_MAGNITUDE_FIELD_SUFFIX);
+                    magnitudeReader = leafReader.getNumericDocValues(fieldName() + COSINE_MAGNITUDE_FIELD_SUFFIX);
                 }
                 return docId -> {
                     hasValue = docId == values.advance(docId);
@@ -1630,7 +1630,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
                     return hasValue;
                 };
             }
-            byteVectorValues = leafReader.getByteVectorValues(name());
+            byteVectorValues = leafReader.getByteVectorValues(fieldName());
             if (byteVectorValues != null) {
                 return docId -> {
                     hasValue = docId == byteVectorValues.advance(docId);
@@ -1671,6 +1671,11 @@ public class DenseVectorFieldMapper extends FieldMapper {
             }
             b.endArray();
         }
+
+        @Override
+        public String fieldName() {
+            return name();
+        }
     }
 
     private class DocValuesSyntheticFieldLoader implements SourceLoader.SyntheticFieldLoader {
@@ -1689,7 +1694,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
 
         @Override
         public DocValuesLoader docValuesLoader(LeafReader leafReader, int[] docIdsInLeaf) throws IOException {
-            values = leafReader.getBinaryDocValues(name());
+            values = leafReader.getBinaryDocValues(fieldName());
             if (values == null) {
                 return null;
             }
@@ -1720,6 +1725,11 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 fieldType().elementType.readAndWriteValue(byteBuffer, b);
             }
             b.endArray();
+        }
+
+        @Override
+        public String fieldName() {
+            return name();
         }
     }
 }

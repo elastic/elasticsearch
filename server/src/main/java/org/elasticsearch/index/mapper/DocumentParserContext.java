@@ -117,6 +117,7 @@ public abstract class DocumentParserContext {
     private final SeqNoFieldMapper.SequenceIDFields seqID;
     private final Set<String> fieldsAppliedFromTemplates;
     private final Set<String> copyToFields;
+    private boolean sourceTracked = false;
 
     private DocumentParserContext(
         MappingLookup mappingLookup,
@@ -260,7 +261,9 @@ public abstract class DocumentParserContext {
      * Add the given ignored values to the corresponding list.
      */
     public final void addIgnoredField(IgnoredSourceFieldMapper.NameValue values) {
-        ignoredFieldValues.add(values);
+        if (sourceTracked == false) {
+            ignoredFieldValues.add(values);
+        }
     }
 
     /**
@@ -734,5 +737,13 @@ public abstract class DocumentParserContext {
         public String currentName() throws IOException {
             return field;
         }
+    }
+
+    void setSourceTracked(boolean sourceTracked) {
+        this.sourceTracked = sourceTracked;
+    }
+
+    boolean getSourceTracked() {
+        return sourceTracked;
     }
 }

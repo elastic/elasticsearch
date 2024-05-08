@@ -1589,7 +1589,6 @@ public final class OptimizerRules {
 
             for (Order o : ob.order()) {
                 if (o.child().foldable()) {
-                    System.err.println(o.child().foldable());
                     prunedOrders.add(o);
                 }
             }

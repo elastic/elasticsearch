@@ -79,7 +79,7 @@ public class SerializationTestUtils {
 
     public static <T> T serializeDeserialize(T orig, Serializer<T> serializer, Deserializer<T> deserializer, EsqlConfiguration config) {
         try (BytesStreamOutput out = new BytesStreamOutput()) {
-            PlanStreamOutput planStreamOutput = new PlanStreamOutput(out, planNameRegistry);
+            PlanStreamOutput planStreamOutput = new PlanStreamOutput(out, planNameRegistry, config);
             serializer.write(planStreamOutput, orig);
             StreamInput in = new NamedWriteableAwareStreamInput(
                 ByteBufferStreamInput.wrap(BytesReference.toBytes(out.bytes())),

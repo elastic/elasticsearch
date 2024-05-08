@@ -33,8 +33,10 @@ import static org.elasticsearch.xpack.esql.expression.predicate.operator.arithme
 import static org.elasticsearch.xpack.ql.type.DateUtils.asDateTime;
 import static org.elasticsearch.xpack.ql.type.DateUtils.asMillis;
 import static org.elasticsearch.xpack.ql.util.NumericUtils.asLongUnsigned;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
+import static org.hamcrest.Matchers.startsWith;
 
 public class AddTests extends AbstractFunctionTestCase {
     public AddTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
@@ -94,27 +96,23 @@ public class AddTests extends AbstractFunctionTestCase {
 
         suppliers.addAll(
             TestCaseSupplier.forBinaryNotCasting(
-                "No evaluator, the tests only trigger the folding code since Period is not representable",
-                "lhs",
-                "rhs",
                 (lhs, rhs) -> ((Period) lhs).plus((Period) rhs),
                 EsqlDataTypes.DATE_PERIOD,
                 TestCaseSupplier.datePeriodCases(),
                 TestCaseSupplier.datePeriodCases(),
-                List.of(),
+                startsWith("LiteralsEvaluator[lit="),  // lhs and rhs have to be literals, so we fold into a literal
+                (lhs, rhs) -> List.of(),
                 true
             )
         );
         suppliers.addAll(
             TestCaseSupplier.forBinaryNotCasting(
-                "No evaluator, the tests only trigger the folding code since Duration is not representable",
-                "lhs",
-                "rhs",
                 (lhs, rhs) -> ((Duration) lhs).plus((Duration) rhs),
                 EsqlDataTypes.TIME_DURATION,
                 TestCaseSupplier.timeDurationCases(),
                 TestCaseSupplier.timeDurationCases(),
-                List.of(),
+                startsWith("LiteralsEvaluator[lit="), // lhs and rhs have to be literals, so we fold into a literal
+                (lhs, rhs) -> List.of(),
                 true
             )
         );
@@ -139,28 +137,22 @@ public class AddTests extends AbstractFunctionTestCase {
         };
         suppliers.addAll(
             TestCaseSupplier.forBinaryNotCasting(
-                // TODO: There is an evaluator for Datetime + Period, so it should be tested. Similarly below.
-                "No evaluator, the tests only trigger the folding code since Period is not representable",
-                "lhs",
-                "rhs",
                 result,
                 DataTypes.DATETIME,
                 TestCaseSupplier.dateCases(),
                 TestCaseSupplier.datePeriodCases(),
+                startsWith("AddDatetimesEvaluator[datetime=Attribute[channel=0], temporalAmount="),
                 warnings,
                 true
             )
         );
         suppliers.addAll(
             TestCaseSupplier.forBinaryNotCasting(
-                // TODO: There is an evaluator for Datetime + Duration, so it should be tested. Similarly above.
-                "No evaluator, the tests only trigger the folding code since Duration is not representable",
-                "lhs",
-                "rhs",
                 result,
                 DataTypes.DATETIME,
                 TestCaseSupplier.dateCases(),
                 TestCaseSupplier.timeDurationCases(),
+                startsWith("AddDatetimesEvaluator[datetime=Attribute[channel=0], temporalAmount="),
                 warnings,
                 true
             )
@@ -192,7 +184,12 @@ public class AddTests extends AbstractFunctionTestCase {
 
         // Datetime tests are split in two, depending on their permissiveness of null-injection, which cannot happen "automatically" for
         // Datetime + Period/Duration, since the expression will take the non-null arg's type.
-        suppliers = errorsForCasesWithoutExamples(anyNullIsNull(true, suppliers), AddTests::addErrorMessageString);
+        suppliers = anyNullIsNull(
+            suppliers,
+            (nullPosition, nullType, original) -> original.expectedType(),
+            (nullPosition, nullData, original) -> nullData.isForceLiteral() ? equalTo("LiteralsEvaluator[lit=null]") : original
+        );
+        suppliers = errorsForCasesWithoutExamples(suppliers, AddTests::addErrorMessageString);
 
         // Cases that should generate warnings
         suppliers.addAll(List.of(new TestCaseSupplier("MV", () -> {

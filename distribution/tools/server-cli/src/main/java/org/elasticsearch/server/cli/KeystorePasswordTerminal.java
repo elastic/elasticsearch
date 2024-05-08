@@ -23,7 +23,7 @@ class KeystorePasswordTerminal extends Terminal implements Closeable {
     private final SecureString password;
 
     KeystorePasswordTerminal(Terminal delegate, SecureString password) {
-        super(delegate.getReader(), delegate.getWriter(), delegate.getErrorWriter());
+        super(delegate);
         this.delegate = delegate;
         this.password = password;
         setVerbosity(delegate.getVerbosity());

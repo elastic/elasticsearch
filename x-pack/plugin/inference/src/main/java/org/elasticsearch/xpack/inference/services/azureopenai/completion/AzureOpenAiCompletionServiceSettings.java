@@ -35,7 +35,23 @@ public class AzureOpenAiCompletionServiceSettings implements ServiceSettings, Az
 
     public static final String NAME = "azure_openai_completions_service_settings";
 
-    private static final RateLimitSettings DEFAULT_RATE_LIMIT_SETTINGS = new RateLimitSettings(1_440);
+    /**
+     * Rate limit documentation can be found here:
+     *
+     * Limits per region per model id
+     * https://learn.microsoft.com/en-us/azure/ai-services/openai/quotas-limits
+     *
+     * How to change the limits
+     * https://learn.microsoft.com/en-us/azure/ai-services/openai/how-to/quota?tabs=rest
+     *
+     * Blog giving some examples
+     * https://techcommunity.microsoft.com/t5/fasttrack-for-azure/optimizing-azure-openai-a-guide-to-limits-quotas-and-best/ba-p/4076268
+     *
+     * According to the docs 1000 tokens per minute (TPM) = 6 requests per minute (RPM). The limits change depending on the region
+     * and model. The lowest chat completions limit is 20k TPM, so we'll default to that.
+     * Calculation: 20K TPM = 20 * 6 = 120 requests per minute (used `francecentral` and `gpt-4` as basis for the calculation).
+     */
+    private static final RateLimitSettings DEFAULT_RATE_LIMIT_SETTINGS = new RateLimitSettings(120);
 
     public static AzureOpenAiCompletionServiceSettings fromMap(Map<String, Object> map) {
         ValidationException validationException = new ValidationException();

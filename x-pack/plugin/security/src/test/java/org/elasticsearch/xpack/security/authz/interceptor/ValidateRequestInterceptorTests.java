@@ -13,6 +13,7 @@ import org.elasticsearch.action.admin.indices.validate.query.ValidateQueryReques
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Set;
 import org.elasticsearch.license.MockLicenseState;
 import org.elasticsearch.test.ESTestCase;
@@ -37,13 +38,15 @@ public class ValidateRequestInterceptorTests extends ESTestCase {
     private ThreadPool threadPool;
     private MockLicenseState licenseState;
     private ValidateRequestInterceptor interceptor;
+    private Settings settings;
 
     @Before
     public void init() {
         threadPool = new TestThreadPool("validate request interceptor tests");
         licenseState = mock(MockLicenseState.class);
         when(licenseState.isAllowed(DOCUMENT_LEVEL_SECURITY_FEATURE)).thenReturn(true);
-        interceptor = new ValidateRequestInterceptor(threadPool, licenseState);
+        settings = Settings.EMPTY;
+        interceptor = new ValidateRequestInterceptor(threadPool, licenseState, settings);
     }
 
     @After

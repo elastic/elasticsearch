@@ -14,6 +14,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.ArrayUtils;
 import org.elasticsearch.core.Set;
 import org.elasticsearch.license.MockLicenseState;
@@ -57,6 +58,7 @@ public class SearchRequestInterceptorTests extends ESTestCase {
         when(licenseState.isSecurityEnabled()).thenReturn(true);
         when(licenseState.isAllowed(DOCUMENT_LEVEL_SECURITY_FEATURE)).thenReturn(true);
         clusterService = mock(ClusterService.class);
+        when(clusterService.getSettings()).thenReturn(Settings.EMPTY);
         interceptor = new SearchRequestInterceptor(threadPool, licenseState, clusterService);
     }
 

@@ -10,6 +10,7 @@ import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.admin.indices.validate.query.ValidateQueryRequest;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -17,10 +18,16 @@ import org.elasticsearch.xpack.core.security.authz.accesscontrol.IndicesAccessCo
 
 import java.util.Map;
 
+import static org.elasticsearch.xpack.security.Security.DLS_ERROR_WHEN_VALIDATE_QUERY_WITH_REWRITE;
+
+
 public class ValidateRequestInterceptor extends FieldAndDocumentLevelSecurityRequestInterceptor {
 
-    public ValidateRequestInterceptor(ThreadPool threadPool, XPackLicenseState licenseState) {
+    private final boolean enabled;
+    public ValidateRequestInterceptor(ThreadPool threadPool, XPackLicenseState licenseState, Settings settings) {
         super(threadPool.getThreadContext(), licenseState);
+        enabled = DLS_ERROR_WHEN_VALIDATE_QUERY_WITH_REWRITE.get(settings);
+
     }
 
     @Override
@@ -48,7 +55,7 @@ public class ValidateRequestInterceptor extends FieldAndDocumentLevelSecurityReq
 
     @Override
     public boolean supports(IndicesRequest request) {
-        if (request instanceof ValidateQueryRequest) {
+        if (enabled && request instanceof ValidateQueryRequest) {
             ValidateQueryRequest validateQueryRequest = (ValidateQueryRequest) request;
             return hasRewrite(validateQueryRequest);
         } else {

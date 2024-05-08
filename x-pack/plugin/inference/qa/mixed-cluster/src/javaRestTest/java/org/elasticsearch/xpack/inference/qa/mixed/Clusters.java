@@ -18,8 +18,6 @@ public class Clusters {
             .distribution(DistributionType.DEFAULT)
             .withNode(node -> node.version(oldVersion))
             .withNode(node -> node.version(Version.CURRENT))
-            .withNode(node -> node.version(oldVersion))
-            .withNode(node -> node.version(Version.CURRENT))
             .setting("xpack.security.enabled", "false")
             .setting("xpack.license.self_generated.type", "trial")
             .setting("cluster.routing.rebalance.enable", "none") // disable relocation until we have retry in ESQL

@@ -15,10 +15,12 @@ import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.inference.TaskType;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 import org.elasticsearch.test.http.MockWebServer;
 import org.elasticsearch.test.rest.ESRestTestCase;
+import org.hamcrest.Matchers;
 import org.junit.ClassRule;
 
 import java.io.IOException;
@@ -28,9 +30,8 @@ import java.util.Map;
 import static org.elasticsearch.core.Strings.format;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.hasSize;
 
-public class BaseMixedIT extends ESRestTestCase {
+public abstract class BaseMixedIT extends ESRestTestCase {
     @ClassRule
     public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
         .distribution(DistributionType.DEFAULT)
@@ -46,48 +47,48 @@ public class BaseMixedIT extends ESRestTestCase {
     }
 
     protected static String getUrl(MockWebServer webServer) {
-        return format("http://%s:%s", webServer.getHostName(), webServer.getPort());
+        return Strings.format("http://%s:%s", webServer.getHostName(), webServer.getPort());
     }
 
     @Override
     protected Settings restClientSettings() {
-        String token = basicAuthHeaderValue("x_pack_rest_user", new SecureString("x-pack-test-password".toCharArray()));
+        String token = ESRestTestCase.basicAuthHeaderValue("x_pack_rest_user", new SecureString("x-pack-test-password".toCharArray()));
         return Settings.builder().put(ThreadContext.PREFIX + ".Authorization", token).build();
     }
 
     protected void delete(String inferenceId, TaskType taskType) throws IOException {
         var request = new Request("DELETE", Strings.format("_inference/%s/%s", taskType, inferenceId));
-        var response = client().performRequest(request);
-        assertOK(response);
+        var response = ESRestTestCase.client().performRequest(request);
+        ESRestTestCase.assertOK(response);
     }
 
     protected void delete(String inferenceId) throws IOException {
         var request = new Request("DELETE", Strings.format("_inference/%s", inferenceId));
-        var response = client().performRequest(request);
-        assertOK(response);
+        var response = ESRestTestCase.client().performRequest(request);
+        ESRestTestCase.assertOK(response);
     }
 
     protected Map<String, Object> getAll() throws IOException {
         var request = new Request("GET", "_inference/_all");
-        var response = client().performRequest(request);
-        assertOK(response);
-        return entityAsMap(response);
+        var response = ESRestTestCase.client().performRequest(request);
+        ESRestTestCase.assertOK(response);
+        return ESRestTestCase.entityAsMap(response);
     }
 
     protected Map<String, Object> get(String inferenceId) throws IOException {
         var endpoint = Strings.format("_inference/%s", inferenceId);
         var request = new Request("GET", endpoint);
-        var response = client().performRequest(request);
-        assertOK(response);
-        return entityAsMap(response);
+        var response = ESRestTestCase.client().performRequest(request);
+        ESRestTestCase.assertOK(response);
+        return ESRestTestCase.entityAsMap(response);
     }
 
     protected Map<String, Object> get(TaskType taskType, String inferenceId) throws IOException {
         var endpoint = Strings.format("_inference/%s/%s", taskType, inferenceId);
         var request = new Request("GET", endpoint);
-        var response = client().performRequest(request);
-        assertOK(response);
-        return entityAsMap(response);
+        var response = ESRestTestCase.client().performRequest(request);
+        ESRestTestCase.assertOK(response);
+        return ESRestTestCase.entityAsMap(response);
     }
 
     protected Map<String, Object> inference(String inferenceId, TaskType taskType, String input) throws IOException {
@@ -95,9 +96,9 @@ public class BaseMixedIT extends ESRestTestCase {
         var request = new Request("POST", endpoint);
         request.setJsonEntity("{\"input\": [" + '"' + input + '"' + "]}");
 
-        var response = client().performRequest(request);
-        assertOK(response);
-        return entityAsMap(response);
+        var response = ESRestTestCase.client().performRequest(request);
+        ESRestTestCase.assertOK(response);
+        return ESRestTestCase.entityAsMap(response);
     }
 
     protected Map<String, Object> rerank(String inferenceId, List<String> inputs, String query) throws IOException {
@@ -116,17 +117,17 @@ public class BaseMixedIT extends ESRestTestCase {
         body.append("]}");
         request.setJsonEntity(body.toString());
 
-        var response = client().performRequest(request);
-        assertOK(response);
-        return entityAsMap(response);
+        var response = ESRestTestCase.client().performRequest(request);
+        ESRestTestCase.assertOK(response);
+        return ESRestTestCase.entityAsMap(response);
     }
 
     protected void put(String inferenceId, String modelConfig, TaskType taskType) throws IOException {
         String endpoint = Strings.format("_inference/%s/%s?error_trace", taskType, inferenceId);
         var request = new Request("PUT", endpoint);
         request.setJsonEntity(modelConfig);
-        var response = client().performRequest(request);
-        assertOKAndConsume(response);
+        var response = ESRestTestCase.client().performRequest(request);
+        ESRestTestCase.assertOKAndConsume(response);
         logger.warn("PUT response: {}", response.toString());
     }
 
@@ -139,6 +140,10 @@ public class BaseMixedIT extends ESRestTestCase {
         }
 
         String responseStr = EntityUtils.toString(response.getEntity());
-        assertThat(responseStr, response.getStatusLine().getStatusCode(), anyOf(equalTo(200), equalTo(201)));
+        ESTestCase.assertThat(
+            responseStr,
+            response.getStatusLine().getStatusCode(),
+            Matchers.anyOf(Matchers.equalTo(200), Matchers.equalTo(201))
+        );
     }
 }

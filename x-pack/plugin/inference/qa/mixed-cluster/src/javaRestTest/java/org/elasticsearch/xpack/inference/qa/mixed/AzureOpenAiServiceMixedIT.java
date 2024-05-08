@@ -13,8 +13,6 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.test.http.MockResponse;
 import org.elasticsearch.test.http.MockWebServer;
-import org.junit.AfterClass;
-import org.junit.BeforeClass;
 
 import java.io.IOException;
 import java.util.List;

@@ -8,15 +8,6 @@ apply plugin: 'elasticsearch.internal-java-rest-test'
 apply plugin: 'elasticsearch.internal-test-artifact-base'
 apply plugin: 'elasticsearch.bwc-test'
 
-restResources {
-  restApi {
-    include '_common', 'bulk', 'get', 'indices', 'inference', 'xpack', 'cluster'
-  }
-  restTests {
-    includeXpack 'inference'
-  }
-}
-
 dependencies {
   testImplementation project(path: ':x-pack:plugin:inference:qa:inference-service-tests')
   compileOnly project(':x-pack:plugin:core')

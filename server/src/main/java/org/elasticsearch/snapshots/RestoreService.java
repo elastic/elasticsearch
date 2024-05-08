@@ -713,10 +713,13 @@ public final class RestoreService implements ClusterStateApplier {
         }
         List<Index> updatedIndices = dataStream.getIndices()
             .stream()
-            .map(i -> metadata.get(renameBackingIndex(i.getName(), request)).getIndex())
+            .map(i -> metadata.get(renameIndex(i.getName(), request, true, false)).getIndex())
             .toList();
         List<Index> updatedFailureIndices = DataStream.isFailureStoreFeatureFlagEnabled()
-            ? dataStream.getFailureIndices().stream().map(i -> metadata.get(renameFailureIndex(i.getName(), request)).getIndex()).toList()
+            ? dataStream.getFailureIndices()
+                .stream()
+                .map(i -> metadata.get(renameIndex(i.getName(), request, false, true)).getIndex())
+                .toList()
             : List.of();
         return dataStream.copy().setName(dataStreamName).setIndices(updatedIndices).setFailureIndices(updatedFailureIndices).build();
     }
@@ -911,6 +914,28 @@ public final class RestoreService implements ClusterStateApplier {
         return failedShards;
     }
 
+    private static String renameIndex(String index, RestoreSnapshotRequest request, boolean isBackingIndex, boolean isFailureStore) {
+        if (request.renameReplacement() == null || request.renamePattern() == null) {
+            return index;
+        }
+        String prefix = null;
+        if (isBackingIndex && index.startsWith(DataStream.BACKING_INDEX_PREFIX)) {
+            prefix = DataStream.BACKING_INDEX_PREFIX;
+        }
+        if (isFailureStore && index.startsWith(DataStream.FAILURE_STORE_PREFIX)) {
+            prefix = DataStream.FAILURE_STORE_PREFIX;
+        }
+        String renamedIndex;
+        if (prefix != null) {
+            index = index.substring(prefix.length());
+        }
+        renamedIndex = index.replaceAll(request.renamePattern(), request.renameReplacement());
+        if (prefix != null) {
+            renamedIndex = prefix + renamedIndex;
+        }
+        return renamedIndex;
+    }
+
     private static Map<String, IndexId> renamedIndices(
         RestoreSnapshotRequest request,
         List<String> filteredIndices,
@@ -926,7 +951,12 @@ public final class RestoreService implements ClusterStateApplier {
                 // Don't rename system indices
                 renamedIndex = index;
             } else {
-                renamedIndex = renameIndex(index, request, dataStreamBackingIndices, dataStreamFailureIndices);
+                renamedIndex = renameIndex(
+                    index,
+                    request,
+                    dataStreamBackingIndices.contains(index),
+                    dataStreamFailureIndices.contains(index)
+                );
             }
             IndexId previousIndex = renamedIndices.put(renamedIndex, repositoryData.resolveIndexId(index));
             if (previousIndex != null) {
@@ -938,50 +968,6 @@ public final class RestoreService implements ClusterStateApplier {
             }
         }
         return Collections.unmodifiableMap(renamedIndices);
-    }
-
-    private static String renameIndex(
-        String index,
-        RestoreSnapshotRequest request,
-        Set<String> dataStreamBackingIndices,
-        Set<String> dataStreamFailureIndices
-    ) {
-        if (request.renameReplacement() == null || request.renamePattern() == null) {
-            return index;
-        }
-        if (dataStreamBackingIndices.contains(index)) {
-            return renameBackingIndex(index, request);
-        } else if (dataStreamFailureIndices.contains(index)) {
-            return renameFailureIndex(index, request);
-        }
-        return renameIndex(index, request, (String) null);
-    }
-
-    private static String renameBackingIndex(String index, RestoreSnapshotRequest request) {
-        if (request.renameReplacement() == null || request.renamePattern() == null) {
-            return index;
-        }
-        return renameIndex(index, request, DataStream.BACKING_INDEX_PREFIX);
-    }
-
-    private static String renameFailureIndex(String index, RestoreSnapshotRequest request) {
-        if (request.renameReplacement() == null || request.renamePattern() == null) {
-            return index;
-        }
-        return renameIndex(index, request, DataStream.FAILURE_STORE_PREFIX);
-    }
-
-    private static String renameIndex(String index, RestoreSnapshotRequest request, String prefix) {
-        String renamedIndex;
-        boolean withPrefix = prefix != null && index.startsWith(prefix);
-        if (withPrefix) {
-            index = index.substring(prefix.length());
-        }
-        renamedIndex = index.replaceAll(request.renamePattern(), request.renameReplacement());
-        if (withPrefix) {
-            renamedIndex = prefix + renamedIndex;
-        }
-        return renamedIndex;
     }
 
     /**

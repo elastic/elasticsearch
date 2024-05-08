@@ -117,7 +117,11 @@ public class DataStreamIndexSettingsProvider implements IndexSettingProvider {
 
                     if (indexTemplateAndCreateRequestSettings.hasValue(IndexMetadata.INDEX_ROUTING_PATH.getKey()) == false
                         && combinedTemplateMappings.isEmpty() == false) {
-                        List<String> routingPaths = findRoutingPaths(indexName, indexTemplateAndCreateRequestSettings, combinedTemplateMappings);
+                        List<String> routingPaths = findRoutingPaths(
+                            indexName,
+                            indexTemplateAndCreateRequestSettings,
+                            combinedTemplateMappings
+                        );
                         if (routingPaths.isEmpty() == false) {
                             builder.putList(INDEX_ROUTING_PATH.getKey(), routingPaths);
                         }

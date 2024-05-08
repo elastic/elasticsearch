@@ -32,11 +32,13 @@ import org.elasticsearch.xpack.ql.expression.function.scalar.ScalarFunction;
 import org.elasticsearch.xpack.ql.expression.predicate.Range;
 import org.elasticsearch.xpack.ql.expression.predicate.logical.And;
 import org.elasticsearch.xpack.ql.expression.predicate.logical.Or;
+import org.elasticsearch.xpack.ql.expression.predicate.nulls.IsNull;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.BinaryComparison;
 import org.elasticsearch.xpack.ql.planner.ExpressionTranslator;
 import org.elasticsearch.xpack.ql.planner.ExpressionTranslators;
 import org.elasticsearch.xpack.ql.planner.TranslatorHandler;
 import org.elasticsearch.xpack.ql.querydsl.query.BoolQuery;
+import org.elasticsearch.xpack.ql.querydsl.query.ExistsQuery;
 import org.elasticsearch.xpack.ql.querydsl.query.MatchAll;
 import org.elasticsearch.xpack.ql.querydsl.query.NotQuery;
 import org.elasticsearch.xpack.ql.querydsl.query.Query;
@@ -81,7 +83,7 @@ public final class EsqlExpressionTranslators {
         new SpatialRelatesTranslator(),
         new Ranges(),
         new BinaryLogic(),
-        new ExpressionTranslators.IsNulls(),
+        new IsNulls(),
         new ExpressionTranslators.IsNotNulls(),
         new ExpressionTranslators.Nots(),
         new ExpressionTranslators.Likes(),
@@ -486,6 +488,22 @@ public final class EsqlExpressionTranslators {
             }
 
             return null;
+        }
+    }
+
+    public static class IsNulls extends ExpressionTranslator<IsNull> {
+
+        @Override
+        protected Query asQuery(IsNull isNull, TranslatorHandler handler) {
+            return doTranslate(isNull, handler);
+        }
+
+        public static Query doTranslate(IsNull isNull, TranslatorHandler handler) {
+            return handler.wrapFunctionQuery(isNull, isNull.field(), () -> translate(isNull, handler));
+        }
+
+        private static Query translate(IsNull isNull, TranslatorHandler handler) {
+            return new NotQuery(isNull.source(), new ExistsQuery(isNull.source(), handler.nameOf(isNull.field())));
         }
     }
 

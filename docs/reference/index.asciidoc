@@ -10,7 +10,7 @@ include::intro.asciidoc[]
 
 include::release-notes/highlights.asciidoc[]
 
-include::getting-started.asciidoc[]
+include::quickstart/index.asciidoc[]
 
 include::setup.asciidoc[]
 

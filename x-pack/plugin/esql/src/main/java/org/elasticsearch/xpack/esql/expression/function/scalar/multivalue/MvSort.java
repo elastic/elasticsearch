@@ -20,12 +20,13 @@ import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
-import org.elasticsearch.compute.operator.MultivalueDedupeBoolean;
-import org.elasticsearch.compute.operator.MultivalueDedupeBytesRef;
-import org.elasticsearch.compute.operator.MultivalueDedupeDouble;
-import org.elasticsearch.compute.operator.MultivalueDedupeInt;
-import org.elasticsearch.compute.operator.MultivalueDedupeLong;
+import org.elasticsearch.compute.operator.mvdedupe.MultivalueDedupeBoolean;
+import org.elasticsearch.compute.operator.mvdedupe.MultivalueDedupeBytesRef;
+import org.elasticsearch.compute.operator.mvdedupe.MultivalueDedupeDouble;
+import org.elasticsearch.compute.operator.mvdedupe.MultivalueDedupeInt;
+import org.elasticsearch.compute.operator.mvdedupe.MultivalueDedupeLong;
 import org.elasticsearch.xpack.esql.capabilities.Validatable;
+import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunction;
@@ -42,7 +43,6 @@ import org.elasticsearch.xpack.ql.type.DataTypes;
 
 import java.util.Arrays;
 import java.util.List;
-import java.util.Objects;
 import java.util.function.Function;
 
 import static org.elasticsearch.xpack.esql.expression.Validations.isFoldable;
@@ -61,16 +61,22 @@ public class MvSort extends EsqlScalarFunction implements OptionalArgument, Vali
 
     @FunctionInfo(
         returnType = { "boolean", "date", "double", "integer", "ip", "keyword", "long", "text", "version" },
-        description = "Sorts a multivalued field in lexicographical order."
+        description = "Sorts a multivalued field in lexicographical order.",
+        examples = @Example(file = "ints", tag = "mv_sort")
     )
     public MvSort(
         Source source,
         @Param(
             name = "field",
             type = { "boolean", "date", "double", "integer", "ip", "keyword", "long", "text", "version" },
-            description = "A multivalued field"
+            description = "Multivalue expression. If `null`, the function returns `null`."
         ) Expression field,
-        @Param(name = "order", type = { "keyword" }, description = "sort order", optional = true) Expression order
+        @Param(
+            name = "order",
+            type = { "keyword" },
+            description = "Sort order. The valid options are ASC and DESC, the default is ASC.",
+            optional = true
+        ) Expression order
     ) {
         super(source, order == null ? Arrays.asList(field, ASC) : Arrays.asList(field, order));
         this.field = field;
@@ -166,20 +172,6 @@ public class MvSort extends EsqlScalarFunction implements OptionalArgument, Vali
     @Override
     public DataType dataType() {
         return field.dataType();
-    }
-
-    @Override
-    public int hashCode() {
-        return Objects.hash(field, order);
-    }
-
-    @Override
-    public boolean equals(Object obj) {
-        if (obj == null || obj.getClass() != getClass()) {
-            return false;
-        }
-        MvSort other = (MvSort) obj;
-        return Objects.equals(other.field, field) && Objects.equals(other.order, order);
     }
 
     @Override

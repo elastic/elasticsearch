@@ -57,7 +57,7 @@ public class UpgradeTransformsAction extends ActionType<UpgradeTransformsAction.
         @Override
         public int hashCode() {
             // the base class does not implement hashCode, therefore we need to hash timeout ourselves
-            return Objects.hash(timeout(), dryRun);
+            return Objects.hash(ackTimeout(), dryRun);
         }
 
         @Override
@@ -71,7 +71,7 @@ public class UpgradeTransformsAction extends ActionType<UpgradeTransformsAction.
             Request other = (Request) obj;
 
             // the base class does not implement equals, therefore we need to check timeout ourselves
-            return this.dryRun == other.dryRun && timeout().equals(other.timeout());
+            return this.dryRun == other.dryRun && ackTimeout().equals(other.ackTimeout());
         }
     }
 

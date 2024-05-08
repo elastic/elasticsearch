@@ -621,6 +621,40 @@ dt:datetime              |plus_post:datetime |plus_pre:datetime
 2100-01-01T01:01:01.001Z |null               |null
 ;
 
+datePlusQuarter
+# "quarter" introduced in 8.15
+required_feature: esql.timespan_abbreviations
+row dt = to_dt("2100-01-01T01:01:01.000Z")
+| eval plusQuarter = dt + 2 quarters
+;
+
+dt:datetime              | plusQuarter:datetime
+2100-01-01T01:01:01.000Z | 2100-07-01T01:01:01.000Z
+;
+
+datePlusAbbreviatedDurations
+# abbreviations introduced in 8.15
+required_feature: esql.timespan_abbreviations
+row dt = to_dt("2100-01-01T00:00:00.000Z")
+| eval plusDurations = dt + 1 h + 2 min + 2 sec + 1 s + 4 ms
+;
+
+dt:datetime              | plusDurations:datetime
+2100-01-01T00:00:00.000Z | 2100-01-01T01:02:03.004Z
+;
+
+datePlusAbbreviatedPeriods
+# abbreviations introduced in 8.15
+required_feature: esql.timespan_abbreviations
+row dt = to_dt("2100-01-01T00:00:00.000Z")
+| eval plusDurations = dt + 0 yr + 1y + 2 q + 3 mo + 4 w + 3 d
+;
+
+dt:datetime              | plusDurations:datetime
+2100-01-01T00:00:00.000Z | 2101-11-01T00:00:00.000Z
+;
+
+
 dateMinusDuration
 row dt = to_dt("2100-01-01T01:01:01.001Z")
 | eval minus = dt - 1 hour - 1 minute - 1 second - 1 milliseconds;
@@ -1040,4 +1074,34 @@ required_feature: esql.agg_values
                                               1954-05-01T00:00:00Z | Support Engineer
                       [1953-04-20T00:00:00Z, 1954-05-01T00:00:00Z] | Tech Lead
 [1955-01-21T00:00:00Z, 1957-05-23T00:00:00Z, 1959-12-03T00:00:00Z] | null
+;
+
+implicitCastingNotEqual
+required_feature: esql.string_literal_auto_casting
+from employees | where birth_date != "1957-05-23T00:00:00Z" | keep emp_no, birth_date | sort emp_no | limit 3;
+
+emp_no:integer | birth_date:datetime
+10001          | 1953-09-02T00:00:00Z
+10002          | 1964-06-02T00:00:00Z
+10003          | 1959-12-03T00:00:00Z
+;
+
+implicitCastingLessThanOrEqual
+required_feature: esql.string_literal_auto_casting
+from employees | where birth_date <= "1957-05-20T00:00:00Z" | keep emp_no, birth_date | sort emp_no | limit 3;
+
+emp_no:integer | birth_date:datetime
+10001          | 1953-09-02T00:00:00Z
+10004          | 1954-05-01T00:00:00Z
+10005          | 1955-01-21T00:00:00Z
+;
+
+implicitCastingGreaterThan
+required_feature: esql.string_literal_auto_casting
+from employees | where birth_date > "1957-05-24T00:00:00Z" | keep emp_no, birth_date | sort emp_no | limit 3;
+
+emp_no:integer | birth_date:datetime
+10002          | 1964-06-02T00:00:00Z
+10003          | 1959-12-03T00:00:00Z
+10008          | 1958-02-19T00:00:00Z
 ;

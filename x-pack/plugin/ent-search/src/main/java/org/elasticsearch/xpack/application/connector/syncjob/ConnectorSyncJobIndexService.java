@@ -266,7 +266,7 @@ public class ConnectorSyncJobIndexService {
 
                         syncJobFieldsToUpdate = Map.of(
                             ConnectorSyncJob.STATUS_FIELD.getPreferredName(),
-                            nextStatus,
+                            nextStatus.toString(),
                             ConnectorSyncJob.CANCELATION_REQUESTED_AT_FIELD.getPreferredName(),
                             now,
                             ConnectorSyncJob.CANCELED_AT_FIELD.getPreferredName(),
@@ -280,7 +280,7 @@ public class ConnectorSyncJobIndexService {
 
                         syncJobFieldsToUpdate = Map.of(
                             ConnectorSyncJob.STATUS_FIELD.getPreferredName(),
-                            nextStatus,
+                            nextStatus.toString(),
                             ConnectorSyncJob.CANCELATION_REQUESTED_AT_FIELD.getPreferredName(),
                             now
                         );
@@ -381,7 +381,10 @@ public class ConnectorSyncJobIndexService {
             }
 
             if (Objects.nonNull(syncStatus)) {
-                TermQueryBuilder syncStatusQuery = new TermQueryBuilder(ConnectorSyncJob.STATUS_FIELD.getPreferredName(), syncStatus);
+                TermQueryBuilder syncStatusQuery = new TermQueryBuilder(
+                    ConnectorSyncJob.STATUS_FIELD.getPreferredName(),
+                    syncStatus.toString()
+                );
                 boolFilterQueryBuilder.must().add(syncStatusQuery);
             }
 
@@ -569,7 +572,7 @@ public class ConnectorSyncJobIndexService {
                             ConnectorSyncJob.ERROR_FIELD.getPreferredName(),
                             error,
                             ConnectorSyncJob.STATUS_FIELD.getPreferredName(),
-                            nextStatus
+                            nextStatus.toString()
                         )
                     );
 

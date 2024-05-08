@@ -350,7 +350,13 @@ public abstract class ESRestTestCase extends ESTestCase {
         assert nodesVersions != null;
     }
 
-    protected List<FeatureSpecification> createAdditionalFeatureSpecifications() {
+    /**
+     * Override to provide additional test-only historical features.
+     *
+     * Note: This extension point cannot be used to add cluster features. The provided {@link FeatureSpecification}s
+     * must contain only historical features, otherwise an assertion error is thrown.
+     */
+    protected List<FeatureSpecification> additionalTestOnlyHistoricalFeatures() {
         return List.of();
     }
 
@@ -368,7 +374,7 @@ public abstract class ESRestTestCase extends ESTestCase {
             );
         }
         return new ESRestTestFeatureService(
-            createAdditionalFeatureSpecifications(),
+            additionalTestOnlyHistoricalFeatures(),
             semanticNodeVersions,
             ClusterFeatures.calculateAllNodeFeatures(clusterStateFeatures.values())
         );
@@ -1744,6 +1750,10 @@ public abstract class ESRestTestCase extends ESTestCase {
 
     protected static CreateIndexResponse createIndex(RestClient client, String name, Settings settings) throws IOException {
         return createIndex(client, name, settings, null, null);
+    }
+
+    protected static CreateIndexResponse createIndex(RestClient client, String name, Settings settings, String mapping) throws IOException {
+        return createIndex(client, name, settings, mapping, null);
     }
 
     protected static CreateIndexResponse createIndex(String name, Settings settings, String mapping) throws IOException {

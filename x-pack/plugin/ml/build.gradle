@@ -1,6 +1,5 @@
 import org.elasticsearch.gradle.VersionProperties
 import org.elasticsearch.gradle.internal.dra.DraResolvePlugin
-import org.elasticsearch.gradle.internal.info.BuildParams
 
 apply plugin: 'elasticsearch.internal-es-plugin'
 apply plugin: 'elasticsearch.internal-cluster-test'
@@ -115,12 +114,6 @@ artifacts {
   archives tasks.named("jar")
 }
 
-if (BuildParams.isSnapshotBuild() == false) {
-  tasks.named("test").configure {
-    systemProperty 'es.semantic_text_feature_flag_enabled', 'true'
-  }
-}
-
 tasks.register("extractNativeLicenses", Copy) {
   dependsOn configurations.nativeBundle
   into "${buildDir}/extractedNativeLicenses"
@@ -134,6 +127,8 @@ tasks.register("extractNativeLicenses", Copy) {
 tasks.named('generateNotice').configure {
   dependsOn "extractNativeLicenses"
   inputs.dir("${project.buildDir}/extractedNativeLicenses/platform/licenses")
+    .withPropertyName('licensingDir')
+    .withPathSensitivity(PathSensitivity.RELATIVE)
   licenseDirs.add(tasks.named("extractNativeLicenses").map {new File(it.destinationDir, "platform/licenses") })
 }
 

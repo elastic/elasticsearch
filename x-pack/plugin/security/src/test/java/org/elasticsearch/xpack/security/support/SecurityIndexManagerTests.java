@@ -7,7 +7,7 @@
 package org.elasticsearch.xpack.security.support;
 
 import org.elasticsearch.ElasticsearchStatusException;
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
@@ -33,6 +33,7 @@ import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.cluster.version.CompatibilityVersions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Settings;
@@ -49,6 +50,7 @@ import org.elasticsearch.test.client.NoOpClient;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.security.test.TestRestrictedIndices;
+import org.elasticsearch.xpack.security.support.SecuritySystemIndices.SecurityMainIndexMappingVersion;
 import org.elasticsearch.xpack.security.test.SecurityTestUtils;
 import org.hamcrest.Matchers;
 import org.junit.Before;
@@ -56,6 +58,7 @@ import org.junit.Before;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.HashSet;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
@@ -75,15 +78,17 @@ import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.when;
 
 public class SecurityIndexManagerTests extends ESTestCase {
-
     private static final ClusterName CLUSTER_NAME = new ClusterName("security-index-manager-tests");
     private static final ClusterState EMPTY_CLUSTER_STATE = new ClusterState.Builder(CLUSTER_NAME).build();
     private SystemIndexDescriptor descriptorSpy;
+    private ThreadPool threadPool;
     private SecurityIndexManager manager;
+
+    private int putMappingRequestCount = 0;
 
     @Before
     public void setUpManager() {
-        final ThreadPool threadPool = mock(ThreadPool.class);
+        threadPool = mock(ThreadPool.class);
         when(threadPool.getThreadContext()).thenReturn(new ThreadContext(Settings.EMPTY));
         when(threadPool.generic()).thenReturn(EsExecutors.DIRECT_EXECUTOR_SERVICE);
 
@@ -97,6 +102,7 @@ public class SecurityIndexManagerTests extends ESTestCase {
                 ActionListener<Response> listener
             ) {
                 if (request instanceof PutMappingRequest) {
+                    putMappingRequestCount++;
                     listener.onResponse((Response) AcknowledgedResponse.of(true));
                 }
             }
@@ -383,7 +389,10 @@ public class SecurityIndexManagerTests extends ESTestCase {
 
         // Ensure that the mappings for the index are out-of-date, so that the security index manager will
         // attempt to update them.
-        String previousVersion = getPreviousVersion(Version.CURRENT);
+        int previousVersion = randomValueOtherThanMany(
+            v -> v.onOrAfter(SecurityMainIndexMappingVersion.latest()),
+            () -> randomFrom(SecurityMainIndexMappingVersion.values())
+        ).id();
 
         // State recovered with index, with mappings with a prior version
         ClusterState.Builder clusterStateBuilder = createClusterState(
@@ -394,31 +403,35 @@ public class SecurityIndexManagerTests extends ESTestCase {
             getMappings(previousVersion)
         );
         manager.clusterChanged(event(markShardsAvailable(clusterStateBuilder)));
-
         manager.prepareIndexIfNeededThenExecute(prepareException::set, () -> prepareRunnableCalled.set(true));
 
         assertThat(prepareRunnableCalled.get(), is(true));
         assertThat(prepareException.get(), nullValue());
+        // Verify that the client to send put mapping was used
+        assertThat(putMappingRequestCount, equalTo(1));
     }
 
     /**
      * Check that the security index manager will refuse to update mappings on an index
-     * if the corresponding {@link SystemIndexDescriptor} requires a higher node version
+     * if the corresponding {@link SystemIndexDescriptor} requires a higher mapping version
      * that the cluster's current minimum version.
      */
-    public void testCannotUpdateIndexMappingsWhenMinNodeVersionTooLow() {
+    public void testCannotUpdateIndexMappingsWhenMinMappingVersionTooLow() {
         final AtomicBoolean prepareRunnableCalled = new AtomicBoolean(false);
         final AtomicReference<Exception> prepareException = new AtomicReference<>(null);
 
         // Hard-code a failure here.
-        doReturn("Nope").when(descriptorSpy).getMinimumNodeVersionMessage(anyString());
-        doReturn(null).when(descriptorSpy).getDescriptorCompatibleWith(eq(Version.CURRENT));
+        doReturn("Nope").when(descriptorSpy).getMinimumMappingsVersionMessage(anyString());
+        doReturn(null).when(descriptorSpy)
+            .getDescriptorCompatibleWith(eq(new SystemIndexDescriptor.MappingsVersion(SecurityMainIndexMappingVersion.latest().id(), 0)));
 
         // Ensure that the mappings for the index are out-of-date, so that the security index manager will
         // attempt to update them.
-        String previousVersion = getPreviousVersion(Version.CURRENT);
+        int previousVersion = randomValueOtherThanMany(
+            v -> v.onOrAfter(SecurityMainIndexMappingVersion.latest()),
+            () -> randomFrom(SecurityMainIndexMappingVersion.values())
+        ).id();
 
-        // State recovered with index, with mappings with a prior version
         ClusterState.Builder clusterStateBuilder = createClusterState(
             TestRestrictedIndices.INTERNAL_SECURITY_MAIN_INDEX_7,
             SecuritySystemIndices.SECURITY_MAIN_ALIAS,
@@ -435,6 +448,55 @@ public class SecurityIndexManagerTests extends ESTestCase {
         assertThat(exception, not(nullValue()));
         assertThat(exception, instanceOf(IllegalStateException.class));
         assertThat(exception.getMessage(), equalTo("Nope"));
+        // Verify that the client to send put mapping was never used
+        assertThat(putMappingRequestCount, equalTo(0));
+    }
+
+    /**
+     * Check that the security index manager will not update mappings on an index if the mapping version wasn't bumped
+     */
+    public void testNoUpdateWhenIndexMappingsVersionNotBumped() {
+        final AtomicBoolean prepareRunnableCalled = new AtomicBoolean(false);
+        final AtomicReference<Exception> prepareException = new AtomicReference<>(null);
+
+        ClusterState.Builder clusterStateBuilder = createClusterState(
+            TestRestrictedIndices.INTERNAL_SECURITY_MAIN_INDEX_7,
+            SecuritySystemIndices.SECURITY_MAIN_ALIAS,
+            SecuritySystemIndices.INTERNAL_MAIN_INDEX_FORMAT,
+            IndexMetadata.State.OPEN,
+            getMappings(SecurityMainIndexMappingVersion.latest().id())
+        );
+        manager.clusterChanged(event(markShardsAvailable(clusterStateBuilder)));
+        manager.prepareIndexIfNeededThenExecute(prepareException::set, () -> prepareRunnableCalled.set(true));
+
+        assertThat(prepareRunnableCalled.get(), is(true));
+        assertThat(prepareException.get(), is(nullValue()));
+        // Verify that the client to send put mapping was never used
+        assertThat(putMappingRequestCount, equalTo(0));
+    }
+
+    /**
+     * Check that the security index manager will not update mappings on an index if there is no mapping version in cluster state
+     */
+    public void testNoUpdateWhenNoIndexMappingsVersionInClusterState() {
+        final AtomicBoolean prepareRunnableCalled = new AtomicBoolean(false);
+        final AtomicReference<Exception> prepareException = new AtomicReference<>(null);
+
+        ClusterState.Builder clusterStateBuilder = createClusterState(
+            TestRestrictedIndices.INTERNAL_SECURITY_MAIN_INDEX_7,
+            SecuritySystemIndices.SECURITY_MAIN_ALIAS,
+            SecuritySystemIndices.INTERNAL_MAIN_INDEX_FORMAT,
+            IndexMetadata.State.OPEN,
+            getMappings(SecurityMainIndexMappingVersion.latest().id()),
+            Map.of()
+        );
+        manager.clusterChanged(event(markShardsAvailable(clusterStateBuilder)));
+        manager.prepareIndexIfNeededThenExecute(prepareException::set, () -> prepareRunnableCalled.set(true));
+
+        assertThat(prepareRunnableCalled.get(), is(true));
+        assertThat(prepareException.get(), is(nullValue()));
+        // Verify that the client to send put mapping was never used
+        assertThat(putMappingRequestCount, equalTo(0));
     }
 
     public void testListenerNotCalledBeforeStateNotRecovered() {
@@ -567,12 +629,32 @@ public class SecurityIndexManagerTests extends ESTestCase {
         IndexMetadata.State state,
         String mappings
     ) {
+        return createClusterState(
+            indexName,
+            aliasName,
+            format,
+            state,
+            mappings,
+            Map.of(indexName, new SystemIndexDescriptor.MappingsVersion(SecurityMainIndexMappingVersion.latest().id(), 0))
+        );
+    }
+
+    private static ClusterState.Builder createClusterState(
+        String indexName,
+        String aliasName,
+        int format,
+        IndexMetadata.State state,
+        String mappings,
+        Map<String, SystemIndexDescriptor.MappingsVersion> compatibilityVersions
+    ) {
         IndexMetadata.Builder indexMeta = getIndexMetadata(indexName, aliasName, format, state, mappings);
 
         Metadata.Builder metadataBuilder = new Metadata.Builder();
         metadataBuilder.put(indexMeta);
 
-        return ClusterState.builder(state()).metadata(metadataBuilder.build());
+        return ClusterState.builder(state())
+            .metadata(metadataBuilder.build())
+            .putCompatibilityVersions("test", new CompatibilityVersions(TransportVersion.current(), compatibilityVersions));
     }
 
     private ClusterState markShardsAvailable(ClusterState.Builder clusterStateBuilder) {
@@ -614,17 +696,21 @@ public class SecurityIndexManagerTests extends ESTestCase {
     }
 
     private static String getMappings() {
-        return getMappings(Version.CURRENT.toString());
+        return getMappings(SecurityMainIndexMappingVersion.latest().id());
     }
 
-    private static String getMappings(String version) {
+    private static String getMappings(Integer version) {
         try {
             final XContentBuilder builder = jsonBuilder();
 
             builder.startObject();
             {
                 builder.startObject("_meta");
-                builder.field("security-version", version);
+                if (version != null) {
+                    builder.field(SystemIndexDescriptor.VERSION_META_KEY, version);
+                }
+                // This is expected to be ignored
+                builder.field("security-version", "8.13.0");
                 builder.endObject();
 
                 builder.field("dynamic", "strict");
@@ -642,13 +728,5 @@ public class SecurityIndexManagerTests extends ESTestCase {
         } catch (IOException e) {
             throw new UncheckedIOException("Failed to build index mappings", e);
         }
-    }
-
-    private String getPreviousVersion(Version version) {
-        if (version.minor == 0) {
-            return version.major - 1 + ".99.0";
-        }
-
-        return version.major + "." + (version.minor - 1) + ".0";
     }
 }

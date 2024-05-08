@@ -254,7 +254,7 @@ public class ReadinessService extends AbstractLifecycleComponent implements Clus
     // protected to allow mock service to override
     protected boolean areFileSettingsApplied(ClusterState clusterState) {
         ReservedStateMetadata fileSettingsMetadata = clusterState.metadata().reservedStateMetadata().get(FileSettingsService.NAMESPACE);
-        return fileSettingsMetadata != null && fileSettingsMetadata.errorMetadata() == null;
+        return fileSettingsMetadata != null && fileSettingsMetadata.version().equals(ReservedStateMetadata.NO_VERSION) == false;
     }
 
     private void setReady(boolean ready) {

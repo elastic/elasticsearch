@@ -18,6 +18,7 @@ import org.elasticsearch.cluster.ClusterStateTaskListener;
 import org.elasticsearch.cluster.SimpleBatchedAckListenerTaskExecutor;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.DataStreamGlobalRetention;
+import org.elasticsearch.cluster.metadata.DataStreamGlobalRetentionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.MasterServiceTaskQueue;
@@ -42,9 +43,14 @@ public class UpdateDataStreamGlobalRetentionService {
 
     private static final Logger logger = LogManager.getLogger(UpdateDataStreamGlobalRetentionService.class);
 
+    private final DataStreamGlobalRetentionResolver globalRetentionResolver;
     private final MasterServiceTaskQueue<UpsertGlobalDataStreamMetadataTask> taskQueue;
 
-    public UpdateDataStreamGlobalRetentionService(ClusterService clusterService) {
+    public UpdateDataStreamGlobalRetentionService(
+        ClusterService clusterService,
+        DataStreamGlobalRetentionResolver globalRetentionResolver
+    ) {
+        this.globalRetentionResolver = globalRetentionResolver;
         ClusterStateTaskExecutor<UpsertGlobalDataStreamMetadataTask> executor = new SimpleBatchedAckListenerTaskExecutor<>() {
 
             @Override
@@ -81,12 +87,9 @@ public class UpdateDataStreamGlobalRetentionService {
         List<UpdateDataStreamGlobalRetentionResponse.AffectedDataStream> affectedDataStreams,
         final ActionListener<UpdateDataStreamGlobalRetentionResponse> listener
     ) {
-        final var ackTimeout = request.masterNodeTimeout().millis() < 0 ? TimeValue.MAX_VALUE : request.masterNodeTimeout();
-        // NB a negative master node timeout means never to time out, but a negative ack timeout means to time out immediately.
-        // TODO when https://github.com/elastic/elasticsearch/issues/107044 is fixed, we can just use request.masterNodeTimeout() directly
         taskQueue.submitTask(
             "remove-data-stream-global-retention",
-            new UpsertGlobalDataStreamMetadataTask(null, affectedDataStreams, listener, ackTimeout),
+            new UpsertGlobalDataStreamMetadataTask(null, affectedDataStreams, listener, request.masterNodeTimeout()),
             request.masterNodeTimeout()
         );
     }
@@ -95,15 +98,17 @@ public class UpdateDataStreamGlobalRetentionService {
         @Nullable DataStreamGlobalRetention newGlobalRetention,
         ClusterState clusterState
     ) {
-        var previousGlobalRetention = DataStreamGlobalRetention.getFromClusterState(clusterState);
+        var previousGlobalRetention = globalRetentionResolver.resolve(clusterState);
         if (Objects.equals(newGlobalRetention, previousGlobalRetention)) {
             return List.of();
         }
         List<UpdateDataStreamGlobalRetentionResponse.AffectedDataStream> affectedDataStreams = new ArrayList<>();
         for (DataStream dataStream : clusterState.metadata().dataStreams().values()) {
             if (dataStream.getLifecycle() != null) {
-                TimeValue previousEffectiveRetention = dataStream.getLifecycle().getEffectiveDataRetention(previousGlobalRetention);
-                TimeValue newEffectiveRetention = dataStream.getLifecycle().getEffectiveDataRetention(newGlobalRetention);
+                TimeValue previousEffectiveRetention = dataStream.getLifecycle()
+                    .getEffectiveDataRetention(dataStream.isSystem() ? null : previousGlobalRetention);
+                TimeValue newEffectiveRetention = dataStream.getLifecycle()
+                    .getEffectiveDataRetention(dataStream.isSystem() ? null : newGlobalRetention);
                 if (Objects.equals(previousEffectiveRetention, newEffectiveRetention) == false) {
                     affectedDataStreams.add(
                         new UpdateDataStreamGlobalRetentionResponse.AffectedDataStream(
@@ -121,10 +126,12 @@ public class UpdateDataStreamGlobalRetentionService {
 
     // Visible for testing
     ClusterState updateGlobalRetention(ClusterState clusterState, @Nullable DataStreamGlobalRetention retentionFromRequest) {
-        final var initialRetention = DataStreamGlobalRetention.getFromClusterState(clusterState);
+        // Detecting if this update will result in a change in the cluster state, requires to use only the global retention from
+        // the cluster state and not the factory retention.
+        final var initialRetentionFromClusterState = DataStreamGlobalRetention.getFromClusterState(clusterState);
         // Avoid storing empty retention in the cluster state
         final var newRetention = DataStreamGlobalRetention.EMPTY.equals(retentionFromRequest) ? null : retentionFromRequest;
-        if (Objects.equals(newRetention, initialRetention)) {
+        if (Objects.equals(newRetention, initialRetentionFromClusterState)) {
             return clusterState;
         }
         if (newRetention == null) {

@@ -327,7 +327,10 @@ public class ConnectorSyncJobIndexService {
             }
 
             if (Objects.nonNull(syncStatus)) {
-                TermQueryBuilder syncStatusQuery = new TermQueryBuilder(ConnectorSyncJob.STATUS_FIELD.getPreferredName(), syncStatus);
+                TermQueryBuilder syncStatusQuery = new TermQueryBuilder(
+                    ConnectorSyncJob.STATUS_FIELD.getPreferredName(),
+                    syncStatus.toString()
+                );
                 boolFilterQueryBuilder.must().add(syncStatusQuery);
             }
         }

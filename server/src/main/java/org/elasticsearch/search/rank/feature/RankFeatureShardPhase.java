@@ -81,6 +81,9 @@ public final class RankFeatureShardPhase {
                     return;
                 }
                 hits = fetchSearchResult.hits();
+                if (hits == null) {
+                    return;
+                }
                 featureRankShardResult = (RankFeatureShardResult) rankFeaturePhaseRankShardContext.buildRankFeatureShardResult(
                     hits,
                     searchContext.shardTarget().getShardId().id()

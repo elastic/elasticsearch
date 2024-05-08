@@ -289,4 +289,113 @@ public class RankFeatureShardPhaseTests extends ESTestCase {
             assertEquals(rankFeatureDoc.featureData, expectedFieldData.get(rankFeatureDoc.doc));
         }
     }
+
+    public void testProcessFetchEmptyHits() {
+        final String fieldName = "some_field";
+        int numDocs = randomIntBetween(10, 30);
+
+        SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder();
+        searchSourceBuilder.rankBuilder(getRankBuilder(fieldName));
+
+        ShardSearchRequest searchRequest = mock(ShardSearchRequest.class);
+        when(searchRequest.source()).thenReturn(searchSourceBuilder);
+
+        SearchShardTarget shardTarget = new SearchShardTarget(
+            "node_id",
+            new ShardId(new Index("some_index", UUID.randomUUID().toString()), 0),
+            null
+        );
+
+        SearchContext searchContext = spy(getSearchContext());
+        searchContext.addFetchResult();
+        SearchHit[] hits = new SearchHit[0];
+
+        searchContext.fetchResult().shardResult(new SearchHits(hits, new TotalHits(0, TotalHits.Relation.EQUAL_TO), 1.0f), null);
+        when(searchContext.isCancelled()).thenReturn(false);
+        when(searchContext.request()).thenReturn(searchRequest);
+        when(searchContext.shardTarget()).thenReturn(shardTarget);
+        RankFeatureShardRequest request = mock(RankFeatureShardRequest.class);
+        when(request.getDocIds()).thenReturn(new int[] { 4, 9, numDocs - 1 });
+
+        RankFeatureShardPhase rankFeatureShardPhase = new RankFeatureShardPhase();
+        // this is called as part of the search context initialization
+        // with the ResultsType.RANK_FEATURE type
+        searchContext.addRankFeatureResult();
+        rankFeatureShardPhase.processFetch(searchContext);
+
+        assertNotNull(searchContext.rankFeatureResult());
+        assertNotNull(searchContext.rankFeatureResult().rankFeatureResult());
+        assertEquals(searchContext.rankFeatureResult().rankFeatureResult().shardResult().rankFeatureDocs.length, 0);
+    }
+
+    public void testProcessFetchNullHits() {
+        final String fieldName = "some_field";
+        int numDocs = randomIntBetween(10, 30);
+
+        SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder();
+        searchSourceBuilder.rankBuilder(getRankBuilder(fieldName));
+
+        ShardSearchRequest searchRequest = mock(ShardSearchRequest.class);
+        when(searchRequest.source()).thenReturn(searchSourceBuilder);
+
+        SearchShardTarget shardTarget = new SearchShardTarget(
+            "node_id",
+            new ShardId(new Index("some_index", UUID.randomUUID().toString()), 0),
+            null
+        );
+
+        SearchContext searchContext = spy(getSearchContext());
+        searchContext.addFetchResult();
+
+        searchContext.fetchResult().shardResult(null, null);
+        when(searchContext.isCancelled()).thenReturn(false);
+        when(searchContext.request()).thenReturn(searchRequest);
+        when(searchContext.shardTarget()).thenReturn(shardTarget);
+        RankFeatureShardRequest request = mock(RankFeatureShardRequest.class);
+        when(request.getDocIds()).thenReturn(new int[] { 4, 9, numDocs - 1 });
+
+        RankFeatureShardPhase rankFeatureShardPhase = new RankFeatureShardPhase();
+        // this is called as part of the search context initialization
+        // with the ResultsType.RANK_FEATURE type
+        searchContext.addRankFeatureResult();
+        rankFeatureShardPhase.processFetch(searchContext);
+
+        assertNull(searchContext.rankFeatureResult());
+        assertNull(searchContext.rankFeatureResult().rankFeatureResult());
+    }
+
+    public void testProcessFetchWhileTaskIsCancelled() {
+
+        final String fieldName = "some_field";
+        int numDocs = randomIntBetween(10, 30);
+
+        SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder();
+        searchSourceBuilder.rankBuilder(getRankBuilder(fieldName));
+
+        ShardSearchRequest searchRequest = mock(ShardSearchRequest.class);
+        when(searchRequest.source()).thenReturn(searchSourceBuilder);
+
+        SearchShardTarget shardTarget = new SearchShardTarget(
+            "node_id",
+            new ShardId(new Index("some_index", UUID.randomUUID().toString()), 0),
+            null
+        );
+
+        SearchContext searchContext = spy(getSearchContext());
+        searchContext.addFetchResult();
+        SearchHit[] hits = new SearchHit[0];
+
+        searchContext.fetchResult().shardResult(new SearchHits(hits, new TotalHits(0, TotalHits.Relation.EQUAL_TO), 1.0f), null);
+        when(searchContext.isCancelled()).thenReturn(false);
+        when(searchContext.request()).thenReturn(searchRequest);
+        when(searchContext.shardTarget()).thenReturn(shardTarget);
+        RankFeatureShardRequest request = mock(RankFeatureShardRequest.class);
+        when(request.getDocIds()).thenReturn(new int[] { 4, 9, numDocs - 1 });
+
+        RankFeatureShardPhase rankFeatureShardPhase = new RankFeatureShardPhase();
+        // this is called as part of the search context initialization
+        // with the ResultsType.RANK_FEATURE type
+        searchContext.addRankFeatureResult();
+        expectThrows(TaskCancelledException.class, () -> rankFeatureShardPhase.processFetch(searchContext));
+    }
 }

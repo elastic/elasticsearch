@@ -99,7 +99,7 @@ public class TransportVersions {
     public static final TransportVersion V_8_12_0 = def(8_560_00_0);
     public static final TransportVersion V_8_12_1 = def(8_560_00_1);
     public static final TransportVersion V_8_13_0 = def(8_595_00_0);
-    public static final TransportVersion SHUTDOWN_REQUEST_TIMEOUTS_FIX_8_13 = def(8_595_00_1);
+    public static final TransportVersion V_8_13_4 = def(8_595_00_1);
     // 8.14.0+
     public static final TransportVersion RANDOM_AGG_SHARD_SEED = def(8_596_00_0);
     public static final TransportVersion ESQL_TIMINGS = def(8_597_00_0);

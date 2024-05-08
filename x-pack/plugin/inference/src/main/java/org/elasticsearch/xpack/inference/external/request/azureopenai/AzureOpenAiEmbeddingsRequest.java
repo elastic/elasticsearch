@@ -15,7 +15,6 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.inference.common.Truncator;
-import org.elasticsearch.xpack.inference.external.azureopenai.AzureOpenAiAccount;
 import org.elasticsearch.xpack.inference.external.request.HttpRequest;
 import org.elasticsearch.xpack.inference.external.request.Request;
 import org.elasticsearch.xpack.inference.services.azureopenai.embeddings.AzureOpenAiEmbeddingsModel;
@@ -34,14 +33,12 @@ public class AzureOpenAiEmbeddingsRequest implements AzureOpenAiRequest {
         "The request does not have any authentication methods set. One of [%s] or [%s] is required.";
 
     private final Truncator truncator;
-    private final AzureOpenAiAccount account;
     private final Truncator.TruncationResult truncationResult;
     private final URI uri;
     private final AzureOpenAiEmbeddingsModel model;
 
     public AzureOpenAiEmbeddingsRequest(Truncator truncator, Truncator.TruncationResult input, AzureOpenAiEmbeddingsModel model) {
         this.truncator = Objects.requireNonNull(truncator);
-        this.account = AzureOpenAiAccount.fromModel(model);
         this.truncationResult = Objects.requireNonNull(input);
         this.model = Objects.requireNonNull(model);
         this.uri = model.getUri();

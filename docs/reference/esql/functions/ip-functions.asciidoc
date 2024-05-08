@@ -1,0 +1,14 @@
+[[esql-ip-functions]]
+==== {esql} IP functions
+
+++++
+<titleabbrev>IP functions</titleabbrev>
+++++
+
+{esql} supports these IP functions:
+
+// tag::ip_list[]
+* <<esql-cidr_match>>
+// end::ip_list[]
+
+include::layout/cidr_match.asciidoc[]

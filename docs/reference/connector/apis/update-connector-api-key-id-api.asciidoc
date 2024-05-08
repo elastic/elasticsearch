@@ -4,7 +4,7 @@
 <titleabbrev>Update connector API key id</titleabbrev>
 ++++
 
-preview::[]
+beta::[]
 
 Updates the `api_key_id` and/or `api_key_secret_id` field(s) of a connector, specifying:
 

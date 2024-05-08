@@ -17,10 +17,10 @@ import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ServiceSettings;
 import org.elasticsearch.inference.SimilarityMeasure;
-import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.openai.OpenAiRateLimitServiceSettings;
+import org.elasticsearch.xpack.inference.services.settings.FilteredXContentObject;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 
 import java.io.IOException;
@@ -44,7 +44,7 @@ import static org.elasticsearch.xpack.inference.services.openai.OpenAiServiceFie
 /**
  * Defines the service settings for interacting with OpenAI's text embedding models.
  */
-public class OpenAiEmbeddingsServiceSettings implements ServiceSettings, OpenAiRateLimitServiceSettings {
+public class OpenAiEmbeddingsServiceSettings extends FilteredXContentObject implements ServiceSettings, OpenAiRateLimitServiceSettings {
 
     public static final String NAME = "openai_service_settings";
 
@@ -258,6 +258,7 @@ public class OpenAiEmbeddingsServiceSettings implements ServiceSettings, OpenAiR
         builder.startObject();
 
         toXContentFragmentOfExposedFields(builder, params);
+        rateLimitSettings.toXContent(builder, params);
 
         if (dimensionsSetByUser != null) {
             builder.field(DIMENSIONS_SET_BY_USER, dimensionsSetByUser);
@@ -267,7 +268,8 @@ public class OpenAiEmbeddingsServiceSettings implements ServiceSettings, OpenAiR
         return builder;
     }
 
-    private void toXContentFragmentOfExposedFields(XContentBuilder builder, Params params) throws IOException {
+    @Override
+    protected XContentBuilder toXContentFragmentOfExposedFields(XContentBuilder builder, Params params) throws IOException {
         builder.field(MODEL_ID, modelId);
         if (uri != null) {
             builder.field(URL, uri.toString());
@@ -284,19 +286,8 @@ public class OpenAiEmbeddingsServiceSettings implements ServiceSettings, OpenAiR
         if (maxInputTokens != null) {
             builder.field(MAX_INPUT_TOKENS, maxInputTokens);
         }
-        rateLimitSettings.toXContent(builder, params);
-    }
 
-    @Override
-    public ToXContentObject getFilteredXContentObject() {
-        return (builder, params) -> {
-            builder.startObject();
-
-            toXContentFragmentOfExposedFields(builder, params);
-
-            builder.endObject();
-            return builder;
-        };
+        return builder;
     }
 
     @Override

@@ -22,8 +22,6 @@ import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.ql.parser.CaseChangingCharStream;
 import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
 
-import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 import java.util.function.BiFunction;
 import java.util.function.Function;
@@ -35,10 +33,10 @@ public class EsqlParser {
     private static final Logger log = LogManager.getLogger(EsqlParser.class);
 
     public LogicalPlan createStatement(String query) {
-        return createStatement(query, List.of());
+        return createStatement(query, new Params());
     }
 
-    public LogicalPlan createStatement(String query, List<TypedParamValue> params) {
+    public LogicalPlan createStatement(String query, Params params) {
         if (log.isDebugEnabled()) {
             log.debug("Parsing as statement: {}", query);
         }
@@ -47,7 +45,7 @@ public class EsqlParser {
 
     private <T> T invokeParser(
         String query,
-        List<TypedParamValue> params,
+        Params params,
         Function<EsqlBaseParser, ParserRuleContext> parseFunction,
         BiFunction<AstBuilder, ParserRuleContext, T> result
     ) {
@@ -57,8 +55,8 @@ public class EsqlParser {
             lexer.removeErrorListeners();
             lexer.addErrorListener(ERROR_LISTENER);
 
-            Map<Token, TypedParamValue> paramTokens = new HashMap<>();
-            TokenSource tokenSource = new ParametrizedTokenSource(lexer, paramTokens, params);
+            Map<Token, TypedParamValue> positionalParamTokens = params.positionalParamTokens();
+            TokenSource tokenSource = new ParametrizedTokenSource(lexer, positionalParamTokens, params);
 
             CommonTokenStream tokenStream = new CommonTokenStream(tokenSource);
             EsqlBaseParser parser = new EsqlBaseParser(tokenStream);
@@ -76,7 +74,7 @@ public class EsqlParser {
                 log.trace("Parse tree: {}", tree.toStringTree());
             }
 
-            return result.apply(new AstBuilder(paramTokens), tree);
+            return result.apply(new AstBuilder(params), tree);
         } catch (StackOverflowError e) {
             throw new ParsingException("ESQL statement is too large, causing stack overflow when generating the parsing tree: [{}]", query);
         }
@@ -121,9 +119,9 @@ public class EsqlParser {
         private TokenSource delegate;
         private Map<Token, TypedParamValue> paramTokens;
         private int param;
-        private List<TypedParamValue> params;
+        private Params params;
 
-        ParametrizedTokenSource(TokenSource delegate, Map<Token, TypedParamValue> paramTokens, List<TypedParamValue> params) {
+        ParametrizedTokenSource(TokenSource delegate, Map<Token, TypedParamValue> paramTokens, Params params) {
             this.delegate = delegate;
             this.paramTokens = paramTokens;
             this.params = params;
@@ -133,13 +131,15 @@ public class EsqlParser {
         @Override
         public Token nextToken() {
             Token token = delegate.nextToken();
+
             if (token.getType() == EsqlBaseLexer.PARAM) {
-                if (param >= params.size()) {
-                    throw new ParsingException("Not enough actual parameters {}", params.size());
+                if (param >= params.positionalParams().size()) {
+                    throw new ParsingException("Not enough actual parameters {}", params.positionalParams().size());
                 }
-                paramTokens.put(token, params.get(param));
+                paramTokens.put(token, params.positionalParams().get(param));
                 param++;
             }
+
             return token;
         }
 

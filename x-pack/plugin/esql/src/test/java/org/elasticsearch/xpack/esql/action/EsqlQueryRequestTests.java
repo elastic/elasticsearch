@@ -29,6 +29,7 @@ import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.tasks.TaskInfo;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.XContentParseException;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
@@ -81,10 +82,93 @@ public class EsqlQueryRequestTests extends ESTestCase {
         assertEquals(locale, request.locale());
         assertEquals(filter, request.filter());
 
-        assertEquals(params.size(), request.params().size());
+        assertEquals(params.size(), request.params().positionalParams().size());
         for (int i = 0; i < params.size(); i++) {
-            assertEquals(params.get(i), request.params().get(i));
+            assertEquals(params.get(i), request.params().positionalParams().get(i));
         }
+    }
+
+    public void testNamedParams() throws IOException {
+        String query = randomAlphaOfLengthBetween(1, 100);
+        boolean columnar = randomBoolean();
+        Locale locale = randomLocale(random());
+        QueryBuilder filter = randomQueryBuilder();
+        EsqlVersion esqlVersion = randomFrom(EsqlVersion.values());
+
+        String paramsString = """
+            ,"params":[ {"n1" : "8.15.0" }, { "n2" : 0.05 }, {"n3" : -799810013 }, {"n4" : "127.0.0.1"}, {"n5" : "esql"}] }""";
+        List<TypedParamValue> params = new ArrayList<>(4);
+        params.add(new TypedParamValue("n1", "KEYWORD", "8.15.0", false));
+        params.add(new TypedParamValue("n2", "DOUBLE", 0.05, false));
+        params.add(new TypedParamValue("n3", "INTEGER", -799810013, false));
+        params.add(new TypedParamValue("n4", "KEYWORD", "127.0.0.1", false));
+        params.add(new TypedParamValue("n5", "KEYWORD", "esql", false));
+        String json = String.format(Locale.ROOT, """
+            {
+                "version": "%s",
+                "query": "%s",
+                "columnar": %s,
+                "locale": "%s",
+                "filter": %s
+                %s""", esqlVersion, query, columnar, locale.toLanguageTag(), filter, paramsString);
+
+        EsqlQueryRequest request = parseEsqlQueryRequestSync(json);
+
+        assertEquals(esqlVersion.toString(), request.esqlVersion());
+        assertEquals(query, request.query());
+        assertEquals(columnar, request.columnar());
+        assertEquals(locale.toLanguageTag(), request.locale().toLanguageTag());
+        assertEquals(locale, request.locale());
+        assertEquals(filter, request.filter());
+        assertEquals(5, request.params().positionalParams().size());
+
+        for (int i = 0; i < request.params().positionalParams().size(); i++) {
+            assertEquals(params.get(i), request.params().positionalParams().get(i));
+        }
+    }
+
+    public void testBothNamedUnnamedParams() throws IOException {
+        String query = randomAlphaOfLengthBetween(1, 100);
+        boolean columnar = randomBoolean();
+        Locale locale = randomLocale(random());
+        QueryBuilder filter = randomQueryBuilder();
+        EsqlVersion esqlVersion = randomFrom(EsqlVersion.values());
+
+        String paramsString = """
+            ,"params":[ {"n1" : "v1" }, {"type" : "integer", "value" : 1}] }""";
+        String json = String.format(Locale.ROOT, """
+            {
+                "version": "%s",
+                "query": "%s",
+                "columnar": %s,
+                "locale": "%s",
+                "filter": %s
+                %s""", esqlVersion, query, columnar, locale.toLanguageTag(), filter, paramsString);
+
+        Exception e = expectThrows(XContentParseException.class, () -> parseEsqlQueryRequestSync(json));
+        assertThat(e.getMessage(), containsString("failed to parse field [params]"));
+    }
+
+    public void testInvalidNamedParams() throws IOException {
+        String query = randomAlphaOfLengthBetween(1, 100);
+        boolean columnar = randomBoolean();
+        Locale locale = randomLocale(random());
+        QueryBuilder filter = randomQueryBuilder();
+        EsqlVersion esqlVersion = randomFrom(EsqlVersion.values());
+
+        String paramsString = """
+            ,"params":[ {"1" : "v1" }] }""";
+        String json = String.format(Locale.ROOT, """
+            {
+                "version": "%s",
+                "query": "%s",
+                "columnar": %s,
+                "locale": "%s",
+                "filter": %s
+                %s""", esqlVersion, query, columnar, locale.toLanguageTag(), filter, paramsString);
+
+        Exception e = expectThrows(XContentParseException.class, () -> parseEsqlQueryRequestSync(json));
+        assertThat(e.getMessage(), containsString("failed to parse field [params]"));
     }
 
     public void testParseFieldsForAsync() throws IOException {
@@ -136,9 +220,9 @@ public class EsqlQueryRequestTests extends ESTestCase {
         assertEquals(waitForCompletion, request.waitForCompletionTimeout());
         assertEquals(keepAlive, request.keepAlive());
 
-        assertEquals(params.size(), request.params().size());
+        assertEquals(params.size(), request.params().positionalParams().size());
         for (int i = 0; i < params.size(); i++) {
-            assertEquals(params.get(i), request.params().get(i));
+            assertEquals(params.get(i), request.params().positionalParams().get(i));
         }
     }
 
@@ -473,12 +557,12 @@ public class EsqlQueryRequestTests extends ESTestCase {
                 boolean hasExplicitType = randomBoolean();
                 @SuppressWarnings("unchecked")
                 Supplier<TypedParamValue> supplier = randomFrom(
-                    () -> new TypedParamValue("boolean", randomBoolean(), hasExplicitType),
-                    () -> new TypedParamValue("integer", randomInt(), hasExplicitType),
-                    () -> new TypedParamValue("long", randomLong(), hasExplicitType),
-                    () -> new TypedParamValue("double", randomDouble(), hasExplicitType),
-                    () -> new TypedParamValue("null", null, hasExplicitType),
-                    () -> new TypedParamValue("keyword", randomAlphaOfLength(10), hasExplicitType)
+                    () -> new TypedParamValue(null, "boolean", randomBoolean(), hasExplicitType),
+                    () -> new TypedParamValue(null, "integer", randomInt(), hasExplicitType),
+                    () -> new TypedParamValue(null, "long", randomLong(), hasExplicitType),
+                    () -> new TypedParamValue(null, "double", randomDouble(), hasExplicitType),
+                    () -> new TypedParamValue(null, "null", null, hasExplicitType),
+                    () -> new TypedParamValue(null, "keyword", randomAlphaOfLength(10), hasExplicitType)
                 );
                 arr.add(supplier.get());
             }

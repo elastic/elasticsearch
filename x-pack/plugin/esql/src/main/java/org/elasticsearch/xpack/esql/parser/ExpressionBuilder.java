@@ -69,7 +69,6 @@ import java.time.temporal.TemporalAmount;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
-import java.util.Map;
 import java.util.function.BiFunction;
 
 import static java.util.Collections.singletonList;
@@ -94,9 +93,9 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
      */
     public static final int MAX_EXPRESSION_DEPTH = 500;
 
-    private final Map<Token, TypedParamValue> params;
+    private final Params params;
 
-    ExpressionBuilder(Map<Token, TypedParamValue> params) {
+    ExpressionBuilder(Params params) {
         this.params = params;
     }
 
@@ -659,8 +658,24 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
     }
 
     @Override
+    public Object visitInputNamedParam(EsqlBaseParser.InputNamedParamContext ctx) {
+        TypedParamValue param = paramByName(ctx.NAMED_PARAM());
+        return visitParam(ctx, param);
+    }
+
+    @Override
     public Object visitInputParam(EsqlBaseParser.InputParamContext ctx) {
-        TypedParamValue param = param(ctx.PARAM());
+        TypedParamValue param = paramByToken(ctx.PARAM());
+        return visitParam(ctx, param);
+    }
+
+    @Override
+    public Object visitInputPositionalParam(EsqlBaseParser.InputPositionalParamContext ctx) {
+        TypedParamValue param = paramByPosition(ctx.POSITIONAL_PARAM());
+        return visitParam(ctx, param);
+    }
+
+    private Object visitParam(EsqlBaseParser.ConstantContext ctx, TypedParamValue param) {
         DataType dataType = EsqlDataTypes.fromTypeName(param.type);
         Source source = source(ctx);
         if (dataType == null) {
@@ -688,7 +703,6 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
         }
         // otherwise we need to make sure that xcontent-serialized value is converted to the correct type
         try {
-
             if (EsqlDataTypeConverter.canConvert(sourceType, dataType) == false) {
                 throw new ParsingException(
                     source,
@@ -704,18 +718,38 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
         }
     }
 
-    private TypedParamValue param(TerminalNode node) {
+    TypedParamValue paramByToken(TerminalNode node) {
         if (node == null) {
             return null;
         }
-
         Token token = node.getSymbol();
-
-        if (params.containsKey(token) == false) {
+        if (params.containsTokenLocation(token) == false) {
             throw new ParsingException(source(node), "Unexpected parameter");
         }
+        return params.getParamByTokenLocation(token);
+    }
 
-        return params.get(token);
+    TypedParamValue paramByName(TerminalNode node) {
+        if (node == null) {
+            return null;
+        }
+        Token token = node.getSymbol();
+        if (params.containsParamName(token.getText().substring(1)) == false) {
+            throw new ParsingException(source(node), "Unexpected parameter ?" + token.getText().substring(1));
+        }
+        return params.getParamByName(token.getText().substring(1));
+    }
+
+    TypedParamValue paramByPosition(TerminalNode node) {
+        if (node == null) {
+            return null;
+        }
+        Token token = node.getSymbol();
+        int index = Integer.parseInt(token.getText().substring(1));
+        if (params.paramByPosition(index) == null) {
+            throw new ParsingException(source(node), "Unexpected parameter ?" + index);
+        }
+        return params.paramByPosition(index);
     }
 
 }

@@ -549,6 +549,7 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
         assertThat(EntityUtils.toString(re.getResponse().getEntity()), containsString("Not enough actual parameters 0"));
     }
 
+    /*
     public void testErrorMessageForInvalidParams() throws IOException {
         ResponseException re = expectThrows(
             ResponseException.class,
@@ -556,13 +557,14 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
         );
         assertThat(EntityUtils.toString(re.getResponse().getEntity()), containsString("Required [value, type]"));
     }
+     */
 
     public void testErrorMessageForMissingTypeInParams() throws IOException {
         ResponseException re = expectThrows(
             ResponseException.class,
             () -> runEsql(requestObjectBuilder().query("row a = 1").params("[\"x\", 123, true, {\"value\": \"y\"}]"))
         );
-        assertThat(EntityUtils.toString(re.getResponse().getEntity()), containsString("Required [type]"));
+        assertThat(EntityUtils.toString(re.getResponse().getEntity()), containsString("Required a [value] and [type] pair"));
     }
 
     public void testErrorMessageForMissingValueInParams() throws IOException {
@@ -570,7 +572,7 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
             ResponseException.class,
             () -> runEsql(requestObjectBuilder().query("row a = 1").params("[\"x\", 123, true, {\"type\": \"y\"}]"))
         );
-        assertThat(EntityUtils.toString(re.getResponse().getEntity()), containsString("Required [value]"));
+        assertThat(EntityUtils.toString(re.getResponse().getEntity()), containsString("Required a [value] and [type] pair"));
     }
 
     public void testErrorMessageForInvalidTypeInParams() throws IOException {

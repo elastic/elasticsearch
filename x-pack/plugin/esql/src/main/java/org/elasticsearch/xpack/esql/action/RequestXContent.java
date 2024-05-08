@@ -10,40 +10,76 @@ package org.elasticsearch.xpack.esql.action;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
-import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentLocation;
 import org.elasticsearch.xcontent.XContentParseException;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.esql.parser.ContentLocation;
+import org.elasticsearch.xpack.esql.parser.Params;
 import org.elasticsearch.xpack.esql.parser.TypedParamValue;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
+import org.elasticsearch.xpack.ql.InvalidArgumentException;
+import org.elasticsearch.xpack.ql.QlIllegalArgumentException;
+import org.elasticsearch.xpack.ql.type.DataType;
+import org.elasticsearch.xpack.ql.type.DataTypes;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.common.xcontent.XContentParserUtils.parseFieldsValue;
-import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
-import static org.elasticsearch.xcontent.ObjectParser.ValueType.VALUE_ARRAY;
+import static org.elasticsearch.xcontent.ObjectParser.ValueType.VALUE_OBJECT_ARRAY;
 
 /** Static methods for parsing xcontent requests to transport requests. */
 final class RequestXContent {
 
-    private static final ConstructingObjectParser<TypedParamValue, Void> PARAM_PARSER = new ConstructingObjectParser<>(
+    private static class TempObjects {
+        String type = null;
+        Object value = null;
+        Map<String, Object> fields = new HashMap<>();
+
+        TempObjects() {}
+
+        void addField(String key, Object value) {
+            fields.put(key, value);
+        }
+
+        Map<String, Object> getFields() {
+            return fields;
+        }
+
+        void setType(String type) {
+            this.type = type;
+        }
+
+        void setValue(Object value) {
+            this.value = value;
+        }
+
+        void reset() {
+            this.type = null;
+            this.value = null;
+            this.fields.clear();
+        }
+    }
+
+    private static final ObjectParser<TempObjects, Void> PARAM_PARSER = new ObjectParser<>(
         "params",
-        true,
-        objects -> new TypedParamValue((String) objects[1], objects[0])
+        TempObjects::addField,
+        TempObjects::new
     );
+
     private static final ParseField VALUE = new ParseField("value");
     private static final ParseField TYPE = new ParseField("type");
 
     static {
-        PARAM_PARSER.declareField(constructorArg(), (p, c) -> parseFieldsValue(p), VALUE, ObjectParser.ValueType.VALUE);
-        PARAM_PARSER.declareString(constructorArg(), TYPE);
+        PARAM_PARSER.declareField(TempObjects::setValue, (p, c) -> parseFieldsValue(p), VALUE, ObjectParser.ValueType.VALUE);
+        PARAM_PARSER.declareString(TempObjects::setType, TYPE);
     }
 
     static final ParseField ESQL_VERSION_FIELD = new ParseField("version");
@@ -83,7 +119,7 @@ final class RequestXContent {
             (p, c) -> new QueryPragmas(Settings.builder().loadFromMap(p.map()).build()),
             PRAGMA_FIELD
         );
-        parser.declareField(EsqlQueryRequest::params, RequestXContent::parseParams, PARAMS_FIELD, VALUE_ARRAY);
+        parser.declareField(EsqlQueryRequest::params, RequestXContent::parseParams, PARAMS_FIELD, VALUE_OBJECT_ARRAY);
         parser.declareString((request, localeTag) -> request.locale(Locale.forLanguageTag(localeTag)), LOCALE_FIELD);
         parser.declareBoolean(EsqlQueryRequest::profile, PROFILE_FIELD);
         parser.declareField((p, r, c) -> new ParseTables(r, p).parseTables(), TABLES_FIELD, ObjectParser.ValueType.OBJECT);
@@ -114,22 +150,56 @@ final class RequestXContent {
         return parser;
     }
 
-    private static List<TypedParamValue> parseParams(XContentParser p) throws IOException {
+    private static Params parseParams(XContentParser p) throws IOException {
         List<TypedParamValue> result = new ArrayList<>();
         XContentParser.Token token = p.currentToken();
+        boolean namedParameter = false;
+        boolean unnamedParameter = false;
 
         if (token == XContentParser.Token.START_ARRAY) {
             Object value = null;
             String type = null;
             TypedParamValue previousParam = null;
-            TypedParamValue currentParam;
+            TypedParamValue currentParam = null;
+            TempObjects param;
+            DataType dataType = DataTypes.KEYWORD;
 
             while ((token = p.nextToken()) != XContentParser.Token.END_ARRAY) {
                 XContentLocation loc = p.getTokenLocation();
 
                 if (token == XContentParser.Token.START_OBJECT) {
                     // we are at the start of a value/type pair... hopefully
-                    currentParam = PARAM_PARSER.apply(p, null);
+                    param = PARAM_PARSER.apply(p, null);
+                    assert param.getFields().size() <= 1;
+                    if (param.getFields().size() == 0) {
+                        // value and type should be specified as a pair
+                        if ((param.type != null && param.value == null) || (param.value != null && param.type == null)) {
+                            throw new InvalidArgumentException("Required a [value] and [type] pair");
+                        }
+                        currentParam = new TypedParamValue(null, param.type, param.value);
+                        unnamedParameter = true;
+                    } else {
+                        for (Map.Entry<String, Object> entry : param.fields.entrySet()) {
+                            // don't allow integer as a key
+                            if (entry.getKey().matches("[0-9]+")) {
+                                throw new InvalidArgumentException("Integer " + entry.getKey() + " is not a valid name for a parameter ");
+                            }
+                            try {
+                                dataType = DataTypes.fromJava(entry.getValue());
+                            } catch (QlIllegalArgumentException ex) {
+                                throw new InvalidArgumentException(
+                                    "Unexpected actual parameter type [" + param.value.getClass().getName() + "] " + ex.getMessage()
+                                );
+                            }
+                            currentParam = new TypedParamValue(
+                                entry.getKey(),
+                                dataType == null ? DataTypes.KEYWORD.toString() : dataType.toString(),
+                                entry.getValue(),
+                                false
+                            );
+                        }
+                        namedParameter = true;
+                    }
                     /*
                      * Always set the xcontentlocation for the first param just in case the first one happens to not meet the parsing rules
                      * that are checked later in validateParams method.
@@ -165,10 +235,11 @@ final class RequestXContent {
                         throw new XContentParseException(loc, "Failed to parse object: unexpected token [" + token + "] found");
                     }
 
-                    currentParam = new TypedParamValue(type, value, false);
+                    currentParam = new TypedParamValue(null, type, value, false);
                     if ((previousParam != null && previousParam.hasExplicitType()) || result.isEmpty()) {
                         currentParam.tokenLocation(toProto(loc));
                     }
+                    unnamedParameter = true;
                 }
 
                 result.add(currentParam);
@@ -176,20 +247,24 @@ final class RequestXContent {
             }
         }
 
-        return result;
+        if (unnamedParameter && namedParameter) {
+            throw new InvalidArgumentException("Params contain both named and unnamed parameters");
+        }
+
+        return new Params(result);
     }
 
-    static ContentLocation toProto(org.elasticsearch.xcontent.XContentLocation toProto) {
+    static ContentLocation toProto(XContentLocation toProto) {
         if (toProto == null) {
             return null;
         }
         return new ContentLocation(toProto.lineNumber(), toProto.columnNumber());
     }
 
-    static org.elasticsearch.xcontent.XContentLocation fromProto(ContentLocation fromProto) {
+    static XContentLocation fromProto(ContentLocation fromProto) {
         if (fromProto == null) {
             return null;
         }
-        return new org.elasticsearch.xcontent.XContentLocation(fromProto.lineNumber, fromProto.columnNumber);
+        return new XContentLocation(fromProto.lineNumber, fromProto.columnNumber);
     }
 }

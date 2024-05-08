@@ -324,6 +324,20 @@ public interface EsqlBaseParserVisitor<T> extends ParseTreeVisitor<T> {
    */
   T visitInputParam(EsqlBaseParser.InputParamContext ctx);
   /**
+   * Visit a parse tree produced by the {@code inputNamedParam}
+   * labeled alternative in {@link EsqlBaseParser#constant}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitInputNamedParam(EsqlBaseParser.InputNamedParamContext ctx);
+  /**
+   * Visit a parse tree produced by the {@code inputPositionalParam}
+   * labeled alternative in {@link EsqlBaseParser#constant}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitInputPositionalParam(EsqlBaseParser.InputPositionalParamContext ctx);
+  /**
    * Visit a parse tree produced by the {@code stringLiteral}
    * labeled alternative in {@link EsqlBaseParser#constant}.
    * @param ctx the parse tree
@@ -357,6 +371,24 @@ public interface EsqlBaseParserVisitor<T> extends ParseTreeVisitor<T> {
    * @return the visitor result
    */
   T visitLimitCommand(EsqlBaseParser.LimitCommandContext ctx);
+  /**
+   * Visit a parse tree produced by {@link EsqlBaseParser#limitCommand_PARAM}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitLimitCommand_PARAM(EsqlBaseParser.LimitCommand_PARAMContext ctx);
+  /**
+   * Visit a parse tree produced by {@link EsqlBaseParser#limitCommand_NAMED_PARAM}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitLimitCommand_NAMED_PARAM(EsqlBaseParser.LimitCommand_NAMED_PARAMContext ctx);
+  /**
+   * Visit a parse tree produced by {@link EsqlBaseParser#limitCommand_POSITIONAL_PARAM}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitLimitCommand_POSITIONAL_PARAM(EsqlBaseParser.LimitCommand_POSITIONAL_PARAMContext ctx);
   /**
    * Visit a parse tree produced by {@link EsqlBaseParser#sortCommand}.
    * @param ctx the parse tree

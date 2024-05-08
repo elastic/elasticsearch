@@ -83,7 +83,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
      */
     public static final int MAX_QUERY_DEPTH = 500;
 
-    public LogicalPlanBuilder(Map<Token, TypedParamValue> params) {
+    public LogicalPlanBuilder(Params params) {
         super(params);
     }
 
@@ -305,6 +305,29 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
     public PlanFactory visitLimitCommand(EsqlBaseParser.LimitCommandContext ctx) {
         Source source = source(ctx);
         int limit = stringToInt(ctx.INTEGER_LITERAL().getText());
+        return input -> new Limit(source, new Literal(source, limit, DataTypes.INTEGER), input);
+    }
+
+    @Override
+    public PlanFactory visitLimitCommand_PARAM(EsqlBaseParser.LimitCommand_PARAMContext ctx) {
+        Source source = source(ctx);
+        TypedParamValue param = paramByToken(ctx.PARAM());
+        int limit = stringToInt(String.valueOf(param.value));
+        return input -> new Limit(source, new Literal(source, limit, DataTypes.INTEGER), input);
+    }
+
+    @Override
+    public PlanFactory visitLimitCommand_NAMED_PARAM(EsqlBaseParser.LimitCommand_NAMED_PARAMContext ctx) {
+        Source source = source(ctx);
+        TypedParamValue param = paramByName(ctx.NAMED_PARAM());
+        int limit = stringToInt(String.valueOf(param.value));
+        return input -> new Limit(source, new Literal(source, limit, DataTypes.INTEGER), input);
+    }
+
+    public PlanFactory visitLimitCommand_POSITIONAL_PARAM(EsqlBaseParser.LimitCommand_POSITIONAL_PARAMContext ctx) {
+        Source source = source(ctx);
+        TypedParamValue param = paramByPosition(ctx.POSITIONAL_PARAM());
+        int limit = stringToInt(String.valueOf(param.value));
         return input -> new Limit(source, new Literal(source, limit, DataTypes.INTEGER), input);
     }
 

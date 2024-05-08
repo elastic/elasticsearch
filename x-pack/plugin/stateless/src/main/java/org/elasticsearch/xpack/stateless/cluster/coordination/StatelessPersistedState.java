@@ -70,10 +70,15 @@ class StatelessPersistedState extends GatewayMetaState.LucenePersistedState {
     private final Logger logger = LogManager.getLogger(StatelessPersistedState.class);
     private final LongFunction<BlobContainer> blobContainerSupplier;
     private final PersistedClusterStateService persistedClusterStateService;
-    private final ThrottledTaskRunner throttledTaskRunner;
     private final Executor executor;
     private final Path clusterStateReadStagingPath;
     private final StatelessElectionStrategy statelessElectionStrategy;
+
+    // used to ensure only one state is being read at once
+    private final ThrottledTaskRunner readStateTaskRunner;
+
+    // used to limit the number of concurrent file downloads
+    private final ThrottledTaskRunner readFileTaskRunner;
 
     StatelessPersistedState(
         PersistedClusterStateService persistedClusterStateService,
@@ -86,11 +91,12 @@ class StatelessPersistedState extends GatewayMetaState.LucenePersistedState {
         super(persistedClusterStateService, lastAcceptedState.term(), lastAcceptedState);
         this.blobContainerSupplier = blobContainerSupplier;
         this.persistedClusterStateService = persistedClusterStateService;
-
-        this.throttledTaskRunner = new ThrottledTaskRunner("cluster_state_downloader", 5, executor);
         this.executor = executor;
         this.clusterStateReadStagingPath = clusterStateReadStagingPath;
         this.statelessElectionStrategy = statelessElectionStrategy;
+
+        this.readStateTaskRunner = new ThrottledTaskRunner("cluster_state_downloader", 1, executor);
+        this.readFileTaskRunner = new ThrottledTaskRunner("cluster_state_file_downloader", 5, executor);
     }
 
     @Override
@@ -117,6 +123,15 @@ class StatelessPersistedState extends GatewayMetaState.LucenePersistedState {
 
     // visible for testing
     void readLatestClusterStateForTerm(long termTarget, ActionListener<Optional<PersistedClusterState>> listener) {
+        readStateTaskRunner.enqueueTask(
+            listener.delegateFailureAndWrap(
+                (l, r) -> readLatestClusterStateForTermSingleThreaded(termTarget, ActionListener.releaseAfter(l, r))
+            )
+        );
+    }
+
+    // 'single-threaded' because it's executed using readStateTaskRunner which has a concurrency limit of 1
+    private void readLatestClusterStateForTermSingleThreaded(long termTarget, ActionListener<Optional<PersistedClusterState>> listener) {
         final var termBlobContainer = blobContainerSupplier.apply(termTarget);
         try (Directory termDirectory = new TermBlobDirectory(termBlobContainer)) {
             final var files = SegmentInfos.readLatestCommit(termDirectory).files(true);
@@ -146,7 +161,7 @@ class StatelessPersistedState extends GatewayMetaState.LucenePersistedState {
             .<Void>newForked(l -> {
                 try (var refCountingListener = new RefCountingListener(new ThreadedActionListener<>(executor, l))) {
                     for (String file : files) {
-                        throttledTaskRunner.enqueueTask(refCountingListener.acquire().map(r -> {
+                        readFileTaskRunner.enqueueTask(refCountingListener.acquire().map(r -> {
                             // TODO: retry
                             try (r; var inputStream = termBlobContainer.readBlob(OperationPurpose.CLUSTER_STATE, file)) {
                                 Streams.copy(
@@ -184,7 +199,7 @@ class StatelessPersistedState extends GatewayMetaState.LucenePersistedState {
             return;
         }
 
-        throttledTaskRunner.enqueueTask(new DelegatingActionListener<>(listener) {
+        readFileTaskRunner.enqueueTask(new DelegatingActionListener<>(listener) {
             @Override
             public void onResponse(Releasable releasable) {
                 BlobContainer blobContainer = blobContainerSupplier.apply(targetTerm);
@@ -375,10 +390,6 @@ class StatelessPersistedState extends GatewayMetaState.LucenePersistedState {
         public void close() throws IOException {
             super.close();
             IOUtils.rm(stagingDirectory);
-        }
-
-        public Path getPath() {
-            return stagingDirectory;
         }
     }
 }

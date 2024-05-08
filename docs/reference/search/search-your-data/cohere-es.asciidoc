@@ -337,7 +337,28 @@ using Cohere's newest generative model
 https://docs.cohere.com/docs/command-r-plus[Command R+].
 
 Then pass in the query and the documents to the Chat API, and print out the
-response. It will look similar to this:
+response. 
+
+[source,py]
+--------------------------------------------------
+response = co.chat(message=query, documents=ranked_documents, model='command-r-plus')
+
+source_documents = []
+for citation in response.citations:
+    for document_id in citation.document_ids:
+        if document_id not in source_documents:
+            source_documents.append(document_id)
+
+print(f"Query: {query}")
+print(f"Response: {response.text}")
+print("Sources:")
+for document in response.documents:
+    if document['id'] in source_documents:
+        print(f"{document['title']}: {document['text']}")
+
+--------------------------------------------------
+
+The response will look similar to this:
 
 [source,consol-result]
 --------------------------------------------------

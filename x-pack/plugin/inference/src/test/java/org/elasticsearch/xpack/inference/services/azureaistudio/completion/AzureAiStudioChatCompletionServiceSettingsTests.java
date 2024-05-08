@@ -116,7 +116,7 @@ public class AzureAiStudioChatCompletionServiceSettingsTests extends ESTestCase 
             "rate_limit":{"requests_per_minute":3}}"""));
     }
 
-    private static HashMap<String, Object> createRequestSettingsMap(String target, String provider, String endpointType) {
+    public static HashMap<String, Object> createRequestSettingsMap(String target, String provider, String endpointType) {
         return new HashMap<>(Map.of(TARGET_FIELD, target, PROVIDER_FIELD, provider, ENDPOINT_TYPE_FIELD, endpointType));
     }
 }

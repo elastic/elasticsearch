@@ -298,7 +298,7 @@ public class AzureAiStudioEmbeddingsServiceSettingsTests extends ESTestCase {
             "rate_limit":{"requests_per_minute":3},"dimensions":1024,"max_input_tokens":512}"""));
     }
 
-    private static HashMap<String, Object> createRequestSettingsMap(
+    public static HashMap<String, Object> createRequestSettingsMap(
         String target,
         String provider,
         String endpointType,

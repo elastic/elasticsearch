@@ -34,6 +34,7 @@ import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.SenderService;
 import org.elasticsearch.xpack.inference.services.ServiceComponents;
+import org.elasticsearch.xpack.inference.services.ServiceUtils;
 import org.elasticsearch.xpack.inference.services.azureaistudio.completion.AzureAiStudioChatCompletionModel;
 import org.elasticsearch.xpack.inference.services.azureaistudio.embeddings.AzureAiStudioEmbeddingsModel;
 import org.elasticsearch.xpack.inference.services.azureaistudio.embeddings.AzureAiStudioEmbeddingsServiceSettings;
@@ -53,7 +54,7 @@ import static org.elasticsearch.xpack.inference.services.azureaistudio.AzureAiSt
 
 public class AzureAiStudioService extends SenderService {
 
-    private static final String NAME = "azureaistudio_service";
+    private static final String NAME = "azureaistudio";
 
     public AzureAiStudioService(HttpRequestSender.Factory factory, ServiceComponents serviceComponents) {
         super(factory, serviceComponents);
@@ -212,8 +213,9 @@ public class AzureAiStudioService extends SenderService {
         String failureMessage,
         ConfigurationParseContext context
     ) {
+
         if (taskType == TaskType.TEXT_EMBEDDING) {
-            return new AzureAiStudioEmbeddingsModel(
+            var embeddingsModel = new AzureAiStudioEmbeddingsModel(
                 inferenceEntityId,
                 taskType,
                 NAME,
@@ -222,10 +224,16 @@ public class AzureAiStudioService extends SenderService {
                 secretSettings,
                 context
             );
+            checkProviderAndEndpointTypeForTask(
+                TaskType.TEXT_EMBEDDING,
+                embeddingsModel.getServiceSettings().provider(),
+                embeddingsModel.getServiceSettings().endpointType()
+            );
+            return embeddingsModel;
         }
 
         if (taskType == TaskType.COMPLETION) {
-            return new AzureAiStudioChatCompletionModel(
+            var completionModel = new AzureAiStudioChatCompletionModel(
                 inferenceEntityId,
                 taskType,
                 NAME,
@@ -234,6 +242,12 @@ public class AzureAiStudioService extends SenderService {
                 secretSettings,
                 context
             );
+            checkProviderAndEndpointTypeForTask(
+                TaskType.COMPLETION,
+                completionModel.getServiceSettings().provider(),
+                completionModel.getServiceSettings().endpointType()
+            );
+            return completionModel;
         }
 
         throw new ElasticsearchStatusException(failureMessage, RestStatus.BAD_REQUEST);
@@ -261,21 +275,33 @@ public class AzureAiStudioService extends SenderService {
     @Override
     public void checkModelConfig(Model model, ActionListener<Model> listener) {
         if (model instanceof AzureAiStudioEmbeddingsModel embeddingsModel) {
-            listener.delegateFailureAndWrap((l, discard) -> l.onResponse(checkEmbeddingModelConfig(embeddingsModel)));
+            ServiceUtils.getEmbeddingSize(
+                model,
+                this,
+                listener.delegateFailureAndWrap((l, size) -> l.onResponse(updateEmbeddingModelConfig(embeddingsModel, size)))
+            );
         } else if (model instanceof AzureAiStudioChatCompletionModel completionModel) {
-            listener.delegateFailureAndWrap((l, discard) -> l.onResponse(checkChatCompletionModelConfig(completionModel)));
+            listener.delegateFailureAndWrap((l, _discard) -> l.onResponse(updateChatCompletionModelConfig(completionModel)));
         } else {
             listener.onResponse(model);
         }
     }
 
-    private AzureAiStudioEmbeddingsModel checkEmbeddingModelConfig(AzureAiStudioEmbeddingsModel embeddingsModel) {
-        var provider = embeddingsModel.getServiceSettings().provider();
-        var endpointType = embeddingsModel.getServiceSettings().endpointType();
-
-        checkProviderAndEndpointTypeForTask(TaskType.TEXT_EMBEDDING, provider, endpointType);
-
-        // TODO -- dimensions
+    private AzureAiStudioEmbeddingsModel updateEmbeddingModelConfig(AzureAiStudioEmbeddingsModel embeddingsModel, int embeddingsSize) {
+        if (embeddingsModel.getServiceSettings().dimensionsSetByUser()
+            && embeddingsModel.getServiceSettings().dimensions() != null
+            && embeddingsModel.getServiceSettings().dimensions() != embeddingsSize) {
+            throw new ElasticsearchStatusException(
+                Strings.format(
+                    "The retrieved embeddings size [%s] does not match the size specified in the settings [%s]. "
+                        + "Please recreate the [%s] configuration with the correct dimensions",
+                    embeddingsSize,
+                    embeddingsModel.getServiceSettings().dimensions(),
+                    embeddingsModel.getConfigurations().getInferenceEntityId()
+                ),
+                RestStatus.BAD_REQUEST
+            );
+        }
 
         var similarityFromModel = embeddingsModel.getServiceSettings().similarity();
         var similarityToUse = similarityFromModel == null ? SimilarityMeasure.DOT_PRODUCT : similarityFromModel;
@@ -294,18 +320,12 @@ public class AzureAiStudioService extends SenderService {
         return new AzureAiStudioEmbeddingsModel(embeddingsModel, serviceSettings);
     }
 
-    private AzureAiStudioChatCompletionModel checkChatCompletionModelConfig(AzureAiStudioChatCompletionModel completionModel) {
-        var provider = completionModel.getServiceSettings().provider();
-        var endpointType = completionModel.getServiceSettings().endpointType();
-
-        checkProviderAndEndpointTypeForTask(TaskType.COMPLETION, provider, endpointType);
-
-        // TODO - set any defaults
-
+    private AzureAiStudioChatCompletionModel updateChatCompletionModelConfig(AzureAiStudioChatCompletionModel completionModel) {
+        // nothing to check on retrieval
         return completionModel;
     }
 
-    private void checkProviderAndEndpointTypeForTask(
+    private static void checkProviderAndEndpointTypeForTask(
         TaskType taskType,
         AzureAiStudioProvider provider,
         AzureAiStudioEndpointType endpointType
@@ -320,7 +340,7 @@ public class AzureAiStudioService extends SenderService {
         if (providerAllowsEndpointTypeForTask(provider, taskType, endpointType) == false) {
             throw new ElasticsearchStatusException(
                 Strings.format(
-                    "The [%s] endpoint type for [%s] task type for provider [%s] is not available",
+                    "The [%s] endpoint type with [%s] task type for provider [%s] is not available",
                     endpointType,
                     taskType,
                     provider

@@ -9,9 +9,10 @@
 package org.elasticsearch.plugins.internal;
 
 import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.index.mapper.LuceneDocument;
+import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.plugins.IngestPlugin;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.plugins.internal.document_size.spi.DocumentSizeAccumulator;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xcontent.FilterXContentParserWrapper;
 import org.elasticsearch.xcontent.XContentParser;
@@ -87,8 +88,13 @@ public class DocumentSizeObserverIT extends ESIntegTestCase {
                 }
 
                 @Override
-                public DocumentSizeReporter getDocumentParsingReporter(String indexName, boolean isTimeSeries) {
+                public DocumentSizeReporter getDocumentParsingReporter(String indexName, DocumentSizeAccumulator documentSizeAccumulator) {
                     return new TestDocumentSizeReporter(indexName);
+                }
+
+                @Override
+                public DocumentSizeAccumulator getDocumentSizeAccumulator() {
+                    return DocumentSizeAccumulator.EMPTY_INSTANCE;
                 }
             };
         }
@@ -103,14 +109,15 @@ public class DocumentSizeObserverIT extends ESIntegTestCase {
         }
 
         @Override
-        public void onIndexingCompleted(long normalizedBytesParsed) {
-            assertThat(indexName, equalTo(TEST_INDEX_NAME));
-            assertThat(normalizedBytesParsed, equalTo(5L));
+        public void onParsingCompleted(ParsedDocument parsedDocument) {
+
         }
 
         @Override
-        public void onParsingCompleted(LuceneDocument luceneDocument, long normalizedBytesParsed) {
-
+        public void onIndexingCompleted(ParsedDocument parsedDocument) {
+            DocumentSizeObserver documentSizeObserver = parsedDocument.getDocumentSizeObserver();
+            assertThat(indexName, equalTo(TEST_INDEX_NAME));
+            assertThat(documentSizeObserver.normalisedBytesParsed(), equalTo(1L));
         }
     }
 

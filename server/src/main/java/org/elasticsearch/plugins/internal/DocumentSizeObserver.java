@@ -43,4 +43,5 @@ public interface DocumentSizeObserver {
      * @return a number representing a state parsed
      */
     long normalisedBytesParsed();
+
 }

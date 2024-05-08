@@ -8,6 +8,8 @@
 
 package org.elasticsearch.plugins.internal;
 
+import org.elasticsearch.plugins.internal.document_size.spi.DocumentSizeAccumulator;
+
 /**
  * An interface to provide instances of document parsing observer and reporter
  */
@@ -19,8 +21,13 @@ public interface DocumentParsingProvider {
         }
 
         @Override
-        public DocumentSizeReporter getDocumentParsingReporter(String indexName, boolean isTimeSeries) {
+        public DocumentSizeReporter getDocumentParsingReporter(String indexName, DocumentSizeAccumulator documentSizeAccumulator) {
             return DocumentSizeReporter.EMPTY_INSTANCE;
+        }
+
+        @Override
+        public DocumentSizeAccumulator getDocumentSizeAccumulator() {
+            return DocumentSizeAccumulator.EMPTY_INSTANCE;
         }
 
         @Override
@@ -42,6 +49,7 @@ public interface DocumentParsingProvider {
     /**
      * @return an instance of a reporter to use when parsing has been completed and indexing successful
      */
-    DocumentSizeReporter getDocumentParsingReporter(String indexName, boolean isTimeSeries);
+    DocumentSizeReporter getDocumentParsingReporter(String indexName, DocumentSizeAccumulator documentSizeAccumulator);
 
+    DocumentSizeAccumulator getDocumentSizeAccumulator();
 }

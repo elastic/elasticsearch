@@ -60,7 +60,6 @@ import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.node.NodeClosedException;
 import org.elasticsearch.plugins.internal.DocumentParsingProvider;
 import org.elasticsearch.plugins.internal.DocumentSizeObserver;
-import org.elasticsearch.plugins.internal.DocumentSizeReporter;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportService;
@@ -461,9 +460,9 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
      * or return a new DocumentSizeObserver that will be used when parsing.
      */
     private static DocumentSizeObserver getDocumentSizeObserver(DocumentParsingProvider documentParsingProvider, IndexRequest request) {
-        if (request.getNormalisedBytesParsed() != -1) { // todo
+        if (request.getNormalisedBytesParsed() > 0) {  // parsing already happened
             return documentParsingProvider.newFixedSizeDocumentObserver(request.getNormalisedBytesParsed());
-        } else if (request.getNormalisedBytesParsed() == 0) {
+        } else if (request.getNormalisedBytesParsed() == 0) { // indicator that there is no need to parse
             return DocumentSizeObserver.EMPTY_INSTANCE;
         }
         return documentParsingProvider.newDocumentSizeObserver();
@@ -486,11 +485,11 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
         final boolean isUpdate = opType == DocWriteRequest.OpType.UPDATE;
         final BulkItemResponse executionResult = context.getExecutionResult();
         final boolean isFailed = executionResult.isFailed();
-        if (isFailed == false && opType != DocWriteRequest.OpType.DELETE) {
-            DocumentSizeReporter documentSizeReporter = documentParsingProvider.getDocumentParsingReporter(docWriteRequest.index(), false);
-            DocumentSizeObserver documentSizeObserver = context.getDocumentSizeObserver();
-            documentSizeReporter.onIndexingCompleted(documentSizeObserver.normalisedBytesParsed());
-        }
+        // if (isFailed == false && opType != DocWriteRequest.OpType.DELETE) {
+        //// DocumentSizeReporter documentSizeReporter = documentParsingProvider.getDocumentParsingReporter(docWriteRequest.index(), false);
+        //// DocumentSizeObserver documentSizeObserver = context.getDocumentSizeObserver();
+        //// documentSizeReporter.onIndexingCompleted(documentSizeObserver.normalisedBytesParsed());
+        // }
         if (isUpdate
             && isFailed
             && isConflictException(executionResult.getFailure().getCause())

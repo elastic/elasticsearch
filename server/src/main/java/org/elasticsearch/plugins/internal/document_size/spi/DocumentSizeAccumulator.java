@@ -11,8 +11,18 @@ package org.elasticsearch.plugins.internal.document_size.spi;
 import java.util.Map;
 
 public interface DocumentSizeAccumulator {
+    DocumentSizeAccumulator EMPTY_INSTANCE = new DocumentSizeAccumulator() {
+
+        @Override
+        public void add(long size) {}
+
+        @Override
+        public Map<String, String> getAsFieldToValueAndReset(Map<String, String> prevUserDataMap) {
+            return prevUserDataMap;
+        }
+    };
 
     void add(long size);
 
-    Map<String, String> aggregate(Map<String, String> newUserData, Map<String, String> prevUserDataMap);
+    Map<String, String> getAsFieldToValueAndReset(Map<String, String> prevUserDataMap);
 }

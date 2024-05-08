@@ -57,6 +57,7 @@ import org.elasticsearch.plugins.IngestPlugin;
 import org.elasticsearch.plugins.internal.DocumentParsingProvider;
 import org.elasticsearch.plugins.internal.DocumentSizeObserver;
 import org.elasticsearch.plugins.internal.DocumentSizeReporter;
+import org.elasticsearch.plugins.internal.document_size.spi.DocumentSizeAccumulator;
 import org.elasticsearch.script.MockScriptEngine;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptModule;
@@ -1206,8 +1207,13 @@ public class IngestServiceTests extends ESTestCase {
             }
 
             @Override
-            public DocumentSizeReporter getDocumentParsingReporter(String indexName, boolean isTimeSeries) {
+            public DocumentSizeReporter getDocumentParsingReporter(String indexName, DocumentSizeAccumulator documentSizeAccumulator) {
                 return null;
+            }
+
+            @Override
+            public DocumentSizeAccumulator getDocumentSizeAccumulator() {
+                return DocumentSizeAccumulator.EMPTY_INSTANCE;
             }
 
             @Override

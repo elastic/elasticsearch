@@ -12,10 +12,11 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.ingest.PutPipelineRequest;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.index.mapper.LuceneDocument;
+import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.ingest.common.IngestCommonPlugin;
 import org.elasticsearch.plugins.IngestPlugin;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.plugins.internal.document_size.spi.DocumentSizeAccumulator;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xcontent.FilterXContentParserWrapper;
 import org.elasticsearch.xcontent.XContentParser;
@@ -93,8 +94,13 @@ public class DocumentSizeObserverWithPipelinesIT extends ESIntegTestCase {
                 }
 
                 @Override
-                public DocumentSizeReporter getDocumentParsingReporter(String indexName, boolean isTimeSeries) {
+                public DocumentSizeReporter getDocumentParsingReporter(String indexName, DocumentSizeAccumulator documentSizeAccumulator) {
                     return new TestDocumentSizeReporter(indexName);
+                }
+
+                @Override
+                public DocumentSizeAccumulator getDocumentSizeAccumulator() {
+                    return DocumentSizeAccumulator.EMPTY_INSTANCE;
                 }
             };
         }
@@ -108,14 +114,15 @@ public class DocumentSizeObserverWithPipelinesIT extends ESIntegTestCase {
         }
 
         @Override
-        public void onIndexingCompleted(long normalizedBytesParsed) {
-            assertThat(indexName, equalTo(TEST_INDEX_NAME));
-            assertThat(normalizedBytesParsed, equalTo(1L));
+        public void onParsingCompleted(ParsedDocument parsedDocument) {
+
         }
 
         @Override
-        public void onParsingCompleted(LuceneDocument luceneDocument, long normalizedBytesParsed) {
-
+        public void onIndexingCompleted(ParsedDocument parsedDocument) {
+            DocumentSizeObserver documentSizeObserver = parsedDocument.getDocumentSizeObserver();
+            assertThat(indexName, equalTo(TEST_INDEX_NAME));
+            assertThat(documentSizeObserver.normalisedBytesParsed(), equalTo(1L));
         }
     }
 

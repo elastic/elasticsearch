@@ -141,9 +141,15 @@ public class EsqlFeatures implements FeatureSpecification {
      */
     public static final NodeFeature LOOKUP_COMMAND = new NodeFeature("esql.lookup_command");
 
+    /**
+     * Support for timespan units abbreviations
+     */
+    public static final NodeFeature TIMESPAN_ABBREVIATIONS = new NodeFeature("esql.timespan_abbreviations");
+
     @Override
     public Set<NodeFeature> getFeatures() {
         return Set.of(
+            LOOKUP_COMMAND,
             ASYNC_QUERY,
             AGG_VALUES,
             BASE64_DECODE_ENCODE,
@@ -163,7 +169,7 @@ public class EsqlFeatures implements FeatureSpecification {
             METRICS_COUNTER_FIELDS,
             STRING_LITERAL_AUTO_CASTING_EXTENDED,
             METADATA_FIELDS,
-            LOOKUP_COMMAND
+            TIMESPAN_ABBREVIATIONS
         );
     }
 

@@ -17,6 +17,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
@@ -120,6 +121,7 @@ public class FailureStoreDocumentConverter {
                     List<String> pipelineOrigin = ingestException.getHeaderKeys().contains(PIPELINE_ORIGIN_EXCEPTION_HEADER)
                         ? ingestException.getHeader(PIPELINE_ORIGIN_EXCEPTION_HEADER)
                         : List.of();
+                    Collections.reverse(pipelineOrigin);
                     builder.field("pipeline_trace", pipelineOrigin);
                     String pipeline = pipelineOrigin.isEmpty() ? "unknown" : pipelineOrigin.get(pipelineOrigin.size() - 1);
                     builder.field("pipeline", pipeline);

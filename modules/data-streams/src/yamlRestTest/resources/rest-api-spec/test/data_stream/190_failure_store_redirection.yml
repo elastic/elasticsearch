@@ -17,6 +17,11 @@ teardown:
 
   - do:
       ingest.delete_pipeline:
+        id: "parent_failing_pipeline"
+        ignore: 404
+
+  - do:
+      ingest.delete_pipeline:
         id: "failing_pipeline"
         ignore: 404
 
@@ -35,8 +40,24 @@ teardown:
             "description": "_description",
             "processors": [
               {
-                "fail" : {
-                  "message" : "error_message"
+                "fail": {
+                  "message" : "error_message",
+                  "tag": "foo-tag"
+                }
+              }
+            ]
+          }
+  - match: { acknowledged: true }
+
+  - do:
+      ingest.put_pipeline:
+        id: "parent_failing_pipeline"
+        body:  >
+          {
+            "processors": [
+              {
+                "pipeline": {
+                  "name": "failing_pipeline"
                 }
               }
             ]
@@ -57,7 +78,7 @@ teardown:
               number_of_shards:   1
               number_of_replicas: 1
               index:
-                default_pipeline: "failing_pipeline"
+                default_pipeline: "parent_failing_pipeline"
 
   - do:
       index:
@@ -98,6 +119,12 @@ teardown:
   - match: { hits.hits.0._source.error.type: 'fail_processor_exception' }
   - match: { hits.hits.0._source.error.message: 'error_message' }
   - contains: { hits.hits.0._source.error.stack_trace: 'org.elasticsearch.ingest.common.FailProcessorException: error_message' }
+  - length: { hits.hits.0._source.error.pipeline_trace: 2 }
+  - match: { hits.hits.0._source.error.pipeline_trace.0: 'parent_failing_pipeline' }
+  - match: { hits.hits.0._source.error.pipeline_trace.1: 'failing_pipeline' }
+  - match: { hits.hits.0._source.error.pipeline: 'failing_pipeline' }
+  - match: { hits.hits.0._source.error.processor_tag: 'foo-tag' }
+  - match: { hits.hits.0._source.error.processor_type: 'fail' }
 
   - do:
       indices.delete_data_stream:

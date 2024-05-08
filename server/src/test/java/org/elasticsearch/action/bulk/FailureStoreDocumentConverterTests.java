@@ -17,6 +17,7 @@ import org.elasticsearch.transport.RemoteTransportException;
 import org.elasticsearch.xcontent.ObjectPath;
 import org.elasticsearch.xcontent.json.JsonXContent;
 
+import java.util.Arrays;
 import java.util.List;
 
 import static org.hamcrest.CoreMatchers.containsString;
@@ -34,7 +35,7 @@ public class FailureStoreDocumentConverterTests extends ESTestCase {
 
         // The exception will be wrapped for the test to make sure the converter correctly unwraps it
         ElasticsearchException exception = new ElasticsearchException("Test exception please ignore");
-        exception.addHeader(CompoundProcessor.PIPELINE_ORIGIN_EXCEPTION_HEADER, List.of("some-pipeline", "some-failing-pipeline"));
+        exception.addHeader(CompoundProcessor.PIPELINE_ORIGIN_EXCEPTION_HEADER, Arrays.asList("some-failing-pipeline", "some-pipeline"));
         exception.addHeader(CompoundProcessor.PROCESSOR_TAG_EXCEPTION_HEADER, "foo-tag");
         exception.addHeader(CompoundProcessor.PROCESSOR_TYPE_EXCEPTION_HEADER, "bar-type");
         exception = new RemoteTransportException("Test exception wrapper, please ignore", exception);

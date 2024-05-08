@@ -380,14 +380,18 @@ public class ExpressionTests extends ESTestCase {
         assertEquals(l(Duration.ZERO, TIME_DURATION), whereExpression("0 second"));
         assertEquals(l(Duration.ofSeconds(value), TIME_DURATION), whereExpression(value + "second"));
         assertEquals(l(Duration.ofSeconds(value), TIME_DURATION), whereExpression(value + " seconds"));
+        assertEquals(l(Duration.ofSeconds(value), TIME_DURATION), whereExpression(value + " sec"));
+        assertEquals(l(Duration.ofSeconds(value), TIME_DURATION), whereExpression(value + " s"));
 
         assertEquals(l(Duration.ZERO, TIME_DURATION), whereExpression("0 minute"));
         assertEquals(l(Duration.ofMinutes(value), TIME_DURATION), whereExpression(value + "minute"));
         assertEquals(l(Duration.ofMinutes(value), TIME_DURATION), whereExpression(value + " minutes"));
+        assertEquals(l(Duration.ofMinutes(value), TIME_DURATION), whereExpression(value + " min"));
 
         assertEquals(l(Duration.ZERO, TIME_DURATION), whereExpression("0 hour"));
         assertEquals(l(Duration.ofHours(value), TIME_DURATION), whereExpression(value + "hour"));
         assertEquals(l(Duration.ofHours(value), TIME_DURATION), whereExpression(value + " hours"));
+        assertEquals(l(Duration.ofHours(value), TIME_DURATION), whereExpression(value + " h"));
 
         assertEquals(l(Duration.ofHours(-value), TIME_DURATION), whereExpression("-" + value + " hours"));
     }
@@ -395,22 +399,33 @@ public class ExpressionTests extends ESTestCase {
     public void testDatePeriodLiterals() {
         int value = randomInt(Integer.MAX_VALUE);
         int weeksValue = randomInt(Integer.MAX_VALUE / 7);
+        int quartersValue = randomInt(Integer.MAX_VALUE / 3);
 
         assertEquals(l(Period.ZERO, DATE_PERIOD), whereExpression("0 day"));
         assertEquals(l(Period.ofDays(value), DATE_PERIOD), whereExpression(value + "day"));
         assertEquals(l(Period.ofDays(value), DATE_PERIOD), whereExpression(value + " days"));
+        assertEquals(l(Period.ofDays(value), DATE_PERIOD), whereExpression(value + " d"));
 
         assertEquals(l(Period.ZERO, DATE_PERIOD), whereExpression("0week"));
         assertEquals(l(Period.ofDays(weeksValue * 7), DATE_PERIOD), whereExpression(weeksValue + "week"));
         assertEquals(l(Period.ofDays(weeksValue * 7), DATE_PERIOD), whereExpression(weeksValue + " weeks"));
+        assertEquals(l(Period.ofDays(weeksValue * 7), DATE_PERIOD), whereExpression(weeksValue + " w"));
 
         assertEquals(l(Period.ZERO, DATE_PERIOD), whereExpression("0 month"));
         assertEquals(l(Period.ofMonths(value), DATE_PERIOD), whereExpression(value + "month"));
         assertEquals(l(Period.ofMonths(value), DATE_PERIOD), whereExpression(value + " months"));
+        assertEquals(l(Period.ofMonths(value), DATE_PERIOD), whereExpression(value + " mo"));
+
+        assertEquals(l(Period.ZERO, DATE_PERIOD), whereExpression("0 quarter"));
+        assertEquals(l(Period.ofMonths(Math.multiplyExact(quartersValue, 3)), DATE_PERIOD), whereExpression(quartersValue + " quarter"));
+        assertEquals(l(Period.ofMonths(Math.multiplyExact(quartersValue, 3)), DATE_PERIOD), whereExpression(quartersValue + " quarters"));
+        assertEquals(l(Period.ofMonths(Math.multiplyExact(quartersValue, 3)), DATE_PERIOD), whereExpression(quartersValue + " q"));
 
         assertEquals(l(Period.ZERO, DATE_PERIOD), whereExpression("0year"));
         assertEquals(l(Period.ofYears(value), DATE_PERIOD), whereExpression(value + "year"));
         assertEquals(l(Period.ofYears(value), DATE_PERIOD), whereExpression(value + " years"));
+        assertEquals(l(Period.ofYears(value), DATE_PERIOD), whereExpression(value + " yr"));
+        assertEquals(l(Period.ofYears(value), DATE_PERIOD), whereExpression(value + " y"));
 
         assertEquals(l(Period.ofYears(-value), DATE_PERIOD), whereExpression("-" + value + " years"));
     }

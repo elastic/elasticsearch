@@ -5,13 +5,14 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.inference.external.request.azureopenai;
+package org.elasticsearch.xpack.inference.external.request.azureopenai.embeddings;
 
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xpack.inference.external.request.azureopenai.AzureOpenAiEmbeddingsRequestEntity;
 
 import java.io.IOException;
 import java.util.List;

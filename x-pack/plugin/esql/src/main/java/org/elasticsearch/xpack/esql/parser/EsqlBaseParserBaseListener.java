@@ -365,13 +365,13 @@ public class EsqlBaseParserBaseListener implements EsqlBaseParserListener {
    *
    * <p>The default implementation does nothing.</p>
    */
-  @Override public void enterFromIdentifier(EsqlBaseParser.FromIdentifierContext ctx) { }
+  @Override public void enterFromSource(EsqlBaseParser.FromSourceContext ctx) { }
   /**
    * {@inheritDoc}
    *
    * <p>The default implementation does nothing.</p>
    */
-  @Override public void exitFromIdentifier(EsqlBaseParser.FromIdentifierContext ctx) { }
+  @Override public void exitFromSource(EsqlBaseParser.FromSourceContext ctx) { }
   /**
    * {@inheritDoc}
    *

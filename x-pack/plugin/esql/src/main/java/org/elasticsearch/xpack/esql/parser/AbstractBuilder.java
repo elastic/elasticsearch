@@ -20,7 +20,7 @@ abstract class AbstractBuilder extends EsqlBaseParserBaseVisitor<Object> {
     }
 
     @Override
-    public Object visitTerminal(TerminalNode node) {
+    public Source visitTerminal(TerminalNode node) {
         return ParserUtils.source(node);
     }
 

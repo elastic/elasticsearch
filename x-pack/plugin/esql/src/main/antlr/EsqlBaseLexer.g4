@@ -187,22 +187,21 @@ FROM_OPENING_BRACKET : OPENING_BRACKET -> type(OPENING_BRACKET);
 FROM_CLOSING_BRACKET : CLOSING_BRACKET -> type(CLOSING_BRACKET);
 FROM_COMMA : COMMA -> type(COMMA);
 FROM_ASSIGN : ASSIGN -> type(ASSIGN);
-FROM_QUOTED_STRING : QUOTED_STRING -> type(QUOTED_STRING);
 
 OPTIONS : 'options';
 METADATA : 'metadata';
 
-fragment FROM_UNQUOTED_IDENTIFIER_PART
-    : ~[=`|,[\]/ \t\r\n]
+fragment FROM_UNQUOTED_SOURCE_PART
+    : ~[="|,[\]/ \t\r\n]
     | '/' ~[*/] // allow single / but not followed by another / or * which would start a comment
     ;
 
-FROM_UNQUOTED_IDENTIFIER
-    : FROM_UNQUOTED_IDENTIFIER_PART+
+FROM_UNQUOTED_SOURCE
+    : FROM_UNQUOTED_SOURCE_PART+
     ;
 
-FROM_QUOTED_IDENTIFIER
-    : QUOTED_IDENTIFIER -> type(QUOTED_IDENTIFIER)
+FROM_QUOTED_SOURCE
+    : QUOTED_STRING -> type(QUOTED_STRING)
     ;
 
 FROM_LINE_COMMENT
@@ -294,10 +293,6 @@ ENRICH_POLICY_NAME
     : (ENRICH_POLICY_NAME_BODY+ COLON)? ENRICH_POLICY_NAME_BODY+
     ;
 
-ENRICH_QUOTED_IDENTIFIER
-    : QUOTED_IDENTIFIER -> type(QUOTED_IDENTIFIER)
-    ;
-
 ENRICH_MODE_UNQUOTED_VALUE
     : ENRICH_POLICY_NAME -> type(ENRICH_POLICY_NAME)
     ;
@@ -314,7 +309,7 @@ ENRICH_WS
     : WS -> channel(HIDDEN)
     ;
 
-// submode for Enrich to allow different lexing between policy identifier (loose) and field identifiers
+// submode for Enrich to allow different lexing between policy source (loose) and field identifiers
 mode ENRICH_FIELD_MODE;
 ENRICH_FIELD_PIPE : PIPE -> type(PIPE), popMode, popMode;
 ENRICH_FIELD_ASSIGN : ASSIGN -> type(ASSIGN);

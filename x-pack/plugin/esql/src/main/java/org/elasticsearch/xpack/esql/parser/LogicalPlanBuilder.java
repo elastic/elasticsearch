@@ -205,7 +205,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
     @Override
     public LogicalPlan visitFromCommand(EsqlBaseParser.FromCommandContext ctx) {
         Source source = source(ctx);
-        TableIdentifier table = new TableIdentifier(source, null, visitFromIdentifiers(ctx.fromIdentifier()));
+        TableIdentifier table = new TableIdentifier(source, null, visitFromSource(ctx.fromSource()));
         Map<String, Attribute> metadataMap = new LinkedHashMap<>();
         if (ctx.metadata() != null) {
             var deprecatedContext = ctx.metadata().deprecated_metadata();
@@ -222,8 +222,8 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
                 metadataOptionContext = ctx.metadata().metadataOption();
 
             }
-            for (var c : metadataOptionContext.fromIdentifier()) {
-                String id = visitFromIdentifier(c);
+            for (var c : metadataOptionContext.fromSource()) {
+                String id = visitFromSource(c);
                 Source src = source(c);
                 if (MetadataAttribute.isSupported(id) == false) {
                     throw new ParsingException(src, "unsupported metadata field [" + id + "]");

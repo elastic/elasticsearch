@@ -104,12 +104,12 @@ field
     ;
 
 fromCommand
-    : FROM fromIdentifier (COMMA fromIdentifier)* metadata? fromOptions?
+    : FROM fromSource (COMMA fromSource)* metadata? fromOptions?
     ;
 
-fromIdentifier
-    : FROM_UNQUOTED_IDENTIFIER
-    | QUOTED_IDENTIFIER
+fromSource
+    : FROM_UNQUOTED_SOURCE
+    | QUOTED_STRING
     ;
 
 fromOptions
@@ -126,7 +126,7 @@ metadata
     ;
 
 metadataOption
-    : METADATA fromIdentifier (COMMA fromIdentifier)*
+    : METADATA fromSource (COMMA fromSource)*
     ;
 
 deprecated_metadata

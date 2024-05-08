@@ -449,10 +449,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
     public DataStream unsafeRolloverFailureStore(Index writeIndex, long generation) {
         List<Index> failureIndices = new ArrayList<>(this.failureIndices.indices);
         failureIndices.add(writeIndex);
-        return copy().setGeneration(generation)
-            .setReplicated(false)
-            .setFailureIndices(this.failureIndices.copy().setIndices(failureIndices).build())
-            .build();
+        return copy().setGeneration(generation).setFailureIndices(this.failureIndices.copy().setIndices(failureIndices).build()).build();
     }
 
     /**

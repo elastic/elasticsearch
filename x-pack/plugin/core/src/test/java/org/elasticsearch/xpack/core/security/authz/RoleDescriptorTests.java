@@ -147,7 +147,7 @@ public class RoleDescriptorTests extends ESTestCase {
                     + ", field_security=[grant=[body,title], except=null], query={\"match_all\": {}}],]"
                     + ", applicationPrivileges=[ApplicationResourcePrivileges[application=my_app, privileges=[read,write], resources=[*]],]"
                     + ", runAs=[sudo], metadata=[{}], remoteIndicesPrivileges=[], remoteClusterPrivileges=[]"
-                    + ", restriction=Restriction[workflows=[]], description=null]"
+                    + ", restriction=Restriction[workflows=[]], description=]"
             )
         );
     }

@@ -37,7 +37,6 @@ import java.util.List;
  * Equivalent to the final mode of a standard hash aggregation.
  * This stage merges and reduces the result of the rate aggregations,
  * but merges (without reducing) the results of non-rate aggregations.
- * Certain aggregations, such as count_distinct, cannot have their final results combined.
  * {@code rate[FINAL](write_requests), avg[INTERMEDIATE](cpu), values[SINGLE](cluster) BY tsid, time-bucket}
  *
  * 3. Final Stage:

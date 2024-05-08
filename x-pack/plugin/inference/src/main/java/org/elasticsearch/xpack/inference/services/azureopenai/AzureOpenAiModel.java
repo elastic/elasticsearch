@@ -58,7 +58,7 @@ public abstract class AzureOpenAiModel extends Model {
 
     public abstract ExecutableAction accept(AzureOpenAiActionVisitor creator, Map<String, Object> taskSettings);
 
-    public URI buildUriString() throws URISyntaxException {
+    public final URI buildUriString() throws URISyntaxException {
         return AzureOpenAiModel.buildUri(resourceName(), deploymentId(), apiVersion(), operationPathSegments());
     }
 

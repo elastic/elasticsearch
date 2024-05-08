@@ -46,7 +46,11 @@ public class MockLogAppender {
 
         @Override
         public void append(LogEvent event) {
-            List<MockLogAppender> appenders = mockAppenders.getOrDefault(event.getLoggerName(), List.of());
+            List<MockLogAppender> appenders = mockAppenders.get(event.getLoggerName());
+            if (appenders == null) {
+                // check if there is a root appender
+                appenders = mockAppenders.getOrDefault("", List.of());
+            }
             for (MockLogAppender appender : appenders) {
                 if (appender.isAlive == false) {
                     continue;

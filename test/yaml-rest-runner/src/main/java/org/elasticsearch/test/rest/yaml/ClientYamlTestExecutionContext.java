@@ -16,7 +16,9 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.client.NodeSelector;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.test.rest.Stash;
 import org.elasticsearch.test.rest.TestFeatureService;
 import org.elasticsearch.test.rest.yaml.restspec.ClientYamlSuiteRestApi;
@@ -30,8 +32,12 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.function.BiPredicate;
+
+import static java.util.Collections.emptyList;
+import static java.util.Collections.emptyMap;
 
 /**
  * Execution context passed across the REST tests.
@@ -122,7 +128,11 @@ public class ClientYamlTestExecutionContext {
     ) throws IOException {
         // makes a copy of the parameters before modifying them for this specific request
         Map<String, String> requestParams = new HashMap<>(params);
-        requestParams.putIfAbsent("error_trace", "true"); // By default ask for error traces, this my be overridden by params
+        if ("false".equals(requestParams.get("error_trace"))) {
+            requestParams.remove("error_trace");
+        } else {
+            requestParams.putIfAbsent("error_trace", "true"); // By default ask for error traces, this my be overridden by params
+        }
         for (Map.Entry<String, String> entry : requestParams.entrySet()) {
             if (stash.containsStashedValue(entry.getValue())) {
                 entry.setValue(stash.getValue(entry.getValue()).toString());
@@ -263,5 +273,30 @@ public class ClientYamlTestExecutionContext {
 
     public boolean clusterHasFeature(String featureId) {
         return testFeatureService.clusterHasFeature(featureId);
+    }
+
+    public Optional<Boolean> clusterHasCapabilities(String method, String path, String parametersString, String capabilitiesString) {
+        Map<String, String> params = Maps.newMapWithExpectedSize(4);
+        params.put("method", method);
+        params.put("path", path);
+        if (Strings.hasLength(parametersString)) {
+            params.put("parameters", parametersString);
+        }
+        if (Strings.hasLength(capabilitiesString)) {
+            params.put("capabilities", capabilitiesString);
+        }
+        params.put("error_trace", "false"); // disable error trace
+        try {
+            ClientYamlTestResponse resp = callApi("capabilities", params, emptyList(), emptyMap());
+            boolean supported = resp.getStatusCode() == 200 && Boolean.TRUE.equals(resp.evaluate("supported"));
+            return Optional.of(supported);
+        } catch (ClientYamlTestResponseException responseException) {
+            if (responseException.getRestTestResponse().getStatusCode() / 100 == 4) {
+                return Optional.empty(); // we don't know, the capabilities API is unsupported
+            }
+            throw new RuntimeException(responseException);
+        } catch (IOException ioException) {
+            throw new RuntimeException(ioException);
+        }
     }
 }

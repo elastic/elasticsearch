@@ -1,0 +1,35 @@
+{
+  "capabilities": {
+    "stability": "experimental",
+    "visibility": "private",
+    "headers": {
+      "accept": [
+        "application/json"
+      ]
+    },
+    "url": {
+      "paths": [
+        {
+          "path": "/_capabilities",
+          "methods": [
+            "GET"
+          ]
+        }
+      ]
+    },
+    "params": {
+      "method": {
+        "type": "string"
+      },
+      "path": {
+        "type": "string"
+      },
+      "capabilities": {
+        "type": "string"
+      },
+      "parameters": {
+        "type": "string"
+      }
+    }
+  }
+}

@@ -256,9 +256,6 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
     @Override
     public PlanFactory visitStatsCommand(EsqlBaseParser.StatsCommandContext ctx) {
         final Stats stats = stats(source(ctx), ctx.grouping, ctx.stats);
-        if (stats.aggregates.isEmpty() && stats.groupings.isEmpty()) {
-            throw new ParsingException(source(ctx), "At least one aggregation or grouping expression required in [{}]", ctx.getText());
-        }
         return input -> new EsqlAggregate(source(ctx), input, stats.groupings, stats.aggregates);
     }
 

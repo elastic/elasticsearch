@@ -867,7 +867,10 @@ public class SecurityNetty4HttpServerTransportTests extends AbstractHttpServerTr
             }
         };
         // there's only one netty worker thread that's reused across client requests
-        Settings settings = Settings.builder().put(Netty4HttpServerTransport.SETTING_HTTP_WORKER_COUNT.getKey(), 1).build();
+        Settings settings = Settings.builder()
+            .put(HttpTransportSettings.SETTING_HTTP_PORT.getKey(), getPortRange())
+            .put(Netty4HttpServerTransport.SETTING_HTTP_WORKER_COUNT.getKey(), 1)
+            .build();
         ThreadPool threadPool = new TestThreadPool(TEST_MOCK_TRANSPORT_THREAD_PREFIX);
         IPFilter ipFilter = mock(IPFilter.class);
         doAnswer(invocationOnMock -> {

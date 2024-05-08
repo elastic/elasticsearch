@@ -32,6 +32,7 @@ import org.elasticsearch.xpack.ql.expression.function.scalar.ScalarFunction;
 import org.elasticsearch.xpack.ql.expression.predicate.Range;
 import org.elasticsearch.xpack.ql.expression.predicate.logical.And;
 import org.elasticsearch.xpack.ql.expression.predicate.logical.Or;
+import org.elasticsearch.xpack.ql.expression.predicate.nulls.IsNotNull;
 import org.elasticsearch.xpack.ql.expression.predicate.nulls.IsNull;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.BinaryComparison;
 import org.elasticsearch.xpack.ql.planner.ExpressionTranslator;
@@ -84,7 +85,7 @@ public final class EsqlExpressionTranslators {
         new Ranges(),
         new BinaryLogic(),
         new IsNulls(),
-        new ExpressionTranslators.IsNotNulls(),
+        new IsNotNulls(),
         new ExpressionTranslators.Nots(),
         new ExpressionTranslators.Likes(),
         new ExpressionTranslators.InComparisons(),
@@ -504,6 +505,21 @@ public final class EsqlExpressionTranslators {
 
         private static Query translate(IsNull isNull, TranslatorHandler handler) {
             return new NotQuery(isNull.source(), new ExistsQuery(isNull.source(), handler.nameOf(isNull.field())));
+        }
+    }
+
+    public static class IsNotNulls extends ExpressionTranslator<IsNotNull> {
+        @Override
+        protected Query asQuery(IsNotNull isNotNull, TranslatorHandler handler) {
+            return doTranslate(isNotNull, handler);
+        }
+
+        public static Query doTranslate(IsNotNull isNotNull, TranslatorHandler handler) {
+            return handler.wrapFunctionQuery(isNotNull, isNotNull.field(), () -> translate(isNotNull, handler));
+        }
+
+        private static Query translate(IsNotNull isNotNull, TranslatorHandler handler) {
+            return new ExistsQuery(isNotNull.source(), handler.nameOf(isNotNull.field()));
         }
     }
 

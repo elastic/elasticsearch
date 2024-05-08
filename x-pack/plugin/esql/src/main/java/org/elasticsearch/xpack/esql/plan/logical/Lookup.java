@@ -105,7 +105,6 @@ public class Lookup extends UnaryPlan {
             List<? extends NamedExpression> rightSide = localRelation != null
                 ? Join.makeNullable(Join.makeReference(localRelation.output()))
                 : matchFields;
-            // NOCOMMIT This puts the right hand side stuff before the left hand side stuff - probably should be the other way around
             lazyOutput = mergeOutputAttributes(child().output(), rightSide);
         }
         return lazyOutput;

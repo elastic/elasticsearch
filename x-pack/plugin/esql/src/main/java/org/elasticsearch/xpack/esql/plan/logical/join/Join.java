@@ -73,7 +73,6 @@ public class Join extends BinaryPlan {
 
     private List<Attribute> computeOutput() {
         List<Attribute> right = makeReference(right().output());
-        // NOCOMMIT This puts the right hand side stuff before the left hand side stuff - that's not what lookup wants at least.
         return switch (config.type()) {
             case LEFT -> // right side becomes nullable
                 NamedExpressions.mergeOutputAttributes(left().output(), makeNullable(right));
@@ -89,7 +88,7 @@ public class Join extends BinaryPlan {
     /**
      * Make fields references, so we don't check if they exist in the index.
      * We do this for fields that we know don't come from the index.
-     * NOCOMMIT we should signal this more clearly
+     * TODO we should rework stats so we don't have to do this
      */
     public static List<Attribute> makeReference(List<Attribute> output) {
         List<Attribute> out = new ArrayList<>(output.size());

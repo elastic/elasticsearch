@@ -119,7 +119,6 @@ public class PhysicalPlanOptimizer extends ParameterizedRuleExecutor<PhysicalPla
                         attributes.remove(mvee.expanded());
                     }
                     if (p instanceof HashJoinExec join) {
-                        // NOCOMMIT should this come from the NamedExpression bit above?!
                         attributes.removeAll(join.addedFields());
                     }
                     if (p instanceof EnrichExec ee) {

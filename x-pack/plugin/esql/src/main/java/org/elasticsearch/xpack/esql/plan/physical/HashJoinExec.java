@@ -22,7 +22,7 @@ import java.util.Set;
 
 public class HashJoinExec extends UnaryExec implements EstimatesRowSize {
     private final LocalSourceExec joinData;
-    private final List<NamedExpression> unionFields;  // NOCOMMIT why sometimes NamedExpression and sometimes Attribute?!
+    private final List<NamedExpression> unionFields;
     private final List<Attribute> output;
     private AttributeSet lazyAddedFields;
 

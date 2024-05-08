@@ -161,7 +161,7 @@ Timespan literals are a combination of a number and a qualifier. These
 qualifiers are supported:
 
 * `millisecond`/`milliseconds`/`ms`
-* `second`/`seconds`/`s`
+* `second`/`seconds`/`sec`/`s`
 * `minute`/`minutes`/`min`
 * `hour`/`hours`/`h`
 * `day`/`days`/`d`

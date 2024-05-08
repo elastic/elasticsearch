@@ -380,6 +380,7 @@ public class ExpressionTests extends ESTestCase {
         assertEquals(l(Duration.ZERO, TIME_DURATION), whereExpression("0 second"));
         assertEquals(l(Duration.ofSeconds(value), TIME_DURATION), whereExpression(value + "second"));
         assertEquals(l(Duration.ofSeconds(value), TIME_DURATION), whereExpression(value + " seconds"));
+        assertEquals(l(Duration.ofSeconds(value), TIME_DURATION), whereExpression(value + " sec"));
         assertEquals(l(Duration.ofSeconds(value), TIME_DURATION), whereExpression(value + " s"));
 
         assertEquals(l(Duration.ZERO, TIME_DURATION), whereExpression("0 minute"));

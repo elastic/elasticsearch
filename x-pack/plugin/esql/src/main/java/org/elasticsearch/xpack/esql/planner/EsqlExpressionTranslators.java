@@ -95,8 +95,8 @@ import static org.elasticsearch.xpack.ql.type.DataTypes.VERSION;
 import static org.elasticsearch.xpack.ql.util.NumericUtils.unsignedLongAsNumber;
 
 public final class EsqlExpressionTranslators {
-    public static final String DATE_FORMAT = "strict_date_optional_time_nanos";
-    public static final String TIME_FORMAT = "strict_hour_minute_second_fraction";
+    private static final String DATE_FORMAT = "strict_date_optional_time_nanos";
+    private static final String TIME_FORMAT = "strict_hour_minute_second_fraction";
 
     public static final List<ExpressionTranslator<?>> QUERY_TRANSLATORS = List.of(
         new EqualsIgnoreCaseTranslator(),
@@ -127,7 +127,7 @@ public final class EsqlExpressionTranslators {
         throw new QlIllegalArgumentException("Don't know how to translate {} {}", e.nodeName(), e);
     }
 
-    public static class EqualsIgnoreCaseTranslator extends ExpressionTranslator<InsensitiveEquals> {
+    private static class EqualsIgnoreCaseTranslator extends ExpressionTranslator<InsensitiveEquals> {
 
         @Override
         protected Query asQuery(InsensitiveEquals bc, TranslatorHandler handler) {
@@ -174,7 +174,7 @@ public final class EsqlExpressionTranslators {
      *  that an earlier pass through the query has rearranged things so that the foldable value will be the right hand side
      *  input to the operation.
      */
-    public static class BinaryComparisons extends ExpressionTranslator<BinaryComparison> {
+    private static class BinaryComparisons extends ExpressionTranslator<BinaryComparison> {
         @Override
         protected Query asQuery(BinaryComparison bc, TranslatorHandler handler) {
             // TODO: Pretty sure this check is redundant with the one at the beginning of translate
@@ -367,7 +367,7 @@ public final class EsqlExpressionTranslators {
         }
     }
 
-    public static class Scalars extends ExpressionTranslator<ScalarFunction> {
+    private static class Scalars extends ExpressionTranslator<ScalarFunction> {
         @Override
         protected Query asQuery(ScalarFunction f, TranslatorHandler handler) {
             return doTranslate(f, handler);
@@ -389,7 +389,7 @@ public final class EsqlExpressionTranslators {
         }
     }
 
-    public static class SpatialRelatesTranslator extends ExpressionTranslator<SpatialRelatesFunction> {
+    private static class SpatialRelatesTranslator extends ExpressionTranslator<SpatialRelatesFunction> {
 
         @Override
         protected Query asQuery(SpatialRelatesFunction bc, TranslatorHandler handler) {
@@ -448,7 +448,7 @@ public final class EsqlExpressionTranslators {
         }
     }
 
-    public static class Ranges extends ExpressionTranslator<Range> {
+    private static class Ranges extends ExpressionTranslator<Range> {
 
         @Override
         protected Query asQuery(Range r, TranslatorHandler handler) {
@@ -497,7 +497,7 @@ public final class EsqlExpressionTranslators {
         }
     }
 
-    public static class BinaryLogic extends ExpressionTranslator<org.elasticsearch.xpack.ql.expression.predicate.logical.BinaryLogic> {
+    private static class BinaryLogic extends ExpressionTranslator<org.elasticsearch.xpack.ql.expression.predicate.logical.BinaryLogic> {
 
         @Override
         protected Query asQuery(org.elasticsearch.xpack.ql.expression.predicate.logical.BinaryLogic e, TranslatorHandler handler) {
@@ -512,7 +512,7 @@ public final class EsqlExpressionTranslators {
         }
     }
 
-    public static class IsNulls extends ExpressionTranslator<IsNull> {
+    private static class IsNulls extends ExpressionTranslator<IsNull> {
 
         @Override
         protected Query asQuery(IsNull isNull, TranslatorHandler handler) {
@@ -528,7 +528,7 @@ public final class EsqlExpressionTranslators {
         }
     }
 
-    public static class IsNotNulls extends ExpressionTranslator<IsNotNull> {
+    private static class IsNotNulls extends ExpressionTranslator<IsNotNull> {
         @Override
         protected Query asQuery(IsNotNull isNotNull, TranslatorHandler handler) {
             return doTranslate(isNotNull, handler);
@@ -543,7 +543,7 @@ public final class EsqlExpressionTranslators {
         }
     }
 
-    public static class Nots extends ExpressionTranslator<Not> {
+    private static class Nots extends ExpressionTranslator<Not> {
 
         @Override
         protected Query asQuery(Not not, TranslatorHandler handler) {
@@ -563,7 +563,7 @@ public final class EsqlExpressionTranslators {
 
     // TODO: see whether escaping is needed
     @SuppressWarnings("rawtypes")
-    public static class Likes extends ExpressionTranslator<RegexMatch> {
+    private static class Likes extends ExpressionTranslator<RegexMatch> {
 
         @Override
         protected Query asQuery(RegexMatch e, TranslatorHandler handler) {
@@ -599,7 +599,7 @@ public final class EsqlExpressionTranslators {
         }
     }
 
-    public static class InComparisons extends ExpressionTranslator<In> {
+    private static class InComparisons extends ExpressionTranslator<In> {
 
         @Override
         protected Query asQuery(In in, TranslatorHandler handler) {
@@ -657,7 +657,7 @@ public final class EsqlExpressionTranslators {
     // TODO: Copied from org.elasticsearch.xpack.ql.planner.ExpressionTranslators.BinaryComparisons
     // and can likely be merged with BinaryComparisons here.
     // assume the Optimizer properly orders the predicates to ease the translation
-    public static class QLBinaryComparisons extends ExpressionTranslator<BinaryComparison> {
+    private static class QLBinaryComparisons extends ExpressionTranslator<BinaryComparison> {
 
         @Override
         protected Query asQuery(BinaryComparison bc, TranslatorHandler handler) {
@@ -756,7 +756,7 @@ public final class EsqlExpressionTranslators {
         }
     }
 
-    public static class StringQueries extends ExpressionTranslator<StringQueryPredicate> {
+    private static class StringQueries extends ExpressionTranslator<StringQueryPredicate> {
 
         @Override
         protected Query asQuery(StringQueryPredicate q, TranslatorHandler handler) {
@@ -768,7 +768,7 @@ public final class EsqlExpressionTranslators {
         }
     }
 
-    public static class Matches extends ExpressionTranslator<MatchQueryPredicate> {
+    private static class Matches extends ExpressionTranslator<MatchQueryPredicate> {
 
         @Override
         protected Query asQuery(MatchQueryPredicate q, TranslatorHandler handler) {
@@ -780,7 +780,7 @@ public final class EsqlExpressionTranslators {
         }
     }
 
-    public static class MultiMatches extends ExpressionTranslator<MultiMatchQueryPredicate> {
+    private static class MultiMatches extends ExpressionTranslator<MultiMatchQueryPredicate> {
 
         @Override
         protected Query asQuery(MultiMatchQueryPredicate q, TranslatorHandler handler) {
@@ -794,7 +794,7 @@ public final class EsqlExpressionTranslators {
 
     // TODO: Copied from org.elasticsearch.xpack.ql.planner.ExpressionTranslators.Scalars
     // and can likely be merged with Scalars here.
-    public static class QLScalars extends ExpressionTranslator<ScalarFunction> {
+    private static class QLScalars extends ExpressionTranslator<ScalarFunction> {
 
         @Override
         protected Query asQuery(ScalarFunction f, TranslatorHandler handler) {

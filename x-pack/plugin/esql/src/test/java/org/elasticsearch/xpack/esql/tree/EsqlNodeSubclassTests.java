@@ -16,7 +16,6 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.math.Pow;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Concat;
 import org.elasticsearch.xpack.esql.plan.logical.Dissect;
 import org.elasticsearch.xpack.esql.plan.logical.Grok;
-import org.elasticsearch.xpack.esql.plan.logical.join.Join;
 import org.elasticsearch.xpack.esql.plan.logical.join.JoinConfig;
 import org.elasticsearch.xpack.esql.plan.logical.join.JoinType;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
@@ -37,7 +36,6 @@ import org.elasticsearch.xpack.ql.expression.UnresolvedNamedExpression;
 import org.elasticsearch.xpack.ql.expression.UnresolvedStar;
 import org.elasticsearch.xpack.ql.expression.function.UnresolvedFunction;
 import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
-import org.elasticsearch.xpack.ql.plan.logical.UnresolvedRelation;
 import org.elasticsearch.xpack.ql.tree.Node;
 import org.elasticsearch.xpack.ql.tree.NodeSubclassTests;
 import org.elasticsearch.xpack.ql.tree.Source;
@@ -65,7 +63,6 @@ public class EsqlNodeSubclassTests<T extends B, B extends Node<B>> extends NodeS
         UnresolvedException.class,
         UnresolvedFunction.class,
         UnresolvedNamedExpression.class,
-        UnresolvedRelation.class,
         UnresolvedStar.class
     );
 

@@ -414,7 +414,10 @@ public class EcsLogsDataStreamIT extends DisabledSecurityDataStreamTestCase {
                 getValueFromPath(properties, List.of("host", "properties", "cpu", "properties", "usage", "scaling_factor")),
                 is(1000.0)
             );
-            assertThat(getValueFromPath(properties, List.of("host", "properties", "geo", "properties", "location", "type")), is("geo_point"));
+            assertThat(
+                getValueFromPath(properties, List.of("host", "properties", "geo", "properties", "location", "type")),
+                is("geo_point")
+            );
             assertThat(getValueFromPath(properties, List.of("data_stream", "properties", "dataset", "type")), is("constant_keyword"));
             assertThat(getValueFromPath(properties, List.of("data_stream", "properties", "namespace", "type")), is("constant_keyword"));
             assertThat(getValueFromPath(properties, List.of("data_stream", "properties", "type", "type")), is("constant_keyword"));

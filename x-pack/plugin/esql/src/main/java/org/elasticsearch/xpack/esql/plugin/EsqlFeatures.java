@@ -136,6 +136,11 @@ public class EsqlFeatures implements FeatureSpecification {
      */
     public static final NodeFeature METADATA_FIELDS = new NodeFeature("esql.metadata_fields");
 
+    /**
+     * Support for timespan units abbreviations
+     */
+    public static final NodeFeature TIMESPAN_ABBREVIATIONS = new NodeFeature("esql.timespan_abbreviations");
+
     @Override
     public Set<NodeFeature> getFeatures() {
         return Set.of(
@@ -157,7 +162,8 @@ public class EsqlFeatures implements FeatureSpecification {
             MV_ORDERING_SORTED_ASCENDING,
             METRICS_COUNTER_FIELDS,
             STRING_LITERAL_AUTO_CASTING_EXTENDED,
-            METADATA_FIELDS
+            METADATA_FIELDS,
+            TIMESPAN_ABBREVIATIONS
         );
     }
 

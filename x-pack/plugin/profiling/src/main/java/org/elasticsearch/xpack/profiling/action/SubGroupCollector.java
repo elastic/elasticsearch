@@ -27,7 +27,6 @@ public final class SubGroupCollector {
 
     private final String[] aggregationFields;
     private final boolean legacyAggregationField;
-    private final AbstractAggregationBuilder<?> parentAggregation;
 
     public static SubGroupCollector attach(
         AbstractAggregationBuilder<?> parentAggregation,
@@ -35,12 +34,11 @@ public final class SubGroupCollector {
         boolean legacyAggregationField
     ) {
         SubGroupCollector c = new SubGroupCollector(parentAggregation, aggregationFields, legacyAggregationField);
-        c.addAggregations();
+        c.addAggregations(parentAggregation);
         return c;
     }
 
     private SubGroupCollector(AbstractAggregationBuilder<?> parentAggregation, String[] aggregationFields, boolean legacyAggregationField) {
-        this.parentAggregation = parentAggregation;
         this.aggregationFields = aggregationFields;
         this.legacyAggregationField = legacyAggregationField;
     }
@@ -49,11 +47,11 @@ public final class SubGroupCollector {
         return aggregationFields != null && aggregationFields.length > 0;
     }
 
-    private void addAggregations() {
+    private void addAggregations(AbstractAggregationBuilder<?> parentAggregation) {
         if (hasAggregationFields()) {
             // cast to Object to disambiguate this from a varargs call
             log.trace("Grouping stacktrace events by {}.", (Object) aggregationFields);
-            AbstractAggregationBuilder<?> parentAgg = this.parentAggregation;
+            AbstractAggregationBuilder<?> parentAgg = parentAggregation;
             for (String aggregationField : aggregationFields) {
                 String aggName = CUSTOM_EVENT_SUB_AGGREGATION_NAME + aggregationField;
                 TermsAggregationBuilder agg = new TermsAggregationBuilder(aggName).field(aggregationField);

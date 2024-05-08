@@ -18,12 +18,14 @@
 package co.elastic.elasticsearch.stateless;
 
 import co.elastic.elasticsearch.stateless.action.NewCommitNotificationResponse;
+import co.elastic.elasticsearch.stateless.action.TransportGetVirtualBatchedCompoundCommitChunkAction;
 import co.elastic.elasticsearch.stateless.action.TransportNewCommitNotificationAction;
 import co.elastic.elasticsearch.stateless.cluster.coordination.StatelessClusterConsistencyService;
 import co.elastic.elasticsearch.stateless.commits.StatelessCommitService;
 import co.elastic.elasticsearch.stateless.commits.StatelessCompoundCommit;
 import co.elastic.elasticsearch.stateless.commits.VirtualBatchedCompoundCommit;
 import co.elastic.elasticsearch.stateless.engine.IndexEngine;
+import co.elastic.elasticsearch.stateless.engine.PrimaryTermAndGeneration;
 import co.elastic.elasticsearch.stateless.engine.SearchEngine;
 import co.elastic.elasticsearch.stateless.objectstore.ObjectStoreService;
 import co.elastic.elasticsearch.stateless.objectstore.ObjectStoreTestUtils;
@@ -1970,18 +1972,35 @@ public class StatelessRecoveryIT extends AbstractStatelessIntegTestCase {
             connection.sendRequest(requestId, action, request, options);
         });
 
+        // Block fetching data from indexing node in addition to blobstore to control the progress on search node
+        CountDownLatch getVbccChunkLatch = new CountDownLatch(1);
+        MockTransportService.getInstance(indexNode)
+            .addRequestHandlingBehavior(
+                TransportGetVirtualBatchedCompoundCommitChunkAction.NAME + "[p]",
+                (handler, request, channel, task) -> {
+                    safeAwait(getVbccChunkLatch);
+                    handler.messageReceived(request, channel, task);
+                }
+            );
+
         // Establishing a handler on the search node for receiving the new commit notification request from the indexing node
         // and tracking the new commit notification response before it is sent to the indexing node.
-        CountDownLatch newCommitNotificationReceived = new CountDownLatch(1);
+        // countdown for both non-uploaded and uploaded when upload is delayed
+        CountDownLatch newCommitNotificationReceived = new CountDownLatch(STATELESS_UPLOAD_DELAYED ? 2 : 1);
         AtomicLong newCommitNotificationResponseGeneration = new AtomicLong(-1L);
         MockTransportService.getInstance(searchNode)
             .addRequestHandlingBehavior(TransportNewCommitNotificationAction.NAME + "[u]", (handler, request, channel, task) -> {
                 handler.messageReceived(request, new TestTransportChannel(new ChannelActionListener<>(channel).delegateFailure((l, tr) -> {
                     var termGens = ((NewCommitNotificationResponse) tr).getPrimaryTermAndGenerationsInUse();
-                    assertThat(termGens.size(), equalTo(1));
-                    termGens.forEach(termGen -> newCommitNotificationResponseGeneration.set(termGen.generation()));
+                    // The search shard will use the latest notified generation.
+                    // It can also sometimes still refers to the old generation if it is not closed fast enough
+                    assertThat(termGens.size(), oneOf(1, 2));
+                    termGens.stream()
+                        .max(PrimaryTermAndGeneration::compareTo)
+                        .ifPresent(termAndGen -> newCommitNotificationResponseGeneration.set(termAndGen.generation()));
                     l.onResponse(tr);
                 })), task);
+                assertThat(newCommitNotificationReceived.getCount(), greaterThan(0L));
                 newCommitNotificationReceived.countDown();
             });
 
@@ -2004,6 +2023,7 @@ public class StatelessRecoveryIT extends AbstractStatelessIntegTestCase {
 
         logger.info("--> Unblocking the recovery of the search shard");
         repository.unblock();
+        getVbccChunkLatch.countDown();
         ensureGreen(indexName);
 
         logger.info("--> Waiting for the new commit notification success");

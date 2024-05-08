@@ -239,7 +239,8 @@ public class ShardSizeStatsReaderIT extends AbstractStatelessIntegTestCase {
             bulkRequest.add(indexRequestBuilder);
         }
         assertNoFailures(bulkRequest.get());
-        refresh(index);
+        refresh(index); // refresh to ensure we wait for search nodes to see the commits
+        flushNoForceNoWait(); // flush to ensure commit is in object store
     }
 
     private static ShardId resolveShardId(String index) {

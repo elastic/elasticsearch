@@ -91,12 +91,6 @@ tasks {
                 excludeTestsMatching("*.AutoscalingSearchMetricsIT.testSearchTierMetricsAfterChangingBoostWindow")
                 excludeTestsMatching("*.AutoscalingSearchMetricsIT.testSearchTierMetricsInteractiveMetrics")
                 excludeTestsMatching("*.AutoscalingSearchMetricsIT.testSearchTierMetricsNonInteractiveMetrics")
-                excludeTestsMatching("*.ShardSizeStatsReaderIT.testShardSizeWithDefinedMappingAndNewDataStreamEntries")
-                excludeTestsMatching("*.ShardSizeStatsReaderIT.testShardSizeWithDefinedMappingAndOldDataStreamEntries")
-                excludeTestsMatching("*.ShardSizeStatsReaderIT.testShardSizeWithoutTimestampField")
-                excludeTestsMatching("*.ShardSizeStatsReaderIT.testShardSizesWithAutodetectedMappingAndNewEntries")
-                excludeTestsMatching("*.ShardSizeStatsReaderIT.testShardSizesWithAutodetectedMappingAndOldEntries")
-                excludeTestsMatching("*.ShardSizeStatsReaderIT.testShardSizesWithClosedIndices")
                 excludeTestsMatching("*.StatelessIT.testCompoundCommitHasNodeEphemeralId")
                 excludeTestsMatching("*.StatelessIT.testCreatesSearchShardsOfClosedIndex")
                 excludeTestsMatching("*.StatelessIT.testDownloadNewCommitsFromObjectStore")
@@ -104,7 +98,6 @@ tasks {
                 excludeTestsMatching("*.StatelessIT.testUploadToObjectStore")
                 excludeTestsMatching("*.StatelessRealTimeGetIT.testDataVisibility")
                 excludeTestsMatching("*.StatelessRealTimeGetIT.testStress")
-                excludeTestsMatching("*.StatelessRecoveryIT.testNewCommitNotificationOfRecoveringSearchShard")
                 excludeTestsMatching("*.StatelessRecoveryIT.testRecoveryMetricPublicationOnIndexingShardRelocation")
                 excludeTestsMatching("*.StatelessRecoveryIT.testTranslogRecoveryWithHeavyIndexing")
                 excludeTestsMatching("*.S3ObjectStoreTests.testShouldNotRetryForNoSuchFileException")
@@ -112,7 +105,7 @@ tasks {
                 excludeTestsMatching("*.VirtualBatchedCompoundCommitsIT.testGetVirtualBatchedCompoundCommitChunkOnLastVbcc")
                 excludeTestsMatching("*.VirtualBatchedCompoundCommitsIT.testGetVirtualBatchedCompoundCommitChunkFailureWhenIndexClosesDuringPrimaryRelocation")
             }
-        }  else {
+        } else {
             filter {
                 // To mute a test, adds a line here following to the below example
                 // excludeTestsMatching("*.TestClassIT.testMethod")

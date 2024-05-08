@@ -11,6 +11,9 @@ import org.apache.lucene.util.IntroSorter;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.core.Releasables;
 
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 
 /**
@@ -31,6 +34,7 @@ public final class DocVector extends AbstractVector implements Vector {
     private final IntVector docs;
 
     private final DoubleVector scores;
+    private final List<Map<String,Float>> extractedFeatures;
 
     /**
      * Are the docs in this vector all in one segment and non-decreasing? If
@@ -49,15 +53,23 @@ public final class DocVector extends AbstractVector implements Vector {
     private int[] shardSegmentDocMapBackwards;
 
     public DocVector(IntVector shards, IntVector segments, IntVector docs, Boolean singleSegmentNonDecreasing) {
-        this(shards, segments, docs, null, singleSegmentNonDecreasing);
+        this(shards, segments, docs, null, null, singleSegmentNonDecreasing);
     }
 
-    public DocVector(IntVector shards, IntVector segments, IntVector docs,  DoubleVector scores, Boolean singleSegmentNonDecreasing) {
+    public DocVector(
+        IntVector shards,
+        IntVector segments,
+        IntVector docs,
+        DoubleVector scores,
+        List<Map<String, Float>> extractedFeatures,
+        Boolean singleSegmentNonDecreasing
+    ) {
         super(shards.getPositionCount(), shards.blockFactory());
         this.shards = shards;
         this.segments = segments;
         this.docs = docs;
         this.scores = scores;
+        this.extractedFeatures = extractedFeatures;
         this.singleSegmentNonDecreasing = singleSegmentNonDecreasing;
         if (shards.getPositionCount() != segments.getPositionCount()) {
             throw new IllegalArgumentException(
@@ -87,6 +99,8 @@ public final class DocVector extends AbstractVector implements Vector {
     public DoubleVector scores() {
         return scores;
     }
+
+    public List<Map<String, Float>> extractedFeatures() { return extractedFeatures; }
 
     public boolean singleSegmentNonDecreasing() {
         if (singleSegmentNonDecreasing == null) {

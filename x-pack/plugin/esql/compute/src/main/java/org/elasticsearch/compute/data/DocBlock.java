@@ -186,7 +186,7 @@ public class DocBlock extends AbstractVectorBlock implements Block {
                 segments = this.segments.build();
                 docs = this.docs.build();
                 scores = this.scores.build();
-                result = new DocVector(shards, segments, docs, scores, null);
+                result = new DocVector(shards, segments, docs, scores, null, null);
                 return result.asBlock();
             } finally {
                 if (result == null) {

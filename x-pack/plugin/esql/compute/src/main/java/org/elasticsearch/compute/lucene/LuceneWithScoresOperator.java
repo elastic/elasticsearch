@@ -218,7 +218,7 @@ public final class LuceneWithScoresOperator extends LuceneOperator {
             segments = currentSegmentBuilder.build();
             docs = currentDocsBuilder.build();
             scores = currentScoresBuilder.build();
-            page = new Page(size, new DocVector(shard.asVector(), segments, docs, scores, null).asBlock());
+            page = new Page(size, new DocVector(shard.asVector(), segments, docs, scores, null, null).asBlock());
         } finally {
             if (page == null) {
                 Releasables.closeExpectNoException(shard, segments, docs);

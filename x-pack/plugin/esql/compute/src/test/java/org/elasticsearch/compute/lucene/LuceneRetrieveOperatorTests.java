@@ -238,7 +238,7 @@ public class LuceneRetrieveOperatorTests extends AnyOperatorTestCase {
             }
         };
 
-        Query featureQuery1 = QueryBuilders.matchQuery("stored_text", "history").toQuery(sec);
+        Query featureQuery1 = QueryBuilders.matchQuery("stored_text", "time").toQuery(sec);
         Query featureQuery2 = QueryBuilders.matchQuery("stored_text", "kill").toQuery(sec);
 
         testWithQuery(
@@ -248,8 +248,8 @@ public class LuceneRetrieveOperatorTests extends AnyOperatorTestCase {
                 new Tuple<>(secondRescorer, 2)
             ),
            List.of(
-                new Tuple<>("my_feature1", featureQuery1),
-                new Tuple<>("my_feature2", featureQuery2)
+                new Tuple<>("_my_feature1", featureQuery1),
+                new Tuple<>("_my_feature2", featureQuery2)
             ),
             List.of("1", "3"),
             ctx
@@ -276,12 +276,17 @@ public class LuceneRetrieveOperatorTests extends AnyOperatorTestCase {
             features
         );
 
+        List<ValuesSourceReaderOperator.FieldInfo> outputFields = new ArrayList<>();
+        outputFields.add(ValuesSourceReaderOperatorTests.fieldInfo(storedTextField("stored_text"), ElementType.BYTES_REF));
+        outputFields.add(ValuesSourceReaderOperatorTests.fieldInfo(storedTextField("_score"), ElementType.DOUBLE));
+        outputFields.add( ValuesSourceReaderOperatorTests.fieldInfo(mapperService.fieldType("_id"), ElementType.BYTES_REF));
+
+        for(var feature: features) {
+            outputFields.add(ValuesSourceReaderOperatorTests.fieldInfo(storedTextField(feature.v1()), ElementType.DOUBLE));
+        }
+
         Operator op =  new ValuesSourceReaderOperator.Factory(
-            List.of(
-                ValuesSourceReaderOperatorTests.fieldInfo(storedTextField("stored_text"), ElementType.BYTES_REF),
-                ValuesSourceReaderOperatorTests.fieldInfo(storedTextField("_score"), ElementType.DOUBLE),
-                ValuesSourceReaderOperatorTests.fieldInfo(mapperService.fieldType("_id"), ElementType.BYTES_REF)
-                ),
+            outputFields,
             List.of(new ValuesSourceReaderOperator.ShardContext(reader, () -> SourceLoader.FROM_STORED_SOURCE)),
             0
         ).get(driverContext);
@@ -295,6 +300,8 @@ public class LuceneRetrieveOperatorTests extends AnyOperatorTestCase {
         long expectedS = 0;
         double prevScore = Double.MAX_VALUE;
         for (Page page : results) {
+            // check that page includes columns for extracted features
+            assertEquals(page.getBlockCount(), outputFields.size() + 1);
             BytesRefBlock idsBlock = page.getBlock(3);
             DoubleBlock scoresBlock = page.getBlock(2);
             for (int i = 0; i < page.getPositionCount(); i++) {

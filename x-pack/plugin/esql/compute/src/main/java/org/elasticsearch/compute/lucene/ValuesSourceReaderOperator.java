@@ -15,6 +15,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BytesRefBlock;
@@ -142,7 +143,7 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingOperator {
                 IntVector docs = docVector.docs();
                 int shard = docVector.shards().getInt(0);
                 int segment = docVector.segments().getInt(0);
-                loadFromSingleLeaf(blocks, shard, segment, docVector.scores(), new BlockLoader.Docs() {
+                loadFromSingleLeaf(blocks, shard, segment, docVector, new BlockLoader.Docs() {
                     @Override
                     public int count() {
                         return docs.getPositionCount();
@@ -217,8 +218,9 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingOperator {
         return true;
     }
 
-    private void loadFromSingleLeaf(Block[] blocks, int shard, int segment, DoubleVector scores, BlockLoader.Docs docs) throws IOException {
+    private void loadFromSingleLeaf(Block[] blocks, int shard, int segment, DocVector docVector, BlockLoader.Docs docs) throws IOException {
         int firstDoc = docs.get(0);
+        DoubleVector scores = docVector.scores();
         positionFieldWork(shard, segment, firstDoc);
         StoredFieldsSpec storedFieldsSpec = StoredFieldsSpec.NO_REQUIREMENTS;
         List<RowStrideReaderWork> rowStrideReaders = new ArrayList<>(fields.length);
@@ -230,6 +232,11 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingOperator {
                 BlockLoader.ColumnAtATimeReader columnAtATime = field.columnAtATime(ctx);
                 if (field.info.name.equals("_score")) {
                     blocks[f] = scores.asBlock();
+                } else if (field.info.name.startsWith("_") && docVector.extractedFeatures() != null) {
+                    blocks[f] = blockFactory
+                        .newDoubleVectorBuilder(1)
+                        .appendDouble(docVector.extractedFeatures().get(0).get(field.info.name))
+                        .build().asBlock();
                 } else if (columnAtATime != null) {
                     blocks[f] = (Block) columnAtATime.read(loaderBlockFactory, docs);
                 } else {
@@ -285,11 +292,10 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingOperator {
 
     private void loadFromSingleLeafUnsorted(Block[] blocks, DocVector docVector) throws IOException {
         IntVector docs = docVector.docs();
-        DoubleVector scores = docVector.scores();
         int[] forwards = docVector.shardSegmentDocMapForwards();
         int shard = docVector.shards().getInt(0);
         int segment = docVector.segments().getInt(0);
-        loadFromSingleLeaf(blocks, shard, segment, scores, new BlockLoader.Docs() {
+        loadFromSingleLeaf(blocks, shard, segment, docVector, new BlockLoader.Docs() {
             @Override
             public int count() {
                 return docs.getPositionCount();
@@ -318,6 +324,7 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingOperator {
         private final int[] backwards;
         private final Block.Builder[] builders;
         private final BlockLoader.RowStrideReader[] rowStride;
+        private final List<Map<String, Float>> extractedFeatures;
 
         private DoubleBlock.Builder scoreBuilder;
 
@@ -329,6 +336,7 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingOperator {
             segments = docVector.segments();
             docs = docVector.docs();
             scores = docVector.scores();
+            extractedFeatures = docVector.extractedFeatures();
             forwards = docVector.shardSegmentDocMapForwards();
             backwards = docVector.shardSegmentDocMapBackwards();
             builders = new Block.Builder[target.length];
@@ -337,7 +345,7 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingOperator {
         }
 
         void run() throws IOException {
-            int scoreBuilderIndex = -1;
+            Map<Integer, String> customColumnsPositions = Maps.newMapWithExpectedSize(fields.length);
             for (int f = 0; f < fields.length; f++) {
                 /*
                  * Important note: each block loader has a method to build an
@@ -346,8 +354,8 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingOperator {
                  * So! We take the least common denominator which is the loader
                  * from the element expected element type.
                  */
-                if (fields[f].info.name.equals("_score")) {
-                    scoreBuilderIndex = f;
+                if (!fields[f].info.name.equals("_id") && fields[f].info.name.startsWith("_")) {
+                   customColumnsPositions.put(f, fields[f].info.name);
                 }
                 builders[f] = fields[f].info.type.newBlockBuilder(docs.getPositionCount(), blockFactory);
             }
@@ -369,6 +377,20 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingOperator {
                 if(scores != null) {
                     scoreBuilder.appendDouble(scores.getDouble(p));
                 }
+                if (extractedFeatures != null) {
+                    var docExtractedFeatures = extractedFeatures.get(i);
+                    for (int columnPosition : customColumnsPositions.keySet()) {
+                        String columnName = customColumnsPositions.get(columnPosition);
+                        if (columnName.equals("_score")) {
+                            continue;
+                        }
+                        if (docExtractedFeatures == null || docExtractedFeatures.get(columnName) == null) {
+                            builders[columnPosition].appendNull();
+                        } else {
+                            ((DoubleBlock.Builder) builders[columnPosition]).appendDouble(docExtractedFeatures.get(columnName));
+                        }
+                    }
+                }
                 boolean changedSegment = positionFieldWorkDocGuarteedAscending(shard, segment);
                 if (changedSegment) {
                     ctx = ctx(shard, segment);
@@ -382,8 +404,12 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingOperator {
                     target[f] = orig.filter(backwards);
                 }
             }
-            if (scores != null && scoreBuilderIndex != -1) {
-                target[scoreBuilderIndex] = scores.asBlock();
+
+            for(int columnPosition: customColumnsPositions.keySet()) {
+                String columnName = customColumnsPositions.get(columnPosition);
+                if (scores != null && columnName == "_score") {
+                    target[columnPosition] = scores.asBlock();
+                }
             }
         }
 

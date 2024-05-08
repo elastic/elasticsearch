@@ -21,6 +21,7 @@ import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.core.TimeValue;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -30,6 +31,7 @@ public class PublishHeapMemoryMetricsRequest extends MasterNodeRequest<PublishHe
     private final HeapMemoryUsage heapMemoryUsage;
 
     public PublishHeapMemoryMetricsRequest(final HeapMemoryUsage heapMemoryUsage) {
+        super(TimeValue.MINUS_ONE);
         this.heapMemoryUsage = heapMemoryUsage;
     }
 

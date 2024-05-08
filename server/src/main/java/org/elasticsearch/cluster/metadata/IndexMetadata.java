@@ -197,6 +197,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
      * kills the entire cluster with OOM on the spot.
      */
     public static final String PER_INDEX_MAX_NUMBER_OF_SHARDS = "1024";
+
     static Setting<Integer> buildNumberOfShardsSetting() {
         final int maxNumShards = Integer.parseInt(System.getProperty("es.index.max_number_of_shards", PER_INDEX_MAX_NUMBER_OF_SHARDS));
         if (maxNumShards < 1) {

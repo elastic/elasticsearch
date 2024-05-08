@@ -35,7 +35,7 @@ public abstract class RankBuilder implements VersionedNamedWriteable, ToXContent
 
     public static final ParseField RANK_WINDOW_SIZE_FIELD = new ParseField("rank_window_size");
 
-    public static final int DEFAULT_WINDOW_SIZE = SearchService.DEFAULT_SIZE;
+    public static final int DEFAULT_RANK_WINDOW_SIZE = SearchService.DEFAULT_SIZE;
 
     private final int rankWindowSize;
 
@@ -70,6 +70,12 @@ public abstract class RankBuilder implements VersionedNamedWriteable, ToXContent
     public int rankWindowSize() {
         return rankWindowSize;
     }
+
+    /**
+     * Specify whether this rank builder is a compound builder or not. A compound builder is a rank builder that requires
+     * two or more queries to be executed in order to generate the final result.
+     */
+    public abstract boolean isCompoundBuilder();
 
     /**
      * Generates a context used to execute required searches during the query phase on the shard.

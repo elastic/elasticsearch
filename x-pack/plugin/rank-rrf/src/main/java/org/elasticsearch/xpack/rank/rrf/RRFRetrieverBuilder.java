@@ -71,7 +71,7 @@ public final class RRFRetrieverBuilder extends RetrieverBuilder {
     }
 
     List<RetrieverBuilder> retrieverBuilders = Collections.emptyList();
-    int rankWindowSize = RRFRankBuilder.DEFAULT_WINDOW_SIZE;
+    int rankWindowSize = RRFRankBuilder.DEFAULT_RANK_WINDOW_SIZE;
     int rankConstant = RRFRankBuilder.DEFAULT_RANK_CONSTANT;
 
     @Override

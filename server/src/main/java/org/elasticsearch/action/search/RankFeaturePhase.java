@@ -154,7 +154,7 @@ public class RankFeaturePhase extends SearchPhase {
                     @Override
                     protected void innerOnResponse(RankFeatureResult response) {
                         try {
-                            progressListener.notifyFetchResult(shardIndex);
+                            progressListener.notifyRankFeatureResult(shardIndex);
                             rankRequestCounter.onResult(response);
                         } catch (Exception e) {
                             context.onPhaseFailure(RankFeaturePhase.this, "", e);
@@ -164,7 +164,7 @@ public class RankFeaturePhase extends SearchPhase {
                     @Override
                     public void onFailure(Exception e) {
                         logger.debug(() -> "[" + contextId + "] Failed to execute rank phase", e);
-                        // progressListener.notifyRankFeatureFailure(shardIndex, shardTarget, e);
+                        progressListener.notifyRankFeatureFailure(shardIndex, shardTarget, e);
                         rankRequestCounter.onFailure(shardIndex, shardTarget, e);
                     }
                 }

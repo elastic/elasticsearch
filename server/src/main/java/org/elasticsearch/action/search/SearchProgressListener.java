@@ -176,6 +176,22 @@ public abstract class SearchProgressListener {
         }
     }
 
+    final void notifyRankFeatureResult(int shardIndex) {
+        try {
+            onRankFeatureResult(shardIndex);
+        } catch (Exception e) {
+            logger.warn(() -> "[" + shards.get(shardIndex) + "] Failed to execute progress listener on rank-feature result", e);
+        }
+    }
+
+    final void notifyRankFeatureFailure(int shardIndex, SearchShardTarget shardTarget, Exception exc) {
+        try {
+            onRankFeatureFailure(shardIndex, shardTarget, exc);
+        } catch (Exception e) {
+            logger.warn(() -> "[" + shards.get(shardIndex) + "] Failed to execute progress listener on rank-feature failure", e);
+        }
+    }
+
     final void notifyFetchResult(int shardIndex) {
         try {
             onFetchResult(shardIndex);

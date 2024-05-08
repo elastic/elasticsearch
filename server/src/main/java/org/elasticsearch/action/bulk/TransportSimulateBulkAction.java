@@ -44,7 +44,9 @@ public class TransportSimulateBulkAction extends TransportBulkAction {
         ActionFilters actionFilters,
         IndexNameExpressionResolver indexNameExpressionResolver,
         IndexingPressure indexingPressure,
-        SystemIndices systemIndices
+        SystemIndices systemIndices,
+        BulkShardOperationService bulkShardOperationService
+
     ) {
         super(
             SimulateBulkAction.INSTANCE,
@@ -59,6 +61,7 @@ public class TransportSimulateBulkAction extends TransportBulkAction {
             indexNameExpressionResolver,
             indexingPressure,
             systemIndices,
+            bulkShardOperationService,
             System::nanoTime
         );
     }

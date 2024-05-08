@@ -5,24 +5,22 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.inference.action.filter;
+package org.elasticsearch.xpack.inference.action.bulk;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.ActionRequest;
-import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.bulk.BulkItemRequest;
+import org.elasticsearch.action.bulk.BulkShardOperationProcessor;
 import org.elasticsearch.action.bulk.BulkShardRequest;
-import org.elasticsearch.action.bulk.TransportShardBulkAction;
 import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.action.support.ActionFilterChain;
 import org.elasticsearch.action.support.MappedActionFilter;
 import org.elasticsearch.action.support.RefCountingRunnable;
 import org.elasticsearch.action.update.UpdateRequest;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.InferenceFieldMetadata;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
@@ -36,7 +34,6 @@ import org.elasticsearch.inference.InferenceServiceRegistry;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.tasks.Task;
 import org.elasticsearch.xpack.core.inference.results.ErrorChunkedInferenceResults;
 import org.elasticsearch.xpack.inference.mapper.SemanticTextField;
 import org.elasticsearch.xpack.inference.mapper.SemanticTextFieldMapper;
@@ -64,52 +61,40 @@ import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.toSeman
  *
  * TODO: batchSize should be configurable via a cluster setting
  */
-public class ShardBulkInferenceActionFilter implements MappedActionFilter {
+public class BulkShardOperationInferenceProcessor implements BulkShardOperationProcessor {
     protected static final int DEFAULT_BATCH_SIZE = 512;
 
     private final InferenceServiceRegistry inferenceServiceRegistry;
     private final ModelRegistry modelRegistry;
     private final int batchSize;
 
-    public ShardBulkInferenceActionFilter(InferenceServiceRegistry inferenceServiceRegistry, ModelRegistry modelRegistry) {
+    public BulkShardOperationInferenceProcessor(InferenceServiceRegistry inferenceServiceRegistry, ModelRegistry modelRegistry) {
         this(inferenceServiceRegistry, modelRegistry, DEFAULT_BATCH_SIZE);
     }
 
-    public ShardBulkInferenceActionFilter(InferenceServiceRegistry inferenceServiceRegistry, ModelRegistry modelRegistry, int batchSize) {
+    public BulkShardOperationInferenceProcessor(
+        InferenceServiceRegistry inferenceServiceRegistry,
+        ModelRegistry modelRegistry,
+        int batchSize
+    ) {
         this.inferenceServiceRegistry = inferenceServiceRegistry;
         this.modelRegistry = modelRegistry;
         this.batchSize = batchSize;
     }
 
     @Override
-    public int order() {
-        // must execute last (after the security action filter)
-        return Integer.MAX_VALUE;
-    }
+    public void apply(BulkShardRequest request, ClusterState clusterState, ActionListener<BulkShardRequest> listener) {
 
-    @Override
-    public String actionName() {
-        return TransportShardBulkAction.ACTION_NAME;
-    }
-
-    @Override
-    public <Request extends ActionRequest, Response extends ActionResponse> void apply(
-        Task task,
-        String action,
-        Request request,
-        ActionListener<Response> listener,
-        ActionFilterChain<Request, Response> chain
-    ) {
-        if (TransportShardBulkAction.ACTION_NAME.equals(action)) {
-            BulkShardRequest bulkShardRequest = (BulkShardRequest) request;
-            var fieldInferenceMetadata = bulkShardRequest.consumeInferenceFieldMap();
+        var indexMetadata = clusterState.getMetadata().index(request.shardId().getIndexName());
+        if (indexMetadata != null) {
+            var fieldInferenceMetadata = indexMetadata.getInferenceFields();
             if (fieldInferenceMetadata.isEmpty() == false) {
-                Runnable onInferenceCompletion = () -> chain.proceed(task, action, request, listener);
-                processBulkShardRequest(fieldInferenceMetadata, bulkShardRequest, onInferenceCompletion);
+                processBulkShardRequest(fieldInferenceMetadata, request, () -> listener.onResponse(request));
                 return;
             }
         }
-        chain.proceed(task, action, request, listener);
+
+        listener.onResponse(request);
     }
 
     private void processBulkShardRequest(

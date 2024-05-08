@@ -80,6 +80,7 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
     private final FailureStoreDocumentConverter failureStoreDocumentConverter;
     private final IndexNameExpressionResolver indexNameExpressionResolver;
     private final NodeClient client;
+    private final BulkShardOperationProcessor bulkShardOperationProcessor;
 
     BulkOperation(
         Task task,
@@ -93,6 +94,7 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
         IndexNameExpressionResolver indexNameExpressionResolver,
         LongSupplier relativeTimeProvider,
         long startTimeNanos,
+        BulkShardOperationProcessor BulkShardOperationProcessor,
         ActionListener<BulkResponse> listener
     ) {
         this(
@@ -109,7 +111,8 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
             startTimeNanos,
             listener,
             new ClusterStateObserver(clusterService, bulkRequest.timeout(), logger, threadPool.getThreadContext()),
-            new FailureStoreDocumentConverter()
+            new FailureStoreDocumentConverter(),
+            BulkShardOperationProcessor
         );
     }
 
@@ -127,8 +130,8 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
         long startTimeNanos,
         ActionListener<BulkResponse> listener,
         ClusterStateObserver observer,
-        FailureStoreDocumentConverter failureStoreDocumentConverter
-    ) {
+        FailureStoreDocumentConverter failureStoreDocumentConverter,
+        BulkShardOperationProcessor BulkShardOperationProcessor) {
         super(listener);
         this.task = task;
         this.threadPool = threadPool;
@@ -144,6 +147,7 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
         this.client = client;
         this.observer = observer;
         this.failureStoreDocumentConverter = failureStoreDocumentConverter;
+        this.bulkShardOperationProcessor = BulkShardOperationProcessor;
     }
 
     @Override
@@ -298,17 +302,26 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
                     bulkRequest.getRefreshPolicy(),
                     requests.toArray(new BulkItemRequest[0])
                 );
-                var indexMetadata = clusterState.getMetadata().index(shardId.getIndexName());
-                if (indexMetadata != null && indexMetadata.getInferenceFields().isEmpty() == false) {
-                    bulkShardRequest.setInferenceFieldMap(indexMetadata.getInferenceFields());
-                }
+
                 bulkShardRequest.waitForActiveShards(bulkRequest.waitForActiveShards());
                 bulkShardRequest.timeout(bulkRequest.timeout());
                 bulkShardRequest.routedBasedOnClusterVersion(clusterState.version());
                 if (task != null) {
                     bulkShardRequest.setParentTask(nodeId, task.getId());
                 }
-                executeBulkShardRequest(bulkShardRequest, bulkItemRequestCompleteRefCount.acquire());
+                Releasable releaseOnFinish = bulkItemRequestCompleteRefCount.acquire();
+                bulkShardOperationProcessor.apply(bulkShardRequest, clusterState, new ActionListener<>() {
+                    @Override
+                    public void onResponse(BulkShardRequest bulkShardRequest) {
+                        executeBulkShardRequest(bulkShardRequest, releaseOnFinish);
+                    }
+
+                    @Override
+                    public void onFailure(Exception e) {
+                        failBulkShardRequest(bulkShardRequest, clusterState, e);
+                        releaseOnFinish.close();
+                    }
+                });
             }
         }
     }
@@ -386,17 +399,7 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
 
             @Override
             public void onFailure(Exception e) {
-                // create failures for all relevant requests
-                for (BulkItemRequest request : bulkShardRequest.items()) {
-                    final String indexName = request.index();
-                    DocWriteRequest<?> docWriteRequest = request.request();
-
-                    String failureStoreReference = getRedirectTarget(docWriteRequest, getClusterState().metadata());
-                    if (failureStoreReference != null) {
-                        addDocumentToRedirectRequests(request, e, failureStoreReference);
-                    }
-                    addFailure(docWriteRequest, request.id(), indexName, e);
-                }
+                failBulkShardRequest(bulkShardRequest, getClusterState(), e);
                 completeShardOperation();
             }
 
@@ -406,6 +409,20 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
                 releaseOnFinish.close();
             }
         });
+    }
+
+    private void failBulkShardRequest(BulkShardRequest bulkShardRequest, ClusterState clusterState, Exception e) {
+        // create failures for all relevant requests
+        for (BulkItemRequest request : bulkShardRequest.items()) {
+            final String indexName = request.index();
+            DocWriteRequest<?> docWriteRequest = request.request();
+
+            String failureStoreReference = getRedirectTarget(docWriteRequest, clusterState.metadata());
+            if (failureStoreReference != null) {
+                addDocumentToRedirectRequests(request, e, failureStoreReference);
+            }
+            addFailure(docWriteRequest, request.id(), indexName, e);
+        }
     }
 
     /**

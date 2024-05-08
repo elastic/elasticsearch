@@ -104,6 +104,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
 
     private final Executor writeExecutor;
     private final Executor systemWriteExecutor;
+    private final BulkShardOperationProcessor bulkShardOperationProcessor;
 
     @Inject
     public TransportBulkAction(
@@ -116,7 +117,8 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
         ActionFilters actionFilters,
         IndexNameExpressionResolver indexNameExpressionResolver,
         IndexingPressure indexingPressure,
-        SystemIndices systemIndices
+        SystemIndices systemIndices,
+        BulkShardOperationProcessor bulkShardOperationProcessor
     ) {
         this(
             threadPool,
@@ -129,6 +131,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
             indexNameExpressionResolver,
             indexingPressure,
             systemIndices,
+            bulkShardOperationProcessor,
             System::nanoTime
         );
     }
@@ -144,6 +147,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
         IndexNameExpressionResolver indexNameExpressionResolver,
         IndexingPressure indexingPressure,
         SystemIndices systemIndices,
+        BulkShardOperationProcessor bulkShardOperationProcessor,
         LongSupplier relativeTimeProvider
     ) {
         this(
@@ -159,6 +163,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
             indexNameExpressionResolver,
             indexingPressure,
             systemIndices,
+            bulkShardOperationProcessor,
             relativeTimeProvider
         );
     }
@@ -176,6 +181,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
         IndexNameExpressionResolver indexNameExpressionResolver,
         IndexingPressure indexingPressure,
         SystemIndices systemIndices,
+        BulkShardOperationProcessor bulkShardOperationProcessor,
         LongSupplier relativeTimeProvider
     ) {
         super(bulkAction.name(), transportService, actionFilters, requestReader, EsExecutors.DIRECT_EXECUTOR_SERVICE);
@@ -195,6 +201,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
         this.rolloverClient = new OriginSettingClient(client, LAZY_ROLLOVER_ORIGIN);
         this.writeExecutor = threadPool.executor(Names.WRITE);
         this.systemWriteExecutor = threadPool.executor(Names.SYSTEM_WRITE);
+        this.bulkShardOperationProcessor = bulkShardOperationProcessor;
     }
 
     /**
@@ -658,6 +665,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
             indexNameExpressionResolver,
             relativeTimeProvider,
             startTimeNanos,
+            bulkShardOperationProcessor,
             listener
         ).run();
     }

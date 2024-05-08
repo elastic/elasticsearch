@@ -8,6 +8,7 @@
 
 package org.elasticsearch.plugins;
 
+import org.elasticsearch.action.bulk.BulkShardOperationService;
 import org.elasticsearch.bootstrap.BootstrapCheck;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.DataStreamGlobalRetentionResolver;
@@ -162,6 +163,8 @@ public abstract class Plugin implements Closeable {
          * data streams managed by the data stream lifecycle.
          */
         DataStreamGlobalRetentionResolver dataStreamGlobalRetentionResolver();
+
+        BulkShardOperationService bulkOperationService();
     }
 
     /**

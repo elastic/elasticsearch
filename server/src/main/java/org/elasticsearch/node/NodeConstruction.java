@@ -22,6 +22,8 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.admin.cluster.repositories.reservedstate.ReservedRepositoryAction;
 import org.elasticsearch.action.admin.indices.template.reservedstate.ReservedComposableIndexTemplateAction;
+import org.elasticsearch.action.bulk.BulkShardOperationProcessor;
+import org.elasticsearch.action.bulk.BulkShardOperationService;
 import org.elasticsearch.action.datastreams.autosharding.DataStreamAutoShardingService;
 import org.elasticsearch.action.ingest.ReservedPipelineAction;
 import org.elasticsearch.action.search.SearchExecutionStatsCollector;
@@ -799,6 +801,9 @@ class NodeConstruction {
             metadataCreateIndexService
         );
 
+        final BulkShardOperationService bulkOperationService = new BulkShardOperationService();
+        modules.bindToInstance(BulkShardOperationProcessor.class, bulkOperationService);
+
         record PluginServiceInstances(
             Client client,
             ClusterService clusterService,
@@ -817,7 +822,8 @@ class NodeConstruction {
             IndicesService indicesService,
             FeatureService featureService,
             SystemIndices systemIndices,
-            DataStreamGlobalRetentionResolver dataStreamGlobalRetentionResolver
+            DataStreamGlobalRetentionResolver dataStreamGlobalRetentionResolver,
+            BulkShardOperationService bulkOperationService
         ) implements Plugin.PluginServices {}
         PluginServiceInstances pluginServices = new PluginServiceInstances(
             client,
@@ -837,7 +843,8 @@ class NodeConstruction {
             indicesService,
             featureService,
             systemIndices,
-            dataStreamGlobalRetentionResolver
+            dataStreamGlobalRetentionResolver,
+            bulkOperationService
         );
 
         Collection<?> pluginComponents = pluginsService.flatMap(p -> p.createComponents(pluginServices)).toList();

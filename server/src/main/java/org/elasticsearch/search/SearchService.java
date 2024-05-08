@@ -1491,9 +1491,6 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             if (hasScroll) {
                 throw new IllegalArgumentException("cannot use `collapse` in a scroll context");
             }
-            if (source.rescores() != null && source.rescores().isEmpty() == false) {
-                throw new IllegalArgumentException("cannot use `collapse` in conjunction with `rescore`");
-            }
         }
         if (source.slice() != null) {
             if (source.pointInTimeBuilder() == null && (hasScroll == false)) {

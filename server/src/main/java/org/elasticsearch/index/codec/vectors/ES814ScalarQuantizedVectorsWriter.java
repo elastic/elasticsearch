@@ -430,7 +430,7 @@ public final class ES814ScalarQuantizedVectorsWriter extends FlatVectorsWriter {
             Optional<VectorScorerFactory> factory = VectorScorerFactory.instance();
             if (factory.isPresent()) {
                 var scorer = factory.get()
-                    .getScalarQuantizedVectorScorer(
+                    .getInt7ScalarQuantizedVectorScorer(
                         byteVectorValues.dimension(),
                         docsWithField.cardinality(),
                         mergedQuantizationState.getConstantMultiplier(),

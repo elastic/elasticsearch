@@ -207,7 +207,9 @@ public class BlockHashRandomizedTests extends ESTestCase {
                     assertMap(keyList, keyMatcher);
                 }
 
-                if (blockHash instanceof LongLongBlockHash == false && blockHash instanceof BytesRefLongBlockHash == false) {
+                if (blockHash instanceof LongLongBlockHash == false
+                    && blockHash instanceof BytesRefLongBlockHash == false
+                    && blockHash instanceof BytesRef3BlockHash == false) {
                     assertLookup(blockFactory, expectedOrds, types, blockHash, oracle);
                 }
             } finally {

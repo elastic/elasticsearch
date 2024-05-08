@@ -11,6 +11,8 @@ import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.core.ReleasableIterator;
 import org.elasticsearch.index.mapper.BlockLoader;
 
 import java.io.IOException;
@@ -37,6 +39,9 @@ public sealed interface IntBlock extends Block permits IntArrayBlock, IntVectorB
 
     @Override
     IntBlock filter(int... positions);
+
+    @Override
+    ReleasableIterator<? extends IntBlock> lookup(IntBlock positions, ByteSizeValue targetBlockSize);
 
     @Override
     IntBlock expand();
@@ -222,13 +227,6 @@ public sealed interface IntBlock extends Block permits IntArrayBlock, IntVectorB
 
         @Override
         Builder mvOrdering(Block.MvOrdering mvOrdering);
-
-        /**
-         * An estimate of the number of bytes the {@link IntBlock} created by
-         * {@link #build} will use. This may overestimate the size but shouldn't
-         * underestimate it.
-         */
-        long estimatedBytes();
 
         @Override
         IntBlock build();

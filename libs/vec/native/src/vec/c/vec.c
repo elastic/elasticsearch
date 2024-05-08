@@ -10,23 +10,43 @@
 #include <arm_neon.h>
 #include "vec.h"
 
-#ifndef DOT8_STRIDE_BYTES_LEN
-#define DOT8_STRIDE_BYTES_LEN 32
+#ifndef DOT7U_STRIDE_BYTES_LEN
+#define DOT7U_STRIDE_BYTES_LEN 32 // Must be a power of 2
 #endif
 
-#ifndef SQR8S_STRIDE_BYTES_LEN
-#define SQR8S_STRIDE_BYTES_LEN 16
+#ifndef SQR7U_STRIDE_BYTES_LEN
+#define SQR7U_STRIDE_BYTES_LEN 16 // Must be a power of 2
 #endif
 
-EXPORT int dot8s_stride() {
-    return DOT8_STRIDE_BYTES_LEN;
+#ifdef __linux__
+    #include <sys/auxv.h>
+    #include <asm/hwcap.h>
+    #ifndef HWCAP_NEON
+    #define HWCAP_NEON 0x1000
+    #endif
+#endif
+
+#ifdef __APPLE__
+#include <TargetConditionals.h>
+#endif
+
+EXPORT int vec_caps() {
+#ifdef __APPLE__
+    #ifdef TARGET_OS_OSX
+        // All M series Apple silicon support Neon instructions
+        return 1;
+    #else
+        #error "Unsupported Apple platform"
+    #endif
+#elif __linux__
+    int hwcap = getauxval(AT_HWCAP);
+    return (hwcap & HWCAP_NEON) != 0;
+#else
+    #error "Unsupported aarch64 platform"
+#endif
 }
 
-EXPORT int sqr8s_stride() {
-    return SQR8S_STRIDE_BYTES_LEN;
-}
-
-EXPORT int32_t dot8s(int8_t* a, int8_t* b, size_t dims) {
+static inline int32_t dot7u_inner(int8_t* a, int8_t* b, size_t dims) {
     // We have contention in the instruction pipeline on the accumulation
     // registers if we use too few.
     int32x4_t acc1 = vdupq_n_s32(0);
@@ -35,7 +55,7 @@ EXPORT int32_t dot8s(int8_t* a, int8_t* b, size_t dims) {
     int32x4_t acc4 = vdupq_n_s32(0);
 
     // Some unrolling gives around 50% performance improvement.
-    for (int i = 0; i < dims; i += DOT8_STRIDE_BYTES_LEN) {
+    for (int i = 0; i < dims; i += DOT7U_STRIDE_BYTES_LEN) {
         // Read into 16 x 8 bit vectors.
         int8x16_t va1 = vld1q_s8(a + i);
         int8x16_t vb1 = vld1q_s8(b + i);
@@ -60,13 +80,26 @@ EXPORT int32_t dot8s(int8_t* a, int8_t* b, size_t dims) {
     return vaddvq_s32(vaddq_s32(acc5, acc6));
 }
 
-EXPORT int32_t sqr8s(int8_t *a, int8_t *b, size_t dims) {
+EXPORT int32_t dot7u(int8_t* a, int8_t* b, size_t dims) {
+    int32_t res = 0;
+    int i = 0;
+    if (dims > DOT7U_STRIDE_BYTES_LEN) {
+        i += dims & ~(DOT7U_STRIDE_BYTES_LEN - 1);
+        res = dot7u_inner(a, b, i);
+    }
+    for (; i < dims; i++) {
+        res += a[i] * b[i];
+    }
+    return res;
+}
+
+static inline int32_t sqr7u_inner(int8_t *a, int8_t *b, size_t dims) {
     int32x4_t acc1 = vdupq_n_s32(0);
     int32x4_t acc2 = vdupq_n_s32(0);
     int32x4_t acc3 = vdupq_n_s32(0);
     int32x4_t acc4 = vdupq_n_s32(0);
 
-    for (int i = 0; i < dims; i += SQR8S_STRIDE_BYTES_LEN) {
+    for (int i = 0; i < dims; i += SQR7U_STRIDE_BYTES_LEN) {
         int8x16_t va1 = vld1q_s8(a + i);
         int8x16_t vb1 = vld1q_s8(b + i);
 
@@ -83,4 +116,18 @@ EXPORT int32_t sqr8s(int8_t *a, int8_t *b, size_t dims) {
     int32x4_t acc5 = vaddq_s32(acc1, acc2);
     int32x4_t acc6 = vaddq_s32(acc3, acc4);
     return vaddvq_s32(vaddq_s32(acc5, acc6));
+}
+
+EXPORT int32_t sqr7u(int8_t* a, int8_t* b, size_t dims) {
+    int32_t res = 0;
+    int i = 0;
+    if (i > SQR7U_STRIDE_BYTES_LEN) {
+        i += dims & ~(SQR7U_STRIDE_BYTES_LEN - 1);
+        res = sqr7u_inner(a, b, i);
+    }
+    for (; i < dims; i++) {
+        int32_t dist = a[i] - b[i];
+        res += dist * dist;
+    }
+    return res;
 }

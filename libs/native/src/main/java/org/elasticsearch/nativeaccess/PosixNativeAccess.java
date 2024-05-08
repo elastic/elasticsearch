@@ -27,7 +27,7 @@ abstract class PosixNativeAccess extends AbstractNativeAccess {
 
     static VectorSimilarityFunctions vectorSimilarityFunctionsOrNull(NativeLibraryProvider libraryProvider) {
         if (isNativeVectorLibSupported()) {
-            var lib = new VectorSimilarityFunctions(libraryProvider.getLibrary(VectorLibrary.class));
+            var lib = libraryProvider.getLibrary(VectorLibrary.class).getVectorSimilarityFunctions();
             logger.info("Using native vector library; to disable start with -D" + ENABLE_JDK_VECTOR_LIBRARY + "=false");
             return lib;
         }

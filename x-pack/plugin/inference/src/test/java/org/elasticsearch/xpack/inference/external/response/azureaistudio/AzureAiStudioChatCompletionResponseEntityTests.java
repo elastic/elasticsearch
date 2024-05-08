@@ -14,7 +14,7 @@ import org.elasticsearch.xpack.inference.external.http.HttpResult;
 import org.elasticsearch.xpack.inference.external.request.azureaistudio.AzureAiStudioChatCompletionRequest;
 import org.elasticsearch.xpack.inference.services.azureaistudio.AzureAiStudioEndpointType;
 import org.elasticsearch.xpack.inference.services.azureaistudio.AzureAiStudioProvider;
-import org.elasticsearch.xpack.inference.services.azureaistudio.completion.AzureAiStudioCompletionModelTests;
+import org.elasticsearch.xpack.inference.services.azureaistudio.completion.AzureAiStudioChatCompletionModelTests;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -28,7 +28,7 @@ public class AzureAiStudioChatCompletionResponseEntityTests extends ESTestCase {
 
     public void testCompletionResponse_FromTokenEndpoint() throws IOException {
         var entity = new AzureAiStudioChatCompletionResponseEntity();
-        var model = AzureAiStudioCompletionModelTests.createModel(
+        var model = AzureAiStudioChatCompletionModelTests.createModel(
             "id",
             "http://testopenai.local",
             AzureAiStudioProvider.OPENAI,
@@ -47,7 +47,7 @@ public class AzureAiStudioChatCompletionResponseEntityTests extends ESTestCase {
 
     public void testCompletionResponse_FromRealtimeEndpoint() throws IOException {
         var entity = new AzureAiStudioChatCompletionResponseEntity();
-        var model = AzureAiStudioCompletionModelTests.createModel(
+        var model = AzureAiStudioChatCompletionModelTests.createModel(
             "id",
             "http://testmistral.local",
             AzureAiStudioProvider.MISTRAL,

@@ -28,7 +28,7 @@ import java.util.function.Supplier;
 import static org.elasticsearch.xpack.inference.common.Truncator.truncate;
 
 public class AzureAiStudioEmbeddingsRequestManager extends AzureAiStudioRequestManager {
-    private static final Logger logger = LogManager.getLogger(AzureAiStudioCompletionRequestManager.class);
+    private static final Logger logger = LogManager.getLogger(AzureAiStudioChatCompletionRequestManager.class);
     private static final ResponseHandler HANDLER = createEmbeddingsHandler();
 
     private final AzureAiStudioEmbeddingsModel model;

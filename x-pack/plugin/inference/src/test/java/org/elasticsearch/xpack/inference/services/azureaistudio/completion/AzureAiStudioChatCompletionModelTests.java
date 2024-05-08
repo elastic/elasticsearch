@@ -18,11 +18,11 @@ import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 
 import java.net.URISyntaxException;
 
-import static org.elasticsearch.xpack.inference.services.azureaistudio.completion.AzureAiStudioCompletionTaskSettingsTests.getTaskSettingsMap;
+import static org.elasticsearch.xpack.inference.services.azureaistudio.completion.AzureAiStudioChatCompletionTaskSettingsTests.getTaskSettingsMap;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.sameInstance;
 
-public class AzureAiStudioCompletionModelTests extends ESTestCase {
+public class AzureAiStudioChatCompletionModelTests extends ESTestCase {
 
     public void testOverrideWith_OverridesWithoutValues() {
         var model = createModel(
@@ -38,7 +38,7 @@ public class AzureAiStudioCompletionModelTests extends ESTestCase {
             null
         );
         var requestTaskSettingsMap = getTaskSettingsMap(null, null, null, null);
-        var overriddenModel = AzureAiStudioCompletionModel.of(model, requestTaskSettingsMap);
+        var overriddenModel = AzureAiStudioChatCompletionModel.of(model, requestTaskSettingsMap);
 
         assertThat(overriddenModel, sameInstance(overriddenModel));
     }
@@ -57,7 +57,7 @@ public class AzureAiStudioCompletionModelTests extends ESTestCase {
             null
         );
         var requestTaskSettings = getTaskSettingsMap(0.5f, null, null, null);
-        var overriddenModel = AzureAiStudioCompletionModel.of(model, requestTaskSettings);
+        var overriddenModel = AzureAiStudioChatCompletionModel.of(model, requestTaskSettings);
         assertThat(
             overriddenModel,
             is(
@@ -91,7 +91,7 @@ public class AzureAiStudioCompletionModelTests extends ESTestCase {
             null
         );
         var requestTaskSettings = getTaskSettingsMap(null, 0.5f, null, null);
-        var overriddenModel = AzureAiStudioCompletionModel.of(model, requestTaskSettings);
+        var overriddenModel = AzureAiStudioChatCompletionModel.of(model, requestTaskSettings);
         assertThat(
             overriddenModel,
             is(
@@ -125,7 +125,7 @@ public class AzureAiStudioCompletionModelTests extends ESTestCase {
             null
         );
         var requestTaskSettings = getTaskSettingsMap(null, null, false, null);
-        var overriddenModel = AzureAiStudioCompletionModel.of(model, requestTaskSettings);
+        var overriddenModel = AzureAiStudioChatCompletionModel.of(model, requestTaskSettings);
         assertThat(
             overriddenModel,
             is(
@@ -159,7 +159,7 @@ public class AzureAiStudioCompletionModelTests extends ESTestCase {
             null
         );
         var requestTaskSettings = getTaskSettingsMap(null, null, null, 128);
-        var overriddenModel = AzureAiStudioCompletionModel.of(model, requestTaskSettings);
+        var overriddenModel = AzureAiStudioChatCompletionModel.of(model, requestTaskSettings);
         assertThat(
             overriddenModel,
             is(
@@ -200,7 +200,7 @@ public class AzureAiStudioCompletionModelTests extends ESTestCase {
         assertThat(model.getEndpointUri().toString(), is("http://testtarget.local"));
     }
 
-    public static AzureAiStudioCompletionModel createModel(
+    public static AzureAiStudioChatCompletionModel createModel(
         String id,
         String target,
         AzureAiStudioProvider provider,
@@ -210,7 +210,7 @@ public class AzureAiStudioCompletionModelTests extends ESTestCase {
         return createModel(id, target, provider, endpointType, apiKey, null, null, null, null, null);
     }
 
-    public static AzureAiStudioCompletionModel createModel(
+    public static AzureAiStudioChatCompletionModel createModel(
         String id,
         String target,
         AzureAiStudioProvider provider,
@@ -222,12 +222,12 @@ public class AzureAiStudioCompletionModelTests extends ESTestCase {
         @Nullable Integer maxNewTokens,
         @Nullable RateLimitSettings rateLimitSettings
     ) {
-        return new AzureAiStudioCompletionModel(
+        return new AzureAiStudioChatCompletionModel(
             id,
             TaskType.COMPLETION,
             "azureaistudio",
-            new AzureAiStudioCompletionServiceSettings(target, provider, endpointType, rateLimitSettings),
-            new AzureAiStudioCompletionTaskSettings(temperature, topP, doSample, maxNewTokens),
+            new AzureAiStudioChatCompletionServiceSettings(target, provider, endpointType, rateLimitSettings),
+            new AzureAiStudioChatCompletionTaskSettings(temperature, topP, doSample, maxNewTokens),
             new DefaultSecretSettings(new SecureString(apiKey.toCharArray()))
         );
     }

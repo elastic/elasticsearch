@@ -8,11 +8,11 @@
 package org.elasticsearch.xpack.inference.external.action.azureaistudio;
 
 import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
-import org.elasticsearch.xpack.inference.external.http.sender.AzureAiStudioCompletionRequestManager;
+import org.elasticsearch.xpack.inference.external.http.sender.AzureAiStudioChatCompletionRequestManager;
 import org.elasticsearch.xpack.inference.external.http.sender.AzureAiStudioEmbeddingsRequestManager;
 import org.elasticsearch.xpack.inference.external.http.sender.Sender;
 import org.elasticsearch.xpack.inference.services.ServiceComponents;
-import org.elasticsearch.xpack.inference.services.azureaistudio.completion.AzureAiStudioCompletionModel;
+import org.elasticsearch.xpack.inference.services.azureaistudio.completion.AzureAiStudioChatCompletionModel;
 import org.elasticsearch.xpack.inference.services.azureaistudio.embeddings.AzureAiStudioEmbeddingsModel;
 
 import java.util.Map;
@@ -30,9 +30,9 @@ public class AzureAiStudioActionCreator implements AzureAiStudioActionVisitor {
     }
 
     @Override
-    public ExecutableAction create(AzureAiStudioCompletionModel completionModel, Map<String, Object> taskSettings) {
-        var overriddenModel = AzureAiStudioCompletionModel.of(completionModel, taskSettings);
-        var requestManager = new AzureAiStudioCompletionRequestManager(overriddenModel, serviceComponents.threadPool());
+    public ExecutableAction create(AzureAiStudioChatCompletionModel completionModel, Map<String, Object> taskSettings) {
+        var overriddenModel = AzureAiStudioChatCompletionModel.of(completionModel, taskSettings);
+        var requestManager = new AzureAiStudioChatCompletionRequestManager(overriddenModel, serviceComponents.threadPool());
         var errorMessage = constructFailedToSendRequestMessage(completionModel.uri(), "Azure AI Studio completion");
         return new AzureAiStudioAction(sender, requestManager, errorMessage);
     }

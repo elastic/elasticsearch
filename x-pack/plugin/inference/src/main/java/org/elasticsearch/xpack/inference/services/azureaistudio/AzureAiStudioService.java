@@ -34,7 +34,7 @@ import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.SenderService;
 import org.elasticsearch.xpack.inference.services.ServiceComponents;
-import org.elasticsearch.xpack.inference.services.azureaistudio.completion.AzureAiStudioCompletionModel;
+import org.elasticsearch.xpack.inference.services.azureaistudio.completion.AzureAiStudioChatCompletionModel;
 import org.elasticsearch.xpack.inference.services.azureaistudio.embeddings.AzureAiStudioEmbeddingsModel;
 import org.elasticsearch.xpack.inference.services.azureaistudio.embeddings.AzureAiStudioEmbeddingsServiceSettings;
 
@@ -73,7 +73,7 @@ public class AzureAiStudioService extends SenderService {
         if (model instanceof AzureAiStudioEmbeddingsModel embeddingsModel) {
             var action = actionCreator.create(embeddingsModel, taskSettings);
             action.execute(new DocumentsOnlyInput(input), timeout, listener);
-        } else if (model instanceof AzureAiStudioCompletionModel completionModel) {
+        } else if (model instanceof AzureAiStudioChatCompletionModel completionModel) {
             var action = actionCreator.create(completionModel, taskSettings);
             action.execute(new DocumentsOnlyInput(input), timeout, listener);
         } else {
@@ -225,7 +225,7 @@ public class AzureAiStudioService extends SenderService {
         }
 
         if (taskType == TaskType.COMPLETION) {
-            return new AzureAiStudioCompletionModel(
+            return new AzureAiStudioChatCompletionModel(
                 inferenceEntityId,
                 taskType,
                 NAME,
@@ -262,7 +262,7 @@ public class AzureAiStudioService extends SenderService {
     public void checkModelConfig(Model model, ActionListener<Model> listener) {
         if (model instanceof AzureAiStudioEmbeddingsModel embeddingsModel) {
             listener.delegateFailureAndWrap((l, discard) -> l.onResponse(checkEmbeddingModelConfig(embeddingsModel)));
-        } else if (model instanceof AzureAiStudioCompletionModel completionModel) {
+        } else if (model instanceof AzureAiStudioChatCompletionModel completionModel) {
             listener.delegateFailureAndWrap((l, discard) -> l.onResponse(checkChatCompletionModelConfig(completionModel)));
         } else {
             listener.onResponse(model);
@@ -294,7 +294,7 @@ public class AzureAiStudioService extends SenderService {
         return new AzureAiStudioEmbeddingsModel(embeddingsModel, serviceSettings);
     }
 
-    private AzureAiStudioCompletionModel checkChatCompletionModelConfig(AzureAiStudioCompletionModel completionModel) {
+    private AzureAiStudioChatCompletionModel checkChatCompletionModelConfig(AzureAiStudioChatCompletionModel completionModel) {
         var provider = completionModel.getServiceSettings().provider();
         var endpointType = completionModel.getServiceSettings().endpointType();
 

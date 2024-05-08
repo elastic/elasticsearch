@@ -21,14 +21,14 @@ import static org.elasticsearch.xpack.inference.services.azureaistudio.AzureAiSt
 import static org.elasticsearch.xpack.inference.services.azureaistudio.AzureAiStudioConstants.TEMPERATURE_FIELD;
 import static org.elasticsearch.xpack.inference.services.azureaistudio.AzureAiStudioConstants.TOP_P_FIELD;
 
-public record AzureAiStudioCompletionRequestTaskSettings(
+public record AzureAiStudioChatCompletionRequestTaskSettings(
     @Nullable Float temperature,
     @Nullable Float topP,
     @Nullable Boolean doSample,
     @Nullable Integer maxNewTokens
 ) {
 
-    public static final AzureAiStudioCompletionRequestTaskSettings EMPTY_SETTINGS = new AzureAiStudioCompletionRequestTaskSettings(
+    public static final AzureAiStudioChatCompletionRequestTaskSettings EMPTY_SETTINGS = new AzureAiStudioChatCompletionRequestTaskSettings(
         null,
         null,
         null,
@@ -40,11 +40,11 @@ public record AzureAiStudioCompletionRequestTaskSettings(
      * does not throw an error.
      *
      * @param map the settings received from a request
-     * @return a {@link AzureAiStudioCompletionRequestTaskSettings}
+     * @return a {@link AzureAiStudioChatCompletionRequestTaskSettings}
      */
-    public static AzureAiStudioCompletionRequestTaskSettings fromMap(Map<String, Object> map) {
+    public static AzureAiStudioChatCompletionRequestTaskSettings fromMap(Map<String, Object> map) {
         if (map.isEmpty()) {
-            return AzureAiStudioCompletionRequestTaskSettings.EMPTY_SETTINGS;
+            return AzureAiStudioChatCompletionRequestTaskSettings.EMPTY_SETTINGS;
         }
 
         ValidationException validationException = new ValidationException();
@@ -63,6 +63,6 @@ public record AzureAiStudioCompletionRequestTaskSettings(
             throw validationException;
         }
 
-        return new AzureAiStudioCompletionRequestTaskSettings(temperature, topP, doSample, maxNewTokens);
+        return new AzureAiStudioChatCompletionRequestTaskSettings(temperature, topP, doSample, maxNewTokens);
     }
 }

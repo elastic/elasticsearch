@@ -23,33 +23,33 @@ import java.util.Map;
 
 import static org.elasticsearch.xpack.inference.services.azureaistudio.AzureAiStudioConstants.COMPLETIONS_URI_PATH;
 
-public class AzureAiStudioCompletionModel extends AzureAiStudioModel {
+public class AzureAiStudioChatCompletionModel extends AzureAiStudioModel {
 
-    public static AzureAiStudioCompletionModel of(AzureAiStudioModel model, Map<String, Object> taskSettings) {
-        var modelAsCompletionModel = (AzureAiStudioCompletionModel) model;
+    public static AzureAiStudioChatCompletionModel of(AzureAiStudioModel model, Map<String, Object> taskSettings) {
+        var modelAsCompletionModel = (AzureAiStudioChatCompletionModel) model;
 
         if (taskSettings == null || taskSettings.isEmpty()) {
             return modelAsCompletionModel;
         }
 
-        var requestTaskSettings = AzureAiStudioCompletionRequestTaskSettings.fromMap(taskSettings);
-        var taskSettingToUse = AzureAiStudioCompletionTaskSettings.of(modelAsCompletionModel.getTaskSettings(), requestTaskSettings);
+        var requestTaskSettings = AzureAiStudioChatCompletionRequestTaskSettings.fromMap(taskSettings);
+        var taskSettingToUse = AzureAiStudioChatCompletionTaskSettings.of(modelAsCompletionModel.getTaskSettings(), requestTaskSettings);
 
-        return new AzureAiStudioCompletionModel(modelAsCompletionModel, taskSettingToUse);
+        return new AzureAiStudioChatCompletionModel(modelAsCompletionModel, taskSettingToUse);
     }
 
-    public AzureAiStudioCompletionModel(
+    public AzureAiStudioChatCompletionModel(
         String inferenceEntityId,
         TaskType taskType,
         String service,
-        AzureAiStudioCompletionServiceSettings serviceSettings,
-        AzureAiStudioCompletionTaskSettings taskSettings,
+        AzureAiStudioChatCompletionServiceSettings serviceSettings,
+        AzureAiStudioChatCompletionTaskSettings taskSettings,
         DefaultSecretSettings secrets
     ) {
         super(new ModelConfigurations(inferenceEntityId, taskType, service, serviceSettings, taskSettings), new ModelSecrets(secrets));
     }
 
-    public AzureAiStudioCompletionModel(
+    public AzureAiStudioChatCompletionModel(
         String inferenceEntityId,
         TaskType taskType,
         String service,
@@ -62,24 +62,24 @@ public class AzureAiStudioCompletionModel extends AzureAiStudioModel {
             inferenceEntityId,
             taskType,
             service,
-            AzureAiStudioCompletionServiceSettings.fromMap(serviceSettings, context),
-            AzureAiStudioCompletionTaskSettings.fromMap(taskSettings),
+            AzureAiStudioChatCompletionServiceSettings.fromMap(serviceSettings, context),
+            AzureAiStudioChatCompletionTaskSettings.fromMap(taskSettings),
             DefaultSecretSettings.fromMap(secrets)
         );
     }
 
-    public AzureAiStudioCompletionModel(AzureAiStudioCompletionModel model, AzureAiStudioCompletionTaskSettings taskSettings) {
+    public AzureAiStudioChatCompletionModel(AzureAiStudioChatCompletionModel model, AzureAiStudioChatCompletionTaskSettings taskSettings) {
         super(model, taskSettings, model.getServiceSettings().rateLimitSettings());
     }
 
     @Override
-    public AzureAiStudioCompletionServiceSettings getServiceSettings() {
-        return (AzureAiStudioCompletionServiceSettings) super.getServiceSettings();
+    public AzureAiStudioChatCompletionServiceSettings getServiceSettings() {
+        return (AzureAiStudioChatCompletionServiceSettings) super.getServiceSettings();
     }
 
     @Override
-    public AzureAiStudioCompletionTaskSettings getTaskSettings() {
-        return (AzureAiStudioCompletionTaskSettings) super.getTaskSettings();
+    public AzureAiStudioChatCompletionTaskSettings getTaskSettings() {
+        return (AzureAiStudioChatCompletionTaskSettings) super.getTaskSettings();
     }
 
     @Override

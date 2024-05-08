@@ -25,10 +25,10 @@ import java.io.IOException;
 import java.util.Map;
 import java.util.Objects;
 
-public class AzureAiStudioCompletionServiceSettings extends AzureAiStudioServiceSettings {
+public class AzureAiStudioChatCompletionServiceSettings extends AzureAiStudioServiceSettings {
     public static final String NAME = "azure_ai_studio_completion_service_settings";
 
-    public static AzureAiStudioCompletionServiceSettings fromMap(Map<String, Object> map, ConfigurationParseContext context) {
+    public static AzureAiStudioChatCompletionServiceSettings fromMap(Map<String, Object> map, ConfigurationParseContext context) {
         ValidationException validationException = new ValidationException();
 
         var settings = completionSettingsFromMap(map, validationException, context);
@@ -37,7 +37,7 @@ public class AzureAiStudioCompletionServiceSettings extends AzureAiStudioService
             throw validationException;
         }
 
-        return new AzureAiStudioCompletionServiceSettings(settings);
+        return new AzureAiStudioChatCompletionServiceSettings(settings);
     }
 
     private static AzureAiStudioCompletionCommonFields completionSettingsFromMap(
@@ -51,7 +51,7 @@ public class AzureAiStudioCompletionServiceSettings extends AzureAiStudioService
 
     private record AzureAiStudioCompletionCommonFields(BaseAzureAiStudioCommonFields baseCommonFields) {}
 
-    public AzureAiStudioCompletionServiceSettings(
+    public AzureAiStudioChatCompletionServiceSettings(
         String target,
         AzureAiStudioProvider provider,
         AzureAiStudioEndpointType endpointType,
@@ -60,11 +60,11 @@ public class AzureAiStudioCompletionServiceSettings extends AzureAiStudioService
         super(target, provider, endpointType, rateLimitSettings);
     }
 
-    public AzureAiStudioCompletionServiceSettings(StreamInput in) throws IOException {
+    public AzureAiStudioChatCompletionServiceSettings(StreamInput in) throws IOException {
         super(in);
     }
 
-    private AzureAiStudioCompletionServiceSettings(AzureAiStudioCompletionCommonFields fields) {
+    private AzureAiStudioChatCompletionServiceSettings(AzureAiStudioCompletionCommonFields fields) {
         this(
             fields.baseCommonFields.target(),
             fields.baseCommonFields.provider(),
@@ -114,7 +114,7 @@ public class AzureAiStudioCompletionServiceSettings extends AzureAiStudioService
     public boolean equals(Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
-        AzureAiStudioCompletionServiceSettings that = (AzureAiStudioCompletionServiceSettings) o;
+        AzureAiStudioChatCompletionServiceSettings that = (AzureAiStudioChatCompletionServiceSettings) o;
 
         return Objects.equals(target, that.target)
             && Objects.equals(provider, that.provider)

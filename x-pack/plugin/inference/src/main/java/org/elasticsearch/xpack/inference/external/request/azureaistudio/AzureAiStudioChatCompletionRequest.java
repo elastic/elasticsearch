@@ -15,7 +15,7 @@ import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.inference.external.request.HttpRequest;
 import org.elasticsearch.xpack.inference.external.request.Request;
 import org.elasticsearch.xpack.inference.services.azureaistudio.AzureAiStudioEndpointType;
-import org.elasticsearch.xpack.inference.services.azureaistudio.completion.AzureAiStudioCompletionModel;
+import org.elasticsearch.xpack.inference.services.azureaistudio.completion.AzureAiStudioChatCompletionModel;
 
 import java.nio.charset.StandardCharsets;
 import java.util.List;
@@ -23,10 +23,10 @@ import java.util.Objects;
 
 public class AzureAiStudioChatCompletionRequest extends AzureAiStudioRequest {
     private final List<String> input;
-    private final AzureAiStudioCompletionModel completionModel;
+    private final AzureAiStudioChatCompletionModel completionModel;
     private final boolean isRealtimeEndpoint;
 
-    public AzureAiStudioChatCompletionRequest(AzureAiStudioCompletionModel model, List<String> input) {
+    public AzureAiStudioChatCompletionRequest(AzureAiStudioChatCompletionModel model, List<String> input) {
         super(model);
         this.input = Objects.requireNonNull(input);
         this.completionModel = Objects.requireNonNull(model);

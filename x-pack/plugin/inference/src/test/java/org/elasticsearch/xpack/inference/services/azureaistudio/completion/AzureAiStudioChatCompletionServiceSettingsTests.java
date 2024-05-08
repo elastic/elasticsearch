@@ -27,20 +27,20 @@ import static org.elasticsearch.xpack.inference.services.azureaistudio.AzureAiSt
 import static org.elasticsearch.xpack.inference.services.azureaistudio.AzureAiStudioConstants.TARGET_FIELD;
 import static org.hamcrest.Matchers.is;
 
-public class AzureAiStudioCompletionServiceSettingsTests extends ESTestCase {
+public class AzureAiStudioChatCompletionServiceSettingsTests extends ESTestCase {
     public void testFromMap_Request_CreatesSettingsCorrectly() {
         var target = "http://sometarget.local";
         var provider = "openai";
         var endpointType = "token";
 
-        var serviceSettings = AzureAiStudioCompletionServiceSettings.fromMap(
+        var serviceSettings = AzureAiStudioChatCompletionServiceSettings.fromMap(
             createRequestSettingsMap(target, provider, endpointType),
             ConfigurationParseContext.REQUEST
         );
 
         assertThat(
             serviceSettings,
-            is(new AzureAiStudioCompletionServiceSettings(target, AzureAiStudioProvider.OPENAI, AzureAiStudioEndpointType.TOKEN, null))
+            is(new AzureAiStudioChatCompletionServiceSettings(target, AzureAiStudioProvider.OPENAI, AzureAiStudioEndpointType.TOKEN, null))
         );
     }
 
@@ -52,12 +52,12 @@ public class AzureAiStudioCompletionServiceSettingsTests extends ESTestCase {
         var settingsMap = createRequestSettingsMap(target, provider, endpointType);
         settingsMap.put(RateLimitSettings.FIELD_NAME, new HashMap<>(Map.of(RateLimitSettings.REQUESTS_PER_MINUTE_FIELD, 3)));
 
-        var serviceSettings = AzureAiStudioCompletionServiceSettings.fromMap(settingsMap, ConfigurationParseContext.REQUEST);
+        var serviceSettings = AzureAiStudioChatCompletionServiceSettings.fromMap(settingsMap, ConfigurationParseContext.REQUEST);
 
         assertThat(
             serviceSettings,
             is(
-                new AzureAiStudioCompletionServiceSettings(
+                new AzureAiStudioChatCompletionServiceSettings(
                     target,
                     AzureAiStudioProvider.OPENAI,
                     AzureAiStudioEndpointType.TOKEN,
@@ -72,19 +72,19 @@ public class AzureAiStudioCompletionServiceSettingsTests extends ESTestCase {
         var provider = "openai";
         var endpointType = "token";
 
-        var serviceSettings = AzureAiStudioCompletionServiceSettings.fromMap(
+        var serviceSettings = AzureAiStudioChatCompletionServiceSettings.fromMap(
             createRequestSettingsMap(target, provider, endpointType),
             ConfigurationParseContext.PERSISTENT
         );
 
         assertThat(
             serviceSettings,
-            is(new AzureAiStudioCompletionServiceSettings(target, AzureAiStudioProvider.OPENAI, AzureAiStudioEndpointType.TOKEN, null))
+            is(new AzureAiStudioChatCompletionServiceSettings(target, AzureAiStudioProvider.OPENAI, AzureAiStudioEndpointType.TOKEN, null))
         );
     }
 
     public void testToXContent_WritesAllValues() throws IOException {
-        var settings = new AzureAiStudioCompletionServiceSettings(
+        var settings = new AzureAiStudioChatCompletionServiceSettings(
             "target_value",
             AzureAiStudioProvider.OPENAI,
             AzureAiStudioEndpointType.TOKEN,
@@ -100,7 +100,7 @@ public class AzureAiStudioCompletionServiceSettingsTests extends ESTestCase {
     }
 
     public void testToFilteredXContent_WritesAllValues() throws IOException {
-        var settings = new AzureAiStudioCompletionServiceSettings(
+        var settings = new AzureAiStudioChatCompletionServiceSettings(
             "target_value",
             AzureAiStudioProvider.OPENAI,
             AzureAiStudioEndpointType.TOKEN,

@@ -27,14 +27,13 @@ import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOpt
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalPositiveInteger;
 import static org.elasticsearch.xpack.inference.services.azureaistudio.AzureAiStudioConstants.DO_SAMPLE_FIELD;
 import static org.elasticsearch.xpack.inference.services.azureaistudio.AzureAiStudioConstants.MAX_NEW_TOKENS_FIELD;
-import static org.elasticsearch.xpack.inference.services.azureaistudio.AzureAiStudioConstants.MAX_TOKENS_FIELD;
 import static org.elasticsearch.xpack.inference.services.azureaistudio.AzureAiStudioConstants.TEMPERATURE_FIELD;
 import static org.elasticsearch.xpack.inference.services.azureaistudio.AzureAiStudioConstants.TOP_P_FIELD;
 
-public class AzureAiStudioCompletionTaskSettings implements TaskSettings {
+public class AzureAiStudioChatCompletionTaskSettings implements TaskSettings {
     public static final String NAME = "azure_ai_studio_completion_task_settings";
 
-    public static AzureAiStudioCompletionTaskSettings fromMap(Map<String, Object> map) {
+    public static AzureAiStudioChatCompletionTaskSettings fromMap(Map<String, Object> map) {
         ValidationException validationException = new ValidationException();
 
         var temperature = extractOptionalFloat(map, TEMPERATURE_FIELD, ModelConfigurations.TASK_SETTINGS, validationException);
@@ -51,7 +50,7 @@ public class AzureAiStudioCompletionTaskSettings implements TaskSettings {
             throw validationException;
         }
 
-        return new AzureAiStudioCompletionTaskSettings(temperature, topP, doSample, maxNewTokens);
+        return new AzureAiStudioChatCompletionTaskSettings(temperature, topP, doSample, maxNewTokens);
     }
 
     /**
@@ -61,9 +60,9 @@ public class AzureAiStudioCompletionTaskSettings implements TaskSettings {
      * @param requestSettings the {@link AzureOpenAiEmbeddingsTaskSettings} from the request
      * @return a new {@link AzureOpenAiEmbeddingsTaskSettings}
      */
-    public static AzureAiStudioCompletionTaskSettings of(
-        AzureAiStudioCompletionTaskSettings originalSettings,
-        AzureAiStudioCompletionRequestTaskSettings requestSettings
+    public static AzureAiStudioChatCompletionTaskSettings of(
+        AzureAiStudioChatCompletionTaskSettings originalSettings,
+        AzureAiStudioChatCompletionRequestTaskSettings requestSettings
     ) {
 
         var temperature = requestSettings.temperature() == null ? originalSettings.temperature() : requestSettings.temperature();
@@ -71,10 +70,10 @@ public class AzureAiStudioCompletionTaskSettings implements TaskSettings {
         var doSample = requestSettings.doSample() == null ? originalSettings.doSample() : requestSettings.doSample();
         var maxNewTokens = requestSettings.maxNewTokens() == null ? originalSettings.maxNewTokens() : requestSettings.maxNewTokens();
 
-        return new AzureAiStudioCompletionTaskSettings(temperature, topP, doSample, maxNewTokens);
+        return new AzureAiStudioChatCompletionTaskSettings(temperature, topP, doSample, maxNewTokens);
     }
 
-    public AzureAiStudioCompletionTaskSettings(
+    public AzureAiStudioChatCompletionTaskSettings(
         @Nullable Float temperature,
         @Nullable Float topP,
         @Nullable Boolean doSample,
@@ -87,7 +86,7 @@ public class AzureAiStudioCompletionTaskSettings implements TaskSettings {
         this.maxNewTokens = maxNewTokens;
     }
 
-    public AzureAiStudioCompletionTaskSettings(StreamInput in) throws IOException {
+    public AzureAiStudioChatCompletionTaskSettings(StreamInput in) throws IOException {
         this.temperature = in.readOptionalFloat();
         this.topP = in.readOptionalFloat();
         this.doSample = in.readOptionalBoolean();
@@ -151,7 +150,7 @@ public class AzureAiStudioCompletionTaskSettings implements TaskSettings {
             builder.field(DO_SAMPLE_FIELD, doSample);
         }
         if (maxNewTokens != null) {
-            builder.field(MAX_TOKENS_FIELD, maxNewTokens);
+            builder.field(MAX_NEW_TOKENS_FIELD, maxNewTokens);
         }
 
         builder.endObject();
@@ -162,7 +161,7 @@ public class AzureAiStudioCompletionTaskSettings implements TaskSettings {
     public boolean equals(Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
-        AzureAiStudioCompletionTaskSettings that = (AzureAiStudioCompletionTaskSettings) o;
+        AzureAiStudioChatCompletionTaskSettings that = (AzureAiStudioChatCompletionTaskSettings) o;
         return Objects.equals(temperature, that.temperature)
             && Objects.equals(topP, that.topP)
             && Objects.equals(doSample, that.doSample)

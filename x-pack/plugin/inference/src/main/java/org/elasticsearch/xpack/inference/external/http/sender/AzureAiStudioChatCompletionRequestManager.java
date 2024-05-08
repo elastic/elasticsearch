@@ -19,19 +19,19 @@ import org.elasticsearch.xpack.inference.external.request.azureaistudio.AzureAiS
 import org.elasticsearch.xpack.inference.external.response.ErrorResponseEntity;
 import org.elasticsearch.xpack.inference.external.response.ExternalResponseHandler;
 import org.elasticsearch.xpack.inference.external.response.azureaistudio.AzureAiStudioChatCompletionResponseEntity;
-import org.elasticsearch.xpack.inference.services.azureaistudio.completion.AzureAiStudioCompletionModel;
+import org.elasticsearch.xpack.inference.services.azureaistudio.completion.AzureAiStudioChatCompletionModel;
 
 import java.util.List;
 import java.util.function.Supplier;
 
-public class AzureAiStudioCompletionRequestManager extends AzureAiStudioRequestManager {
-    private static final Logger logger = LogManager.getLogger(AzureAiStudioCompletionRequestManager.class);
+public class AzureAiStudioChatCompletionRequestManager extends AzureAiStudioRequestManager {
+    private static final Logger logger = LogManager.getLogger(AzureAiStudioChatCompletionRequestManager.class);
 
     private static final ResponseHandler HANDLER = createCompletionHandler();
 
-    private final AzureAiStudioCompletionModel model;
+    private final AzureAiStudioChatCompletionModel model;
 
-    public AzureAiStudioCompletionRequestManager(AzureAiStudioCompletionModel model, ThreadPool threadPool) {
+    public AzureAiStudioChatCompletionRequestManager(AzureAiStudioChatCompletionModel model, ThreadPool threadPool) {
         super(threadPool, model);
         this.model = model;
     }

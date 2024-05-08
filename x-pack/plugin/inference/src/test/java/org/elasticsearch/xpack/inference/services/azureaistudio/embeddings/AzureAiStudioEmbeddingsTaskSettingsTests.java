@@ -11,9 +11,13 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.inference.services.azureaistudio.AzureAiStudioConstants;
 import org.hamcrest.MatcherAssert;
 
+import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -64,6 +68,27 @@ public class AzureAiStudioEmbeddingsTaskSettingsTests extends ESTestCase {
 
         var overriddenTaskSettings = AzureAiStudioEmbeddingsTaskSettings.of(taskSettings, requestTaskSettings);
         MatcherAssert.assertThat(overriddenTaskSettings, is(new AzureAiStudioEmbeddingsTaskSettings("user2")));
+    }
+
+    public void testToXContent_WithoutParameters() throws IOException {
+        var settings = AzureAiStudioEmbeddingsTaskSettings.fromMap(getTaskSettingsMap(null));
+
+        XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
+        settings.toXContent(builder, null);
+        String xContentResult = Strings.toString(builder);
+
+        assertThat(xContentResult, is("{}"));
+    }
+
+    public void testToXContent_WithParameters() throws IOException {
+        var settings = AzureAiStudioEmbeddingsTaskSettings.fromMap(getTaskSettingsMap("testuser"));
+
+        XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
+        settings.toXContent(builder, null);
+        String xContentResult = Strings.toString(builder);
+
+        assertThat(xContentResult, is("""
+            {"user":"testuser"}"""));
     }
 
     public static Map<String, Object> getTaskSettingsMap(@Nullable String user) {

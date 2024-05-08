@@ -21,41 +21,41 @@ import static org.elasticsearch.xpack.inference.services.azureaistudio.AzureAiSt
 import static org.elasticsearch.xpack.inference.services.azureaistudio.AzureAiStudioConstants.TOP_P_FIELD;
 import static org.hamcrest.Matchers.is;
 
-public class AzureAiStudioCompletionRequestTaskSettingsTests extends ESTestCase {
+public class AzureAiStudioChatCompletionRequestTaskSettingsTests extends ESTestCase {
     public void testFromMap_ReturnsEmptySettings_WhenTheMapIsEmpty() {
-        var settings = AzureAiStudioCompletionRequestTaskSettings.fromMap(new HashMap<>(Map.of()));
-        assertThat(settings, is(AzureAiStudioCompletionRequestTaskSettings.EMPTY_SETTINGS));
+        var settings = AzureAiStudioChatCompletionRequestTaskSettings.fromMap(new HashMap<>(Map.of()));
+        assertThat(settings, is(AzureAiStudioChatCompletionRequestTaskSettings.EMPTY_SETTINGS));
     }
 
     public void testFromMap_ReturnsEmptySettings_WhenTheMapDoesNotContainTheFields() {
-        var settings = AzureAiStudioCompletionRequestTaskSettings.fromMap(new HashMap<>(Map.of("key", "model")));
-        assertThat(settings, is(AzureAiStudioCompletionRequestTaskSettings.EMPTY_SETTINGS));
+        var settings = AzureAiStudioChatCompletionRequestTaskSettings.fromMap(new HashMap<>(Map.of("key", "model")));
+        assertThat(settings, is(AzureAiStudioChatCompletionRequestTaskSettings.EMPTY_SETTINGS));
     }
 
     public void testFromMap_ReturnsTemperature() {
-        var settings = AzureAiStudioCompletionRequestTaskSettings.fromMap(new HashMap<>(Map.of(TEMPERATURE_FIELD, 0.1f)));
+        var settings = AzureAiStudioChatCompletionRequestTaskSettings.fromMap(new HashMap<>(Map.of(TEMPERATURE_FIELD, 0.1f)));
         assertThat(settings.temperature(), is(0.1f));
     }
 
     public void testFromMap_ReturnsTopP() {
-        var settings = AzureAiStudioCompletionRequestTaskSettings.fromMap(new HashMap<>(Map.of(TOP_P_FIELD, 0.1f)));
+        var settings = AzureAiStudioChatCompletionRequestTaskSettings.fromMap(new HashMap<>(Map.of(TOP_P_FIELD, 0.1f)));
         assertThat(settings.topP(), is(0.1f));
     }
 
     public void testFromMap_ReturnsDoSample() {
-        var settings = AzureAiStudioCompletionRequestTaskSettings.fromMap(new HashMap<>(Map.of(DO_SAMPLE_FIELD, true)));
+        var settings = AzureAiStudioChatCompletionRequestTaskSettings.fromMap(new HashMap<>(Map.of(DO_SAMPLE_FIELD, true)));
         assertThat(settings.doSample(), is(true));
     }
 
     public void testFromMap_ReturnsMaxNewTokens() {
-        var settings = AzureAiStudioCompletionRequestTaskSettings.fromMap(new HashMap<>(Map.of(MAX_NEW_TOKENS_FIELD, 512)));
+        var settings = AzureAiStudioChatCompletionRequestTaskSettings.fromMap(new HashMap<>(Map.of(MAX_NEW_TOKENS_FIELD, 512)));
         assertThat(settings.maxNewTokens(), is(512));
     }
 
     public void testFromMap_TemperatureIsInvalidValue_ThrowsStatusException() {
         var thrownException = expectThrows(
             ElasticsearchStatusException.class,
-            () -> AzureAiStudioCompletionRequestTaskSettings.fromMap(new HashMap<>(Map.of(TEMPERATURE_FIELD, "invalid")))
+            () -> AzureAiStudioChatCompletionRequestTaskSettings.fromMap(new HashMap<>(Map.of(TEMPERATURE_FIELD, "invalid")))
         );
 
         MatcherAssert.assertThat(
@@ -67,7 +67,7 @@ public class AzureAiStudioCompletionRequestTaskSettingsTests extends ESTestCase 
     public void testFromMap_TopPIsInvalidValue_ThrowsStatusException() {
         var thrownException = expectThrows(
             ElasticsearchStatusException.class,
-            () -> AzureAiStudioCompletionRequestTaskSettings.fromMap(new HashMap<>(Map.of(TOP_P_FIELD, "invalid")))
+            () -> AzureAiStudioChatCompletionRequestTaskSettings.fromMap(new HashMap<>(Map.of(TOP_P_FIELD, "invalid")))
         );
 
         MatcherAssert.assertThat(
@@ -79,7 +79,7 @@ public class AzureAiStudioCompletionRequestTaskSettingsTests extends ESTestCase 
     public void testFromMap_DoSampleIsInvalidValue_ThrowsStatusException() {
         var thrownException = expectThrows(
             ElasticsearchStatusException.class,
-            () -> AzureAiStudioCompletionRequestTaskSettings.fromMap(new HashMap<>(Map.of(DO_SAMPLE_FIELD, "invalid")))
+            () -> AzureAiStudioChatCompletionRequestTaskSettings.fromMap(new HashMap<>(Map.of(DO_SAMPLE_FIELD, "invalid")))
         );
 
         MatcherAssert.assertThat(
@@ -91,7 +91,7 @@ public class AzureAiStudioCompletionRequestTaskSettingsTests extends ESTestCase 
     public void testFromMap_MaxTokensIsInvalidValue_ThrowsStatusException() {
         var thrownException = expectThrows(
             ElasticsearchStatusException.class,
-            () -> AzureAiStudioCompletionRequestTaskSettings.fromMap(new HashMap<>(Map.of(MAX_NEW_TOKENS_FIELD, "invalid")))
+            () -> AzureAiStudioChatCompletionRequestTaskSettings.fromMap(new HashMap<>(Map.of(MAX_NEW_TOKENS_FIELD, "invalid")))
         );
 
         MatcherAssert.assertThat(

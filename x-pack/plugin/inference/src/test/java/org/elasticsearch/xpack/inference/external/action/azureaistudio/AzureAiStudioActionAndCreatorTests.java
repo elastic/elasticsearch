@@ -30,7 +30,7 @@ import org.elasticsearch.xpack.inference.services.ServiceComponents;
 import org.elasticsearch.xpack.inference.services.ServiceComponentsTests;
 import org.elasticsearch.xpack.inference.services.azureaistudio.AzureAiStudioEndpointType;
 import org.elasticsearch.xpack.inference.services.azureaistudio.AzureAiStudioProvider;
-import org.elasticsearch.xpack.inference.services.azureaistudio.completion.AzureAiStudioCompletionModelTests;
+import org.elasticsearch.xpack.inference.services.azureaistudio.completion.AzureAiStudioChatCompletionModelTests;
 import org.elasticsearch.xpack.inference.services.azureaistudio.embeddings.AzureAiStudioEmbeddingsModelTests;
 import org.junit.After;
 import org.junit.Before;
@@ -146,7 +146,7 @@ public class AzureAiStudioActionAndCreatorTests extends ESTestCase {
 
             webServer.enqueue(new MockResponse().setResponseCode(200).setBody(testCompletionTokenResponseJson));
             var webserverUrl = getUrl(webServer);
-            var model = AzureAiStudioCompletionModelTests.createModel(
+            var model = AzureAiStudioChatCompletionModelTests.createModel(
                 "id",
                 "http://will-be-replaced.local",
                 AzureAiStudioProvider.COHERE,

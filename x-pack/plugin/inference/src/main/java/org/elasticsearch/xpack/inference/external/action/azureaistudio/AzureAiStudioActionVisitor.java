@@ -8,7 +8,7 @@
 package org.elasticsearch.xpack.inference.external.action.azureaistudio;
 
 import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
-import org.elasticsearch.xpack.inference.services.azureaistudio.completion.AzureAiStudioCompletionModel;
+import org.elasticsearch.xpack.inference.services.azureaistudio.completion.AzureAiStudioChatCompletionModel;
 import org.elasticsearch.xpack.inference.services.azureaistudio.embeddings.AzureAiStudioEmbeddingsModel;
 
 import java.util.Map;
@@ -16,5 +16,5 @@ import java.util.Map;
 public interface AzureAiStudioActionVisitor {
     ExecutableAction create(AzureAiStudioEmbeddingsModel embeddingsModel, Map<String, Object> taskSettings);
 
-    ExecutableAction create(AzureAiStudioCompletionModel completionModel, Map<String, Object> taskSettings);
+    ExecutableAction create(AzureAiStudioChatCompletionModel completionModel, Map<String, Object> taskSettings);
 }

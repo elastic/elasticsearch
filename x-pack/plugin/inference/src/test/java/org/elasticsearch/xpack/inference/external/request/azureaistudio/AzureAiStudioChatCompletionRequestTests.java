@@ -15,7 +15,7 @@ import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.inference.external.request.HttpRequest;
 import org.elasticsearch.xpack.inference.services.azureaistudio.AzureAiStudioEndpointType;
 import org.elasticsearch.xpack.inference.services.azureaistudio.AzureAiStudioProvider;
-import org.elasticsearch.xpack.inference.services.azureaistudio.completion.AzureAiStudioCompletionModelTests;
+import org.elasticsearch.xpack.inference.services.azureaistudio.completion.AzureAiStudioChatCompletionModelTests;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -448,7 +448,7 @@ public class AzureAiStudioChatCompletionRequestTests extends ESTestCase {
         @Nullable Integer maxNewTokens,
         String input
     ) {
-        var model = AzureAiStudioCompletionModelTests.createModel(
+        var model = AzureAiStudioChatCompletionModelTests.createModel(
             "id",
             target,
             provider,

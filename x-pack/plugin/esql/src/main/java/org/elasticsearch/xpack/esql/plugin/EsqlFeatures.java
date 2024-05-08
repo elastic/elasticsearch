@@ -7,12 +7,15 @@
 
 package org.elasticsearch.xpack.esql.plugin;
 
+import org.elasticsearch.Build;
 import org.elasticsearch.Version;
 import org.elasticsearch.features.FeatureSpecification;
 import org.elasticsearch.features.NodeFeature;
 
 import java.util.Map;
 import java.util.Set;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 public class EsqlFeatures implements FeatureSpecification {
     /**
@@ -148,8 +151,14 @@ public class EsqlFeatures implements FeatureSpecification {
 
     @Override
     public Set<NodeFeature> getFeatures() {
+        if (false == Build.current().isSnapshot()) {
+            return alwaysOn();
+        }
+        return Stream.concat(alwaysOn().stream(), Stream.of(LOOKUP_COMMAND)).collect(Collectors.toSet());
+    }
+
+    private Set<NodeFeature> alwaysOn() {
         return Set.of(
-            LOOKUP_COMMAND,
             ASYNC_QUERY,
             AGG_VALUES,
             BASE64_DECODE_ENCODE,

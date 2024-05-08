@@ -34,17 +34,13 @@ public abstract class AcknowledgedRequest<Request extends MasterNodeRequest<Requ
     private TimeValue ackTimeout;
 
     /**
-     * Construct an {@link AcknowledgedRequest} with the default ack timeout of 30s.
+     * @param masterNodeTimeout Specifies how long to wait when the master has not been discovered yet, or is disconnected, or is busy
+     *                          processing other tasks. The value {@link TimeValue#MINUS_ONE} means to wait forever.
+     * @param ackTimeout        specifies how long to wait for all relevant nodes to apply a cluster state update and acknowledge this to
+     *                          the elected master.
      */
-    protected AcknowledgedRequest() {
-        this(DEFAULT_ACK_TIMEOUT);
-    }
-
-    /**
-     * @param ackTimeout specifies how long to wait for all relevant nodes to apply a cluster state update and acknowledge this to the
-     *                   elected master.
-     */
-    protected AcknowledgedRequest(TimeValue ackTimeout) {
+    protected AcknowledgedRequest(TimeValue masterNodeTimeout, TimeValue ackTimeout) {
+        super(masterNodeTimeout);
         this.ackTimeout = Objects.requireNonNull(ackTimeout);
     }
 
@@ -94,6 +90,8 @@ public abstract class AcknowledgedRequest<Request extends MasterNodeRequest<Requ
             super(in);
         }
 
-        public Plain() {}
+        public Plain() {
+            super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT, DEFAULT_ACK_TIMEOUT);
+        }
     }
 }

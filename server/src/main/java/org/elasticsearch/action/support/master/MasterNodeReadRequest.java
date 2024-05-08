@@ -10,6 +10,7 @@ package org.elasticsearch.action.support.master;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.core.TimeValue;
 
 import java.io.IOException;
 
@@ -20,7 +21,9 @@ public abstract class MasterNodeReadRequest<Request extends MasterNodeReadReques
 
     protected boolean local = false;
 
-    protected MasterNodeReadRequest() {}
+    protected MasterNodeReadRequest(TimeValue masterNodeTimeout) {
+        super(masterNodeTimeout);
+    }
 
     protected MasterNodeReadRequest(StreamInput in) throws IOException {
         super(in);

@@ -21,11 +21,13 @@ import java.util.Objects;
  */
 public abstract class MasterNodeRequest<Request extends MasterNodeRequest<Request>> extends ActionRequest {
 
-    public static final TimeValue DEFAULT_MASTER_NODE_TIMEOUT = TimeValue.timeValueSeconds(30);
+    /**
+     * @deprecated all requests should specify a timeout, see <a href="https://github.com/elastic/elasticsearch/issues/107984">#107984</a>.
+     */
+    @Deprecated(forRemoval = true)
+    public static final TimeValue TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT = TimeValue.timeValueSeconds(30);
 
-    private TimeValue masterNodeTimeout = DEFAULT_MASTER_NODE_TIMEOUT;
-
-    protected MasterNodeRequest() {}
+    private TimeValue masterNodeTimeout;
 
     /**
      * @param masterNodeTimeout Specifies how long to wait when the master has not been discovered yet, or is disconnected, or is busy

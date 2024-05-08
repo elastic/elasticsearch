@@ -6,9 +6,9 @@
  */
 package org.elasticsearch.xpack.esql.expression.function.aggregate;
 
+import org.elasticsearch.xpack.esql.expression.EsqlTypeResolutions;
 import org.elasticsearch.xpack.ql.QlIllegalArgumentException;
 import org.elasticsearch.xpack.ql.expression.Expression;
-import org.elasticsearch.xpack.ql.expression.TypeResolutions;
 import org.elasticsearch.xpack.ql.expression.function.Function;
 import org.elasticsearch.xpack.ql.expression.gen.pipeline.AggNameInput;
 import org.elasticsearch.xpack.ql.expression.gen.pipeline.Pipe;
@@ -51,7 +51,7 @@ public abstract class AggregateFunction extends Function {
 
     @Override
     protected TypeResolution resolveType() {
-        return TypeResolutions.isExact(field, sourceText(), DEFAULT);
+        return EsqlTypeResolutions.isExact(field, sourceText(), DEFAULT);
     }
 
     @Override

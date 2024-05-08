@@ -14,8 +14,6 @@ import org.elasticsearch.xpack.ql.type.DataTypes;
 
 import java.util.List;
 
-import static org.elasticsearch.xpack.esql.expression.TypeResolutions.isExact;
-
 public class Order extends org.elasticsearch.xpack.ql.expression.Order {
     public Order(Source source, Expression child, OrderDirection direction, NullsPosition nulls) {
         super(source, child, direction, nulls);
@@ -26,7 +24,7 @@ public class Order extends org.elasticsearch.xpack.ql.expression.Order {
         if (DataTypes.isString(child().dataType())) {
             return TypeResolution.TYPE_RESOLVED;
         }
-        return isExact(child(), "ORDER BY cannot be applied to field of data type [{}]: {}");
+        return EsqlTypeResolutions.isExact(child(), "ORDER BY cannot be applied to field of data type [{}]: {}");
     }
 
     @Override

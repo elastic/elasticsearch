@@ -29,10 +29,10 @@ import java.util.List;
 import java.util.function.Function;
 
 import static java.util.Collections.singletonList;
+import static org.elasticsearch.xpack.esql.expression.EsqlTypeResolutions.isIPAndExact;
 import static org.elasticsearch.xpack.esql.expression.EsqlTypeResolutions.isStringAndExact;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.FIRST;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.fromIndex;
-import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isIPAndExact;
 
 /**
  * This function takes a first parameter of type IP, followed by one or more parameters evaluated to a CIDR specification:

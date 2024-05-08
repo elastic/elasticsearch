@@ -23,11 +23,29 @@ import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.GEO_POINT;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.GEO_SHAPE;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.DEFAULT;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isType;
+import static org.elasticsearch.xpack.ql.type.DataTypes.IP;
 
 public class EsqlTypeResolutions {
 
+    public static Expression.TypeResolution isString(Expression e, String operationName, TypeResolutions.ParamOrdinal paramOrd) {
+        return isType(e, DataTypes::isString, operationName, paramOrd, "string");
+    }
+
     public static Expression.TypeResolution isStringAndExact(Expression e, String operationName, TypeResolutions.ParamOrdinal paramOrd) {
-        Expression.TypeResolution resolution = TypeResolutions.isString(e, operationName, paramOrd);
+        Expression.TypeResolution resolution = isString(e, operationName, paramOrd);
+        if (resolution.unresolved()) {
+            return resolution;
+        }
+
+        return isExact(e, operationName, paramOrd);
+    }
+
+    public static Expression.TypeResolution isIP(Expression e, String operationName, TypeResolutions.ParamOrdinal paramOrd) {
+        return isType(e, dt -> dt == IP, operationName, paramOrd, "ip");
+    }
+
+    public static Expression.TypeResolution isIPAndExact(Expression e, String operationName, TypeResolutions.ParamOrdinal paramOrd) {
+        Expression.TypeResolution resolution = isIP(e, operationName, paramOrd);
         if (resolution.unresolved()) {
             return resolution;
         }
@@ -53,6 +71,16 @@ public class EsqlTypeResolutions {
                         exact.errorMsg()
                     )
                 );
+            }
+        }
+        return Expression.TypeResolution.TYPE_RESOLVED;
+    }
+
+    public static Expression.TypeResolution isExact(Expression e, String message) {
+        if (e instanceof FieldAttribute fa) {
+            EsField.Exact exact = fa.getExactInfo();
+            if (exact.hasExact() == false) {
+                return new Expression.TypeResolution(format(null, message, e.dataType().typeName(), exact.errorMsg()));
             }
         }
         return Expression.TypeResolution.TYPE_RESOLVED;

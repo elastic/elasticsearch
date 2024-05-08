@@ -584,6 +584,7 @@ public final class EsqlExpressionTranslators {
         }
 
         private static Query translateField(RegexMatch e, String targetFieldName) {
+            // TODO: Esql doesn't have Like, can likely be removed.
             if (e instanceof Like l) {
                 return new WildcardQuery(e.source(), targetFieldName, l.pattern().asLuceneWildcard(), l.caseInsensitive());
             }
@@ -808,6 +809,7 @@ public final class EsqlExpressionTranslators {
         }
 
         public static Query doKnownTranslate(ScalarFunction f, EsqlTranslatorHandler handler) {
+            // TODO: StartsWith seems unused in Esql, probably this can be removed.
             if (f instanceof StartsWith sw) {
                 if (sw.input() instanceof FieldAttribute && sw.pattern().foldable()) {
                     String targetFieldName = handler.nameOf(((FieldAttribute) sw.input()).exactAttribute());

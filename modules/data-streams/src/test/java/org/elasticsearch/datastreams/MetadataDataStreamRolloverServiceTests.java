@@ -31,6 +31,7 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.MapperTestUtils;
+import org.elasticsearch.telemetry.TestTelemetryPlugin;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -88,6 +89,7 @@ public class MetadataDataStreamRolloverServiceTests extends ESTestCase {
         );
         builder.put(dataStream);
         final ClusterState clusterState = ClusterState.builder(new ClusterName("test")).metadata(builder).build();
+        final TestTelemetryPlugin telemetryPlugin = new TestTelemetryPlugin();
 
         ThreadPool testThreadPool = new TestThreadPool(getTestName());
         try {
@@ -95,7 +97,8 @@ public class MetadataDataStreamRolloverServiceTests extends ESTestCase {
                 dataStream,
                 testThreadPool,
                 Set.of(createSettingsProvider(xContentRegistry())),
-                xContentRegistry()
+                xContentRegistry(),
+                telemetryPlugin.getTelemetryProvider(Settings.EMPTY)
             );
             MaxDocsCondition condition = new MaxDocsCondition(randomNonNegativeLong());
             List<Condition<?>> metConditions = Collections.singletonList(condition);
@@ -184,6 +187,7 @@ public class MetadataDataStreamRolloverServiceTests extends ESTestCase {
         );
         builder.put(dataStream);
         final ClusterState clusterState = ClusterState.builder(new ClusterName("test")).metadata(builder).build();
+        final TestTelemetryPlugin telemetryPlugin = new TestTelemetryPlugin();
 
         ThreadPool testThreadPool = new TestThreadPool(getTestName());
         try {
@@ -191,7 +195,8 @@ public class MetadataDataStreamRolloverServiceTests extends ESTestCase {
                 dataStream,
                 testThreadPool,
                 Set.of(createSettingsProvider(xContentRegistry())),
-                xContentRegistry()
+                xContentRegistry(),
+                telemetryPlugin.getTelemetryProvider(Settings.EMPTY)
             );
             MaxDocsCondition condition = new MaxDocsCondition(randomNonNegativeLong());
             List<Condition<?>> metConditions = Collections.singletonList(condition);
@@ -271,14 +276,15 @@ public class MetadataDataStreamRolloverServiceTests extends ESTestCase {
         );
         builder.put(dataStream);
         final ClusterState clusterState = ClusterState.builder(new ClusterName("test")).metadata(builder).build();
-
+        final TestTelemetryPlugin telemetryPlugin = new TestTelemetryPlugin();
         ThreadPool testThreadPool = new TestThreadPool(getTestName());
         try {
             MetadataRolloverService rolloverService = DataStreamTestHelper.getMetadataRolloverService(
                 dataStream,
                 testThreadPool,
                 Set.of(createSettingsProvider(xContentRegistry())),
-                xContentRegistry()
+                xContentRegistry(),
+                telemetryPlugin.getTelemetryProvider(Settings.EMPTY)
             );
             MaxDocsCondition condition = new MaxDocsCondition(randomNonNegativeLong());
             List<Condition<?>> metConditions = Collections.singletonList(condition);
@@ -336,14 +342,16 @@ public class MetadataDataStreamRolloverServiceTests extends ESTestCase {
         int numberOfBackingIndices = randomIntBetween(1, 3);
         ClusterState clusterState = createClusterState(dataStreamName, numberOfBackingIndices, now, true);
         DataStream dataStream = clusterState.metadata().dataStreams().get(dataStreamName);
-
         ThreadPool testThreadPool = new TestThreadPool(getTestName());
+        final TestTelemetryPlugin telemetryPlugin = new TestTelemetryPlugin();
+
         try {
             MetadataRolloverService rolloverService = DataStreamTestHelper.getMetadataRolloverService(
                 dataStream,
                 testThreadPool,
                 Set.of(createSettingsProvider(xContentRegistry())),
-                xContentRegistry()
+                xContentRegistry(),
+                telemetryPlugin.getTelemetryProvider(Settings.EMPTY)
             );
             MaxDocsCondition condition = new MaxDocsCondition(randomNonNegativeLong());
             List<Condition<?>> metConditions = Collections.singletonList(condition);
@@ -417,14 +425,15 @@ public class MetadataDataStreamRolloverServiceTests extends ESTestCase {
         int numberOfBackingIndices = randomIntBetween(1, 3);
         ClusterState clusterState = createClusterState(dataStreamName, numberOfBackingIndices, now, false);
         DataStream dataStream = clusterState.metadata().dataStreams().get(dataStreamName);
-
+        final TestTelemetryPlugin telemetryPlugin = new TestTelemetryPlugin();
         ThreadPool testThreadPool = new TestThreadPool(getTestName());
         try {
             MetadataRolloverService rolloverService = DataStreamTestHelper.getMetadataRolloverService(
                 dataStream,
                 testThreadPool,
                 Set.of(createSettingsProvider(xContentRegistry())),
-                xContentRegistry()
+                xContentRegistry(),
+                telemetryPlugin.getTelemetryProvider(Settings.EMPTY)
             );
             MaxDocsCondition condition = new MaxDocsCondition(randomNonNegativeLong());
             List<Condition<?>> metConditions = Collections.singletonList(condition);

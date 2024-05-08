@@ -167,3 +167,16 @@ required_feature: esql.casting_operator
 10002          |true                 |false          |2.08
 10004          |true                 |false          |1.78
 ;
+
+docsCastOperator
+required_feature: esql.casting_operator
+//tag::docsCastOperator[]
+ROW ver = CONCAT(("0"::INT + 1)::STRING, ".2.3")::VERSION
+//end::docsCastOperator[]
+;
+
+//tag::docsCastOperator-result[]
+ver:version
+1.2.3
+//end::docsCastOperator-result[]
+;

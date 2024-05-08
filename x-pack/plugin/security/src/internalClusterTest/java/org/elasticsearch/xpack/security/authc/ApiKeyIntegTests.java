@@ -85,7 +85,7 @@ import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.authc.RealmDomain;
 import org.elasticsearch.xpack.core.security.authc.file.FileRealmSettings;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
-import org.elasticsearch.xpack.core.security.authz.RoleDescriptorTests;
+import org.elasticsearch.xpack.core.security.authz.RoleDescriptorTestHelper;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptorsIntersection;
 import org.elasticsearch.xpack.core.security.authz.privilege.ClusterPrivilegeResolver;
 import org.elasticsearch.xpack.core.security.authz.store.ReservedRolesStore;
@@ -522,7 +522,6 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         assertThat(invalidateResponse.getErrors().size(), equalTo(0));
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/107699")
     public void testApiKeyRemover() throws Exception {
         final String namePrefix = randomAlphaOfLength(10);
         try {
@@ -657,24 +656,6 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
             getApiKeyResponseListener.get().getApiKeyInfoList().size(),
             is((apiKeyInvalidatedButNotYetDeletedByExpiredApiKeysRemover) ? 2 : 1)
         );
-    }
-
-    private Client waitForInactiveApiKeysRemoverTriggerReadyAndGetClient() throws Exception {
-        String nodeWithMostRecentRun = null;
-        long apiKeyLastTrigger = -1L;
-        for (String nodeName : internalCluster().getNodeNames()) {
-            ApiKeyService apiKeyService = internalCluster().getInstance(ApiKeyService.class, nodeName);
-            if (apiKeyService != null) {
-                if (apiKeyService.lastTimeWhenApiKeysRemoverWasTriggered() > apiKeyLastTrigger) {
-                    nodeWithMostRecentRun = nodeName;
-                    apiKeyLastTrigger = apiKeyService.lastTimeWhenApiKeysRemoverWasTriggered();
-                }
-            }
-        }
-        final ThreadPool threadPool = internalCluster().getInstance(ThreadPool.class, nodeWithMostRecentRun);
-        final long lastRunTime = apiKeyLastTrigger;
-        assertBusy(() -> { assertThat(threadPool.relativeTimeInMillis() - lastRunTime, greaterThan(DELETE_INTERVAL_MILLIS)); });
-        return internalCluster().client(nodeWithMostRecentRun);
     }
 
     private void doTestDeletionBehaviorWhenKeysBecomeInvalidBeforeAndAfterRetentionPeriod(String namePrefix) throws Exception {
@@ -819,6 +800,35 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
             }
         }
         assertThat(getApiKeyResponseListener.get().getApiKeyInfoList().size(), is(4));
+    }
+
+    private Client waitForInactiveApiKeysRemoverTriggerReadyAndGetClient() throws Exception {
+        String[] nodeNames = internalCluster().getNodeNames();
+        // Default to first node in list of no remover run detected
+        String nodeWithMostRecentRun = nodeNames[0];
+        final long[] apiKeyRemoverLastTriggerTimestamp = new long[] { -1 };
+
+        for (String nodeName : nodeNames) {
+            ApiKeyService apiKeyService = internalCluster().getInstance(ApiKeyService.class, nodeName);
+            if (apiKeyService != null) {
+                if (apiKeyService.lastTimeWhenApiKeysRemoverWasTriggered() > apiKeyRemoverLastTriggerTimestamp[0]) {
+                    nodeWithMostRecentRun = nodeName;
+                    apiKeyRemoverLastTriggerTimestamp[0] = apiKeyService.lastTimeWhenApiKeysRemoverWasTriggered();
+                }
+            }
+        }
+        final ThreadPool threadPool = internalCluster().getInstance(ThreadPool.class, nodeWithMostRecentRun);
+
+        // If remover didn't run, no need to wait, just return a client
+        if (apiKeyRemoverLastTriggerTimestamp[0] == -1) {
+            return internalCluster().client(nodeWithMostRecentRun);
+        }
+
+        // If remover ran, wait until delete interval has passed to make sure next invalidate will trigger remover
+        assertBusy(
+            () -> assertThat(threadPool.relativeTimeInMillis() - apiKeyRemoverLastTriggerTimestamp[0], greaterThan(DELETE_INTERVAL_MILLIS))
+        );
+        return internalCluster().client(nodeWithMostRecentRun);
     }
 
     private void refreshSecurityIndex() throws Exception {
@@ -2541,11 +2551,11 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         final List<RoleDescriptor> newRoleDescriptors = List.of(
             randomValueOtherThanMany(
                 rd -> RoleDescriptorRequestValidator.validate(rd) != null || initialRequest.getRoleDescriptors().contains(rd),
-                () -> RoleDescriptorTests.randomRoleDescriptor(false)
+                () -> RoleDescriptorTestHelper.builder().build()
             ),
             randomValueOtherThanMany(
                 rd -> RoleDescriptorRequestValidator.validate(rd) != null || initialRequest.getRoleDescriptors().contains(rd),
-                () -> RoleDescriptorTests.randomRoleDescriptor(false)
+                () -> RoleDescriptorTestHelper.builder().build()
             )
         );
         response = updateSingleApiKeyMaybeUsingBulkAction(
@@ -2759,7 +2769,7 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
                 new RoleDescriptor(randomAlphaOfLength(10), new String[] { "all" }, null, null),
                 randomValueOtherThanMany(
                     rd -> RoleDescriptorRequestValidator.validate(rd) != null,
-                    () -> RoleDescriptorTests.randomRoleDescriptor(false, true, false)
+                    () -> RoleDescriptorTestHelper.builder().allowRemoteIndices(true).allowRemoteClusters(true).build()
                 )
             );
             case 2 -> null;
@@ -2877,6 +2887,7 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
             final var descriptor = (Map<String, ?>) rawRoleDescriptor.get(expectedRoleDescriptor.getName());
             final var roleDescriptor = RoleDescriptor.parserBuilder()
                 .allowRestriction(true)
+                .allowDescription(true)
                 .build()
                 .parse(
                     expectedRoleDescriptor.getName(),

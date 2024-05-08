@@ -200,11 +200,6 @@ public class BinaryFieldMapperTests extends MapperTestCase {
     }
 
     @Override
-    protected boolean supportsCopyTo() {
-        return false;
-    }
-
-    @Override
     protected SyntheticSourceSupport syntheticSourceSupport(boolean ignoreMalformed) {
         return new SyntheticSourceSupport() {
             @Override
@@ -260,7 +255,7 @@ public class BinaryFieldMapperTests extends MapperTestCase {
                 b.field("type", "binary").field("doc_values", "true");
 
                 if (rarely()) {
-                    b.field("store", true);
+                    b.field("store", false);
                 }
             }
 

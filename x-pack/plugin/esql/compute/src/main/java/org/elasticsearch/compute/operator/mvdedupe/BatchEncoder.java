@@ -19,12 +19,13 @@ import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
+import org.elasticsearch.core.Releasable;
 
 import java.lang.invoke.MethodHandles;
 import java.lang.invoke.VarHandle;
 import java.nio.ByteOrder;
 
-public abstract class BatchEncoder implements Accountable {
+public abstract class BatchEncoder implements Releasable, Accountable {
     /**
      * Checks if an offset is {@code null}.
      */
@@ -265,6 +266,7 @@ public abstract class BatchEncoder implements Accountable {
 
         DirectEncoder(Block block) {
             this.block = block;
+            block.incRef();
         }
 
         @Override
@@ -274,13 +276,13 @@ public abstract class BatchEncoder implements Accountable {
 
         @Override
         public final int positionCount() {
-            return Math.max(valueCount, 1);
+            return 1; // always has one position already loaded
         }
 
         @Override
         public final int valueCount(int positionOffset) {
             assert positionOffset == 0 : positionOffset;
-            return positionCount();
+            return Math.max(valueCount, 1);
         }
 
         @Override
@@ -299,6 +301,11 @@ public abstract class BatchEncoder implements Accountable {
         @Override
         public final long ramBytesUsed() {
             return BASE_RAM_USAGE;
+        }
+
+        @Override
+        public void close() {
+            block.decRef();
         }
     }
 

@@ -716,8 +716,8 @@ _doc_count:
 ---
 fields with ignore_malformed:
   - requires:
-      cluster_features: ["gte_v8.6.0"]
-      reason: introduced in 8.6.0
+      cluster_features: ["gte_v8.8.0"]
+      reason: support for boolean ignore_malformed was added in 8.8.0
 
   - do:
       indices.create:

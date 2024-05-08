@@ -454,7 +454,6 @@ public class Security extends Plugin
         License.OperationMode.ENTERPRISE
     );
 
-
     /**
      * 7.17.x only setting to help mitigate any potential issues for how DLS applies to terms aggs + min_doc_count=0.
      * New versions default to stricter DLS rules and setting this to false will allow to revert to the less strict DLS behavior.

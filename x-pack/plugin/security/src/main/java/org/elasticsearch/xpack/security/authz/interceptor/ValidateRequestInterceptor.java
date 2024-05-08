@@ -20,10 +20,10 @@ import java.util.Map;
 
 import static org.elasticsearch.xpack.security.Security.DLS_ERROR_WHEN_VALIDATE_QUERY_WITH_REWRITE;
 
-
 public class ValidateRequestInterceptor extends FieldAndDocumentLevelSecurityRequestInterceptor {
 
     private final boolean enabled;
+
     public ValidateRequestInterceptor(ThreadPool threadPool, XPackLicenseState licenseState, Settings settings) {
         super(threadPool.getThreadContext(), licenseState);
         enabled = DLS_ERROR_WHEN_VALIDATE_QUERY_WITH_REWRITE.get(settings);

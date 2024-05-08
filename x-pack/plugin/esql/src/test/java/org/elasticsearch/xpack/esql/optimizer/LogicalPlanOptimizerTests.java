@@ -4435,6 +4435,10 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         doTestSimplifyComparisonArithmetics("2 / float < 4", "float", GT, .5);
     }
 
+    public void testSimplifyComparisonArithmetic_floatMultiplicationGreaterThan() {
+        doTestSimplifyComparisonArithmetics("float * 4.0 > 2", "float", GT, .5d);
+    }
+
     public void testSimplifyComparisonArithmeticWithMultipleOps() {
         // i >= 3
         doTestSimplifyComparisonArithmetics("((integer + 1) * 2 - 4) * 4 >= 16", "integer", GTE, 3);
@@ -4457,8 +4461,8 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
     }
 
     public void testSimplifyComparisonArithmeticWithFloatsAndDirectionChange() {
-        doTestSimplifyComparisonArithmetics("float / -2.0 < 4", "float", GT, -8d);
-        doTestSimplifyComparisonArithmetics("float * -2.0 < 4", "float", GT, -2d);
+        doTestSimplifyComparisonArithmetics("float / -2 < 4", "float", GT, -8d);
+        doTestSimplifyComparisonArithmetics("float * -2 < 4", "float", GT, -2d);
     }
 
     private void assertNullLiteral(Expression expression) {

@@ -68,6 +68,7 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
     // callback that's called whenever an operation with a given sequence number is successfully persisted.
     private final LongConsumer persistedSequenceNumberConsumer;
     private final OperationListener operationListener;
+    private final boolean fsync;
 
     protected final AtomicBoolean closed = new AtomicBoolean(false);
     // lock order try(Releasable lock = writeLock.acquire()) -> synchronized(this)
@@ -91,21 +92,22 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
     record LastModifiedTimeCache(long lastModifiedTime, long totalOffset, long syncedOffset) {}
 
     private TranslogWriter(
-        final ShardId shardId,
-        final Checkpoint initialCheckpoint,
-        final FileChannel channel,
-        final FileChannel checkpointChannel,
-        final Path path,
-        final Path checkpointPath,
-        final ByteSizeValue bufferSize,
-        final LongSupplier globalCheckpointSupplier,
+        ShardId shardId,
+        Checkpoint initialCheckpoint,
+        FileChannel channel,
+        FileChannel checkpointChannel,
+        Path path,
+        Path checkpointPath,
+        ByteSizeValue bufferSize,
+        LongSupplier globalCheckpointSupplier,
         LongSupplier minTranslogGenerationSupplier,
         TranslogHeader header,
-        final TragicExceptionHolder tragedy,
-        final LongConsumer persistedSequenceNumberConsumer,
-        final BigArrays bigArrays,
-        final DiskIoBufferPool diskIoBufferPool,
-        final OperationListener operationListener
+        TragicExceptionHolder tragedy,
+        LongConsumer persistedSequenceNumberConsumer,
+        BigArrays bigArrays,
+        DiskIoBufferPool diskIoBufferPool,
+        OperationListener operationListener,
+        boolean fsync
     ) throws IOException {
         super(initialCheckpoint.generation, channel, path, header);
         assert initialCheckpoint.offset == channel.position()
@@ -133,6 +135,7 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
         this.seenSequenceNumbers = Assertions.ENABLED ? new HashMap<>() : null;
         this.tragedy = tragedy;
         this.operationListener = operationListener;
+        this.fsync = fsync;
         this.lastModifiedTimeCache = new LastModifiedTimeCache(-1, -1, -1);
     }
 
@@ -143,17 +146,17 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
         Path file,
         ChannelFactory channelFactory,
         ByteSizeValue bufferSize,
-        final long initialMinTranslogGen,
+        long initialMinTranslogGen,
         long initialGlobalCheckpoint,
-        final LongSupplier globalCheckpointSupplier,
-        final LongSupplier minTranslogGenerationSupplier,
-        final long primaryTerm,
+        LongSupplier globalCheckpointSupplier,
+        LongSupplier minTranslogGenerationSupplier,
+        long primaryTerm,
         TragicExceptionHolder tragedy,
-        final LongConsumer persistedSequenceNumberConsumer,
-        final BigArrays bigArrays,
+        LongConsumer persistedSequenceNumberConsumer,
+        BigArrays bigArrays,
         DiskIoBufferPool diskIoBufferPool,
-        final OperationListener operationListener
-
+        OperationListener operationListener,
+        boolean fsync
     ) throws IOException {
         final Path checkpointFile = file.getParent().resolve(Translog.CHECKPOINT_FILE_NAME);
 
@@ -162,14 +165,14 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
         try {
             checkpointChannel = channelFactory.open(checkpointFile, StandardOpenOption.WRITE);
             final TranslogHeader header = new TranslogHeader(translogUUID, primaryTerm);
-            header.write(channel);
+            header.write(channel, fsync);
             final Checkpoint checkpoint = Checkpoint.emptyTranslogCheckpoint(
                 header.sizeInBytes(),
                 fileGeneration,
                 initialGlobalCheckpoint,
                 initialMinTranslogGen
             );
-            Checkpoint.write(checkpointChannel, checkpointFile, checkpoint);
+            Checkpoint.write(checkpointChannel, checkpointFile, checkpoint, fsync);
             final LongSupplier writerGlobalCheckpointSupplier;
             if (Assertions.ENABLED) {
                 writerGlobalCheckpointSupplier = () -> {
@@ -196,7 +199,8 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
                 persistedSequenceNumberConsumer,
                 bigArrays,
                 diskIoBufferPool,
-                operationListener
+                operationListener,
+                fsync
             );
         } catch (Exception exception) {
             // if we fail to bake the file-generation into the checkpoint we stick with the file and once we recover and that
@@ -504,10 +508,10 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
                     // we can continue writing to the buffer etc.
                     try {
                         assert lastSyncedCheckpoint.offset != checkpointToSync.offset || toWrite.length() == 0;
-                        if (lastSyncedCheckpoint.offset != checkpointToSync.offset) {
+                        if (lastSyncedCheckpoint.offset != checkpointToSync.offset && fsync) {
                             channel.force(false);
                         }
-                        Checkpoint.write(checkpointChannel, checkpointPath, checkpointToSync);
+                        Checkpoint.write(checkpointChannel, checkpointPath, checkpointToSync, fsync);
                     } catch (final Exception ex) {
                         closeWithTragicEvent(ex);
                         throw ex;

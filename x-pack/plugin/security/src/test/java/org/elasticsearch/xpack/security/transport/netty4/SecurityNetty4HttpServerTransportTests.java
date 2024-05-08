@@ -13,6 +13,7 @@ import io.netty.channel.embedded.EmbeddedChannel;
 import io.netty.handler.codec.http.DefaultFullHttpRequest;
 import io.netty.handler.codec.http.DefaultHttpRequest;
 import io.netty.handler.codec.http.DefaultLastHttpContent;
+import io.netty.handler.codec.http.FullHttpResponse;
 import io.netty.handler.codec.http.HttpConstants;
 import io.netty.handler.codec.http.HttpMessage;
 import io.netty.handler.codec.http.HttpMethod;
@@ -23,6 +24,7 @@ import io.netty.util.AsciiString;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchWrapperException;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Settings;
@@ -48,6 +50,7 @@ import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.SharedGroupFactory;
+import org.elasticsearch.transport.Transports;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.ssl.SSLClientAuth;
 import org.elasticsearch.xpack.core.ssl.SSLService;
@@ -56,9 +59,11 @@ import org.elasticsearch.xpack.security.transport.filter.IPFilter;
 import org.junit.Before;
 
 import java.io.IOException;
+import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.util.Collections;
+import java.util.List;
 import java.util.Locale;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
@@ -66,6 +71,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import javax.net.ssl.SSLEngine;
 
 import static io.netty.handler.codec.http.HttpVersion.HTTP_1_1;
+import static org.elasticsearch.rest.RestStatus.OK;
 import static org.elasticsearch.transport.Transports.TEST_MOCK_TRANSPORT_THREAD_PREFIX;
 import static org.elasticsearch.xpack.core.XPackSettings.HTTP_SSL_ENABLED;
 import static org.hamcrest.Matchers.arrayContaining;
@@ -73,9 +79,12 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.iterableWithSize;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 
 public class SecurityNetty4HttpServerTransportTests extends AbstractHttpServerTransportTestCase {
@@ -841,5 +850,94 @@ public class SecurityNetty4HttpServerTransportTests extends AbstractHttpServerTr
         } finally {
             testThreadPool.shutdownNow();
         }
+    }
+
+    public void testChannelAcceptorCannotTamperThreadContext() throws Exception {
+        HttpServerTransport.Dispatcher dispatcher = new HttpServerTransport.Dispatcher() {
+            @Override
+            public void dispatchRequest(final RestRequest request, final RestChannel channel, final ThreadContext threadContext) {
+                assertThreadContextNotTampered(threadContext);
+                channel.sendResponse(new BytesRestResponse(OK, BytesRestResponse.TEXT_CONTENT_TYPE, new BytesArray("done")));
+            }
+
+            @Override
+            public void dispatchBadRequest(final RestChannel channel, final ThreadContext threadContext, final Throwable cause) {
+                logger.error(() -> "--> Unexpected bad request [" + FakeRestRequest.requestToString(channel.request()) + "]", cause);
+                throw new AssertionError();
+            }
+        };
+        // there's only one netty worker thread that's reused across client requests
+        Settings settings = Settings.builder()
+            .put(HttpTransportSettings.SETTING_HTTP_PORT.getKey(), getPortRange())
+            .put(Netty4HttpServerTransport.SETTING_HTTP_WORKER_COUNT.getKey(), 1)
+            .build();
+        ThreadPool threadPool = new TestThreadPool(TEST_MOCK_TRANSPORT_THREAD_PREFIX);
+        IPFilter ipFilter = mock(IPFilter.class);
+        doAnswer(invocationOnMock -> {
+            assertThreadContextNotTampered(threadPool.getThreadContext());
+            tamperThreadContext(threadPool.getThreadContext());
+            // ideally, the IP filter should pick randomly if to allow the connection or not
+            // but in v7.17, unlike in v8, a closed connection would not return any response
+            // which makes the client timeout and fail the test
+            return true;
+        }).when(ipFilter).accept(any(String.class), any(InetSocketAddress.class));
+        try (
+            Netty4HttpServerTransport transport = Security.getHttpServerTransportWithHeadersValidator(
+                settings,
+                new NetworkService(Collections.emptyList()),
+                BigArrays.NON_RECYCLING_INSTANCE,
+                threadPool,
+                xContentRegistry(),
+                dispatcher,
+                ipFilter,
+                sslService,
+                new SharedGroupFactory(settings),
+                randomClusterSettings(),
+                (httpPreRequest, channel, listener) -> listener.onResponse(null)
+            )
+        ) {
+            transport.start();
+            try (Netty4HttpClient client = new Netty4HttpClient()) {
+                int nRetries = randomIntBetween(1, 3);
+                for (int i = 0; i < nRetries; i++) {
+                    List<FullHttpResponse> responses = client.get(
+                        randomFrom(transport.boundAddress().boundAddresses()).address(),
+                        "/test/url"
+                    );
+                    try {
+                        assertThat(responses, iterableWithSize(1));
+                        assertThat(responses.iterator().next().status(), equalTo(HttpResponseStatus.OK));
+                    } finally {
+                        for (FullHttpResponse response : responses) {
+                            response.release();
+                        }
+                    }
+                }
+            }
+        } finally {
+            threadPool.shutdownNow();
+        }
+    }
+
+    private static void tamperThreadContext(ThreadContext threadContext) {
+        boolean tampered = false;
+        if (randomBoolean()) {
+            threadContext.putHeader(randomAlphaOfLength(16), "tampered with request header");
+            tampered = true;
+        }
+        if (randomBoolean()) {
+            threadContext.putTransient(randomAlphaOfLength(16), "tampered with transient request header");
+            tampered = true;
+        }
+        if (randomBoolean() || tampered == false) {
+            threadContext.addResponseHeader(randomAlphaOfLength(8), "tampered with response header");
+        }
+    }
+
+    private static void assertThreadContextNotTampered(ThreadContext threadContext) {
+        if (false == threadContext.isDefaultContext()) {
+            throw new AssertionError("tampered thread context");
+        }
+        Transports.assertTransportThread();
     }
 }

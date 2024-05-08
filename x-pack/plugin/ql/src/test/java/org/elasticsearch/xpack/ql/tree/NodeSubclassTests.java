@@ -72,7 +72,7 @@ import static org.mockito.Mockito.mock;
  * implement {@link Node#info()} and
  * {@link Node#replaceChildren(List)} sanely. It'd be better if
  * each subclass had its own test case that verified those methods
- * and any other interesting things that that they do but we're a
+ * and any other interesting things that they do, but we're a
  * long way from that and this gets the job done for now.
  * <p>
  * This test attempts to use reflection to create believeable nodes

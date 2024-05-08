@@ -566,9 +566,7 @@ public final class RestoreService implements ClusterStateApplier {
         List<String> requestedDataStreams = filterIndices(
             snapshotInfo.dataStreams(),
             Stream.of(requestIndices, featureStateDataStreams).flatMap(Collection::stream).toArray(String[]::new),
-            DataStream.isFailureStoreFeatureFlagEnabled()
-                ? IndicesOptions.lenientExpandIncludeFailureStore()
-                : IndicesOptions.lenientExpand()
+            IndicesOptions.lenientExpand()
         );
         if (requestedDataStreams.isEmpty()) {
             dataStreams = Map.of();

@@ -145,7 +145,13 @@ public class DateDiff extends EsqlScalarFunction implements OptionalArgument {
         | millisecond | milliseconds, ms
         | microsecond | microseconds, mcs
         | nanosecond  | nanoseconds, ns
-        |===""", examples = @Example(file = "date", tag = "docsDateDiff"))
+        |===
+
+        Note that while there is an overlap between the function's supported units and
+        {esql}'s supported time span literals, these sets are distinct and not
+        interchangeable. Similarly, the supported abbreviations are conveniently shared
+        with implementations of this function in other established products and not
+        necessarily common with the date-time nomenclature used by {es}.""", examples = @Example(file = "date", tag = "docsDateDiff"))
     public DateDiff(
         Source source,
         @Param(name = "unit", type = { "keyword", "text" }, description = "Time difference unit") Expression unit,

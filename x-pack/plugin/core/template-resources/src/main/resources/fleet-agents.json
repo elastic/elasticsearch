@@ -316,6 +316,9 @@
         },
         "tags": {
           "type": "keyword"
+        },
+        "namespaces": {
+          "type": "keyword"
         }
       }
     }

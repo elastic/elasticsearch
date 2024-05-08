@@ -53,10 +53,13 @@ import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Grok;
+import org.elasticsearch.xpack.esql.plan.logical.Lookup;
 import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.TopN;
+import org.elasticsearch.xpack.esql.plan.logical.join.Join;
 import org.elasticsearch.xpack.esql.plan.logical.local.EsqlProject;
+import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 import org.elasticsearch.xpack.esql.plan.physical.AggregateExec;
 import org.elasticsearch.xpack.esql.plan.physical.DissectExec;
 import org.elasticsearch.xpack.esql.plan.physical.EnrichExec;
@@ -70,7 +73,9 @@ import org.elasticsearch.xpack.esql.plan.physical.FieldExtractExec;
 import org.elasticsearch.xpack.esql.plan.physical.FilterExec;
 import org.elasticsearch.xpack.esql.plan.physical.FragmentExec;
 import org.elasticsearch.xpack.esql.plan.physical.GrokExec;
+import org.elasticsearch.xpack.esql.plan.physical.HashJoinExec;
 import org.elasticsearch.xpack.esql.plan.physical.LimitExec;
+import org.elasticsearch.xpack.esql.plan.physical.LocalSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.MvExpandExec;
 import org.elasticsearch.xpack.esql.plan.physical.OrderExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
@@ -111,6 +116,8 @@ import java.util.Map;
 import java.util.Set;
 import java.util.stream.Stream;
 
+import static org.elasticsearch.test.ListMatcher.matchesList;
+import static org.elasticsearch.test.MapMatcher.assertMap;
 import static org.elasticsearch.xpack.esql.SerializationTestUtils.serializeDeserialize;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
@@ -134,6 +141,8 @@ public class PlanNamedTypesTests extends ESTestCase {
         FragmentExec.class,
         GrokExec.class,
         LimitExec.class,
+        LocalSourceExec.class,
+        HashJoinExec.class,
         MvExpandExec.class,
         OrderExec.class,
         ProjectExec.class,
@@ -150,7 +159,7 @@ public class PlanNamedTypesTests extends ESTestCase {
             .filter(e -> e.categoryClass().isAssignableFrom(PhysicalPlan.class))
             .map(PlanNameRegistry.Entry::name)
             .toList();
-        assertThat(actual, equalTo(expected));
+        assertMap(actual, matchesList(expected));
     }
 
     // List of known serializable logical plan nodes - this should be kept up to date or retrieved
@@ -164,7 +173,10 @@ public class PlanNamedTypesTests extends ESTestCase {
         Eval.class,
         Filter.class,
         Grok.class,
+        Join.class,
         Limit.class,
+        LocalRelation.class,
+        Lookup.class,
         MvExpand.class,
         OrderBy.class,
         Project.class,
@@ -180,7 +192,7 @@ public class PlanNamedTypesTests extends ESTestCase {
             .map(PlanNameRegistry.Entry::name)
             .sorted()
             .toList();
-        assertThat(actual, equalTo(expected));
+        assertMap(actual, matchesList(expected));
     }
 
     public void testFunctionEntries() {

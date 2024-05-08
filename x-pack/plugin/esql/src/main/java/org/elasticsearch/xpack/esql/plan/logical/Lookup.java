@@ -123,7 +123,7 @@ public class Lookup extends UnaryPlan {
             return false;
         }
         Lookup lookup = (Lookup) o;
-        return Objects.equals(tableName, lookup.matchFields)
+        return Objects.equals(tableName, lookup.tableName)
             && Objects.equals(matchFields, lookup.matchFields)
             && Objects.equals(localRelation, lookup.localRelation);
     }

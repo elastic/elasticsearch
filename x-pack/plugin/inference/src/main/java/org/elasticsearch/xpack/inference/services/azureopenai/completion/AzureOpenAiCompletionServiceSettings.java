@@ -101,12 +101,7 @@ public class AzureOpenAiCompletionServiceSettings implements ServiceSettings, Az
         resourceName = in.readString();
         deploymentId = in.readString();
         apiVersion = in.readString();
-
-        if (in.getTransportVersion().onOrAfter(TransportVersions.ML_INFERENCE_RATE_LIMIT_SETTINGS_ADDED)) {
-            rateLimitSettings = new RateLimitSettings(in);
-        } else {
-            rateLimitSettings = DEFAULT_RATE_LIMIT_SETTINGS;
-        }
+        rateLimitSettings = new RateLimitSettings(in);
     }
 
     private AzureOpenAiCompletionServiceSettings(AzureOpenAiCompletionServiceSettings.CommonFields fields) {
@@ -179,10 +174,7 @@ public class AzureOpenAiCompletionServiceSettings implements ServiceSettings, Az
         out.writeString(resourceName);
         out.writeString(deploymentId);
         out.writeString(apiVersion);
-
-        if (out.getTransportVersion().onOrAfter(TransportVersions.ML_INFERENCE_RATE_LIMIT_SETTINGS_ADDED)) {
-            rateLimitSettings.writeTo(out);
-        }
+        rateLimitSettings.writeTo(out);
     }
 
     @Override

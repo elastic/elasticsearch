@@ -12,18 +12,19 @@ import org.elasticsearch.xpack.esql.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.querydsl.query.SingleValueQuery;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
 import org.elasticsearch.xpack.ql.expression.Expression;
+import org.elasticsearch.xpack.ql.expression.Expressions;
 import org.elasticsearch.xpack.ql.expression.MetadataAttribute;
 import org.elasticsearch.xpack.ql.expression.function.scalar.ScalarFunction;
 import org.elasticsearch.xpack.ql.expression.predicate.nulls.IsNotNull;
 import org.elasticsearch.xpack.ql.expression.predicate.nulls.IsNull;
 import org.elasticsearch.xpack.ql.planner.ExpressionTranslator;
-import org.elasticsearch.xpack.ql.planner.QlTranslatorHandler;
+import org.elasticsearch.xpack.ql.planner.TranslatorHandler;
 import org.elasticsearch.xpack.ql.querydsl.query.Query;
 import org.elasticsearch.xpack.ql.type.DataType;
 
 import java.util.function.Supplier;
 
-public final class EsqlTranslatorHandler extends QlTranslatorHandler {
+public final class EsqlTranslatorHandler implements TranslatorHandler {
 
     @Override
     public Query asQuery(Expression e) {
@@ -55,5 +56,10 @@ public final class EsqlTranslatorHandler extends QlTranslatorHandler {
             return querySupplier.get(); // MetadataAttributes are always single valued
         }
         throw new EsqlIllegalArgumentException("Expected a FieldAttribute or MetadataAttribute but received [" + field + "]");
+    }
+
+    @Override
+    public String nameOf(Expression e) {
+        return Expressions.name(e);
     }
 }

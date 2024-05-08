@@ -23,6 +23,7 @@ import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.shard.ShardId;
 
 import java.io.IOException;
@@ -35,6 +36,7 @@ public class PublishShardSizesRequest extends MasterNodeRequest<PublishShardSize
     private final Map<ShardId, ShardSize> shardSizes;
 
     public PublishShardSizesRequest(String nodeId, Map<ShardId, ShardSize> shardSizes) {
+        super(TimeValue.MINUS_ONE);
         this.nodeId = nodeId;
         this.shardSizes = shardSizes;
     }

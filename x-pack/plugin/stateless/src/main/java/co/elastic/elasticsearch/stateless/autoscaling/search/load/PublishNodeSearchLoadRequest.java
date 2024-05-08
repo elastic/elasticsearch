@@ -21,6 +21,7 @@ import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.core.TimeValue;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -32,7 +33,7 @@ public class PublishNodeSearchLoadRequest extends MasterNodeRequest<PublishNodeS
     private final double searchLoad;
 
     public PublishNodeSearchLoadRequest(String nodeId, long seqNo, double searchLoad) {
-        super();
+        super(TimeValue.MINUS_ONE);
         this.nodeId = nodeId;
         this.seqNo = seqNo;
         this.searchLoad = searchLoad;

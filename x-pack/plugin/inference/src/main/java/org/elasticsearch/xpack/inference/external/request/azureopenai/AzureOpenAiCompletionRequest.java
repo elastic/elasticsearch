@@ -10,40 +10,33 @@ package org.elasticsearch.xpack.inference.external.request.azureopenai;
 import org.apache.http.client.methods.HttpPost;
 import org.apache.http.entity.ByteArrayEntity;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.xpack.inference.common.Truncator;
 import org.elasticsearch.xpack.inference.external.request.HttpRequest;
 import org.elasticsearch.xpack.inference.external.request.Request;
-import org.elasticsearch.xpack.inference.services.azureopenai.embeddings.AzureOpenAiEmbeddingsModel;
+import org.elasticsearch.xpack.inference.services.azureopenai.completion.AzureOpenAiCompletionModel;
 
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
+import java.util.List;
 import java.util.Objects;
 
-public class AzureOpenAiEmbeddingsRequest implements AzureOpenAiRequest {
+public class AzureOpenAiCompletionRequest implements AzureOpenAiRequest {
 
-    private final Truncator truncator;
-    private final Truncator.TruncationResult truncationResult;
+    private final List<String> input;
+
     private final URI uri;
-    private final AzureOpenAiEmbeddingsModel model;
 
-    public AzureOpenAiEmbeddingsRequest(Truncator truncator, Truncator.TruncationResult input, AzureOpenAiEmbeddingsModel model) {
-        this.truncator = Objects.requireNonNull(truncator);
-        this.truncationResult = Objects.requireNonNull(input);
+    private final AzureOpenAiCompletionModel model;
+
+    public AzureOpenAiCompletionRequest(List<String> input, AzureOpenAiCompletionModel model) {
+        this.input = input;
         this.model = Objects.requireNonNull(model);
         this.uri = model.getUri();
     }
 
+    @Override
     public HttpRequest createHttpRequest() {
-        HttpPost httpPost = new HttpPost(uri);
-
-        String requestEntity = Strings.toString(
-            new AzureOpenAiEmbeddingsRequestEntity(
-                truncationResult.input(),
-                model.getTaskSettings().user(),
-                model.getServiceSettings().dimensions(),
-                model.getServiceSettings().dimensionsSetByUser()
-            )
-        );
+        var httpPost = new HttpPost(uri);
+        var requestEntity = Strings.toString(new AzureOpenAiCompletionRequestEntity(input, model.getTaskSettings().user()));
 
         ByteArrayEntity byteEntity = new ByteArrayEntity(requestEntity.getBytes(StandardCharsets.UTF_8));
         httpPost.setEntity(byteEntity);
@@ -65,13 +58,13 @@ public class AzureOpenAiEmbeddingsRequest implements AzureOpenAiRequest {
 
     @Override
     public Request truncate() {
-        var truncatedInput = truncator.truncate(truncationResult.input());
-
-        return new AzureOpenAiEmbeddingsRequest(truncator, truncatedInput, model);
+        // No truncation for Azure OpenAI completion
+        return this;
     }
 
     @Override
     public boolean[] getTruncationInfo() {
-        return truncationResult.truncated().clone();
+        // No truncation for Azure OpenAI completion
+        return null;
     }
 }

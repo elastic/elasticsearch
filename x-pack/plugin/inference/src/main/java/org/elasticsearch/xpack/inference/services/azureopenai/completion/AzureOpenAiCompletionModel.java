@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.inference.services.azureopenai.embeddings;
+package org.elasticsearch.xpack.inference.services.azureopenai.completion;
 
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.ModelConfigurations;
@@ -14,50 +14,48 @@ import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
 import org.elasticsearch.xpack.inference.external.action.azureopenai.AzureOpenAiActionVisitor;
 import org.elasticsearch.xpack.inference.external.request.azureopenai.AzureOpenAiUtils;
-import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.azureopenai.AzureOpenAiModel;
 import org.elasticsearch.xpack.inference.services.azureopenai.AzureOpenAiSecretSettings;
 
 import java.net.URISyntaxException;
 import java.util.Map;
 
-public class AzureOpenAiEmbeddingsModel extends AzureOpenAiModel {
+public class AzureOpenAiCompletionModel extends AzureOpenAiModel {
 
-    public static AzureOpenAiEmbeddingsModel of(AzureOpenAiEmbeddingsModel model, Map<String, Object> taskSettings) {
+    public static AzureOpenAiCompletionModel of(AzureOpenAiCompletionModel model, Map<String, Object> taskSettings) {
         if (taskSettings == null || taskSettings.isEmpty()) {
             return model;
         }
 
-        var requestTaskSettings = AzureOpenAiEmbeddingsRequestTaskSettings.fromMap(taskSettings);
-        return new AzureOpenAiEmbeddingsModel(model, AzureOpenAiEmbeddingsTaskSettings.of(model.getTaskSettings(), requestTaskSettings));
+        var requestTaskSettings = AzureOpenAiCompletionRequestTaskSettings.fromMap(taskSettings);
+        return new AzureOpenAiCompletionModel(model, AzureOpenAiCompletionTaskSettings.of(model.getTaskSettings(), requestTaskSettings));
     }
 
-    public AzureOpenAiEmbeddingsModel(
+    public AzureOpenAiCompletionModel(
         String inferenceEntityId,
         TaskType taskType,
         String service,
         Map<String, Object> serviceSettings,
         Map<String, Object> taskSettings,
-        @Nullable Map<String, Object> secrets,
-        ConfigurationParseContext context
+        @Nullable Map<String, Object> secrets
     ) {
         this(
             inferenceEntityId,
             taskType,
             service,
-            AzureOpenAiEmbeddingsServiceSettings.fromMap(serviceSettings, context),
-            AzureOpenAiEmbeddingsTaskSettings.fromMap(taskSettings),
+            AzureOpenAiCompletionServiceSettings.fromMap(serviceSettings),
+            AzureOpenAiCompletionTaskSettings.fromMap(taskSettings),
             AzureOpenAiSecretSettings.fromMap(secrets)
         );
     }
 
     // Should only be used directly for testing
-    AzureOpenAiEmbeddingsModel(
+    AzureOpenAiCompletionModel(
         String inferenceEntityId,
         TaskType taskType,
         String service,
-        AzureOpenAiEmbeddingsServiceSettings serviceSettings,
-        AzureOpenAiEmbeddingsTaskSettings taskSettings,
+        AzureOpenAiCompletionServiceSettings serviceSettings,
+        AzureOpenAiCompletionTaskSettings taskSettings,
         @Nullable AzureOpenAiSecretSettings secrets
     ) {
         super(
@@ -72,22 +70,22 @@ public class AzureOpenAiEmbeddingsModel extends AzureOpenAiModel {
         }
     }
 
-    private AzureOpenAiEmbeddingsModel(AzureOpenAiEmbeddingsModel originalModel, AzureOpenAiEmbeddingsTaskSettings taskSettings) {
-        super(originalModel, taskSettings);
-    }
-
-    public AzureOpenAiEmbeddingsModel(AzureOpenAiEmbeddingsModel originalModel, AzureOpenAiEmbeddingsServiceSettings serviceSettings) {
+    public AzureOpenAiCompletionModel(AzureOpenAiCompletionModel originalModel, AzureOpenAiCompletionServiceSettings serviceSettings) {
         super(originalModel, serviceSettings);
     }
 
-    @Override
-    public AzureOpenAiEmbeddingsServiceSettings getServiceSettings() {
-        return (AzureOpenAiEmbeddingsServiceSettings) super.getServiceSettings();
+    private AzureOpenAiCompletionModel(AzureOpenAiCompletionModel originalModel, AzureOpenAiCompletionTaskSettings taskSettings) {
+        super(originalModel, taskSettings);
     }
 
     @Override
-    public AzureOpenAiEmbeddingsTaskSettings getTaskSettings() {
-        return (AzureOpenAiEmbeddingsTaskSettings) super.getTaskSettings();
+    public AzureOpenAiCompletionServiceSettings getServiceSettings() {
+        return (AzureOpenAiCompletionServiceSettings) super.getServiceSettings();
+    }
+
+    @Override
+    public AzureOpenAiCompletionTaskSettings getTaskSettings() {
+        return (AzureOpenAiCompletionTaskSettings) super.getTaskSettings();
     }
 
     @Override
@@ -117,7 +115,7 @@ public class AzureOpenAiEmbeddingsModel extends AzureOpenAiModel {
 
     @Override
     public String[] operationPathSegments() {
-        return new String[] { AzureOpenAiUtils.EMBEDDINGS_PATH };
+        return new String[] { AzureOpenAiUtils.CHAT_PATH, AzureOpenAiUtils.COMPLETIONS_PATH };
     }
 
 }

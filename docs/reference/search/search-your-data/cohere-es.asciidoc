@@ -1,5 +1,8 @@
 [[cohere-es]]
 === Tutorial: Using Cohere with {es}
+++++
+<titleabbrev>Using Cohere with {es}</titleabbrev>
+++++
 
 The instructions in this tutorial shows you how to compute embeddings with
 Cohere using the {infer} API and store them for efficient vector or hybrid

@@ -102,6 +102,7 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                 new String[] { "*" }
             )
         ),
+        null,
         null
     );
 
@@ -200,6 +201,7 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                         getRemoteIndicesReadPrivileges(".monitoring-*"),
                         getRemoteIndicesReadPrivileges("/metrics-(beats|elasticsearch|enterprisesearch|kibana|logstash).*/"),
                         getRemoteIndicesReadPrivileges("metricbeat-*") },
+                    null,
                     null,
                     null
                 )

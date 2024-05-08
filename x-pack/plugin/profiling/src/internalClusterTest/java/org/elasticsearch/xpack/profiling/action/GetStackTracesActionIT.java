@@ -103,29 +103,6 @@ public class GetStackTracesActionIT extends ProfilingTestCase {
         assertEquals("vmlinux", response.getExecutables().get("lHp5_WAgpLy2alrUVab6HA"));
     }
 
-    public void testGetStackTracesGroupedByInvalidField() {
-        GetStackTracesRequest request = new GetStackTracesRequest(
-            1000,
-            600.0d,
-            1.0d,
-            1.0d,
-            null,
-            null,
-            null,
-            // only service.name is supported (note the trailing "s")
-            "service.names",
-            null,
-            null,
-            null,
-            null,
-            null,
-            null
-        );
-        request.setAdjustSampleCount(true);
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, client().execute(GetStackTracesAction.INSTANCE, request));
-        assertEquals("Requested custom event aggregation fields [service.names] but only [service.name] is supported.", e.getMessage());
-    }
-
     public void testGetStackTracesFromAPMWithMatchNoDownsampling() throws Exception {
         BoolQueryBuilder query = QueryBuilders.boolQuery();
         query.must().add(QueryBuilders.termQuery("transaction.name", "encodeSha1"));

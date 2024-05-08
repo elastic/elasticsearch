@@ -44,9 +44,20 @@ public class SubGroup implements ToXContentFragment {
         return this;
     }
 
+    public SubGroup getOrAddChild(String name) {
+        if (subgroups.containsKey(name) == false) {
+            this.subgroups.put(name, new SubGroup(name, null, renderLegacyXContent, new HashMap<>()));
+        }
+        return this.subgroups.get(name);
+    }
+
     public Long getCount(String name) {
         SubGroup subGroup = this.subgroups.get(name);
         return subGroup != null ? subGroup.count : null;
+    }
+
+    public SubGroup getSubGroup(String name) {
+        return this.subgroups.get(name);
     }
 
     public SubGroup copy() {

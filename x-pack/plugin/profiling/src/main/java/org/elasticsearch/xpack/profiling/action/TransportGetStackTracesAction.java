@@ -30,7 +30,6 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.SearchHit;
-import org.elasticsearch.search.aggregations.AbstractAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.SingleBucketAggregation;
 import org.elasticsearch.search.aggregations.bucket.countedterms.CountedTermsAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.sampler.random.RandomSamplerAggregationBuilder;
@@ -55,7 +54,6 @@ import org.elasticsearch.xpack.profiling.persistence.EventsIndex;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -256,18 +254,11 @@ public class TransportGetStackTracesAction extends TransportAction<GetStackTrace
         CountedTermsAggregationBuilder groupByStackTraceId = new CountedTermsAggregationBuilder("group_by").size(
             MAX_TRACE_EVENTS_RESULT_SIZE
         ).field(request.getStackTraceIdsField());
-        if (request.hasAggregationFields()) {
-            String[] aggregationFields = request.getAggregationFields();
-            // cast to Object to disambiguate this from a varargs call
-            log.trace("Grouping stacktrace events by {}.", (Object) aggregationFields);
-            AbstractAggregationBuilder<?> parentAgg = groupByStackTraceId;
-            for (String aggregationField : aggregationFields) {
-                String aggName = CUSTOM_EVENT_SUB_AGGREGATION_NAME + aggregationField;
-                TermsAggregationBuilder agg = new TermsAggregationBuilder(aggName).field(aggregationField);
-                parentAgg.subAggregation(agg);
-                parentAgg = agg;
-            }
-        }
+        SubGroupCollector subGroups = SubGroupCollector.attach(
+            groupByStackTraceId,
+            request.getAggregationFields(),
+            request.isLegacyAggregationField()
+        );
         RandomSamplerAggregationBuilder randomSampler = new RandomSamplerAggregationBuilder("sample").setSeed(request.hashCode())
             .setProbability(responseBuilder.getSamplingRate())
             .subAggregation(groupByStackTraceId);
@@ -308,19 +299,7 @@ public class TransportGetStackTracesAction extends TransportAction<GetStackTrace
                         stackTraceEvents.put(stackTraceID, event);
                     }
                     event.count += count;
-                    if (request.hasAggregationFields()) {
-                        String[] aggregationFields = request.getAggregationFields();
-                        if (event.subGroups == null) {
-                            event.subGroups = SubGroup.root(aggregationFields[0], request.isLegacyAggregationField());
-                        }
-                        // TODO: Recursively add sub groups!
-                        Terms eventSubGroup = stacktraceBucket.getAggregations()
-                            .get(CUSTOM_EVENT_SUB_AGGREGATION_NAME + aggregationFields[0]);
-                        for (Terms.Bucket b : eventSubGroup.getBuckets()) {
-                            String subGroupName = b.getKeyAsString();
-                            event.subGroups.addCount(subGroupName, b.getDocCount());
-                        }
-                    }
+                    subGroups.collectResults(stacktraceBucket, event);
                 }
                 responseBuilder.setTotalSamples(totalSamples);
                 responseBuilder.setHostEventCounts(hostEventCounts);
@@ -346,19 +325,11 @@ public class TransportGetStackTracesAction extends TransportAction<GetStackTrace
             // Especially with high cardinality fields, this makes aggregations really slow.
             .executionHint("map")
             .subAggregation(new SumAggregationBuilder("count").field("Stacktrace.count"));
-        if (request.hasAggregationFields()) {
-            String[] aggregationFields = request.getAggregationFields();
-            log.trace("Grouping stacktrace events by [{}].", (Object) aggregationFields);
-            // be strict about the accepted field names to avoid downstream errors or leaking unintended information
-            if (aggregationFields.length > 1 || aggregationFields[0].equals("service.name") == false) {
-                throw new IllegalArgumentException(
-                    "Requested custom event aggregation fields "
-                        + Arrays.toString(aggregationFields)
-                        + " but only [service.name] is supported."
-                );
-            }
-            groupByStackTraceId.subAggregation(new TermsAggregationBuilder(CUSTOM_EVENT_SUB_AGGREGATION_NAME).field(aggregationFields[0]));
-        }
+        SubGroupCollector subGroups = SubGroupCollector.attach(
+            groupByStackTraceId,
+            request.getAggregationFields(),
+            request.isLegacyAggregationField()
+        );
         client.prepareSearch(eventsIndex.getName())
             .setTrackTotalHits(false)
             .setSize(0)
@@ -420,18 +391,7 @@ public class TransportGetStackTracesAction extends TransportAction<GetStackTrace
                             stackTraceEvents.put(stackTraceID, event);
                         }
                         event.count += finalCount;
-                        if (request.hasAggregationFields()) {
-                            String[] aggregationFields = request.getAggregationFields();
-                            if (event.subGroups == null) {
-                                event.subGroups = SubGroup.root(aggregationFields[0], request.isLegacyAggregationField());
-                            }
-                            // recursion is not needed; we only support a single field
-                            Terms eventSubGroup = stacktraceBucket.getAggregations().get(CUSTOM_EVENT_SUB_AGGREGATION_NAME);
-                            for (Terms.Bucket b : eventSubGroup.getBuckets()) {
-                                String subGroupName = b.getKeyAsString();
-                                event.subGroups.addCount(subGroupName, b.getDocCount());
-                            }
-                        }
+                        subGroups.collectResults(stacktraceBucket, event);
                     }
                 }
                 responseBuilder.setTotalSamples(totalFinalCount);

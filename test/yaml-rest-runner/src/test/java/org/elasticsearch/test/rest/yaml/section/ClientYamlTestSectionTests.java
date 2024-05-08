@@ -33,7 +33,7 @@ public class ClientYamlTestSectionTests extends AbstractClientYamlTestFragmentPa
             assertEquals("Error parsing test named [First test section]", e.getMessage());
             assertThat(e.getCause(), instanceOf(IllegalArgumentException.class));
             assertEquals(
-                "Expected [START_OBJECT, found [VALUE_NULL], the skip section is not properly indented",
+                "Expected [START_OBJECT], found [VALUE_NULL], the skip section is not properly indented",
                 e.getCause().getMessage()
             );
         }

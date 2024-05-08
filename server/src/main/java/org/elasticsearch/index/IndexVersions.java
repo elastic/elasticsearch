@@ -104,6 +104,7 @@ public class IndexVersions {
     public static final IndexVersion UPGRADE_TO_LUCENE_9_10 = def(8_503_00_0, Version.LUCENE_9_10_0);
     public static final IndexVersion TIME_SERIES_ROUTING_HASH_IN_ID = def(8_504_00_0, Version.LUCENE_9_10_0);
     public static final IndexVersion DEFAULT_DENSE_VECTOR_TO_INT8_HNSW = def(8_505_00_0, Version.LUCENE_9_10_0);
+    public static final IndexVersion DOC_VALUES_FOR_IGNORED_META_FIELD = def(8_505_00_1, Version.LUCENE_9_10_0);
     public static final IndexVersion UPGRADE_TO_LUCENE_9_11 = def(8_506_00_0, Version.LUCENE_9_11_0);
 
     /*

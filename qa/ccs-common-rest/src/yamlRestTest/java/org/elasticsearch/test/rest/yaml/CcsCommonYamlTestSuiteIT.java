@@ -102,6 +102,7 @@ public class CcsCommonYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
         .setting("node.roles", "[data,ingest,master,remote_cluster_client]")
         .setting("cluster.remote.remote_cluster.seeds", () -> "\"" + remoteCluster.getTransportEndpoint(0) + "\"")
         .setting("cluster.remote.connections_per_cluster", "1")
+        .setting("cluster.remote.remote_cluster.skip_unavailable", "false")
         .apply(commonClusterConfig)
         .build();
 

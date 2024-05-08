@@ -108,6 +108,7 @@ public class RemoteClusterSecurityApiKeyRestIT extends AbstractRemoteClusterSecu
             final var putRoleRequest = new Request("PUT", "/_security/role/" + REMOTE_SEARCH_ROLE);
             putRoleRequest.setJsonEntity("""
                 {
+                  "description": "role with privileges for remote and local indices",
                   "cluster": ["manage_own_api_key"],
                   "indices": [
                     {
@@ -320,14 +321,16 @@ public class RemoteClusterSecurityApiKeyRestIT extends AbstractRemoteClusterSecu
                 )
             );
 
-            // Check that authentication fails if we use a non-existent cross cluster access API key
+            // Check that authentication fails if we use a non-existent cross cluster access API key (when skip_unavailable=false)
             updateClusterSettings(
                 randomBoolean()
                     ? Settings.builder()
                         .put("cluster.remote.invalid_remote.seeds", fulfillingCluster.getRemoteClusterServerEndpoint(0))
+                        .put("cluster.remote.invalid_remote.skip_unavailable", "false")
                         .build()
                     : Settings.builder()
                         .put("cluster.remote.invalid_remote.mode", "proxy")
+                        .put("cluster.remote.invalid_remote.skip_unavailable", "false")
                         .put("cluster.remote.invalid_remote.proxy_address", fulfillingCluster.getRemoteClusterServerEndpoint(0))
                         .build()
             );

@@ -94,8 +94,8 @@ public class VectorScorerBenchmark {
         vec1 = new byte[dims];
         vec2 = new byte[dims];
 
-        ThreadLocalRandom.current().nextBytes(vec1);
-        ThreadLocalRandom.current().nextBytes(vec2);
+        randomInt7BytesBetween(vec1);
+        randomInt7BytesBetween(vec2);
         vec1Offset = ThreadLocalRandom.current().nextFloat();
         vec2Offset = ThreadLocalRandom.current().nextFloat();
 
@@ -118,8 +118,8 @@ public class VectorScorerBenchmark {
             scoreCorrectionConstant,
             (byte) 7
         );
-        nativeDotScorer = factory.getScalarQuantizedVectorScorer(dims, size, scoreCorrectionConstant, DOT_PRODUCT, in).get();
-        nativeSqrScorer = factory.getScalarQuantizedVectorScorer(dims, size, scoreCorrectionConstant, EUCLIDEAN, in).get();
+        nativeDotScorer = factory.getInt7ScalarQuantizedVectorScorer(dims, size, scoreCorrectionConstant, DOT_PRODUCT, in).get();
+        nativeSqrScorer = factory.getInt7ScalarQuantizedVectorScorer(dims, size, scoreCorrectionConstant, EUCLIDEAN, in).get();
 
         // sanity
         var f1 = dotProductLucene();
@@ -189,5 +189,16 @@ public class VectorScorerBenchmark {
         }
         float adjustedDistance = squareDistance * scoreCorrectionConstant;
         return 1 / (1f + adjustedDistance);
+    }
+
+    // Unsigned int7 byte vectors have values in the range of 0 to 127 (inclusive).
+    static final byte MIN_INT7_VALUE = 0;
+    static final byte MAX_INT7_VALUE = 127;
+
+    static void randomInt7BytesBetween(byte[] bytes) {
+        var random = ThreadLocalRandom.current();
+        for (int i = 0, len = bytes.length; i < len;) {
+            bytes[i++] = (byte) random.nextInt(MIN_INT7_VALUE, MAX_INT7_VALUE + 1);
+        }
     }
 }

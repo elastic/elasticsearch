@@ -1,6 +1,6 @@
 setup:
-  - skip:
-      version: ' - 8.12.99'
+  - requires:
+      cluster_features: "gte_v8.13.0"
       reason: 'kNN int8_flat index added in 8.13'
   - do:
       indices.create:

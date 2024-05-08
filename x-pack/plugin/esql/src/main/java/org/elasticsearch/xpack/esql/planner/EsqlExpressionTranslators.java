@@ -32,6 +32,7 @@ import org.elasticsearch.xpack.ql.expression.MetadataAttribute;
 import org.elasticsearch.xpack.ql.expression.TypedAttribute;
 import org.elasticsearch.xpack.ql.expression.function.scalar.ScalarFunction;
 import org.elasticsearch.xpack.ql.expression.predicate.Range;
+import org.elasticsearch.xpack.ql.expression.predicate.fulltext.StringQueryPredicate;
 import org.elasticsearch.xpack.ql.expression.predicate.logical.And;
 import org.elasticsearch.xpack.ql.expression.predicate.logical.Not;
 import org.elasticsearch.xpack.ql.expression.predicate.logical.Or;
@@ -52,6 +53,7 @@ import org.elasticsearch.xpack.ql.querydsl.query.ExistsQuery;
 import org.elasticsearch.xpack.ql.querydsl.query.MatchAll;
 import org.elasticsearch.xpack.ql.querydsl.query.NotQuery;
 import org.elasticsearch.xpack.ql.querydsl.query.Query;
+import org.elasticsearch.xpack.ql.querydsl.query.QueryStringQuery;
 import org.elasticsearch.xpack.ql.querydsl.query.RangeQuery;
 import org.elasticsearch.xpack.ql.querydsl.query.RegexQuery;
 import org.elasticsearch.xpack.ql.querydsl.query.ScriptQuery;
@@ -102,7 +104,7 @@ public final class EsqlExpressionTranslators {
         new Nots(),
         new Likes(),
         new InComparisons(),
-        new ExpressionTranslators.StringQueries(),
+        new StringQueries(),
         new ExpressionTranslators.Matches(),
         new ExpressionTranslators.MultiMatches(),
         new Scalars()
@@ -746,6 +748,18 @@ public final class EsqlExpressionTranslators {
             }
 
             throw new QlIllegalArgumentException("Don't know how to translate binary comparison [{}] in [{}]", bc.right().nodeString(), bc);
+        }
+    }
+
+    public static class StringQueries extends ExpressionTranslator<StringQueryPredicate> {
+
+        @Override
+        protected Query asQuery(StringQueryPredicate q, TranslatorHandler handler) {
+            return doTranslate(q, handler);
+        }
+
+        public static Query doTranslate(StringQueryPredicate q, TranslatorHandler handler) {
+            return new QueryStringQuery(q.source(), q.query(), q.fields(), q);
         }
     }
 

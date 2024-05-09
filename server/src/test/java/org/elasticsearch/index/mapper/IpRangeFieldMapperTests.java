@@ -143,27 +143,13 @@ public class IpRangeFieldMapperTests extends RangeFieldMapperTests {
             var to = rarely() ? null : InetAddresses.toAddrString(range.upperBound());
             input = (ToXContent) (builder, params) -> builder.startObject().field(fromKey, from).field(toKey, to).endObject();
 
-            // When ranges are stored, they are always normalized to include both ends.
-            // `includeFrom` and `includeTo` here refers to user input.
-            //
-            // Range values are not properly normalized for default values
-            // which results in off by one error here.
-            // So "gte": null and "gt": null both result in "gte": MIN_VALUE.
-            // This is a bug, see #107282.
-            if (from == null) {
-                output.put("gte", InetAddresses.toAddrString((InetAddress) rangeType().minValue()));
-            } else {
-                var rawFrom = range.lowerBound();
-                var adjustedFrom = includeFrom ? rawFrom : (InetAddress) RangeType.IP.nextUp(rawFrom);
-                output.put("gte", InetAddresses.toAddrString(adjustedFrom));
-            }
-            if (to == null) {
-                output.put("lte", InetAddresses.toAddrString((InetAddress) rangeType().maxValue()));
-            } else {
-                var rawTo = range.upperBound();
-                var adjustedTo = includeTo ? rawTo : (InetAddress) RangeType.IP.nextDown(rawTo);
-                output.put("lte", InetAddresses.toAddrString(adjustedTo));
-            }
+            var rawFrom = from != null ? range.lowerBound() : (InetAddress) rangeType().minValue();
+            var adjustedFrom = includeFrom ? rawFrom : (InetAddress) rangeType().nextUp(rawFrom);
+            output.put("gte", InetAddresses.toAddrString(adjustedFrom));
+
+            var rawTo = to != null ? range.upperBound() : (InetAddress) rangeType().maxValue();
+            var adjustedTo = includeTo ? rawTo : (InetAddress) rangeType().nextDown(rawTo);
+            output.put("lte", InetAddresses.toAddrString(adjustedTo));
         }
 
         return Tuple.tuple(input, output);

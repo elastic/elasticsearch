@@ -145,7 +145,10 @@ public class DataStreamLifecycle implements SimpleDiffable<DataStreamLifecycle>,
     }
 
     /**
-     * The least amount of time data should be kept by elasticsearch.
+     * The least amount of time data should be kept by elasticsearch. If a caller does not want the global retention considered (for
+     * example, when evaluating the effective retention for a system data stream or a template) then null should be given for
+     * globalRetention.
+     * @param globalRetention The global retention, or null if global retention does not exist or should not be applied
      * @return the time period or null, null represents that data should never be deleted.
      */
     @Nullable
@@ -154,10 +157,13 @@ public class DataStreamLifecycle implements SimpleDiffable<DataStreamLifecycle>,
     }
 
     /**
-     * The least amount of time data should be kept by elasticsearch.
-     * @return the time period or null, null represents that data should never be deleted.
+     * The least amount of time data should be kept by elasticsearch. If a caller does not want the global retention considered (for
+     * example, when evaluating the effective retention for a system data stream or a template) then null should be given for
+     * globalRetention.
+     * @param globalRetention The global retention, or null if global retention does not exist or should not be applied
+     * @return A tuple containing the time period or null as v1 (where null represents that data should never be deleted), and the non-null
+     * retention source as v2.
      */
-    @Nullable
     public Tuple<TimeValue, RetentionSource> getEffectiveDataRetentionWithSource(@Nullable DataStreamGlobalRetention globalRetention) {
         // If lifecycle is disabled there is no effective retention
         if (enabled == false) {
@@ -200,6 +206,9 @@ public class DataStreamLifecycle implements SimpleDiffable<DataStreamLifecycle>,
         Tuple<TimeValue, DataStreamLifecycle.RetentionSource> effectiveDataRetentionWithSource = getEffectiveDataRetentionWithSource(
             globalRetention
         );
+        if (effectiveDataRetentionWithSource.v1() == null) {
+            return;
+        }
         String effectiveRetentionStringRep = effectiveDataRetentionWithSource.v1().getStringRep();
         switch (effectiveDataRetentionWithSource.v2()) {
             case DEFAULT_GLOBAL_RETENTION -> HeaderWarning.addWarning(

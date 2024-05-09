@@ -1,11 +1,8 @@
 [[esql-getting-started]]
 == Getting started with {esql} queries
-
 ++++
 <titleabbrev>Getting started</titleabbrev>
 ++++
-
-preview::["Do not use {esql} on production environments. This functionality is in technical preview and may be changed or removed in a future release. Elastic will work to fix any issues, but features in technical preview are not subject to the support SLA of official GA features."]
 
 This guide shows how you can use {esql} to query and aggregate your data.
 

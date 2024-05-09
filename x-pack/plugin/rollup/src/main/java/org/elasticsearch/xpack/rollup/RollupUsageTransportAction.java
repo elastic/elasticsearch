@@ -12,6 +12,8 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.core.Predicates;
+import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.protocol.xpack.XPackUsageRequest;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -20,6 +22,7 @@ import org.elasticsearch.xpack.core.action.XPackUsageFeatureAction;
 import org.elasticsearch.xpack.core.action.XPackUsageFeatureResponse;
 import org.elasticsearch.xpack.core.action.XPackUsageFeatureTransportAction;
 import org.elasticsearch.xpack.core.rollup.RollupFeatureSetUsage;
+import org.elasticsearch.xpack.core.rollup.job.RollupJob;
 
 public class RollupUsageTransportAction extends XPackUsageFeatureTransportAction {
 
@@ -48,8 +51,12 @@ public class RollupUsageTransportAction extends XPackUsageFeatureTransportAction
         ClusterState state,
         ActionListener<XPackUsageFeatureResponse> listener
     ) {
-        // TODO expose the currently running rollup tasks on this node? Unclear the best way to do that
-        RollupFeatureSetUsage usage = new RollupFeatureSetUsage();
+        int numberOfRollupJobs = 0;
+        PersistentTasksCustomMetadata persistentTasks = state.metadata().custom(PersistentTasksCustomMetadata.TYPE);
+        if (persistentTasks != null) {
+            numberOfRollupJobs = persistentTasks.findTasks(RollupJob.NAME, Predicates.always()).size();
+        }
+        RollupFeatureSetUsage usage = new RollupFeatureSetUsage(numberOfRollupJobs);
         listener.onResponse(new XPackUsageFeatureResponse(usage));
     }
 }

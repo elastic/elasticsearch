@@ -26,6 +26,16 @@ public final class IntBigArrayVector extends AbstractVector implements IntVector
 
     private final IntArray values;
 
+    /**
+     * The minimum value in the block.
+     */
+    private Integer min;
+
+    /**
+     * The minimum value in the block.
+     */
+    private Integer max;
+
     public IntBigArrayVector(IntArray values, int positionCount, BlockFactory blockFactory) {
         super(positionCount, blockFactory);
         this.values = values;
@@ -59,6 +69,36 @@ public final class IntBigArrayVector extends AbstractVector implements IntVector
     @Override
     public int getInt(int position) {
         return values.get(position);
+    }
+
+    /**
+     * The minimum value in the block.
+     */
+    @Override
+    public int min() {
+        if (min == null) {
+            int v = values.get(0);
+            for (int i = 1; i < getPositionCount(); i++) {
+                v = Math.min(v, values.get(i));
+            }
+            min = v;
+        }
+        return min;
+    }
+
+    /**
+     * The maximum value in the block.
+     */
+    @Override
+    public int max() {
+        if (max == null) {
+            int v = values.get(0);
+            for (int i = 1; i < getPositionCount(); i++) {
+                v = Math.max(v, values.get(i));
+            }
+            max = v;
+        }
+        return max;
     }
 
     @Override

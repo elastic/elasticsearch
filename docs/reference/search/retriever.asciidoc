@@ -1,5 +1,5 @@
 [[retriever]]
-=== Retriever API
+=== Retriever
 
 preview::["This functionality is in technical preview and may be changed or removed in a future release. The syntax will likely change before GA. Elastic will work to fix any issues, but features in technical preview are not subject to the support SLA of official GA features."]
 

@@ -788,7 +788,20 @@ public class ObjectMapper extends Mapper {
             if (hasValue == false) {
                 return;
             }
-            startSyntheticField(b);
+            if (isRoot()) {
+                if (isEnabled() == false) {
+                    // If the root object mapper is disabled, it is expected to contain
+                    // the source encapsulated within a single ignored source value.
+                    assert ignoredValues.size() == 1 : ignoredValues.size();
+                    XContentDataHelper.decodeAndWrite(b, ignoredValues.get(0).value());
+                    ignoredValues = null;
+                    return;
+                }
+                b.startObject();
+            } else {
+                b.startObject(simpleName());
+            }
+
             for (SourceLoader.SyntheticFieldLoader field : fields) {
                 if (field.hasValue()) {
                     field.write(b);
@@ -807,7 +820,10 @@ public class ObjectMapper extends Mapper {
 
         @Override
         public boolean setIgnoredValues(Map<String, List<IgnoredSourceFieldMapper.NameValue>> objectsWithIgnoredFields) {
-            ignoredValues = objectsWithIgnoredFields.get(name());
+            if (objectsWithIgnoredFields == null || objectsWithIgnoredFields.isEmpty()) {
+                return false;
+            }
+            ignoredValues = objectsWithIgnoredFields.remove(name());
             hasValue |= ignoredValues != null;
             for (SourceLoader.SyntheticFieldLoader loader : fields) {
                 hasValue |= loader.setIgnoredValues(objectsWithIgnoredFields);
@@ -816,7 +832,7 @@ public class ObjectMapper extends Mapper {
         }
     }
 
-    protected void startSyntheticField(XContentBuilder b) throws IOException {
-        b.startObject(simpleName());
+    protected boolean isRoot() {
+        return false;
     }
 }

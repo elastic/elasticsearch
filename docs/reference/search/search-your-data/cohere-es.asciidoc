@@ -38,7 +38,7 @@ account,
 
 [discrete]
 [[cohere-es-packages]]
-==== Istall required packages
+==== Install required packages
 
 Install {es} and Cohere:
 
@@ -63,6 +63,7 @@ import requests
 ==== Create the {es} client
 
 To create your {es} client, you need:
+
 * https://www.elastic.co/search-labs/tutorials/install-elasticsearch/elastic-cloud#finding-your-cloud-id[your Cloud ID],
 * https://www.elastic.co/search-labs/tutorials/install-elasticsearch/elastic-cloud#creating-an-api-key[an encoded API key].
 

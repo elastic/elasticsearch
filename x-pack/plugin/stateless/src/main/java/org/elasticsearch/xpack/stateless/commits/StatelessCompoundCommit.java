@@ -97,7 +97,7 @@ public record StatelessCompoundCommit(
         assert commitFiles.keySet().containsAll(internalFiles);
     }
 
-    private static final String PREFIX = "stateless_commit_";
+    public static final String PREFIX = "stateless_commit_";
 
     public PrimaryTermAndGeneration primaryTermAndGeneration() {
         return primaryTermAndGeneration;

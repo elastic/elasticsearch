@@ -84,5 +84,22 @@ public class MasterNodeFileWatchingServiceTests extends ESTestCase {
         // just a master node isn't sufficient, cluster state also must be recovered
         assertThat(testService.watching(), is(true));
 
+        // going back to not recovered shuts down the watcher
+        testService.clusterChanged(new ClusterChangedEvent("test", notRecoveredClusterState, recoveredClusterState));
+        // just a master node isn't sufficient, cluster state also must be recovered
+        assertThat(testService.watching(), is(false));
+
+        // and so does having the master node change
+        testService.clusterChanged(new ClusterChangedEvent("test", recoveredClusterState, notRecoveredClusterState));
+        assertThat(testService.watching(), is(true));
+        final DiscoveryNode anotherNode = DiscoveryNodeUtils.create("another-node");
+        ClusterState differentMasterClusterState = ClusterState.builder(ClusterName.DEFAULT)
+            .nodes(
+                DiscoveryNodes.builder().add(localNode).add(anotherNode).localNodeId(localNode.getId()).masterNodeId(anotherNode.getId())
+            )
+            .build();
+        testService.clusterChanged(new ClusterChangedEvent("test", differentMasterClusterState, recoveredClusterState));
+        // just a master node isn't sufficient, cluster state also must be recovered
+        assertThat(testService.watching(), is(false));
     }
 }

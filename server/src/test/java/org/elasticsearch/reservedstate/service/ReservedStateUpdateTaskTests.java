@@ -18,7 +18,7 @@ import org.elasticsearch.test.ESTestCase;
 import java.util.List;
 import java.util.Map;
 
-import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.sameInstance;
 
 public class ReservedStateUpdateTaskTests extends ESTestCase {
     public void testBlockedClusterState() {
@@ -26,6 +26,6 @@ public class ReservedStateUpdateTaskTests extends ESTestCase {
         ClusterState notRecoveredClusterState = ClusterState.builder(ClusterName.DEFAULT)
             .blocks(ClusterBlocks.builder().addGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK))
             .build();
-        assertThat(task.execute(notRecoveredClusterState), is(notRecoveredClusterState));
+        assertThat(task.execute(notRecoveredClusterState), sameInstance(notRecoveredClusterState));
     }
 }

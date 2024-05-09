@@ -1,5 +1,9 @@
 {
   "capabilities": {
+    "documentation": {
+      "url": "https://www.elastic.co/guide/en/elasticsearch/reference/master/capabilities.html",
+      "description": "Checks if the specified combination of method, API, parameters, and arbitrary capabilities are supported"
+    },
     "stability": "experimental",
     "visibility": "private",
     "headers": {
@@ -19,16 +23,24 @@
     },
     "params": {
       "method": {
-        "type": "string"
+        "type": "enum",
+        "description": "REST method to check",
+        "options": [
+          "GET", "HEAD", "POST", "PUT", "DELETE"
+        ],
+        "default": "GET"
       },
       "path": {
-        "type": "string"
-      },
-      "capabilities": {
-        "type": "string"
+        "type": "string",
+        "description": "API path to check"
       },
       "parameters": {
-        "type": "string"
+        "type": "string",
+        "description": "Comma-separated list of API parameters to check"
+      },
+      "capabilities": {
+        "type": "string",
+        "description": "Comma-separated list of arbitrary API capabilities to check"
       }
     }
   }

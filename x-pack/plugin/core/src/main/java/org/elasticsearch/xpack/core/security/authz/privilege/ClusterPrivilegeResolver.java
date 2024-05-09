@@ -29,7 +29,6 @@ import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.xpack.core.action.XPackInfoAction;
 import org.elasticsearch.xpack.core.ilm.action.GetLifecycleAction;
 import org.elasticsearch.xpack.core.ilm.action.GetStatusAction;
-import org.elasticsearch.xpack.core.ilm.action.ILMActions;
 import org.elasticsearch.xpack.core.security.action.ActionTypes;
 import org.elasticsearch.xpack.core.security.action.DelegatePkiAuthenticationAction;
 import org.elasticsearch.xpack.core.security.action.apikey.GetApiKeyAction;

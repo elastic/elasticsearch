@@ -453,7 +453,8 @@ public class PrivilegeTests extends ESTestCase {
                 "cluster:admin/slm/get",
                 "cluster:admin/slm/execute"
             );
-            verifyClusterActionDenied(ClusterPrivilegeResolver.MANAGE_SLM,
+            verifyClusterActionDenied(
+                ClusterPrivilegeResolver.MANAGE_SLM,
                 "cluster:admin/ilm/start",
                 "cluster:admin/ilm/stop",
                 "cluster:admin/ilm/operation_mode/get",
@@ -462,11 +463,7 @@ public class PrivilegeTests extends ESTestCase {
         }
 
         {
-            verifyClusterActionAllowed(
-                ClusterPrivilegeResolver.READ_SLM,
-                "cluster:admin/slm/get",
-                "cluster:admin/slm/status"
-            );
+            verifyClusterActionAllowed(ClusterPrivilegeResolver.READ_SLM, "cluster:admin/slm/get", "cluster:admin/slm/status");
             verifyClusterActionDenied(
                 ClusterPrivilegeResolver.READ_SLM,
                 "cluster:admin/slm/delete",

@@ -31,9 +31,9 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.DeleteResult;
 import org.elasticsearch.common.blobstore.OperationPurpose;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.MockLogAppender;
@@ -58,6 +58,7 @@ public class StatelessClusterStateCleanupServiceIT extends AbstractStatelessInte
     private static final Logger logger = LogManager.getLogger(StatelessClusterStateCleanupServiceIT.class);
     private final long NUM_NODES = 3;
     private MockLogAppender mockLogAppender;
+    private Releasable releaseAppender;
     private ClusterStateBlockingStrategy strategy = new ClusterStateBlockingStrategy();
 
     @Before
@@ -65,24 +66,14 @@ public class StatelessClusterStateCleanupServiceIT extends AbstractStatelessInte
     public void setUp() throws Exception {
         super.setUp();
         mockLogAppender = new MockLogAppender();
-        Loggers.addAppender(LogManager.getLogger(StatelessClusterStateCleanupService.class), mockLogAppender);
-        mockLogAppender.start();
+        releaseAppender = mockLogAppender.capturing(StatelessClusterStateCleanupService.class);
     }
 
     @After
     @Override
     public void tearDown() throws Exception {
-        Loggers.removeAppender(LogManager.getLogger(StatelessClusterStateCleanupService.class), mockLogAppender);
-        mockLogAppender.stop();
+        releaseAppender.close();
         super.tearDown();
-    }
-
-    private void resetMockLogAppender() {
-        Loggers.removeAppender(LogManager.getLogger(StatelessClusterStateCleanupService.class), mockLogAppender);
-        mockLogAppender.stop();
-        mockLogAppender = new MockLogAppender();
-        Loggers.addAppender(LogManager.getLogger(StatelessClusterStateCleanupService.class), mockLogAppender);
-        mockLogAppender.start();
     }
 
     @Override

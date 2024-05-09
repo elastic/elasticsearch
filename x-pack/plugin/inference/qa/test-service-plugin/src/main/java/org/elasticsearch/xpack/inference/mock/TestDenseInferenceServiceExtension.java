@@ -135,7 +135,7 @@ public class TestDenseInferenceServiceExtension implements InferenceServiceExten
             var results = new ArrayList<ChunkedInferenceServiceResults>();
             for (int i = 0; i < input.size(); i++) {
                 double[] values = new double[dimensions];
-                for (int j = 0; j < 5; j++) {
+                for (int j = 0; j < dimensions; j++) {
                     values[j] = stringWeight(input.get(i), j);
                 }
                 results.add(

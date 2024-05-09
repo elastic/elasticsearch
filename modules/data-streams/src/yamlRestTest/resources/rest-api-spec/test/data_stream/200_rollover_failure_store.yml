@@ -39,12 +39,12 @@ teardown:
         ignore: 404
 ---
 "Roll over a data stream's failure store without conditions":
-  # rollover data stream to create new backing index
   - do:
       indices.rollover:
         alias: "data-stream-for-rollover"
         target_failure_store: true
 
+  - match: { acknowledged: true }
   - match: { old_index: "/\\.fs-data-stream-for-rollover-(\\d{4}\\.\\d{2}\\.\\d{2}-)?000001/" }
   - match: { new_index: "/\\.fs-data-stream-for-rollover-(\\d{4}\\.\\d{2}\\.\\d{2}-)?000002/" }
   - match: { rolled_over: true }
@@ -65,7 +65,6 @@ teardown:
 
 ---
 "Roll over a data stream's failure store with conditions":
-  # index first document and wait for refresh
   - do:
       index:
         index: data-stream-for-rollover
@@ -74,7 +73,6 @@ teardown:
           '@timestamp': '2020-12-12'
           count: 'invalid value'
 
-  # rollover data stream to create new backing index
   - do:
       indices.rollover:
         alias: "data-stream-for-rollover"
@@ -83,6 +81,7 @@ teardown:
           conditions:
             max_docs: 1
 
+  - match: { acknowledged: true }
   - match: { old_index: "/\\.fs-data-stream-for-rollover-(\\d{4}\\.\\d{2}\\.\\d{2}-)?000001/" }
   - match: { new_index: "/\\.fs-data-stream-for-rollover-(\\d{4}\\.\\d{2}\\.\\d{2}-)?000002/" }
   - match: { rolled_over: true }
@@ -103,7 +102,6 @@ teardown:
 
 ---
 "Don't roll over a data stream's failure store when conditions aren't met":
-  # rollover data stream to create new backing index
   - do:
       indices.rollover:
         alias: "data-stream-for-rollover"
@@ -112,6 +110,7 @@ teardown:
           conditions:
             max_docs: 1
 
+  - match: { acknowledged: false }
   - match: { rolled_over: false }
   - match: { dry_run: false }
 
@@ -140,6 +139,7 @@ teardown:
         target_failure_store: true
         lazy: true
 
+  - match: { acknowledged: true }
   - match: { rolled_over: false }
   - match: { dry_run: false }
 
@@ -240,6 +240,7 @@ teardown:
         target_failure_store: true
         lazy: true
 
+  - match: { acknowledged: true }
   - match: { rolled_over: false }
   - match: { dry_run: false }
 
@@ -289,6 +290,7 @@ teardown:
         target_failure_store: true
         lazy: true
 
+  - match: { acknowledged: true }
   - match: { rolled_over: false }
   - match: { dry_run: false }
 

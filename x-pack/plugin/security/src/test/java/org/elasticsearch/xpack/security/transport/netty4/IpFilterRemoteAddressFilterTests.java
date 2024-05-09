@@ -102,6 +102,7 @@ public class IpFilterRemoteAddressFilterTests extends ESTestCase {
         }
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/108441")
     public void testThatFilteringWorksByIp() throws Exception {
         InetSocketAddress localhostAddr = new InetSocketAddress(InetAddresses.forString("127.0.0.1"), 12345);
         assertThat(handler.accept(mock(ChannelHandlerContext.class), localhostAddr), is(true));

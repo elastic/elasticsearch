@@ -84,9 +84,7 @@ Configures the compression scheme for requests which are selected for
 compression by to the `transport.compress` setting. Accepts either `deflate` or
 `lz4`, which offer different trade-offs between compression ratio and CPU
 usage. {es} will use the same compression scheme for responses as for the
-corresponding requests. If `lz4` is configured and the remote node has not been
-upgraded to a version supporting `lz4`, the traffic will be sent uncompressed.
-Defaults to `lz4`.
+corresponding requests. Defaults to `lz4`.
 
 `transport.tcp.keep_alive`::
 (<<static-cluster-setting,Static>>, boolean)

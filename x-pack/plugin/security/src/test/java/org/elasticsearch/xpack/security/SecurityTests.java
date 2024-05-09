@@ -132,6 +132,7 @@ public class SecurityTests extends ESTestCase {
         Client client = mock(Client.class);
         when(client.threadPool()).thenReturn(threadPool);
         when(client.settings()).thenReturn(settings);
+        when(clusterService.getSettings()).thenReturn(settings);
         return security.createComponents(
             client,
             threadPool,

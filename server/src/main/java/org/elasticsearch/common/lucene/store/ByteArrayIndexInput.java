@@ -35,6 +35,7 @@ public class ByteArrayIndexInput extends IndexInput implements RandomAccessInput
         super(resourceDesc);
         this.bytes = bytes;
         this.offset = offset;
+        this.pos = offset;
         this.length = length;
     }
 
@@ -43,7 +44,7 @@ public class ByteArrayIndexInput extends IndexInput implements RandomAccessInput
 
     @Override
     public long getFilePointer() {
-        return pos;
+        return pos - offset;
     }
 
     @Override
@@ -53,11 +54,11 @@ public class ByteArrayIndexInput extends IndexInput implements RandomAccessInput
 
     private int position(long p) throws EOFException {
         if (p < 0) {
-            throw new IllegalArgumentException("Seeking to negative position: " + pos);
+            throw new IllegalArgumentException("Seeking to negative position: " + p);
         } else if (p > length) {
             throw new EOFException("seek past EOF");
         }
-        return (int) p;
+        return (int) p + offset;
     }
 
     @Override
@@ -108,7 +109,7 @@ public class ByteArrayIndexInput extends IndexInput implements RandomAccessInput
         if (pos >= offset + length) {
             throw new EOFException("seek past EOF");
         }
-        return bytes[offset + pos++];
+        return bytes[pos++];
     }
 
     @Override
@@ -116,14 +117,14 @@ public class ByteArrayIndexInput extends IndexInput implements RandomAccessInput
         if (pos + len > this.offset + length) {
             throw new EOFException("seek past EOF");
         }
-        System.arraycopy(bytes, this.offset + pos, b, offset, len);
+        System.arraycopy(bytes, pos, b, offset, len);
         pos += len;
     }
 
     @Override
     public short readShort() throws IOException {
         try {
-            return (short) BitUtil.VH_LE_SHORT.get(bytes, pos + offset);
+            return (short) BitUtil.VH_LE_SHORT.get(bytes, pos);
         } finally {
             pos += Short.BYTES;
         }
@@ -132,7 +133,7 @@ public class ByteArrayIndexInput extends IndexInput implements RandomAccessInput
     @Override
     public int readInt() throws IOException {
         try {
-            return (int) BitUtil.VH_LE_INT.get(bytes, pos + offset);
+            return (int) BitUtil.VH_LE_INT.get(bytes, pos);
         } finally {
             pos += Integer.BYTES;
         }
@@ -141,7 +142,7 @@ public class ByteArrayIndexInput extends IndexInput implements RandomAccessInput
     @Override
     public long readLong() throws IOException {
         try {
-            return (long) BitUtil.VH_LE_LONG.get(bytes, pos + offset);
+            return (long) BitUtil.VH_LE_LONG.get(bytes, pos);
         } finally {
             pos += Long.BYTES;
         }

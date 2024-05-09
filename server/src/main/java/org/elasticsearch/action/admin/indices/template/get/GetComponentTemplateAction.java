@@ -196,7 +196,7 @@ public class GetComponentTemplateAction extends ActionType<GetComponentTemplateA
                 builder.startObject();
                 builder.field(NAME.getPreferredName(), componentTemplate.getKey());
                 builder.field(COMPONENT_TEMPLATE.getPreferredName());
-                componentTemplate.getValue().toXContent(builder, params, rolloverConfiguration, globalRetention);
+                componentTemplate.getValue().toXContent(builder, params, rolloverConfiguration);
                 builder.endObject();
             }
             builder.endArray();

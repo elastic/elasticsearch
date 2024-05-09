@@ -74,7 +74,7 @@ public class OpenAiChatCompletionResponseEntityTests extends ESTestCase {
                   },
                   "logprobs": null,
                   "finish_reason": "stop"
-                },
+                }
               ],
               "usage": {
                 "prompt_tokens": 46,
@@ -112,7 +112,7 @@ public class OpenAiChatCompletionResponseEntityTests extends ESTestCase {
                   },
                   "logprobs": null,
                   "finish_reason": "stop"
-                },
+                }
               },
               "usage": {
                 "prompt_tokens": 46,
@@ -153,7 +153,7 @@ public class OpenAiChatCompletionResponseEntityTests extends ESTestCase {
                   },
                   "logprobs": null,
                   "finish_reason": "stop"
-                },
+                }
               ],
               "usage": {
                 "prompt_tokens": 46,

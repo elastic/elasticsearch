@@ -22,7 +22,7 @@ import java.util.Map;
 import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.equalTo;
 
-public class VectorSearchIT extends ParameterizedRollingUpgradeTestCase {
+public class VectorSearchIT extends AbstractRollingUpgradeTestCase {
     public VectorSearchIT(@Name("upgradedNodes") int upgradedNodes) {
         super(upgradedNodes);
     }

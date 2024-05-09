@@ -9,7 +9,6 @@ package org.elasticsearch.compute.aggregation.blockhash;
 
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
-import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.BitArray;
@@ -24,6 +23,7 @@ import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.mvdedupe.BatchEncoder;
 import org.elasticsearch.compute.operator.mvdedupe.MultivalueDedupe;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.ReleasableIterator;
 import org.elasticsearch.core.Releasables;
 
@@ -59,20 +59,19 @@ import java.util.List;
  */
 final class PackedValuesBlockHash extends BlockHash {
     static final int DEFAULT_BATCH_SIZE = Math.toIntExact(ByteSizeValue.ofKb(10).getBytes());
-    private static final long MAX_LOOKUP = 100_000;
 
     private final int emitBatchSize;
     private final BytesRefHash bytesRefHash;
     private final int nullTrackingBytes;
     private final BytesRefBuilder bytes = new BytesRefBuilder();
-    private final Group[] groups;
+    private final List<GroupSpec> specs;
 
     PackedValuesBlockHash(List<GroupSpec> specs, BlockFactory blockFactory, int emitBatchSize) {
         super(blockFactory);
-        this.groups = specs.stream().map(Group::new).toArray(Group[]::new);
+        this.specs = specs;
         this.emitBatchSize = emitBatchSize;
         this.bytesRefHash = new BytesRefHash(1, blockFactory.bigArrays());
-        this.nullTrackingBytes = (groups.length + 7) / 8;
+        this.nullTrackingBytes = (specs.size() + 7) / 8;
         bytes.grow(nullTrackingBytes);
     }
 
@@ -90,9 +89,9 @@ final class PackedValuesBlockHash extends BlockHash {
     /**
      * The on-heap representation of a {@code for} loop for each group key.
      */
-    private static class Group {
+    private static class Group implements Releasable {
         final GroupSpec spec;
-        BatchEncoder encoder;
+        final BatchEncoder encoder;
         int positionOffset;
         int valueOffset;
         /**
@@ -107,18 +106,25 @@ final class PackedValuesBlockHash extends BlockHash {
         int valueCount;
         int bytesStart;
 
-        Group(GroupSpec spec) {
+        Group(GroupSpec spec, Page page, int batchSize) {
             this.spec = spec;
+            this.encoder = MultivalueDedupe.batchEncoder(page.getBlock(spec.channel()), batchSize, true);
+        }
+
+        @Override
+        public void close() {
+            encoder.close();
         }
     }
 
     class AddWork extends AbstractAddBlock {
+        final Group[] groups;
         final int positionCount;
         int position;
 
         AddWork(Page page, GroupingAggregatorFunction.AddInput addInput, int batchSize) {
             super(blockFactory, emitBatchSize, addInput);
-            initializeGroupsForPage(page, batchSize);
+            this.groups = specs.stream().map(s -> new Group(s, page, batchSize)).toArray(Group[]::new);
             this.positionCount = page.getPositionCount();
         }
 
@@ -129,7 +135,7 @@ final class PackedValuesBlockHash extends BlockHash {
          */
         void add() {
             for (position = 0; position < positionCount; position++) {
-                boolean singleEntry = startPosition();
+                boolean singleEntry = startPosition(groups);
                 if (singleEntry) {
                     addSingleEntry();
                 } else {
@@ -140,7 +146,7 @@ final class PackedValuesBlockHash extends BlockHash {
         }
 
         private void addSingleEntry() {
-            fillBytesSv();
+            fillBytesSv(groups);
             ords.appendInt(Math.toIntExact(hashOrdToGroup(bytesRefHash.add(bytes.get()))));
             addedValue(position);
         }
@@ -149,13 +155,13 @@ final class PackedValuesBlockHash extends BlockHash {
             ords.beginPositionEntry();
             int g = 0;
             do {
-                fillBytesMv(g);
+                fillBytesMv(groups, g);
 
                 // emit ords
                 ords.appendInt(Math.toIntExact(hashOrdToGroup(bytesRefHash.add(bytes.get()))));
                 addedValueInMultivaluePosition(position);
 
-                g = rewindKeys();
+                g = rewindKeys(groups);
             } while (g >= 0);
             ords.endPositionEntry();
             for (Group group : groups) {
@@ -165,10 +171,7 @@ final class PackedValuesBlockHash extends BlockHash {
 
         @Override
         public void close() {
-            Releasables.closeExpectNoException(
-                super::close,
-                Releasables.wrap(() -> Iterators.map(Iterators.forArray(groups), g -> g.encoder))
-            );
+            Releasables.closeExpectNoException(super::close, Releasables.wrap(groups));
         }
     }
 
@@ -178,14 +181,15 @@ final class PackedValuesBlockHash extends BlockHash {
     }
 
     class LookupWork implements ReleasableIterator<IntBlock> {
-        private final long targetBytesSize;
+        private final Group[] groups;
+        private final long targetByteSize;
         private final int positionCount;
         private int position;
 
-        LookupWork(Page page, long targetBytesSize, int batchSize) {
+        LookupWork(Page page, long targetByteSize, int batchSize) {
+            this.groups = specs.stream().map(s -> new Group(s, page, batchSize)).toArray(Group[]::new);
             this.positionCount = page.getPositionCount();
-            this.targetBytesSize = targetBytesSize;
-            initializeGroupsForPage(page, batchSize);
+            this.targetByteSize = targetByteSize;
         }
 
         @Override
@@ -195,10 +199,11 @@ final class PackedValuesBlockHash extends BlockHash {
 
         @Override
         public IntBlock next() {
-            int size = Math.toIntExact(Math.min(Integer.MAX_VALUE, targetBytesSize / Integer.BYTES / 2));
+            int size = Math.toIntExact(Math.min(Integer.MAX_VALUE, targetByteSize / Integer.BYTES / 2));
             try (IntBlock.Builder ords = blockFactory.newIntBlockBuilder(size)) {
-                while (position < positionCount && ords.estimatedBytes() < targetBytesSize) {
-                    boolean singleEntry = startPosition();
+                while (position < positionCount && ords.estimatedBytes() < targetByteSize) {
+                    // TODO a test where targetByteSize is very small should still make a few rows.
+                    boolean singleEntry = startPosition(groups);
                     if (singleEntry) {
                         lookupSingleEntry(ords);
                     } else {
@@ -211,7 +216,7 @@ final class PackedValuesBlockHash extends BlockHash {
         }
 
         private void lookupSingleEntry(IntBlock.Builder ords) {
-            fillBytesSv();
+            fillBytesSv(groups);
             long found = bytesRefHash.find(bytes.get());
             if (found < 0) {
                 ords.appendNull();
@@ -226,7 +231,7 @@ final class PackedValuesBlockHash extends BlockHash {
             int g = 0;
             int count = 0;
             do {
-                fillBytesMv(g);
+                fillBytesMv(groups, g);
 
                 // emit ords
                 long found = bytesRefHash.find(bytes.get());
@@ -242,13 +247,13 @@ final class PackedValuesBlockHash extends BlockHash {
                         }
                         ords.appendInt(Math.toIntExact(found));
                         count++;
-                        if (count > MAX_LOOKUP) {
+                        if (count > Block.MAX_LOOKUP) {
                             // TODO replace this with a warning and break
                             throw new IllegalArgumentException("Found a single entry with " + count + " entries");
                         }
                     }
                 }
-                g = rewindKeys();
+                g = rewindKeys(groups);
             } while (g >= 0);
             if (firstFound < 0) {
                 ords.appendNull();
@@ -265,24 +270,17 @@ final class PackedValuesBlockHash extends BlockHash {
 
         @Override
         public void close() {
-            Releasables.closeExpectNoException(Releasables.wrap(() -> Iterators.map(Iterators.forArray(groups), g -> g.encoder)));
-        }
-    }
-
-    private void initializeGroupsForPage(Page page, int batchSize) {
-        for (Group group : groups) {
-            Block b = page.getBlock(group.spec.channel());
-            group.encoder = MultivalueDedupe.batchEncoder(b, batchSize, true);
+            Releasables.closeExpectNoException(groups);
         }
     }
 
     /**
-     * Correctly position all {@link #groups}, clear the {@link #bytes},
+     * Correctly position all {@code groups}, clear the {@link #bytes},
      * and position it past the null tracking bytes. Call this before
      * encoding a new position.
      * @return true if this position has only a single ordinal
      */
-    private boolean startPosition() {
+    private boolean startPosition(Group[] groups) {
         boolean singleEntry = true;
         for (Group g : groups) {
             /*
@@ -304,7 +302,7 @@ final class PackedValuesBlockHash extends BlockHash {
         return singleEntry;
     }
 
-    private void fillBytesSv() {
+    private void fillBytesSv(Group[] groups) {
         for (int g = 0; g < groups.length; g++) {
             Group group = groups[g];
             assert group.writtenValues == 0;
@@ -317,7 +315,7 @@ final class PackedValuesBlockHash extends BlockHash {
         }
     }
 
-    private void fillBytesMv(int startingGroup) {
+    private void fillBytesMv(Group[] groups, int startingGroup) {
         for (int g = startingGroup; g < groups.length; g++) {
             Group group = groups[g];
             group.bytesStart = bytes.length();
@@ -331,7 +329,7 @@ final class PackedValuesBlockHash extends BlockHash {
         }
     }
 
-    private int rewindKeys() {
+    private int rewindKeys(Group[] groups) {
         int g = groups.length - 1;
         Group group = groups[g];
         bytes.setLength(group.bytesStart);
@@ -350,11 +348,11 @@ final class PackedValuesBlockHash extends BlockHash {
     @Override
     public Block[] getKeys() {
         int size = Math.toIntExact(bytesRefHash.size());
-        BatchEncoder.Decoder[] decoders = new BatchEncoder.Decoder[groups.length];
-        Block.Builder[] builders = new Block.Builder[groups.length];
+        BatchEncoder.Decoder[] decoders = new BatchEncoder.Decoder[specs.size()];
+        Block.Builder[] builders = new Block.Builder[specs.size()];
         try {
             for (int g = 0; g < builders.length; g++) {
-                ElementType elementType = groups[g].spec.elementType();
+                ElementType elementType = specs.get(g).elementType();
                 decoders[g] = BatchEncoder.decoder(elementType);
                 builders[g] = elementType.newBlockBuilder(size, blockFactory);
             }
@@ -424,12 +422,12 @@ final class PackedValuesBlockHash extends BlockHash {
         StringBuilder b = new StringBuilder();
         b.append("PackedValuesBlockHash{groups=[");
         boolean first = true;
-        for (int i = 0; i < groups.length; i++) {
+        for (int i = 0; i < specs.size(); i++) {
             if (i > 0) {
                 b.append(", ");
             }
-            Group group = groups[i];
-            b.append(group.spec.channel()).append(':').append(group.spec.elementType());
+            GroupSpec spec = specs.get(i);
+            b.append(spec.channel()).append(':').append(spec.elementType());
         }
         b.append("], entries=").append(bytesRefHash.size());
         b.append(", size=").append(ByteSizeValue.ofBytes(bytesRefHash.ramBytesUsed()));

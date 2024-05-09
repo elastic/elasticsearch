@@ -15,8 +15,6 @@ import org.elasticsearch.test.http.MockResponse;
 import org.elasticsearch.test.http.MockWebServer;
 import org.elasticsearch.xpack.inference.services.cohere.embeddings.CohereEmbeddingType;
 import org.hamcrest.Matchers;
-import org.junit.AfterClass;
-import org.junit.BeforeClass;
 
 import java.io.IOException;
 import java.util.List;
@@ -41,7 +39,7 @@ public class CohereServiceUpgradeIT extends InferenceUpgradeTestCase {
         super(upgradedNodes);
     }
 
-    @BeforeClass
+    // @BeforeClass
     public static void startWebServer() throws IOException {
         cohereEmbeddingsServer = new MockWebServer();
         cohereEmbeddingsServer.start();
@@ -50,13 +48,14 @@ public class CohereServiceUpgradeIT extends InferenceUpgradeTestCase {
         cohereRerankServer.start();
     }
 
-    @AfterClass
+    // @AfterClass // for the awaitsfix
     public static void shutdown() {
         cohereEmbeddingsServer.close();
         cohereRerankServer.close();
     }
 
     @SuppressWarnings("unchecked")
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/107887")
     public void testCohereEmbeddings() throws IOException {
         var embeddingsSupported = getOldClusterTestVersion().onOrAfter(COHERE_EMBEDDINGS_ADDED);
         assumeTrue("Cohere embedding service added in " + COHERE_EMBEDDINGS_ADDED, embeddingsSupported);
@@ -72,7 +71,7 @@ public class CohereServiceUpgradeIT extends InferenceUpgradeTestCase {
             cohereEmbeddingsServer.enqueue(new MockResponse().setResponseCode(200).setBody(embeddingResponseFloat()));
             put(oldClusterIdFloat, embeddingConfigFloat(getUrl(cohereEmbeddingsServer)), TaskType.TEXT_EMBEDDING);
 
-            var configs = (List<Map<String, Object>>) get(TaskType.TEXT_EMBEDDING, oldClusterIdInt8).get("models");
+            var configs = (List<Map<String, Object>>) get(TaskType.TEXT_EMBEDDING, oldClusterIdInt8).get("endpoints");
             assertThat(configs, hasSize(1));
             assertEquals("cohere", configs.get(0).get("service"));
             var serviceSettings = (Map<String, Object>) configs.get(0).get("service_settings");
@@ -84,7 +83,7 @@ public class CohereServiceUpgradeIT extends InferenceUpgradeTestCase {
             assertEmbeddingInference(oldClusterIdInt8, CohereEmbeddingType.BYTE);
             assertEmbeddingInference(oldClusterIdFloat, CohereEmbeddingType.FLOAT);
         } else if (isMixedCluster()) {
-            var configs = (List<Map<String, Object>>) get(TaskType.TEXT_EMBEDDING, oldClusterIdInt8).get("models");
+            var configs = (List<Map<String, Object>>) get(TaskType.TEXT_EMBEDDING, oldClusterIdInt8).get("endpoints");
             assertEquals("cohere", configs.get(0).get("service"));
             var serviceSettings = (Map<String, Object>) configs.get(0).get("service_settings");
             assertThat(serviceSettings, hasEntry("model_id", "embed-english-light-v3.0"));
@@ -92,7 +91,7 @@ public class CohereServiceUpgradeIT extends InferenceUpgradeTestCase {
             // An upgraded node will report the embedding type as byte, an old node int8
             assertThat(embeddingType, Matchers.is(oneOf("int8", "byte")));
 
-            configs = (List<Map<String, Object>>) get(TaskType.TEXT_EMBEDDING, oldClusterIdFloat).get("models");
+            configs = (List<Map<String, Object>>) get(TaskType.TEXT_EMBEDDING, oldClusterIdFloat).get("endpoints");
             serviceSettings = (Map<String, Object>) configs.get(0).get("service_settings");
             assertThat(serviceSettings, hasEntry("embedding_type", "float"));
 
@@ -100,7 +99,7 @@ public class CohereServiceUpgradeIT extends InferenceUpgradeTestCase {
             assertEmbeddingInference(oldClusterIdFloat, CohereEmbeddingType.FLOAT);
         } else if (isUpgradedCluster()) {
             // check old cluster model
-            var configs = (List<Map<String, Object>>) get(TaskType.TEXT_EMBEDDING, oldClusterIdInt8).get("models");
+            var configs = (List<Map<String, Object>>) get(TaskType.TEXT_EMBEDDING, oldClusterIdInt8).get("endpoints");
             var serviceSettings = (Map<String, Object>) configs.get(0).get("service_settings");
             assertThat(serviceSettings, hasEntry("model_id", "embed-english-light-v3.0"));
             assertThat(serviceSettings, hasEntry("embedding_type", "byte"));
@@ -117,7 +116,7 @@ public class CohereServiceUpgradeIT extends InferenceUpgradeTestCase {
                 cohereEmbeddingsServer.enqueue(new MockResponse().setResponseCode(200).setBody(embeddingResponseByte()));
                 put(upgradedClusterIdByte, embeddingConfigByte(getUrl(cohereEmbeddingsServer)), TaskType.TEXT_EMBEDDING);
 
-                configs = (List<Map<String, Object>>) get(TaskType.TEXT_EMBEDDING, upgradedClusterIdByte).get("models");
+                configs = (List<Map<String, Object>>) get(TaskType.TEXT_EMBEDDING, upgradedClusterIdByte).get("endpoints");
                 serviceSettings = (Map<String, Object>) configs.get(0).get("service_settings");
                 assertThat(serviceSettings, hasEntry("embedding_type", "byte"));
 
@@ -130,7 +129,7 @@ public class CohereServiceUpgradeIT extends InferenceUpgradeTestCase {
                 cohereEmbeddingsServer.enqueue(new MockResponse().setResponseCode(200).setBody(embeddingResponseByte()));
                 put(upgradedClusterIdInt8, embeddingConfigInt8(getUrl(cohereEmbeddingsServer)), TaskType.TEXT_EMBEDDING);
 
-                configs = (List<Map<String, Object>>) get(TaskType.TEXT_EMBEDDING, upgradedClusterIdInt8).get("models");
+                configs = (List<Map<String, Object>>) get(TaskType.TEXT_EMBEDDING, upgradedClusterIdInt8).get("endpoints");
                 serviceSettings = (Map<String, Object>) configs.get(0).get("service_settings");
                 assertThat(serviceSettings, hasEntry("embedding_type", "byte")); // int8 rewritten to byte
 
@@ -142,7 +141,7 @@ public class CohereServiceUpgradeIT extends InferenceUpgradeTestCase {
                 cohereEmbeddingsServer.enqueue(new MockResponse().setResponseCode(200).setBody(embeddingResponseFloat()));
                 put(upgradedClusterIdFloat, embeddingConfigFloat(getUrl(cohereEmbeddingsServer)), TaskType.TEXT_EMBEDDING);
 
-                configs = (List<Map<String, Object>>) get(TaskType.TEXT_EMBEDDING, upgradedClusterIdFloat).get("models");
+                configs = (List<Map<String, Object>>) get(TaskType.TEXT_EMBEDDING, upgradedClusterIdFloat).get("endpoints");
                 serviceSettings = (Map<String, Object>) configs.get(0).get("service_settings");
                 assertThat(serviceSettings, hasEntry("embedding_type", "float"));
 
@@ -170,6 +169,7 @@ public class CohereServiceUpgradeIT extends InferenceUpgradeTestCase {
     }
 
     @SuppressWarnings("unchecked")
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/107887")
     public void testRerank() throws IOException {
         var rerankSupported = getOldClusterTestVersion().onOrAfter(COHERE_RERANK_ADDED);
         assumeTrue("Cohere rerank service added in " + COHERE_RERANK_ADDED, rerankSupported);
@@ -179,12 +179,12 @@ public class CohereServiceUpgradeIT extends InferenceUpgradeTestCase {
 
         if (isOldCluster()) {
             put(oldClusterId, rerankConfig(getUrl(cohereRerankServer)), TaskType.RERANK);
-            var configs = (List<Map<String, Object>>) get(TaskType.RERANK, oldClusterId).get("models");
+            var configs = (List<Map<String, Object>>) get(TaskType.RERANK, oldClusterId).get("endpoints");
             assertThat(configs, hasSize(1));
 
             assertRerank(oldClusterId);
         } else if (isMixedCluster()) {
-            var configs = (List<Map<String, Object>>) get(TaskType.RERANK, oldClusterId).get("models");
+            var configs = (List<Map<String, Object>>) get(TaskType.RERANK, oldClusterId).get("endpoints");
             assertEquals("cohere", configs.get(0).get("service"));
             var serviceSettings = (Map<String, Object>) configs.get(0).get("service_settings");
             assertThat(serviceSettings, hasEntry("model_id", "rerank-english-v3.0"));
@@ -195,7 +195,7 @@ public class CohereServiceUpgradeIT extends InferenceUpgradeTestCase {
 
         } else if (isUpgradedCluster()) {
             // check old cluster model
-            var configs = (List<Map<String, Object>>) get(TaskType.RERANK, oldClusterId).get("models");
+            var configs = (List<Map<String, Object>>) get(TaskType.RERANK, oldClusterId).get("endpoints");
             assertEquals("cohere", configs.get(0).get("service"));
             var serviceSettings = (Map<String, Object>) configs.get(0).get("service_settings");
             assertThat(serviceSettings, hasEntry("model_id", "rerank-english-v3.0"));
@@ -206,7 +206,7 @@ public class CohereServiceUpgradeIT extends InferenceUpgradeTestCase {
 
             // New endpoint
             put(upgradedClusterId, rerankConfig(getUrl(cohereRerankServer)), TaskType.RERANK);
-            configs = (List<Map<String, Object>>) get(upgradedClusterId).get("models");
+            configs = (List<Map<String, Object>>) get(upgradedClusterId).get("endpoints");
             assertThat(configs, hasSize(1));
 
             assertRerank(upgradedClusterId);

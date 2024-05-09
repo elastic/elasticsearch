@@ -14,6 +14,7 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.VersionId;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.IndexSettings;
@@ -23,9 +24,12 @@ import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.util.Arrays;
 import java.util.Collection;
+import java.util.Comparator;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Function;
 
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.xpack.core.ClientHelper.SECURITY_ORIGIN;
@@ -38,7 +42,6 @@ import static org.elasticsearch.xpack.security.support.SecurityIndexManager.SECU
 public class SecuritySystemIndices {
 
     public static final int INTERNAL_MAIN_INDEX_FORMAT = 6;
-    private static final int INTERNAL_MAIN_INDEX_MAPPINGS_FORMAT = 1;
     private static final int INTERNAL_TOKENS_INDEX_FORMAT = 7;
     private static final int INTERNAL_TOKENS_INDEX_MAPPINGS_FORMAT = 1;
     private static final int INTERNAL_PROFILE_INDEX_FORMAT = 8;
@@ -53,6 +56,15 @@ public class SecuritySystemIndices {
     public static final String SECURITY_PROFILE_ALIAS = ".security-profile";
     public static final Version VERSION_SECURITY_PROFILE_ORIGIN = Version.V_8_3_0;
     public static final NodeFeature SECURITY_PROFILE_ORIGIN_FEATURE = new NodeFeature("security.security_profile_origin");
+
+    /**
+     * Security managed index mappings used to be updated based on the product version. They are now updated based on per-index mappings
+     * versions. However, older nodes will still look for a product version in the mappings metadata, so we have to put <em>something</em>
+     * in that field that will allow the older node to realise that the mappings are ahead of what it knows about. The easiest solution is
+     * to hardcode 8.14.0 in this field, because any node from 8.14.0 onwards should be using per-index mappings versions to determine
+     * whether mappings are up-to-date.
+     */
+    public static final String BWC_MAPPINGS_VERSION = "8.14.0";
 
     private static final Logger logger = LogManager.getLogger(SecuritySystemIndices.class);
 
@@ -110,18 +122,22 @@ public class SecuritySystemIndices {
     }
 
     private SystemIndexDescriptor getSecurityMainIndexDescriptor() {
-        return SystemIndexDescriptor.builder()
-            // This can't just be `.security-*` because that would overlap with the tokens index pattern
-            .setIndexPattern(".security-[0-9]+*")
-            .setPrimaryIndex(MAIN_INDEX_CONCRETE_NAME)
-            .setDescription("Contains Security configuration")
-            .setMappings(getMainIndexMappings())
-            .setSettings(getMainIndexSettings())
-            .setAliasName(SECURITY_MAIN_ALIAS)
-            .setIndexFormat(INTERNAL_MAIN_INDEX_FORMAT)
-            .setVersionMetaKey("security-version")
-            .setOrigin(SECURITY_ORIGIN)
-            .setThreadPools(ExecutorNames.CRITICAL_SYSTEM_INDEX_THREAD_POOLS)
+        final Function<SecurityMainIndexMappingVersion, SystemIndexDescriptor.Builder> securityIndexDescriptorBuilder =
+            mappingVersion -> SystemIndexDescriptor.builder()
+                // This can't just be `.security-*` because that would overlap with the tokens index pattern
+                .setIndexPattern(".security-[0-9]+*")
+                .setPrimaryIndex(MAIN_INDEX_CONCRETE_NAME)
+                .setDescription("Contains Security configuration")
+                .setMappings(getMainIndexMappings(mappingVersion))
+                .setSettings(getMainIndexSettings())
+                .setAliasName(SECURITY_MAIN_ALIAS)
+                .setIndexFormat(INTERNAL_MAIN_INDEX_FORMAT)
+                .setVersionMetaKey(SECURITY_VERSION_STRING)
+                .setOrigin(SECURITY_ORIGIN)
+                .setThreadPools(ExecutorNames.CRITICAL_SYSTEM_INDEX_THREAD_POOLS);
+
+        return securityIndexDescriptorBuilder.apply(SecurityMainIndexMappingVersion.latest())
+            .setPriorSystemIndexDescriptors(List.of(securityIndexDescriptorBuilder.apply(SecurityMainIndexMappingVersion.INITIAL).build()))
             .build();
     }
 
@@ -140,14 +156,14 @@ public class SecuritySystemIndices {
             .build();
     }
 
-    private XContentBuilder getMainIndexMappings() {
+    private XContentBuilder getMainIndexMappings(SecurityMainIndexMappingVersion mappingVersion) {
         try {
             final XContentBuilder builder = jsonBuilder();
             builder.startObject();
             {
                 builder.startObject("_meta");
-                builder.field(SECURITY_VERSION_STRING, Version.CURRENT.toString());
-                builder.field(SystemIndexDescriptor.VERSION_META_KEY, INTERNAL_MAIN_INDEX_MAPPINGS_FORMAT);
+                builder.field(SECURITY_VERSION_STRING, BWC_MAPPINGS_VERSION); // Only needed for BWC with pre-8.15.0 nodes
+                builder.field(SystemIndexDescriptor.VERSION_META_KEY, mappingVersion.id);
                 builder.endObject();
 
                 builder.field("dynamic", "strict");
@@ -295,6 +311,25 @@ public class SecuritySystemIndices {
                     }
                     builder.endObject();
 
+                    if (mappingVersion.onOrAfter(SecurityMainIndexMappingVersion.ADD_REMOTE_CLUSTER_AND_DESCRIPTION_FIELDS)) {
+                        builder.startObject("remote_cluster");
+                        {
+                            builder.field("type", "object");
+                            builder.startObject("properties");
+                            {
+                                builder.startObject("clusters");
+                                builder.field("type", "keyword");
+                                builder.endObject();
+
+                                builder.startObject("privileges");
+                                builder.field("type", "keyword");
+                                builder.endObject();
+                            }
+                            builder.endObject();
+                        }
+                        builder.endObject();
+                    }
+
                     builder.startObject("applications");
                     {
                         builder.field("type", "object");
@@ -375,6 +410,12 @@ public class SecuritySystemIndices {
                     builder.startObject("name");
                     builder.field("type", "keyword");
                     builder.endObject();
+
+                    if (mappingVersion.onOrAfter(SecurityMainIndexMappingVersion.ADD_REMOTE_CLUSTER_AND_DESCRIPTION_FIELDS)) {
+                        builder.startObject("description");
+                        builder.field("type", "text");
+                        builder.endObject();
+                    }
 
                     builder.startObject("run_as");
                     builder.field("type", "keyword");
@@ -632,7 +673,7 @@ public class SecuritySystemIndices {
             builder.startObject();
             {
                 builder.startObject("_meta");
-                builder.field(SECURITY_VERSION_STRING, Version.CURRENT);
+                builder.field(SECURITY_VERSION_STRING, BWC_MAPPINGS_VERSION); // Only needed for BWC with pre-8.15.0 nodes
                 builder.field(SystemIndexDescriptor.VERSION_META_KEY, INTERNAL_TOKENS_INDEX_MAPPINGS_FORMAT);
                 builder.endObject();
 
@@ -844,7 +885,7 @@ public class SecuritySystemIndices {
             builder.startObject();
             {
                 builder.startObject("_meta");
-                builder.field(SECURITY_VERSION_STRING, Version.CURRENT.toString());
+                builder.field(SECURITY_VERSION_STRING, BWC_MAPPINGS_VERSION); // Only needed for BWC with pre-8.15.0 nodes
                 builder.field(SystemIndexDescriptor.VERSION_META_KEY, mappingsVersion);
                 builder.endObject();
 
@@ -984,4 +1025,46 @@ public class SecuritySystemIndices {
         builder.endObject();
     }
 
+    /**
+     * Every change to the mapping of .security index must be versioned. When adding a new mapping version:
+     * <ul>
+     *     <li>pick the next largest version ID - this will automatically become the new {@link #latest()} version</li>
+     *     <li>add your mapping change in {@link #getMainIndexMappings(SecurityMainIndexMappingVersion)} conditionally to a new version</li>
+     *     <li>make sure to set old latest version to "prior system index descriptors" in {@link #getSecurityMainIndexDescriptor()}</li>
+     * </ul>
+     */
+    public enum SecurityMainIndexMappingVersion implements VersionId<SecurityMainIndexMappingVersion> {
+
+        /**
+         * Initial .security index mapping version.
+         */
+        INITIAL(1),
+
+        /**
+         * The mapping was changed to add new text description and remote_cluster fields.
+         */
+        ADD_REMOTE_CLUSTER_AND_DESCRIPTION_FIELDS(2),
+
+        ;
+
+        private static final SecurityMainIndexMappingVersion LATEST = Arrays.stream(values())
+            .max(Comparator.comparingInt(v -> v.id))
+            .orElseThrow();
+
+        private final int id;
+
+        SecurityMainIndexMappingVersion(int id) {
+            assert id > 0;
+            this.id = id;
+        }
+
+        @Override
+        public int id() {
+            return id;
+        }
+
+        public static SecurityMainIndexMappingVersion latest() {
+            return LATEST;
+        }
+    }
 }

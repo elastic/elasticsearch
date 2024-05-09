@@ -22,7 +22,6 @@ import org.elasticsearch.xpack.ql.type.DataTypes;
 
 import java.util.Arrays;
 import java.util.List;
-import java.util.Objects;
 import java.util.function.Function;
 
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.FIRST;
@@ -31,7 +30,8 @@ import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isNumeric;
 
 public class Log extends EsqlScalarFunction implements OptionalArgument {
 
-    private final Expression base, value;
+    private final Expression base;
+    private final Expression value;
 
     @FunctionInfo(
         returnType = "double",
@@ -126,19 +126,5 @@ public class Log extends EsqlScalarFunction implements OptionalArgument {
             return new LogEvaluator.Factory(source(), baseEval, valueEval);
         }
         return new LogConstantEvaluator.Factory(source(), valueEval);
-    }
-
-    @Override
-    public int hashCode() {
-        return Objects.hash(base, value);
-    }
-
-    @Override
-    public boolean equals(Object obj) {
-        if (obj == null || obj.getClass() != getClass()) {
-            return false;
-        }
-        Log other = (Log) obj;
-        return Objects.equals(other.base, base) && Objects.equals(other.value, value);
     }
 }

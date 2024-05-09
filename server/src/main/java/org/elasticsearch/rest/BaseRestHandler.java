@@ -12,6 +12,7 @@ import org.apache.lucene.search.spell.LevenshteinDistance;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.Releasable;
@@ -77,6 +78,13 @@ public abstract class BaseRestHandler implements RestHandler {
 
     @Override
     public final void handleRequest(RestRequest request, RestChannel channel, NodeClient client) throws Exception {
+        // check if the query has any parameters that are not in the supported set (if declared)
+        Set<String> supported = supportedQueryParameters();
+        if (supported != null && supported.containsAll(request.params().keySet()) == false) {
+            Set<String> unsupported = Sets.difference(request.params().keySet(), supported);
+            throw new IllegalArgumentException(unrecognized(request, unsupported, supported, "parameter"));
+        }
+
         // prepare the request for execution; has the side effect of touching the request parameters
         try (var action = prepareRequest(request, client)) {
 

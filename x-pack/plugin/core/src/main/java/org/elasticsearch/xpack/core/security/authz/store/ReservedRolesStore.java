@@ -19,6 +19,8 @@ import org.elasticsearch.xpack.core.ilm.action.ILMActions;
 import org.elasticsearch.xpack.core.monitoring.action.MonitoringBulkAction;
 import org.elasticsearch.xpack.core.security.SecurityField;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
+import org.elasticsearch.xpack.core.security.authz.permission.RemoteClusterPermissionGroup;
+import org.elasticsearch.xpack.core.security.authz.permission.RemoteClusterPermissions;
 import org.elasticsearch.xpack.core.security.support.MetadataUtils;
 import org.elasticsearch.xpack.core.security.user.KibanaSystemUser;
 import org.elasticsearch.xpack.core.security.user.UsernamesField;
@@ -94,6 +96,13 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                     .build(),
                 "*"
             ) },
+        new RemoteClusterPermissions().addGroup(
+            new RemoteClusterPermissionGroup(
+                RemoteClusterPermissions.getSupportedRemoteClusterPermissions().toArray(new String[0]),
+                new String[] { "*" }
+            )
+        ),
+        null,
         null
     );
 
@@ -192,6 +201,8 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                         getRemoteIndicesReadPrivileges(".monitoring-*"),
                         getRemoteIndicesReadPrivileges("/metrics-(beats|elasticsearch|enterprisesearch|kibana|logstash).*/"),
                         getRemoteIndicesReadPrivileges("metricbeat-*") },
+                    null,
+                    null,
                     null
                 )
             ),

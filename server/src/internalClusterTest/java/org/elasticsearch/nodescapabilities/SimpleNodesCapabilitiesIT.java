@@ -12,14 +12,11 @@ import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.node.capabilities.NodesCapabilitiesRequest;
 import org.elasticsearch.action.admin.cluster.node.capabilities.NodesCapabilitiesResponse;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.test.hamcrest.OptionalMatchers;
 
 import java.io.IOException;
-import java.util.Optional;
 
 import static org.elasticsearch.test.hamcrest.OptionalMatchers.isPresentWith;
 import static org.hamcrest.Matchers.hasSize;
-import static org.hamcrest.Matchers.is;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0)
 public class SimpleNodesCapabilitiesIT extends ESIntegTestCase {

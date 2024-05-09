@@ -44,6 +44,7 @@ public class NodesCapabilitiesResponse extends BaseNodesResponse<NodeCapability>
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        return builder.field("supported", isSupported().map(Object::toString).orElse("unknown"));
+        Optional<Boolean> supported = isSupported();
+        return builder.field("supported", supported.isPresent() ? supported.get() : "unknown");
     }
 }

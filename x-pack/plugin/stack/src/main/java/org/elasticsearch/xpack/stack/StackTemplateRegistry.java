@@ -107,6 +107,7 @@ public class StackTemplateRegistry extends IndexTemplateRegistry {
     // Kibana reporting template
     ///////////////////////////////////
     public static final String KIBANA_REPORTING_INDEX_TEMPLATE_NAME = ".kibana-reporting";
+    public static final String KIBANA_REPORTING_COMPONENT_TEMPLATE_NAME = "kibana-reporting@settings";
 
     public StackTemplateRegistry(
         Settings nodeSettings,
@@ -226,6 +227,13 @@ public class StackTemplateRegistry extends IndexTemplateRegistry {
             new IndexTemplateConfig(
                 SYNTHETICS_SETTINGS_COMPONENT_TEMPLATE_NAME,
                 "/synthetics@settings.json",
+                REGISTRY_VERSION,
+                TEMPLATE_VERSION_VARIABLE,
+                ADDITIONAL_TEMPLATE_VARIABLES
+            ),
+            new IndexTemplateConfig(
+                KIBANA_REPORTING_COMPONENT_TEMPLATE_NAME,
+                "/kibana-reporting@settings.json",
                 REGISTRY_VERSION,
                 TEMPLATE_VERSION_VARIABLE,
                 ADDITIONAL_TEMPLATE_VARIABLES

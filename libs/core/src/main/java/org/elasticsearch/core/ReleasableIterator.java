@@ -46,4 +46,29 @@ public interface ReleasableIterator<T> extends Releasable, Iterator<T> {
 
         };
     }
+
+    /**
+     * Returns an empty iterator over the supplied value.
+     */
+    static <T extends Releasable> ReleasableIterator<T> empty() {
+        return new ReleasableIterator<>() {
+            @Override
+            public boolean hasNext() {
+                return false;
+            }
+
+            @Override
+            public T next() {
+                return null;
+            }
+
+            @Override
+            public void close() {}
+
+            @Override
+            public String toString() {
+                return "ReleasableIterator[<empty>]";
+            }
+        };
+    }
 }

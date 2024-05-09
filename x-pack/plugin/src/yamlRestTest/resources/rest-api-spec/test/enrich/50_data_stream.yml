@@ -9,9 +9,6 @@ setup:
         name: enrich-template
         body:
           index_patterns: [my-ds]
-          template:
-            settings:
-              index.number_of_replicas: 0
           data_stream: {}
 
   - do:
@@ -59,8 +56,8 @@ teardown:
 
 ---
 "enrich documents over _bulk via a data stream":
-  - skip:
-      version: " - 8.13.99"
+  - requires:
+      cluster_features: [ "gte_v8.14.0" ]
       reason: "enrich didn't support data streams until 8.14.0+"
 
   - do:

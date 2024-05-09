@@ -53,8 +53,8 @@ public class PrevalidateShardPathIT extends ESIntegTestCase {
             .stream()
             .map(ShardRouting::shardId)
             .collect(Collectors.toSet());
-        String node1Id = internalCluster().clusterService(node1).localNode().getId();
-        String node2Id = internalCluster().clusterService(node2).localNode().getId();
+        String node1Id = getNodeId(node1);
+        String node2Id = getNodeId(node2);
         Set<ShardId> shardIdsToCheck = new HashSet<>(shardIds);
         boolean includeUnknownShardId = randomBoolean();
         if (includeUnknownShardId) {

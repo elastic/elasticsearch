@@ -49,6 +49,7 @@ import org.elasticsearch.xpack.esql.CsvTestUtils.Type;
 import org.elasticsearch.xpack.esql.analysis.Analyzer;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerContext;
 import org.elasticsearch.xpack.esql.analysis.EnrichResolution;
+import org.elasticsearch.xpack.esql.analysis.PreAnalyzer;
 import org.elasticsearch.xpack.esql.enrich.EnrichLookupService;
 import org.elasticsearch.xpack.esql.enrich.ResolvedEnrichPolicy;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
@@ -72,13 +73,13 @@ import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner.LocalExecution
 import org.elasticsearch.xpack.esql.planner.Mapper;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 import org.elasticsearch.xpack.esql.planner.TestPhysicalOperationProviders;
+import org.elasticsearch.xpack.esql.plugin.EsqlFeatures;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.esql.session.EsqlConfiguration;
 import org.elasticsearch.xpack.esql.stats.DisabledSearchStats;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
 import org.elasticsearch.xpack.ql.CsvSpecReader;
 import org.elasticsearch.xpack.ql.SpecReader;
-import org.elasticsearch.xpack.ql.analyzer.PreAnalyzer;
 import org.elasticsearch.xpack.ql.expression.Expressions;
 import org.elasticsearch.xpack.ql.expression.function.FunctionRegistry;
 import org.elasticsearch.xpack.ql.index.EsIndex;
@@ -109,6 +110,8 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.loadMapping;
 import static org.elasticsearch.xpack.ql.CsvSpecReader.specParser;
 import static org.elasticsearch.xpack.ql.TestUtils.classpathResources;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 
@@ -143,7 +146,6 @@ import static org.hamcrest.Matchers.notNullValue;
 public class CsvTests extends ESTestCase {
 
     private static final Logger LOGGER = LogManager.getLogger(CsvTests.class);
-    private static final String IGNORED_CSV_FILE_NAMES_PATTERN = "-IT_tests_only";
 
     private final String fileName;
     private final String groupName;
@@ -163,10 +165,8 @@ public class CsvTests extends ESTestCase {
 
     @ParametersFactory(argumentFormatting = "%2$s.%3$s")
     public static List<Object[]> readScriptSpec() throws Exception {
-        List<URL> urls = classpathResources("/*.csv-spec").stream()
-            .filter(x -> x.toString().contains(IGNORED_CSV_FILE_NAMES_PATTERN) == false)
-            .toList();
-        assertTrue("Not enough specs found " + urls, urls.size() > 0);
+        List<URL> urls = classpathResources("/*.csv-spec");
+        assertThat("Not enough specs found " + urls, urls, hasSize(greaterThan(0)));
         return SpecReader.readScriptSpec(urls, specParser());
     }
 
@@ -216,11 +216,14 @@ public class CsvTests extends ESTestCase {
 
     public final void test() throws Throwable {
         try {
-            /*
-             * We're intentionally not NodeFeatures here because we expect all
-             * of the features to be supported in this unit test.
-             */
             assumeTrue("Test " + testName + " is not enabled", isEnabled(testName, Version.CURRENT));
+
+            /*
+             * The csv tests support all but a few features. The unsupported features
+             * are tested in integration tests.
+             */
+            assumeFalse("metadata fields aren't supported", testCase.requiredFeatures.contains(EsqlFeatures.METADATA_FIELDS.id()));
+            assumeFalse("enrich can't load fields in csv tests", testCase.requiredFeatures.contains(EsqlFeatures.ENRICH_LOAD.id()));
             doTest();
         } catch (Throwable th) {
             throw reworkException(th);
@@ -446,7 +449,7 @@ public class CsvTests extends ESTestCase {
     }
 
     // Asserts that the serialization and deserialization of the plan creates an equivalent plan.
-    private static void opportunisticallyAssertPlanSerialization(PhysicalPlan... plans) {
+    private void opportunisticallyAssertPlanSerialization(PhysicalPlan... plans) {
         for (var plan : plans) {
             var tmp = plan;
             do {
@@ -455,7 +458,7 @@ public class CsvTests extends ESTestCase {
                 }
             } while (tmp.children().isEmpty() == false && (tmp = tmp.children().get(0)) != null);
 
-            SerializationTestUtils.assertSerialization(plan);
+            SerializationTestUtils.assertSerialization(plan, configuration);
         }
     }
 

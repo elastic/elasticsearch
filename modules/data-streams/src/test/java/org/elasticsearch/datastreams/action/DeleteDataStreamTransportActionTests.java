@@ -57,7 +57,7 @@ public class DeleteDataStreamTransportActionTests extends ESTestCase {
     }
 
     public void testDeleteDataStreamWithFailureStore() {
-        Assume.assumeTrue(DataStream.isFailureStoreEnabled());
+        Assume.assumeTrue(DataStream.isFailureStoreFeatureFlagEnabled());
 
         final String dataStreamName = "my-data-stream";
         final List<String> otherIndices = randomSubsetOf(List.of("foo", "bar", "baz"));

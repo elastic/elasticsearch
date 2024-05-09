@@ -366,9 +366,6 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
                     validationException
                 );
             }
-            if (source.collapse() != null && source.rescores() != null && source.rescores().isEmpty() == false) {
-                validationException = addValidationError("cannot use `collapse` in conjunction with `rescore`", validationException);
-            }
             if (source.storedFields() != null) {
                 if (source.storedFields().fetchFields() == false) {
                     if (source.fetchSource() != null && source.fetchSource().fetchSource()) {
@@ -397,10 +394,10 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
                 if (size == 0) {
                     validationException = addValidationError("[rank] requires [size] greater than [0]", validationException);
                 }
-                if (size > source.rankBuilder().windowSize()) {
+                if (size > source.rankBuilder().rankWindowSize()) {
                     validationException = addValidationError(
-                        "[rank] requires [window_size: "
-                            + source.rankBuilder().windowSize()
+                        "[rank] requires [rank_window_size: "
+                            + source.rankBuilder().rankWindowSize()
                             + "]"
                             + " be greater than or equal to [size: "
                             + size
@@ -690,13 +687,6 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
      */
     public SearchRequest scroll(TimeValue keepAlive) {
         return scroll(new Scroll(keepAlive));
-    }
-
-    /**
-     * If set, will enable scrolling of the search request for the specified timeout.
-     */
-    public SearchRequest scroll(String keepAlive) {
-        return scroll(new Scroll(TimeValue.parseTimeValue(keepAlive, null, getClass().getSimpleName() + ".Scroll.keepAlive")));
     }
 
     /**

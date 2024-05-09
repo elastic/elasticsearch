@@ -1,0 +1,55 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
+ */
+apply plugin: 'c'
+
+var os = org.gradle.internal.os.OperatingSystem.current()
+
+// To update this library run publish_vec_binaries.sh  ( or ./gradlew vecSharedLibrary )
+// Or
+// For local development, build the docker image with:
+//   docker build --platform linux/arm64 --progress=plain .
+// Grab the image id from the console output, then, e.g.
+//   docker run 9c9f36564c148b275aeecc42749e7b4580ded79dcf51ff6ccc008c8861e7a979 > build/libs/vec/shared/libvec.so
+//
+// To run tests and benchmarks on a locally built libvec,
+//  1. Temporarily comment out the download in libs/native/library/build.gradle
+//       libs "org.elasticsearch:vec:${vecVersion}@zip"
+//  2. Copy your locally built libvec binary, e.g.
+//       cp libs/vec/native/build/libs/vec/shared/libvec.dylib libs/native/libraries/build/platform/darwin-aarch64/libvec.dylib
+//
+// Look at the disassemble:
+//  objdump --disassemble-symbols=_dot8s build/libs/vec/shared/libvec.dylib
+// Note: symbol decoration may differ on Linux, i.e. the leading underscore is not present
+//
+// gcc -shared -fpic -o libvec.so -I src/vec/headers/ src/vec/c/vec.c -O3
+
+group = 'org.elasticsearch'
+
+model {
+  toolChains {
+    gcc(Gcc) {
+      target("aarch64") {
+        cCompiler.executable = "/usr/bin/gcc"
+      }
+    }
+    clang(Clang)
+  }
+  platforms {
+    aarch64 {
+      architecture "aarch64"
+    }
+  }
+  components {
+    vec(NativeLibrarySpec) {
+      targetPlatform "aarch64"
+      binaries.withType(SharedLibraryBinarySpec) {
+        cCompiler.args "-O3", "-std=c99", "-march=armv8-a"
+      }
+    }
+  }
+}

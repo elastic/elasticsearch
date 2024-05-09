@@ -2,8 +2,6 @@
 [[security-api-create-cross-cluster-api-key]]
 === Create Cross-Cluster API key API
 
-beta::[]
-
 ++++
 <titleabbrev>Create Cross-Cluster API key</titleabbrev>
 ++++

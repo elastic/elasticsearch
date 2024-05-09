@@ -83,7 +83,7 @@ public class OpenAiResponseHandler extends BaseResponseHandler {
         }
     }
 
-    RetryException buildExceptionHandling429(Request request, HttpResult result) {
+    protected RetryException buildExceptionHandling429(Request request, HttpResult result) {
         return new RetryException(true, buildError(buildRateLimitErrorMessage(result), request, result));
     }
 

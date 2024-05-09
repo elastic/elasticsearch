@@ -39,7 +39,6 @@ import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -94,7 +93,7 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
         var allowsCustomRouting = instance.isAllowCustomRouting();
         var indexMode = instance.getIndexMode();
         var lifecycle = instance.getLifecycle();
-        var failureStore = instance.isFailureStore();
+        var failureStore = instance.isFailureStoreEnabled();
         var failureIndices = instance.getFailureIndices();
         var rolloverOnWrite = instance.rolloverOnWrite();
         var autoShardingEvent = instance.getAutoShardingEvent();
@@ -208,25 +207,11 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
     }
 
     public void testRolloverUpgradeToTsdbDataStream() {
-        IndexMode indexMode = randomBoolean() ? IndexMode.STANDARD : null;
-        DataStream ds = DataStreamTestHelper.randomInstance().promoteDataStream();
-        // Unsure index_mode=null
-        ds = new DataStream(
-            ds.getName(),
-            ds.getIndices(),
-            ds.getGeneration(),
-            ds.getMetadata(),
-            ds.isHidden(),
-            ds.isReplicated(),
-            ds.isSystem(),
-            ds.isAllowCustomRouting(),
-            indexMode,
-            ds.getLifecycle(),
-            ds.isFailureStore(),
-            ds.getFailureIndices(),
-            ds.rolloverOnWrite(),
-            ds.getAutoShardingEvent()
-        );
+        DataStream ds = DataStreamTestHelper.randomInstance()
+            .copy()
+            .setReplicated(false)
+            .setIndexMode(randomBoolean() ? IndexMode.STANDARD : null)
+            .build();
         var newCoordinates = ds.nextWriteIndexAndGeneration(Metadata.EMPTY_METADATA);
 
         var rolledDs = ds.rollover(new Index(newCoordinates.v1(), UUIDs.randomBase64UUID()), newCoordinates.v2(), true, null);
@@ -239,23 +224,7 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
     }
 
     public void testRolloverDowngradeToRegularDataStream() {
-        DataStream ds = DataStreamTestHelper.randomInstance().promoteDataStream();
-        ds = new DataStream(
-            ds.getName(),
-            ds.getIndices(),
-            ds.getGeneration(),
-            ds.getMetadata(),
-            ds.isHidden(),
-            ds.isReplicated(),
-            ds.isSystem(),
-            ds.isAllowCustomRouting(),
-            IndexMode.TIME_SERIES,
-            ds.getLifecycle(),
-            ds.isFailureStore(),
-            ds.getFailureIndices(),
-            ds.rolloverOnWrite(),
-            ds.getAutoShardingEvent()
-        );
+        DataStream ds = DataStreamTestHelper.randomInstance().copy().setReplicated(false).setIndexMode(IndexMode.TIME_SERIES).build();
         var newCoordinates = ds.nextWriteIndexAndGeneration(Metadata.EMPTY_METADATA);
 
         var rolledDs = ds.rollover(new Index(newCoordinates.v1(), UUIDs.randomBase64UUID()), newCoordinates.v2(), false, null);
@@ -773,22 +742,13 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
         postSnapshotIndices.addAll(indicesToAdd);
 
         var replicated = preSnapshotDataStream.isReplicated() && randomBoolean();
-        var postSnapshotDataStream = new DataStream(
-            preSnapshotDataStream.getName(),
-            postSnapshotIndices,
-            preSnapshotDataStream.getGeneration() + randomIntBetween(0, 5),
-            preSnapshotDataStream.getMetadata() == null ? null : new HashMap<>(preSnapshotDataStream.getMetadata()),
-            preSnapshotDataStream.isHidden(),
-            replicated,
-            preSnapshotDataStream.isSystem(),
-            preSnapshotDataStream.isAllowCustomRouting(),
-            preSnapshotDataStream.getIndexMode(),
-            preSnapshotDataStream.getLifecycle(),
-            preSnapshotDataStream.isFailureStore(),
-            preSnapshotDataStream.getFailureIndices(),
-            replicated == false && preSnapshotDataStream.rolloverOnWrite(),
-            preSnapshotDataStream.getAutoShardingEvent()
-        );
+        var postSnapshotDataStream = preSnapshotDataStream.copy()
+            .setIndices(postSnapshotIndices)
+            .setGeneration(preSnapshotDataStream.getGeneration() + randomIntBetween(0, 5))
+            .setMetadata(preSnapshotDataStream.getMetadata() == null ? null : new HashMap<>(preSnapshotDataStream.getMetadata()))
+            .setReplicated(replicated)
+            .setRolloverOnWrite(replicated == false && preSnapshotDataStream.rolloverOnWrite())
+            .build();
 
         var reconciledDataStream = postSnapshotDataStream.snapshot(
             preSnapshotDataStream.getIndices().stream().map(Index::getName).toList()
@@ -815,22 +775,7 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
         var preSnapshotDataStream = DataStreamTestHelper.randomInstance();
         var indicesToAdd = randomNonEmptyIndexInstances();
 
-        var postSnapshotDataStream = new DataStream(
-            preSnapshotDataStream.getName(),
-            indicesToAdd,
-            preSnapshotDataStream.getGeneration(),
-            preSnapshotDataStream.getMetadata(),
-            preSnapshotDataStream.isHidden(),
-            preSnapshotDataStream.isReplicated(),
-            preSnapshotDataStream.isSystem(),
-            preSnapshotDataStream.isAllowCustomRouting(),
-            preSnapshotDataStream.getIndexMode(),
-            preSnapshotDataStream.getLifecycle(),
-            preSnapshotDataStream.isFailureStore(),
-            preSnapshotDataStream.getFailureIndices(),
-            preSnapshotDataStream.rolloverOnWrite(),
-            preSnapshotDataStream.getAutoShardingEvent()
-        );
+        var postSnapshotDataStream = preSnapshotDataStream.copy().setIndices(indicesToAdd).build();
 
         assertNull(postSnapshotDataStream.snapshot(preSnapshotDataStream.getIndices().stream().map(Index::getName).toList()));
     }
@@ -1049,17 +994,7 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
                 .numberOfReplicas(1)
                 .creationDate(creationTimeMillis);
             IndexMetadata indexMetadata = indexMetaBuilder.build();
-            DataStream dataStream = new DataStream(
-                dataStreamName,
-                List.of(indexMetadata.getIndex()),
-                1L,
-                Map.of(),
-                false,
-                randomBoolean(),
-                false,
-                randomBoolean(),
-                IndexMode.STANDARD
-            );
+            DataStream dataStream = createDataStream(dataStreamName, List.of(indexMetadata.getIndex()));
             assertNull(dataStream.getGenerationLifecycleDate(indexMetadata));
         }
 
@@ -1079,16 +1014,9 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
             MaxAgeCondition rolloverCondition = new MaxAgeCondition(TimeValue.timeValueMillis(rolloverTimeMills));
             indexMetaBuilder.putRolloverInfo(new RolloverInfo(dataStreamName, List.of(rolloverCondition), now - 2000L));
             IndexMetadata indexMetadata = indexMetaBuilder.build();
-            DataStream dataStream = new DataStream(
+            DataStream dataStream = createDataStream(
                 dataStreamName,
-                List.of(indexMetadata.getIndex(), writeIndexMetaBuilder.build().getIndex()),
-                1L,
-                Map.of(),
-                false,
-                randomBoolean(),
-                false,
-                randomBoolean(),
-                IndexMode.STANDARD
+                List.of(indexMetadata.getIndex(), writeIndexMetaBuilder.build().getIndex())
             );
             assertThat(dataStream.getGenerationLifecycleDate(indexMetadata).millis(), is(rolloverTimeMills));
         }
@@ -1109,16 +1037,9 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
             MaxAgeCondition rolloverCondition = new MaxAgeCondition(TimeValue.timeValueMillis(rolloverTimeMills));
             indexMetaBuilder.putRolloverInfo(new RolloverInfo("some-alias-name", List.of(rolloverCondition), now - 2000L));
             IndexMetadata indexMetadata = indexMetaBuilder.build();
-            DataStream dataStream = new DataStream(
+            DataStream dataStream = createDataStream(
                 dataStreamName,
-                List.of(indexMetadata.getIndex(), writeIndexMetaBuilder.build().getIndex()),
-                1L,
-                Map.of(),
-                false,
-                randomBoolean(),
-                false,
-                randomBoolean(),
-                IndexMode.STANDARD
+                List.of(indexMetadata.getIndex(), writeIndexMetaBuilder.build().getIndex())
             );
             assertThat(dataStream.getGenerationLifecycleDate(indexMetadata).millis(), is(creationTimeMillis));
         }
@@ -1131,17 +1052,7 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
                 .numberOfReplicas(1)
                 .creationDate(creationTimeMillis);
             IndexMetadata indexMetadata = indexMetaBuilder.build();
-            DataStream dataStream = new DataStream(
-                dataStreamName,
-                List.of(indexMetadata.getIndex()),
-                1L,
-                Map.of(),
-                false,
-                randomBoolean(),
-                false,
-                randomBoolean(),
-                IndexMode.STANDARD
-            );
+            DataStream dataStream = createDataStream(dataStreamName, List.of(indexMetadata.getIndex()));
 
             assertNull(dataStream.getGenerationLifecycleDate(indexMetadata));
         }
@@ -1160,16 +1071,9 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
                 .numberOfReplicas(1)
                 .creationDate(creationTimeMillis);
             IndexMetadata indexMetadata = indexMetaBuilder.build();
-            DataStream dataStream = new DataStream(
+            DataStream dataStream = createDataStream(
                 dataStreamName,
-                List.of(indexMetadata.getIndex(), writeIndexMetaBuilder.build().getIndex()),
-                1L,
-                Map.of(),
-                false,
-                randomBoolean(),
-                false,
-                randomBoolean(),
-                IndexMode.STANDARD
+                List.of(indexMetadata.getIndex(), writeIndexMetaBuilder.build().getIndex())
             );
             assertThat(dataStream.getGenerationLifecycleDate(indexMetadata).millis(), is(originTimeMillis));
         }
@@ -1190,16 +1094,9 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
             MaxAgeCondition rolloverCondition = new MaxAgeCondition(TimeValue.timeValueMillis(rolloverTimeMills));
             indexMetaBuilder.putRolloverInfo(new RolloverInfo(dataStreamName, List.of(rolloverCondition), now - 2000L));
             IndexMetadata indexMetadata = indexMetaBuilder.build();
-            DataStream dataStream = new DataStream(
+            DataStream dataStream = createDataStream(
                 dataStreamName,
-                List.of(indexMetadata.getIndex(), writeIndexMetaBuilder.build().getIndex()),
-                1L,
-                Map.of(),
-                false,
-                randomBoolean(),
-                false,
-                randomBoolean(),
-                IndexMode.STANDARD
+                List.of(indexMetadata.getIndex(), writeIndexMetaBuilder.build().getIndex())
             );
             assertThat(dataStream.getGenerationLifecycleDate(indexMetadata).millis(), is(originTimeMillis));
         }
@@ -1220,19 +1117,21 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
             MaxAgeCondition rolloverCondition = new MaxAgeCondition(TimeValue.timeValueMillis(rolloverTimeMills));
             indexMetaBuilder.putRolloverInfo(new RolloverInfo("some-alias-name", List.of(rolloverCondition), now - 2000L));
             IndexMetadata indexMetadata = indexMetaBuilder.build();
-            DataStream dataStream = new DataStream(
+            DataStream dataStream = createDataStream(
                 dataStreamName,
-                List.of(indexMetadata.getIndex(), writeIndexMetaBuilder.build().getIndex()),
-                1L,
-                Map.of(),
-                false,
-                randomBoolean(),
-                false,
-                randomBoolean(),
-                IndexMode.STANDARD
+                List.of(indexMetadata.getIndex(), writeIndexMetaBuilder.build().getIndex())
             );
             assertThat(dataStream.getGenerationLifecycleDate(indexMetadata).millis(), is(originTimeMillis));
         }
+    }
+
+    private DataStream createDataStream(String name, List<Index> indices) {
+        return DataStream.builder(name, indices)
+            .setMetadata(Map.of())
+            .setReplicated(randomBoolean())
+            .setAllowCustomRouting(randomBoolean())
+            .setIndexMode(IndexMode.STANDARD)
+            .build();
     }
 
     public void testGetIndicesOlderThan() {
@@ -1861,14 +1760,15 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
         }
 
         DataStreamLifecycle lifecycle = new DataStreamLifecycle();
+        boolean isSystem = randomBoolean();
         DataStream dataStream = new DataStream(
             dataStreamName,
             indices,
             generation,
             metadata,
+            isSystem,
             randomBoolean(),
-            randomBoolean(),
-            false, // Some tests don't work well with system data streams, since these data streams require special handling
+            isSystem,
             System::currentTimeMillis,
             randomBoolean(),
             randomBoolean() ? IndexMode.STANDARD : null, // IndexMode.TIME_SERIES triggers validation that many unit tests doesn't pass
@@ -1895,7 +1795,13 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
             }
             // We check that even if there was no retention provided by the user, the global retention applies
             assertThat(serialized, not(containsString("data_retention")));
-            assertThat(serialized, containsString("effective_retention"));
+            if (dataStream.isSystem() == false
+                && (globalRetention.getDefaultRetention() != null || globalRetention.getMaxRetention() != null)) {
+                assertThat(serialized, containsString("effective_retention"));
+            } else {
+                assertThat(serialized, not(containsString("effective_retention")));
+            }
+
         }
     }
 
@@ -1939,17 +1845,11 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
         backingIndices.add(writeIndexMetadata.getIndex());
         metadataBuilder.put(writeIndexMetadata, false);
 
-        final DataStream dataStream = new DataStream(
-            dataStreamName,
-            backingIndices,
-            backingIndices.size(),
-            Collections.emptyMap(),
-            false,
-            false,
-            false,
-            false,
-            randomBoolean() ? IndexMode.STANDARD : IndexMode.TIME_SERIES
-        );
+        final DataStream dataStream = DataStream.builder(dataStreamName, backingIndices)
+            .setGeneration(backingIndices.size())
+            .setMetadata(Map.of())
+            .setIndexMode(randomBoolean() ? IndexMode.STANDARD : IndexMode.TIME_SERIES)
+            .build();
 
         metadataBuilder.put(dataStream);
 
@@ -2000,17 +1900,11 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
         backingIndices.add(writeIndexMetadata.getIndex());
         metadataBuilder.put(writeIndexMetadata, false);
 
-        final DataStream dataStream = new DataStream(
-            dataStreamName,
-            backingIndices,
-            backingIndices.size(),
-            Collections.emptyMap(),
-            false,
-            false,
-            false,
-            false,
-            randomBoolean() ? IndexMode.STANDARD : IndexMode.TIME_SERIES
-        );
+        final DataStream dataStream = DataStream.builder(dataStreamName, backingIndices)
+            .setGeneration(backingIndices.size())
+            .setMetadata(Map.of())
+            .setIndexMode(randomBoolean() ? IndexMode.STANDARD : IndexMode.TIME_SERIES)
+            .build();
 
         metadataBuilder.put(dataStream);
 

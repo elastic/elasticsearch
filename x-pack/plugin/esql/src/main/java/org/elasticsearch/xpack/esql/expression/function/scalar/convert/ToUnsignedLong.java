@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.convert;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.ann.ConvertEvaluator;
+import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.ql.InvalidArgumentException;
@@ -47,12 +48,30 @@ public class ToUnsignedLong extends AbstractConvertFunction {
         Map.entry(INTEGER, ToUnsignedLongFromIntEvaluator.Factory::new)
     );
 
-    @FunctionInfo(returnType = "unsigned_long", description = "Converts an input value to an unsigned long value.")
+    @FunctionInfo(
+        returnType = "unsigned_long",
+        description = """
+            Converts an input value to an unsigned long value. If the input parameter is of a date type,
+            its value will be interpreted as milliseconds since the {wikipedia}/Unix_time[Unix epoch], converted to unsigned long.
+            Boolean *true* will be converted to unsigned long *1*, *false* to *0*.""",
+        examples = @Example(file = "ints", tag = "to_unsigned_long-str", explanation = """
+            Note that in this example, the last conversion of the string isn't possible.
+            When this happens, the result is a *null* value. In this case a _Warning_ header is added to the response.
+            The header will provide information on the source of the failure:
+
+            `"Line 1:133: evaluation of [TO_UL(str3)] failed, treating result as null. Only first 20 failures recorded."`
+
+            A following header will contain the failure reason and the offending value:
+
+            `"java.lang.NumberFormatException: Character f is neither a decimal digit number, decimal point,
+            + "nor \"e\" notation exponential mark."`""")
+    )
     public ToUnsignedLong(
         Source source,
         @Param(
             name = "field",
-            type = { "boolean", "date", "keyword", "text", "double", "long", "unsigned_long", "integer" }
+            type = { "boolean", "date", "keyword", "text", "double", "long", "unsigned_long", "integer" },
+            description = "Input value. The input can be a single- or multi-valued column or an expression."
         ) Expression field
     ) {
         super(source, field);

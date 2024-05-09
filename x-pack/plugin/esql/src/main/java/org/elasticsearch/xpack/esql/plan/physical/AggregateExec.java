@@ -68,6 +68,10 @@ public class AggregateExec extends UnaryExec implements EstimatesRowSize {
         return aggregates;
     }
 
+    public AggregateExec withMode(Mode newMode) {
+        return new AggregateExec(source(), child(), groupings, aggregates, newMode, estimatedRowSize);
+    }
+
     /**
      * Estimate of the number of bytes that'll be loaded per position before
      * the stream of pages is consumed.

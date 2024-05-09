@@ -111,14 +111,15 @@ public class ServiceAccountServiceTests extends ESTestCase {
         final Logger sasLogger = LogManager.getLogger(ServiceAccountService.class);
         Loggers.setLevel(sasLogger, Level.TRACE);
 
-        final MockLogAppender appender = new MockLogAppender();
-        Loggers.addAppender(satLogger, appender);
-        Loggers.addAppender(sasLogger, appender);
-        appender.start();
+        final MockLogAppender satAppender = new MockLogAppender();
+        final MockLogAppender sasAppender = new MockLogAppender();
 
-        try {
+        try (
+            var ignored1 = satAppender.capturing(ServiceAccountToken.class);
+            var ignored2 = sasAppender.capturing(ServiceAccountService.class)
+        ) {
             // Less than 4 bytes
-            appender.addExpectation(
+            satAppender.addExpectation(
                 new MockLogAppender.SeenEventExpectation(
                     "less than 4 bytes",
                     ServiceAccountToken.class.getName(),
@@ -128,10 +129,10 @@ public class ServiceAccountServiceTests extends ESTestCase {
             );
             final SecureString bearerString0 = createBearerString(List.of(Arrays.copyOfRange(magicBytes, 0, randomIntBetween(0, 3))));
             assertNull(ServiceAccountService.tryParseToken(bearerString0));
-            appender.assertAllExpectationsMatched();
+            satAppender.assertAllExpectationsMatched();
 
             // Prefix mismatch
-            appender.addExpectation(
+            satAppender.addExpectation(
                 new MockLogAppender.SeenEventExpectation(
                     "prefix mismatch",
                     ServiceAccountToken.class.getName(),
@@ -146,10 +147,10 @@ public class ServiceAccountServiceTests extends ESTestCase {
                 )
             );
             assertNull(ServiceAccountService.tryParseToken(bearerString1));
-            appender.assertAllExpectationsMatched();
+            satAppender.assertAllExpectationsMatched();
 
             // No colon
-            appender.addExpectation(
+            satAppender.addExpectation(
                 new MockLogAppender.SeenEventExpectation(
                     "no colon",
                     ServiceAccountToken.class.getName(),
@@ -161,10 +162,10 @@ public class ServiceAccountServiceTests extends ESTestCase {
                 List.of(magicBytes, randomAlphaOfLengthBetween(30, 50).getBytes(StandardCharsets.UTF_8))
             );
             assertNull(ServiceAccountService.tryParseToken(bearerString2));
-            appender.assertAllExpectationsMatched();
+            satAppender.assertAllExpectationsMatched();
 
             // Invalid delimiter for qualified name
-            appender.addExpectation(
+            satAppender.addExpectation(
                 new MockLogAppender.SeenEventExpectation(
                     "invalid delimiter for qualified name",
                     ServiceAccountToken.class.getName(),
@@ -193,10 +194,10 @@ public class ServiceAccountServiceTests extends ESTestCase {
                 );
                 assertNull(ServiceAccountService.tryParseToken(bearerString3));
             }
-            appender.assertAllExpectationsMatched();
+            satAppender.assertAllExpectationsMatched();
 
             // Invalid token name
-            appender.addExpectation(
+            sasAppender.addExpectation(
                 new MockLogAppender.SeenEventExpectation(
                     "invalid token name",
                     ServiceAccountService.class.getName(),
@@ -217,7 +218,7 @@ public class ServiceAccountServiceTests extends ESTestCase {
                 )
             );
             assertNull(ServiceAccountService.tryParseToken(bearerString4));
-            appender.assertAllExpectationsMatched();
+            sasAppender.assertAllExpectationsMatched();
 
             // Everything is good
             final String namespace = randomAlphaOfLengthBetween(3, 8);
@@ -241,7 +242,7 @@ public class ServiceAccountServiceTests extends ESTestCase {
             assertThat(parsedToken, equalTo(serviceAccountToken2));
 
             // Invalid magic byte
-            appender.addExpectation(
+            satAppender.addExpectation(
                 new MockLogAppender.SeenEventExpectation(
                     "invalid magic byte again",
                     ServiceAccountToken.class.getName(),
@@ -252,10 +253,10 @@ public class ServiceAccountServiceTests extends ESTestCase {
             assertNull(
                 ServiceAccountService.tryParseToken(new SecureString("AQEAAWVsYXN0aWMvZmxlZXQvdG9rZW4xOnN1cGVyc2VjcmV0".toCharArray()))
             );
-            appender.assertAllExpectationsMatched();
+            satAppender.assertAllExpectationsMatched();
 
             // No colon
-            appender.addExpectation(
+            satAppender.addExpectation(
                 new MockLogAppender.SeenEventExpectation(
                     "no colon again",
                     ServiceAccountToken.class.getName(),
@@ -266,10 +267,10 @@ public class ServiceAccountServiceTests extends ESTestCase {
             assertNull(
                 ServiceAccountService.tryParseToken(new SecureString("AAEAAWVsYXN0aWMvZmxlZXQvdG9rZW4xX3N1cGVyc2VjcmV0".toCharArray()))
             );
-            appender.assertAllExpectationsMatched();
+            satAppender.assertAllExpectationsMatched();
 
             // Invalid qualified name
-            appender.addExpectation(
+            satAppender.addExpectation(
                 new MockLogAppender.SeenEventExpectation(
                     "invalid delimiter for qualified name again",
                     ServiceAccountToken.class.getName(),
@@ -280,10 +281,10 @@ public class ServiceAccountServiceTests extends ESTestCase {
             assertNull(
                 ServiceAccountService.tryParseToken(new SecureString("AAEAAWVsYXN0aWMvZmxlZXRfdG9rZW4xOnN1cGVyc2VjcmV0".toCharArray()))
             );
-            appender.assertAllExpectationsMatched();
+            satAppender.assertAllExpectationsMatched();
 
             // Invalid token name
-            appender.addExpectation(
+            sasAppender.addExpectation(
                 new MockLogAppender.SeenEventExpectation(
                     "invalid token name again",
                     ServiceAccountService.class.getName(),
@@ -294,7 +295,7 @@ public class ServiceAccountServiceTests extends ESTestCase {
             assertNull(
                 ServiceAccountService.tryParseToken(new SecureString("AAEAAWVsYXN0aWMvZmxlZXQvdG9rZW4hOnN1cGVyc2VjcmV0".toCharArray()))
             );
-            appender.assertAllExpectationsMatched();
+            sasAppender.assertAllExpectationsMatched();
 
             // everything is fine
             assertThat(
@@ -310,11 +311,8 @@ public class ServiceAccountServiceTests extends ESTestCase {
                 )
             );
         } finally {
-            appender.stop();
             Loggers.setLevel(satLogger, Level.INFO);
             Loggers.setLevel(sasLogger, Level.INFO);
-            Loggers.removeAppender(satLogger, appender);
-            Loggers.removeAppender(sasLogger, appender);
         }
     }
 
@@ -369,10 +367,7 @@ public class ServiceAccountServiceTests extends ESTestCase {
         Loggers.setLevel(sasLogger, Level.TRACE);
 
         final MockLogAppender appender = new MockLogAppender();
-        Loggers.addAppender(sasLogger, appender);
-        appender.start();
-
-        try {
+        try (var ignored = appender.capturing(ServiceAccountService.class)) {
             // non-elastic service account
             final ServiceAccountId accountId1 = new ServiceAccountId(
                 randomValueOtherThan(ElasticServiceAccounts.NAMESPACE, () -> randomAlphaOfLengthBetween(3, 8)),
@@ -557,9 +552,7 @@ public class ServiceAccountServiceTests extends ESTestCase {
             );
             appender.assertAllExpectationsMatched();
         } finally {
-            appender.stop();
             Loggers.setLevel(sasLogger, Level.INFO);
-            Loggers.removeAppender(sasLogger, appender);
         }
     }
 

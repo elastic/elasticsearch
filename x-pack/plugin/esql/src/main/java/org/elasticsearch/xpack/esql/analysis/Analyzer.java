@@ -18,13 +18,17 @@ import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.expression.function.UnsupportedAttribute;
 import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunction;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.EsqlArithmeticOperation;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.In;
+import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.Drop;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
+import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.EsqlAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.EsqlUnresolvedRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Keep;
 import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
+import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.Rename;
 import org.elasticsearch.xpack.esql.plan.logical.local.EsqlProject;
 import org.elasticsearch.xpack.esql.stats.FeatureMetric;
@@ -52,17 +56,14 @@ import org.elasticsearch.xpack.ql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.ql.expression.function.FunctionRegistry;
 import org.elasticsearch.xpack.ql.expression.function.UnresolvedFunction;
 import org.elasticsearch.xpack.ql.expression.function.scalar.ScalarFunction;
+import org.elasticsearch.xpack.ql.expression.predicate.BinaryOperator;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.BinaryComparison;
 import org.elasticsearch.xpack.ql.index.EsIndex;
 import org.elasticsearch.xpack.ql.plan.TableIdentifier;
-import org.elasticsearch.xpack.ql.plan.logical.Aggregate;
-import org.elasticsearch.xpack.ql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.ql.plan.logical.Limit;
 import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
-import org.elasticsearch.xpack.ql.plan.logical.Project;
 import org.elasticsearch.xpack.ql.rule.ParameterizedRule;
 import org.elasticsearch.xpack.ql.rule.ParameterizedRuleExecutor;
-import org.elasticsearch.xpack.ql.rule.Rule;
 import org.elasticsearch.xpack.ql.rule.RuleExecutor;
 import org.elasticsearch.xpack.ql.session.Configuration;
 import org.elasticsearch.xpack.ql.tree.Source;
@@ -94,9 +95,9 @@ import static java.util.Collections.singletonList;
 import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
 import static org.elasticsearch.xpack.core.enrich.EnrichPolicy.GEO_MATCH_TYPE;
 import static org.elasticsearch.xpack.esql.stats.FeatureMetric.LIMIT;
-import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.dateTimeToLong;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.GEO_POINT;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.GEO_SHAPE;
+import static org.elasticsearch.xpack.ql.type.DataTypes.BOOLEAN;
 import static org.elasticsearch.xpack.ql.type.DataTypes.DATETIME;
 import static org.elasticsearch.xpack.ql.type.DataTypes.DOUBLE;
 import static org.elasticsearch.xpack.ql.type.DataTypes.FLOAT;
@@ -106,6 +107,7 @@ import static org.elasticsearch.xpack.ql.type.DataTypes.KEYWORD;
 import static org.elasticsearch.xpack.ql.type.DataTypes.LONG;
 import static org.elasticsearch.xpack.ql.type.DataTypes.NESTED;
 import static org.elasticsearch.xpack.ql.type.DataTypes.TEXT;
+import static org.elasticsearch.xpack.ql.type.DataTypes.VERSION;
 
 public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerContext> {
     // marker list of attributes for plans that do not have any concrete fields to return, but have other computed columns to return
@@ -124,7 +126,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             new ResolveRefs(),
             new ImplicitCasting()
         );
-        var finish = new Batch<>("Finish Analysis", Limiter.ONCE, new AddImplicitLimit(), new PromoteStringsInDateComparisons());
+        var finish = new Batch<>("Finish Analysis", Limiter.ONCE, new AddImplicitLimit());
         rules = List.of(resolution, finish);
     }
 
@@ -378,11 +380,11 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 }
             }
 
-            if (a.expressionsResolved() == false && Resolvables.resolved(groupings)) {
+            if (a.expressionsResolved() == false) {
                 AttributeMap<Expression> resolved = new AttributeMap<>();
                 for (Expression e : groupings) {
                     Attribute attr = Expressions.attribute(e);
-                    if (attr != null) {
+                    if (attr != null && attr.resolved()) {
                         resolved.put(attr, attr);
                     }
                 }
@@ -778,58 +780,6 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         }
     }
 
-    private static class PromoteStringsInDateComparisons extends Rule<LogicalPlan, LogicalPlan> {
-
-        @Override
-        public LogicalPlan apply(LogicalPlan plan) {
-            return plan.transformExpressionsUp(BinaryComparison.class, PromoteStringsInDateComparisons::promote);
-        }
-
-        private static Expression promote(BinaryComparison cmp) {
-            if (cmp.resolved() == false) {
-                return cmp;
-            }
-            var left = cmp.left();
-            var right = cmp.right();
-            boolean modified = false;
-            if (left.dataType() == DATETIME) {
-                if (right.dataType() == KEYWORD && right.foldable() && ((right instanceof EsqlScalarFunction) == false)) {
-                    right = stringToDate(right);
-                    modified = true;
-                }
-            } else {
-                if (right.dataType() == DATETIME) {
-                    if (left.dataType() == KEYWORD && left.foldable() && ((left instanceof EsqlScalarFunction) == false)) {
-                        left = stringToDate(left);
-                        modified = true;
-                    }
-                }
-            }
-            return modified ? cmp.replaceChildren(List.of(left, right)) : cmp;
-        }
-
-        private static Expression stringToDate(Expression stringExpression) {
-            var str = stringExpression.fold().toString();
-
-            Long millis = null;
-            // TODO: better control over this string format - do we want this to be flexible or always redirect folks to use date parsing
-            try {
-                millis = str == null ? null : dateTimeToLong(str);
-            } catch (Exception ex) { // in case of exception, millis will be null which will trigger an error
-            }
-
-            var source = stringExpression.source();
-            Expression result;
-            if (millis == null) {
-                var errorMessage = format(null, "Invalid date [{}]", str);
-                result = new UnresolvedAttribute(source, source.text(), null, errorMessage);
-            } else {
-                result = new Literal(source, millis, DATETIME);
-            }
-            return result;
-        }
-    }
-
     private BitSet gatherPreAnalysisMetrics(LogicalPlan plan, BitSet b) {
         // count only the explicit "limit" the user added, otherwise all queries will have a "limit" and telemetry won't reflect reality
         if (plan.collectFirstChildren(Limit.class::isInstance).isEmpty() == false) {
@@ -852,11 +802,12 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             if (f instanceof EsqlScalarFunction esf) {
                 return processScalarFunction(esf, registry);
             }
-
-            if (f instanceof EsqlArithmeticOperation eao) {
-                return processArithmeticOperation(eao);
+            if (f instanceof EsqlArithmeticOperation || f instanceof BinaryComparison) {
+                return processBinaryOperator((BinaryOperator) f);
             }
-
+            if (f instanceof In in) {
+                return processIn(in);
+            }
             return f;
         }
 
@@ -888,7 +839,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             return childrenChanged ? f.replaceChildren(newChildren) : f;
         }
 
-        private static Expression processArithmeticOperation(EsqlArithmeticOperation o) {
+        private static Expression processBinaryOperator(BinaryOperator<?, ?, ?, ?> o) {
             Expression left = o.left();
             Expression right = o.right();
             if (left.resolved() == false || right.resolved() == false) {
@@ -901,14 +852,14 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
 
             if (left.dataType() == KEYWORD
                 && left.foldable()
-                && (right.dataType().isNumeric() || right.dataType() == DATETIME)
+                && (supportsImplicitCasting(right.dataType()))
                 && ((left instanceof EsqlScalarFunction) == false)) {
                 targetDataType = right.dataType();
                 from = left;
             }
             if (right.dataType() == KEYWORD
                 && right.foldable()
-                && (left.dataType().isNumeric() || left.dataType() == DATETIME)
+                && (supportsImplicitCasting(left.dataType()))
                 && ((right instanceof EsqlScalarFunction) == false)) {
                 targetDataType = left.dataType();
                 from = right;
@@ -920,6 +871,33 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 childrenChanged = true;
             }
             return childrenChanged ? o.replaceChildren(newChildren) : o;
+        }
+
+        private static Expression processIn(In in) {
+            Expression left = in.value();
+            List<Expression> right = in.list();
+
+            if (left.resolved() == false || supportsImplicitCasting(left.dataType()) == false) {
+                return in;
+            }
+            List<Expression> newChildren = new ArrayList<>(right.size() + 1);
+            boolean childrenChanged = false;
+
+            for (Expression value : right) {
+                if (value.dataType() == KEYWORD && value.foldable()) {
+                    Expression e = castStringLiteral(value, left.dataType());
+                    newChildren.add(e);
+                    childrenChanged = true;
+                } else {
+                    newChildren.add(value);
+                }
+            }
+            newChildren.add(left);
+            return childrenChanged ? in.replaceChildren(newChildren) : in;
+        }
+
+        private static boolean supportsImplicitCasting(DataType type) {
+            return type == DATETIME || type == IP || type == VERSION || type == BOOLEAN;
         }
 
         public static Expression castStringLiteral(Expression from, DataType target) {

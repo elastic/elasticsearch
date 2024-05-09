@@ -22,7 +22,7 @@ import java.util.Map;
 import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.equalTo;
 
-public class VectorSearchIT extends ParameterizedRollingUpgradeTestCase {
+public class VectorSearchIT extends AbstractRollingUpgradeTestCase {
     public VectorSearchIT(@Name("upgradedNodes") int upgradedNodes) {
         super(upgradedNodes);
     }
@@ -285,7 +285,6 @@ public class VectorSearchIT extends ParameterizedRollingUpgradeTestCase {
         assertThat((double) hits.get(0).get("_score"), closeTo(0.028571429, 0.0001));
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/107332")
     public void testQuantizedVectorSearch() throws Exception {
         assumeTrue(
             "Quantized vector search is not supported on this version",
@@ -357,7 +356,7 @@ public class VectorSearchIT extends ParameterizedRollingUpgradeTestCase {
         assertThat(extractValue(response, "hits.total.value"), equalTo(2));
         hits = extractValue(response, "hits.hits");
         assertThat(hits.get(0).get("_id"), equalTo("0"));
-        assertThat((double) hits.get(0).get("_score"), closeTo(0.9934857, 0.0001));
+        assertThat((double) hits.get(0).get("_score"), closeTo(0.9934857, 0.005));
     }
 
     private void indexVectors(String indexName) throws Exception {

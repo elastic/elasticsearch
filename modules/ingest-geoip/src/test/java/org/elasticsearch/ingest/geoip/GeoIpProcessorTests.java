@@ -336,6 +336,51 @@ public class GeoIpProcessorTests extends ESTestCase {
         assertThat(geoData.get("residential_proxy"), equalTo(true));
     }
 
+    public void testEnterprise() throws Exception {
+        String ip = "2.125.160.216";
+        GeoIpProcessor processor = new GeoIpProcessor(
+            randomAlphaOfLength(10),
+            null,
+            "source_field",
+            loader("/GeoIP2-Enterprise-Test.mmdb"),
+            () -> true,
+            "target_field",
+            ALL_PROPERTIES,
+            false,
+            false,
+            "filename"
+        );
+
+        Map<String, Object> document = new HashMap<>();
+        document.put("source_field", ip);
+        IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), document);
+        processor.execute(ingestDocument);
+
+        assertThat(ingestDocument.getSourceAndMetadata().get("source_field"), equalTo(ip));
+        @SuppressWarnings("unchecked")
+        Map<String, Object> geoData = (Map<String, Object>) ingestDocument.getSourceAndMetadata().get("target_field");
+        assertThat(geoData.size(), equalTo(16));
+        assertThat(geoData.get("ip"), equalTo(ip));
+        assertThat(geoData.get("country_iso_code"), equalTo("GB"));
+        assertThat(geoData.get("country_name"), equalTo("United Kingdom"));
+        assertThat(geoData.get("continent_name"), equalTo("Europe"));
+        assertThat(geoData.get("region_iso_code"), equalTo("GB-WBK"));
+        assertThat(geoData.get("region_name"), equalTo("West Berkshire"));
+        assertThat(geoData.get("city_name"), equalTo("Boxford"));
+        assertThat(geoData.get("timezone"), equalTo("Europe/London"));
+        Map<String, Object> location = new HashMap<>();
+        location.put("lat", 51.75);
+        location.put("lon", -1.25);
+        assertThat(geoData.get("location"), equalTo(location));
+        assertThat(geoData.get("network"), equalTo("2.125.160.216/29"));
+        assertThat(geoData.get("is_hosting_provider"), equalTo(false));
+        assertThat(geoData.get("is_tor_exit_node"), equalTo(false));
+        assertThat(geoData.get("is_anonymous_vpn"), equalTo(false));
+        assertThat(geoData.get("is_anonymous"), equalTo(false));
+        assertThat(geoData.get("is_public_proxy"), equalTo(false));
+        assertThat(geoData.get("is_residential_proxy"), equalTo(false));
+    }
+
     public void testAddressIsNotInTheDatabase() throws Exception {
         GeoIpProcessor processor = new GeoIpProcessor(
             randomAlphaOfLength(10),

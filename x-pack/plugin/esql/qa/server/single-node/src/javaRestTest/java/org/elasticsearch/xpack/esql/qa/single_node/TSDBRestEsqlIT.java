@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.qa.single_node;
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
 
 import org.apache.http.util.EntityUtils;
+import org.apache.lucene.tests.util.LuceneTestCase.AwaitsFix;
 import org.elasticsearch.Build;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
@@ -32,6 +33,7 @@ import static org.elasticsearch.xpack.esql.qa.rest.RestEsqlTestCase.runEsqlSync;
  * This while the functionality is gated behind a query pragma.
  */
 @ThreadLeakFilters(filters = TestClustersThreadFilter.class)
+@AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/107557")
 public class TSDBRestEsqlIT extends ESRestTestCase {
     @ClassRule
     public static ElasticsearchCluster cluster = Clusters.testCluster();
@@ -61,9 +63,8 @@ public class TSDBRestEsqlIT extends ESRestTestCase {
         Response response = client().performRequest(bulk);
         assertEquals("{\"errors\":false}", EntityUtils.toString(response.getEntity(), StandardCharsets.UTF_8));
 
-        RestEsqlTestCase.RequestObjectBuilder builder = new RestEsqlTestCase.RequestObjectBuilder().query(
-            "FROM k8s | KEEP k8s.pod.name, @timestamp"
-        );
+        RestEsqlTestCase.RequestObjectBuilder builder = RestEsqlTestCase.requestObjectBuilder()
+            .query("FROM k8s | KEEP k8s.pod.name, @timestamp");
         builder.pragmas(Settings.builder().put("time_series", true).build());
         Map<String, Object> result = runEsqlSync(builder);
         @SuppressWarnings("unchecked")

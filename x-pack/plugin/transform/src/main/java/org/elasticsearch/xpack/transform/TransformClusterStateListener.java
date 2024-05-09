@@ -21,17 +21,21 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.xpack.core.transform.transforms.persistence.TransformInternalIndexConstants;
 
+import java.util.Optional;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Supplier;
 
 import static org.elasticsearch.xpack.core.ClientHelper.TRANSFORM_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 
-class TransformClusterStateListener implements ClusterStateListener {
+class TransformClusterStateListener implements ClusterStateListener, Supplier<Optional<ClusterState>> {
 
     private static final Logger logger = LogManager.getLogger(TransformClusterStateListener.class);
 
     private final Client client;
     private final AtomicBoolean isIndexCreationInProgress = new AtomicBoolean(false);
+    private final AtomicReference<ClusterState> clusterState = new AtomicReference<>();
 
     TransformClusterStateListener(ClusterService clusterService, Client client) {
         this.client = client;
@@ -45,6 +49,8 @@ class TransformClusterStateListener implements ClusterStateListener {
             // Wait until the gateway has recovered from disk.
             return;
         }
+
+        clusterState.set(event.state());
 
         // The atomic flag prevents multiple simultaneous attempts to run alias creation
         // if there is a flurry of cluster state updates in quick succession
@@ -102,4 +108,12 @@ class TransformClusterStateListener implements ClusterStateListener {
         );
     }
 
+    /**
+     * Retrieves the saved cluster state from the most recent update.
+     * This differs from {@link ClusterService#state()} in that it will not throw an exception when ClusterState is null.
+     */
+    @Override
+    public Optional<ClusterState> get() {
+        return Optional.ofNullable(clusterState.get());
+    }
 }

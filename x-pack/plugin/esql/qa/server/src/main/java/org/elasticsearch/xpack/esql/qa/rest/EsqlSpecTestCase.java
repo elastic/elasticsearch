@@ -68,7 +68,13 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
     private final Integer lineNumber;
     protected final CsvTestCase testCase;
     protected final Mode mode;
-    protected final Set<EsqlVersion> versions;
+
+    public static Set<EsqlVersion> availableVersions() {
+        if ("true".equals(System.getProperty("tests.version_parameter_unsupported"))) {
+            return Set.of();
+        }
+        return Build.current().isSnapshot() ? Set.of(EsqlVersion.values()) : Set.of(EsqlVersion.releasedAscending());
+    }
 
     public enum Mode {
         SYNC,
@@ -101,8 +107,6 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
         this.lineNumber = lineNumber;
         this.testCase = testCase;
         this.mode = mode;
-        // TODO: Read applicable versions from csv-spec files/make it part of testCase.
-        this.versions = Build.current().isSnapshot() ? Set.of(EsqlVersion.values()) : Set.of(EsqlVersion.releasedAscending());
     }
 
     @Before
@@ -150,8 +154,14 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
 
     protected final void doTest() throws Throwable {
         RequestObjectBuilder builder = new RequestObjectBuilder(randomFrom(XContentType.values()));
-        EsqlVersion version = randomFrom(versions);
-        String versionString = randomBoolean() ? version.toString() : version.versionStringWithoutEmoji();
+
+        String versionString = null;
+        // TODO: Read version range from csv-spec and skip if none of the versions are available.
+        if (availableVersions().isEmpty() == false) {
+            EsqlVersion version = randomFrom(availableVersions());
+            versionString = randomBoolean() ? version.toString() : version.versionStringWithoutEmoji();
+        }
+
         Map<String, Object> answer = runEsql(
             builder.query(testCase.query).version(versionString),
             testCase.expectedWarnings(false),

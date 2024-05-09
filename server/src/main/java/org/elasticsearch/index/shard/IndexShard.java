@@ -1102,7 +1102,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                         preIndex.origin()
                     );
                 }
-                result = engine.index(preIndex, isSimulated);
+                result = isSimulated ? simulateIndex(index) : engine.index(preIndex);
                 if (logger.isTraceEnabled()) {
                     logger.trace(
                         "index-done [{}] seq# [{}] allocation-id [{}] primaryTerm [{}] operationPrimaryTerm [{}] origin [{}] "
@@ -1141,6 +1141,14 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         } finally {
             active.set(true);
         }
+    }
+
+    /*
+     * This returns an Engine.IndexResult based on the given index, but does not actually index any data, modify the translog, or change
+     * state in any way
+     */
+    private Engine.IndexResult simulateIndex(Engine.Index index) {
+        return new Engine.IndexResult(-1, index.primaryTerm(), index.seqNo(), true, index.id());
     }
 
     public Engine.NoOpResult markSeqNoAsNoop(long seqNo, long opPrimaryTerm, String reason) throws IOException {

@@ -165,8 +165,8 @@ public class IndexLevelReplicationTests extends ESIndexLevelReplicationTestCase 
             protected EngineFactory getEngineFactory(ShardRouting routing) {
                 return config -> new InternalEngine(config) {
                     @Override
-                    public IndexResult index(Index op, boolean isSimulated) throws IOException {
-                        IndexResult result = super.index(op, isSimulated);
+                    public IndexResult index(Index op) throws IOException {
+                        IndexResult result = super.index(op);
                         if (op.origin() == Operation.Origin.PRIMARY) {
                             indexedOnPrimary.countDown();
                             // prevent the indexing on the primary from returning (it was added to Lucene and translog already)

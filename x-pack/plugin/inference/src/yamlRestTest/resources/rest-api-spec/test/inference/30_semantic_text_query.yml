@@ -4,7 +4,7 @@ setup:
       reason: semantic_text introduced in 8.15.0
 
   - do:
-      inference.put_model:
+      inference.put:
         task_type: sparse_embedding
         inference_id: sparse-inference-id
         body: >
@@ -19,7 +19,7 @@ setup:
           }
 
   - do:
-      inference.put_model:
+      inference.put:
         task_type: text_embedding
         inference_id: dense-inference-id
         body: >
@@ -29,7 +29,7 @@ setup:
               "model": "my_model",
               "dimensions": 10,
               "api_key": "abc64",
-              "similarity": "cosine"
+              "similarity": "COSINE"
             },
             "task_settings": {
             }

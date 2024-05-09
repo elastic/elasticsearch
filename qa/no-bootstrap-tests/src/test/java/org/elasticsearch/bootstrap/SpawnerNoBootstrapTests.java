@@ -71,13 +71,13 @@ public class SpawnerNoBootstrapTests extends LuceneTestCase {
     static class ExpectedStreamMessage implements MockLogAppender.LoggingExpectation {
         final String expectedLogger;
         final String expectedMessage;
-        final CountDownLatch matchCalledLatch;
+        final CountDownLatch matched;
         volatile boolean saw;
 
-        ExpectedStreamMessage(String logger, String message, CountDownLatch matchCalledLatch) {
+        ExpectedStreamMessage(String logger, String message, CountDownLatch matched) {
             this.expectedLogger = logger;
             this.expectedMessage = message;
-            this.matchCalledLatch = matchCalledLatch;
+            this.matched = matched;
         }
 
         @Override
@@ -86,7 +86,7 @@ public class SpawnerNoBootstrapTests extends LuceneTestCase {
                 && event.getLevel().equals(Level.WARN)
                 && event.getMessage().getFormattedMessage().equals(expectedMessage)) {
                 saw = true;
-                matchCalledLatch.countDown();
+                matched.countDown();
             }
         }
 

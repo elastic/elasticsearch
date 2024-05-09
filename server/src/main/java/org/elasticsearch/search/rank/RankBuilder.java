@@ -9,7 +9,6 @@
 package org.elasticsearch.search.rank;
 
 import org.apache.lucene.search.Query;
-import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -98,7 +97,7 @@ public abstract class RankBuilder implements VersionedNamedWriteable, ToXContent
      * on the coordinator based on all the individual shard results. The output of this will be a `size` ranked list of ordered results,
      * which will then be passed to fetch phase.
      */
-    public abstract RankFeaturePhaseRankCoordinatorContext buildRankFeaturePhaseCoordinatorContext(int size, int from, Client client);
+    public abstract RankFeaturePhaseRankCoordinatorContext buildRankFeaturePhaseCoordinatorContext(int size, int from);
 
     @Override
     public final boolean equals(Object obj) {

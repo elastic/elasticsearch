@@ -26,7 +26,6 @@ import org.elasticsearch.action.admin.cluster.shards.TransportClusterSearchShard
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
@@ -151,7 +150,6 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
     private final int defaultPreFilterShardSize;
     private final boolean ccsCheckCompatibility;
     private final SearchResponseMetrics searchResponseMetrics;
-    private final Client client;
 
     @Inject
     public TransportSearchAction(
@@ -167,8 +165,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         NamedWriteableRegistry namedWriteableRegistry,
         ExecutorSelector executorSelector,
         SearchTransportAPMMetrics searchTransportMetrics,
-        SearchResponseMetrics searchResponseMetrics,
-        Client client
+        SearchResponseMetrics searchResponseMetrics
     ) {
         super(TYPE.name(), transportService, actionFilters, SearchRequest::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         this.threadPool = threadPool;
@@ -186,7 +183,6 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         this.defaultPreFilterShardSize = DEFAULT_PRE_FILTER_SHARD_SIZE.get(clusterService.getSettings());
         this.ccsCheckCompatibility = SearchService.CCS_VERSION_CHECK_SETTING.get(clusterService.getSettings());
         this.searchResponseMetrics = searchResponseMetrics;
-        this.client = client;
     }
 
     private Map<String, OriginalIndices> buildPerIndexOriginalIndices(
@@ -1359,8 +1355,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                         timeProvider,
                         clusterState,
                         task,
-                        clusters,
-                        client
+                        clusters
                     );
                 } else {
                     assert searchRequest.searchType() == QUERY_THEN_FETCH : searchRequest.searchType();
@@ -1379,8 +1374,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                         timeProvider,
                         clusterState,
                         task,
-                        clusters,
-                        client
+                        clusters
                     );
                 }
             }

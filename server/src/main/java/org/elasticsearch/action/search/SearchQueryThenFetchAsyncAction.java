@@ -11,7 +11,6 @@ package org.elasticsearch.action.search;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.search.TopFieldDocs;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.routing.GroupShardsIterator;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -37,7 +36,6 @@ class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<SearchPh
     private final int topDocsSize;
     private final int trackTotalHitsUpTo;
     private volatile BottomSortValuesCollector bottomSortCollector;
-    private final Client client;
 
     SearchQueryThenFetchAsyncAction(
         Logger logger,
@@ -54,8 +52,7 @@ class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<SearchPh
         TransportSearchAction.SearchTimeProvider timeProvider,
         ClusterState clusterState,
         SearchTask task,
-        SearchResponse.Clusters clusters,
-        Client client
+        SearchResponse.Clusters clusters
     ) {
         super(
             "query",
@@ -84,7 +81,6 @@ class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<SearchPh
         if (progressListener != SearchProgressListener.NOOP) {
             notifyListShards(progressListener, clusters, request.source());
         }
-        this.client = client;
     }
 
     protected void executePhaseOnShard(
@@ -126,7 +122,7 @@ class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<SearchPh
 
     @Override
     protected SearchPhase getNextPhase(final SearchPhaseResults<SearchPhaseResult> results, SearchPhaseContext context) {
-        return new RankFeaturePhase(results, null, this, client);
+        return new RankFeaturePhase(results, null, this);
     }
 
     private ShardSearchRequest rewriteShardSearchRequest(ShardSearchRequest request) {

@@ -1763,8 +1763,7 @@ public class TransportSearchActionTests extends ESTestCase {
                 null,
                 null,
                 new SearchTransportAPMMetrics(TelemetryProvider.NOOP.getMeterRegistry()),
-                new SearchResponseMetrics(TelemetryProvider.NOOP.getMeterRegistry()),
-                client
+                new SearchResponseMetrics(TelemetryProvider.NOOP.getMeterRegistry())
             );
 
             CountDownLatch latch = new CountDownLatch(1);

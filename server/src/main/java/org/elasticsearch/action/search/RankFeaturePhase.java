@@ -10,7 +10,6 @@ package org.elasticsearch.action.search;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.search.ScoreDoc;
-import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchShardTarget;
@@ -43,14 +42,8 @@ public class RankFeaturePhase extends SearchPhase {
 
     private final AggregatedDfs aggregatedDfs;
     private final SearchProgressListener progressListener;
-    private final Client client;
 
-    RankFeaturePhase(
-        SearchPhaseResults<SearchPhaseResult> queryPhaseResults,
-        AggregatedDfs aggregatedDfs,
-        SearchPhaseContext context,
-        Client client
-    ) {
+    RankFeaturePhase(SearchPhaseResults<SearchPhaseResult> queryPhaseResults, AggregatedDfs aggregatedDfs, SearchPhaseContext context) {
         super("rank-feature");
         if (context.getNumShards() != queryPhaseResults.getNumShards()) {
             throw new IllegalStateException(
@@ -66,7 +59,6 @@ public class RankFeaturePhase extends SearchPhase {
         this.rankPhaseResults = new ArraySearchPhaseResults<>(context.getNumShards());
         context.addReleasable(rankPhaseResults);
         this.progressListener = context.getTask().getProgressListener();
-        this.client = client;
     }
 
     @Override
@@ -124,11 +116,7 @@ public class RankFeaturePhase extends SearchPhase {
             : context.getRequest()
                 .source()
                 .rankBuilder()
-                .buildRankFeaturePhaseCoordinatorContext(
-                    context.getRequest().source().size(),
-                    context.getRequest().source().from(),
-                    client
-                );
+                .buildRankFeaturePhaseCoordinatorContext(context.getRequest().source().size(), context.getRequest().source().from());
     }
 
     private void executeRankFeatureShardPhase(

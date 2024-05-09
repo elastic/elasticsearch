@@ -14,7 +14,6 @@ import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.tests.store.MockDirectoryWrapper;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
-import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
@@ -666,7 +665,7 @@ public class RankFeaturePhaseTests extends ESTestCase {
                     }
                 };
                 // override the RankFeaturePhase to skip moving to next phase
-                RankFeaturePhase rankFeaturePhase = new RankFeaturePhase(results, null, mockSearchPhaseContext, null) {
+                RankFeaturePhase rankFeaturePhase = new RankFeaturePhase(results, null, mockSearchPhaseContext) {
                     @Override
                     void innerRun() {
                         throw new IllegalArgumentException("simulated failure");
@@ -1131,7 +1130,7 @@ public class RankFeaturePhaseTests extends ESTestCase {
             }
 
             @Override
-            public RankFeaturePhaseRankCoordinatorContext buildRankFeaturePhaseCoordinatorContext(int size, int from, Client client) {
+            public RankFeaturePhaseRankCoordinatorContext buildRankFeaturePhaseCoordinatorContext(int size, int from) {
                 return rankFeaturePhaseRankCoordinatorContext;
             }
 
@@ -1237,7 +1236,7 @@ public class RankFeaturePhaseTests extends ESTestCase {
         boolean[] phaseDone
     ) {
         // override the RankFeaturePhase to skip moving to next phase
-        return new RankFeaturePhase(results, null, mockSearchPhaseContext, null) {
+        return new RankFeaturePhase(results, null, mockSearchPhaseContext) {
             @Override
             public void moveToNextPhase(
                 SearchPhaseResults<SearchPhaseResult> phaseResults,

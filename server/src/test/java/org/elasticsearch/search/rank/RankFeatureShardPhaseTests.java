@@ -11,7 +11,6 @@ package org.elasticsearch.search.rank;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.Index;
@@ -142,7 +141,7 @@ public class RankFeatureShardPhaseTests extends ESTestCase {
             }
 
             @Override
-            public RankFeaturePhaseRankCoordinatorContext buildRankFeaturePhaseCoordinatorContext(int size, int from, Client client) {
+            public RankFeaturePhaseRankCoordinatorContext buildRankFeaturePhaseCoordinatorContext(int size, int from) {
                 return null;
             }
 

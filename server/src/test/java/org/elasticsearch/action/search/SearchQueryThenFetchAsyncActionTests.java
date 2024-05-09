@@ -214,8 +214,7 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
                 timeProvider,
                 new ClusterState.Builder(new ClusterName("test")).build(),
                 task,
-                SearchResponse.Clusters.EMPTY,
-                null
+                SearchResponse.Clusters.EMPTY
             ) {
                 @Override
                 protected SearchPhase getNextPhase(SearchPhaseResults<SearchPhaseResult> results, SearchPhaseContext context) {
@@ -374,8 +373,7 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
             timeProvider,
             new ClusterState.Builder(new ClusterName("test")).build(),
             task,
-            SearchResponse.Clusters.EMPTY,
-            null
+            SearchResponse.Clusters.EMPTY
         );
 
         newSearchAsyncAction.start();
@@ -515,8 +513,7 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
             timeProvider,
             new ClusterState.Builder(new ClusterName("test")).build(),
             task,
-            SearchResponse.Clusters.EMPTY,
-            null
+            SearchResponse.Clusters.EMPTY
         ) {
             @Override
             protected SearchPhase getNextPhase(SearchPhaseResults<SearchPhaseResult> results, SearchPhaseContext context) {
@@ -666,8 +663,7 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
             timeProvider,
             new ClusterState.Builder(new ClusterName("test")).build(),
             task,
-            SearchResponse.Clusters.EMPTY,
-            null
+            SearchResponse.Clusters.EMPTY
         ) {
             @Override
             protected SearchPhase getNextPhase(SearchPhaseResults<SearchPhaseResult> results, SearchPhaseContext context) {

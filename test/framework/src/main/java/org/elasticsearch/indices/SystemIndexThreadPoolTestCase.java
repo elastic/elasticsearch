@@ -125,7 +125,7 @@ public abstract class SystemIndexThreadPoolTestCase extends ESIntegTestCase {
                 if (threadPoolsToBlock().contains(stat.name())) {
                     ThreadPool.Info info = threadPool.info(stat.name());
                     assertThat(stat.threads(), equalTo(stat.active()));
-                    assertThat(stat.queue(), equalTo((int)info.getQueueSize().singles()));
+                    assertThat(stat.queue(), equalTo((int) info.getQueueSize().singles()));
                 }
             }
         }

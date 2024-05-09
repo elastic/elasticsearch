@@ -266,16 +266,16 @@ works in parallel with the storage engine.)
 The Autoscaling API in ES (Elasticsearch) uses cluster and node level statistics to provide a recommendation
 for a cluster size to support the current cluster data and active workloads. ES Autoscaling is paired
 with an ES Cloud service that periodically polls the ES elected master node for suggested cluster
-changes. The cloud service will add more servers/nodes, or increase the resources of existing nodes.
+changes. The cloud service will add more resources to the cluster based on Elasticsearch's recommendation.
 Elasticsearch by itself cannot automatically scale.
 
 Autoscaling recommendations are tailored for the user [based on user defined policies][], composed of data
 roles (hot, frozen, etc) and [deciders][]. There's a public [webinar on autoscaling][], as well as the
 public [Autoscaling APIs] docs.
 
-Autoscaling's current implementation is based on storage capacity. It does not yet support scaling related
-to search load. Paired with ES Cloud, autoscaling only scales upward, not downward, except for ML nodes
-that do get scaled up _and_ down.
+Autoscaling's current implementation is based primary on storage requirements, as well as memory capacity
+for ML and frozen tier. It does not yet support scaling related to search load. Paired with ES Cloud,
+autoscaling only scales upward, not downward, except for ML nodes that do get scaled up _and_ down.
 
 [based on user defined policies]: https://www.elastic.co/guide/en/elasticsearch/reference/current/xpack-autoscaling.html
 [deciders]: https://www.elastic.co/guide/en/elasticsearch/reference/current/autoscaling-deciders.html
@@ -285,17 +285,16 @@ that do get scaled up _and_ down.
 ### Plugin REST and TransportAction entrypoints
 
 Autoscaling is a [plugin][]. All the REST APIs can be found in [autoscaling/rest/][].
-[GetAutoscalingCapacityAction] is the capacity calculation operation REST endpoint, as opposed to the
+`GetAutoscalingCapacityAction` is the capacity calculation operation REST endpoint, as opposed to the
 other rest commands that get/set/delete the policies guiding the capacity calculation. The Transport
-Actions can be found in [autoscaling/action/], where [TransportGetAutoscalingCapacityAction] is the
+Actions can be found in [autoscaling/action/], where [TransportGetAutoscalingCapacityAction][] is the
 entrypoint on the master node for calculating the optimal cluster resources based on the autoscaling
 policies.
 
-[plugin]: https://github.com/elastic/elasticsearch/blob/8.10/x-pack/plugin/autoscaling/src/main/java/org/elasticsearch/xpack/autoscaling/Autoscaling.java#L79
-[autoscaling/rest/]: https://github.com/elastic/elasticsearch/tree/8.10/x-pack/plugin/autoscaling/src/main/java/org/elasticsearch/xpack/autoscaling/rest
-[GetAutoscalingCapacityAction]: https://github.com/elastic/elasticsearch/blob/8.10/x-pack/plugin/autoscaling/src/main/java/org/elasticsearch/xpack/autoscaling/action/GetAutoscalingCapacityAction.java
-[autoscaling/action/]: https://github.com/elastic/elasticsearch/tree/8.10/x-pack/plugin/autoscaling/src/main/java/org/elasticsearch/xpack/autoscaling/action
-[TransportGetAutoscalingCapacityAction]: https://github.com/elastic/elasticsearch/blob/8.10/x-pack/plugin/autoscaling/src/main/java/org/elasticsearch/xpack/autoscaling/action/TransportGetAutoscalingCapacityAction.java#L81-L97
+[plugin]: https://github.com/elastic/elasticsearch/blob/v8.13.2/x-pack/plugin/autoscaling/src/main/java/org/elasticsearch/xpack/autoscaling/Autoscaling.java#L72
+[autoscaling/rest/]: https://github.com/elastic/elasticsearch/tree/v8.13.2/x-pack/plugin/autoscaling/src/main/java/org/elasticsearch/xpack/autoscaling/rest
+[autoscaling/action/]: https://github.com/elastic/elasticsearch/tree/v8.13.2/x-pack/plugin/autoscaling/src/main/java/org/elasticsearch/xpack/autoscaling/action
+[TransportGetAutoscalingCapacityAction]: https://github.com/elastic/elasticsearch/blob/v8.13.2/x-pack/plugin/autoscaling/src/main/java/org/elasticsearch/xpack/autoscaling/action/TransportGetAutoscalingCapacityAction.java#L82-L98
 
 ### How cluster capacity is determined
 
@@ -314,21 +313,21 @@ a [CapacityResponseCache][]. `TransportGetAutoscalingCapacityAction.masterOperat
 calls [through the CapacityResponseCache][], into the `AutoscalingCalculateCapacityService`, to handle
 concurrent callers.
 
-[AutoscalingMetadata]: https://github.com/elastic/elasticsearch/blob/8.10/x-pack/plugin/autoscaling/src/main/java/org/elasticsearch/xpack/autoscaling/AutoscalingMetadata.java#L37
-[Metadata.Custom]: https://github.com/elastic/elasticsearch/blob/8.10/server/src/main/java/org/elasticsearch/cluster/metadata/Metadata.java#L144
-[AutoscalingDeciderService]: https://github.com/elastic/elasticsearch/blob/8.10/x-pack/plugin/autoscaling/src/main/java/org/elasticsearch/xpack/autoscaling/capacity/AutoscalingDeciderService.java#L16-L19
-[AutoscalingCalculateCapacityService]: https://github.com/elastic/elasticsearch/blob/8.10/x-pack/plugin/autoscaling/src/main/java/org/elasticsearch/xpack/autoscaling/capacity/AutoscalingCalculateCapacityService.java#L43
+[AutoscalingMetadata]: https://github.com/elastic/elasticsearch/blob/v8.13.2/x-pack/plugin/autoscaling/src/main/java/org/elasticsearch/xpack/autoscaling/AutoscalingMetadata.java#L38
+[Metadata.Custom]: https://github.com/elastic/elasticsearch/blob/v8.13.2/server/src/main/java/org/elasticsearch/cluster/metadata/Metadata.java#L141-L145
+[AutoscalingDeciderService]: https://github.com/elastic/elasticsearch/blob/v8.13.2/x-pack/plugin/autoscaling/src/main/java/org/elasticsearch/xpack/autoscaling/capacity/AutoscalingDeciderService.java#L16-L19
+[AutoscalingCalculateCapacityService]: https://github.com/elastic/elasticsearch/blob/v8.13.2/x-pack/plugin/autoscaling/src/main/java/org/elasticsearch/xpack/autoscaling/capacity/AutoscalingCalculateCapacityService.java#L43
 
-[TransportGetAutoscalingCapacityAction.computeCapacity]: https://github.com/elastic/elasticsearch/blob/8.10/x-pack/plugin/autoscaling/src/main/java/org/elasticsearch/xpack/autoscaling/action/TransportGetAutoscalingCapacityAction.java#L101-L107
-[AutoscalingCalculateCapacityService.calculate]: https://github.com/elastic/elasticsearch/blob/8.10/x-pack/plugin/autoscaling/src/main/java/org/elasticsearch/xpack/autoscaling/capacity/AutoscalingCalculateCapacityService.java#L108-L139
-[AutoscalingDeciderResults]: https://github.com/elastic/elasticsearch/blob/8.10/x-pack/plugin/autoscaling/src/main/java/org/elasticsearch/xpack/autoscaling/capacity/AutoscalingDeciderResults.java#L34-L38
-[each autoscaling policy]: https://github.com/elastic/elasticsearch/blob/8.10/x-pack/plugin/autoscaling/src/main/java/org/elasticsearch/xpack/autoscaling/capacity/AutoscalingCalculateCapacityService.java#L124-L131
-[AutoscalingDeciderResults.toXContent]: https://github.com/elastic/elasticsearch/blob/8.10/x-pack/plugin/autoscaling/src/main/java/org/elasticsearch/xpack/autoscaling/capacity/AutoscalingDeciderResults.java#L80
-[maximum required capacity]: https://github.com/elastic/elasticsearch/blob/8.10/x-pack/plugin/autoscaling/src/main/java/org/elasticsearch/xpack/autoscaling/capacity/AutoscalingDeciderResults.java#L105-L116
-[AutoscalingCapacity]: https://github.com/elastic/elasticsearch/blob/8.10/x-pack/plugin/autoscaling/src/main/java/org/elasticsearch/xpack/autoscaling/capacity/AutoscalingCapacity.java#L27-L35
+[TransportGetAutoscalingCapacityAction.computeCapacity]: https://github.com/elastic/elasticsearch/blob/v8.13.2/x-pack/plugin/autoscaling/src/main/java/org/elasticsearch/xpack/autoscaling/action/TransportGetAutoscalingCapacityAction.java#L102-L108
+[AutoscalingCalculateCapacityService.calculate]: https://github.com/elastic/elasticsearch/blob/v8.13.2/x-pack/plugin/autoscaling/src/main/java/org/elasticsearch/xpack/autoscaling/capacity/AutoscalingCalculateCapacityService.java#L108-L139
+[AutoscalingDeciderResults]: https://github.com/elastic/elasticsearch/blob/v8.13.2/x-pack/plugin/autoscaling/src/main/java/org/elasticsearch/xpack/autoscaling/capacity/AutoscalingDeciderResults.java#L34-L38
+[each autoscaling policy]: https://github.com/elastic/elasticsearch/blob/v8.13.2/x-pack/plugin/autoscaling/src/main/java/org/elasticsearch/xpack/autoscaling/capacity/AutoscalingCalculateCapacityService.java#L124-L131
+[AutoscalingDeciderResults.toXContent]: https://github.com/elastic/elasticsearch/blob/v8.13.2/x-pack/plugin/autoscaling/src/main/java/org/elasticsearch/xpack/autoscaling/capacity/AutoscalingDeciderResults.java#L78
+[maximum required capacity]: https://github.com/elastic/elasticsearch/blob/v8.13.2/x-pack/plugin/autoscaling/src/main/java/org/elasticsearch/xpack/autoscaling/capacity/AutoscalingDeciderResults.java#L105-L116
+[AutoscalingCapacity]: https://github.com/elastic/elasticsearch/blob/v8.13.2/x-pack/plugin/autoscaling/src/main/java/org/elasticsearch/xpack/autoscaling/capacity/AutoscalingCapacity.java#L27-L35
 
-[CapacityResponseCache]: https://github.com/elastic/elasticsearch/blob/8.10/x-pack/plugin/autoscaling/src/main/java/org/elasticsearch/xpack/autoscaling/action/TransportGetAutoscalingCapacityAction.java#L44-L47
-[through the CapacityResponseCache]: https://github.com/elastic/elasticsearch/blob/8.10/x-pack/plugin/autoscaling/src/main/java/org/elasticsearch/xpack/autoscaling/action/TransportGetAutoscalingCapacityAction.java#L96
+[CapacityResponseCache]: https://github.com/elastic/elasticsearch/blob/v8.13.2/x-pack/plugin/autoscaling/src/main/java/org/elasticsearch/xpack/autoscaling/action/TransportGetAutoscalingCapacityAction.java#L44-L47
+[through the CapacityResponseCache]: https://github.com/elastic/elasticsearch/blob/v8.13.2/x-pack/plugin/autoscaling/src/main/java/org/elasticsearch/xpack/autoscaling/action/TransportGetAutoscalingCapacityAction.java#L97
 
 ### Where the data comes from
 
@@ -337,8 +336,8 @@ The Deciders each pull data from different sources as needed to inform their dec
 lists of nodes that exceed various disk size thresholds. [DiskThresholdSettings][] contains the
 threshold settings with which the `DiskThresholdMonitor` runs.
 
-[DiskThresholdMonitor]: https://github.com/elastic/elasticsearch/blob/8.10/server/src/main/java/org/elasticsearch/cluster/routing/allocation/DiskThresholdMonitor.java#L52-L57
-[DiskThresholdSettings]: https://github.com/elastic/elasticsearch/blob/8.10/server/src/main/java/org/elasticsearch/cluster/routing/allocation/DiskThresholdSettings.java#L24-L27
+[DiskThresholdMonitor]: https://github.com/elastic/elasticsearch/blob/v8.13.2/server/src/main/java/org/elasticsearch/cluster/routing/allocation/DiskThresholdMonitor.java#L53-L58
+[DiskThresholdSettings]: https://github.com/elastic/elasticsearch/blob/v8.13.2/server/src/main/java/org/elasticsearch/cluster/routing/allocation/DiskThresholdSettings.java#L24-L27
 
 ### Deciders
 
@@ -348,17 +347,17 @@ problems in the cluster. It uses [an algorithm defined here][]. Some examples ar
 - number of unassigned shards that failed allocation because of insufficient storage
 - the max shard size and minimum node size, and whether these can be satisfied with the existing infrastructure
 
-[an algorithm defined here]: https://github.com/elastic/elasticsearch/blob/8.13/x-pack/plugin/autoscaling/src/main/java/org/elasticsearch/xpack/autoscaling/storage/ReactiveStorageDeciderService.java#L158-L176
+[an algorithm defined here]: https://github.com/elastic/elasticsearch/blob/v8.13.2/x-pack/plugin/autoscaling/src/main/java/org/elasticsearch/xpack/autoscaling/storage/ReactiveStorageDeciderService.java#L158-L176
 
 The `ProactiveStorageDeciderService` maintains a forecast window that [defaults to 30 minutes][]. It only
 runs on data streams (ILM, rollover, etc), not regular indexes. It looks at past [index changes][] that
 took place within the forecast window to [predict][] resources that will be needed shortly.
 
-[defaults to 30 minutes]: https://github.com/elastic/elasticsearch/blob/8.10/x-pack/plugin/autoscaling/src/main/java/org/elasticsearch/xpack/autoscaling/storage/ProactiveStorageDeciderService.java#L32
-[index changes]: https://github.com/elastic/elasticsearch/blob/8.13/x-pack/plugin/autoscaling/src/main/java/org/elasticsearch/xpack/autoscaling/storage/ProactiveStorageDeciderService.java#L79-L82
-[predict]: https://github.com/elastic/elasticsearch/blob/8.13/x-pack/plugin/autoscaling/src/main/java/org/elasticsearch/xpack/autoscaling/storage/ProactiveStorageDeciderService.java#L85-L95
+[defaults to 30 minutes]: https://github.com/elastic/elasticsearch/blob/v8.13.2/x-pack/plugin/autoscaling/src/main/java/org/elasticsearch/xpack/autoscaling/storage/ProactiveStorageDeciderService.java#L32
+[index changes]: https://github.com/elastic/elasticsearch/blob/v8.13.2/x-pack/plugin/autoscaling/src/main/java/org/elasticsearch/xpack/autoscaling/storage/ProactiveStorageDeciderService.java#L79-L83
+[predict]: https://github.com/elastic/elasticsearch/blob/v8.13.2/x-pack/plugin/autoscaling/src/main/java/org/elasticsearch/xpack/autoscaling/storage/ProactiveStorageDeciderService.java#L85-L95
 
-There are several more Decider Services: look for `AutoscalingDeciderService` implementations.
+There are several more Decider Services, implementing the `AutoscalingDeciderService` interface.
 
 # Snapshot / Restore
 

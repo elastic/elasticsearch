@@ -151,6 +151,7 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
             // needs to occur before BinaryComparison combinations (see class)
             new org.elasticsearch.xpack.esql.optimizer.OptimizerRules.PropagateEquals(),
             new PropagateNullable(),
+            new OptimizerRules.CombineBinaryComparisons(),
             new org.elasticsearch.xpack.esql.optimizer.OptimizerRules.BooleanFunctionEqualsElimination(),
             new org.elasticsearch.xpack.esql.optimizer.OptimizerRules.CombineDisjunctionsToIn(),
             new org.elasticsearch.xpack.esql.optimizer.OptimizerRules.SimplifyComparisonsArithmetics(EsqlDataTypes::areCompatible),

@@ -437,7 +437,7 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
         assertEquals(0, totalStats.getFetchCurrent());
     }
 
-    public void testRankFeaturePhase() throws InterruptedException, ExecutionException, IOException {
+    public void testRankFeaturePhase() throws InterruptedException, ExecutionException {
         final String indexName = "index";
         final String rankFeatureFieldName = "field";
         final String searchFieldName = "search_field";

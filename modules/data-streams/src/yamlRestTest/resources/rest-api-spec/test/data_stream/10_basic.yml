@@ -210,7 +210,7 @@ setup:
 ---
 "Create data stream with failure store":
   - requires:
-      cluster_features: ["data_stream.indices_extraction"]
+      cluster_features: ["gte_v8.15.0"]
       reason: "data stream failure stores REST structure changed in 8.15+"
 
   - do:
@@ -538,7 +538,7 @@ setup:
 ---
 "Delete data stream with failure stores":
   - requires:
-      cluster_features: ["data_stream.indices_extraction"]
+      cluster_features: ["gte_v8.15.0"]
       reason: "data stream failure stores REST structure changed in 8.15+"
 
   - do:

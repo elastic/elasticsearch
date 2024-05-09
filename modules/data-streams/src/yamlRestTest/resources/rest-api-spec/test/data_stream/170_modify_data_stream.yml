@@ -92,7 +92,7 @@
 ---
 "Modify a data stream's failure store":
   - requires:
-      cluster_features: ["data_stream.indices_extraction"]
+      cluster_features: ["gte_v8.15.0"]
       reason: "data stream failure stores REST structure changed in 8.15+"
       test_runner_features: [ "allowed_warnings" ]
 

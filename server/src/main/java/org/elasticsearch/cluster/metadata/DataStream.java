@@ -1368,7 +1368,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
         private final boolean rolloverOnWrite;
         @Nullable
         private final DataStreamAutoShardingEvent autoShardingEvent;
-        private final Set<String> lookup;
+        private Set<String> lookup;
 
         public DataStreamIndices(
             String namePrefix,
@@ -1381,8 +1381,14 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
             this.rolloverOnWrite = rolloverOnWrite;
             this.autoShardingEvent = autoShardingEvent;
 
-            lookup = indices.stream().map(Index::getName).collect(Collectors.toSet());
-            assert lookup.size() == indices.size() : "found duplicate index entries in " + indices;
+            assert getLookup().size() == indices.size() : "found duplicate index entries in " + indices;
+        }
+
+        private Set<String> getLookup() {
+            if (lookup == null) {
+                lookup = indices.stream().map(Index::getName).collect(Collectors.toSet());
+            }
+            return lookup;
         }
 
         public Index getWriteIndex() {
@@ -1390,7 +1396,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
         }
 
         public boolean containsIndex(String index) {
-            return lookup.contains(index);
+            return getLookup().contains(index);
         }
 
         private String generateName(String dataStreamName, long generation, long epochMillis) {

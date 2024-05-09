@@ -293,13 +293,18 @@ public class ClientYamlTestExecutionContext {
         params.put("error_trace", "false"); // disable error trace
         try {
             ClientYamlTestResponse resp = callApi("capabilities", params, emptyList(), emptyMap());
-            boolean supported = resp.getStatusCode() == 200 && Boolean.TRUE.equals(resp.evaluate("supported"));
-            return Optional.of(supported);
+            assert resp.getStatusCode() == 200; // anything else should result in an exception below
+            return switch ((String) resp.evaluate("supported")) {
+                case "unknown" -> Optional.empty();
+                case "true" -> Optional.of(true);
+                case "false" -> Optional.of(false);
+                default -> throw new IOException("Unexpected capabilities response " + resp.evaluate("supported"));
+            };
         } catch (ClientYamlTestResponseException responseException) {
             if (responseException.getRestTestResponse().getStatusCode() / 100 == 4) {
                 return Optional.empty(); // we don't know, the capabilities API is unsupported
             }
-            throw new RuntimeException(responseException);
+            throw new UncheckedIOException(responseException);
         } catch (IOException ioException) {
             throw new UncheckedIOException(ioException);
         }

@@ -16,7 +16,6 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
-import static org.elasticsearch.TransportVersions.ML_INFERENCE_RERANK_NEW_RESPONSE_FORMAT;
 import static org.elasticsearch.TransportVersions.ML_RERANK_DOC_OPTIONAL;
 
 public class RankedDocsResultsTests extends AbstractBWCSerializationTestCase<RankedDocsResults> {

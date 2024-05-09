@@ -59,6 +59,7 @@ public interface ReleasableIterator<T> extends Releasable, Iterator<T> {
 
             @Override
             public T next() {
+                assert false : "hasNext is always false so next should never be called";
                 return null;
             }
 

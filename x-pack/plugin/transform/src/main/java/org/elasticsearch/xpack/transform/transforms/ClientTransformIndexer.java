@@ -193,11 +193,11 @@ class ClientTransformIndexer extends TransformIndexer {
 
         for (BulkItemResponse item : bulkResponse.getItems()) {
             if (item.isFailed()) {
-                var exception = item.getFailure().getCause().getClass();
-                if (IndexNotFoundException.class.isAssignableFrom(exception)) {
+                var exceptionClass = item.getFailure().getCause().getClass();
+                if (IndexNotFoundException.class.isAssignableFrom(exceptionClass)) {
                     context.setShouldRecreateDestinationIndex(true);
                 }
-                deduplicatedFailures.putIfAbsent(exception.getSimpleName(), item);
+                deduplicatedFailures.putIfAbsent(exceptionClass.getSimpleName(), item);
                 failureCount++;
             }
         }

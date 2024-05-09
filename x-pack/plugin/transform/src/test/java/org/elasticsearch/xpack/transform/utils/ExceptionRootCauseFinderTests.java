@@ -69,7 +69,7 @@ public class ExceptionRootCauseFinderTests extends ESTestCase {
         assertNull(ExceptionRootCauseFinder.getFirstIrrecoverableExceptionFromBulkResponses(bulkItemResponses.values()));
     }
 
-    private Map<Integer, BulkItemResponse> bulkItemResponses(Exception... exceptions) {
+    private static Map<Integer, BulkItemResponse> bulkItemResponses(Exception... exceptions) {
         var id = new AtomicInteger(1);
         return Arrays.stream(exceptions)
             .map(exception -> new BulkItemResponse.Failure("the_index", "id", exception))

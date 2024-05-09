@@ -200,17 +200,19 @@ public class FailureStoreQueryParamIT extends DisabledSecurityDataStreamTestCase
     }
 
     private List<String> getBackingIndices(Map<String, Object> response) {
-        return getIndices(response, "indices");
+        return getIndices(response);
     }
 
+    @SuppressWarnings("unchecked")
     private List<String> getFailureStore(Map<String, Object> response) {
-        return getIndices(response, "failure_indices");
+        var failureStore = (Map<String, Object>) response.get("failure_store");
+        return getIndices(failureStore);
 
     }
 
     @SuppressWarnings("unchecked")
-    private List<String> getIndices(Map<String, Object> response, String fieldName) {
-        List<Map<String, String>> indices = (List<Map<String, String>>) response.get(fieldName);
+    private List<String> getIndices(Map<String, Object> response) {
+        List<Map<String, String>> indices = (List<Map<String, String>>) response.get("indices");
         return indices.stream().map(index -> index.get("index_name")).toList();
     }
 }

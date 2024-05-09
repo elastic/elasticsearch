@@ -26,7 +26,6 @@ import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
-import static org.hamcrest.Matchers.equalTo;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST)
 public class DocumentSizeObserverWithPipelinesIT extends ESIntegTestCase {
@@ -92,18 +91,10 @@ public class DocumentSizeObserverWithPipelinesIT extends ESIntegTestCase {
                 }
 
                 @Override
-                public DocumentSizeReporter getDocumentParsingReporter(String indexName) {
-                    return new TestDocumentSizeReporter();
+                public DocumentSizeReporter getDocumentParsingReporter(String indexName, DocumentSizeAccumulator documentSizeAccumulator) {
+                    return DocumentSizeReporter.EMPTY_INSTANCE;
                 }
             };
-        }
-    }
-
-    public static class TestDocumentSizeReporter implements DocumentSizeReporter {
-        @Override
-        public void onCompleted(String indexName, long normalizedBytesParsed) {
-            assertThat(indexName, equalTo(TEST_INDEX_NAME));
-            assertThat(normalizedBytesParsed, equalTo(1L));
         }
     }
 

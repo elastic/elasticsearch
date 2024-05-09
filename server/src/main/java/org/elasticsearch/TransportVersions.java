@@ -195,6 +195,7 @@ public class TransportVersions {
     public static final TransportVersion INDEXING_PRESSURE_REQUEST_REJECTIONS_COUNT = def(8_652_00_0);
     public static final TransportVersion ROLLUP_USAGE = def(8_653_00_0);
     public static final TransportVersion SECURITY_ROLE_DESCRIPTION = def(8_654_00_0);
+    public static final TransportVersion ML_INFERENCE_AZURE_OPENAI_COMPLETIONS = def(8_655_00_0);
 
     /*
      * STOP! READ THIS FIRST! No, really,

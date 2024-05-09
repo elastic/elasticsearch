@@ -1,0 +1,5 @@
+pr: 108465
+summary: Remove `ram.percent` from CAT Node default columns
+area: Stats
+type: enhancement
+issues: []

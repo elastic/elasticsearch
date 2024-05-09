@@ -13,6 +13,7 @@ import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TotalHitCountCollectorManager;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.util.SetOnce;
@@ -92,6 +93,7 @@ import org.elasticsearch.search.collapse.CollapseBuilder;
 import org.elasticsearch.search.dfs.AggregatedDfs;
 import org.elasticsearch.search.fetch.FetchSearchResult;
 import org.elasticsearch.search.fetch.ShardFetchRequest;
+import org.elasticsearch.search.fetch.ShardFetchSearchRequest;
 import org.elasticsearch.search.fetch.subphase.FieldAndFormat;
 import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.search.internal.ContextIndexSearcher;
@@ -102,6 +104,17 @@ import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.search.query.NonCountingTermQuery;
 import org.elasticsearch.search.query.QuerySearchRequest;
 import org.elasticsearch.search.query.QuerySearchResult;
+import org.elasticsearch.search.rank.RankBuilder;
+import org.elasticsearch.search.rank.RankShardResult;
+import org.elasticsearch.search.rank.TestRankBuilder;
+import org.elasticsearch.search.rank.TestRankDoc;
+import org.elasticsearch.search.rank.TestRankShardResult;
+import org.elasticsearch.search.rank.context.QueryPhaseRankShardContext;
+import org.elasticsearch.search.rank.context.RankFeaturePhaseRankShardContext;
+import org.elasticsearch.search.rank.feature.RankFeatureDoc;
+import org.elasticsearch.search.rank.feature.RankFeatureResult;
+import org.elasticsearch.search.rank.feature.RankFeatureShardRequest;
+import org.elasticsearch.search.rank.feature.RankFeatureShardResult;
 import org.elasticsearch.search.slice.SliceBuilder;
 import org.elasticsearch.search.suggest.SuggestBuilder;
 import org.elasticsearch.tasks.TaskCancelHelper;
@@ -115,6 +128,7 @@ import org.junit.Before;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.LinkedList;
@@ -138,6 +152,7 @@ import static java.util.Collections.singletonList;
 import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
 import static org.elasticsearch.indices.cluster.AbstractIndicesClusterStateServiceTestCase.awaitIndexShardCloseAsyncTasks;
 import static org.elasticsearch.indices.cluster.IndicesClusterStateService.AllocatedIndices.IndexRemovalReason.DELETED;
+import static org.elasticsearch.search.SearchService.DEFAULT_SIZE;
 import static org.elasticsearch.search.SearchService.QUERY_PHASE_PARALLEL_COLLECTION_ENABLED;
 import static org.elasticsearch.search.SearchService.SEARCH_WORKER_THREADS_ENABLED;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
@@ -371,7 +386,7 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
                                 -1,
                                 null
                             ),
-                            new SearchShardTask(123L, "", "", "", null, Collections.emptyMap()),
+                            new SearchShardTask(123L, "", "", "", null, emptyMap()),
                             result.delegateFailure((l, r) -> {
                                 r.incRef();
                                 l.onResponse(r);
@@ -387,7 +402,7 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
                                 null/* not a scroll */
                             );
                             PlainActionFuture<FetchSearchResult> listener = new PlainActionFuture<>();
-                            service.executeFetchPhase(req, new SearchShardTask(123L, "", "", "", null, Collections.emptyMap()), listener);
+                            service.executeFetchPhase(req, new SearchShardTask(123L, "", "", "", null, emptyMap()), listener);
                             listener.get();
                             if (useScroll) {
                                 // have to free context since this test does not remove the index from IndicesService.
@@ -420,6 +435,178 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
         assertEquals(0, totalStats.getQueryCurrent());
         assertEquals(0, totalStats.getScrollCurrent());
         assertEquals(0, totalStats.getFetchCurrent());
+    }
+
+    public void testRankFeaturePhase() throws InterruptedException, ExecutionException, IOException {
+        final String indexName = "index";
+        final String rankFeatureFieldName = "field";
+        final String searchFieldName = "search_field";
+        final String searchFieldValue = "some_value";
+        final String fetchFieldName = "fetch_field";
+        final String fetchFieldValue = "fetch_value";
+
+        final int minDocs = 3;
+        final int maxDocs = 10;
+        int numDocs = between(minDocs, maxDocs);
+        createIndex(indexName);
+        // index some documents
+        for (int i = 0; i < numDocs; i++) {
+            prepareIndex(indexName).setId(String.valueOf(i))
+                .setSource(
+                    rankFeatureFieldName,
+                    "aardvark_" + i,
+                    searchFieldName,
+                    searchFieldValue,
+                    fetchFieldName,
+                    fetchFieldValue + "_" + i
+                )
+                .get();
+        }
+        indicesAdmin().prepareRefresh(indexName).get();
+
+        final SearchService service = getInstanceFromNode(SearchService.class);
+
+        final IndicesService indicesService = getInstanceFromNode(IndicesService.class);
+        final IndexService indexService = indicesService.indexServiceSafe(resolveIndex(indexName));
+        final IndexShard indexShard = indexService.getShard(0);
+        SearchShardTask searchTask = new SearchShardTask(123L, "", "", "", null, emptyMap());
+
+        // create a SearchRequest that will return all documents and defines a TestRankBuilder with shard-level only operations
+        SearchRequest searchRequest = new SearchRequest().allowPartialSearchResults(true)
+            .source(
+                new SearchSourceBuilder().query(new TermQueryBuilder(searchFieldName, searchFieldValue))
+                    .size(DEFAULT_SIZE)
+                    .fetchField(fetchFieldName)
+                    .rankBuilder(
+                        // here we override only the shard-level contexts
+                        new TestRankBuilder(RankBuilder.DEFAULT_RANK_WINDOW_SIZE) {
+                            @Override
+                            public QueryPhaseRankShardContext buildQueryPhaseShardContext(List<Query> queries, int from) {
+                                return new QueryPhaseRankShardContext(queries, from) {
+
+                                    @Override
+                                    public int rankWindowSize() {
+                                        return DEFAULT_RANK_WINDOW_SIZE;
+                                    }
+
+                                    @Override
+                                    public RankShardResult combineQueryPhaseResults(List<TopDocs> rankResults) {
+                                        // we know we have just 1 query, so return all the docs from it
+                                        return new TestRankShardResult(
+                                            Arrays.stream(rankResults.get(0).scoreDocs)
+                                                .map(x -> new TestRankDoc(x.doc, x.score, x.shardIndex))
+                                                .limit(rankWindowSize())
+                                                .toArray(TestRankDoc[]::new)
+                                        );
+                                    }
+                                };
+                            }
+
+                            @Override
+                            public RankFeaturePhaseRankShardContext buildRankFeaturePhaseShardContext() {
+                                return new RankFeaturePhaseRankShardContext(rankFeatureFieldName) {
+                                    @Override
+                                    public RankShardResult buildRankFeatureShardResult(SearchHits hits, int shardId) {
+                                        RankFeatureDoc[] rankFeatureDocs = new RankFeatureDoc[hits.getHits().length];
+                                        for (int i = 0; i < hits.getHits().length; i++) {
+                                            SearchHit hit = hits.getHits()[i];
+                                            rankFeatureDocs[i] = new RankFeatureDoc(hit.docId(), hit.getScore(), shardId);
+                                            rankFeatureDocs[i].featureData(hit.getFields().get(rankFeatureFieldName).getValue());
+                                            rankFeatureDocs[i].score = randomFloat();
+                                            rankFeatureDocs[i].rank = i + 1;
+                                        }
+                                        return new RankFeatureShardResult(rankFeatureDocs);
+                                    }
+                                };
+                            }
+                        }
+                    )
+            );
+
+        ShardSearchRequest request = new ShardSearchRequest(
+            OriginalIndices.NONE,
+            searchRequest,
+            indexShard.shardId(),
+            0,
+            1,
+            AliasFilter.EMPTY,
+            1.0f,
+            -1,
+            null
+        );
+
+        // Execute the query phase and store the result in a SearchPhaseResult container using a PlainActionFuture
+        PlainActionFuture<SearchPhaseResult> queryPhaseResults = new PlainActionFuture<>();
+        service.executeQueryPhase(request, searchTask, queryPhaseResults);
+        final QuerySearchResult queryResult = (QuerySearchResult) queryPhaseResults.get();
+
+        // there are the matched docs from the query phase
+        final TestRankDoc[] queryRankDocs = ((TestRankShardResult) queryResult.getRankShardResult()).testRankDocs;
+
+        // assume that we have cut down to these from the coordinator node as the top-docs to run the rank feature phase upon
+        List<Integer> topRankWindowSizeDocs = randomNonEmptySubsetOf(Arrays.stream(queryRankDocs).map(x -> x.doc).toList());
+
+        // now we create a RankFeatureShardRequest to extract feature info for the top-docs above
+        RankFeatureShardRequest rankFeatureShardRequest = new RankFeatureShardRequest(
+            OriginalIndices.NONE,
+            queryResult.getContextId(), // use the context from the query phase
+            request,
+            topRankWindowSizeDocs
+        );
+        PlainActionFuture<RankFeatureResult> rankPhaseResults = new PlainActionFuture<>();
+        service.executeRankFeaturePhase(rankFeatureShardRequest, searchTask, rankPhaseResults);
+        final RankFeatureResult rankResult = rankPhaseResults.get();
+
+        assertNotNull(rankResult);
+        assertNotNull(rankResult.rankFeatureResult());
+        RankFeatureShardResult rankFeatureShardResult = rankResult.rankFeatureResult().shardResult();
+        assertNotNull(rankFeatureShardResult);
+
+        List<Integer> sortedRankWindowDocs = topRankWindowSizeDocs.stream().sorted().toList();
+        assertEquals(sortedRankWindowDocs.size(), rankFeatureShardResult.rankFeatureDocs.length);
+        for (int i = 0; i < sortedRankWindowDocs.size(); i++) {
+            assertEquals((long) sortedRankWindowDocs.get(i), rankFeatureShardResult.rankFeatureDocs[i].doc);
+            assertEquals(rankFeatureShardResult.rankFeatureDocs[i].featureData, "aardvark_" + sortedRankWindowDocs.get(i));
+        }
+
+        List<Integer> globalTopKResults = randomNonEmptySubsetOf(
+            Arrays.stream(rankFeatureShardResult.rankFeatureDocs).map(x -> x.doc).toList()
+        );
+
+        // finally let's create a fetch request to bring back fetch info for the top results
+        ShardFetchSearchRequest fetchRequest = new ShardFetchSearchRequest(
+            OriginalIndices.NONE,
+            rankResult.getContextId(),
+            request,
+            globalTopKResults,
+            null,
+            rankResult.getRescoreDocIds(),
+            null
+        );
+
+        // execute fetch phase and perform any validations once we retrieve the response
+        // the difference in how we do assertions here is needed because once the transport service sends back the response
+        // it decrements the reference to the FetchSearchResult (through the ActionListener#respondAndRelease) and sets hits to null
+        service.executeFetchPhase(fetchRequest, searchTask, new ActionListener<>() {
+            @Override
+            public void onResponse(FetchSearchResult fetchSearchResult) {
+                assertNotNull(fetchSearchResult);
+                assertNotNull(fetchSearchResult.hits());
+                int totalHits = fetchSearchResult.hits().getHits().length;
+                assertEquals(globalTopKResults.size(), totalHits);
+                for (int i = 0; i < totalHits; i++) {
+                    // rank and score are set by the SearchPhaseController#merge so no need to validate that here
+                    SearchHit hit = fetchSearchResult.hits().getAt(i);
+                    assertNotNull(hit.getFields().get(fetchFieldName));
+                    assertEquals(hit.getFields().get(fetchFieldName).getValue(), fetchFieldValue + "_" + hit.docId());
+                }
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                throw new AssertionError(e);
+            }
+        });
     }
 
     public void testSearchWhileIndexDeletedDoesNotLeakSearchContext() throws ExecutionException, InterruptedException {
@@ -457,7 +644,7 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
                 -1,
                 null
             ),
-            new SearchShardTask(123L, "", "", "", null, Collections.emptyMap()),
+            new SearchShardTask(123L, "", "", "", null, emptyMap()),
             result
         );
 
@@ -694,7 +881,7 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
         for (int i = 0; i < maxScriptFields; i++) {
             searchSourceBuilder.scriptField(
                 "field" + i,
-                new Script(ScriptType.INLINE, MockScriptEngine.NAME, CustomScriptPlugin.DUMMY_SCRIPT, Collections.emptyMap())
+                new Script(ScriptType.INLINE, MockScriptEngine.NAME, CustomScriptPlugin.DUMMY_SCRIPT, emptyMap())
             );
         }
         final ShardSearchRequest request = new ShardSearchRequest(
@@ -723,7 +910,7 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
             }
             searchSourceBuilder.scriptField(
                 "anotherScriptField",
-                new Script(ScriptType.INLINE, MockScriptEngine.NAME, CustomScriptPlugin.DUMMY_SCRIPT, Collections.emptyMap())
+                new Script(ScriptType.INLINE, MockScriptEngine.NAME, CustomScriptPlugin.DUMMY_SCRIPT, emptyMap())
             );
             IllegalArgumentException ex = expectThrows(
                 IllegalArgumentException.class,
@@ -752,7 +939,7 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
         searchRequest.source(searchSourceBuilder);
         searchSourceBuilder.scriptField(
             "field" + 0,
-            new Script(ScriptType.INLINE, MockScriptEngine.NAME, CustomScriptPlugin.DUMMY_SCRIPT, Collections.emptyMap())
+            new Script(ScriptType.INLINE, MockScriptEngine.NAME, CustomScriptPlugin.DUMMY_SCRIPT, emptyMap())
         );
         searchSourceBuilder.size(0);
         final ShardSearchRequest request = new ShardSearchRequest(
@@ -1036,7 +1223,7 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
         );
 
         CountDownLatch latch = new CountDownLatch(1);
-        SearchShardTask task = new SearchShardTask(123L, "", "", "", null, Collections.emptyMap());
+        SearchShardTask task = new SearchShardTask(123L, "", "", "", null, emptyMap());
         // Because the foo field used in alias filter is unmapped the term query builder rewrite can resolve to a match no docs query,
         // without acquiring a searcher and that means the wrapper is not called
         assertEquals(5, numWrapInvocations.get());
@@ -1330,7 +1517,7 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
             0,
             null
         );
-        SearchShardTask task = new SearchShardTask(123L, "", "", "", null, Collections.emptyMap());
+        SearchShardTask task = new SearchShardTask(123L, "", "", "", null, emptyMap());
 
         {
             CountDownLatch latch = new CountDownLatch(1);
@@ -1705,7 +1892,7 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
         final DocWriteResponse response = prepareIndex("index").setSource("id", "1").get();
         assertEquals(RestStatus.CREATED, response.status());
 
-        SearchShardTask task = new SearchShardTask(123L, "", "", "", null, Collections.emptyMap());
+        SearchShardTask task = new SearchShardTask(123L, "", "", "", null, emptyMap());
         ShardSearchRequest request = new ShardSearchRequest(
             OriginalIndices.NONE,
             searchRequest,
@@ -1740,7 +1927,7 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
         final DocWriteResponse response = prepareIndex("index").setSource("id", "1").get();
         assertEquals(RestStatus.CREATED, response.status());
 
-        SearchShardTask task = new SearchShardTask(123L, "", "", "", null, Collections.emptyMap());
+        SearchShardTask task = new SearchShardTask(123L, "", "", "", null, emptyMap());
         PlainActionFuture<SearchPhaseResult> future = new PlainActionFuture<>();
         ShardSearchRequest request = new ShardSearchRequest(
             OriginalIndices.NONE,
@@ -1778,7 +1965,7 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
         final DocWriteResponse response = prepareIndex("index").setSource("id", "1").get();
         assertEquals(RestStatus.CREATED, response.status());
 
-        SearchShardTask task = new SearchShardTask(123L, "", "", "", null, Collections.emptyMap());
+        SearchShardTask task = new SearchShardTask(123L, "", "", "", null, emptyMap());
         PlainActionFuture<SearchPhaseResult> future = new PlainActionFuture<>();
         ShardSearchRequest request = new ShardSearchRequest(
             OriginalIndices.NONE,
@@ -1815,7 +2002,7 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
         final DocWriteResponse response = prepareIndex("index").setSource("id", "1").get();
         assertEquals(RestStatus.CREATED, response.status());
 
-        SearchShardTask task = new SearchShardTask(123L, "", "", "", null, Collections.emptyMap());
+        SearchShardTask task = new SearchShardTask(123L, "", "", "", null, emptyMap());
         PlainActionFuture<SearchPhaseResult> future = new PlainActionFuture<>();
         ShardSearchRequest request = new ShardSearchRequest(
             OriginalIndices.NONE,
@@ -1901,7 +2088,7 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
         PlainActionFuture<QuerySearchResult> plainActionFuture = new PlainActionFuture<>();
         service.executeQueryPhase(
             new QuerySearchRequest(null, context.id(), request, new AggregatedDfs(Map.of(), Map.of(), 10)),
-            new SearchShardTask(42L, "", "", "", null, Collections.emptyMap()),
+            new SearchShardTask(42L, "", "", "", null, emptyMap()),
             plainActionFuture
         );
 

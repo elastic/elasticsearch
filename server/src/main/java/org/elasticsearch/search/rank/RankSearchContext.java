@@ -58,14 +58,14 @@ public class RankSearchContext extends SearchContext {
 
     private final SearchContext parent;
     private final Query rankQuery;
-    private final int windowSize;
+    private final int rankWindowSize;
     private final QuerySearchResult querySearchResult;
 
     @SuppressWarnings("this-escape")
-    public RankSearchContext(SearchContext parent, Query rankQuery, int windowSize) {
+    public RankSearchContext(SearchContext parent, Query rankQuery, int rankWindowSize) {
         this.parent = parent;
         this.rankQuery = parent.buildFilteredQuery(rankQuery);
-        this.windowSize = windowSize;
+        this.rankWindowSize = rankWindowSize;
         this.querySearchResult = new QuerySearchResult(parent.readerContext().id(), parent.shardTarget(), parent.request());
         this.addReleasable(querySearchResult::decRef);
     }
@@ -183,7 +183,7 @@ public class RankSearchContext extends SearchContext {
 
     @Override
     public int size() {
-        return windowSize;
+        return rankWindowSize;
     }
 
     /**

@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.esql.qa.rest;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.apache.http.HttpEntity;
-import org.apache.http.HttpStatus;
 import org.elasticsearch.Build;
 import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;

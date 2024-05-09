@@ -283,6 +283,30 @@ public class ServiceUtils {
         return optionalField;
     }
 
+    public static Float extractOptionalFloat(Map<String, Object> map, String settingName) {
+        return ServiceUtils.removeAsType(map, settingName, Float.class);
+    }
+
+    public static <E extends Enum<E>> E extractRequriedEnum(
+        Map<String, Object> map,
+        String settingName,
+        String scope,
+        EnumConstructor<E> constructor,
+        EnumSet<E> validValues,
+        ValidationException validationException
+    ) {
+        var enumReturn = extractOptionalEnum(map, settingName, scope, constructor, validValues, validationException);
+        if (validationException.validationErrors().isEmpty() == false) {
+            return null;
+        }
+
+        if (enumReturn == null) {
+            validationException.addValidationError(ServiceUtils.missingSettingErrorMsg(settingName, scope));
+        }
+
+        return enumReturn;
+    }
+
     public static <E extends Enum<E>> E extractOptionalEnum(
         Map<String, Object> map,
         String settingName,
@@ -307,6 +331,25 @@ public class ServiceUtils {
         }
 
         return null;
+    }
+
+    public static Boolean extractRequiredBoolean(
+        Map<String, Object> map,
+        String settingName,
+        String scope,
+        ValidationException validationException
+    ) {
+        Boolean requiredField = ServiceUtils.removeAsType(map, settingName, Boolean.class);
+
+        if (requiredField == null) {
+            validationException.addValidationError(ServiceUtils.missingSettingErrorMsg(settingName, scope));
+        }
+
+        if (validationException.validationErrors().isEmpty() == false) {
+            return false;
+        }
+
+        return requiredField;
     }
 
     public static Boolean extractOptionalBoolean(
@@ -352,6 +395,10 @@ public class ServiceUtils {
 
     public static String mustBeAPositiveNumberErrorMessage(String settingName, String scope, int value) {
         return format("[%s] Invalid value [%s]. [%s] must be a positive integer", scope, value, settingName);
+    }
+
+    public static String mustBeAFloatingPointNumberErrorMessage(String settingName, String scope) {
+        return format("[%s] Invalid value. [%s] must be a floating point number", scope, settingName);
     }
 
     /**

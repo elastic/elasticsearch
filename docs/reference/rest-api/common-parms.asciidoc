@@ -980,8 +980,8 @@ end::stats[]
 
 tag::stored_fields[]
 `stored_fields`::
-(Optional, Boolean) If `true`, retrieves the document fields stored in the
-index rather than the document `_source`. Defaults to `false`.
+(Optional, string)
+A comma-separated list of <<mapping-store,`stored fields`>> to include in the response.
 end::stored_fields[]
 
 tag::sync[]

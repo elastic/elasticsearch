@@ -23,7 +23,7 @@ https://discuss.elastic.co[Elastic Discuss] to minimize turnaround time.
 [[diagnostic-tool-access]]
 === Access the tool
 
-The Suppor Diagnostic tool is included as a sub-library in some Elastic deployments: 
+The Support Diagnostic tool is included as a sub-library in some Elastic deployments: 
 
 * {ece}: Located under **{ece}** > **Deployment** > **Operations** > 
 **Prepare Bundle** > **{es}**. 
@@ -48,6 +48,7 @@ For example, with the parameters `host:localhost`, `port:9200`, and `username:el
 ----
 curl -X GET -k -u elastic -p https://localhost:9200/_cluster/health
 ----
+// NOTCONSOLE
 +
 If you receive a an HTTP 200 `OK` response, then you can proceed to the next step. If you receive a different 
 response code, then <<diagnostic-non-200,diagnose the issue>> before proceeding.

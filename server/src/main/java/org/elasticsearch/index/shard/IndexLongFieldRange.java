@@ -8,6 +8,8 @@
 
 package org.elasticsearch.index.shard;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -29,6 +31,8 @@ import java.util.stream.IntStream;
  * represented should this information be considered accurate for the index.
  */
 public class IndexLongFieldRange implements Writeable, ToXContentFragment {
+
+    private static final Logger logger = LogManager.getLogger(IndexLongFieldRange.class);
 
     /**
      * Sentinel value indicating that no information is currently available, for instance because the index has just been created.
@@ -333,6 +337,7 @@ public class IndexLongFieldRange implements Writeable, ToXContentFragment {
             return this;
         }
         if (shards == null && numberOfShards == 1) {
+            logger.warn("MPXX IndexLongFieldRange.removeShard short circuit to NO_SHARDS because numberOfShards == 1");
             return NO_SHARDS;
         }
         if (this == UNKNOWN) {

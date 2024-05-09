@@ -243,7 +243,11 @@ setup:
           query:
             sparse_vector:
               field: ml.tokens
-              query_vector: [ { "the": 1.0 }, { "comforter": 1.0 }, { "smells": 1.0 }, { "bad": 1.0 } ]
+              query_vector:
+                the: 1.0
+                comforter: 1.0
+                smells: 1.0
+                bad: 1.0
   - match: { hits.total.value: 5 }
   - match: { hits.hits.0._source.source_text: "the octopus comforter smells" }
 
@@ -256,7 +260,11 @@ setup:
           query:
             sparse_vector:
               field: ml.tokens
-              query_vector: [ { "the": 1.0 }, { "comforter": 1.0 }, { "smells": 1.0 }, { "bad": 1.0 } ]
+              query_vector:
+                the: 1.0
+                comforter: 1.0
+                smells: 1.0
+                bad: 1.0
               pruning_config:
                 tokens_freq_ratio_threshold: 1
                 tokens_weight_threshold: 0.4
@@ -264,7 +272,7 @@ setup:
   - match: { hits.hits.0._source.source_text: "the octopus comforter smells" }
 
 ---
-"Test sparse_vector search with query vector and pruning config set to true":
+"Test sparse_vector search with query vector and pruning config with only score pruned tokens":
   - do:
       search:
         index: index-with-sparse-vectors
@@ -272,7 +280,11 @@ setup:
           query:
             sparse_vector:
               field: ml.tokens
-              query_vector: [ { "the": 1.0 }, { "comforter": 1.0 }, { "smells": 1.0 }, { "bad": 1.0 } ]
+              query_vector:
+                the: 1.0
+                comforter: 1.0
+                smells: 1.0
+                bad: 1.0
               pruning_config:
                 tokens_freq_ratio_threshold: 1
                 tokens_weight_threshold: 0.4
@@ -290,7 +302,11 @@ setup:
             sparse_vector:
               field: text
               inference_id: text_expansion_model
-              query_vector: [ { "the": 1.0 }, { "comforter": 1.0 }, { "smells": 1.0 }, { "bad": 1.0 } ]
+              query_vector:
+                the: 1.0
+                comforter: 1.0
+                smells: 1.0
+                bad: 1.0
 
 ---
 "Test sparse_vector displays error for invalid queried field type":

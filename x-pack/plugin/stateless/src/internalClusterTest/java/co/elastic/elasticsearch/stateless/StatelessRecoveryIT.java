@@ -220,7 +220,7 @@ public class StatelessRecoveryIT extends AbstractStatelessIntegTestCase {
         ensureGreen(indexName);
 
         if (heavyIndexing) {
-            indexDocuments(indexName); // produces several commits
+            indexDocuments(indexName, false); // produces several commits
             indexDocs(indexName, randomIntBetween(50, 100));
         } else {
             indexDocs(indexName, randomIntBetween(1, 5));

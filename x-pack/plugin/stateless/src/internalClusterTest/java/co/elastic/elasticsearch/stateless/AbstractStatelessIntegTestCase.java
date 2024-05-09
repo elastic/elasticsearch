@@ -17,6 +17,7 @@
 
 package co.elastic.elasticsearch.stateless;
 
+import co.elastic.elasticsearch.stateless.commits.BatchedCompoundCommit;
 import co.elastic.elasticsearch.stateless.commits.BlobLocation;
 import co.elastic.elasticsearch.stateless.commits.StatelessCommitService;
 import co.elastic.elasticsearch.stateless.commits.StatelessCompoundCommit;
@@ -43,6 +44,7 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.OperationPurpose;
+import org.elasticsearch.common.blobstore.support.BlobMetadata;
 import org.elasticsearch.common.io.stream.InputStreamStreamInput;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.store.InputStreamIndexInput;
@@ -78,6 +80,7 @@ import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.function.UnaryOperator;
@@ -373,16 +376,27 @@ public abstract class AbstractStatelessIntegTestCase extends ESIntegTestCase {
         return false;
     }
 
-    protected static void indexDocuments(String indexName) {
+    protected static void indexDocumentsWithFlush(String indexName) {
+        indexDocuments(indexName, true);
+    }
+
+    protected static void indexDocuments(String indexName, boolean expectObjectStoreAndIndexShardConsistency) {
         final int iters = randomIntBetween(1, 20);
         for (int i = 0; i < iters; i++) {
             indexDocs(indexName, randomIntBetween(1, 100));
             switch (randomInt(2)) {
                 case 0 -> client().admin().indices().prepareFlush(indexName).setForce(randomBoolean()).get();
-                case 1 -> client().admin().indices().prepareRefresh(indexName).get();
+                case 1 -> {
+                    client().admin().indices().prepareRefresh(indexName).get();
+                    if (expectObjectStoreAndIndexShardConsistency) {
+                        client().admin().indices().prepareFlush(indexName).setForce(false).setWaitIfOngoing(false).get();
+                    }
+                }
                 case 2 -> client().admin().indices().prepareForceMerge(indexName).get();
             }
-            assertObjectStoreConsistentWithIndexShards();
+            if (expectObjectStoreAndIndexShardConsistency) {
+                assertObjectStoreConsistentWithIndexShards();
+            }
         }
     }
 
@@ -417,11 +431,9 @@ public abstract class AbstractStatelessIntegTestCase extends ESIntegTestCase {
 
             // can take some time for files to be uploaded to the object store
             assertBusy(() -> {
-                String commitFile = StatelessCompoundCommit.blobNameFromGeneration(segmentInfos.getGeneration());
-                assertThat(commitFile, blobContainerForCommit.blobExists(operationPurpose, commitFile), is(true));
-                StatelessCompoundCommit commit = StatelessCompoundCommit.readFromStore(
-                    new InputStreamStreamInput(blobContainerForCommit.readBlob(operationPurpose, commitFile))
-                );
+                final var latestUploadedBcc = readLatestUploadedBcc(blobContainerForCommit);
+                StatelessCompoundCommit commit = latestUploadedBcc.lastCompoundCommit();
+                assertThat(commit.primaryTermAndGeneration().generation(), equalTo(segmentInfos.getGeneration()));
                 var localFiles = segmentInfos.files(false);
                 var expectedBlobFile = localFiles.stream().map(s -> commit.commitFiles().get(s).blobName()).collect(Collectors.toSet());
                 var remoteFiles = blobContainerForCommit.listBlobs(operationPurpose).keySet();
@@ -458,6 +470,25 @@ public abstract class AbstractStatelessIntegTestCase extends ESIntegTestCase {
         }
     }
 
+    private static BatchedCompoundCommit readLatestUploadedBcc(BlobContainer blobContainerForCommit) throws IOException {
+        final BlobMetadata latestUploadBccMetadata = blobContainerForCommit.listBlobsByPrefix(
+            operationPurpose,
+            StatelessCompoundCommit.PREFIX
+        )
+            .values()
+            .stream()
+            .max(Comparator.comparingLong(m -> StatelessCompoundCommit.parseGenerationFromBlobName(m.name())))
+            .orElseThrow(() -> new AssertionError("retry with assertBusy"));
+        final var latestUploadedBcc = BatchedCompoundCommit.readFromStore(
+            latestUploadBccMetadata.name(),
+            latestUploadBccMetadata.length(),
+            (blobName, offset, length) -> new InputStreamStreamInput(
+                blobContainerForCommit.readBlob(operationPurpose, blobName, offset, length)
+            )
+        );
+        return latestUploadedBcc;
+    }
+
     protected static void assertThatSearchShardIsConsistentWithLastCommit(final IndexShard indexShard, final IndexShard searchShard) {
         final Store indexStore = indexShard.store();
         final Store searchStore = searchShard.store();
@@ -478,11 +509,9 @@ public abstract class AbstractStatelessIntegTestCase extends ESIntegTestCase {
             safeAwait(listener);
             final SegmentInfos segmentInfos = Lucene.readSegmentInfos(indexStore.directory());
 
-            String commitFile = StatelessCompoundCommit.blobNameFromGeneration(segmentInfos.getGeneration());
-            assertBusy(() -> assertThat(commitFile, blobContainerForCommit.blobExists(operationPurpose, commitFile), is(true)));
-            StatelessCompoundCommit commit = StatelessCompoundCommit.readFromStore(
-                new InputStreamStreamInput(blobContainerForCommit.readBlob(operationPurpose, commitFile))
-            );
+            final var latestUploadedBcc = readLatestUploadedBcc(blobContainerForCommit);
+            StatelessCompoundCommit commit = latestUploadedBcc.lastCompoundCommit();
+            assertThat(commit.primaryTermAndGeneration().generation(), equalTo(segmentInfos.getGeneration()));
 
             for (String localFile : segmentInfos.files(false)) {
                 var blobPath = commit.commitFiles().get(localFile);

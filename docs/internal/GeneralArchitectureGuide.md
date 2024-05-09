@@ -7,7 +7,7 @@
 ## Settings
 
 Elasticsearch supports [cluster-level settings][] and [index-level settings][], configurable via [node-level file settings][]
-(e.g. `elasticsearch.yml` file), command line arguments and Rest APIs.
+(e.g. `elasticsearch.yml` file), command line arguments and REST APIs.
 
 ### Declaring a Setting
 
@@ -59,8 +59,9 @@ through to the `AbstractScopedSettings`, invoking the consumers registered there
 
 Index settings are always persisted. They can only be modified on an existing index, and setting values are persisted as part
 of the `IndexMetadata`. Cluster settings, however, can be either persisted or transient depending on how they are tied to
-[Metadata][] ([applied here][]). Changes to persisted cluster settings will survive server restart; whereas a change made to
-a transient cluster setting will be reset to its default value, or the `elasticsearch.yml` value, if the server is ever restarted.
+[Metadata][] ([applied here][]). Changes to persisted cluster settings will survive a full cluster restart; whereas changes
+made to transient cluster settings will reset to their default values, or the `elasticsearch.yml` values, if the cluster
+state must ever be reloaded from persisted state.
 
 [Metadata]: https://github.com/elastic/elasticsearch/blob/v8.13.2/server/src/main/java/org/elasticsearch/cluster/metadata/Metadata.java#L212-L213
 [applied here]: https://github.com/elastic/elasticsearch/blob/v8.13.2/server/src/main/java/org/elasticsearch/cluster/metadata/Metadata.java#L2437

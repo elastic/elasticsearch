@@ -144,7 +144,6 @@ setup:
   - match:  { hits.total.value: 2 }
   - match:  { hits.total.relation: eq }
   - match:  { hits.hits.0.inner_hits.sparse_field\.inference\.chunks.hits.total.value: 2 }
-  - match:  { hits.hits.0.inner_hits.sparse_field\.inference\.chunks.hits.total.value: 2 }
   - match:  { hits.hits.0.inner_hits.sparse_field\.inference\.chunks.hits.total.relation: eq }
 
   - length: { hits.hits.0.inner_hits.sparse_field\.inference\.chunks.hits.hits.0.fields.sparse_field\.inference\.chunks.0.text: 1 }
@@ -207,7 +206,6 @@ setup:
 
   - match:  { hits.total.value: 2 }
   - match:  { hits.total.relation: eq }
-  - match:  { hits.hits.0.inner_hits.dense_field\.inference\.chunks.hits.total.value: 2 }
   - match:  { hits.hits.0.inner_hits.dense_field\.inference\.chunks.hits.total.value: 2 }
   - match:  { hits.hits.0.inner_hits.dense_field\.inference\.chunks.hits.total.relation: eq }
 
@@ -457,7 +455,7 @@ setup:
             properties:
               sparse_field:
                 type: semantic_text
-                inference_id: dense-inference-id
+                inference_id: sparse-inference-id
               source_field:
                 type: text
                 copy_to: sparse_field
@@ -499,7 +497,7 @@ setup:
             properties:
               sparse_field:
                 type: semantic_text
-                inference_id: dense-inference-id
+                inference_id: sparse-inference-id
               source_field:
                 type: text
                 copy_to: sparse_field
@@ -772,3 +770,4 @@ setup:
   - exists: _source.sparse_field.inference.chunks.0.embeddings
   - match:  { _source.dense_field.text: "another updated inference test" }
   - match:  { _source.dense_field.inference.chunks.0.text: "another updated inference test" }
+  - exists: _source.dense_field.inference.chunks.0.embeddings

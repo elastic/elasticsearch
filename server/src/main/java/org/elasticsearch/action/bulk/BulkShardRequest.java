@@ -114,6 +114,10 @@ public final class BulkShardRequest extends ReplicatedWriteRequest<BulkShardRequ
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
+        if (inferenceFieldMap != null) {
+            // Inferencing metadata should have been consumed as part of the ShardBulkInferenceActionFilter processing
+            throw new IllegalStateException("Inference metadata should have been consumed before writing to the stream");
+        }
         super.writeTo(out);
         out.writeArray((o, item) -> {
             if (item != null) {

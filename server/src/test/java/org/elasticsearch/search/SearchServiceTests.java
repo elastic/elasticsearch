@@ -547,7 +547,7 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
             service.executeQueryPhase(request, searchTask, queryPhaseResults);
             queryResult = (QuerySearchResult) queryPhaseResults.get();
 
-            // there are the matched docs from the query phase
+            // these are the matched docs from the query phase
             final TestRankDoc[] queryRankDocs = ((TestRankShardResult) queryResult.getRankShardResult()).testRankDocs;
 
             // assume that we have cut down to these from the coordinator node as the top-docs to run the rank feature phase upon
@@ -615,7 +615,7 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
                     throw new AssertionError("No failure should have been raised", e);
                 }
             });
-        } catch (Exception ignored) {
+        } catch (Exception ex) {
             if (queryResult != null) {
                 if (queryResult.hasReferences()) {
                     queryResult.decRef();
@@ -625,6 +625,7 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
             if (rankResult != null && rankResult.hasReferences()) {
                 rankResult.decRef();
             }
+            throw ex;
         }
     }
 
@@ -772,7 +773,6 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
                         )
                 ),
             (response) -> {
-                // we expect a failure here
                 SearchHits hits = response.getHits();
                 assertEquals(hits.getTotalHits().value, numDocs);
                 assertEquals(hits.getHits().length, 2);
@@ -822,83 +822,80 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
                         .size(2)
                         .from(2)
                         .fetchField(fetchFieldName)
-                        .rankBuilder(
-                            // here we override only the shard-level contexts
-                            new TestRankBuilder(RankBuilder.DEFAULT_RANK_WINDOW_SIZE) {
+                        .rankBuilder(new TestRankBuilder(RankBuilder.DEFAULT_RANK_WINDOW_SIZE) {
 
-                                // no need for more than one queries
-                                @Override
-                                public boolean isCompoundBuilder() {
-                                    return false;
-                                }
-
-                                @Override
-                                public RankFeaturePhaseRankCoordinatorContext buildRankFeaturePhaseCoordinatorContext(int size, int from) {
-                                    return new RankFeaturePhaseRankCoordinatorContext(size, from, DEFAULT_RANK_WINDOW_SIZE) {
-                                        @Override
-                                        public void rankGlobalResults(
-                                            List<RankFeatureResult> rankSearchResults,
-                                            Consumer<ScoreDoc[]> onFinish
-                                        ) {
-                                            throw new IllegalStateException("should have failed earlier");
-                                        }
-                                    };
-                                }
-
-                                @Override
-                                public QueryPhaseRankCoordinatorContext buildQueryPhaseCoordinatorContext(int size, int from) {
-                                    return new QueryPhaseRankCoordinatorContext(RankBuilder.DEFAULT_RANK_WINDOW_SIZE) {
-                                        @Override
-                                        public ScoreDoc[] rankQueryPhaseResults(
-                                            List<QuerySearchResult> querySearchResults,
-                                            SearchPhaseController.TopDocsStats topDocStats
-                                        ) {
-                                            throw new UnsupportedOperationException("simulated failure");
-                                        }
-                                    };
-                                }
-
-                                @Override
-                                public QueryPhaseRankShardContext buildQueryPhaseShardContext(List<Query> queries, int from) {
-                                    return new QueryPhaseRankShardContext(queries, from) {
-
-                                        @Override
-                                        public int rankWindowSize() {
-                                            return DEFAULT_RANK_WINDOW_SIZE;
-                                        }
-
-                                        @Override
-                                        public RankShardResult combineQueryPhaseResults(List<TopDocs> rankResults) {
-                                            // we know we have just 1 query, so return all the docs from it
-                                            return new TestRankShardResult(
-                                                Arrays.stream(rankResults.get(0).scoreDocs)
-                                                    .map(x -> new TestRankDoc(x.doc, x.score, x.shardIndex))
-                                                    .limit(rankWindowSize())
-                                                    .toArray(TestRankDoc[]::new)
-                                            );
-                                        }
-                                    };
-                                }
-
-                                @Override
-                                public RankFeaturePhaseRankShardContext buildRankFeaturePhaseShardContext() {
-                                    return new RankFeaturePhaseRankShardContext(rankFeatureFieldName) {
-                                        @Override
-                                        public RankShardResult buildRankFeatureShardResult(SearchHits hits, int shardId) {
-                                            RankFeatureDoc[] rankFeatureDocs = new RankFeatureDoc[hits.getHits().length];
-                                            for (int i = 0; i < hits.getHits().length; i++) {
-                                                SearchHit hit = hits.getHits()[i];
-                                                rankFeatureDocs[i] = new RankFeatureDoc(hit.docId(), hit.getScore(), shardId);
-                                                rankFeatureDocs[i].featureData(hit.getFields().get(rankFeatureFieldName).getValue());
-                                                rankFeatureDocs[i].score = randomFloat();
-                                                rankFeatureDocs[i].rank = i + 1;
-                                            }
-                                            return new RankFeatureShardResult(rankFeatureDocs);
-                                        }
-                                    };
-                                }
+                            // no need for more than one queries
+                            @Override
+                            public boolean isCompoundBuilder() {
+                                return false;
                             }
-                        )
+
+                            @Override
+                            public RankFeaturePhaseRankCoordinatorContext buildRankFeaturePhaseCoordinatorContext(int size, int from) {
+                                return new RankFeaturePhaseRankCoordinatorContext(size, from, DEFAULT_RANK_WINDOW_SIZE) {
+                                    @Override
+                                    public void rankGlobalResults(
+                                        List<RankFeatureResult> rankSearchResults,
+                                        Consumer<ScoreDoc[]> onFinish
+                                    ) {
+                                        throw new IllegalStateException("should have failed earlier");
+                                    }
+                                };
+                            }
+
+                            @Override
+                            public QueryPhaseRankCoordinatorContext buildQueryPhaseCoordinatorContext(int size, int from) {
+                                return new QueryPhaseRankCoordinatorContext(RankBuilder.DEFAULT_RANK_WINDOW_SIZE) {
+                                    @Override
+                                    public ScoreDoc[] rankQueryPhaseResults(
+                                        List<QuerySearchResult> querySearchResults,
+                                        SearchPhaseController.TopDocsStats topDocStats
+                                    ) {
+                                        throw new UnsupportedOperationException("simulated failure");
+                                    }
+                                };
+                            }
+
+                            @Override
+                            public QueryPhaseRankShardContext buildQueryPhaseShardContext(List<Query> queries, int from) {
+                                return new QueryPhaseRankShardContext(queries, from) {
+
+                                    @Override
+                                    public int rankWindowSize() {
+                                        return DEFAULT_RANK_WINDOW_SIZE;
+                                    }
+
+                                    @Override
+                                    public RankShardResult combineQueryPhaseResults(List<TopDocs> rankResults) {
+                                        // we know we have just 1 query, so return all the docs from it
+                                        return new TestRankShardResult(
+                                            Arrays.stream(rankResults.get(0).scoreDocs)
+                                                .map(x -> new TestRankDoc(x.doc, x.score, x.shardIndex))
+                                                .limit(rankWindowSize())
+                                                .toArray(TestRankDoc[]::new)
+                                        );
+                                    }
+                                };
+                            }
+
+                            @Override
+                            public RankFeaturePhaseRankShardContext buildRankFeaturePhaseShardContext() {
+                                return new RankFeaturePhaseRankShardContext(rankFeatureFieldName) {
+                                    @Override
+                                    public RankShardResult buildRankFeatureShardResult(SearchHits hits, int shardId) {
+                                        RankFeatureDoc[] rankFeatureDocs = new RankFeatureDoc[hits.getHits().length];
+                                        for (int i = 0; i < hits.getHits().length; i++) {
+                                            SearchHit hit = hits.getHits()[i];
+                                            rankFeatureDocs[i] = new RankFeatureDoc(hit.docId(), hit.getScore(), shardId);
+                                            rankFeatureDocs[i].featureData(hit.getFields().get(rankFeatureFieldName).getValue());
+                                            rankFeatureDocs[i].score = randomFloat();
+                                            rankFeatureDocs[i].rank = i + 1;
+                                        }
+                                        return new RankFeatureShardResult(rankFeatureDocs);
+                                    }
+                                };
+                            }
+                        })
                 )
                 .get()
         );
@@ -934,6 +931,7 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
         expectThrows(
             SearchPhaseExecutionException.class,
             () -> client().prepareSearch(indexName)
+                .setAllowPartialSearchResults(true)
                 .setSource(
                     new SearchSourceBuilder().query(new TermQueryBuilder(searchFieldName, searchFieldValue))
                         .fetchField(fetchFieldName)

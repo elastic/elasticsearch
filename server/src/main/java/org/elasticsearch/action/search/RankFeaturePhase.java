@@ -144,7 +144,7 @@ public class RankFeaturePhase extends SearchPhase {
                             progressListener.notifyRankFeatureResult(shardIndex);
                             rankRequestCounter.onResult(response);
                         } catch (Exception e) {
-                            // context.onPhaseFailure(RankFeaturePhase.this, "", e);
+                            context.onPhaseFailure(RankFeaturePhase.this, "", e);
                         }
                     }
 

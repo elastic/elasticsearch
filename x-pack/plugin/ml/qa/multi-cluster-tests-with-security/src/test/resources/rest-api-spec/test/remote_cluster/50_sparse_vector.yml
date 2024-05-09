@@ -72,7 +72,7 @@ setup:
         Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
         Content-Type: application/json
       bulk:
-        index: index-with-sparse-vectors
+        index: index-with-sparse-vector
         refresh: true
         body: |
           {"index": {}}
@@ -100,7 +100,7 @@ setup:
 "Test sparse_vector search":
   - do:
       search:
-        index: index-with-sparse-vectors
+        index: index-with-sparse-vector
         body:
           query:
             sparse_vector:
@@ -118,13 +118,14 @@ setup:
 
   - do:
       search:
-        index: index-with-sparse-vectors
+        index: index-with-sparse-vector
         body:
           query:
             sparse_vector:
               field: ml.tokens
               inference_id: text_expansion_model
               text: "octopus comforter smells"
+              prune: true
               pruning_config:
                 tokens_freq_ratio_threshold: 4
                 tokens_weight_threshold: 0.4
@@ -139,13 +140,14 @@ setup:
 
   - do:
       search:
-        index: index-with-sparse-vectors
+        index: index-with-sparse-vector
         body:
           query:
             sparse_vector:
               field: ml.tokens
               inference_id: text_expansion_model
               text: "octopus comforter smells"
+              prune: true
               pruning_config:
                 tokens_freq_ratio_threshold: 2
                 tokens_weight_threshold: 0.9
@@ -159,7 +161,7 @@ setup:
       reason: "pruning introduced in 8.13.0"
   - do:
       search:
-        index: index-with-sparse-vectors
+        index: index-with-sparse-vector
         body:
           query:
             sparse_vector:
@@ -175,7 +177,7 @@ setup:
 
   - do:
       search:
-        index: index-with-sparse-vectors
+        index: index-with-sparse-vector
         body:
           query:
             text_expansion:
@@ -183,6 +185,7 @@ setup:
                 field: ml.tokens
                 inference_id: text_expansion_model
                 text: "octopus comforter smells"
+                prune: true
                 pruning_config:
                   tokens_freq_ratio_threshold: 4
                   tokens_weight_threshold: 0.4
@@ -201,7 +204,7 @@ setup:
 
   - do:
       search:
-        index: index-with-sparse-vectors
+        index: index-with-sparse-vector
         body:
           query:
             text_expansion:
@@ -209,6 +212,7 @@ setup:
                 field: ml.tokens
                 inference_id: text_expansion_model
                 text: "octopus comforter smells"
+                prune: true
                 pruning_config: { }
   - match: { hits.total.value: 4 }
   - match: { hits.hits.0._source.source_text: "the octopus comforter smells" }
@@ -221,13 +225,14 @@ setup:
 
   - do:
       search:
-        index: index-with-sparse-vectors
+        index: index-with-sparse-vector
         body:
           query:
             sparse_vector:
               field: ml.tokens
               inference_id: text_expansion_model
               text: "octopus comforter smells"
+              prune: true
               pruning_config:
                 tokens_freq_ratio_threshold: 4
                 tokens_weight_threshold: 0.4
@@ -238,7 +243,7 @@ setup:
 "Test sparse_vector search with query vector":
   - do:
       search:
-        index: index-with-sparse-vectors
+        index: index-with-sparse-vector
         body:
           query:
             sparse_vector:
@@ -255,7 +260,7 @@ setup:
 "Test sparse_vector search with query vector and pruning config":
   - do:
       search:
-        index: index-with-sparse-vectors
+        index: index-with-sparse-vector
         body:
           query:
             sparse_vector:
@@ -265,9 +270,12 @@ setup:
                 comforter: 1.0
                 smells: 1.0
                 bad: 1.0
+              prune: true
               pruning_config:
                 tokens_freq_ratio_threshold: 1
                 tokens_weight_threshold: 0.4
+                only_score_pruned_tokens: false
+
   - match: { hits.total.value: 5 }
   - match: { hits.hits.0._source.source_text: "the octopus comforter smells" }
 
@@ -275,7 +283,7 @@ setup:
 "Test sparse_vector search with query vector and pruning config with only score pruned tokens":
   - do:
       search:
-        index: index-with-sparse-vectors
+        index: index-with-sparse-vector
         body:
           query:
             sparse_vector:
@@ -296,7 +304,7 @@ setup:
   - do:
       catch: /Failed to build \[sparse_vector\] after last required field arrived/
       search:
-        index: index-with-sparse-vectors
+        index: index-with-sparse-vector
         body:
           query:
             sparse_vector:
@@ -313,7 +321,7 @@ setup:
   - do:
       catch: /field \[text_field\] must be type \[sparse_vector\] but is type \[text\]/
       search:
-        index: index-with-sparse-vectors
+        index: index-with-sparse-vector
         body:
           query:
             sparse_vector:

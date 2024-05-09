@@ -131,6 +131,7 @@ public final class SearchIndexInput extends BlobCacheBufferedIndexInput {
         final long position = getAbsolutePosition();
         final int length = b.remaining();
         try {
+            logger.debug("reading file: {}, position: {}, length: {}", super.toString(), position, length);
             if (cacheFile.tryRead(b, position)) {
                 return;
             }

@@ -133,6 +133,14 @@ are only used for internode operations/communications.
 
 ### Work Queues
 
+### RestClient
+
+The `RestClient` is primarily used in testing, to send requests against cluster nodes in the same format as would users. There
+are some uses of `RestClient`, via `RestClientBuilder`, in the production code. For example, remote reindex leverages the
+`RestClient` internally as the REST client to the remote elasticsearch cluster, and to take advantage of the compatibility of
+`RestClient` requests with much older elasticsearch versions. The `RestClient` is also used externally by the `Java API Client`
+to communicate with Elasticsearch.
+
 # Cluster Coordination
 
 (Sketch of important classes? Might inform more sections to add for details.)

@@ -294,7 +294,7 @@ setup:
 ---
 "Test sparse_vector only allows one of inference_id or query_vector":
   - do:
-      catch: /\[sparse_vector\] requires one of query_vector or inference_id/
+      catch: /Failed to build \[sparse_vector\] after last required field arrived/
       search:
         index: index-with-sparse-vectors
         body:

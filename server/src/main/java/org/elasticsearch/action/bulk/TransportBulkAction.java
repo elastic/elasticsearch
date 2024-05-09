@@ -416,7 +416,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
     ) {
         final AtomicArray<BulkItemResponse> responses = new AtomicArray<>(bulkRequest.requests.size());
         // Optimizing when there are no prerequisite actions
-        if (indicesToAutoCreate.isEmpty() && dataStreamsToBeRolledOver.isEmpty()) {
+        if (bulkRequest.isSimulated() || (indicesToAutoCreate.isEmpty() && dataStreamsToBeRolledOver.isEmpty())) {
             executeBulk(task, bulkRequest, startTime, listener, executor, responses, indicesThatCannotBeCreated);
             return;
         }
@@ -429,25 +429,23 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
         try (RefCountingRunnable refs = new RefCountingRunnable(executeBulkRunnable)) {
             for (Map.Entry<String, Boolean> indexEntry : indicesToAutoCreate.entrySet()) {
                 final String index = indexEntry.getKey();
-                if (bulkRequest.isSimulated() == false) {
-                    createIndex(index, indexEntry.getValue(), bulkRequest.timeout(), ActionListener.releaseAfter(new ActionListener<>() {
-                        @Override
-                        public void onResponse(CreateIndexResponse createIndexResponse) {}
+                createIndex(index, indexEntry.getValue(), bulkRequest.timeout(), ActionListener.releaseAfter(new ActionListener<>() {
+                    @Override
+                    public void onResponse(CreateIndexResponse createIndexResponse) {}
 
-                        @Override
-                        public void onFailure(Exception e) {
-                            final Throwable cause = ExceptionsHelper.unwrapCause(e);
-                            if (cause instanceof IndexNotFoundException indexNotFoundException) {
-                                synchronized (indicesThatCannotBeCreated) {
-                                    indicesThatCannotBeCreated.put(index, indexNotFoundException);
-                                }
-                            } else if ((cause instanceof ResourceAlreadyExistsException) == false) {
-                                // fail all requests involving this index, if create didn't work
-                                failRequestsWhenPrerequisiteActionFailed(index, bulkRequest, responses, e);
+                    @Override
+                    public void onFailure(Exception e) {
+                        final Throwable cause = ExceptionsHelper.unwrapCause(e);
+                        if (cause instanceof IndexNotFoundException indexNotFoundException) {
+                            synchronized (indicesThatCannotBeCreated) {
+                                indicesThatCannotBeCreated.put(index, indexNotFoundException);
                             }
+                        } else if ((cause instanceof ResourceAlreadyExistsException) == false) {
+                            // fail all requests involving this index, if create didn't work
+                            failRequestsWhenPrerequisiteActionFailed(index, bulkRequest, responses, e);
                         }
-                    }, refs.acquire()));
-                }
+                    }
+                }, refs.acquire()));
             }
             for (String dataStream : dataStreamsToBeRolledOver) {
                 lazyRolloverDataStream(dataStream, bulkRequest.timeout(), ActionListener.releaseAfter(new ActionListener<>() {

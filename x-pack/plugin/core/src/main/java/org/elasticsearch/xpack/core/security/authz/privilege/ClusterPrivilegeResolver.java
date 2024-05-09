@@ -160,11 +160,7 @@ public class ClusterPrivilegeResolver {
     private static final Set<String> MANAGE_ILM_PATTERN = Set.of("cluster:admin/ilm/*");
     private static final Set<String> READ_ILM_PATTERN = Set.of(GetLifecycleAction.NAME, GetStatusAction.NAME);
     private static final Set<String> MANAGE_SLM_PATTERN = Set.of("cluster:admin/slm/*");
-    private static final Set<String> READ_SLM_PATTERN = Set.of(
-        GetSLMStatusAction.NAME,
-        GetSnapshotLifecycleAction.NAME,
-        GetStatusAction.NAME
-    );
+    private static final Set<String> READ_SLM_PATTERN = Set.of(GetSLMStatusAction.NAME, GetSnapshotLifecycleAction.NAME);
 
     private static final Set<String> MANAGE_SEARCH_APPLICATION_PATTERN = Set.of("cluster:admin/xpack/application/search_application/*");
     private static final Set<String> MANAGE_SEARCH_QUERY_RULES_PATTERN = Set.of("cluster:admin/xpack/query_rules/*");

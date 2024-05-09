@@ -44,12 +44,15 @@ import static org.elasticsearch.cluster.coordination.ClusterBootstrapService.INI
 import static org.elasticsearch.monitor.StatusInfo.Status.UNHEALTHY;
 
 /**
- * Handles periodic (DISCOVERY_CLUSTER_FORMATION_WARNING_TIMEOUT_SETTING) logging of debug information about why cluster formation is
- * failing.
+ * Handles periodic debug logging of information regarding why the cluster has failed to form.
+ * Periodic logging begins once {@link #start()} is called, and ceases on {@link #stop()}.
  */
 public class ClusterFormationFailureHelper {
     private static final Logger logger = LogManager.getLogger(ClusterFormationFailureHelper.class);
 
+    /**
+     * This time period controls how often warning log messages will be written if this node fails to join or form a cluster.
+     */
     public static final Setting<TimeValue> DISCOVERY_CLUSTER_FORMATION_WARNING_TIMEOUT_SETTING = Setting.timeSetting(
         "discovery.cluster_formation_warning_timeout",
         TimeValue.timeValueMillis(10000),
@@ -93,7 +96,7 @@ public class ClusterFormationFailureHelper {
     }
 
     /**
-     * Schedules a WARN message to be logged in 'clusterFormationWarningTimeout' time, and periodically thereafter, until
+     * Schedules a warning debug message to be logged in 'clusterFormationWarningTimeout' time, and periodically thereafter, until
      * {@link ClusterFormationState#stop()} has been called.
      */
     public void start() {

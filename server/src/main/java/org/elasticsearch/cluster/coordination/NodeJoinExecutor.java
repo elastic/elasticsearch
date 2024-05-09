@@ -127,11 +127,11 @@ public class NodeJoinExecutor implements ClusterStateTaskExecutor<JoinTask> {
             throw new NotMasterException(
                 "Node ["
                     + currentNodes.getLocalNode()
-                    + "] not master for join request. Current master: ["
+                    + "] not master for join request. Current known master: ["
                     + currentNodes.getMasterNode()
                     + "], current term: ["
                     + term
-                    + "], local current time: [ "
+                    + "], current local time: [ "
                     + TimeValue.timeValueMillis(System.currentTimeMillis())
                     + "]"
             );

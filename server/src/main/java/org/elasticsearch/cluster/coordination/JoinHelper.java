@@ -195,7 +195,7 @@ public class JoinHelper {
     }
 
     /**
-     * Tracks information about a join response failure. The failure itself can be logged later via either {@link FailedJoinAttempt#logNow}
+     * Saves information about a join failure. The failure information may be logged later via either {@link FailedJoinAttempt#logNow}
      * or {@link FailedJoinAttempt#lastFailedJoinAttempt}.
      *
      * Package-private for testing.
@@ -208,7 +208,7 @@ public class JoinHelper {
 
         /**
          * @param destination the master node targeted by the join request.
-         * @param joinRequest the join request that was sent to the expected master node.
+         * @param joinRequest the join request that was sent to the perceived master node.
          * @param exception the error response received in reply to the join request attempt.
          */
         FailedJoinAttempt(DiscoveryNode destination, JoinRequest joinRequest, ElasticsearchException exception) {
@@ -219,15 +219,15 @@ public class JoinHelper {
         }
 
         /**
-         * Logs the failed join attempt exception. {@link FailedJoinAttempt#getLogLevel(ElasticsearchException)} determines at what
-         * log-level the log is written.
+         * Logs the failed join attempt exception.
+         * {@link FailedJoinAttempt#getLogLevel(ElasticsearchException)} determines at what log-level the log is written.
          */
         void logNow() {
             logger.log(getLogLevel(exception), () -> format("failed to join %s with %s", destination, joinRequest), exception);
         }
 
         /**
-         * Returns the log level based on the exception given. Every error is at least DEBUG, but unexpected ones are INFO.
+         * Returns the appropriate log level based on the given exception. Every error is at least DEBUG, but unexpected errors are INFO.
          * For example, NotMasterException and CircuitBreakingExceptions are DEBUG logs.
          */
         static Level getLogLevel(ElasticsearchException e) {
@@ -246,7 +246,7 @@ public class JoinHelper {
                     "last failed join attempt was %s ago, failed to join %s with %s",
                     // 'timestamp' is when this error exception was received by the local node. If the time that has passed since the error
                     // was originally received is quite large, it could indicate that this is a stale error exception from some prior
-                    // out-of-order request response (where a later sent request but earlier receive response was successful); or
+                    // out-of-order request response (where a later sent request but earlier received response was successful); or
                     // alternatively an old error could indicate that this node did not retry the join request for a very long time.
                     TimeValue.timeValueMillis(TimeValue.nsecToMSec(System.nanoTime() - timestamp)),
                     destination,
@@ -258,7 +258,7 @@ public class JoinHelper {
     }
 
     /**
-     * Logs a warning message if `lastFailedJoinAttempt` has been set.
+     * Logs a warning message if {@link #lastFailedJoinAttempt} has been set with a failure.
      */
     void logLastFailedJoinAttempt() {
         FailedJoinAttempt attempt = lastFailedJoinAttempt.get();

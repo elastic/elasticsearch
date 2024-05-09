@@ -283,9 +283,9 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
                 @Override
                 public void onResponse(List<ChunkedInferenceServiceResults> results) {
                     try {
-                        for (int i = 0; i < results.size(); i++) {
-                            var request = requests.get(i);
-                            var result = results.get(i);
+                        var requestsIterator = requests.iterator();
+                        for (ChunkedInferenceServiceResults result : results) {
+                            var request = requestsIterator.next();
                             var acc = inferenceResults.get(request.index);
                             if (result instanceof ErrorChunkedInferenceResults error) {
                                 acc.addFailure(
@@ -317,8 +317,7 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
                 @Override
                 public void onFailure(Exception exc) {
                     try {
-                        for (int i = 0; i < requests.size(); i++) {
-                            var request = requests.get(i);
+                        for (FieldInferenceRequest request : requests) {
                             addInferenceResponseFailure(
                                 request.index,
                                 new ElasticsearchException(

@@ -157,7 +157,7 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
         try {
             assumeTrue(
                 "Test " + testName + " requires " + testCase.requiredCapabilities,
-                clusterHasCapability(client, "POST", "/_query", testCase.requiredCapabilities)
+                clusterHasCapability(client, "POST", "/_query", List.of(), testCase.requiredCapabilities)
             );
         } catch (ResponseException e) {
             if (e.getResponse().getStatusLine().getStatusCode() / 100 == 4) {

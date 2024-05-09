@@ -110,6 +110,8 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.loadMapping;
 import static org.elasticsearch.xpack.ql.CsvSpecReader.specParser;
 import static org.elasticsearch.xpack.ql.TestUtils.classpathResources;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 
@@ -144,7 +146,6 @@ import static org.hamcrest.Matchers.notNullValue;
 public class CsvTests extends ESTestCase {
 
     private static final Logger LOGGER = LogManager.getLogger(CsvTests.class);
-    private static final String IGNORED_CSV_FILE_NAMES_PATTERN = "-IT_tests_only";
 
     private final String fileName;
     private final String groupName;
@@ -164,10 +165,8 @@ public class CsvTests extends ESTestCase {
 
     @ParametersFactory(argumentFormatting = "%2$s.%3$s")
     public static List<Object[]> readScriptSpec() throws Exception {
-        List<URL> urls = classpathResources("/*.csv-spec").stream()
-            .filter(x -> x.toString().contains(IGNORED_CSV_FILE_NAMES_PATTERN) == false)
-            .toList();
-        assertTrue("Not enough specs found " + urls, urls.size() > 0);
+        List<URL> urls = classpathResources("/*.csv-spec");
+        assertThat("Not enough specs found " + urls, urls, hasSize(greaterThan(0)));
         return SpecReader.readScriptSpec(urls, specParser());
     }
 

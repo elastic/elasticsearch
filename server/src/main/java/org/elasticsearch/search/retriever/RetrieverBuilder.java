@@ -74,9 +74,9 @@ public abstract class RetrieverBuilder implements ToXContent {
                 if (categoryClass.equals(RetrieverBuilder.class)) {
                     nestedDepth++;
 
-                    if (nestedDepth > 2) {
+                    if (nestedDepth > 3) {
                         throw new IllegalArgumentException(
-                            "the nested depth of the [" + name + "] retriever exceeds the maximum nested depth [2] for retrievers"
+                            "the nested depth of the [" + name + "] retriever exceeds the maximum nested depth [3] for retrievers"
                         );
                     }
                 }

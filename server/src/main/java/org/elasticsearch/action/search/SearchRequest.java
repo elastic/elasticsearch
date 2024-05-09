@@ -383,9 +383,9 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
 
                 }
             }
-            if (source.subSearches().size() >= 2 && source.rankBuilder() == null) {
-                validationException = addValidationError("[sub_searches] requires [rank]", validationException);
-            }
+//            if (source.subSearches().size() >= 2 && source.rankBuilder() == null) {
+//                validationException = addValidationError("[sub_searches] requires [rank]", validationException);
+//            }
             if (source.aggregations() != null) {
                 validationException = source.aggregations().validate(validationException);
             }

@@ -11,7 +11,9 @@ import org.elasticsearch.Version;
 import org.elasticsearch.features.FeatureSpecification;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.license.License;
+import org.elasticsearch.search.retriever.LinearCombinationRetrieverBuilder;
 import org.elasticsearch.xpack.core.datatiers.NodesDataTiersUsageTransportAction;
+import org.elasticsearch.xpack.core.ml.rerank.TextSimilarityRankRetrieverBuilder;
 
 import java.util.Map;
 import java.util.Set;
@@ -25,7 +27,9 @@ public class XPackFeatures implements FeatureSpecification {
     public Set<NodeFeature> getFeatures() {
         return Set.of(
             NodesDataTiersUsageTransportAction.LOCALLY_PRECALCULATED_STATS_FEATURE, // Added in 8.12
-            License.INDEPENDENT_TRIAL_VERSION_FEATURE // 8.14.0
+            License.INDEPENDENT_TRIAL_VERSION_FEATURE, // 8.14.0
+            TextSimilarityRankRetrieverBuilder.NODE_FEATURE,
+            LinearCombinationRetrieverBuilder.NODE_FEATURE
         );
     }
 

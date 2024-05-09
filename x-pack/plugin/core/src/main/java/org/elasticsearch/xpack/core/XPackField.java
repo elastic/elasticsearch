@@ -90,6 +90,9 @@ public final class XPackField {
     /* Name for Universal Profiling. */
     public static final String UNIVERSAL_PROFILING = "universal_profiling";
 
+    public static final String TEXT_SIMILARITY_RERANKER = "text_similarity_reranker";
+    public static final String LINEAR_COMBINATION_RETRIEVER = "linear_combination";
+
     private XPackField() {}
 
     public static String featureSettingPrefix(String featureName) {

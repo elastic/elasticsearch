@@ -84,19 +84,17 @@ public abstract class ItemSetMapReduceAggregator<
             ? contextSearcher.createWeight(contextSearcher.rewrite(context.buildQuery(documentFilter)), ScoreMode.COMPLETE_NO_SCORES, 1f)
             : null;
 
-        boolean rewriteBasedOnOrdinals = false;
+        boolean rewriteBasedOnOrdinals = true;
 
-        if (ctx.isPresent()) {
-            for (var c : configsAndValueFilters) {
-                ItemSetMapReduceValueSource e = context.getValuesSourceRegistry()
-                    .getAggregator(registryKey, c.v1())
-                    .build(c.v1(), id++, c.v2(), ordinalOptimization, ctx.get());
-                if (e.getField().getName() != null) {
-                    fields.add(e.getField());
-                    valueSources.add(e);
-                }
-                rewriteBasedOnOrdinals |= e.usesOrdinals();
+        for (var c : configsAndValueFilters) {
+            ItemSetMapReduceValueSource e = context.getValuesSourceRegistry()
+                .getAggregator(registryKey, c.v1())
+                .build(c.v1(), id++, c.v2(), ordinalOptimization, ctx);
+            if (e.getField().getName() != null) {
+                fields.add(e.getField());
+                valueSources.add(e);
             }
+            rewriteBasedOnOrdinals |= e.usesOrdinals();
         }
 
         this.rewriteBasedOnOrdinals = rewriteBasedOnOrdinals;

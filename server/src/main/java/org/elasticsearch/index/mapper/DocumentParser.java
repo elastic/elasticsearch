@@ -85,8 +85,6 @@ public final class DocumentParser {
             internalParseDocument(metadataFieldsMappers, context);
             validateEnd(context.parser());
 
-            // documentSizeReporter.onParsingCompleted(context.rootDoc(), documentSizeObserver.normalisedBytesParsed());
-
         } catch (XContentParseException e) {
             throw new DocumentParsingException(e.getLocation(), e.getMessage(), e);
         } catch (IOException e) {

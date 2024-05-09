@@ -38,7 +38,7 @@ account,
 
 [discrete]
 [[cohere-es-packages]]
-==== Istall required packages
+==== Install required packages
 
 Install {es} and Cohere:
 

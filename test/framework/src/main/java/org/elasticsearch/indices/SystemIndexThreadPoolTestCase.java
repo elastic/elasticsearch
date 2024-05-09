@@ -14,6 +14,7 @@ import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.threadpool.ThreadPoolStats;
 
 import java.util.Map;
 import java.util.Set;
@@ -21,6 +22,7 @@ import java.util.concurrent.Phaser;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.startsWith;
 
 /**
@@ -69,7 +71,6 @@ public abstract class SystemIndexThreadPoolTestCase extends ESIntegTestCase {
         }
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/107625")
     public void testUserThreadPoolsAreBlocked() {
         assertAcked(client().admin().indices().prepareCreate(USER_INDEX));
 
@@ -113,6 +114,18 @@ public abstract class SystemIndexThreadPoolTestCase extends ESIntegTestCase {
                         // we can't be sure that some other task won't get queued in a test cluster
                         // but we should put all the tasks in there anyway
                     }
+                }
+            }
+        }
+
+        // making sure queues are full and threadpools are blocked
+        for (String nodeName : internalCluster().getNodeNames()) {
+            ThreadPool threadPool = internalCluster().getInstance(ThreadPool.class, nodeName);
+            for (ThreadPoolStats.Stats stat : threadPool.stats()) {
+                if (threadPoolsToBlock().contains(stat.name())) {
+                    ThreadPool.Info info = threadPool.info(stat.name());
+                    assertThat(stat.threads(), equalTo(stat.active()));
+                    assertThat(stat.queue(), equalTo(info.getQueueSize().singles()));
                 }
             }
         }

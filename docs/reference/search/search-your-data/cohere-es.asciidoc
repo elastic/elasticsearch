@@ -10,6 +10,7 @@ search in {es}. This tutorial will use the Python {es} client to perform the
 operations.
 
 You'll learn how to:
+
 * create an {infer} endpoint for text embedding using the Cohere service,
 * create the necessary index mapping for the {es} index,
 * build an {infer} pipeline to ingest documents into the index together with the
@@ -141,8 +142,8 @@ client.indices.create(
 [[cohere-es-infer-pipeline]]
 ==== Create the {infer} pipeline
 
-You have an {infer} endpoint and an index ready to store embeddings. The next
-step is to create an <<ingest,ingest pipeline>> with an
+Now you have an {infer} endpoint and an index ready to store embeddings. The
+next step is to create an <<ingest,ingest pipeline>> with an
 <<inference-processor,{infer} processor>> that will create the embeddings using
 the {infer} endpoint and stores them in the index.
 

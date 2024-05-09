@@ -58,7 +58,7 @@ public class FailureStoreQueryParamIT extends DisabledSecurityDataStreamTestCase
         assertThat(dataStreams.size(), is(1));
         Map<String, Object> dataStream = (Map<String, Object>) dataStreams.get(0);
         assertThat(dataStream.get("name"), equalTo(DATA_STREAM_NAME));
-        List<String> backingIndices = getBackingIndices(dataStream);
+        List<String> backingIndices = getIndices(dataStream);
         assertThat(backingIndices.size(), is(1));
         List<String> failureStore = getFailureStore(dataStream);
         assertThat(failureStore.size(), is(1));
@@ -197,10 +197,6 @@ public class FailureStoreQueryParamIT extends DisabledSecurityDataStreamTestCase
             Map<String, Object> response = entityAsMap(responseException.getResponse());
             assertThat(((Map<String, Object>) response.get("error")).get("reason"), is("failure index not supported"));
         }
-    }
-
-    private List<String> getBackingIndices(Map<String, Object> response) {
-        return getIndices(response);
     }
 
     @SuppressWarnings("unchecked")

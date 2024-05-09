@@ -48,7 +48,7 @@ public class MvSliceTests extends AbstractFunctionTestCase {
                 (nullPosition, nullValueDataType, original) -> nullPosition == 0 && nullValueDataType == DataTypes.NULL
                     ? DataTypes.NULL
                     : original.expectedType(),
-                (nullPosition, original) -> original
+                (nullPosition, nullData, original) -> original
             )
         );
     }

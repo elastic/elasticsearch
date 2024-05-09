@@ -26,6 +26,10 @@ import java.util.Set;
  * All feature checks should be done through {@code FeatureService} to ensure that Elasticsearch's
  * guarantees on the introduction of new functionality are followed;
  * that is, new functionality is not enabled until all nodes in the cluster support it.
+ * <p>
+ * <b>Note:</b> {@link FeatureSpecification}s are loaded as service providers, however tests are not fully modularized yet.
+ * Make sure to also register new specifications in {@code META-INF/services/org.elasticsearch.features.FeatureSpecification},
+ * so they are available in tests as well.
  */
 public interface FeatureSpecification {
     /**

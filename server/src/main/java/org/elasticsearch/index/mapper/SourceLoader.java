@@ -126,7 +126,7 @@ public interface SourceLoader {
             @Override
             public Source source(LeafStoredFieldLoader storedFieldLoader, int docId) throws IOException {
                 // Maps the names of existing objects to lists of ignored fields they contain.
-                Map<String, List<IgnoredSourceFieldMapper.NameValue>> objectsWithIgnoredFields = new HashMap<>();
+                Map<String, List<IgnoredSourceFieldMapper.NameValue>> objectsWithIgnoredFields = null;
 
                 for (Map.Entry<String, List<Object>> e : storedFieldLoader.storedFields().entrySet()) {
                     SyntheticFieldLoader.StoredFieldLoader loader = storedFieldLoaders.get(e.getKey());
@@ -135,12 +135,17 @@ public interface SourceLoader {
                     }
                     if (IgnoredSourceFieldMapper.NAME.equals(e.getKey())) {
                         for (Object value : e.getValue()) {
+                            if (objectsWithIgnoredFields == null) {
+                                objectsWithIgnoredFields = new HashMap<>();
+                            }
                             IgnoredSourceFieldMapper.NameValue nameValue = IgnoredSourceFieldMapper.decode(value);
                             objectsWithIgnoredFields.computeIfAbsent(nameValue.getParentFieldName(), k -> new ArrayList<>()).add(nameValue);
                         }
                     }
                 }
-                loader.setIgnoredValues(objectsWithIgnoredFields);
+                if (objectsWithIgnoredFields != null) {
+                    loader.setIgnoredValues(objectsWithIgnoredFields);
+                }
                 if (docValuesLoader != null) {
                     docValuesLoader.advanceToDoc(docId);
                 }

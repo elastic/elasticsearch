@@ -844,6 +844,15 @@ public enum RangeType {
         return included ? value : (Number) nextDown(value);
     }
 
+    public Object defaultFrom(boolean included) {
+        return included ? minValue() : nextUp(minValue());
+
+    }
+
+    public Object defaultTo(boolean included) {
+        return included ? maxValue() : nextDown(maxValue());
+    }
+
     public abstract Object minValue();
 
     public abstract Object maxValue();

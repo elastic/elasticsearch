@@ -44,6 +44,7 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.cluster.metadata.DataStream;
+import org.elasticsearch.cluster.service.ClusterApplierService;
 import org.elasticsearch.common.lucene.LoggerInfoStream;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
@@ -663,8 +664,8 @@ public class InternalEngine extends Engine {
     }
 
     // Package private for testing purposes only
-    boolean hasSnapshottedCommits() {
-        return combinedDeletionPolicy.hasSnapshottedCommits();
+    boolean hasAcquiredIndexCommits() {
+        return combinedDeletionPolicy.hasAcquiredIndexCommits();
     }
 
     @Override
@@ -2629,6 +2630,7 @@ public class InternalEngine extends Engine {
                 // no need to commit in this case!, we snapshot before we close the shard, so translog and all sync'ed
                 logger.trace("rollback indexWriter");
                 try {
+                    assert ClusterApplierService.assertNotApplyingClusterState();
                     indexWriter.rollback();
                 } catch (AlreadyClosedException ex) {
                     failOnTragicEvent(ex);

@@ -1,0 +1,6 @@
+pr: 107891
+summary: Fix `startOffset` must be non-negative error in XLMRoBERTa tokenizer
+area: Machine Learning
+type: bug
+issues:
+ - 104626

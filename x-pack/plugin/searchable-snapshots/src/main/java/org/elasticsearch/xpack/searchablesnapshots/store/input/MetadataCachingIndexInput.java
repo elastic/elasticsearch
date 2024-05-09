@@ -644,7 +644,11 @@ public abstract class MetadataCachingIndexInput extends BlobCacheBufferedIndexIn
     }
 
     @Override
-    public MetadataCachingIndexInput clone() {
+    public IndexInput clone() {
+        var bufferClone = tryCloneBuffer();
+        if (bufferClone != null) {
+            return bufferClone;
+        }
         final MetadataCachingIndexInput clone = (MetadataCachingIndexInput) super.clone();
         clone.closed = new AtomicBoolean(false);
         clone.isClone = true;

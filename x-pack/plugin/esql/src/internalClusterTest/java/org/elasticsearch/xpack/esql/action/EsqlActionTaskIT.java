@@ -114,7 +114,7 @@ public class EsqlActionTaskIT extends AbstractPausableIntegTestCase {
                 assertThat(status.sessionId(), not(emptyOrNullString()));
                 for (DriverStatus.OperatorStatus o : status.activeOperators()) {
                     logger.info("status {}", o);
-                    if (o.operator().startsWith("LuceneSourceOperator[maxPageSize=" + pageSize())) {
+                    if (o.operator().startsWith("LuceneSourceOperator[maxPageSize = " + pageSize())) {
                         LuceneSourceOperator.Status oStatus = (LuceneSourceOperator.Status) o.status();
                         assertThat(oStatus.processedSlices(), lessThanOrEqualTo(oStatus.totalSlices()));
                         assertThat(oStatus.processedQueries(), equalTo(Set.of("*:*")));

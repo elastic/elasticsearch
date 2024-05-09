@@ -76,22 +76,14 @@ public class GetDataStreamsResponseTests extends AbstractWireSerializingTestCase
         List<Index> failureStores = List.of(failureStoreIndex);
         {
             // data stream has an enabled lifecycle
-            DataStream logs = new DataStream(
-                "logs",
-                indices,
-                3,
-                null,
-                false,
-                false,
-                false,
-                true,
-                IndexMode.STANDARD,
-                new DataStreamLifecycle(),
-                true,
-                failureStores,
-                false,
-                null
-            );
+            DataStream logs = DataStream.builder("logs", indices)
+                .setGeneration(3)
+                .setAllowCustomRouting(true)
+                .setIndexMode(IndexMode.STANDARD)
+                .setLifecycle(new DataStreamLifecycle())
+                .setFailureStoreEnabled(true)
+                .setFailureIndices(failureStores)
+                .build();
 
             String ilmPolicyName = "rollover-30days";
             Map<Index, Response.IndexProperties> indexSettingsValues = Map.of(
@@ -166,7 +158,7 @@ public class GetDataStreamsResponseTests extends AbstractWireSerializingTestCase
                     is(ManagedBy.LIFECYCLE.displayValue)
                 );
 
-                if (DataStream.isFailureStoreEnabled()) {
+                if (DataStream.isFailureStoreFeatureFlagEnabled()) {
                     List<Object> failureStoresRepresentation = (List<Object>) dataStreamMap.get(
                         DataStream.FAILURE_INDICES_FIELD.getPreferredName()
                     );
@@ -187,22 +179,14 @@ public class GetDataStreamsResponseTests extends AbstractWireSerializingTestCase
 
         {
             // data stream has a lifecycle that's not enabled
-            DataStream logs = new DataStream(
-                "logs",
-                indices,
-                3,
-                null,
-                false,
-                false,
-                false,
-                true,
-                IndexMode.STANDARD,
-                new DataStreamLifecycle(null, null, false),
-                true,
-                failureStores,
-                false,
-                null
-            );
+            DataStream logs = DataStream.builder("logs", indices)
+                .setGeneration(3)
+                .setAllowCustomRouting(true)
+                .setIndexMode(IndexMode.STANDARD)
+                .setLifecycle(new DataStreamLifecycle(null, null, false))
+                .setFailureStoreEnabled(true)
+                .setFailureIndices(failureStores)
+                .build();
 
             String ilmPolicyName = "rollover-30days";
             Map<Index, Response.IndexProperties> indexSettingsValues = Map.of(
@@ -266,7 +250,7 @@ public class GetDataStreamsResponseTests extends AbstractWireSerializingTestCase
                     is(ManagedBy.UNMANAGED.displayValue)
                 );
 
-                if (DataStream.isFailureStoreEnabled()) {
+                if (DataStream.isFailureStoreFeatureFlagEnabled()) {
                     List<Object> failureStoresRepresentation = (List<Object>) dataStreamMap.get(
                         DataStream.FAILURE_INDICES_FIELD.getPreferredName()
                     );

@@ -1,9 +1,9 @@
 ---
 "Simulate an index with the same name as a data stream that already exists":
-  - skip:
-      version: " - 8.1.99"
+  - requires:
+      cluster_features: ["gte_v8.2.0"]
       reason: "simulating index template API for an existing index has not yet been backported"
-      features: ["default_shards"]
+      test_runner_features: ["default_shards"]
 
   - do:
       indices.put_index_template:

@@ -94,6 +94,11 @@ setup:
           status:
             job_state: "stopped"
 
+  - do: {xpack.usage: {}}
+  - match: { rollup.available: true }
+  - match: { rollup.enabled: true }
+  - match: { rollup.number_of_rollup_jobs: 1 }
+
 ---
 "Test put_job with existing name":
 
@@ -357,8 +362,8 @@ setup:
 
 ---
 "Test put_job with comma-delimited index pattern":
-  - skip:
-      version: " - 8.1.99"
+  - requires:
+      cluster_features: ["gte_v8.2.0"]
       reason: Comma delimited index pattern introduced in 8.2.0
 
   - do:

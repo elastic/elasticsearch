@@ -89,6 +89,7 @@ public class S3RepositoryTests extends ESTestCase {
 
     private Settings bufferAndChunkSettings(long buffer, long chunk) {
         return Settings.builder()
+            .put(S3Repository.BUCKET_SETTING.getKey(), "bucket")
             .put(S3Repository.BUFFER_SIZE_SETTING.getKey(), new ByteSizeValue(buffer, ByteSizeUnit.MB).getStringRep())
             .put(S3Repository.CHUNK_SIZE_SETTING.getKey(), new ByteSizeValue(chunk, ByteSizeUnit.MB).getStringRep())
             .build();
@@ -102,7 +103,10 @@ public class S3RepositoryTests extends ESTestCase {
         final RepositoryMetadata metadata = new RepositoryMetadata(
             "dummy-repo",
             "mock",
-            Settings.builder().put(S3Repository.BASE_PATH_SETTING.getKey(), "foo/bar").build()
+            Settings.builder()
+                .put(S3Repository.BUCKET_SETTING.getKey(), "bucket")
+                .put(S3Repository.BASE_PATH_SETTING.getKey(), "foo/bar")
+                .build()
         );
         try (S3Repository s3repo = createS3Repo(metadata)) {
             assertEquals("foo/bar/", s3repo.basePath().buildAsString());
@@ -110,7 +114,11 @@ public class S3RepositoryTests extends ESTestCase {
     }
 
     public void testDefaultBufferSize() {
-        final RepositoryMetadata metadata = new RepositoryMetadata("dummy-repo", "mock", Settings.EMPTY);
+        final RepositoryMetadata metadata = new RepositoryMetadata(
+            "dummy-repo",
+            "mock",
+            Settings.builder().put(S3Repository.BUCKET_SETTING.getKey(), "bucket").build()
+        );
         try (S3Repository s3repo = createS3Repo(metadata)) {
             assertThat(s3repo.getBlobStore(), is(nullValue()));
             s3repo.start();
@@ -119,6 +127,17 @@ public class S3RepositoryTests extends ESTestCase {
             assertThat(defaultBufferSize, Matchers.lessThanOrEqualTo(100L * 1024 * 1024));
             assertThat(defaultBufferSize, Matchers.greaterThanOrEqualTo(5L * 1024 * 1024));
         }
+    }
+
+    public void testMissingBucketName() {
+        final var metadata = new RepositoryMetadata("repo", "mock", Settings.EMPTY);
+        assertThrows(IllegalArgumentException.class, () -> createS3Repo(metadata));
+    }
+
+    public void testEmptyBucketName() {
+        final var settings = Settings.builder().put(S3Repository.BUCKET_SETTING.getKey(), "").build();
+        final var metadata = new RepositoryMetadata("repo", "mock", settings);
+        assertThrows(IllegalArgumentException.class, () -> createS3Repo(metadata));
     }
 
     private S3Repository createS3Repo(RepositoryMetadata metadata) {
@@ -130,11 +149,7 @@ public class S3RepositoryTests extends ESTestCase {
             MockBigArrays.NON_RECYCLING_INSTANCE,
             new RecoverySettings(Settings.EMPTY, new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)),
             S3RepositoriesMetrics.NOOP
-        ) {
-            @Override
-            protected void assertSnapshotOrStatelessPermittedThreadPool() {
-                // eliminate thread name check as we create repo manually on test/main threads
-            }
-        };
+        );
     }
+
 }

@@ -70,6 +70,29 @@ emp_no:integer | last_name:keyword | gender:keyword | f_l:boolean
 10010 | Piveteau  | null | null
 ;
 
+stringCast
+required_feature: esql.string_literal_auto_casting
+
+ROW a = 1 | eval ss = substring("abcd", "2"), l = left("abcd", "2"), r = right("abcd", "2");
+
+a:integer | ss:keyword | l:keyword | r:keyword
+1         | bcd        | ab        | cd
+;
+
+stringCastEmp
+required_feature: esql.string_literal_auto_casting
+
+from employees
+| eval ss = substring(first_name, "2")
+| sort emp_no
+| keep emp_no, first_name, ss
+| limit 2;
+
+emp_no: integer | first_name:keyword | ss:keyword
+10001           | Georgi             | eorgi
+10002           | Bezalel            | ezalel
+;
+
 substring
 from employees | where emp_no <= 10010 | eval f_l = substring(last_name, 3) | keep emp_no, last_name, f_l;
 ignoreOrder:true
@@ -748,6 +771,16 @@ emp_no:integer | job_positions:keyword                                          
 10005          | null                                                                   | null                                                                   | null
 ;
 
+mvSliceCast
+required_feature: esql.string_literal_auto_casting
+
+ROW a = ["1", "2", "3", "4"]
+| eval a1 = mv_slice(a, "0", "1");
+
+a:keyword            | a1:keyword
+["1", "2", "3", "4"] | ["1", "2"]
+;
+
 mvSliceEmp
 required_feature: esql.mv_sort
 
@@ -1177,10 +1210,16 @@ M              | [foo, bar]
 ;
 
 locate#[skip:-8.13.99,reason:new string function added in 8.14]
-row a = "hello" | eval a_ll = locate(a, "ll");
+// tag::locate[]
+row a = "hello"
+| eval a_ll = locate(a, "ll")
+// end::locate[]
+;
 
+// tag::locate-result[]
 a:keyword | a_ll:integer
-hello | 3
+hello     | 3
+// end::locate-result[]
 ;
 
 locateFail#[skip:-8.13.99,reason:new string function added in 8.14]
@@ -1286,4 +1325,51 @@ l1:integer | l2:integer
 2          | null
 2          | null
 null       | 0
+;
+
+base64Encode#[skip:-8.13.99,reason:new base64 function added in 8.14]
+required_feature: esql.base64_decode_encode
+
+// tag::to_base64[]
+row a = "elastic" 
+| eval e = to_base64(a)
+// end::to_base64[]
+;
+
+// tag::to_base64-result[]
+a:keyword | e:keyword
+elastic   | ZWxhc3RpYw==
+// end::to_base64-result[]
+;
+
+base64Decode#[skip:-8.13.99,reason:new base64 function added in 8.14]
+required_feature: esql.base64_decode_encode
+
+// tag::from_base64[]
+row a = "ZWxhc3RpYw==" 
+| eval d = from_base64(a)
+// end::from_base64[]
+;
+
+// tag::from_base64-result[]
+a:keyword    | d:keyword
+ZWxhc3RpYw== | elastic
+// end::from_base64-result[]
+;
+
+base64EncodeDecodeEmp#[skip:-8.13.99,reason:new base64 function added in 8.14]
+required_feature: esql.base64_decode_encode
+
+from employees
+| where emp_no < 10032 and emp_no > 10027
+| eval e = to_base64(first_name), d = from_base64(e)
+| keep emp_no, first_name, e, d
+| sort emp_no
+;
+
+emp_no:integer | first_name:keyword | e:keyword    | d:keyword
+10028          | Domenick           | RG9tZW5pY2s= | Domenick
+10029          | Otmar              | T3RtYXI=     | Otmar
+10030          | null               | null         | null
+10031          | null               | null         | null
 ;

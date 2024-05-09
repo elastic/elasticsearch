@@ -52,10 +52,7 @@ IMPORTANT: Several options for this API can be specified using a query parameter
 or a request body parameter. If both parameters are specified, only the query
 parameter is used.
 
-`master_timeout`::
-(Optional, <<time-units, time units>>) Specifies the period of time to wait for
-a connection to the master node. If no response is received before the timeout
-expires, the request fails and returns an error. Defaults to `30s`.
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=master-timeout]
 
 `timeout`::
 (Optional, <<time-units, time units>>) Specifies the period of time to wait for

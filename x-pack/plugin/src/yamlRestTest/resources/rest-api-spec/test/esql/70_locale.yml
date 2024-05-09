@@ -1,9 +1,9 @@
 ---
 setup:
-  - skip:
-      version: " - 8.10.99"
+  - requires:
+      cluster_features: ["gte_v8.11.0"]
       reason: "ESQL is available in 8.11+"
-      features: allowed_warnings_regex
+      test_runner_features: allowed_warnings_regex
   - do:
       indices.create:
         index: events
@@ -32,6 +32,7 @@ setup:
       esql.query:
         body:
           query: 'FROM events | eval fixed_format = date_format("MMMM", @timestamp), variable_format = date_format(format, @timestamp) | sort @timestamp | keep @timestamp, fixed_format, variable_format'
+          version: 2024.04.01
 
   - match: { columns.0.name: "@timestamp" }
   - match: { columns.0.type: "date" }
@@ -54,6 +55,7 @@ setup:
         body:
           query: 'FROM events | eval fixed_format = date_format("MMMM", @timestamp), variable_format = date_format(format, @timestamp) | sort @timestamp | keep @timestamp, fixed_format, variable_format'
           locale: "it-IT"
+          version: 2024.04.01
 
   - match: { columns.0.name: "@timestamp" }
   - match: { columns.0.type: "date" }

@@ -1,0 +1,5 @@
+pr: 107411
+summary: Invalidating cross cluster API keys requires `manage_security`
+area: Security
+type: enhancement
+issues: []

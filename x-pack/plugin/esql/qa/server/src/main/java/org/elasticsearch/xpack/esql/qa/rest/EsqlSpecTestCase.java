@@ -9,10 +9,12 @@ package org.elasticsearch.xpack.esql.qa.rest;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.apache.http.HttpEntity;
+import org.apache.http.HttpStatus;
 import org.elasticsearch.Build;
 import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.ResponseException;
+import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.geometry.Point;
@@ -21,6 +23,7 @@ import org.elasticsearch.geometry.utils.WellKnownText;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.test.rest.ESRestTestCase;
+import org.elasticsearch.test.rest.TestFeatureService;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.esql.CsvTestUtils;
 import org.elasticsearch.xpack.esql.qa.rest.RestEsqlTestCase.RequestObjectBuilder;
@@ -146,10 +149,35 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
     }
 
     protected void shouldSkipTest(String testName) throws IOException {
-        for (String feature : testCase.requiredFeatures) {
-            assumeTrue("Test " + testName + " requires " + feature, clusterHasFeature(feature));
-        }
+        checkCapabilities(adminClient(), testFeatureService, testName, testCase);
         assumeTrue("Test " + testName + " is not enabled", isEnabled(testName, Version.CURRENT));
+    }
+
+    protected static void checkCapabilities(RestClient client, TestFeatureService testFeatureService, String testName, CsvTestCase testCase)
+        throws IOException {
+        try {
+            assumeTrue(
+                "Test " + testName + " requires " + testCase.requiredCapabilities,
+                clusterHasCapability(client, "POST", "/_query", testCase.requiredCapabilities)
+            );
+        } catch (ResponseException e) {
+            if (e.getResponse().getStatusLine().getStatusCode() / 100 == 4) {
+                /*
+                 * The node we're testing against is too old for the capabilities
+                 * API which means it has to be pretty old. Very old capabilities
+                 * are ALSO present in the features API, so we can check them instead.
+                 *
+                 * It's kind of weird that we check for *any* 400, but that's required
+                 * because old versions of Elasticsearch return 400, not the expected
+                 * 404.
+                 */
+                for (String feature : testCase.requiredCapabilities) {
+                    assumeTrue("Test " + testName + " requires " + feature, testFeatureService.clusterHasFeature("esql." + feature));
+                }
+            } else {
+                throw e;
+            }
+        }
     }
 
     protected final void doTest() throws Throwable {

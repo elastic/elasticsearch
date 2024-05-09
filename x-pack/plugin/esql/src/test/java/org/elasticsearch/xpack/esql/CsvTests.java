@@ -73,7 +73,6 @@ import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner.LocalExecution
 import org.elasticsearch.xpack.esql.planner.Mapper;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 import org.elasticsearch.xpack.esql.planner.TestPhysicalOperationProviders;
-import org.elasticsearch.xpack.esql.plugin.EsqlFeatures;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.esql.session.EsqlConfiguration;
 import org.elasticsearch.xpack.esql.stats.DisabledSearchStats;
@@ -223,8 +222,8 @@ public class CsvTests extends ESTestCase {
              * The csv tests support all but a few features. The unsupported features
              * are tested in integration tests.
              */
-            assumeFalse("metadata fields aren't supported", testCase.requiredFeatures.contains(EsqlFeatures.METADATA_FIELDS.id()));
-            assumeFalse("enrich can't load fields in csv tests", testCase.requiredFeatures.contains(EsqlFeatures.ENRICH_LOAD.id()));
+            assumeFalse("metadata fields aren't supported", testCase.requiredCapabilities.contains("metadata_fields"));
+            assumeFalse("enrich can't load fields in csv tests", testCase.requiredCapabilities.contains("enrich_load"));
             doTest();
         } catch (Throwable th) {
             throw reworkException(th);

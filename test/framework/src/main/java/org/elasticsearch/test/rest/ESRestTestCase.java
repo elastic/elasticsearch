@@ -105,6 +105,7 @@ import java.security.cert.CertificateException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Base64;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.EnumSet;
 import java.util.HashMap;
@@ -267,6 +268,28 @@ public abstract class ESRestTestCase extends ESTestCase {
 
     protected static boolean clusterHasFeature(NodeFeature feature) {
         return testFeatureService.clusterHasFeature(feature.id());
+    }
+
+    /**
+     * Does the cluster being tested support the set of capabilities
+     * for specified path and method.
+     */
+    protected static boolean clusterHasCapability(String method, String path, Collection<String> capabilities) throws IOException {
+        return clusterHasCapability(adminClient, method, path, capabilities);
+    }
+
+    /**
+     * Does the cluster on the other side of {@code client} support the set
+     * of capabilities for specified path and method.
+     */
+    protected static boolean clusterHasCapability(RestClient client, String method, String path, Collection<String> capabilities)
+        throws IOException {
+        Request request = new Request("GET", "_capabilities");
+        request.addParameter("method", method);
+        request.addParameter("path", path);
+        request.addParameter("capabilities", String.join(",", capabilities));
+        Map<String, Object> response = entityAsMap(client.performRequest(request).getEntity());
+        return (boolean) response.get("supported");
     }
 
     protected static boolean testFeatureServiceInitialized() {

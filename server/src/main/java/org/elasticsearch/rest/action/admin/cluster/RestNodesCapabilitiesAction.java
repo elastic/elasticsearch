@@ -33,7 +33,7 @@ public class RestNodesCapabilitiesAction extends BaseRestHandler {
 
     @Override
     public Set<String> supportedQueryParameters() {
-        return Set.of("timeout", "method", "path", "parameters", "capabilities");
+        return Set.of("timeout", "method", "path", "parameters", "capabilities", "pretty");
     }
 
     @Override

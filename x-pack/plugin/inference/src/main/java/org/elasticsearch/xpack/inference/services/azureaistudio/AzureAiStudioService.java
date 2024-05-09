@@ -71,11 +71,8 @@ public class AzureAiStudioService extends SenderService {
     ) {
         var actionCreator = new AzureAiStudioActionCreator(getSender(), getServiceComponents());
 
-        if (model instanceof AzureAiStudioEmbeddingsModel embeddingsModel) {
-            var action = actionCreator.create(embeddingsModel, taskSettings);
-            action.execute(new DocumentsOnlyInput(input), timeout, listener);
-        } else if (model instanceof AzureAiStudioChatCompletionModel completionModel) {
-            var action = actionCreator.create(completionModel, taskSettings);
+        if (model instanceof AzureAiStudioModel baseAzureAiStudioModel) {
+            var action = baseAzureAiStudioModel.accept(actionCreator, taskSettings);
             action.execute(new DocumentsOnlyInput(input), timeout, listener);
         } else {
             listener.onFailure(createInvalidModelException(model));
@@ -280,9 +277,6 @@ public class AzureAiStudioService extends SenderService {
                 this,
                 listener.delegateFailureAndWrap((l, size) -> l.onResponse(updateEmbeddingModelConfig(embeddingsModel, size)))
             );
-        } else if (model instanceof AzureAiStudioChatCompletionModel completionModel) {
-            // nothing to do - just return the model
-            listener.onResponse(completionModel);
         } else {
             listener.onResponse(model);
         }

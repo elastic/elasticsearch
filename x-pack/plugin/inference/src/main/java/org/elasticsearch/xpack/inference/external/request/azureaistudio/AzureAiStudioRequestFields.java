@@ -16,4 +16,6 @@ public final class AzureAiStudioRequestFields {
     public static final String MESSAGE_CONTENT = "content";
     public static final String ROLE = "role";
     public static final String USER_ROLE = "user";
+
+    private AzureAiStudioRequestFields() {}
 }

@@ -15,7 +15,7 @@ import org.elasticsearch.xpack.inference.external.http.HttpResult;
 import static org.hamcrest.Matchers.is;
 import static org.mockito.Mockito.mock;
 
-public class ErrorResponseEntityTests extends ESTestCase {
+public class AzureAndOpenAiErrorResponseEntityTests extends ESTestCase {
 
     private static HttpResult getMockResult(String jsonString) {
         var response = mock(HttpResponse.class);
@@ -26,7 +26,7 @@ public class ErrorResponseEntityTests extends ESTestCase {
         var result = getMockResult("""
             {"error":{"message":"test_error_message"}}""");
 
-        var error = ErrorResponseEntity.fromResponse(result);
+        var error = AzureAndOpenAiErrorResponseEntity.fromResponse(result);
         assertNotNull(error);
         assertThat(error.getErrorMessage(), is("test_error_message"));
     }
@@ -35,14 +35,14 @@ public class ErrorResponseEntityTests extends ESTestCase {
         var result = getMockResult("""
             {"noerror":true}""");
 
-        var error = ErrorResponseEntity.fromResponse(result);
+        var error = AzureAndOpenAiErrorResponseEntity.fromResponse(result);
         assertNull(error);
     }
 
     public void testErrorResponse_ReturnsNullIfNotJson() {
         var result = getMockResult("not a json string");
 
-        var error = ErrorResponseEntity.fromResponse(result);
+        var error = AzureAndOpenAiErrorResponseEntity.fromResponse(result);
         assertNull(error);
     }
 }

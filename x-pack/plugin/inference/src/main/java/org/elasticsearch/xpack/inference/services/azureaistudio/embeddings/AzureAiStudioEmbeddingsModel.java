@@ -11,6 +11,8 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
 import org.elasticsearch.inference.TaskType;
+import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
+import org.elasticsearch.xpack.inference.external.action.azureaistudio.AzureAiStudioActionVisitor;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.azureaistudio.AzureAiStudioEndpointType;
 import org.elasticsearch.xpack.inference.services.azureaistudio.AzureAiStudioModel;
@@ -91,5 +93,10 @@ public class AzureAiStudioEmbeddingsModel extends AzureAiStudioModel {
         }
 
         return new URI(this.target + EMBEDDINGS_URI_PATH);
+    }
+
+    @Override
+    public ExecutableAction accept(AzureAiStudioActionVisitor creator, Map<String, Object> taskSettings) {
+        return creator.create(this, taskSettings);
     }
 }

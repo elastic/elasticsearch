@@ -7,17 +7,17 @@
 
 package org.elasticsearch.xpack.inference.external.response.azureaistudio;
 
-import org.elasticsearch.xpack.core.inference.results.TextEmbeddingResults;
+import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.xpack.inference.external.http.HttpResult;
 import org.elasticsearch.xpack.inference.external.request.Request;
-import org.elasticsearch.xpack.inference.external.response.EmbeddingResponseEntity;
+import org.elasticsearch.xpack.inference.external.response.BaseResponseEntity;
 import org.elasticsearch.xpack.inference.external.response.openai.OpenAiEmbeddingsResponseEntity;
 
 import java.io.IOException;
 
-public class AzureAiStudioEmbeddingsResponseEntity extends EmbeddingResponseEntity {
+public class AzureAiStudioEmbeddingsResponseEntity extends BaseResponseEntity {
     @Override
-    protected TextEmbeddingResults fromResponse(Request request, HttpResult response) throws IOException {
+    protected InferenceServiceResults fromResponse(Request request, HttpResult response) throws IOException {
         // expected response type is the same as the Open AI Embeddings
         return OpenAiEmbeddingsResponseEntity.fromResponse(request, response);
     }

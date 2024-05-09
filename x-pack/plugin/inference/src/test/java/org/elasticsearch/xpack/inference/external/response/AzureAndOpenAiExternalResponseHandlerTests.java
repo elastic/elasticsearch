@@ -29,7 +29,7 @@ import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-public class ExternalResponseHandlerTests extends ESTestCase {
+public class AzureAndOpenAiExternalResponseHandlerTests extends ESTestCase {
 
     public void testCheckForFailureStatusCode() {
         var statusLine = mock(StatusLine.class);
@@ -42,7 +42,11 @@ public class ExternalResponseHandlerTests extends ESTestCase {
 
         var mockRequest = RequestTests.mockRequest("id");
         var httpResult = new HttpResult(httpResponse, new byte[] {});
-        var handler = new ExternalResponseHandler("", (request, result) -> null, ErrorResponseEntity::fromResponse);
+        var handler = new AzureAndOpenAiExternalResponseHandler(
+            "",
+            (request, result) -> null,
+            AzureAndOpenAiErrorResponseEntity::fromResponse
+        );
 
         // 200 ok
         when(statusLine.getStatusCode()).thenReturn(200);
@@ -153,20 +157,20 @@ public class ExternalResponseHandlerTests extends ESTestCase {
         var httpResult = new HttpResult(response, new byte[] {});
 
         {
-            when(response.getFirstHeader(ExternalResponseHandler.REQUESTS_LIMIT)).thenReturn(
-                new BasicHeader(ExternalResponseHandler.REQUESTS_LIMIT, "3000")
+            when(response.getFirstHeader(AzureAndOpenAiExternalResponseHandler.REQUESTS_LIMIT)).thenReturn(
+                new BasicHeader(AzureAndOpenAiExternalResponseHandler.REQUESTS_LIMIT, "3000")
             );
-            when(response.getFirstHeader(ExternalResponseHandler.REMAINING_REQUESTS)).thenReturn(
-                new BasicHeader(ExternalResponseHandler.REMAINING_REQUESTS, "2999")
+            when(response.getFirstHeader(AzureAndOpenAiExternalResponseHandler.REMAINING_REQUESTS)).thenReturn(
+                new BasicHeader(AzureAndOpenAiExternalResponseHandler.REMAINING_REQUESTS, "2999")
             );
-            when(response.getFirstHeader(ExternalResponseHandler.TOKENS_LIMIT)).thenReturn(
-                new BasicHeader(ExternalResponseHandler.TOKENS_LIMIT, "10000")
+            when(response.getFirstHeader(AzureAndOpenAiExternalResponseHandler.TOKENS_LIMIT)).thenReturn(
+                new BasicHeader(AzureAndOpenAiExternalResponseHandler.TOKENS_LIMIT, "10000")
             );
-            when(response.getFirstHeader(ExternalResponseHandler.REMAINING_TOKENS)).thenReturn(
-                new BasicHeader(ExternalResponseHandler.REMAINING_TOKENS, "99800")
+            when(response.getFirstHeader(AzureAndOpenAiExternalResponseHandler.REMAINING_TOKENS)).thenReturn(
+                new BasicHeader(AzureAndOpenAiExternalResponseHandler.REMAINING_TOKENS, "99800")
             );
 
-            var error = ExternalResponseHandler.buildRateLimitErrorMessage(httpResult);
+            var error = AzureAndOpenAiExternalResponseHandler.buildRateLimitErrorMessage(httpResult);
             assertThat(
                 error,
                 containsString("Token limit [10000], remaining tokens [99800]. Request limit [3000], remaining requests [2999]")
@@ -174,9 +178,9 @@ public class ExternalResponseHandlerTests extends ESTestCase {
         }
 
         {
-            when(response.getFirstHeader(ExternalResponseHandler.TOKENS_LIMIT)).thenReturn(null);
-            when(response.getFirstHeader(ExternalResponseHandler.REMAINING_TOKENS)).thenReturn(null);
-            var error = ExternalResponseHandler.buildRateLimitErrorMessage(httpResult);
+            when(response.getFirstHeader(AzureAndOpenAiExternalResponseHandler.TOKENS_LIMIT)).thenReturn(null);
+            when(response.getFirstHeader(AzureAndOpenAiExternalResponseHandler.REMAINING_TOKENS)).thenReturn(null);
+            var error = AzureAndOpenAiExternalResponseHandler.buildRateLimitErrorMessage(httpResult);
             assertThat(
                 error,
                 containsString("Token limit [unknown], remaining tokens [unknown]. Request limit [3000], remaining requests [2999]")
@@ -184,26 +188,26 @@ public class ExternalResponseHandlerTests extends ESTestCase {
         }
 
         {
-            when(response.getFirstHeader(ExternalResponseHandler.REQUESTS_LIMIT)).thenReturn(null);
-            when(response.getFirstHeader(ExternalResponseHandler.REMAINING_REQUESTS)).thenReturn(
-                new BasicHeader(ExternalResponseHandler.REMAINING_REQUESTS, "2999")
+            when(response.getFirstHeader(AzureAndOpenAiExternalResponseHandler.REQUESTS_LIMIT)).thenReturn(null);
+            when(response.getFirstHeader(AzureAndOpenAiExternalResponseHandler.REMAINING_REQUESTS)).thenReturn(
+                new BasicHeader(AzureAndOpenAiExternalResponseHandler.REMAINING_REQUESTS, "2999")
             );
-            when(response.getFirstHeader(ExternalResponseHandler.TOKENS_LIMIT)).thenReturn(null);
-            when(response.getFirstHeader(ExternalResponseHandler.REMAINING_TOKENS)).thenReturn(null);
-            var error = ExternalResponseHandler.buildRateLimitErrorMessage(httpResult);
+            when(response.getFirstHeader(AzureAndOpenAiExternalResponseHandler.TOKENS_LIMIT)).thenReturn(null);
+            when(response.getFirstHeader(AzureAndOpenAiExternalResponseHandler.REMAINING_TOKENS)).thenReturn(null);
+            var error = AzureAndOpenAiExternalResponseHandler.buildRateLimitErrorMessage(httpResult);
             assertThat(error, containsString("Remaining tokens [unknown]. Remaining requests [2999]"));
         }
 
         {
-            when(response.getFirstHeader(ExternalResponseHandler.REQUESTS_LIMIT)).thenReturn(null);
-            when(response.getFirstHeader(ExternalResponseHandler.REMAINING_REQUESTS)).thenReturn(
-                new BasicHeader(ExternalResponseHandler.REMAINING_REQUESTS, "2999")
+            when(response.getFirstHeader(AzureAndOpenAiExternalResponseHandler.REQUESTS_LIMIT)).thenReturn(null);
+            when(response.getFirstHeader(AzureAndOpenAiExternalResponseHandler.REMAINING_REQUESTS)).thenReturn(
+                new BasicHeader(AzureAndOpenAiExternalResponseHandler.REMAINING_REQUESTS, "2999")
             );
-            when(response.getFirstHeader(ExternalResponseHandler.TOKENS_LIMIT)).thenReturn(
-                new BasicHeader(ExternalResponseHandler.TOKENS_LIMIT, "10000")
+            when(response.getFirstHeader(AzureAndOpenAiExternalResponseHandler.TOKENS_LIMIT)).thenReturn(
+                new BasicHeader(AzureAndOpenAiExternalResponseHandler.TOKENS_LIMIT, "10000")
             );
-            when(response.getFirstHeader(ExternalResponseHandler.REMAINING_TOKENS)).thenReturn(null);
-            var error = ExternalResponseHandler.buildRateLimitErrorMessage(httpResult);
+            when(response.getFirstHeader(AzureAndOpenAiExternalResponseHandler.REMAINING_TOKENS)).thenReturn(null);
+            var error = AzureAndOpenAiExternalResponseHandler.buildRateLimitErrorMessage(httpResult);
             assertThat(
                 error,
                 containsString("Token limit [10000], remaining tokens [unknown]. Request limit [unknown], remaining requests [2999]")

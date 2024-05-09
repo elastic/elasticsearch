@@ -15,7 +15,7 @@ import java.nio.charset.StandardCharsets;
 
 import static org.mockito.Mockito.mock;
 
-public class OpenAiErrorResponseEntityTests extends ESTestCase {
+public class OpenAiAzureAndOpenAiErrorResponseEntityTests extends ESTestCase {
     public void testFromResponse() {
         String responseJson = """
             {

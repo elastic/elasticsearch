@@ -17,7 +17,7 @@ import java.nio.charset.StandardCharsets;
 import static org.hamcrest.Matchers.is;
 import static org.mockito.Mockito.mock;
 
-public class CohereErrorResponseEntityTests extends ESTestCase {
+public class CohereAzureAndOpenAiErrorResponseEntityTests extends ESTestCase {
     public void testFromResponse() {
         String responseJson = """
             {

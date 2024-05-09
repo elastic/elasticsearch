@@ -11,11 +11,14 @@ import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
 import org.elasticsearch.inference.TaskSettings;
+import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
+import org.elasticsearch.xpack.inference.external.action.azureaistudio.AzureAiStudioActionVisitor;
 import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 
 import java.net.URI;
 import java.net.URISyntaxException;
+import java.util.Map;
 import java.util.Objects;
 
 /**
@@ -96,4 +99,6 @@ public abstract class AzureAiStudioModel extends Model {
     public DefaultSecretSettings getSecretSettings() {
         return (DefaultSecretSettings) super.getSecretSettings();
     }
+
+    public abstract ExecutableAction accept(AzureAiStudioActionVisitor creator, Map<String, Object> taskSettings);
 }

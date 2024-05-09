@@ -17,8 +17,8 @@ import org.elasticsearch.xpack.inference.common.Truncator;
 import org.elasticsearch.xpack.inference.external.http.retry.RequestSender;
 import org.elasticsearch.xpack.inference.external.http.retry.ResponseHandler;
 import org.elasticsearch.xpack.inference.external.request.azureaistudio.AzureAiStudioEmbeddingsRequest;
-import org.elasticsearch.xpack.inference.external.response.ErrorResponseEntity;
-import org.elasticsearch.xpack.inference.external.response.ExternalResponseHandler;
+import org.elasticsearch.xpack.inference.external.response.AzureAndOpenAiErrorResponseEntity;
+import org.elasticsearch.xpack.inference.external.response.AzureAndOpenAiExternalResponseHandler;
 import org.elasticsearch.xpack.inference.external.response.azureaistudio.AzureAiStudioEmbeddingsResponseEntity;
 import org.elasticsearch.xpack.inference.services.azureaistudio.embeddings.AzureAiStudioEmbeddingsModel;
 
@@ -55,10 +55,10 @@ public class AzureAiStudioEmbeddingsRequestManager extends AzureAiStudioRequestM
     }
 
     private static ResponseHandler createEmbeddingsHandler() {
-        return new ExternalResponseHandler(
+        return new AzureAndOpenAiExternalResponseHandler(
             "azure ai studio text embedding",
             new AzureAiStudioEmbeddingsResponseEntity(),
-            ErrorResponseEntity::fromResponse
+            AzureAndOpenAiErrorResponseEntity::fromResponse
         );
     }
 

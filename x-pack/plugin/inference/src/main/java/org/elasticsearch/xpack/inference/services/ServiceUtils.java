@@ -287,7 +287,7 @@ public class ServiceUtils {
         return ServiceUtils.removeAsType(map, settingName, Float.class);
     }
 
-    public static <E extends Enum<E>> E extractRequriedEnum(
+    public static <E extends Enum<E>> E extractRequiredEnum(
         Map<String, Object> map,
         String settingName,
         String scope,

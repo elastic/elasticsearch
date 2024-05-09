@@ -24,8 +24,8 @@ import java.util.EnumSet;
 import java.util.Map;
 import java.util.Objects;
 
+import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractRequiredEnum;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractRequiredString;
-import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractRequriedEnum;
 import static org.elasticsearch.xpack.inference.services.azureaistudio.AzureAiStudioConstants.ENDPOINT_TYPE_FIELD;
 import static org.elasticsearch.xpack.inference.services.azureaistudio.AzureAiStudioConstants.PROVIDER_FIELD;
 import static org.elasticsearch.xpack.inference.services.azureaistudio.AzureAiStudioConstants.TARGET_FIELD;
@@ -46,7 +46,7 @@ public abstract class AzureAiStudioServiceSettings implements ServiceSettings {
     ) {
         String target = extractRequiredString(map, TARGET_FIELD, ModelConfigurations.SERVICE_SETTINGS, validationException);
         RateLimitSettings rateLimitSettings = RateLimitSettings.of(map, DEFAULT_RATE_LIMIT_SETTINGS, validationException);
-        AzureAiStudioEndpointType endpointType = extractRequriedEnum(
+        AzureAiStudioEndpointType endpointType = extractRequiredEnum(
             map,
             ENDPOINT_TYPE_FIELD,
             ModelConfigurations.SERVICE_SETTINGS,
@@ -55,7 +55,7 @@ public abstract class AzureAiStudioServiceSettings implements ServiceSettings {
             validationException
         );
 
-        AzureAiStudioProvider provider = extractRequriedEnum(
+        AzureAiStudioProvider provider = extractRequiredEnum(
             map,
             PROVIDER_FIELD,
             ModelConfigurations.SERVICE_SETTINGS,

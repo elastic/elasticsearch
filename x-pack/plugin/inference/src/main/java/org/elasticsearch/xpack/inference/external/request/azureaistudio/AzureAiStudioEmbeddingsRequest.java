@@ -15,7 +15,6 @@ import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.inference.common.Truncator;
 import org.elasticsearch.xpack.inference.external.request.HttpRequest;
 import org.elasticsearch.xpack.inference.external.request.Request;
-import org.elasticsearch.xpack.inference.services.azureaistudio.AzureAiStudioModel;
 import org.elasticsearch.xpack.inference.services.azureaistudio.embeddings.AzureAiStudioEmbeddingsModel;
 
 import java.nio.charset.StandardCharsets;
@@ -26,9 +25,9 @@ public class AzureAiStudioEmbeddingsRequest extends AzureAiStudioRequest {
     private final Truncator.TruncationResult truncationResult;
     private final Truncator truncator;
 
-    public AzureAiStudioEmbeddingsRequest(Truncator truncator, Truncator.TruncationResult input, AzureAiStudioModel model) {
+    public AzureAiStudioEmbeddingsRequest(Truncator truncator, Truncator.TruncationResult input, AzureAiStudioEmbeddingsModel model) {
         super(model);
-        this.embeddingsModel = (AzureAiStudioEmbeddingsModel) model;
+        this.embeddingsModel = model;
         this.truncator = truncator;
         this.truncationResult = input;
     }

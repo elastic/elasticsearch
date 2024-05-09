@@ -16,8 +16,8 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.inference.external.http.retry.RequestSender;
 import org.elasticsearch.xpack.inference.external.http.retry.ResponseHandler;
 import org.elasticsearch.xpack.inference.external.request.azureaistudio.AzureAiStudioChatCompletionRequest;
-import org.elasticsearch.xpack.inference.external.response.ErrorResponseEntity;
-import org.elasticsearch.xpack.inference.external.response.ExternalResponseHandler;
+import org.elasticsearch.xpack.inference.external.response.AzureAndOpenAiErrorResponseEntity;
+import org.elasticsearch.xpack.inference.external.response.AzureAndOpenAiExternalResponseHandler;
 import org.elasticsearch.xpack.inference.external.response.azureaistudio.AzureAiStudioChatCompletionResponseEntity;
 import org.elasticsearch.xpack.inference.services.azureaistudio.completion.AzureAiStudioChatCompletionModel;
 
@@ -51,10 +51,10 @@ public class AzureAiStudioChatCompletionRequestManager extends AzureAiStudioRequ
     }
 
     private static ResponseHandler createCompletionHandler() {
-        return new ExternalResponseHandler(
+        return new AzureAndOpenAiExternalResponseHandler(
             "azure ai studio completion",
             new AzureAiStudioChatCompletionResponseEntity(),
-            ErrorResponseEntity::fromResponse
+            AzureAndOpenAiErrorResponseEntity::fromResponse
         );
     }
 

@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.inference.external.response.azureaistudio;
 
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.XContentParserUtils;
+import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
@@ -17,7 +18,7 @@ import org.elasticsearch.xpack.core.inference.results.ChatCompletionResults;
 import org.elasticsearch.xpack.inference.external.http.HttpResult;
 import org.elasticsearch.xpack.inference.external.request.Request;
 import org.elasticsearch.xpack.inference.external.request.azureaistudio.AzureAiStudioChatCompletionRequest;
-import org.elasticsearch.xpack.inference.external.response.ChatCompletionResponseEntity;
+import org.elasticsearch.xpack.inference.external.response.BaseResponseEntity;
 import org.elasticsearch.xpack.inference.external.response.openai.OpenAiChatCompletionResponseEntity;
 
 import java.io.IOException;
@@ -26,18 +27,20 @@ import java.util.List;
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
 import static org.elasticsearch.xpack.inference.external.response.XContentUtils.moveToFirstToken;
 
-public class AzureAiStudioChatCompletionResponseEntity extends ChatCompletionResponseEntity {
+public class AzureAiStudioChatCompletionResponseEntity extends BaseResponseEntity {
 
     @Override
-    protected ChatCompletionResults fromResponse(Request request, HttpResult response) throws IOException {
-        AzureAiStudioChatCompletionRequest asChatCompletionRequest = (AzureAiStudioChatCompletionRequest) request;
+    protected InferenceServiceResults fromResponse(Request request, HttpResult response) throws IOException {
+        if (request instanceof AzureAiStudioChatCompletionRequest asChatCompletionRequest) {
+            if (asChatCompletionRequest.isRealtimeEndpoint()) {
+                return parseRealtimeEndpointResponse(response);
+            }
 
-        if (asChatCompletionRequest.isRealtimeEndpoint()) {
-            return parseRealtimeEndpointResponse(response);
-        } else {
-            // we can use the OpenAI chat completion type
+            // we can use the OpenAI chat completion type if it's not a realtime endpoint
             return OpenAiChatCompletionResponseEntity.fromResponse(request, response);
         }
+
+        return null;
     }
 
     private ChatCompletionResults parseRealtimeEndpointResponse(HttpResult response) throws IOException {

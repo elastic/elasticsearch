@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.inference.external.response;
 
 import org.elasticsearch.inference.InferenceServiceResults;
-import org.elasticsearch.xpack.core.inference.results.TextEmbeddingResults;
 import org.elasticsearch.xpack.inference.external.http.HttpResult;
 import org.elasticsearch.xpack.inference.external.http.retry.ResponseParser;
 import org.elasticsearch.xpack.inference.external.request.Request;
@@ -16,12 +15,11 @@ import org.elasticsearch.xpack.inference.external.request.Request;
 import java.io.IOException;
 
 /**
- * A base class for applying a subclassed "fromResponse" method to process results
- * from a text embedding process. This is a start to abstract away from direct static methods
- * for the "fromResponse" method in the apply function as used in other inference and provider types.
+ * A base class for providing InferenceServiceResults from a response. This is a lightweight wrapper
+ * to be able to override the `fromReponse` method to avoid using a static reference to the method.
  */
-public abstract class EmbeddingResponseEntity implements ResponseParser {
-    protected abstract TextEmbeddingResults fromResponse(Request request, HttpResult response) throws IOException;
+public abstract class BaseResponseEntity implements ResponseParser {
+    protected abstract InferenceServiceResults fromResponse(Request request, HttpResult response) throws IOException;
 
     public InferenceServiceResults apply(Request request, HttpResult response) throws IOException {
         return fromResponse(request, response);

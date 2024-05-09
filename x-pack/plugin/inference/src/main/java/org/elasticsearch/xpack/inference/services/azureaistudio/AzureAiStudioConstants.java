@@ -31,4 +31,6 @@ public class AzureAiStudioConstants {
     public static final String DO_SAMPLE_FIELD = "do_sample";
     public static final String MAX_TOKENS_FIELD = "max_tokens";
     public static final String MAX_NEW_TOKENS_FIELD = "max_new_tokens";
+
+    private AzureAiStudioConstants() {}
 }

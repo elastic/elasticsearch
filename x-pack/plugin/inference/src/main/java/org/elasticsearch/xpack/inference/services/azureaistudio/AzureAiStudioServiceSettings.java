@@ -7,16 +7,15 @@
 
 package org.elasticsearch.xpack.inference.services.azureaistudio;
 
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ServiceSettings;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
+import org.elasticsearch.xpack.inference.services.settings.FilteredXContentObject;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 
 import java.io.IOException;
@@ -30,7 +29,7 @@ import static org.elasticsearch.xpack.inference.services.azureaistudio.AzureAiSt
 import static org.elasticsearch.xpack.inference.services.azureaistudio.AzureAiStudioConstants.PROVIDER_FIELD;
 import static org.elasticsearch.xpack.inference.services.azureaistudio.AzureAiStudioConstants.TARGET_FIELD;
 
-public abstract class AzureAiStudioServiceSettings implements ServiceSettings {
+public abstract class AzureAiStudioServiceSettings extends FilteredXContentObject implements ServiceSettings {
 
     protected final String target;
     protected final AzureAiStudioProvider provider;
@@ -71,11 +70,7 @@ public abstract class AzureAiStudioServiceSettings implements ServiceSettings {
         this.target = in.readString();
         this.provider = in.readEnum(AzureAiStudioProvider.class);
         this.endpointType = in.readEnum(AzureAiStudioEndpointType.class);
-        if (in.getTransportVersion().onOrAfter(TransportVersions.ML_INFERENCE_RATE_LIMIT_SETTINGS_ADDED)) {
-            rateLimitSettings = new RateLimitSettings(in);
-        } else {
-            rateLimitSettings = DEFAULT_RATE_LIMIT_SETTINGS;
-        }
+        this.rateLimitSettings = new RateLimitSettings(in);
     }
 
     protected AzureAiStudioServiceSettings(
@@ -96,11 +91,6 @@ public abstract class AzureAiStudioServiceSettings implements ServiceSettings {
         AzureAiStudioEndpointType endpointType,
         RateLimitSettings rateLimitSettings
     ) {}
-
-    @Override
-    public DenseVectorFieldMapper.ElementType elementType() {
-        return DenseVectorFieldMapper.ElementType.FLOAT;
-    }
 
     public String target() {
         return this.target;
@@ -128,13 +118,13 @@ public abstract class AzureAiStudioServiceSettings implements ServiceSettings {
 
     protected void addXContentFields(XContentBuilder builder, Params params) throws IOException {
         this.addExposedXContentFields(builder, params);
+        rateLimitSettings.toXContent(builder, params);
     }
 
     protected void addExposedXContentFields(XContentBuilder builder, Params params) throws IOException {
         builder.field(TARGET_FIELD, this.target);
         builder.field(PROVIDER_FIELD, this.provider);
         builder.field(ENDPOINT_TYPE_FIELD, this.endpointType);
-        rateLimitSettings.toXContent(builder, params);
     }
 
 }

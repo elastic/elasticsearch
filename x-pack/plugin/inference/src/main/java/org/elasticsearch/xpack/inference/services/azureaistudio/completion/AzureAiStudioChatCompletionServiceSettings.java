@@ -13,7 +13,7 @@ import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.azureaistudio.AzureAiStudioEndpointType;
@@ -26,7 +26,7 @@ import java.util.Map;
 import java.util.Objects;
 
 public class AzureAiStudioChatCompletionServiceSettings extends AzureAiStudioServiceSettings {
-    public static final String NAME = "azure_ai_studio_completion_service_settings";
+    public static final String NAME = "azure_ai_studio_chat_completion_service_settings";
 
     public static AzureAiStudioChatCompletionServiceSettings fromMap(Map<String, Object> map, ConfigurationParseContext context) {
         ValidationException validationException = new ValidationException();
@@ -99,15 +99,9 @@ public class AzureAiStudioChatCompletionServiceSettings extends AzureAiStudioSer
     }
 
     @Override
-    public ToXContentObject getFilteredXContentObject() {
-        return (builder, params) -> {
-            builder.startObject();
-
-            super.addExposedXContentFields(builder, params);
-
-            builder.endObject();
-            return builder;
-        };
+    protected XContentBuilder toXContentFragmentOfExposedFields(XContentBuilder builder, ToXContent.Params params) throws IOException {
+        super.addExposedXContentFields(builder, params);
+        return builder;
     }
 
     @Override

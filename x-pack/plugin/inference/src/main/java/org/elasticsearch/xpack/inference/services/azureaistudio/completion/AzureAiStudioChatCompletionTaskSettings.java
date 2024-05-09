@@ -31,7 +31,7 @@ import static org.elasticsearch.xpack.inference.services.azureaistudio.AzureAiSt
 import static org.elasticsearch.xpack.inference.services.azureaistudio.AzureAiStudioConstants.TOP_P_FIELD;
 
 public class AzureAiStudioChatCompletionTaskSettings implements TaskSettings {
-    public static final String NAME = "azure_ai_studio_completion_task_settings";
+    public static final String NAME = "azure_ai_studio_chat_completion_task_settings";
 
     public static AzureAiStudioChatCompletionTaskSettings fromMap(Map<String, Object> map) {
         ValidationException validationException = new ValidationException();

@@ -13,9 +13,10 @@ import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.SimilarityMeasure;
-import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.ServiceUtils;
@@ -28,12 +29,8 @@ import java.io.IOException;
 import java.util.Map;
 import java.util.Objects;
 
-import static org.elasticsearch.xpack.inference.services.ServiceFields.DIMENSIONS;
-import static org.elasticsearch.xpack.inference.services.ServiceFields.MAX_INPUT_TOKENS;
-import static org.elasticsearch.xpack.inference.services.ServiceFields.SIMILARITY;
-import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalBoolean;
-import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractSimilarity;
-import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeAsType;
+import static org.elasticsearch.xpack.inference.services.ServiceFields.*;
+import static org.elasticsearch.xpack.inference.services.ServiceUtils.*;
 
 public class AzureAiStudioEmbeddingsServiceSettings extends AzureAiStudioServiceSettings {
 
@@ -168,6 +165,11 @@ public class AzureAiStudioEmbeddingsServiceSettings extends AzureAiStudioService
     }
 
     @Override
+    public DenseVectorFieldMapper.ElementType elementType() {
+        return DenseVectorFieldMapper.ElementType.FLOAT;
+    }
+
+    @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeOptionalVInt(dimensions);
@@ -201,16 +203,10 @@ public class AzureAiStudioEmbeddingsServiceSettings extends AzureAiStudioService
     }
 
     @Override
-    public ToXContentObject getFilteredXContentObject() {
-        return (builder, params) -> {
-            builder.startObject();
-
-            super.addExposedXContentFields(builder, params);
-            addXContentFragmentOfExposedFields(builder, params);
-
-            builder.endObject();
-            return builder;
-        };
+    protected XContentBuilder toXContentFragmentOfExposedFields(XContentBuilder builder, ToXContent.Params params) throws IOException {
+        super.addExposedXContentFields(builder, params);
+        addXContentFragmentOfExposedFields(builder, params);
+        return builder;
     }
 
     @Override

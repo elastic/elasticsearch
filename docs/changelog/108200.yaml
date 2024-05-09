@@ -1,0 +1,6 @@
+pr: 108200
+summary: "[ESQL] Migrate `SimplifiyComparisonArithmetics` optimization rule"
+area: ES|QL
+type: bug
+issues:
+ - 108388

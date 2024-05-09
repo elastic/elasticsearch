@@ -7,7 +7,6 @@
 package org.elasticsearch.xpack.esql.qa.rest;
 
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
-
 import com.carrotsearch.randomizedtesting.annotations.TimeoutSuite;
 
 import org.apache.http.HttpEntity;

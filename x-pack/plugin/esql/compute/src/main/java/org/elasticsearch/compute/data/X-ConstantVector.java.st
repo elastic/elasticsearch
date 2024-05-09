@@ -58,6 +58,24 @@ $endif$
         return blockFactory().newConstant$Type$Vector(value, positions.length);
     }
 
+$if(int)$
+    /**
+     * The minimum value in the block.
+     */
+    @Override
+    public int min() {
+        return value;
+    }
+
+    /**
+     * The maximum value in the block.
+     */
+    @Override
+    public int max() {
+        return value;
+    }
+$endif$
+
     @Override
     public ElementType elementType() {
         return ElementType.$TYPE$;

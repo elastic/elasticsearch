@@ -226,7 +226,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
     }
 
     protected final Page row(List<Object> values) {
-        return new Page(BlockUtils.fromListRow(TestBlockFactory.getNonBreakingInstance(), values));
+        return new Page(1, BlockUtils.fromListRow(TestBlockFactory.getNonBreakingInstance(), values));
     }
 
     /**
@@ -249,7 +249,8 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
     }
 
     public final void testEvaluate() {
-        assumeTrue("All test data types must be representable in order to build fields", testCase.allTypesAreRepresentable());
+        assumeTrue("Can't build evaluator", testCase.canBuildEvaluator());
+        assumeTrue("Expected type must be representable to build an evaluator", EsqlDataTypes.isRepresentable(testCase.expectedType()));
         logger.info(
             "Test Values: " + testCase.getData().stream().map(TestCaseSupplier.TypedData::toString).collect(Collectors.joining(","))
         );
@@ -306,7 +307,13 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
      * </p>
      */
     public final void testEvaluateBlockWithoutNulls() {
-        testEvaluateBlock(driverContext().blockFactory(), driverContext(), false);
+        assumeTrue("no warning is expected", testCase.getExpectedWarnings() == null);
+        try {
+            testEvaluateBlock(driverContext().blockFactory(), driverContext(), false);
+        } catch (CircuitBreakingException ex) {
+            assertThat(ex.getMessage(), equalTo(MockBigArrays.ERROR_MESSAGE));
+            assertFalse("Test data is too large to fit in the memory", true);
+        }
     }
 
     /**
@@ -314,7 +321,13 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
      * some null values inserted between.
      */
     public final void testEvaluateBlockWithNulls() {
-        testEvaluateBlock(driverContext().blockFactory(), driverContext(), true);
+        assumeTrue("no warning is expected", testCase.getExpectedWarnings() == null);
+        try {
+            testEvaluateBlock(driverContext().blockFactory(), driverContext(), true);
+        } catch (CircuitBreakingException ex) {
+            assertThat(ex.getMessage(), equalTo(MockBigArrays.ERROR_MESSAGE));
+            assertFalse("Test data is too large to fit in the memory", true);
+        }
     }
 
     /**
@@ -355,13 +368,14 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
     }
 
     private void testEvaluateBlock(BlockFactory inputBlockFactory, DriverContext context, boolean insertNulls) {
-        assumeTrue("can only run on representable types", testCase.allTypesAreRepresentable());
-        assumeTrue("must build evaluator to test sending it blocks", testCase.getExpectedTypeError() == null);
+        assumeTrue("Can't build evaluator", testCase.canBuildEvaluator());
+        assumeTrue("Expected type must be representable to build an evaluator", EsqlDataTypes.isRepresentable(testCase.expectedType()));
+        assumeTrue("Must build evaluator to test sending it blocks", testCase.getExpectedTypeError() == null);
         boolean readFloating = randomBoolean();
         int positions = between(1, 1024);
         List<TestCaseSupplier.TypedData> data = testCase.getData();
         Page onePositionPage = row(testCase.getDataValues());
-        Block[] manyPositionsBlocks = new Block[data.size()];
+        Block[] manyPositionsBlocks = new Block[Math.toIntExact(data.stream().filter(d -> d.isForceLiteral() == false).count())];
         Set<Integer> nullPositions = insertNulls
             ? IntStream.range(0, positions).filter(i -> randomBoolean()).mapToObj(Integer::valueOf).collect(Collectors.toSet())
             : Set.of();
@@ -369,8 +383,12 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
             nullPositions = Set.of();
         }
         try {
-            for (int b = 0; b < data.size(); b++) {
-                ElementType elementType = PlannerUtils.toElementType(data.get(b).type());
+            int b = 0;
+            for (TestCaseSupplier.TypedData d : data) {
+                if (d.isForceLiteral()) {
+                    continue;
+                }
+                ElementType elementType = PlannerUtils.toElementType(d.type());
                 try (Block.Builder builder = elementType.newBlockBuilder(positions, inputBlockFactory)) {
                     for (int p = 0; p < positions; p++) {
                         if (nullPositions.contains(p)) {
@@ -381,9 +399,13 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
                     }
                     manyPositionsBlocks[b] = builder.build();
                 }
+                b++;
             }
             Expression expression = readFloating ? buildDeepCopyOfFieldExpression(testCase) : buildFieldExpression(testCase);
-            try (ExpressionEvaluator eval = evaluator(expression).get(context); Block block = eval.eval(new Page(manyPositionsBlocks))) {
+            try (
+                ExpressionEvaluator eval = evaluator(expression).get(context);
+                Block block = eval.eval(new Page(positions, manyPositionsBlocks))
+            ) {
                 for (int p = 0; p < positions; p++) {
                     if (nullPositions.contains(p)) {
                         assertThat(toJavaObject(block, p), allNullsMatcher());
@@ -408,8 +430,8 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
     // TODO cranky time
 
     public void testSimpleWithNulls() { // TODO replace this with nulls inserted into the test case like anyNullIsNull
-        assumeTrue("nothing to do if a type error", testCase.getExpectedTypeError() == null);
-        assumeTrue("All test data types must be representable in order to build fields", testCase.allTypesAreRepresentable());
+        assumeTrue("Can't build evaluator", testCase.canBuildEvaluator());
+        assumeTrue("Nothing to do if a type error", testCase.getExpectedTypeError() == null);
         List<Object> simpleData = testCase.getDataValues();
         try (EvalOperator.ExpressionEvaluator eval = evaluator(buildFieldExpression(testCase)).get(driverContext())) {
             BlockFactory blockFactory = TestBlockFactory.getNonBreakingInstance();
@@ -450,8 +472,9 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
     }
 
     public final void testEvaluateInManyThreads() throws ExecutionException, InterruptedException {
-        assumeTrue("nothing to do if a type error", testCase.getExpectedTypeError() == null);
-        assumeTrue("All test data types must be representable in order to build fields", testCase.allTypesAreRepresentable());
+        assumeTrue("Can't build evaluator", testCase.canBuildEvaluator());
+        assumeTrue("Expected type must be representable to build an evaluator", EsqlDataTypes.isRepresentable(testCase.expectedType()));
+        assumeTrue("Nothing to do if a type error", testCase.getExpectedTypeError() == null);
         int count = 10_000;
         int threads = 5;
         var evalSupplier = evaluator(buildFieldExpression(testCase));
@@ -481,8 +504,8 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
     }
 
     public final void testEvaluatorToString() {
-        assumeTrue("nothing to do if a type error", testCase.getExpectedTypeError() == null);
-        assumeTrue("All test data types must be representable in order to build fields", testCase.allTypesAreRepresentable());
+        assumeTrue("Can't build evaluator", testCase.canBuildEvaluator());
+        assumeTrue("Nothing to do if a type error", testCase.getExpectedTypeError() == null);
         var factory = evaluator(buildFieldExpression(testCase));
         try (ExpressionEvaluator ev = factory.get(driverContext())) {
             assertThat(ev.toString(), testCase.evaluatorToString());
@@ -490,8 +513,8 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
     }
 
     public final void testFactoryToString() {
-        assumeTrue("nothing to do if a type error", testCase.getExpectedTypeError() == null);
-        assumeTrue("All test data types must be representable in order to build fields", testCase.allTypesAreRepresentable());
+        assumeTrue("Can't build evaluator", testCase.canBuildEvaluator());
+        assumeTrue("Nothing to do if a type error", testCase.getExpectedTypeError() == null);
         var factory = evaluator(buildFieldExpression(testCase));
         assertThat(factory.toString(), testCase.evaluatorToString());
     }
@@ -524,7 +547,6 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
     }
 
     public void testSerializationOfSimple() {
-        assumeTrue("All test data types must be representable in order to build fields", testCase.allTypesAreRepresentable());
         assertSerialization(buildFieldExpression(testCase));
     }
 
@@ -594,7 +616,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
             (nullPosition, nullValueDataType, original) -> entirelyNullPreservesType == false
                 && nullValueDataType == DataTypes.NULL
                 && original.getData().size() == 1 ? DataTypes.NULL : original.expectedType(),
-            (nullPosition, original) -> original
+            (nullPosition, nullData, original) -> original
         );
     }
 
@@ -603,7 +625,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
     }
 
     public interface ExpectedEvaluatorToString {
-        Matcher<String> evaluatorToString(int nullPosition, Matcher<String> original);
+        Matcher<String> evaluatorToString(int nullPosition, TestCaseSupplier.TypedData nullData, Matcher<String> original);
     }
 
     protected static List<TestCaseSupplier> anyNullIsNull(
@@ -635,10 +657,11 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
                         TestCaseSupplier.TypedData od = oc.getData().get(i);
                         return i == finalNullPosition ? od.forceValueToNull() : od;
                     }).toList();
+                    TestCaseSupplier.TypedData nulledData = oc.getData().get(finalNullPosition);
                     return new TestCaseSupplier.TestCase(
                         data,
-                        evaluatorToString.evaluatorToString(finalNullPosition, oc.evaluatorToString()),
-                        expectedType.expectedType(finalNullPosition, oc.getData().get(finalNullPosition).type(), oc),
+                        evaluatorToString.evaluatorToString(finalNullPosition, nulledData, oc.evaluatorToString()),
+                        expectedType.expectedType(finalNullPosition, nulledData.type(), oc),
                         nullValue(),
                         null,
                         oc.getExpectedTypeError(),
@@ -1172,6 +1195,14 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
             renderTypes(List.of("v"));
             return;
         }
+        if (name.equalsIgnoreCase("rlike")) {
+            renderTypes(List.of("str", "pattern", "caseInsensitive"));
+            return;
+        }
+        if (name.equalsIgnoreCase("like")) {
+            renderTypes(List.of("str", "pattern"));
+            return;
+        }
         FunctionDefinition definition = definition(name);
         if (definition != null) {
             EsqlFunctionRegistry.FunctionDescription description = EsqlFunctionRegistry.description(definition);
@@ -1524,17 +1555,18 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
     private final List<CircuitBreaker> breakers = Collections.synchronizedList(new ArrayList<>());
 
     protected final DriverContext driverContext() {
-        MockBigArrays bigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, ByteSizeValue.ofGb(1));
+        BigArrays bigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, ByteSizeValue.ofMb(256)).withCircuitBreaking();
         CircuitBreaker breaker = bigArrays.breakerService().getBreaker(CircuitBreaker.REQUEST);
         breakers.add(breaker);
-        return new DriverContext(bigArrays.withCircuitBreaking(), new BlockFactory(breaker, bigArrays));
+        return new DriverContext(bigArrays, new BlockFactory(breaker, bigArrays));
     }
 
     protected final DriverContext crankyContext() {
-        BigArrays bigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, new CrankyCircuitBreakerService());
+        BigArrays bigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, new CrankyCircuitBreakerService())
+            .withCircuitBreaking();
         CircuitBreaker breaker = bigArrays.breakerService().getBreaker(CircuitBreaker.REQUEST);
         breakers.add(breaker);
-        return new DriverContext(bigArrays.withCircuitBreaking(), new BlockFactory(breaker, bigArrays));
+        return new DriverContext(bigArrays, new BlockFactory(breaker, bigArrays));
     }
 
     @After

@@ -54,6 +54,18 @@ $endif$
     @Override
     $Type$Vector filter(int... positions);
 
+$if(int)$
+    /**
+     * The minimum value in the Vector. An empty Vector will return {@link Integer#MAX_VALUE}.
+     */
+    int min();
+
+    /**
+     * The maximum value in the Vector. An empty Vector will return {@link Integer#MIN_VALUE}.
+     */
+    int max();
+$endif$
+
     /**
      * Compares the given object with this vector for equality. Returns {@code true} if and only if the
      * given object is a $Type$Vector, and both vectors are {@link #equals($Type$Vector, $Type$Vector) equal}.

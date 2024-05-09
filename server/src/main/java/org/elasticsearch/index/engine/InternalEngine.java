@@ -1210,6 +1210,7 @@ public class InternalEngine extends Engine {
                     }
 
                     assert index.seqNo() >= 0 : "ops should have an assigned seq no.; origin: " + index.origin();
+
                     if (plan.indexIntoLucene || plan.addStaleOpToLucene) {
                         indexResult = indexIntoLucene(index, plan);
                     } else {

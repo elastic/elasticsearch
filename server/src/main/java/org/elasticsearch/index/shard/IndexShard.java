@@ -1016,7 +1016,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 getRelativeTimeInNanos()
             );
             Mapping update = operation.parsedDoc().dynamicMappingsUpdate();
-            if (update != null && isSimulated == false) { // we don't want to actually update the mappings if this is simulated) {
+            if (update != null && isSimulated == false) { // we don't want to actually update the mappings if this is simulated
                 return new Engine.IndexResult(update, operation.parsedDoc().id());
             }
         } catch (Exception e) {
@@ -1027,7 +1027,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             verifyNotClosed(e);
             return new Engine.IndexResult(e, version, opPrimaryTerm, seqNo, sourceToParse.id());
         }
-        return index(engine, operation, isSimulated);
+        return isSimulated ? simulateIndex(operation) : index(engine, operation);
     }
 
     public void setFieldInfos(FieldInfos fieldInfos) {
@@ -1085,7 +1085,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         );
     }
 
-    private Engine.IndexResult index(Engine engine, Engine.Index index, boolean isSimulated) throws IOException {
+    private Engine.IndexResult index(Engine engine, Engine.Index index) throws IOException {
         try {
             final Engine.IndexResult result;
             final Engine.Index preIndex = indexingOperationListeners.preIndex(shardId, index);
@@ -1102,7 +1102,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                         preIndex.origin()
                     );
                 }
-                result = isSimulated ? simulateIndex(index) : engine.index(preIndex);
+                result = engine.index(preIndex);
                 if (logger.isTraceEnabled()) {
                     logger.trace(
                         "index-done [{}] seq# [{}] allocation-id [{}] primaryTerm [{}] operationPrimaryTerm [{}] origin [{}] "

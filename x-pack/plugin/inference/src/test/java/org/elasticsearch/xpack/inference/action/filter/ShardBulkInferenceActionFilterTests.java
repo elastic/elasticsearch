@@ -84,7 +84,7 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
         CountDownLatch chainExecuted = new CountDownLatch(1);
         ActionFilterChain actionFilterChain = (task, action, request, listener) -> {
             try {
-                assertTrue(((BulkShardRequest) request).getInferenceFieldMap().isEmpty());
+                assertNull(((BulkShardRequest) request).getInferenceFieldMap());
             } finally {
                 chainExecuted.countDown();
             }
@@ -115,7 +115,7 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
         ActionFilterChain actionFilterChain = (task, action, request, listener) -> {
             try {
                 BulkShardRequest bulkShardRequest = (BulkShardRequest) request;
-                assertTrue(bulkShardRequest.getInferenceFieldMap().isEmpty());
+                assertNull(bulkShardRequest.getInferenceFieldMap());
                 for (BulkItemRequest item : bulkShardRequest.items()) {
                     assertNotNull(item.getPrimaryResponse());
                     assertTrue(item.getPrimaryResponse().isFailed());
@@ -161,7 +161,7 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
         ActionFilterChain actionFilterChain = (task, action, request, listener) -> {
             try {
                 BulkShardRequest bulkShardRequest = (BulkShardRequest) request;
-                assertTrue(bulkShardRequest.getInferenceFieldMap().isEmpty());
+                assertNull(bulkShardRequest.getInferenceFieldMap());
                 assertThat(bulkShardRequest.items().length, equalTo(3));
 
                 // item 0 is a failure
@@ -233,7 +233,7 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
             try {
                 assertThat(request, instanceOf(BulkShardRequest.class));
                 BulkShardRequest bulkShardRequest = (BulkShardRequest) request;
-                assertTrue(bulkShardRequest.getInferenceFieldMap().isEmpty());
+                assertNull(bulkShardRequest.getInferenceFieldMap());
                 BulkItemRequest[] items = bulkShardRequest.items();
                 assertThat(items.length, equalTo(originalRequests.length));
                 for (int id = 0; id < items.length; id++) {

@@ -140,9 +140,7 @@ public class StatelessIT extends AbstractStatelessIntegTestCase {
         createIndex(indexName, indexSettings(1, 0).build());
         ensureGreen(indexName);
 
-        indexDocuments(indexName);
-        // Force a flush if necessary to make sure we have at least one compound commit
-        flush(indexName);
+        indexDocumentsWithFlush(indexName);
 
         assertObjectStoreConsistentWithIndexShards();
 
@@ -269,12 +267,12 @@ public class StatelessIT extends AbstractStatelessIntegTestCase {
         final int numberOfShards = randomIntBetween(1, 5);
         startIndexNodes(numberOfShards);
         final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
-        createIndex(indexName, indexSettings(numberOfShards, 0).build());
+        createIndex(indexName, indexSettings(numberOfShards, 0).put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), -1).build());
         ensureGreen(indexName);
 
         assertObjectStoreConsistentWithIndexShards();
 
-        indexDocuments(indexName);
+        indexDocumentsWithFlush(indexName);
     }
 
     public void testTranslogIsSyncedToObjectStoreDuringIndexing() throws Exception {
@@ -441,9 +439,7 @@ public class StatelessIT extends AbstractStatelessIntegTestCase {
         assertObjectStoreConsistentWithIndexShards();
 
         // Index more documents
-        indexDocuments(indexName);
-        // Force a flush if necessary since it is possible that indexDocuments(indexName) only refreshed
-        flush(indexName);
+        indexDocumentsWithFlush(indexName);
 
         final Map<Index, Integer> indices = resolveIndices();
         assertThat(indices.isEmpty(), is(false));
@@ -459,9 +455,7 @@ public class StatelessIT extends AbstractStatelessIntegTestCase {
         }
 
         // Index more documents
-        indexDocuments(indexName);
-        // Force a flush if necessary since it is possible that indexDocuments(indexName) only refreshed
-        flush(indexName);
+        indexDocumentsWithFlush(indexName);
 
         for (Map.Entry<Index, Integer> entry : indices.entrySet()) {
             assertThat(entry.getValue(), greaterThan(0));
@@ -479,11 +473,10 @@ public class StatelessIT extends AbstractStatelessIntegTestCase {
         final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
         final int numberOfShards = randomIntBetween(1, 5);
         startIndexNodes(numberOfShards);
-        createIndex(indexName, indexSettings(numberOfShards, 0).build());
+        createIndex(indexName, indexSettings(numberOfShards, 0).put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), -1).build());
         ensureGreen(indexName);
         for (int i = 0; i < 3; i++) {
-            indexDocuments(indexName);
-            flush(indexName);
+            indexDocumentsWithFlush(indexName);
             assertObjectStoreConsistentWithIndexShards();
         }
 
@@ -501,8 +494,7 @@ public class StatelessIT extends AbstractStatelessIntegTestCase {
         startIndexNodes(numberOfShards);
         createIndex(indexName, indexSettings(numberOfShards, 0).build());
         ensureGreen(indexName);
-        indexDocuments(indexName);
-        flush(indexName);
+        indexDocumentsWithFlush(indexName);
         assertObjectStoreConsistentWithIndexShards();
 
         assertAcked(client().admin().indices().prepareClose(indexName));

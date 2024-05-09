@@ -214,6 +214,15 @@ public abstract class InternalSignificantTerms<A extends InternalSignificantTerm
 
             @Override
             public void accept(InternalAggregation aggregation) {
+                /*
+                canLeadReduction here is essentially checking if this shard returned data.  Unmapped shards (that didn't
+                specify a missing value) will be false. Since they didn't return data, we can safely skip them, and
+                doing so prevents us from accidentally taking one as the reference agg for type checking, which would cause
+                shards that actually returned data to fail.
+                 */
+                if (aggregation.canLeadReduction() == false) {
+                    return;
+                }
                 @SuppressWarnings("unchecked")
                 final InternalSignificantTerms<A, B> terms = (InternalSignificantTerms<A, B>) aggregation;
                 if (referenceAgg == null) {

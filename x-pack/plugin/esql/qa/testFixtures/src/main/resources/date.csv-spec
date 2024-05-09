@@ -1105,3 +1105,15 @@ emp_no:integer | birth_date:datetime
 10003          | 1959-12-03T00:00:00Z
 10008          | 1958-02-19T00:00:00Z
 ;
+
+implicitCastingArithmeticOperation
+required_feature: esql.string_literal_auto_casting_arithmetic_operations_datetime
+from employees
+| eval x =  1 day + "2024-01-01", y = 1 year + "2024-04-01" + 1 month, z = "2024-01-01" + 3600 seconds
+| keep x, y, z
+| limit 1
+;
+
+x:datetime | y:datetime | z:datetime
+2024-01-02 | 2025-05-01 | 2024-01-01T01:00:00.000Z
+;

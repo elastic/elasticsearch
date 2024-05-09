@@ -97,6 +97,7 @@ import static org.elasticsearch.xpack.core.enrich.EnrichPolicy.GEO_MATCH_TYPE;
 import static org.elasticsearch.xpack.esql.stats.FeatureMetric.LIMIT;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.GEO_POINT;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.GEO_SHAPE;
+import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.isTemporalAmount;
 import static org.elasticsearch.xpack.ql.type.DataTypes.BOOLEAN;
 import static org.elasticsearch.xpack.ql.type.DataTypes.DATETIME;
 import static org.elasticsearch.xpack.ql.type.DataTypes.DOUBLE;
@@ -850,19 +851,23 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             DataType targetDataType = DataTypes.NULL;
             Expression from = Literal.NULL;
 
-            if (left.dataType() == KEYWORD
-                && left.foldable()
-                && (supportsImplicitCasting(right.dataType()))
-                && ((left instanceof EsqlScalarFunction) == false)) {
-                targetDataType = right.dataType();
-                from = left;
+            if (left.dataType() == KEYWORD && left.foldable() && ((left instanceof EsqlScalarFunction) == false)) {
+                if (supportsImplicitCasting(right.dataType())) {
+                    targetDataType = right.dataType();
+                    from = left;
+                } else if (isTemporalAmount(right.dataType())) {
+                    targetDataType = DATETIME;
+                    from = left;
+                }
             }
-            if (right.dataType() == KEYWORD
-                && right.foldable()
-                && (supportsImplicitCasting(left.dataType()))
-                && ((right instanceof EsqlScalarFunction) == false)) {
-                targetDataType = left.dataType();
-                from = right;
+            if (right.dataType() == KEYWORD && right.foldable() && ((right instanceof EsqlScalarFunction) == false)) {
+                if (supportsImplicitCasting(left.dataType())) {
+                    targetDataType = left.dataType();
+                    from = right;
+                } else if (isTemporalAmount(left.dataType())) {
+                    targetDataType = DATETIME;
+                    from = right;
+                }
             }
             if (from != Literal.NULL) {
                 Expression e = castStringLiteral(from, targetDataType);

@@ -293,7 +293,7 @@ public class ClientYamlTestExecutionContext {
         params.put("error_trace", "false"); // disable error trace
         try {
             ClientYamlTestResponse resp = callApi("capabilities", params, emptyList(), emptyMap());
-            assert resp.getStatusCode() == 200; // anything else should result in an exception below
+            assert resp.getStatusCode() == 200 : "Unknown response code " + resp.getStatusCode(); // anything else should result in an exception below
             return switch ((String) resp.evaluate("supported")) {
                 case "unknown" -> Optional.empty();
                 case "true" -> Optional.of(true);

@@ -38,7 +38,7 @@ public class NodesCapabilitiesResponse extends BaseNodesResponse<NodeCapability>
 
     public Optional<Boolean> isSupported() {
         // if there are any failures, we don't know if it is fully supported by all nodes in the cluster
-        if (hasFailures() || getNodes().isEmpty() == false) return Optional.empty();
+        if (hasFailures() || getNodes().isEmpty()) return Optional.empty();
         return Optional.of(getNodes().stream().allMatch(NodeCapability::isSupported));
     }
 

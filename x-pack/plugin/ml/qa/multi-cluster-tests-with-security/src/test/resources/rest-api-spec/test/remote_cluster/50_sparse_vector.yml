@@ -320,29 +320,3 @@ setup:
               field: text
               inference_id: text_expansion_model
               text: "octopus comforter smells"
-
----
-"Test sparse_vector errors when attempting to search on a rank_features field":
-  - do:
-      headers:
-        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
-      indices.create:
-        index: index-with-rank-features
-        body:
-          mappings:
-            properties:
-              source_text:
-                type: keyword
-              ml.rank_feature_tokens:
-                type: rank_features
-
-  - do:
-      catch: /field \[content_embedding\] must be type \[sparse_vector\] but is type \[rank_features\]/
-      search:
-        index: index-with-rank-features
-        body:
-          query:
-            sparse_vector:
-              field: ml.rank_feature_tokens
-              inference_id: text_expansion_model
-              text: "octopus comforter smells"

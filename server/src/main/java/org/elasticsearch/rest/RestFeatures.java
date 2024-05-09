@@ -14,8 +14,16 @@ import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.rest.action.admin.cluster.RestClusterGetSettingsAction;
 
 import java.util.Map;
+import java.util.Set;
+
+import static org.elasticsearch.search.fetch.subphase.highlight.DefaultHighlighter.UNIFIED_HIGHLIGHTER_MATCHED_FIELDS;
 
 public class RestFeatures implements FeatureSpecification {
+    @Override
+    public Set<NodeFeature> getFeatures() {
+        return Set.of(UNIFIED_HIGHLIGHTER_MATCHED_FIELDS);
+    }
+
     @Override
     public Map<NodeFeature, Version> getHistoricalFeatures() {
         return Map.of(RestClusterGetSettingsAction.SUPPORTS_GET_SETTINGS_ACTION, Version.V_8_3_0);

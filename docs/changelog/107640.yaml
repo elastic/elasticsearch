@@ -1,0 +1,6 @@
+pr: 107640
+summary: "Unified Highlighter to support matched_fields "
+area: Highlighting
+type: enhancement
+issues:
+  - 5172

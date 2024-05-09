@@ -61,7 +61,7 @@ public class RankFeatureResult extends SearchPhaseResult {
     }
 
     public void shardResult(RankFeatureShardResult shardResult) {
-        assert shardResult != null;
+        assert hasReferences();
         this.rankShardResult = shardResult;
     }
 

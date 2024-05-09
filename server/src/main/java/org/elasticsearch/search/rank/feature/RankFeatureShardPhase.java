@@ -21,7 +21,6 @@ import org.elasticsearch.tasks.TaskCancelledException;
 
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.Objects;
 
 /**
  * The {@code RankFeatureShardPhase} executes the rank feature phase on the shard, iff there is a {@code RankBuilder} that requires it.
@@ -70,7 +69,6 @@ public final class RankFeatureShardPhase {
             : null;
         if (rankFeaturePhaseRankShardContext != null) {
             RankFeatureShardResult featureRankShardResult = null;
-            SearchHits hits = null;
             try {
                 // TODO: here we populate the profile part of the fetchResult as well
                 // we need to see what info we want to include on the overall profiling section. This is something that is per-shard
@@ -82,20 +80,17 @@ public final class RankFeatureShardPhase {
                 }
                 // this cannot be null; as we have either already checked for it, or we would have thrown in
                 // FetchSearchResult#shardResult()
-                hits = fetchSearchResult.hits();
+                SearchHits hits = fetchSearchResult.hits();
                 featureRankShardResult = (RankFeatureShardResult) rankFeaturePhaseRankShardContext.buildRankFeatureShardResult(
                     hits,
                     searchContext.shardTarget().getShardId().id()
                 );
             } finally {
-                if (hits != null) {
-                    hits.decRef();
-                }
                 // save the result in the search context
-                // need to add profiling info as well
-                // available from fetch
-                searchContext.rankFeatureResult().shardResult(Objects.requireNonNullElse(featureRankShardResult, EMPTY_RESULT));
-                searchContext.rankFeatureResult().incRef();
+                // need to add profiling info as well available from fetch
+                if (featureRankShardResult != null) {
+                    searchContext.rankFeatureResult().shardResult(featureRankShardResult);
+                }
             }
         }
     }

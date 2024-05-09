@@ -17,7 +17,6 @@ import org.elasticsearch.search.dfs.AggregatedDfs;
 import org.elasticsearch.search.fetch.FetchSearchResult;
 import org.elasticsearch.search.fetch.ShardFetchSearchRequest;
 import org.elasticsearch.search.internal.ShardSearchContextId;
-import org.elasticsearch.transport.Transport;
 
 import java.util.List;
 import java.util.function.BiFunction;
@@ -205,37 +204,6 @@ final class FetchSearchPhase extends SearchPhase {
                     }
                 }
             );
-    }
-
-    /**
-     * Releases shard targets that are not used in the docsIdsToLoad.
-     */
-    static void releaseIrrelevantSearchContext(SearchPhaseResult searchPhaseResult, SearchPhaseContext context) {
-        // we only release search context that we did not fetch from, if we are not scrolling
-        // or using a PIT and if it has at least one hit that didn't make it to the global topDocs
-        if (searchPhaseResult == null) {
-            return;
-        }
-        // phaseResult.getContextId() is the same for query & rank feature results
-        SearchPhaseResult phaseResult = searchPhaseResult.queryResult() != null
-            ? searchPhaseResult.queryResult()
-            : searchPhaseResult.rankFeatureResult();
-        if (phaseResult != null
-            && phaseResult.hasSearchContext()
-            && context.getRequest().scroll() == null
-            && (context.isPartOfPointInTime(phaseResult.getContextId()) == false)) {
-            try {
-                SearchShardTarget shardTarget = phaseResult.getSearchShardTarget();
-                Transport.Connection connection = context.getConnection(shardTarget.getClusterAlias(), shardTarget.getNodeId());
-                context.sendReleaseSearchContext(
-                    phaseResult.getContextId(),
-                    connection,
-                    context.getOriginalIndices(phaseResult.getShardIndex())
-                );
-            } catch (Exception e) {
-                context.getLogger().trace("failed to release context", e);
-            }
-        }
     }
 
     private void moveToNextPhase(

@@ -735,7 +735,9 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 rankFeatureShardPhase.prepareForFetch(searchContext, request);
                 fetchPhase.execute(searchContext, docIds);
                 rankFeatureShardPhase.processFetch(searchContext);
-                return searchContext.rankFeatureResult();
+                var rankFeatureResult = searchContext.rankFeatureResult();
+                rankFeatureResult.incRef();
+                return rankFeatureResult;
             } catch (Exception e) {
                 assert TransportActions.isShardNotAvailableException(e) == false : new AssertionError(e);
                 // we handle the failure in the failure listener below

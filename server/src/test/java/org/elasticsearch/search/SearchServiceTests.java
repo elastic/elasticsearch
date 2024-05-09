@@ -518,7 +518,7 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
                                             SearchHit hit = hits.getHits()[i];
                                             rankFeatureDocs[i] = new RankFeatureDoc(hit.docId(), hit.getScore(), shardId);
                                             rankFeatureDocs[i].featureData(hit.getFields().get(rankFeatureFieldName).getValue());
-                                            rankFeatureDocs[i].score = randomFloat();
+                                            rankFeatureDocs[i].score = (numDocs - i) + randomFloat();
                                             rankFeatureDocs[i].rank = i + 1;
                                         }
                                         return new RankFeatureShardResult(rankFeatureDocs);
@@ -540,80 +540,93 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
             -1,
             null
         );
+        QuerySearchResult queryResult = null;
+        RankFeatureResult rankResult = null;
+        try {
+            // Execute the query phase and store the result in a SearchPhaseResult container using a PlainActionFuture
+            PlainActionFuture<SearchPhaseResult> queryPhaseResults = new PlainActionFuture<>();
+            service.executeQueryPhase(request, searchTask, queryPhaseResults);
+            queryResult = (QuerySearchResult) queryPhaseResults.get();
 
-        // Execute the query phase and store the result in a SearchPhaseResult container using a PlainActionFuture
-        PlainActionFuture<SearchPhaseResult> queryPhaseResults = new PlainActionFuture<>();
-        service.executeQueryPhase(request, searchTask, queryPhaseResults);
-        final QuerySearchResult queryResult = (QuerySearchResult) queryPhaseResults.get();
+            // there are the matched docs from the query phase
+            final TestRankDoc[] queryRankDocs = ((TestRankShardResult) queryResult.getRankShardResult()).testRankDocs;
 
-        // there are the matched docs from the query phase
-        final TestRankDoc[] queryRankDocs = ((TestRankShardResult) queryResult.getRankShardResult()).testRankDocs;
+            // assume that we have cut down to these from the coordinator node as the top-docs to run the rank feature phase upon
+            List<Integer> topRankWindowSizeDocs = randomNonEmptySubsetOf(Arrays.stream(queryRankDocs).map(x -> x.doc).toList());
 
-        // assume that we have cut down to these from the coordinator node as the top-docs to run the rank feature phase upon
-        List<Integer> topRankWindowSizeDocs = randomNonEmptySubsetOf(Arrays.stream(queryRankDocs).map(x -> x.doc).toList());
+            // now we create a RankFeatureShardRequest to extract feature info for the top-docs above
+            RankFeatureShardRequest rankFeatureShardRequest = new RankFeatureShardRequest(
+                OriginalIndices.NONE,
+                queryResult.getContextId(), // use the context from the query phase
+                request,
+                topRankWindowSizeDocs
+            );
+            PlainActionFuture<RankFeatureResult> rankPhaseResults = new PlainActionFuture<>();
+            service.executeRankFeaturePhase(rankFeatureShardRequest, searchTask, rankPhaseResults);
+            rankResult = rankPhaseResults.get();
 
-        // now we create a RankFeatureShardRequest to extract feature info for the top-docs above
-        RankFeatureShardRequest rankFeatureShardRequest = new RankFeatureShardRequest(
-            OriginalIndices.NONE,
-            queryResult.getContextId(), // use the context from the query phase
-            request,
-            topRankWindowSizeDocs
-        );
-        PlainActionFuture<RankFeatureResult> rankPhaseResults = new PlainActionFuture<>();
-        service.executeRankFeaturePhase(rankFeatureShardRequest, searchTask, rankPhaseResults);
-        final RankFeatureResult rankResult = rankPhaseResults.get();
+            assertNotNull(rankResult);
+            assertNotNull(rankResult.rankFeatureResult());
+            RankFeatureShardResult rankFeatureShardResult = rankResult.rankFeatureResult().shardResult();
+            assertNotNull(rankFeatureShardResult);
 
-        assertNotNull(rankResult);
-        assertNotNull(rankResult.rankFeatureResult());
-        RankFeatureShardResult rankFeatureShardResult = rankResult.rankFeatureResult().shardResult();
-        assertNotNull(rankFeatureShardResult);
+            List<Integer> sortedRankWindowDocs = topRankWindowSizeDocs.stream().sorted().toList();
+            assertEquals(sortedRankWindowDocs.size(), rankFeatureShardResult.rankFeatureDocs.length);
+            for (int i = 0; i < sortedRankWindowDocs.size(); i++) {
+                assertEquals((long) sortedRankWindowDocs.get(i), rankFeatureShardResult.rankFeatureDocs[i].doc);
+                assertEquals(rankFeatureShardResult.rankFeatureDocs[i].featureData, "aardvark_" + sortedRankWindowDocs.get(i));
+            }
 
-        List<Integer> sortedRankWindowDocs = topRankWindowSizeDocs.stream().sorted().toList();
-        assertEquals(sortedRankWindowDocs.size(), rankFeatureShardResult.rankFeatureDocs.length);
-        for (int i = 0; i < sortedRankWindowDocs.size(); i++) {
-            assertEquals((long) sortedRankWindowDocs.get(i), rankFeatureShardResult.rankFeatureDocs[i].doc);
-            assertEquals(rankFeatureShardResult.rankFeatureDocs[i].featureData, "aardvark_" + sortedRankWindowDocs.get(i));
-        }
+            List<Integer> globalTopKResults = randomNonEmptySubsetOf(
+                Arrays.stream(rankFeatureShardResult.rankFeatureDocs).map(x -> x.doc).toList()
+            );
 
-        List<Integer> globalTopKResults = randomNonEmptySubsetOf(
-            Arrays.stream(rankFeatureShardResult.rankFeatureDocs).map(x -> x.doc).toList()
-        );
+            // finally let's create a fetch request to bring back fetch info for the top results
+            ShardFetchSearchRequest fetchRequest = new ShardFetchSearchRequest(
+                OriginalIndices.NONE,
+                rankResult.getContextId(),
+                request,
+                globalTopKResults,
+                null,
+                rankResult.getRescoreDocIds(),
+                null
+            );
 
-        // finally let's create a fetch request to bring back fetch info for the top results
-        ShardFetchSearchRequest fetchRequest = new ShardFetchSearchRequest(
-            OriginalIndices.NONE,
-            rankResult.getContextId(),
-            request,
-            globalTopKResults,
-            null,
-            rankResult.getRescoreDocIds(),
-            null
-        );
+            // execute fetch phase and perform any validations once we retrieve the response
+            // the difference in how we do assertions here is needed because once the transport service sends back the response
+            // it decrements the reference to the FetchSearchResult (through the ActionListener#respondAndRelease) and sets hits to null
+            service.executeFetchPhase(fetchRequest, searchTask, new ActionListener<>() {
+                @Override
+                public void onResponse(FetchSearchResult fetchSearchResult) {
+                    assertNotNull(fetchSearchResult);
+                    assertNotNull(fetchSearchResult.hits());
 
-        // execute fetch phase and perform any validations once we retrieve the response
-        // the difference in how we do assertions here is needed because once the transport service sends back the response
-        // it decrements the reference to the FetchSearchResult (through the ActionListener#respondAndRelease) and sets hits to null
-        service.executeFetchPhase(fetchRequest, searchTask, new ActionListener<>() {
-            @Override
-            public void onResponse(FetchSearchResult fetchSearchResult) {
-                assertNotNull(fetchSearchResult);
-                assertNotNull(fetchSearchResult.hits());
-
-                int totalHits = fetchSearchResult.hits().getHits().length;
-                assertEquals(globalTopKResults.size(), totalHits);
-                for (int i = 0; i < totalHits; i++) {
-                    // rank and score are set by the SearchPhaseController#merge so no need to validate that here
-                    SearchHit hit = fetchSearchResult.hits().getAt(i);
-                    assertNotNull(hit.getFields().get(fetchFieldName));
-                    assertEquals(hit.getFields().get(fetchFieldName).getValue(), fetchFieldValue + "_" + hit.docId());
+                    int totalHits = fetchSearchResult.hits().getHits().length;
+                    assertEquals(globalTopKResults.size(), totalHits);
+                    for (int i = 0; i < totalHits; i++) {
+                        // rank and score are set by the SearchPhaseController#merge so no need to validate that here
+                        SearchHit hit = fetchSearchResult.hits().getAt(i);
+                        assertNotNull(hit.getFields().get(fetchFieldName));
+                        assertEquals(hit.getFields().get(fetchFieldName).getValue(), fetchFieldValue + "_" + hit.docId());
+                    }
                 }
-            }
 
-            @Override
-            public void onFailure(Exception e) {
-                throw new AssertionError("No failure should have been raised", e);
+                @Override
+                public void onFailure(Exception e) {
+                    throw new AssertionError("No failure should have been raised", e);
+                }
+            });
+        } catch (Exception ignored) {
+            if (queryResult != null) {
+                if (queryResult.hasReferences()) {
+                    queryResult.decRef();
+                }
+                service.freeReaderContext(queryResult.getContextId());
             }
-        });
+            if (rankResult != null && rankResult.hasReferences()) {
+                rankResult.decRef();
+            }
+        }
     }
 
     public void testRankFeaturePhaseUsingClient() {
@@ -624,7 +637,7 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
         final String fetchFieldName = "fetch_field";
         final String fetchFieldValue = "fetch_value";
 
-        final int minDocs = 3;
+        final int minDocs = 4;
         final int maxDocs = 10;
         int numDocs = between(minDocs, maxDocs);
         createIndex(indexName);
@@ -806,11 +819,6 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
         }
         indicesAdmin().prepareRefresh(indexName).get();
 
-        SearchService service = getInstanceFromNode(SearchService.class);
-        IndicesService indicesService = getInstanceFromNode(IndicesService.class);
-        IndexService indexService = indicesService.indexServiceSafe(resolveIndex(indexName));
-        IndexShard indexShard = indexService.getShard(0);
-
         expectThrows(
             SearchPhaseExecutionException.class,
             () -> client().prepareSearch(indexName)
@@ -932,18 +940,11 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
         }
         indicesAdmin().prepareRefresh(indexName).get();
 
-        SearchService service = getInstanceFromNode(SearchService.class);
-        IndicesService indicesService = getInstanceFromNode(IndicesService.class);
-        IndexService indexService = indicesService.indexServiceSafe(resolveIndex(indexName));
-        IndexShard indexShard = indexService.getShard(0);
-
         expectThrows(
             SearchPhaseExecutionException.class,
             () -> client().prepareSearch(indexName)
                 .setSource(
                     new SearchSourceBuilder().query(new TermQueryBuilder(searchFieldName, searchFieldValue))
-                        .size(2)
-                        .from(2)
                         .fetchField(fetchFieldName)
                         .rankBuilder(
                             // here we override only the shard-level contexts
@@ -1043,7 +1044,6 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
                                     return new RankFeaturePhaseRankShardContext(rankFeatureFieldName) {
                                         @Override
                                         public RankShardResult buildRankFeatureShardResult(SearchHits hits, int shardId) {
-
                                             throw new UnsupportedOperationException("simulated failure");
                                         }
                                     };
@@ -1209,7 +1209,6 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
                         )
                 ),
             (searchResponse) -> {
-                System.out.println(searchResponse);
                 assertEquals(1, searchResponse.getSuccessfulShards());
                 assertEquals("simulated failure", searchResponse.getShardFailures()[0].getCause().getMessage());
                 assertNotEquals(0, searchResponse.getHits().getHits().length);

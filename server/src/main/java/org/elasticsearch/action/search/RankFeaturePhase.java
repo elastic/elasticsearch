@@ -25,8 +25,6 @@ import java.util.Arrays;
 import java.util.Comparator;
 import java.util.List;
 
-import static org.elasticsearch.action.search.FetchSearchPhase.releaseIrrelevantSearchContext;
-
 /**
  * This search phase is responsible for executing any re-ranking needed for the given search request, iff that is applicable.
  * It starts by retrieving {code num_shards * window_size} results from the query phase and reduces them to a global list of
@@ -121,8 +119,7 @@ public class RankFeaturePhase extends SearchPhase {
     }
 
     private RankFeaturePhaseRankCoordinatorContext coordinatorContext(SearchSourceBuilder source) {
-        assert source != null : "source cannot be null";
-        return source.rankBuilder() == null
+        return source == null || source.rankBuilder() == null
             ? null
             : context.getRequest()
                 .source()

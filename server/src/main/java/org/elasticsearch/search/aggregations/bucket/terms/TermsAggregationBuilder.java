@@ -35,7 +35,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
-import static org.elasticsearch.Version.V_7_17_21;
+import static org.elasticsearch.Version.V_7_17_22;
 
 public class TermsAggregationBuilder extends ValuesSourceAggregationBuilder<TermsAggregationBuilder> {
     public static final String NAME = "terms";
@@ -156,7 +156,7 @@ public class TermsAggregationBuilder extends ValuesSourceAggregationBuilder<Term
         includeExclude = in.readOptionalWriteable(IncludeExclude::new);
         order = InternalOrder.Streams.readOrder(in);
         showTermDocCountError = in.readBoolean();
-        if (in.getVersion().onOrAfter(V_7_17_21)) {
+        if (in.getVersion().onOrAfter(V_7_17_22)) {
             excludeDeletedDocs = in.readBoolean();
         }
     }
@@ -174,7 +174,7 @@ public class TermsAggregationBuilder extends ValuesSourceAggregationBuilder<Term
         out.writeOptionalWriteable(includeExclude);
         order.writeTo(out);
         out.writeBoolean(showTermDocCountError);
-        if (out.getVersion().onOrAfter(V_7_17_21)) {
+        if (out.getVersion().onOrAfter(V_7_17_22)) {
             out.writeBoolean(excludeDeletedDocs);
         }
     }

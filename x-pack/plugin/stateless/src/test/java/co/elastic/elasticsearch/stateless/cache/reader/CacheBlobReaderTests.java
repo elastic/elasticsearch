@@ -23,6 +23,7 @@ import co.elastic.elasticsearch.stateless.Stateless;
 import co.elastic.elasticsearch.stateless.cache.StatelessSharedBlobCacheService;
 import co.elastic.elasticsearch.stateless.commits.BatchedCompoundCommit;
 import co.elastic.elasticsearch.stateless.commits.BlobLocation;
+import co.elastic.elasticsearch.stateless.commits.StatelessCompoundCommit;
 import co.elastic.elasticsearch.stateless.commits.VirtualBatchedCompoundCommit;
 import co.elastic.elasticsearch.stateless.commits.VirtualBatchedCompoundCommitTestUtils;
 import co.elastic.elasticsearch.stateless.engine.PrimaryTermAndGeneration;
@@ -57,10 +58,13 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.junit.annotations.TestIssueLogging;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -142,7 +146,9 @@ public class CacheBlobReaderTests extends ESTestCase {
                 var pendingCompoundCommits = VirtualBatchedCompoundCommitTestUtils.getPendingStatelessCompoundCommits(
                     virtualBatchedCompoundCommit
                 );
-                searchDirectory.updateCommit(pendingCompoundCommits.get(pendingCompoundCommits.size() - 1));
+                StatelessCompoundCommit latestCommit = pendingCompoundCommits.get(pendingCompoundCommits.size() - 1);
+                logger.debug("Updating Search directory with CC: {}", latestCommit.toLongDescription());
+                searchDirectory.updateCommit(latestCommit);
             }
         }
 
@@ -307,12 +313,14 @@ public class CacheBlobReaderTests extends ESTestCase {
                 @Override
                 public InputStream readBlob(OperationPurpose purpose, String blobName) throws IOException {
                     blobReads.incrementAndGet();
+                    logger.debug("reading {} from blob store", blobName);
                     return super.readBlob(purpose, blobName);
                 }
 
                 @Override
                 public InputStream readBlob(OperationPurpose purpose, String blobName, long position, long length) throws IOException {
                     blobReads.incrementAndGet();
+                    logger.debug("reading {} from blob store, position: {} length: {}", blobName, position, length);
                     return super.readBlob(purpose, blobName, position, length);
                 }
             };
@@ -372,6 +380,10 @@ public class CacheBlobReaderTests extends ESTestCase {
         }
     }
 
+    @TestIssueLogging(
+        issueUrl = "https://github.com/elastic/elasticsearch-serverless/issues/1740",
+        value = "co.elastic.elasticsearch.stateless.lucene:TRACE,co.elastic.elasticsearch.stateless.cache.reader:TRACE"
+    )
     public void testCacheBlobReaderFetchFromIndexingAndNeverFromBlobStore() throws Exception {
         final var primaryTerm = randomLongBetween(1L, 10L);
         try (var node = new FakeVBCCStatelessNode(this::newEnvironment, this::newNodeEnvironment, xContentRegistry(), primaryTerm) {
@@ -386,15 +398,26 @@ public class CacheBlobReaderTests extends ESTestCase {
             var virtualBatchedCompoundCommit = node.virtualBatchedCompoundCommit;
             var searchDirectory = node.searchDirectory;
 
-            // Read all files and ensure they are the same. This reads from the indexing node into the cache.
-            virtualBatchedCompoundCommit.getInternalLocations().keySet().forEach(filename -> assertFileChecksum(searchDirectory, filename));
+            var internalFileNames = new ArrayList<>(virtualBatchedCompoundCommit.getInternalLocations().keySet());
 
-            var bcc = node.uploadVirtualBatchedCompoundCommit();
+            // Read all files and ensure they are the same. This reads from the indexing node into the cache.
+            internalFileNames.forEach(filename -> assertFileChecksum(searchDirectory, filename));
+
+            node.uploadVirtualBatchedCompoundCommit();
 
             // Read all files and ensure they are the same. This reads from cache (should be big) without reading from the blob store.
             int blobReadsBefore = node.getBlobReads();
-            virtualBatchedCompoundCommit.getInternalLocations().keySet().forEach(filename -> assertFileChecksum(searchDirectory, filename));
-            assertThat(node.getBlobReads(), equalTo(blobReadsBefore));
+            assertThat("All reads should be done from indexing node blob reader", blobReadsBefore, equalTo(0));
+
+            if (randomBoolean()) {
+                // access files in different order
+                Collections.shuffle(internalFileNames, random());
+            }
+
+            internalFileNames.forEach(filename -> assertFileChecksum(searchDirectory, filename));
+
+            int blobReadsAfter = node.getBlobReads();
+            assertThat("All reads should be done from the cache", blobReadsAfter, equalTo(0));
         }
     }
 

@@ -592,6 +592,7 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
             public void onResponse(FetchSearchResult fetchSearchResult) {
                 assertNotNull(fetchSearchResult);
                 assertNotNull(fetchSearchResult.hits());
+
                 int totalHits = fetchSearchResult.hits().getHits().length;
                 assertEquals(globalTopKResults.size(), totalHits);
                 for (int i = 0; i < totalHits; i++) {
@@ -604,7 +605,7 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
 
             @Override
             public void onFailure(Exception e) {
-                throw new AssertionError(e);
+                throw new AssertionError("No failure should have been raised", e);
             }
         });
     }

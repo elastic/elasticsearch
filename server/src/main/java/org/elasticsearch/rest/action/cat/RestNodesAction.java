@@ -155,7 +155,7 @@ public class RestNodesAction extends AbstractCatAction {
         table.addCell("heap.percent", "alias:hp,heapPercent;text-align:right;desc:used heap ratio");
         table.addCell("heap.max", "default:false;alias:hm,heapMax;text-align:right;desc:max configured heap");
         table.addCell("ram.current", "default:false;alias:rc,ramCurrent;text-align:right;desc:used machine memory");
-        table.addCell("ram.percent", "alias:rp,ramPercent;text-align:right;desc:used machine memory ratio");
+        table.addCell("ram.percent", "default:false;alias:rp,ramPercent;text-align:right;desc:used machine memory ratio");
         table.addCell("ram.max", "default:false;alias:rm,ramMax;text-align:right;desc:total machine memory");
         table.addCell("file_desc.current", "default:false;alias:fdc,fileDescriptorCurrent;text-align:right;desc:used file descriptors");
         table.addCell(

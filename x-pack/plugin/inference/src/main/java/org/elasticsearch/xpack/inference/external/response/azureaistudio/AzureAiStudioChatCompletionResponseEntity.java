@@ -67,7 +67,7 @@ public class AzureAiStudioChatCompletionResponseEntity extends ChatCompletionRes
                 return new ChatCompletionResults(List.of(new ChatCompletionResults.Result(content)));
             }
 
-            throw new IllegalStateException("Reached an invalid state while parsing the Azure AI Studio response");
+            throw new IllegalStateException("Reached an invalid state while parsing the Azure AI Studio completion response");
         }
     }
 }

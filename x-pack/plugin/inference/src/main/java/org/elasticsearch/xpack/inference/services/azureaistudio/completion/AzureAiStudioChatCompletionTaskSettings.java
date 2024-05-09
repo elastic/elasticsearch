@@ -36,8 +36,8 @@ public class AzureAiStudioChatCompletionTaskSettings implements TaskSettings {
     public static AzureAiStudioChatCompletionTaskSettings fromMap(Map<String, Object> map) {
         ValidationException validationException = new ValidationException();
 
-        var temperature = extractOptionalFloat(map, TEMPERATURE_FIELD, ModelConfigurations.TASK_SETTINGS, validationException);
-        var topP = extractOptionalFloat(map, TOP_P_FIELD, ModelConfigurations.TASK_SETTINGS, validationException);
+        var temperature = extractOptionalFloat(map, TEMPERATURE_FIELD);
+        var topP = extractOptionalFloat(map, TOP_P_FIELD);
         var doSample = extractOptionalBoolean(map, DO_SAMPLE_FIELD, ModelConfigurations.TASK_SETTINGS, validationException);
         var maxNewTokens = extractOptionalPositiveInteger(
             map,

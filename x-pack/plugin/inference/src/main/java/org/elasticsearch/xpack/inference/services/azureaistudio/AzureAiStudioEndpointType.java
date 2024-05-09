@@ -8,15 +8,12 @@
 package org.elasticsearch.xpack.inference.services.azureaistudio;
 
 import org.elasticsearch.ElasticsearchStatusException;
-import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.rest.RestStatus;
 
-import java.io.IOException;
 import java.util.Locale;
 import java.util.Objects;
 
-public enum AzureAiStudioEndpointType implements Writeable {
+public enum AzureAiStudioEndpointType {
     TOKEN,
     REALTIME;
 
@@ -42,10 +39,5 @@ public enum AzureAiStudioEndpointType implements Writeable {
     @Override
     public String toString() {
         return name().toLowerCase(Locale.ROOT);
-    }
-
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        out.writeEnum(this);
     }
 }

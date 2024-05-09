@@ -283,19 +283,8 @@ public class ServiceUtils {
         return optionalField;
     }
 
-    public static Float extractOptionalFloat(
-        Map<String, Object> map,
-        String settingName,
-        String scope,
-        ValidationException validationException
-    ) {
-        var optionalValue = ServiceUtils.removeAsType(map, settingName, Float.class);
-
-        if (validationException.validationErrors().isEmpty() == false) {
-            return null;
-        }
-
-        return optionalValue;
+    public static Float extractOptionalFloat(Map<String, Object> map, String settingName) {
+        return ServiceUtils.removeAsType(map, settingName, Float.class);
     }
 
     public static <E extends Enum<E>> E extractRequriedEnum(

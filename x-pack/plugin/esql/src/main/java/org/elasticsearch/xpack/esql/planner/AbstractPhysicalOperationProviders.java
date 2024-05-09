@@ -66,7 +66,8 @@ public abstract class AbstractPhysicalOperationProviders implements PhysicalOper
                 aggregatorMode = AggregatorMode.INITIAL;
             }
         } else {
-            aggregatorMode = AggregatorMode.INITIAL;
+            assert false : "Invalid aggregator mode [" + mode + "]";
+            aggregatorMode = AggregatorMode.SINGLE;
         }
 
         if (aggregateExec.groupings().isEmpty()) {

@@ -84,7 +84,7 @@ public abstract class ItemSetMapReduceAggregator<
             ? contextSearcher.createWeight(contextSearcher.rewrite(context.buildQuery(documentFilter)), ScoreMode.COMPLETE_NO_SCORES, 1f)
             : null;
 
-        boolean rewriteBasedOnOrdinals = true;
+        boolean rewriteBasedOnOrdinals = false;
 
         for (var c : configsAndValueFilters) {
             ItemSetMapReduceValueSource e = context.getValuesSourceRegistry()

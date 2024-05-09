@@ -381,13 +381,14 @@ public class PrerequisiteSection {
                 Strings.format("Expected some of %s, but got %s", CapabilitiesCheck.FIELD_NAMES, fields.keySet())
             );
         }
-        if (fields.containsKey("method") == false || fields.containsKey("path") == false) {
-            throw new ParsingException(parser.getTokenLocation(), Strings.format("method and path are required"));
+        Object path = fields.get("path");
+        if (path == null) {
+            throw new ParsingException(parser.getTokenLocation(), "path is required");
         }
 
         return new CapabilitiesCheck(
-            ensureString(fields.get("method")),
-            ensureString(fields.get("path")),
+            ensureString(ensureString(fields.getOrDefault("method", "GET"))),
+            ensureString(path),
             stringArrayAsParamString("parameters", fields),
             stringArrayAsParamString("capabilities", fields)
         );
@@ -399,7 +400,7 @@ public class PrerequisiteSection {
     }
 
     private static String stringArrayAsParamString(String name, Map<String, Object> fields) {
-        Object value = fields.getOrDefault(name, null);
+        Object value = fields.get(name);
         if (value == null) return null;
         if (value instanceof Collection<?> values) {
             return values.stream().map(PrerequisiteSection::ensureString).collect(joining(","));

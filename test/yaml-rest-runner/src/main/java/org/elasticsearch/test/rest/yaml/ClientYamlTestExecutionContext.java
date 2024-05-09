@@ -27,6 +27,7 @@ import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -128,11 +129,15 @@ public class ClientYamlTestExecutionContext {
     ) throws IOException {
         // makes a copy of the parameters before modifying them for this specific request
         Map<String, String> requestParams = new HashMap<>(params);
-        if ("false".equals(requestParams.get("error_trace"))) {
-            requestParams.remove("error_trace");
-        } else {
-            requestParams.putIfAbsent("error_trace", "true"); // By default ask for error traces, this my be overridden by params
-        }
+        requestParams.compute("error_trace", (k, v) -> {
+            if (v == null) {
+                return "true";  // By default ask for error traces, this my be overridden by params
+            } else if (v.equals("false")) {
+                return null;
+            } else {
+                return v;
+            }
+        });
         for (Map.Entry<String, String> entry : requestParams.entrySet()) {
             if (stash.containsStashedValue(entry.getValue())) {
                 entry.setValue(stash.getValue(entry.getValue()).toString());
@@ -276,7 +281,7 @@ public class ClientYamlTestExecutionContext {
     }
 
     public Optional<Boolean> clusterHasCapabilities(String method, String path, String parametersString, String capabilitiesString) {
-        Map<String, String> params = Maps.newMapWithExpectedSize(4);
+        Map<String, String> params = Maps.newMapWithExpectedSize(5);
         params.put("method", method);
         params.put("path", path);
         if (Strings.hasLength(parametersString)) {
@@ -296,7 +301,7 @@ public class ClientYamlTestExecutionContext {
             }
             throw new RuntimeException(responseException);
         } catch (IOException ioException) {
-            throw new RuntimeException(ioException);
+            throw new UncheckedIOException(ioException);
         }
     }
 }

@@ -508,8 +508,7 @@ public class PrerequisiteSectionTests extends AbstractClientYamlTestFragmentPars
         parser = createParser(YamlXContent.yamlXContent, """
             - requires:
                capabilities:
-                 - method: GET
-                   path: /a
+                 - path: /a
                  - method: POST
                    path: /b
                    parameters: [param1, param2]
@@ -519,8 +518,7 @@ public class PrerequisiteSectionTests extends AbstractClientYamlTestFragmentPars
                reason: required to run test
             - skip:
                capabilities:
-                 - method: GET
-                   path: /d
+                 - path: /d
                    parameters: param1
                    capabilities: a
                reason: undesired if supported

@@ -25,6 +25,8 @@ import java.util.Arrays;
 import java.util.Comparator;
 import java.util.List;
 
+import static org.elasticsearch.action.search.FetchSearchPhase.releaseIrrelevantSearchContext;
+
 /**
  * This search phase is responsible for executing any re-ranking needed for the given search request, iff that is applicable.
  * It starts by retrieving {code num_shards * window_size} results from the query phase and reduces them to a global list of
@@ -157,15 +159,19 @@ public class RankFeaturePhase extends SearchPhase {
                             progressListener.notifyRankFeatureResult(shardIndex);
                             rankRequestCounter.onResult(response);
                         } catch (Exception e) {
-                            context.onPhaseFailure(RankFeaturePhase.this, "", e);
+                            // context.onPhaseFailure(RankFeaturePhase.this, "", e);
                         }
                     }
 
                     @Override
                     public void onFailure(Exception e) {
-                        logger.debug(() -> "[" + contextId + "] Failed to execute rank phase", e);
-                        progressListener.notifyRankFeatureFailure(shardIndex, shardTarget, e);
-                        rankRequestCounter.onFailure(shardIndex, shardTarget, e);
+                        try {
+                            logger.debug(() -> "[" + contextId + "] Failed to execute rank phase", e);
+                            progressListener.notifyRankFeatureFailure(shardIndex, shardTarget, e);
+                            rankRequestCounter.onFailure(shardIndex, shardTarget, e);
+                        } finally {
+                            releaseIrrelevantSearchContext(queryResult, context);
+                        }
                     }
                 }
             );

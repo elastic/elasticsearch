@@ -114,7 +114,7 @@ final class FetchSearchPhase extends SearchPhase {
             // no docs to fetch -- sidestep everything and return
             if (scoreDocs.length == 0) {
                 // we have to release contexts here to free up resources
-                queryResults.asList().forEach(this::releaseIrrelevantSearchContext);
+                queryResults.asList().forEach(x -> releaseIrrelevantSearchContext(x, context));
                 moveToNextPhase(reducedQueryPhase, fetchResults.getAtomicArray());
             } else {
                 final ScoreDoc[] lastEmittedDocPerShard = context.getRequest().scroll() != null
@@ -135,7 +135,7 @@ final class FetchSearchPhase extends SearchPhase {
                             // if we got some hits from this shard we have to release the context there
                             // we do this as we go since it will free up resources and passing on the request on the
                             // transport layer is cheap.
-                            releaseIrrelevantSearchContext(queryResult);
+                            releaseIrrelevantSearchContext(queryResult, context);
                             progressListener.notifyFetchResult(i);
                         }
                         // in any case we count down this result since we don't talk to this shard anymore
@@ -200,7 +200,7 @@ final class FetchSearchPhase extends SearchPhase {
                             // the search context might not be cleared on the node where the fetch was executed for example
                             // because the action was rejected by the thread pool. in this case we need to send a dedicated
                             // request to clear the search context.
-                            releaseIrrelevantSearchContext(queryResult);
+                            releaseIrrelevantSearchContext(queryResult, context);
                         }
                     }
                 }
@@ -210,7 +210,7 @@ final class FetchSearchPhase extends SearchPhase {
     /**
      * Releases shard targets that are not used in the docsIdsToLoad.
      */
-    private void releaseIrrelevantSearchContext(SearchPhaseResult searchPhaseResult) {
+    static void releaseIrrelevantSearchContext(SearchPhaseResult searchPhaseResult, SearchPhaseContext context) {
         // we only release search context that we did not fetch from, if we are not scrolling
         // or using a PIT and if it has at least one hit that didn't make it to the global topDocs
         if (searchPhaseResult == null) {

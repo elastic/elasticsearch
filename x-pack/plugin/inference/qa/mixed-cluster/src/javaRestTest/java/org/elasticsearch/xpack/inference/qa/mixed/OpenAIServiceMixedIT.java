@@ -54,14 +54,14 @@ public class OpenAIServiceMixedIT extends BaseMixedIT {
         var openAiEmbeddingsSupported = bwcVersion.onOrAfter(Version.fromString(OPEN_AI_EMBEDDINGS_ADDED));
         assumeTrue("OpenAI embedding service added in " + OPEN_AI_EMBEDDINGS_ADDED, openAiEmbeddingsSupported);
 
-        final String oldClusterId = "old-cluster-embeddings";
+        final String inferenceId = "mixed-cluster-embeddings";
 
         String inferenceConfig = oldClusterVersionCompatibleEmbeddingConfig();
         // queue a response as PUT will call the service
         openAiEmbeddingsServer.enqueue(new MockResponse().setResponseCode(200).setBody(embeddingResponse()));
-        put(oldClusterId, inferenceConfig, TaskType.TEXT_EMBEDDING);
+        put(inferenceId, inferenceConfig, TaskType.TEXT_EMBEDDING);
 
-        var configs = (List<Map<String, Object>>) get(TaskType.TEXT_EMBEDDING, oldClusterId).get("endpoints");
+        var configs = (List<Map<String, Object>>) get(TaskType.TEXT_EMBEDDING, inferenceId).get("endpoints");
         assertThat(configs, hasSize(1));
         assertEquals("openai", configs.get(0).get("service"));
         var serviceSettings = (Map<String, Object>) configs.get(0).get("service_settings");
@@ -69,7 +69,7 @@ public class OpenAIServiceMixedIT extends BaseMixedIT {
         var modelIdFound = serviceSettings.containsKey("model_id") || taskSettings.containsKey("model_id");
         assertTrue("model_id not found in config: " + configs.toString(), modelIdFound);
 
-        assertEmbeddingInference(oldClusterId);
+        assertEmbeddingInference(inferenceId);
     }
 
     void assertEmbeddingInference(String inferenceId) throws IOException {
@@ -83,12 +83,12 @@ public class OpenAIServiceMixedIT extends BaseMixedIT {
         var openAiEmbeddingsSupported = bwcVersion.onOrAfter(Version.fromString(OPEN_AI_EMBEDDINGS_ADDED));
         assumeTrue("OpenAI completions service added in " + OPEN_AI_COMPLETIONS_ADDED, openAiEmbeddingsSupported);
 
-        final String oldClusterId = "old-cluster-completions";
+        final String inferenceId = "mixed-cluster-completions";
         final String upgradedClusterId = "upgraded-cluster-completions";
 
-        put(oldClusterId, chatCompletionsConfig(getUrl(openAiChatCompletionsServer)), TaskType.COMPLETION);
+        put(inferenceId, chatCompletionsConfig(getUrl(openAiChatCompletionsServer)), TaskType.COMPLETION);
 
-        var configsMap = get(TaskType.COMPLETION, oldClusterId);
+        var configsMap = get(TaskType.COMPLETION, inferenceId);
         logger.warn("Configs: {}", configsMap);
         var configs = (List<Map<String, Object>>) configsMap.get("endpoints");
         assertThat(configs, hasSize(1));
@@ -98,7 +98,7 @@ public class OpenAIServiceMixedIT extends BaseMixedIT {
         var taskSettings = (Map<String, Object>) configs.get(0).get("task_settings");
         assertThat(taskSettings.keySet(), empty());
 
-        assertCompletionInference(oldClusterId);
+        assertCompletionInference(inferenceId);
     }
 
     void assertCompletionInference(String inferenceId) throws IOException {

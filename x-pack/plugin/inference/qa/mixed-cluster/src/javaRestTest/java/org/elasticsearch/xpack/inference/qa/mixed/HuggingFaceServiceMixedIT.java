@@ -50,14 +50,14 @@ public class HuggingFaceServiceMixedIT extends BaseMixedIT {
         var embeddingsSupported = bwcVersion.onOrAfter(Version.fromString(HF_EMBEDDINGS_ADDED));
         assumeTrue("Hugging Face embedding service added in " + HF_EMBEDDINGS_ADDED, embeddingsSupported);
 
-        final String oldClusterId = "old-cluster-embeddings";
+        final String inferenceId = "mixed-cluster-embeddings";
 
         embeddingsServer.enqueue(new MockResponse().setResponseCode(200).setBody(embeddingResponse()));
-        put(oldClusterId, embeddingConfig(getUrl(embeddingsServer)), TaskType.TEXT_EMBEDDING);
-        var configs = (List<Map<String, Object>>) get(TaskType.TEXT_EMBEDDING, oldClusterId).get("endpoints");
+        put(inferenceId, embeddingConfig(getUrl(embeddingsServer)), TaskType.TEXT_EMBEDDING);
+        var configs = (List<Map<String, Object>>) get(TaskType.TEXT_EMBEDDING, inferenceId).get("endpoints");
         assertThat(configs, hasSize(1));
         assertEquals("hugging_face", configs.get(0).get("service"));
-        assertEmbeddingInference(oldClusterId);
+        assertEmbeddingInference(inferenceId);
     }
 
     void assertEmbeddingInference(String inferenceId) throws IOException {
@@ -71,15 +71,15 @@ public class HuggingFaceServiceMixedIT extends BaseMixedIT {
         var supported = bwcVersion.onOrAfter(Version.fromString(HF_ELSER_ADDED));
         assumeTrue("HF elser service added in " + HF_ELSER_ADDED, supported);
 
-        final String oldClusterId = "old-cluster-elser";
+        final String inferenceId = "mixed-cluster-elser";
         final String upgradedClusterId = "upgraded-cluster-elser";
 
-        put(oldClusterId, elserConfig(getUrl(elserServer)), TaskType.SPARSE_EMBEDDING);
+        put(inferenceId, elserConfig(getUrl(elserServer)), TaskType.SPARSE_EMBEDDING);
 
-        var configs = (List<Map<String, Object>>) get(TaskType.SPARSE_EMBEDDING, oldClusterId).get("endpoints");
+        var configs = (List<Map<String, Object>>) get(TaskType.SPARSE_EMBEDDING, inferenceId).get("endpoints");
         assertThat(configs, hasSize(1));
         assertEquals("hugging_face", configs.get(0).get("service"));
-        assertElser(oldClusterId);
+        assertElser(inferenceId);
     }
 
     private void assertElser(String inferenceId) throws IOException {

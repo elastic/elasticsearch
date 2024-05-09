@@ -120,7 +120,6 @@ public class OpenAiServiceUpgradeIT extends InferenceUpgradeTestCase {
         final String upgradedClusterId = "upgraded-cluster-completions";
 
         if (isOldCluster()) {
-            // TODO why is put only in old cluster?
             put(oldClusterId, chatCompletionsConfig(getUrl(openAiChatCompletionsServer)), TaskType.COMPLETION);
 
             var configs = (List<Map<String, Object>>) get(TaskType.COMPLETION, oldClusterId).get("models");

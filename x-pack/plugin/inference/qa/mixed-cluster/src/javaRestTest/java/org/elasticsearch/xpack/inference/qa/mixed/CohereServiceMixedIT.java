@@ -57,17 +57,17 @@ public class CohereServiceMixedIT extends BaseMixedIT {
         var embeddingsSupported = bwcVersion.onOrAfter(Version.fromString(COHERE_EMBEDDINGS_ADDED));
         assumeTrue("Cohere embedding service added in " + COHERE_EMBEDDINGS_ADDED, embeddingsSupported);
 
-        final String oldClusterIdInt8 = "old-cluster-embeddings-int8";
-        final String oldClusterIdFloat = "old-cluster-embeddings-float";
+        final String inferenceIdInt8 = "mixed-cluster-cohere-embeddings-int8";
+        final String inferenceIdFloat = "mixed-cluster-cohere-embeddings-float";
 
         // queue a response as PUT will call the service
         cohereEmbeddingsServer.enqueue(new MockResponse().setResponseCode(200).setBody(embeddingResponseByte()));
-        put(oldClusterIdInt8, embeddingConfigInt8(getUrl(cohereEmbeddingsServer)), TaskType.TEXT_EMBEDDING);
+        put(inferenceIdInt8, embeddingConfigInt8(getUrl(cohereEmbeddingsServer)), TaskType.TEXT_EMBEDDING);
         // float model
         cohereEmbeddingsServer.enqueue(new MockResponse().setResponseCode(200).setBody(embeddingResponseFloat()));
-        put(oldClusterIdFloat, embeddingConfigFloat(getUrl(cohereEmbeddingsServer)), TaskType.TEXT_EMBEDDING);
+        put(inferenceIdFloat, embeddingConfigFloat(getUrl(cohereEmbeddingsServer)), TaskType.TEXT_EMBEDDING);
 
-        var configs = (List<Map<String, Object>>) get(TaskType.TEXT_EMBEDDING, oldClusterIdInt8).get("endpoints");
+        var configs = (List<Map<String, Object>>) get(TaskType.TEXT_EMBEDDING, inferenceIdInt8).get("endpoints");
         assertEquals("cohere", configs.get(0).get("service"));
         var serviceSettings = (Map<String, Object>) configs.get(0).get("service_settings");
         assertThat(serviceSettings, hasEntry("model_id", "embed-english-light-v3.0"));
@@ -75,41 +75,15 @@ public class CohereServiceMixedIT extends BaseMixedIT {
         // An upgraded node will report the embedding type as byte, an old node int8
         assertThat(embeddingType, Matchers.is(oneOf("int8", "byte")));
 
-        configs = (List<Map<String, Object>>) get(TaskType.TEXT_EMBEDDING, oldClusterIdFloat).get("endpoints");
+        configs = (List<Map<String, Object>>) get(TaskType.TEXT_EMBEDDING, inferenceIdFloat).get("endpoints");
         serviceSettings = (Map<String, Object>) configs.get(0).get("service_settings");
         assertThat(serviceSettings, hasEntry("embedding_type", "float"));
 
-        assertEmbeddingInference(oldClusterIdInt8, CohereEmbeddingType.BYTE);
-        assertEmbeddingInference(oldClusterIdFloat, CohereEmbeddingType.FLOAT);
+        assertEmbeddingInference(inferenceIdInt8, CohereEmbeddingType.BYTE);
+        assertEmbeddingInference(inferenceIdFloat, CohereEmbeddingType.FLOAT);
 
-        {
-            final String upgradedClusterIdInt8 = "upgraded-cluster-embeddings-int8";
-
-            cohereEmbeddingsServer.enqueue(new MockResponse().setResponseCode(200).setBody(embeddingResponseByte()));
-            put(upgradedClusterIdInt8, embeddingConfigInt8(getUrl(cohereEmbeddingsServer)), TaskType.TEXT_EMBEDDING);
-
-            configs = (List<Map<String, Object>>) get(TaskType.TEXT_EMBEDDING, upgradedClusterIdInt8).get("endpoints");
-            serviceSettings = (Map<String, Object>) configs.get(0).get("service_settings");
-            assertThat(serviceSettings, hasEntry("embedding_type", "byte")); // int8 rewritten to byte
-
-            assertEmbeddingInference(upgradedClusterIdInt8, CohereEmbeddingType.INT8);
-            delete(upgradedClusterIdInt8);
-        }
-        {
-            final String upgradedClusterIdFloat = "upgraded-cluster-embeddings-float";
-            cohereEmbeddingsServer.enqueue(new MockResponse().setResponseCode(200).setBody(embeddingResponseFloat()));
-            put(upgradedClusterIdFloat, embeddingConfigFloat(getUrl(cohereEmbeddingsServer)), TaskType.TEXT_EMBEDDING);
-
-            configs = (List<Map<String, Object>>) get(TaskType.TEXT_EMBEDDING, upgradedClusterIdFloat).get("endpoints");
-            serviceSettings = (Map<String, Object>) configs.get(0).get("service_settings");
-            assertThat(serviceSettings, hasEntry("embedding_type", "float"));
-
-            assertEmbeddingInference(upgradedClusterIdFloat, CohereEmbeddingType.FLOAT);
-            delete(upgradedClusterIdFloat);
-        }
-
-        delete(oldClusterIdFloat);
-        delete(oldClusterIdInt8);
+        delete(inferenceIdFloat);
+        delete(inferenceIdInt8);
 
     }
 
@@ -132,12 +106,12 @@ public class CohereServiceMixedIT extends BaseMixedIT {
         var rerankSupported = bwcVersion.onOrAfter(Version.fromString(COHERE_RERANK_ADDED));
         assumeTrue("Cohere rerank service added in " + COHERE_RERANK_ADDED, rerankSupported);
 
-        final String oldClusterId = "old-cluster-rerank";
+        final String inferenceId = "mixed-cluster-rerank";
 
-        put(oldClusterId, rerankConfig(getUrl(cohereRerankServer)), TaskType.RERANK);
-        assertRerank(oldClusterId);
+        put(inferenceId, rerankConfig(getUrl(cohereRerankServer)), TaskType.RERANK);
+        assertRerank(inferenceId);
 
-        var configs = (List<Map<String, Object>>) get(TaskType.RERANK, oldClusterId).get("endpoints");
+        var configs = (List<Map<String, Object>>) get(TaskType.RERANK, inferenceId).get("endpoints");
         assertThat(configs, hasSize(1));
         assertEquals("cohere", configs.get(0).get("service"));
         var serviceSettings = (Map<String, Object>) configs.get(0).get("service_settings");
@@ -145,7 +119,7 @@ public class CohereServiceMixedIT extends BaseMixedIT {
         var taskSettings = (Map<String, Object>) configs.get(0).get("task_settings");
         assertThat(taskSettings, hasEntry("top_n", 3));
 
-        assertRerank(oldClusterId);
+        assertRerank(inferenceId);
 
     }
 

@@ -34,6 +34,7 @@ import static org.mockito.Mockito.when;
 
 public class MasterNodeFileWatchingServiceTests extends ESTestCase {
 
+    static final DiscoveryNode localNode = DiscoveryNodeUtils.create("local-node");
     MasterNodeFileWatchingService testService;
     Path watchedFile;
     Runnable fileChangedCallback;
@@ -68,7 +69,6 @@ public class MasterNodeFileWatchingServiceTests extends ESTestCase {
     }
 
     public void testBecomingMasterNodeStartsWatcher() {
-        final DiscoveryNode localNode = DiscoveryNodeUtils.create("node");
         ClusterState notRecoveredClusterState = ClusterState.builder(ClusterName.DEFAULT)
             .nodes(DiscoveryNodes.builder().add(localNode).localNodeId(localNode.getId()).masterNodeId(localNode.getId()))
             .blocks(ClusterBlocks.builder().addGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK))
@@ -83,23 +83,37 @@ public class MasterNodeFileWatchingServiceTests extends ESTestCase {
         testService.clusterChanged(new ClusterChangedEvent("test", recoveredClusterState, notRecoveredClusterState));
         // just a master node isn't sufficient, cluster state also must be recovered
         assertThat(testService.watching(), is(true));
+    }
 
-        // going back to not recovered shuts down the watcher
-        testService.clusterChanged(new ClusterChangedEvent("test", notRecoveredClusterState, recoveredClusterState));
-        // just a master node isn't sufficient, cluster state also must be recovered
-        assertThat(testService.watching(), is(false));
-
-        // and so does having the master node change
-        testService.clusterChanged(new ClusterChangedEvent("test", recoveredClusterState, notRecoveredClusterState));
+    public void testChangingMasterStopsWatcher() {
+        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
+            .nodes(DiscoveryNodes.builder().add(localNode).localNodeId(localNode.getId()).masterNodeId(localNode.getId()))
+            .build();
+        testService.clusterChanged(new ClusterChangedEvent("test", clusterState, ClusterState.EMPTY_STATE));
         assertThat(testService.watching(), is(true));
+
         final DiscoveryNode anotherNode = DiscoveryNodeUtils.create("another-node");
         ClusterState differentMasterClusterState = ClusterState.builder(ClusterName.DEFAULT)
             .nodes(
                 DiscoveryNodes.builder().add(localNode).add(anotherNode).localNodeId(localNode.getId()).masterNodeId(anotherNode.getId())
             )
             .build();
-        testService.clusterChanged(new ClusterChangedEvent("test", differentMasterClusterState, recoveredClusterState));
-        // just a master node isn't sufficient, cluster state also must be recovered
+        testService.clusterChanged(new ClusterChangedEvent("test", differentMasterClusterState, clusterState));
+        assertThat(testService.watching(), is(false));
+    }
+
+    public void testBlockingClusterStateStopsWatcher() {
+        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
+            .nodes(DiscoveryNodes.builder().add(localNode).localNodeId(localNode.getId()).masterNodeId(localNode.getId()))
+            .build();
+        testService.clusterChanged(new ClusterChangedEvent("test", clusterState, ClusterState.EMPTY_STATE));
+        assertThat(testService.watching(), is(true));
+
+        ClusterState blockedClusterState = ClusterState.builder(ClusterName.DEFAULT)
+            .nodes(DiscoveryNodes.builder().add(localNode).localNodeId(localNode.getId()).masterNodeId(localNode.getId()))
+            .blocks(ClusterBlocks.builder().addGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK))
+            .build();
+        testService.clusterChanged(new ClusterChangedEvent("test", blockedClusterState, clusterState));
         assertThat(testService.watching(), is(false));
     }
 }

@@ -106,6 +106,24 @@ public class XContentUtilsTests extends ESTestCase {
         }
     }
 
+    public void testPositionParserAtTokenAfterField_ConsumesUntilEnd() throws IOException {
+        var json = """
+            {
+              "key": {
+                "foo": "bar"
+              },
+              "target": "value"
+            }
+            """;
+
+        var errorFormat = "Error: %s";
+
+        try (XContentParser parser = createParser(XContentType.JSON.xContent(), json)) {
+            XContentUtils.positionParserAtTokenAfterField(parser, "target", errorFormat);
+            assertEquals("value", parser.text());
+        }
+    }
+
     public void testConsumeUntilObjectEnd() throws IOException {
         var json = """
             {

@@ -160,12 +160,7 @@ public class ClusterPrivilegeResolver {
     private static final Set<String> READ_CCR_PATTERN = Set.of(ClusterStateAction.NAME, HasPrivilegesAction.NAME);
     private static final Set<String> MANAGE_ILM_PATTERN = Set.of("cluster:admin/ilm/*");
     private static final Set<String> READ_ILM_PATTERN = Set.of(GetLifecycleAction.NAME, GetStatusAction.NAME);
-    private static final Set<String> MANAGE_SLM_PATTERN = Set.of(
-        "cluster:admin/slm/*",
-        ILMActions.START.name(),
-        ILMActions.STOP.name(),
-        GetStatusAction.NAME
-    );
+    private static final Set<String> MANAGE_SLM_PATTERN = Set.of("cluster:admin/slm/*");
     private static final Set<String> READ_SLM_PATTERN = Set.of(
         GetSLMStatusAction.NAME,
         GetSnapshotLifecycleAction.NAME,

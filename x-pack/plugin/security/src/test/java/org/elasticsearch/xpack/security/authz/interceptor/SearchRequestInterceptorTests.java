@@ -37,6 +37,7 @@ import java.util.Collections;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.core.security.SecurityField.DOCUMENT_LEVEL_SECURITY_FEATURE;
+import static org.elasticsearch.xpack.security.Security.DLS_FORCE_TERMS_AGGS_TO_EXCLUDE_DELETED_DOCS;
 import static org.hamcrest.Matchers.is;
 import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.Mockito.mock;
@@ -135,29 +136,7 @@ public class SearchRequestInterceptorTests extends ESTestCase {
     }
 
     public void testForceExcludeDeletedDocs() {
-        configureMinMondeVersion(VersionUtils.randomVersionBetween(random(), Version.V_7_11_2, Version.CURRENT));
-        SearchRequest searchRequest = new SearchRequest();
-        SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder();
-        TermsAggregationBuilder termsAggregationBuilder = AggregationBuilders.terms("myterms");
-        termsAggregationBuilder.minDocCount(0);
-        searchSourceBuilder.aggregation(termsAggregationBuilder);
-        searchRequest.source(searchSourceBuilder);
-
-        final DocumentPermissions documentPermissions = DocumentPermissions.filteredBy(
-            Set.of(new BytesArray("{\"term\":{\"username\":\"foo\"}}"))
-        );
-        final String index = randomAlphaOfLengthBetween(3, 8);
-        final PlainActionFuture<Void> listener = new PlainActionFuture<>();
-        assertFalse(termsAggregationBuilder.excludeDeletedDocs());
-        interceptor.disableFeatures(
-            searchRequest,
-            Collections.singletonMap(
-                index,
-                new IndicesAccessControl.IndexAccessControl(false, FieldPermissions.DEFAULT, documentPermissions)
-            ),
-            listener
-        );
-        assertTrue(termsAggregationBuilder.excludeDeletedDocs()); // changed value
+        innerTestForceExcludeDeletedDocs(true);
     }
 
     public void testNoForceExcludeDeletedDocs() {
@@ -192,5 +171,72 @@ public class SearchRequestInterceptorTests extends ESTestCase {
             listener
         );
         assertFalse(termsAggregationBuilder.excludeDeletedDocs()); // did not change value
+    }
+
+    public void testDisableFeaturesWithDLSConfig() {
+        // default
+        innerTestForceExcludeDeletedDocs(true);
+
+        // explicit configuration - same as default
+        when(clusterService.getSettings()).thenReturn(
+            Settings.builder()
+                .put(
+                    DLS_FORCE_TERMS_AGGS_TO_EXCLUDE_DELETED_DOCS.getKey(),
+                    DLS_FORCE_TERMS_AGGS_TO_EXCLUDE_DELETED_DOCS.getDefault(Settings.EMPTY)
+                )
+                .build()
+        );
+        interceptor = new SearchRequestInterceptor(threadPool, licenseState, clusterService);
+        innerTestForceExcludeDeletedDocs(true);
+        assertWarnings(
+            "[xpack.security.dls.force_terms_aggs_to_exclude_deleted_docs.enabled] setting was deprecated in Elasticsearch and will be "
+                + "removed in a future release! See the breaking changes documentation for the next major version."
+        );
+
+        // explicit configuration - opposite of default
+        when(clusterService.getSettings()).thenReturn(
+            Settings.builder()
+                .put(
+                    DLS_FORCE_TERMS_AGGS_TO_EXCLUDE_DELETED_DOCS.getKey(),
+                    DLS_FORCE_TERMS_AGGS_TO_EXCLUDE_DELETED_DOCS.getDefault(Settings.EMPTY) == false
+                )
+                .build()
+        );
+        interceptor = new SearchRequestInterceptor(threadPool, licenseState, clusterService);
+        innerTestForceExcludeDeletedDocs(false);
+        assertWarnings(
+            "[xpack.security.dls.force_terms_aggs_to_exclude_deleted_docs.enabled] setting was deprecated in Elasticsearch and will be "
+                + "removed in a future release! See the breaking changes documentation for the next major version."
+        );
+    }
+
+    private void innerTestForceExcludeDeletedDocs(boolean expectedToExcludeDeletedDocs) {
+        configureMinMondeVersion(VersionUtils.randomVersionBetween(random(), Version.V_7_11_2, Version.CURRENT));
+        SearchRequest searchRequest = new SearchRequest();
+        SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder();
+        TermsAggregationBuilder termsAggregationBuilder = AggregationBuilders.terms("myterms");
+        termsAggregationBuilder.minDocCount(0);
+        searchSourceBuilder.aggregation(termsAggregationBuilder);
+        searchRequest.source(searchSourceBuilder);
+
+        final DocumentPermissions documentPermissions = DocumentPermissions.filteredBy(
+            Set.of(new BytesArray("{\"term\":{\"username\":\"foo\"}}"))
+        );
+        final String index = randomAlphaOfLengthBetween(3, 8);
+        final PlainActionFuture<Void> listener = new PlainActionFuture<>();
+        assertFalse(termsAggregationBuilder.excludeDeletedDocs());
+        interceptor.disableFeatures(
+            searchRequest,
+            Collections.singletonMap(
+                index,
+                new IndicesAccessControl.IndexAccessControl(false, FieldPermissions.DEFAULT, documentPermissions)
+            ),
+            listener
+        );
+        if (expectedToExcludeDeletedDocs) {
+            assertTrue(termsAggregationBuilder.excludeDeletedDocs()); // changed value
+        } else {
+            assertFalse(termsAggregationBuilder.excludeDeletedDocs()); // did not change value
+        }
     }
 }

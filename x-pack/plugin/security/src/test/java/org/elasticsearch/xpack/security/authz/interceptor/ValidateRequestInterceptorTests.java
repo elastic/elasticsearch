@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.security.authz.interceptor;
 
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.admin.indices.validate.query.ValidateQueryAction;
+import org.elasticsearch.action.admin.indices.validate.query.ValidateQueryRequest;
 import org.elasticsearch.action.admin.indices.validate.query.ValidateQueryRequestBuilder;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.ElasticsearchClient;
@@ -29,6 +30,7 @@ import java.util.Collections;
 import java.util.Map;
 
 import static org.elasticsearch.xpack.core.security.SecurityField.DOCUMENT_LEVEL_SECURITY_FEATURE;
+import static org.elasticsearch.xpack.security.Security.DLS_ERROR_WHEN_VALIDATE_QUERY_WITH_REWRITE;
 import static org.hamcrest.Matchers.containsString;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -96,5 +98,37 @@ public class ValidateRequestInterceptorTests extends ESTestCase {
         final PlainActionFuture<Void> listener2 = new PlainActionFuture<>();
         interceptor.disableFeatures(builder.setRewrite(false).request(), accessControlMap, listener2);
         assertNull(listener2.actionGet());
+    }
+
+    public void testValidateRequestWithDLSConfig() {
+        ValidateQueryRequest request = mock(ValidateQueryRequest.class);
+        when(request.rewrite()).thenReturn(true);
+        // default
+        assertTrue(interceptor.supports(request));
+
+        // explicit configuration - same as default
+        settings = Settings.builder()
+            .put(DLS_ERROR_WHEN_VALIDATE_QUERY_WITH_REWRITE.getKey(), DLS_ERROR_WHEN_VALIDATE_QUERY_WITH_REWRITE.getDefault(Settings.EMPTY))
+            .build();
+        interceptor = new ValidateRequestInterceptor(threadPool, licenseState, settings);
+        assertTrue(interceptor.supports(request));
+        assertWarnings(
+            "[xpack.security.dls.error_when_validate_query_with_rewrite.enabled] setting was deprecated in Elasticsearch and will be "
+                + "removed in a future release! See the breaking changes documentation for the next major version."
+        );
+
+        // explicit configuration - opposite of default
+        settings = Settings.builder()
+            .put(
+                DLS_ERROR_WHEN_VALIDATE_QUERY_WITH_REWRITE.getKey(),
+                DLS_ERROR_WHEN_VALIDATE_QUERY_WITH_REWRITE.getDefault(Settings.EMPTY) == false
+            )
+            .build();
+        interceptor = new ValidateRequestInterceptor(threadPool, licenseState, settings);
+        assertFalse(interceptor.supports(request));
+        assertWarnings(
+            "[xpack.security.dls.error_when_validate_query_with_rewrite.enabled] setting was deprecated in Elasticsearch and will be "
+                + "removed in a future release! See the breaking changes documentation for the next major version."
+        );
     }
 }

@@ -2521,7 +2521,7 @@ class NodeDeprecationChecks {
             settings,
             deprecatedSetting,
             url,
-            "Stricter DLS rules are in defaulted and non-configurable in newer versions."
+            "Stricter DLS rules are the default are not configurable in newer versions."
         );
     }
 
@@ -2534,7 +2534,8 @@ class NodeDeprecationChecks {
         Setting<Boolean> deprecatedSetting = Setting.boolSetting(
             "xpack.security.dls.error_when_validate_query_with_rewrite.enabled",
             true,
-            Setting.Property.NodeScope
+            Setting.Property.NodeScope,
+            Setting.Property.Deprecated
         );
         String url = "https://www.elastic.co/guide/en/elasticsearch/reference/7.17/migrating-7.17.html#deprecation_for_dls_settings";
         return checkRemovedSetting(
@@ -2542,7 +2543,7 @@ class NodeDeprecationChecks {
             settings,
             deprecatedSetting,
             url,
-            "Stricter DLS rules are in defaulted and non-configurable in newer versions."
+            "Stricter DLS rules are the default are not configurable in newer versions."
         );
     }
 

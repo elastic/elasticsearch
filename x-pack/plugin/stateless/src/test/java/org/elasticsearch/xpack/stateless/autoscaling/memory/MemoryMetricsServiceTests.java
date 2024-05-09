@@ -20,9 +20,6 @@ package co.elastic.elasticsearch.stateless.autoscaling.memory;
 import co.elastic.elasticsearch.stateless.autoscaling.MetricQuality;
 
 import org.apache.logging.log4j.Level;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
@@ -163,24 +160,24 @@ public class MemoryMetricsServiceTests extends ESTestCase {
             }
         }
 
-        var memoryMetricsServiceLogger = LogManager.getLogger(MemoryMetricsService.class);
-        var mockLogAppender = mockLogAppender(memoryMetricsServiceLogger);
-        for (Index index : indicesToSkip) {
-            mockLogAppender.addExpectation(
-                new MockLogAppender.SeenEventExpectation(
-                    "expected warn log about state index",
-                    MemoryMetricsService.class.getName(),
-                    Level.WARN,
-                    Strings.format(
-                        "Memory metrics are stale for index %s=IndexMemoryMetrics{sizeInBytes=0, seqNo=0, metricQuality=MISSING, "
-                            + "metricShardNodeId='node-0', updateTimestampNanos='%d'}",
-                        index,
-                        updateTime
+        var mockLogAppender = new MockLogAppender();
+        try (var ignored = mockLogAppender.capturing(MemoryMetricsService.class)) {
+            for (Index index : indicesToSkip) {
+                mockLogAppender.addExpectation(
+                    new MockLogAppender.SeenEventExpectation(
+                        "expected warn log about state index",
+                        MemoryMetricsService.class.getName(),
+                        Level.WARN,
+                        Strings.format(
+                            "Memory metrics are stale for index %s=IndexMemoryMetrics{sizeInBytes=0, seqNo=0, metricQuality=MISSING, "
+                                + "metricShardNodeId='node-0', updateTimestampNanos='%d'}",
+                            index,
+                            updateTime
+                        )
                     )
-                )
-            );
-        }
-        try {
+                );
+            }
+
             customService.getTotalIndicesMappingSize();
             mockLogAppender.assertAllExpectationsMatched();
 
@@ -190,9 +187,6 @@ public class MemoryMetricsServiceTests extends ESTestCase {
             );
             customService.getTotalIndicesMappingSize();
             mockLogAppender.assertAllExpectationsMatched();
-        } finally {
-            Loggers.removeAppender(memoryMetricsServiceLogger, mockLogAppender);
-            mockLogAppender.stop();
         }
     }
 
@@ -211,17 +205,13 @@ public class MemoryMetricsServiceTests extends ESTestCase {
                 );
         }
 
-        var memoryMetricsServiceLogger = LogManager.getLogger(MemoryMetricsService.class);
-        var mockLogAppender = mockLogAppender(memoryMetricsServiceLogger);
-        mockLogAppender.addExpectation(
-            new MockLogAppender.UnseenEventExpectation("no warnings", MemoryMetricsService.class.getName(), Level.WARN, "*")
-        );
-        try {
+        var mockLogAppender = new MockLogAppender();
+        try (var ignored = mockLogAppender.capturing(MemoryMetricsService.class)) {
+            mockLogAppender.addExpectation(
+                new MockLogAppender.UnseenEventExpectation("no warnings", MemoryMetricsService.class.getName(), Level.WARN, "*")
+            );
             service.getTotalIndicesMappingSize();
             mockLogAppender.assertAllExpectationsMatched();
-        } finally {
-            Loggers.removeAppender(memoryMetricsServiceLogger, mockLogAppender);
-            mockLogAppender.stop();
         }
     }
 
@@ -234,25 +224,14 @@ public class MemoryMetricsServiceTests extends ESTestCase {
                 );
         }
 
-        var memoryMetricsServiceLogger = LogManager.getLogger(MemoryMetricsService.class);
-        var mockLogAppender = mockLogAppender(memoryMetricsServiceLogger);
-        mockLogAppender.addExpectation(
-            new MockLogAppender.UnseenEventExpectation("no warnings", MemoryMetricsService.class.getName(), Level.WARN, "*")
-        );
-        try {
+        var mockLogAppender = new MockLogAppender();
+        try (var ignored = mockLogAppender.capturing(MemoryMetricsService.class)) {
+            mockLogAppender.addExpectation(
+                new MockLogAppender.UnseenEventExpectation("no warnings", MemoryMetricsService.class.getName(), Level.WARN, "*")
+            );
             service.getTotalIndicesMappingSize();
             mockLogAppender.assertAllExpectationsMatched();
-        } finally {
-            Loggers.removeAppender(memoryMetricsServiceLogger, mockLogAppender);
-            mockLogAppender.stop();
         }
-    }
-
-    private static MockLogAppender mockLogAppender(Logger memoryMetricsServiceLogger) {
-        var mockLogAppender = new MockLogAppender();
-        mockLogAppender.start();
-        Loggers.addAppender(memoryMetricsServiceLogger, mockLogAppender);
-        return mockLogAppender;
     }
 
     public void testDoNotThrowMissedIndicesUpdateExceptionOnOutOfOrderMessages() {

@@ -27,7 +27,6 @@ import co.elastic.elasticsearch.stateless.engine.PrimaryTermAndGeneration;
 import co.elastic.elasticsearch.stateless.lucene.stats.ShardSize;
 
 import org.apache.logging.log4j.Level;
-import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterName;
@@ -42,7 +41,6 @@ import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.common.UUIDs;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
@@ -370,11 +368,8 @@ public class SearchMetricsServiceTests extends ESTestCase {
         currentRelativeTimeInNanos.addAndGet(ACCURATE_METRICS_WINDOW_SETTING.get(Settings.EMPTY).nanos() + 1);
         currentRelativeTimeInNanos.addAndGet(STALE_METRICS_CHECK_INTERVAL_SETTING.get(Settings.EMPTY).nanos() + 1);
 
-        var memoryMetricsServiceLogger = LogManager.getLogger(SearchMetricsService.class);
         var mockLogAppender = new MockLogAppender();
-        mockLogAppender.start();
-        Loggers.addAppender(memoryMetricsServiceLogger, mockLogAppender);
-        try {
+        try (var ignored = mockLogAppender.capturing(SearchMetricsService.class)) {
             // Verify that all the shards are reported as stale
             for (int i = 0; i < numShards; i++) {
                 mockLogAppender.addExpectation(
@@ -407,9 +402,6 @@ public class SearchMetricsServiceTests extends ESTestCase {
             service.processShardSizesRequest(new PublishShardSizesRequest("search_node_1", Map.of()));
             service.getSearchTierMetrics();
             mockLogAppender.assertAllExpectationsMatched();
-        } finally {
-            Loggers.removeAppender(memoryMetricsServiceLogger, mockLogAppender);
-            mockLogAppender.stop();
         }
     }
 

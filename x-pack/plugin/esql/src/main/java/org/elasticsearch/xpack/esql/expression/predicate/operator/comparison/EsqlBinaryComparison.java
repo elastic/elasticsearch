@@ -89,6 +89,10 @@ public abstract class EsqlBinaryComparison extends BinaryComparison implements E
         public EsqlBinaryComparison buildNewInstance(Source source, Expression lhs, Expression rhs) {
             return constructor.apply(source, lhs, rhs);
         }
+
+        public String symbol() {
+            return symbol;
+        }
     }
 
     protected EsqlBinaryComparison(

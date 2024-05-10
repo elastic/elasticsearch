@@ -39,6 +39,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.date.DateParse;
 import org.elasticsearch.xpack.esql.expression.function.scalar.date.DateTrunc;
 import org.elasticsearch.xpack.esql.expression.function.scalar.ip.CIDRMatch;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Cos;
+import org.elasticsearch.xpack.esql.expression.function.scalar.math.E;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Pow;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Round;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.AbstractMultivalueFunction;
@@ -94,22 +95,26 @@ import org.elasticsearch.xpack.ql.expression.Literal;
 import org.elasticsearch.xpack.ql.expression.NamedExpression;
 import org.elasticsearch.xpack.ql.expression.Nullability;
 import org.elasticsearch.xpack.ql.expression.ReferenceAttribute;
+import org.elasticsearch.xpack.ql.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.ql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.ql.expression.predicate.Predicates;
 import org.elasticsearch.xpack.ql.expression.predicate.logical.And;
 import org.elasticsearch.xpack.ql.expression.predicate.logical.Or;
 import org.elasticsearch.xpack.ql.expression.predicate.nulls.IsNotNull;
 import org.elasticsearch.xpack.ql.expression.predicate.nulls.IsNull;
+import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.BinaryComparison;
 import org.elasticsearch.xpack.ql.expression.predicate.regex.RLikePattern;
 import org.elasticsearch.xpack.ql.expression.predicate.regex.WildcardPattern;
 import org.elasticsearch.xpack.ql.index.EsIndex;
 import org.elasticsearch.xpack.ql.index.IndexResolution;
+import org.elasticsearch.xpack.ql.optimizer.OptimizerRules;
 import org.elasticsearch.xpack.ql.plan.logical.Filter;
 import org.elasticsearch.xpack.ql.plan.logical.Limit;
 import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.ql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.ql.plan.logical.UnaryPlan;
 import org.elasticsearch.xpack.ql.plan.logical.Project;
+import org.elasticsearch.xpack.ql.rule.RuleExecutor;
 import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.type.DataTypes;
@@ -146,6 +151,7 @@ import static org.elasticsearch.xpack.esql.expression.predicate.operator.compari
 import static org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.EsqlBinaryComparison.BinaryComparisonOperation.LTE;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.GEO_POINT;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.GEO_SHAPE;
+import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.fromJava;
 import static org.elasticsearch.xpack.ql.TestUtils.getFieldAttribute;
 import static org.elasticsearch.xpack.ql.expression.Literal.FALSE;
 import static org.elasticsearch.xpack.ql.expression.Literal.NULL;
@@ -189,6 +195,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
     private static Analyzer analyzerAirports;
     private static Analyzer analyzerTypes;
     private static EnrichResolution enrichResolution;
+    private static final OptimizerRules.LiteralsOnTheRight LITERALS_ON_THE_RIGHT = new OptimizerRules.LiteralsOnTheRight();
 
     private static class SubstitutionOnlyOptimizer extends LogicalPlanOptimizer {
         static SubstitutionOnlyOptimizer INSTANCE = new SubstitutionOnlyOptimizer(new LogicalOptimizerContext(EsqlTestUtils.TEST_CFG));
@@ -4390,7 +4397,11 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
     private EsqlBinaryComparison extractPlannedBinaryComparison(String expression) {
         LogicalPlan plan = planTypes("FROM types | WHERE " + expression);
 
-        assertTrue(plan instanceof UnaryPlan);
+        return extractPlannedBinaryComparison(plan);
+    }
+
+    private static EsqlBinaryComparison extractPlannedBinaryComparison(LogicalPlan plan) {
+        assertTrue("Expected unary plan, found [" + plan + "]", plan instanceof UnaryPlan);
         UnaryPlan unaryPlan = (UnaryPlan) plan;
         assertTrue("Epxected top level Filter, foung [" + unaryPlan.child().toString() + "]", unaryPlan.child() instanceof Filter);
         Filter filter = (Filter) unaryPlan.child();
@@ -4422,6 +4433,35 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         assertEquals(bound, literal.value());
     }
 
+    private void assertSemanticMatching(String expected, String provided) {
+        BinaryComparison bc = extractPlannedBinaryComparison(provided);
+        LogicalPlan exp = analyzerTypes.analyze(parser.createStatement("FROM types | WHERE " + expected));
+        assertSemanticMatching(bc, extractPlannedBinaryComparison(exp));
+    }
+
+    private static void assertSemanticMatching(Expression fieldAttributeExp, Expression unresolvedAttributeExp) {
+        Expression unresolvedUpdated = unresolvedAttributeExp.transformUp(
+            LITERALS_ON_THE_RIGHT.expressionToken(),
+            LITERALS_ON_THE_RIGHT::rule
+        ).transformUp(x -> x.foldable() ? new Literal(x.source(), x.fold(), x.dataType()) : x);
+
+        List<Expression> resolvedFields = fieldAttributeExp.collectFirstChildren(x -> x instanceof FieldAttribute);
+        for (Expression field : resolvedFields) {
+            FieldAttribute fa = (FieldAttribute) field;
+            unresolvedUpdated = unresolvedUpdated.transformDown(UnresolvedAttribute.class, x -> x.name().equals(fa.name()) ? fa : x);
+        }
+
+        assertTrue(unresolvedUpdated.semanticEquals(fieldAttributeExp));
+    }
+
+    private void assertNotSimplified(String comparison) {
+        assertSemanticMatching(comparison, comparison);
+    }
+
+    private static String randomBinaryComparison() {
+        return randomFrom(EsqlBinaryComparison.BinaryComparisonOperation.values()).symbol();
+    }
+
     public void testSimplifyComparisonArithmeticCommutativeVsNonCommutativeOps() {
         doTestSimplifyComparisonArithmetics("integer + 2 > 3", "integer", GT, 1);
         doTestSimplifyComparisonArithmetics("2 + integer > 3", "integer", GT, 1);
@@ -4431,6 +4471,15 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         doTestSimplifyComparisonArithmetics("2 * integer > 4", "integer", GT, 2);
 
         doTestSimplifyComparisonArithmetics("float / 2 > 4", "float", GT, 8d);
+    }
+
+    public void testAssertSemanticMatching() {
+        // This test is just to verify that the complicated assert logic is working on a known-good case
+        assertSemanticMatching("integer > 1", "integer + 2 > 3");
+    }
+
+    public void testSimplyComparisonArithmeticWithUnfoldedProd() {
+        assertSemanticMatching("integer * integer >= 3", "((integer * integer + 1) * 2 - 4) * 4 >= 16");
     }
 
     public void testSimplifyComparisionArithmetics_floatDivision() {
@@ -4470,6 +4519,13 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
     private void assertNullLiteral(Expression expression) {
         assertEquals(Literal.class, expression.getClass());
         assertNull(expression.fold());
+    }
+
+    public void testSimplifyComparisonArithmeticSkippedOnIntegerArithmeticalOverflow() {
+        assertNotSimplified("integer - 1 " + randomBinaryComparison() + " " + Long.MAX_VALUE);
+        assertNotSimplified("1 - integer " + randomBinaryComparison() + " " + Long.MIN_VALUE);
+        assertNotSimplified("integer - 1 " + randomBinaryComparison() + " " + Integer.MAX_VALUE);
+        assertNotSimplified("1 - integer " + randomBinaryComparison() + " " + Integer.MIN_VALUE);
     }
 
     public static WildcardLike wildcardLike(Expression left, String exp) {

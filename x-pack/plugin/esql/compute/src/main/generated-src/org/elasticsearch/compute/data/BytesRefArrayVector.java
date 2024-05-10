@@ -25,7 +25,9 @@ final class BytesRefArrayVector extends AbstractVector implements BytesRefVector
 
     static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(BytesRefArrayVector.class)
         // TODO: remove these extra bytes once `asBlock` returns a block with a separate reference to the vector.
-        + RamUsageEstimator.shallowSizeOfInstance(BytesRefVectorBlock.class);
+        + RamUsageEstimator.shallowSizeOfInstance(BytesRefVectorBlock.class)
+        // TODO: remove this if/when we account for memory used by Pages
+        + Block.PAGE_MEM_OVERHEAD_PER_BLOCK;
 
     private final BytesRefArray values;
 

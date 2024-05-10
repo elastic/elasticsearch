@@ -17,6 +17,8 @@ import org.junit.Before;
 import java.io.IOException;
 import java.util.List;
 
+import static org.elasticsearch.test.hamcrest.OptionalMatchers.isPresentWith;
+
 @UpdateForV9
 public class NodesCapabilitiesUpgradeIT extends AbstractRollingUpgradeTestCase {
 
@@ -45,9 +47,19 @@ public class NodesCapabilitiesUpgradeIT extends AbstractRollingUpgradeTestCase {
         assumeTrue("Only valid when upgrading from versions without capabilities API", upgradingBeforeCapabilities);
     }
 
-    public void testCapabilitiesReturnsFalsePartiallyUpgraded() {
+    public void testCapabilitiesReturnsFalsePartiallyUpgraded() throws IOException {
         if (isMixedCluster()) {
-
+            // capabilities checks should either fail (if talking to an old node),
+            // or return false as not all nodes have the API (if talking to a new node)
+            try {
+                assertThat("Upgraded node should report no capabilities supported",
+                    clusterHasCapability("GET", "_capabilities", List.of(), List.of()), isPresentWith(false));
+            } catch (ResponseException e) {
+                if (e.getResponse().getStatusLine().getStatusCode() != 400) {
+                    // throw explicitly to capture exception too
+                    throw new AssertionError("Old node should not have the capabilities API", e);
+                }
+            }
         }
     }
 }

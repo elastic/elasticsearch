@@ -14,6 +14,7 @@ import org.elasticsearch.action.support.nodes.BaseNodesResponse;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.transport.ActionNotFoundTransportException;
 import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -37,8 +38,13 @@ public class NodesCapabilitiesResponse extends BaseNodesResponse<NodeCapability>
     }
 
     public Optional<Boolean> isSupported() {
-        // if there are any failures, we don't know if it is fully supported by all nodes in the cluster
-        if (hasFailures() || getNodes().isEmpty()) return Optional.empty();
+        if (hasFailures() || getNodes().isEmpty()) {
+            // there's no nodes in the response (uh? what about ourselves?)
+            // or there's a problem (hopefully transient) talking to one or more nodes.
+            // We don't have enough information to decide if it's supported or not, so return unknown
+            return Optional.empty();
+        }
+
         return Optional.of(getNodes().stream().allMatch(NodeCapability::isSupported));
     }
 

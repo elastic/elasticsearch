@@ -7,3 +7,4 @@ WORKDIR /workspace
 RUN ./gradlew --quiet --console=plain clean vecSharedLibrary
 
 CMD cat build/libs/vec/shared/libvec.so
+

@@ -84,15 +84,15 @@ public class RandomSamplerIT extends ESIntegTestCase {
         }
         indexRandom(true, builders);
         ensureSearchable();
+        // Force merge to ensure segment consistency as any segment merging can change which particular documents
+        // are sampled
+        assertNoFailures(indicesAdmin().prepareForceMerge("idx").setMaxNumSegments(1).get());
     }
 
     public void testRandomSamplerConsistentSeed() {
         double[] sampleMonotonicValue = new double[1];
         double[] sampleNumericValue = new double[1];
         long[] sampledDocCount = new long[1];
-        // Force merge to ensure segment consistency as any segment merging can change which particular documents
-        // are sampled
-        assertNoFailures(indicesAdmin().prepareForceMerge("idx").setMaxNumSegments(1).get());
         // initialize the values
         assertResponse(
             prepareSearch("idx").setPreference("shard:0")

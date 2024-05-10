@@ -21,6 +21,7 @@ import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.fetch.FetchSearchResult;
+import org.elasticsearch.search.fetch.StoredFieldsContext;
 import org.elasticsearch.search.fetch.subphase.FetchFieldsContext;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.internal.ShardSearchRequest;
@@ -57,6 +58,7 @@ public class RankFeatureShardPhaseTests extends ESTestCase {
             private FetchSearchResult fetchResult;
             private RankFeatureResult rankFeatureResult;
             private FetchFieldsContext fetchFieldsContext;
+            private StoredFieldsContext storedFieldsContext;
 
             @Override
             public FetchSearchResult fetchResult() {
@@ -92,6 +94,17 @@ public class RankFeatureShardPhaseTests extends ESTestCase {
             }
 
             @Override
+            public SearchContext storedFieldsContext(StoredFieldsContext storedFieldsContext) {
+                this.storedFieldsContext = storedFieldsContext;
+                return this;
+            }
+
+            @Override
+            public StoredFieldsContext storedFieldsContext() {
+                return storedFieldsContext;
+            }
+
+            @Override
             public boolean isCancelled() {
                 return false;
             }
@@ -115,11 +128,13 @@ public class RankFeatureShardPhaseTests extends ESTestCase {
                 return false;
             }
 
+            // no work to be done on the query phase
             @Override
             public QueryPhaseRankShardContext buildQueryPhaseShardContext(List<Query> queries, int from) {
                 return null;
             }
 
+            // no work to be done on the query phase
             @Override
             public QueryPhaseRankCoordinatorContext buildQueryPhaseCoordinatorContext(int size, int from) {
                 return null;
@@ -142,6 +157,7 @@ public class RankFeatureShardPhaseTests extends ESTestCase {
                 };
             }
 
+            // no work to be done on the coordinator node for the rank feature phase
             @Override
             public RankFeaturePhaseRankCoordinatorContext buildRankFeaturePhaseCoordinatorContext(int size, int from) {
                 return null;
@@ -193,6 +209,9 @@ public class RankFeatureShardPhaseTests extends ESTestCase {
             assertNotNull(searchContext.fetchFieldsContext());
             assertEquals(searchContext.fetchFieldsContext().fields().size(), 1);
             assertEquals(searchContext.fetchFieldsContext().fields().get(0).field, fieldName);
+            assertNotNull(searchContext.storedFieldsContext());
+            assertNull(searchContext.storedFieldsContext().fieldNames());
+            assertFalse(searchContext.storedFieldsContext().fetchFields());
             assertNotNull(searchContext.fetchResult());
         }
     }
@@ -260,7 +279,7 @@ public class RankFeatureShardPhaseTests extends ESTestCase {
             new ShardId(new Index("some_index", UUID.randomUUID().toString()), 0),
             null
         );
-
+        SearchHits searchHits = null;
         try (SearchContext searchContext = spy(getSearchContext())) {
             searchContext.addFetchResult();
             SearchHit[] hits = new SearchHit[3];
@@ -275,8 +294,8 @@ public class RankFeatureShardPhaseTests extends ESTestCase {
                 fieldName,
                 new DocumentField(fieldName, Collections.singletonList(expectedFieldData.get(numDocs - 1)))
             );
-
-            searchContext.fetchResult().shardResult(new SearchHits(hits, new TotalHits(3, TotalHits.Relation.EQUAL_TO), 1.0f), null);
+            searchHits = new SearchHits(hits, new TotalHits(3, TotalHits.Relation.EQUAL_TO), 1.0f);
+            searchContext.fetchResult().shardResult(searchHits, null);
             when(searchContext.isCancelled()).thenReturn(false);
             when(searchContext.request()).thenReturn(searchRequest);
             when(searchContext.shardTarget()).thenReturn(shardTarget);
@@ -294,6 +313,10 @@ public class RankFeatureShardPhaseTests extends ESTestCase {
             for (RankFeatureDoc rankFeatureDoc : searchContext.rankFeatureResult().rankFeatureResult().shardResult().rankFeatureDocs) {
                 assertTrue(expectedFieldData.containsKey(rankFeatureDoc.doc));
                 assertEquals(rankFeatureDoc.featureData, expectedFieldData.get(rankFeatureDoc.doc));
+            }
+        } finally {
+            if (searchHits != null) {
+                searchHits.decRef();
             }
         }
     }
@@ -314,11 +337,12 @@ public class RankFeatureShardPhaseTests extends ESTestCase {
             null
         );
 
+        SearchHits searchHits = null;
         try (SearchContext searchContext = spy(getSearchContext())) {
             searchContext.addFetchResult();
             SearchHit[] hits = new SearchHit[0];
-
-            searchContext.fetchResult().shardResult(new SearchHits(hits, new TotalHits(0, TotalHits.Relation.EQUAL_TO), 1.0f), null);
+            searchHits = new SearchHits(hits, new TotalHits(0, TotalHits.Relation.EQUAL_TO), 1.0f);
+            searchContext.fetchResult().shardResult(searchHits, null);
             when(searchContext.isCancelled()).thenReturn(false);
             when(searchContext.request()).thenReturn(searchRequest);
             when(searchContext.shardTarget()).thenReturn(shardTarget);
@@ -334,6 +358,10 @@ public class RankFeatureShardPhaseTests extends ESTestCase {
             assertNotNull(searchContext.rankFeatureResult());
             assertNotNull(searchContext.rankFeatureResult().rankFeatureResult());
             assertEquals(searchContext.rankFeatureResult().rankFeatureResult().shardResult().rankFeatureDocs.length, 0);
+        } finally {
+            if (searchHits != null) {
+                searchHits.decRef();
+            }
         }
     }
 
@@ -354,11 +382,12 @@ public class RankFeatureShardPhaseTests extends ESTestCase {
             null
         );
 
+        SearchHits searchHits = null;
         try (SearchContext searchContext = spy(getSearchContext())) {
             searchContext.addFetchResult();
             SearchHit[] hits = new SearchHit[0];
-
-            searchContext.fetchResult().shardResult(new SearchHits(hits, new TotalHits(0, TotalHits.Relation.EQUAL_TO), 1.0f), null);
+            searchHits = new SearchHits(hits, new TotalHits(0, TotalHits.Relation.EQUAL_TO), 1.0f);
+            searchContext.fetchResult().shardResult(searchHits, null);
             when(searchContext.isCancelled()).thenReturn(true);
             when(searchContext.request()).thenReturn(searchRequest);
             when(searchContext.shardTarget()).thenReturn(shardTarget);
@@ -370,6 +399,10 @@ public class RankFeatureShardPhaseTests extends ESTestCase {
             // with the ResultsType.RANK_FEATURE type
             searchContext.addRankFeatureResult();
             expectThrows(TaskCancelledException.class, () -> rankFeatureShardPhase.processFetch(searchContext));
+        } finally {
+            if (searchHits != null) {
+                searchHits.decRef();
+            }
         }
     }
 }

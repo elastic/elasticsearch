@@ -100,9 +100,7 @@ public class TestDenseInferenceServiceExtension implements InferenceServiceExten
             switch (model.getConfigurations().getTaskType()) {
                 case ANY, TEXT_EMBEDDING -> {
                     ServiceSettings modelServiceSettings = model.getServiceSettings();
-                    listener.onResponse(
-                        makeResults(input, modelServiceSettings.dimensions(), modelServiceSettings.similarity())
-                    );
+                    listener.onResponse(makeResults(input, modelServiceSettings.dimensions(), modelServiceSettings.similarity()));
                 }
                 default -> listener.onFailure(
                     new ElasticsearchStatusException(
@@ -175,7 +173,7 @@ public class TestDenseInferenceServiceExtension implements InferenceServiceExten
         private static double[] generateEmbedding(String input, int dimensions, SimilarityMeasure similarityMeasure) {
             double[] embedding = new double[dimensions];
             for (int j = 0; j < dimensions; j++) {
-                embedding[j] = input.hashCode() + (double)j;
+                embedding[j] = input.hashCode() + (double) j;
             }
 
             return embedding;

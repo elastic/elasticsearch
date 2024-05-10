@@ -130,34 +130,34 @@ public class ShardBulkInferenceActionFilterIT extends ESIntegTestCase {
     }
 
     private void storeSparseModel() throws Exception {
-        ModelRegistry modelRegistry = new ModelRegistry(client());
-
-        String inferenceEntityId = TestSparseInferenceServiceExtension.TestInferenceService.NAME;
         Model model = new TestSparseInferenceServiceExtension.TestSparseModel(
-            inferenceEntityId,
-            new TestSparseInferenceServiceExtension.TestServiceSettings(inferenceEntityId, null, false)
+            TestSparseInferenceServiceExtension.TestInferenceService.NAME,
+            new TestSparseInferenceServiceExtension.TestServiceSettings(
+                TestSparseInferenceServiceExtension.TestInferenceService.NAME,
+                null,
+                false
+            )
         );
-        AtomicReference<Boolean> storeModelHolder = new AtomicReference<>();
-        AtomicReference<Exception> exceptionHolder = new AtomicReference<>();
-
-        blockingCall(listener -> modelRegistry.storeModel(model, listener), storeModelHolder, exceptionHolder);
-
-        assertThat(storeModelHolder.get(), is(true));
-        assertThat(exceptionHolder.get(), is(nullValue()));
+        storeModel(model);
     }
 
     private void storeDenseModel() throws Exception {
-        ModelRegistry modelRegistry = new ModelRegistry(client());
-
-        String inferenceEntityId = TestDenseInferenceServiceExtension.TestInferenceService.NAME;
         Model model = new TestDenseInferenceServiceExtension.TestDenseModel(
-            inferenceEntityId,
+            TestDenseInferenceServiceExtension.TestInferenceService.NAME,
             new TestDenseInferenceServiceExtension.TestServiceSettings(
-                inferenceEntityId,
+                TestDenseInferenceServiceExtension.TestInferenceService.NAME,
                 randomIntBetween(1, 100),
+                // dot product means that we need normalized vectors; it's not worth doing that in this test
                 randomValueOtherThan(SimilarityMeasure.DOT_PRODUCT, () -> randomFrom(SimilarityMeasure.values()))
             )
         );
+
+        storeModel(model);
+    }
+
+    private void storeModel(Model model) throws Exception {
+        ModelRegistry modelRegistry = new ModelRegistry(client());
+
         AtomicReference<Boolean> storeModelHolder = new AtomicReference<>();
         AtomicReference<Exception> exceptionHolder = new AtomicReference<>();
 

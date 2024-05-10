@@ -54,12 +54,12 @@ public class CoordinatorRewriteContextProvider {
             return null;
         }
         IndexLongFieldRange timestampRange = indexMetadata.getTimestampRange();
-        if (timestampRange.containsAllShardRanges() == false) {
-            timestampRange = indexMetadata.getTimeSeriesTimestampRange(dateFieldType);
-            if (timestampRange == null) {
-                return null;
-            }
-        }
+        // if (timestampRange.containsAllShardRanges() == false) {
+        // timestampRange = indexMetadata.getTimeSeriesTimestampRange(dateFieldType);
+        // if (timestampRange == null) {
+        // return null;
+        // }
+        // }
 
         return new CoordinatorRewriteContext(parserConfig, client, nowInMillis, timestampRange, dateFieldType);
     }

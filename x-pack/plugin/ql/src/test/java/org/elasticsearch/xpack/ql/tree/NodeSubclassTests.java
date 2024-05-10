@@ -360,7 +360,7 @@ public class NodeSubclassTests<T extends B, B extends Node<B>> extends ESTestCas
      * Make an argument to feed to the constructor for {@code toBuildClass}.
      */
     @SuppressWarnings("unchecked")
-    private Object makeArg(Class<? extends Node<?>> toBuildClass, Type argType) throws Exception {
+    protected Object makeArg(Class<? extends Node<?>> toBuildClass, Type argType) throws Exception {
 
         if (argType instanceof ParameterizedType pt) {
             if (pt.getRawType() == Map.class) {
@@ -556,7 +556,7 @@ public class NodeSubclassTests<T extends B, B extends Node<B>> extends ESTestCas
         return null;
     }
 
-    private List<?> makeList(Class<? extends Node<?>> toBuildClass, ParameterizedType listType) throws Exception {
+    protected List<?> makeList(Class<? extends Node<?>> toBuildClass, ParameterizedType listType) throws Exception {
         return makeList(toBuildClass, listType, randomSizeForCollection(toBuildClass));
     }
 
@@ -568,7 +568,7 @@ public class NodeSubclassTests<T extends B, B extends Node<B>> extends ESTestCas
         return list;
     }
 
-    private Set<?> makeSet(Class<? extends Node<?>> toBuildClass, ParameterizedType listType) throws Exception {
+    protected Set<?> makeSet(Class<? extends Node<?>> toBuildClass, ParameterizedType listType) throws Exception {
         return makeSet(toBuildClass, listType, randomSizeForCollection(toBuildClass));
     }
 
@@ -580,7 +580,7 @@ public class NodeSubclassTests<T extends B, B extends Node<B>> extends ESTestCas
         return list;
     }
 
-    private Object makeMap(Class<? extends Node<?>> toBuildClass, ParameterizedType pt) throws Exception {
+    protected Object makeMap(Class<? extends Node<?>> toBuildClass, ParameterizedType pt) throws Exception {
         Map<Object, Object> map = new HashMap<>();
         int size = randomSizeForCollection(toBuildClass);
         while (map.size() < size) {

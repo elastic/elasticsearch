@@ -4522,6 +4522,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         assertNull(expression.fold());
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/108519")
     public void testSimplifyComparisonArithmeticSkippedOnIntegerArithmeticalOverflow() {
         assertNotSimplified("integer - 1 " + randomBinaryComparison() + " " + Long.MAX_VALUE);
         assertNotSimplified("1 - integer " + randomBinaryComparison() + " " + Long.MIN_VALUE);

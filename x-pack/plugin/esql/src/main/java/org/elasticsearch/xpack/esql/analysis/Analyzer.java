@@ -30,7 +30,6 @@ import org.elasticsearch.xpack.esql.plan.logical.Keep;
 import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.Rename;
-import org.elasticsearch.xpack.esql.plan.logical.UnresolvedMetrics;
 import org.elasticsearch.xpack.esql.plan.logical.local.EsqlProject;
 import org.elasticsearch.xpack.esql.stats.FeatureMetric;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
@@ -158,16 +157,6 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
 
     private static class ResolveTable extends ParameterizedAnalyzerRule<EsqlUnresolvedRelation, AnalyzerContext> {
 
-        protected LogicalPlan resolveMetrics(UnresolvedMetrics metrics, EsIndex index, List<Attribute> attributes) {
-            EsRelation relation = new EsRelation(
-                metrics.source(),
-                index,
-                attributes.isEmpty() ? NO_FIELDS : attributes,
-                metrics.esSourceOptions()
-            );
-            return new EsqlAggregate(metrics.source(), relation, metrics.groupings(), metrics.aggregates());
-        }
-
         @Override
         protected LogicalPlan rule(EsqlUnresolvedRelation plan, AnalyzerContext context) {
             if (context.indexResolution().isValid() == false) {
@@ -189,9 +178,6 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             EsIndex esIndex = context.indexResolution().get();
             var attributes = mappingAsAttributes(plan.source(), esIndex.mapping());
             attributes.addAll(plan.metadataFields());
-            if (plan instanceof UnresolvedMetrics metrics && metrics.aggregates().isEmpty() == false) {
-                return resolveMetrics(metrics, esIndex, attributes);
-            }
             return new EsRelation(plan.source(), esIndex, attributes.isEmpty() ? NO_FIELDS : attributes, plan.esSourceOptions());
         }
 

@@ -31,7 +31,6 @@ import org.elasticsearch.xpack.esql.plan.logical.Keep;
 import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
 import org.elasticsearch.xpack.esql.plan.logical.Rename;
 import org.elasticsearch.xpack.esql.plan.logical.Row;
-import org.elasticsearch.xpack.esql.plan.logical.UnresolvedMetrics;
 import org.elasticsearch.xpack.esql.plan.logical.meta.MetaFunctions;
 import org.elasticsearch.xpack.esql.plan.logical.show.ShowInfo;
 import org.elasticsearch.xpack.ql.common.Failure;
@@ -444,13 +443,12 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         }
         Source source = source(ctx);
         TableIdentifier table = new TableIdentifier(source, null, visitMetricsIdentifiers(ctx.metricsIdentifier()));
-        final Stats stats;
-        if (ctx.aggregates != null || ctx.grouping != null) {
-            stats = stats(source, ctx.grouping, ctx.aggregates);
-        } else {
-            stats = new Stats(List.of(), List.of());
+        var unresolvedRelation = new EsqlUnresolvedRelation(source, table, List.of());
+        if (ctx.aggregates == null && ctx.grouping == null) {
+            return unresolvedRelation;
         }
-        return new UnresolvedMetrics(source, table, null, stats.groupings, stats.aggregates());
+        final Stats stats = stats(source, ctx.grouping, ctx.aggregates);
+        return new EsqlAggregate(source, unresolvedRelation, stats.groupings, stats.aggregates);
     }
 
     interface PlanFactory extends Function<LogicalPlan, LogicalPlan> {}

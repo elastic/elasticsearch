@@ -33,7 +33,6 @@ import org.elasticsearch.xpack.esql.plan.logical.InlineStats;
 import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.Row;
-import org.elasticsearch.xpack.esql.plan.logical.UnresolvedMetrics;
 import org.elasticsearch.xpack.ql.capabilities.UnresolvedException;
 import org.elasticsearch.xpack.ql.expression.Alias;
 import org.elasticsearch.xpack.ql.expression.EmptyAttribute;
@@ -1055,22 +1054,13 @@ public class StatementParserTests extends ESTestCase {
     public void testMetricsWithoutStats() {
         assumeTrue("requires snapshot build", Build.current().isSnapshot());
 
-        assertStatement("METRICS foo", new UnresolvedMetrics(EMPTY, new TableIdentifier(EMPTY, null, "foo"), null, List.of(), List.of()));
-        assertStatement(
-            "METRICS foo,bar",
-            new UnresolvedMetrics(EMPTY, new TableIdentifier(EMPTY, null, "foo,bar"), null, List.of(), List.of())
-        );
-        assertStatement(
-            "METRICS foo*,bar",
-            new UnresolvedMetrics(EMPTY, new TableIdentifier(EMPTY, null, "foo*,bar"), null, List.of(), List.of())
-        );
-        assertStatement(
-            "METRICS `foo-*`,bar",
-            new UnresolvedMetrics(EMPTY, new TableIdentifier(EMPTY, null, "foo-*,bar"), null, List.of(), List.of())
-        );
+        assertStatement("METRICS foo", new EsqlUnresolvedRelation(EMPTY, new TableIdentifier(EMPTY, null, "foo"), List.of()));
+        assertStatement("METRICS foo,bar", new EsqlUnresolvedRelation(EMPTY, new TableIdentifier(EMPTY, null, "foo,bar"), List.of()));
+        assertStatement("METRICS foo*,bar", new EsqlUnresolvedRelation(EMPTY, new TableIdentifier(EMPTY, null, "foo*,bar"), List.of()));
+        assertStatement("METRICS `foo-*`,bar", new EsqlUnresolvedRelation(EMPTY, new TableIdentifier(EMPTY, null, "foo-*,bar"), List.of()));
         assertStatement(
             "METRICS `foo-*`,bar+*",
-            new UnresolvedMetrics(EMPTY, new TableIdentifier(EMPTY, null, "foo-*,bar+*"), null, List.of(), List.of())
+            new EsqlUnresolvedRelation(EMPTY, new TableIdentifier(EMPTY, null, "foo-*,bar+*"), List.of())
         );
     }
 
@@ -1097,10 +1087,7 @@ public class StatementParserTests extends ESTestCase {
             "<logstash-{now/M{yyyy.MM}}>,<logstash-{now/d{yyyy.MM.dd|+12:00}}>"
         );
         for (Map.Entry<String, String> e : patterns.entrySet()) {
-            assertStatement(
-                e.getKey(),
-                new UnresolvedMetrics(EMPTY, new TableIdentifier(EMPTY, null, e.getValue()), null, List.of(), List.of())
-            );
+            assertStatement(e.getKey(), new EsqlUnresolvedRelation(EMPTY, new TableIdentifier(EMPTY, null, e.getValue()), List.of()));
         }
     }
 
@@ -1108,30 +1095,27 @@ public class StatementParserTests extends ESTestCase {
         assumeTrue("requires snapshot build", Build.current().isSnapshot());
         assertStatement(
             "METRICS foo load=avg(cpu) BY ts",
-            new UnresolvedMetrics(
+            new EsqlAggregate(
                 EMPTY,
-                new TableIdentifier(EMPTY, null, "foo"),
-                null,
+                new EsqlUnresolvedRelation(EMPTY, new TableIdentifier(EMPTY, null, "foo"), List.of()),
                 List.of(attribute("ts")),
                 List.of(new Alias(EMPTY, "load", new UnresolvedFunction(EMPTY, "avg", DEFAULT, List.of(attribute("cpu")))), attribute("ts"))
             )
         );
         assertStatement(
             "METRICS foo,bar load=avg(cpu) BY ts",
-            new UnresolvedMetrics(
+            new EsqlAggregate(
                 EMPTY,
-                new TableIdentifier(EMPTY, null, "foo,bar"),
-                null,
+                new EsqlUnresolvedRelation(EMPTY, new TableIdentifier(EMPTY, null, "foo,bar"), List.of()),
                 List.of(attribute("ts")),
                 List.of(new Alias(EMPTY, "load", new UnresolvedFunction(EMPTY, "avg", DEFAULT, List.of(attribute("cpu")))), attribute("ts"))
             )
         );
         assertStatement(
             "METRICS foo,bar load=avg(cpu),max(rate(requests)) BY ts",
-            new UnresolvedMetrics(
+            new EsqlAggregate(
                 EMPTY,
-                new TableIdentifier(EMPTY, null, "foo,bar"),
-                null,
+                new EsqlUnresolvedRelation(EMPTY, new TableIdentifier(EMPTY, null, "foo,bar"), List.of()),
                 List.of(attribute("ts")),
                 List.of(
                     new Alias(EMPTY, "load", new UnresolvedFunction(EMPTY, "avg", DEFAULT, List.of(attribute("cpu")))),
@@ -1151,50 +1135,45 @@ public class StatementParserTests extends ESTestCase {
         );
         assertStatement(
             "METRICS foo* count(errors)",
-            new UnresolvedMetrics(
+            new EsqlAggregate(
                 EMPTY,
-                new TableIdentifier(EMPTY, null, "foo*"),
-                null,
+                new EsqlUnresolvedRelation(EMPTY, new TableIdentifier(EMPTY, null, "foo*"), List.of()),
                 List.of(),
                 List.of(new Alias(EMPTY, "count(errors)", new UnresolvedFunction(EMPTY, "count", DEFAULT, List.of(attribute("errors")))))
             )
         );
         assertStatement(
             "METRICS foo* a(b)",
-            new UnresolvedMetrics(
+            new EsqlAggregate(
                 EMPTY,
-                new TableIdentifier(EMPTY, null, "foo*"),
-                null,
+                new EsqlUnresolvedRelation(EMPTY, new TableIdentifier(EMPTY, null, "foo*"), List.of()),
                 List.of(),
                 List.of(new Alias(EMPTY, "a(b)", new UnresolvedFunction(EMPTY, "a", DEFAULT, List.of(attribute("b")))))
             )
         );
         assertStatement(
             "METRICS foo* a(b)",
-            new UnresolvedMetrics(
+            new EsqlAggregate(
                 EMPTY,
-                new TableIdentifier(EMPTY, null, "foo*"),
-                null,
+                new EsqlUnresolvedRelation(EMPTY, new TableIdentifier(EMPTY, null, "foo*"), List.of()),
                 List.of(),
                 List.of(new Alias(EMPTY, "a(b)", new UnresolvedFunction(EMPTY, "a", DEFAULT, List.of(attribute("b")))))
             )
         );
         assertStatement(
             "METRICS foo* a1(b2)",
-            new UnresolvedMetrics(
+            new EsqlAggregate(
                 EMPTY,
-                new TableIdentifier(EMPTY, null, "foo*"),
-                null,
+                new EsqlUnresolvedRelation(EMPTY, new TableIdentifier(EMPTY, null, "foo*"), List.of()),
                 List.of(),
                 List.of(new Alias(EMPTY, "a1(b2)", new UnresolvedFunction(EMPTY, "a1", DEFAULT, List.of(attribute("b2")))))
             )
         );
         assertStatement(
             "METRICS foo*,bar* b = min(a) by c, d.e",
-            new UnresolvedMetrics(
+            new EsqlAggregate(
                 EMPTY,
-                new TableIdentifier(EMPTY, null, "foo*,bar*"),
-                null,
+                new EsqlUnresolvedRelation(EMPTY, new TableIdentifier(EMPTY, null, "foo*,bar*"), List.of()),
                 List.of(attribute("c"), attribute("d.e")),
                 List.of(
                     new Alias(EMPTY, "b", new UnresolvedFunction(EMPTY, "min", DEFAULT, List.of(attribute("a")))),

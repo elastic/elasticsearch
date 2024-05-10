@@ -66,10 +66,10 @@ public class FetchSourcePhaseTests extends ESTestCase {
         hitContext = hitExecute(source, true, "*", "*");
         assertEquals(Collections.emptyMap(), hitContext.hit().getSourceAsMap());
 
-        hitContext = hitExecuteMultiple(source, true, new String[] { "field1", "field2"}, new String[] {"*", "field1"});
+        hitContext = hitExecuteMultiple(source, true, new String[] { "field1", "field2" }, new String[] { "*", "field1" });
         assertEquals(Collections.emptyMap(), hitContext.hit().getSourceAsMap());
 
-        hitContext = hitExecuteMultiple(source, true,null, new String[] {"field2", "*", "field1"});
+        hitContext = hitExecuteMultiple(source, true, null, new String[] { "field2", "*", "field1" });
         assertEquals(Collections.emptyMap(), hitContext.hit().getSourceAsMap());
     }
 

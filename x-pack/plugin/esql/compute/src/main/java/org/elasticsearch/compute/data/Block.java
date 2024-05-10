@@ -8,6 +8,7 @@
 package org.elasticsearch.compute.data;
 
 import org.apache.lucene.util.Accountable;
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -43,6 +44,17 @@ public interface Block extends Accountable, BlockLoader.Block, NamedWriteable, R
      * TODO maybe make this everywhere?
      */
     long MAX_LOOKUP = 100_000;
+
+    /**
+     * We do not track memory for pages directly (only for single blocks),
+     * but the page memory overhead can still be significant, especially for pages containing thousands of blocks.
+     * For now, we approximate this overhead, per block, using this value.
+     *
+     * The exact overhead per block would be (more correctly) {@link RamUsageEstimator#NUM_BYTES_OBJECT_REF},
+     * but we approximate it with {@link RamUsageEstimator#NUM_BYTES_OBJECT_ALIGNMENT} to avoid further alignments
+     * to object size (at the end of the alignment, it would make no practical difference).
+     */
+    int PAGE_MEM_OVERHEAD_PER_BLOCK = RamUsageEstimator.NUM_BYTES_OBJECT_ALIGNMENT;
 
     /**
      * {@return an efficient dense single-value view of this block}.

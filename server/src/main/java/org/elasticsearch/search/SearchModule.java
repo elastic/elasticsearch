@@ -254,6 +254,7 @@ import org.elasticsearch.search.vectors.ExactKnnQueryBuilder;
 import org.elasticsearch.search.vectors.KnnScoreDocQueryBuilder;
 import org.elasticsearch.search.vectors.KnnVectorQueryBuilder;
 import org.elasticsearch.search.vectors.QueryVectorBuilder;
+import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentParser;
@@ -289,6 +290,11 @@ public class SearchModule {
         Setting.Property.NodeScope
     );
 
+    /**
+     * Metric name for aggregation usage statistics
+     */
+    private final TelemetryProvider telemetryProvider;
+
     private final Map<String, Highlighter> highlighters;
 
     private final List<FetchSubPhase> fetchSubPhases = new ArrayList<>();
@@ -306,7 +312,19 @@ public class SearchModule {
      * @param plugins List of included {@link SearchPlugin} objects.
      */
     public SearchModule(Settings settings, List<SearchPlugin> plugins) {
+        this(settings, plugins, TelemetryProvider.NOOP);
+    }
+
+    /**
+     * Constructs a new SearchModule object
+     *
+     * @param settings          Current settings
+     * @param plugins           List of included {@link SearchPlugin} objects.
+     * @param telemetryProvider
+     */
+    public SearchModule(Settings settings, List<SearchPlugin> plugins, TelemetryProvider telemetryProvider) {
         this.settings = settings;
+        this.telemetryProvider = telemetryProvider;
         registerSuggesters(plugins);
         highlighters = setupHighlighters(settings, plugins);
         registerScoreFunctions(plugins);
@@ -352,7 +370,7 @@ public class SearchModule {
     }
 
     private ValuesSourceRegistry registerAggregations(List<SearchPlugin> plugins) {
-        ValuesSourceRegistry.Builder builder = new ValuesSourceRegistry.Builder();
+        ValuesSourceRegistry.Builder builder = new ValuesSourceRegistry.Builder(telemetryProvider.getMeterRegistry());
 
         registerAggregation(
             new AggregationSpec(AvgAggregationBuilder.NAME, AvgAggregationBuilder::new, AvgAggregationBuilder.PARSER).addResultReader(

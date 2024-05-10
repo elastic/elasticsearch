@@ -52,8 +52,11 @@ public class NodesCapabilitiesUpgradeIT extends AbstractRollingUpgradeTestCase {
             // capabilities checks should either fail (if talking to an old node),
             // or return false as not all nodes have the API (if talking to a new node)
             try {
-                assertThat("Upgraded node should report no capabilities supported",
-                    clusterHasCapability("GET", "_capabilities", List.of(), List.of()), isPresentWith(false));
+                assertThat(
+                    "Upgraded node should report no capabilities supported",
+                    clusterHasCapability("GET", "_capabilities", List.of(), List.of()),
+                    isPresentWith(false)
+                );
             } catch (ResponseException e) {
                 if (e.getResponse().getStatusLine().getStatusCode() != 400) {
                     // throw explicitly to capture exception too

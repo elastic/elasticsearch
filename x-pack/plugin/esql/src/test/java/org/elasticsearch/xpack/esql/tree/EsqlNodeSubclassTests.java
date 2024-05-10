@@ -220,14 +220,7 @@ public class EsqlNodeSubclassTests<T extends B, B extends Node<B>> extends NodeS
          * Sometimes all of the required type information isn't in the ctor
          * so we have to hard code it here.
          */
-        if (toBuildClass == InnerAggregate.class) {
-            // InnerAggregate's AggregateFunction must be an EnclosedAgg.
-            if (argClass == AggregateFunction.class) {
-                return makeEnclosedAgg();
-            } else if (argClass == CompoundAggregate.class) {
-                return makeCompoundAgg();
-            }
-        } else if (toBuildClass == FieldAttribute.class) {
+        if (toBuildClass == FieldAttribute.class) {
             // Prevent stack overflows by recursively using FieldAttribute's constructor that expects a parent;
             // `parent` is nullable.
             if (argClass == FieldAttribute.class && randomBoolean()) {

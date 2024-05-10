@@ -447,7 +447,12 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                     MetadataUtils.getDeprecatedReservedMetadata(
                         "This role will be removed in a future major release. Please use editor and viewer roles instead"
                     ),
-                    null
+                    null,
+                    null,
+                    null,
+                    null,
+                    "Grants the privileges required for APM users (such as read and view_index_metadata privileges "
+                        + "on the apm-* and .ml-anomalies* indices)."
                 )
             ),
             entry(

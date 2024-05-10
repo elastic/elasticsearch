@@ -234,9 +234,22 @@ public abstract class AbstractWireTestCase<T> extends ESTestCase {
      * how equality is checked.
      */
     protected void assertEqualInstances(T expectedInstance, T newInstance) {
-        assertNotSame(newInstance, expectedInstance);
+        if (shouldBeSame(newInstance)) {
+            assertSame(newInstance, expectedInstance);
+        } else {
+            assertNotSame(newInstance, expectedInstance);
+        }
         assertThat(newInstance, equalTo(expectedInstance));
         assertThat(newInstance.hashCode(), equalTo(expectedInstance.hashCode()));
+    }
+
+    /**
+     * Should this copy be the same instance as what we're copying? Defaults to
+     * {@code false} but implementers might override if the serialization returns
+     * a reuse constant.
+     */
+    protected boolean shouldBeSame(T newInstance) {
+        return false;
     }
 
     protected final T copyInstance(T instance) throws IOException {

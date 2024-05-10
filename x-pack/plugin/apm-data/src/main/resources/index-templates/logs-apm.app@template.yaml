@@ -20,5 +20,5 @@ ignore_missing_component_templates:
 template:
   settings:
     index:
-      default_pipeline: apm@default-pipeline
+      default_pipeline: logs-apm.app@default-pipeline
       final_pipeline: apm@pipeline

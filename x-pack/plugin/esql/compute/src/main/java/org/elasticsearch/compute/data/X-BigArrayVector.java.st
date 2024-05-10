@@ -26,6 +26,18 @@ public final class $Type$BigArrayVector extends AbstractVector implements $Type$
 
     private final $Array$ values;
 
+$if(int)$
+    /**
+     * The minimum value in the block.
+     */
+    private Integer min;
+
+    /**
+     * The minimum value in the block.
+     */
+    private Integer max;
+$endif$
+
     public $Type$BigArrayVector($Array$ values, int positionCount, BlockFactory blockFactory) {
         super(positionCount, blockFactory);
         this.values = values;
@@ -66,6 +78,38 @@ $endif$
     public $type$ get$Type$(int position) {
         return values.get(position);
     }
+
+$if(int)$
+    /**
+     * The minimum value in the block.
+     */
+    @Override
+    public int min() {
+        if (min == null) {
+            int v = values.get(0);
+            for (int i = 1; i < getPositionCount(); i++) {
+                v = Math.min(v, values.get(i));
+            }
+            min = v;
+        }
+        return min;
+    }
+
+    /**
+     * The maximum value in the block.
+     */
+    @Override
+    public int max() {
+        if (max == null) {
+            int v = values.get(0);
+            for (int i = 1; i < getPositionCount(); i++) {
+                v = Math.max(v, values.get(i));
+            }
+            max = v;
+        }
+        return max;
+    }
+$endif$
 
     @Override
     public ElementType elementType() {

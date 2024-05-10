@@ -26,7 +26,7 @@ public class ESLoggingHandlerIT extends ESNetty4IntegTestCase {
 
     public void setUp() throws Exception {
         super.setUp();
-        appender = MockLogAppender.capturing(ESLoggingHandler.class, TransportLogger.class, TcpTransport.class);
+        appender = MockLogAppender.capture(ESLoggingHandler.class, TransportLogger.class, TcpTransport.class);
     }
 
     public void tearDown() throws Exception {

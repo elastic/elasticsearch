@@ -1,7 +1,0 @@
-pr: 108184
-summary: Fix Bucket ordering for partial reduction in date histogram and histogram
-  aggregation
-area: Aggregations
-type: bug
-issues:
- - 108181

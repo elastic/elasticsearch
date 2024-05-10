@@ -411,24 +411,23 @@ public class ClusterRerouteIT extends ESIntegTestCase {
             dryRunMockLog.assertAllExpectationsMatched();
         }
 
-        MockLogAppender allocateMockLog = new MockLogAppender();
-        allocateMockLog.addExpectation(
-            new MockLogAppender.SeenEventExpectation(
-                "message for first allocate empty primary",
-                TransportClusterRerouteAction.class.getName(),
-                Level.INFO,
-                "allocated an empty primary*" + nodeName1 + "*"
-            )
-        );
-        allocateMockLog.addExpectation(
-            new MockLogAppender.UnseenEventExpectation(
-                "no message for second allocate empty primary",
-                TransportClusterRerouteAction.class.getName(),
-                Level.INFO,
-                "allocated an empty primary*" + nodeName2 + "*"
-            )
-        );
-        try (var ignored = allocateMockLog.capturing(TransportClusterRerouteAction.class)) {
+        try (var allocateMockLog = MockLogAppender.capture(TransportClusterRerouteAction.class)) {
+            allocateMockLog.addExpectation(
+                new MockLogAppender.SeenEventExpectation(
+                    "message for first allocate empty primary",
+                    TransportClusterRerouteAction.class.getName(),
+                    Level.INFO,
+                    "allocated an empty primary*" + nodeName1 + "*"
+                )
+            );
+            allocateMockLog.addExpectation(
+                new MockLogAppender.UnseenEventExpectation(
+                    "no message for second allocate empty primary",
+                    TransportClusterRerouteAction.class.getName(),
+                    Level.INFO,
+                    "allocated an empty primary*" + nodeName2 + "*"
+                )
+            );
 
             AllocationCommand yesDecisionAllocation = new AllocateEmptyPrimaryAllocationCommand(indexName, 0, nodeName1, true);
             AllocationCommand noDecisionAllocation = new AllocateEmptyPrimaryAllocationCommand("noexist", 1, nodeName2, true);

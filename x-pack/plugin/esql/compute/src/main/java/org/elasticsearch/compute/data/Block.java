@@ -139,19 +139,19 @@ public interface Block extends Accountable, BlockLoader.Block, NamedWriteable, R
      * same number of {@link #getPositionCount() positions} as the {@code positions}
      * parameter.
      * <p>
-     *     For example, this this block contained {@code [a, b, [b, c]]}
+     *     For example, if this block contained {@code [a, b, [b, c]]}
      *     and were called with the block {@code [0, 1, 1, [1, 2]]} then the
      *     result would be {@code [a, b, b, [b, b, c]]}.
      * </p>
      * <p>
      *     This process produces {@code count(this) * count(positions)} values per
-     *     positions which could be quite quite large. Instead of returning a single
+     *     positions which could be quite large. Instead of returning a single
      *     Block, this returns an Iterator of Blocks containing all of the promised
      *     values.
      * </p>
      * <p>
-     *     The returned {@link ReleasableIterator} may retain a reference to {@link Block}s
-     *     inside the {@link Page}. Close it to release those references.
+     *     The returned {@link ReleasableIterator} may retain a reference to the
+     *     {@code positions} parameter. Close it to release those references.
      * </p>
      * <p>
      *     This block is built using the same {@link BlockFactory} as was used to

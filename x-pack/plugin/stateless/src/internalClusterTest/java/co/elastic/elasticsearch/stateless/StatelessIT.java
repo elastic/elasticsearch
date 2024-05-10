@@ -17,6 +17,7 @@
 
 package co.elastic.elasticsearch.stateless;
 
+import co.elastic.elasticsearch.stateless.commits.BatchedCompoundCommit;
 import co.elastic.elasticsearch.stateless.commits.StatelessCompoundCommit;
 import co.elastic.elasticsearch.stateless.engine.IndexEngine;
 import co.elastic.elasticsearch.stateless.engine.translog.TranslogReplicator;
@@ -45,7 +46,6 @@ import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.io.stream.InputStreamStreamInput;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
@@ -99,7 +99,6 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
 
-import static co.elastic.elasticsearch.stateless.commits.StatelessCompoundCommit.blobNameFromGeneration;
 import static org.elasticsearch.index.IndexSettings.STATELESS_DEFAULT_REFRESH_INTERVAL;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
@@ -149,11 +148,9 @@ public class StatelessIT extends AbstractStatelessIntegTestCase {
         ObjectStoreService objectStoreService = internalCluster().getInstance(ObjectStoreService.class, indexNodeName);
         ClusterService clusterService = internalCluster().getInstance(ClusterService.class, indexNodeName);
         var blobContainerForCommit = objectStoreService.getBlobContainer(indexShard.shardId(), indexShard.getOperationPrimaryTerm());
-        String commitFile = blobNameFromGeneration(Lucene.readSegmentInfos(indexShard.store().directory()).getGeneration());
-        assertThat(commitFile, blobContainerForCommit.blobExists(operationPurpose, commitFile), is(true));
-        StatelessCompoundCommit commit = StatelessCompoundCommit.readFromStore(
-            new InputStreamStreamInput(blobContainerForCommit.readBlob(operationPurpose, commitFile))
-        );
+        final BatchedCompoundCommit latestUploadedBcc = readLatestUploadedBcc(blobContainerForCommit);
+        StatelessCompoundCommit commit = latestUploadedBcc.lastCompoundCommit();
+        assertThat(commit.generation(), equalTo(Lucene.readSegmentInfos(indexShard.store().directory()).getGeneration()));
         assertThat(
             "Expected that the compound commit has the ephemeral Id of the indexing node",
             commit.nodeEphemeralId(),

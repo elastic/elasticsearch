@@ -28,6 +28,7 @@ import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.MockPageCacheRecycler;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.plugins.ActionPlugin;
@@ -665,7 +666,6 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
 
     public void testLogsSlowInboundProcessing() throws Exception {
         final MockLogAppender mockAppender = new MockLogAppender();
-        mockAppender.start();
         final String opaqueId = UUIDs.randomBase64UUID(random());
         final String path = "/internal/test";
         final RestRequest.Method method = randomFrom(RestRequest.Method.values());
@@ -677,13 +677,12 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
                 "handling request [" + opaqueId + "][" + method + "][" + path + "]"
             )
         );
-        final Logger inboundHandlerLogger = LogManager.getLogger(AbstractHttpServerTransport.class);
-        Loggers.addAppender(inboundHandlerLogger, mockAppender);
         final ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
         final Settings settings = Settings.builder()
             .put(TransportSettings.SLOW_OPERATION_THRESHOLD_SETTING.getKey(), TimeValue.timeValueMillis(5))
             .build();
         try (
+            var ignored = mockAppender.capturing(AbstractHttpServerTransport.class);
             AbstractHttpServerTransport transport = new AbstractHttpServerTransport(
                 settings,
                 networkService,
@@ -738,9 +737,6 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
             transport.serverAcceptedChannel(fakeRestRequest.getHttpChannel());
             transport.incomingRequest(fakeRestRequest.getHttpRequest(), fakeRestRequest.getHttpChannel());
             mockAppender.assertAllExpectationsMatched();
-        } finally {
-            Loggers.removeAppender(inboundHandlerLogger, mockAppender);
-            mockAppender.stop();
         }
     }
 
@@ -1358,15 +1354,14 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
     private static class LogExpectation implements AutoCloseable {
         private final Logger mockLogger;
         private final MockLogAppender appender;
-        private boolean checked = false;
+        private final Releasable appenderRelease;
         private final int grace;
 
         private LogExpectation(int grace) {
             mockLogger = LogManager.getLogger(AbstractHttpServerTransport.class);
             Loggers.setLevel(mockLogger, Level.DEBUG);
             appender = new MockLogAppender();
-            Loggers.addAppender(mockLogger, appender);
-            appender.start();
+            appenderRelease = appender.capturing(AbstractHttpServerTransport.class);
             this.grace = grace;
         }
 
@@ -1423,16 +1418,11 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
 
         public void assertExpectationsMatched() {
             appender.assertAllExpectationsMatched();
-            checked = true;
         }
 
         @Override
         public void close() {
-            Loggers.removeAppender(mockLogger, appender);
-            appender.stop();
-            if (checked == false) {
-                fail("did not check expectations matched in TimedOutLogExpectation");
-            }
+            appenderRelease.close();
         }
     }
 

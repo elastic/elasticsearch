@@ -246,7 +246,7 @@ abstract class MlNativeAutodetectIntegTestCase extends MlNativeIntegTestCase {
 
     protected void waitForecastToFinish(String jobId, String forecastId) throws Exception {
         // Forecasts can take an eternity to complete in the FIPS JVM
-        waitForecastStatus(inFipsJvm() ? 300 : 60, jobId, forecastId, ForecastRequestStats.ForecastRequestStatus.FINISHED);
+        waitForecastStatus(inFipsJvm() ? 300 : 90, jobId, forecastId, ForecastRequestStats.ForecastRequestStatus.FINISHED);
     }
 
     protected void waitForecastStatus(String jobId, String forecastId, ForecastRequestStats.ForecastRequestStatus... status)

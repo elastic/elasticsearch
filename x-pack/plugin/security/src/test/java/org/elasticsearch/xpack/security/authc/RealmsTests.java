@@ -12,7 +12,6 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -937,11 +936,9 @@ public class RealmsTests extends ESTestCase {
 
         final Logger realmsLogger = LogManager.getLogger(Realms.class);
         final MockLogAppender appender = new MockLogAppender();
-        Loggers.addAppender(realmsLogger, appender);
-        appender.start();
 
         when(licenseState.statusDescription()).thenReturn("mock license");
-        try {
+        try (var ignored = appender.capturing(Realms.class)) {
             for (String realmId : List.of("kerberos.kerberos_realm", "type_0.custom_realm_1", "type_1.custom_realm_2")) {
                 appender.addExpectation(
                     new MockLogAppender.SeenEventExpectation(
@@ -954,9 +951,6 @@ public class RealmsTests extends ESTestCase {
             }
             allowOnlyStandardRealms();
             appender.assertAllExpectationsMatched();
-        } finally {
-            appender.stop();
-            Loggers.removeAppender(realmsLogger, appender);
         }
 
         final List<String> unlicensedRealmNames = realms.getUnlicensedRealms().stream().map(r -> r.name()).collect(Collectors.toList());

@@ -1663,6 +1663,57 @@ public class MasterServiceTests extends ESTestCase {
                 deterministicTaskQueue.runAllTasksInTimeOrder();
                 safeAwait(latch);
             }
+
+            // check that -1 means an infinite ack timeout
+            {
+                final CountDownLatch latch = new CountDownLatch(2);
+
+                publisherRef.set((clusterChangedEvent, publishListener, ackListener) -> {
+                    publishListener.onResponse(null);
+                    ackListener.onCommit(TimeValue.timeValueMillis(randomLongBetween(0, TimeValue.timeValueDays(1).millis())));
+                    for (final var node : new DiscoveryNode[] { node1, node2, node3 }) {
+                        deterministicTaskQueue.scheduleAt(
+                            deterministicTaskQueue.getCurrentTimeMillis() + randomLongBetween(0, TimeValue.timeValueDays(1).millis()),
+                            () -> ackListener.onNodeAck(node, null)
+                        );
+                    }
+                });
+
+                masterService.submitUnbatchedStateUpdateTask(
+                    "test2",
+                    new AckedClusterStateUpdateTask(ackedRequest(TimeValue.MINUS_ONE, null), null) {
+                        @Override
+                        public ClusterState execute(ClusterState currentState) {
+                            return ClusterState.builder(currentState).build();
+                        }
+
+                        @Override
+                        public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
+                            latch.countDown();
+                        }
+
+                        @Override
+                        protected AcknowledgedResponse newResponse(boolean acknowledged) {
+                            assertTrue(acknowledged);
+                            latch.countDown();
+                            return AcknowledgedResponse.TRUE;
+                        }
+
+                        @Override
+                        public void onFailure(Exception e) {
+                            fail();
+                        }
+
+                        @Override
+                        public void onAckTimeout() {
+                            fail();
+                        }
+                    }
+                );
+
+                deterministicTaskQueue.runAllTasks(); // NB not in time order, there's no timeout to avoid
+                safeAwait(latch);
+            }
         }
     }
 

@@ -9,9 +9,8 @@
 package org.elasticsearch.transport.netty4;
 
 import org.apache.logging.log4j.Level;
-import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.ESNetty4IntegTestCase;
-import org.elasticsearch.common.logging.Loggers;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.MockLogAppender;
@@ -25,21 +24,16 @@ import java.io.IOException;
 public class ESLoggingHandlerIT extends ESNetty4IntegTestCase {
 
     private MockLogAppender appender;
+    private Releasable appenderRelease;
 
     public void setUp() throws Exception {
         super.setUp();
         appender = new MockLogAppender();
-        Loggers.addAppender(LogManager.getLogger(ESLoggingHandler.class), appender);
-        Loggers.addAppender(LogManager.getLogger(TransportLogger.class), appender);
-        Loggers.addAppender(LogManager.getLogger(TcpTransport.class), appender);
-        appender.start();
+        appenderRelease = appender.capturing(ESLoggingHandler.class, TransportLogger.class, TcpTransport.class);
     }
 
     public void tearDown() throws Exception {
-        Loggers.removeAppender(LogManager.getLogger(ESLoggingHandler.class), appender);
-        Loggers.removeAppender(LogManager.getLogger(TransportLogger.class), appender);
-        Loggers.removeAppender(LogManager.getLogger(TcpTransport.class), appender);
-        appender.stop();
+        appenderRelease.close();
         super.tearDown();
     }
 

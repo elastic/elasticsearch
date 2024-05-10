@@ -49,7 +49,11 @@ class KibanaOwnedReservedRoleDescriptors {
             null,
             null,
             metadata,
-            null
+            null,
+            null,
+            null,
+            null,
+            "Grants access to all features in Kibana."
         );
     }
 

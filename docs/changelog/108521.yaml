@@ -1,6 +1,6 @@
 pr: 108521
 summary: Adding override for lintian false positive on `libvec.so`
-area: "Search, Packaging"
+area: "Packaging"
 type: bug
 issues:
  - 108514

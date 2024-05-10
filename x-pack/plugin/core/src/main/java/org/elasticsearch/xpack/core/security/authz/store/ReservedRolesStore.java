@@ -519,7 +519,11 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                     null,
                     null,
                     MetadataUtils.DEFAULT_RESERVED_METADATA,
-                    null
+                    null,
+                    null,
+                    null,
+                    null,
+                    "Grants the minimum privileges required to view machine learning configuration, status, and work with results."
                 )
             ),
             entry(

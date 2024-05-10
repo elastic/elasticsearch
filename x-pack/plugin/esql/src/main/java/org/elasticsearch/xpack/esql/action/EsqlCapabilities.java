@@ -20,7 +20,7 @@ import java.util.Set;
  * and {@link RestEsqlAsyncQueryAction} APIs. These are exposed over the
  * {@link RestNodesCapabilitiesAction} and we use them to enable tests.
  */
-class EsqlCapabilities {
+public class EsqlCapabilities {
     static final Set<String> CAPABILITIES = capabilities();
 
     private static Set<String> capabilities() {

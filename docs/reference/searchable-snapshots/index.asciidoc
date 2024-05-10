@@ -310,9 +310,9 @@ of {search-snap} indices.
 The sole copy of the data in a {search-snap} index is the underlying snapshot,
 stored in the repository. For example:
 
-* You cannot unregister a repository while any of the searchable snapshots it
-contains are mounted in {es}. You also cannot delete a snapshot if any of its
-indices are mounted as a searchable snapshot in the same cluster.
+* You must not unregister a repository while any of the searchable snapshots it
+contains are mounted in {es}. You also must not delete a snapshot if any of its
+indices are mounted as searchable snapshots.
 
 * If you mount indices from snapshots held in a repository to which a different
 cluster has write access then you must make sure that the other cluster does not

@@ -362,7 +362,15 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                             .privileges("create_index", "create")
                             .build() },
                     null,
-                    MetadataUtils.DEFAULT_RESERVED_METADATA
+                    null,
+                    null,
+                    MetadataUtils.DEFAULT_RESERVED_METADATA,
+                    null,
+                    null,
+                    null,
+                    null,
+                    "Grants access necessary for the Beats system user to send system-level data (such as monitoring) to Elasticsearch. "
+                        + "This role should not be assigned to users as the granted permissions may change between releases."
                 )
             ),
             entry(

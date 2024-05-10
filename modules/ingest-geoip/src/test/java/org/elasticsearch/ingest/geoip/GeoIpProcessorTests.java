@@ -336,6 +336,34 @@ public class GeoIpProcessorTests extends ESTestCase {
         assertThat(geoData.get("residential_proxy"), equalTo(true));
     }
 
+    public void testConnectionType() throws Exception {
+        String ip = "214.78.120.5";
+        GeoIpProcessor processor = new GeoIpProcessor(
+            randomAlphaOfLength(10),
+            null,
+            "source_field",
+            loader("/GeoIP2-Connection-Type-Test.mmdb"),
+            () -> true,
+            "target_field",
+            ALL_PROPERTIES,
+            false,
+            false,
+            "filename"
+        );
+
+        Map<String, Object> document = new HashMap<>();
+        document.put("source_field", ip);
+        IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), document);
+        processor.execute(ingestDocument);
+
+        assertThat(ingestDocument.getSourceAndMetadata().get("source_field"), equalTo(ip));
+        @SuppressWarnings("unchecked")
+        Map<String, Object> geoData = (Map<String, Object>) ingestDocument.getSourceAndMetadata().get("target_field");
+        assertThat(geoData.size(), equalTo(2));
+        assertThat(geoData.get("ip"), equalTo(ip));
+        assertThat(geoData.get("connection_type"), equalTo("Satellite"));
+    }
+
     public void testDomain() throws Exception {
         String ip = "69.219.64.2";
         GeoIpProcessor processor = new GeoIpProcessor(

@@ -12,6 +12,8 @@ import com.maxmind.db.Network;
 import com.maxmind.geoip2.model.AnonymousIpResponse;
 import com.maxmind.geoip2.model.AsnResponse;
 import com.maxmind.geoip2.model.CityResponse;
+import com.maxmind.geoip2.model.ConnectionTypeResponse;
+import com.maxmind.geoip2.model.ConnectionTypeResponse.ConnectionType;
 import com.maxmind.geoip2.model.CountryResponse;
 import com.maxmind.geoip2.model.DomainResponse;
 import com.maxmind.geoip2.model.EnterpriseResponse;
@@ -177,6 +179,7 @@ public final class GeoIpProcessor extends AbstractProcessor {
             case Country -> retrieveCountryGeoData(geoIpDatabase, ipAddress);
             case Asn -> retrieveAsnGeoData(geoIpDatabase, ipAddress);
             case AnonymousIp -> retrieveAnonymousIpGeoData(geoIpDatabase, ipAddress);
+            case ConnectionType -> retrieveConnectionTypeGeoData(geoIpDatabase, ipAddress);
             case Domain -> retrieveDomainGeoData(geoIpDatabase, ipAddress);
             case Enterprise -> retrieveEnterpriseGeoData(geoIpDatabase, ipAddress);
             case Isp -> retrieveIspGeoData(geoIpDatabase, ipAddress);
@@ -382,6 +385,28 @@ public final class GeoIpProcessor extends AbstractProcessor {
                 }
                 case RESIDENTIAL_PROXY -> {
                     geoData.put("residential_proxy", isResidentialProxy);
+                }
+            }
+        }
+        return geoData;
+    }
+
+    private Map<String, Object> retrieveConnectionTypeGeoData(GeoIpDatabase geoIpDatabase, InetAddress ipAddress) {
+        ConnectionTypeResponse response = geoIpDatabase.getConnectionType(ipAddress);
+        if (response == null) {
+            return Map.of();
+        }
+
+        ConnectionType connectionType = response.getConnectionType();
+
+        Map<String, Object> geoData = new HashMap<>();
+        for (Property property : this.properties) {
+            switch (property) {
+                case IP -> geoData.put("ip", NetworkAddress.format(ipAddress));
+                case CONNECTION_TYPE -> {
+                    if (connectionType != null) {
+                        geoData.put("connection_type", connectionType.toString());
+                    }
                 }
             }
         }

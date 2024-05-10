@@ -75,6 +75,7 @@ enum Database {
             Property.RESIDENTIAL_PROXY
         )
     ),
+    ConnectionType(Set.of(Property.IP, Property.CONNECTION_TYPE), Set.of(Property.CONNECTION_TYPE)),
     Domain(Set.of(Property.IP, Property.DOMAIN), Set.of(Property.DOMAIN)),
     Enterprise(
         Set.of(
@@ -139,6 +140,7 @@ enum Database {
     private static final String COUNTRY_DB_SUFFIX = "-Country";
     private static final String ASN_DB_SUFFIX = "-ASN";
     private static final String ANONYMOUS_IP_DB_SUFFIX = "-Anonymous-IP";
+    private static final String CONNECTION_TYPE_DB_SUFFIX = "-Connection-Type";
     private static final String DOMAIN_DB_SUFFIX = "-Domain";
     private static final String ENTERPRISE_DB_SUFFIX = "-Enterprise";
     private static final String ISP_DB_SUFFIX = "-ISP";
@@ -163,6 +165,8 @@ enum Database {
                 database = Database.Asn;
             } else if (databaseType.endsWith(Database.ANONYMOUS_IP_DB_SUFFIX)) {
                 database = Database.AnonymousIp;
+            } else if (databaseType.endsWith(Database.CONNECTION_TYPE_DB_SUFFIX)) {
+                database = Database.ConnectionType;
             } else if (databaseType.endsWith(Database.DOMAIN_DB_SUFFIX)) {
                 database = Database.Domain;
             } else if (databaseType.endsWith(Database.ENTERPRISE_DB_SUFFIX)) {
@@ -248,7 +252,8 @@ enum Database {
         ISP,
         ISP_ORGANIZATION_NAME,
         MOBILE_COUNTRY_CODE,
-        MOBILE_NETWORK_CODE;
+        MOBILE_NETWORK_CODE,
+        CONNECTION_TYPE;
 
         /**
          * Parses a string representation of a property into an actual Property instance. Not all properties that exist are

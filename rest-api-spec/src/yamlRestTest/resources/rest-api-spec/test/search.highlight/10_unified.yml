@@ -134,8 +134,8 @@ teardown:
 ---
 "Test nested queries automatically disable weighted mode":
   - requires:
-      cluster_features: "gte_v8.15.0"
-      reason: 'nested was not correctly skipped until 8.15'
+      cluster_features: "gte_v8.14.0"
+      reason: 'nested was not correctly skipped until 8.14'
 
   - do:
       search:

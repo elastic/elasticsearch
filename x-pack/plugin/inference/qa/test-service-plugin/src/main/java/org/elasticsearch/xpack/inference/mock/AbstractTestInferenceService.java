@@ -18,6 +18,7 @@ import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
 import org.elasticsearch.inference.SecretSettings;
 import org.elasticsearch.inference.ServiceSettings;
+import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskSettings;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -26,11 +27,6 @@ import java.io.IOException;
 import java.util.Map;
 
 public abstract class AbstractTestInferenceService implements InferenceService {
-
-    protected static int stringWeight(String input, int position) {
-        // Ensure non-negative and non-zero values for features
-        return Math.abs(input.hashCode()) + 1 + position;
-    }
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {

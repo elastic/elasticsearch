@@ -740,7 +740,15 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                             .allowRestrictedIndices(true)
                             .build() },
                     null,
-                    MetadataUtils.DEFAULT_RESERVED_METADATA
+                    null,
+                    null,
+                    MetadataUtils.DEFAULT_RESERVED_METADATA,
+                    null,
+                    null,
+                    null,
+                    null,
+                    "Grants access to the .logstash* indices for managing configurations, "
+                        + "and grants necessary access for logstash-specific APIs exposed by the logstash x-pack plugin."
                 )
             ),
             entry(

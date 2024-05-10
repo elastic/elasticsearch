@@ -45,6 +45,7 @@ import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
+import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
@@ -160,7 +161,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
 
     private final ObjectStoreService objectStoreService;
     private final Supplier<String> ephemeralNodeIdSupplier;
-    private final Function<ShardId, IndexShardRoutingTable> shardRoutingFinder;
+    private final Function<ShardId, Optional<IndexShardRoutingTable>> shardRoutingFinder;
     private final ThreadPool threadPool;
     // We don't do null checks when reading from this sub-map because we hold a commit reference while files are being uploaded. This will
     // prevent commit deletion in the interim.
@@ -195,7 +196,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
             settings,
             objectStoreService,
             () -> clusterService.localNode().getEphemeralId(),
-            (shardId) -> clusterService.state().routingTable().shardRoutingTable(shardId),
+            (shardId) -> shardRoutingTableFunction(clusterService, shardId),
             clusterService.threadPool(),
             client,
             commitCleaner,
@@ -207,7 +208,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
         Settings settings,
         ObjectStoreService objectStoreService,
         Supplier<String> ephemeralNodeIdSupplier,
-        Function<ShardId, IndexShardRoutingTable> shardRouting,
+        Function<ShardId, Optional<IndexShardRoutingTable>> shardRouting,
         ThreadPool threadPool,
         Client client,
         StatelessCommitCleaner commitCleaner,
@@ -246,6 +247,11 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                 virtualBccUploadMaxAge.getStringRep()
             );
         }
+    }
+
+    private static Optional<IndexShardRoutingTable> shardRoutingTableFunction(ClusterService clusterService, ShardId shardId) {
+        RoutingTable routingTable = clusterService.state().routingTable();
+        return routingTable.hasIndex(shardId.getIndex()) ? Optional.of(routingTable.shardRoutingTable(shardId)) : Optional.empty();
     }
 
     public boolean isStatelessUploadDelayed() {
@@ -410,7 +416,6 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
             // TODO: we can also check whether we need upload before appending to avoid creating VBCC just above the cache region size
 
             final VirtualBatchedCompoundCommit virtualBcc;
-            final IndexShardRoutingTable shardRoutingTable;
             synchronized (commitState) {
                 // Have to check under lock before creating vbcc to ensure that the shard has not closed.
                 if (commitState.isClosed()) {
@@ -425,29 +430,19 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                     return;
                 }
                 virtualBcc = commitState.appendCommit(reference);
-                // only need to check `isDeleted` under lock, but the rest does very little work and no synchronization.
-                if (statelessUploadDelayed && commitState.isInitializingNoSearch() == false && commitState.isDeleted == false) {
-                    IndexShardRoutingTable localRoutingTable = null;
-                    try {
-                        localRoutingTable = shardRoutingFinder.apply(shardId);
-                    } catch (IndexNotFoundException e) {
-                        logger.warn("index not found for shard [{}]", shardId);
-                    }
-                    shardRoutingTable = localRoutingTable;
-                } else {
-                    shardRoutingTable = null;
-                }
             }
             success = true;
 
             if (statelessUploadDelayed) {
-                if (shardRoutingTable == null) {
+                final Optional<IndexShardRoutingTable> shardRoutingTable = shardRoutingFinder.apply(shardId);
+                // todo: ES-8431 remove commitState.isInitializingNoSearch, we only need this for relocations now.
+                if (shardRoutingTable.isEmpty() || commitState.isInitializingNoSearch()) {
                     // for initializing shards, the applied state may not yet be available in `ClusterService.state()`.
                     // however, except for peer recovery, we can safely assume no search shards.
                     commitState.notifyCommitSuccessListeners(generation);
                 } else {
                     final var request = new NewCommitNotificationRequest(
-                        shardRoutingTable,
+                        shardRoutingTable.get(),
                         virtualBcc.lastCompoundCommit(),
                         virtualBcc.getPrimaryTermAndGeneration().generation(),
                         commitState.getMaxUploadedBccTermAndGen()
@@ -1005,7 +1000,8 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
             primaryTermAndGenToBlobReference.put(recoveryBCCBlob.getPrimaryTermAndGeneration(), recoveryBCCBlob);
 
             var currentUnpromotableShardAssignedNodes = shardRoutingFinder.apply(shardId)
-                .unpromotableShards()
+                .map(IndexShardRoutingTable::unpromotableShards)
+                .orElse(List.of())
                 .stream()
                 .map(ShardRouting::currentNodeId)
                 .collect(Collectors.toSet());
@@ -1585,8 +1581,9 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
 
             var notificationCommitGeneration = uploadedBcc.last().generation();
             var notificationCommitBCCDependencies = resolveReferencedBCCsForCommit(notificationCommitGeneration);
-            if (isInitializingNoSearch()) {
-                // assume no search shards to avoid problems when ClusterService.state is not available yet.
+            Optional<IndexShardRoutingTable> shardRoutingTable = shardRoutingFinder.apply(uploadedBcc.shardId());
+            if (shardRoutingTable.isEmpty()) {
+                // no search shards, initializing or deleting index
 
                 // is noop, but do this for completeness anyway.
                 trackOutstandingUnpromotableShardCommitRef(Set.of(), blobReference);
@@ -1603,8 +1600,8 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                 return;
             }
 
-            var shardRoutingTable = shardRoutingFinder.apply(uploadedBcc.shardId());
-            Set<String> nodesWithAssignedSearchShards = shardRoutingTable.unpromotableShards()
+            Set<String> nodesWithAssignedSearchShards = shardRoutingTable.get()
+                .unpromotableShards()
                 .stream()
                 .filter(ShardRouting::assignedToNode)
                 .map(ShardRouting::currentNodeId)
@@ -1613,7 +1610,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
             lastNewCommitNotificationSentTimestamp = threadPool.relativeTimeInMillis();
 
             NewCommitNotificationRequest request = new NewCommitNotificationRequest(
-                shardRoutingTable,
+                shardRoutingTable.get(),
                 uploadedBcc.last(),
                 uploadedBcc.primaryTermAndGeneration().generation(),
                 uploadedBcc.primaryTermAndGeneration()

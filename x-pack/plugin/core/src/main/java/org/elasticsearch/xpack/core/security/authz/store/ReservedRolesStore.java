@@ -304,7 +304,14 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                     null,
                     null,
                     MetadataUtils.getDeprecatedReservedMetadata("Please use Kibana feature privileges instead"),
-                    null
+                    null,
+                    null,
+                    null,
+                    null,
+                    "Grants the specific privileges required for users of X-Pack reporting other than those required to use Kibana. "
+                        + "This role grants access to the reporting indices; each user has access to only their own reports. "
+                        + "Reporting users should also be assigned additional roles that grant access to Kibana as well as read access "
+                        + "to the indices that will be used to generate reports."
                 )
             ),
             entry(KibanaSystemUser.ROLE_NAME, kibanaSystemRoleDescriptor(KibanaSystemUser.ROLE_NAME)),

@@ -7,8 +7,10 @@
 package org.elasticsearch.xpack.esql.qa.rest;
 
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
+import com.carrotsearch.randomizedtesting.annotations.TimeoutSuite;
 
 import org.apache.http.HttpEntity;
+import org.apache.lucene.tests.util.TimeUnits;
 import org.elasticsearch.Build;
 import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
@@ -56,6 +58,8 @@ import static org.elasticsearch.xpack.esql.CsvTestsDataLoader.loadDataSetIntoEs;
 import static org.elasticsearch.xpack.ql.CsvSpecReader.specParser;
 import static org.elasticsearch.xpack.ql.TestUtils.classpathResources;
 
+// This test can run very long in serverless configurations
+@TimeoutSuite(millis = 30 * TimeUnits.MINUTE)
 public abstract class EsqlSpecTestCase extends ESRestTestCase {
 
     // To avoid referencing the main module, we replicate EsqlFeatures.ASYNC_QUERY.id() here

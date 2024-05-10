@@ -85,7 +85,7 @@ import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.authc.RealmDomain;
 import org.elasticsearch.xpack.core.security.authc.file.FileRealmSettings;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
-import org.elasticsearch.xpack.core.security.authz.RoleDescriptorTests;
+import org.elasticsearch.xpack.core.security.authz.RoleDescriptorTestHelper;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptorsIntersection;
 import org.elasticsearch.xpack.core.security.authz.privilege.ClusterPrivilegeResolver;
 import org.elasticsearch.xpack.core.security.authz.store.ReservedRolesStore;
@@ -2551,11 +2551,11 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         final List<RoleDescriptor> newRoleDescriptors = List.of(
             randomValueOtherThanMany(
                 rd -> RoleDescriptorRequestValidator.validate(rd) != null || initialRequest.getRoleDescriptors().contains(rd),
-                () -> RoleDescriptorTests.randomRoleDescriptor(false)
+                () -> RoleDescriptorTestHelper.builder().build()
             ),
             randomValueOtherThanMany(
                 rd -> RoleDescriptorRequestValidator.validate(rd) != null || initialRequest.getRoleDescriptors().contains(rd),
-                () -> RoleDescriptorTests.randomRoleDescriptor(false)
+                () -> RoleDescriptorTestHelper.builder().build()
             )
         );
         response = updateSingleApiKeyMaybeUsingBulkAction(
@@ -2769,7 +2769,7 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
                 new RoleDescriptor(randomAlphaOfLength(10), new String[] { "all" }, null, null),
                 randomValueOtherThanMany(
                     rd -> RoleDescriptorRequestValidator.validate(rd) != null,
-                    () -> RoleDescriptorTests.randomRoleDescriptor(false, true, false, true)
+                    () -> RoleDescriptorTestHelper.builder().allowRemoteIndices(true).allowRemoteClusters(true).build()
                 )
             );
             case 2 -> null;
@@ -2887,6 +2887,7 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
             final var descriptor = (Map<String, ?>) rawRoleDescriptor.get(expectedRoleDescriptor.getName());
             final var roleDescriptor = RoleDescriptor.parserBuilder()
                 .allowRestriction(true)
+                .allowDescription(true)
                 .build()
                 .parse(
                     expectedRoleDescriptor.getName(),

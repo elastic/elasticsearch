@@ -13,6 +13,7 @@ import com.maxmind.geoip2.model.AnonymousIpResponse;
 import com.maxmind.geoip2.model.AsnResponse;
 import com.maxmind.geoip2.model.CityResponse;
 import com.maxmind.geoip2.model.CountryResponse;
+import com.maxmind.geoip2.model.DomainResponse;
 import com.maxmind.geoip2.model.EnterpriseResponse;
 import com.maxmind.geoip2.record.City;
 import com.maxmind.geoip2.record.Continent;
@@ -175,6 +176,7 @@ public final class GeoIpProcessor extends AbstractProcessor {
             case Country -> retrieveCountryGeoData(geoIpDatabase, ipAddress);
             case Asn -> retrieveAsnGeoData(geoIpDatabase, ipAddress);
             case AnonymousIp -> retrieveAnonymousIpGeoData(geoIpDatabase, ipAddress);
+            case Domain -> retrieveDomainGeoData(geoIpDatabase, ipAddress);
             case Enterprise -> retrieveEnterpriseGeoData(geoIpDatabase, ipAddress);
         };
     }
@@ -378,6 +380,28 @@ public final class GeoIpProcessor extends AbstractProcessor {
                 }
                 case RESIDENTIAL_PROXY -> {
                     geoData.put("residential_proxy", isResidentialProxy);
+                }
+            }
+        }
+        return geoData;
+    }
+
+    private Map<String, Object> retrieveDomainGeoData(GeoIpDatabase geoIpDatabase, InetAddress ipAddress) {
+        DomainResponse response = geoIpDatabase.getDomain(ipAddress);
+        if (response == null) {
+            return Map.of();
+        }
+
+        String domain = response.getDomain();
+
+        Map<String, Object> geoData = new HashMap<>();
+        for (Property property : this.properties) {
+            switch (property) {
+                case IP -> geoData.put("ip", NetworkAddress.format(ipAddress));
+                case DOMAIN -> {
+                    if (domain != null) {
+                        geoData.put("domain", domain);
+                    }
                 }
             }
         }

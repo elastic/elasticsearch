@@ -283,7 +283,14 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                     new String[] { "manage_index_templates", "manage_pipeline" },
                     null,
                     null,
-                    MetadataUtils.DEFAULT_RESERVED_METADATA
+                    null,
+                    null,
+                    MetadataUtils.DEFAULT_RESERVED_METADATA,
+                    null,
+                    null,
+                    null,
+                    null,
+                    "Grants access to manage all index templates and all ingest pipeline configurations."
                 )
             ),
             // reporting_user doesn't have any privileges in Elasticsearch, and Kibana authorizes privileges based on this role

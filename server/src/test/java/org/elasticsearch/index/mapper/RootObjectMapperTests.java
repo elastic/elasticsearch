@@ -515,7 +515,6 @@ public class RootObjectMapperTests extends MapperServiceTestCase {
                     "outer",
                     Explicit.EXPLICIT_TRUE,
                     Explicit.EXPLICIT_TRUE,
-                    Explicit.EXPLICIT_FALSE,
                     ObjectMapper.Dynamic.FALSE,
                     Map.of(
                         "inner",

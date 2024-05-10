@@ -22,6 +22,7 @@ import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.ModelConfigurations;
+import org.elasticsearch.inference.ModelSecrets;
 import org.elasticsearch.inference.ServiceSettings;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.rest.RestStatus;
@@ -44,8 +45,21 @@ public class TestSparseInferenceServiceExtension implements InferenceServiceExte
         return List.of(TestInferenceService::new);
     }
 
+    public static class TestSparseModel extends Model {
+
+        public TestSparseModel(
+            String inferenceEntityId,
+            TestServiceSettings serviceSettings
+        ) {
+            super(
+                new ModelConfigurations(inferenceEntityId, TaskType.SPARSE_EMBEDDING, TestInferenceService.NAME, serviceSettings),
+                new ModelSecrets(new AbstractTestInferenceService.TestSecretSettings("api_key"))
+            );
+        }
+    }
+
     public static class TestInferenceService extends AbstractTestInferenceService {
-        private static final String NAME = "test_service";
+        public static final String NAME = "test_service";
 
         public TestInferenceService(InferenceServiceExtension.InferenceServiceFactoryContext context) {}
 

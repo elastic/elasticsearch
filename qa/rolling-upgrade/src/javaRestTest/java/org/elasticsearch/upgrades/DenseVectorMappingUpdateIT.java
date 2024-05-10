@@ -28,7 +28,7 @@ import static org.elasticsearch.rest.action.search.RestSearchAction.TOTAL_HITS_A
  * This IT indexes some dense vector on an old node, then update its mapping and, once upgraded, checks that KNN search still works
  * before and after further data indexing.
  */
-public class DenseVectorMappingUpdateIT extends ParameterizedRollingUpgradeTestCase {
+public class DenseVectorMappingUpdateIT extends AbstractRollingUpgradeTestCase {
 
     private static final String BULK1 = """
                     {"index": {"_id": "1"}}

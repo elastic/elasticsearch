@@ -808,7 +808,11 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
             null,
             null,
             MetadataUtils.DEFAULT_RESERVED_METADATA,
-            null
+            null,
+            null,
+            null,
+            null,
+            "Grants read-only access to all features in Kibana (including Solutions) and to data indices."
         );
     }
 
@@ -855,7 +859,11 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
             null,
             null,
             MetadataUtils.DEFAULT_RESERVED_METADATA,
-            null
+            null,
+            null,
+            null,
+            null,
+            "Grants full access to all features in Kibana (including Solutions) and read-only access to data indices."
         );
     }
 

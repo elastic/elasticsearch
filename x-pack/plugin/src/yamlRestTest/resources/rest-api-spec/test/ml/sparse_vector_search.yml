@@ -112,10 +112,6 @@ setup:
 
 ---
 "Test sparse_vector search with pruning config":
-  - skip:
-      version: " - 8.12.99"
-      reason: "pruning introduced in 8.13.0"
-
   - do:
       search:
         index: index-with-sparse-vector
@@ -134,10 +130,6 @@ setup:
 
 ---
 "Test sparse_vector search with pruning config that changes recall":
-  - skip:
-      version: " - 8.12.99"
-      reason: "pruning introduced in 8.13.0"
-
   - do:
       search:
         index: index-with-sparse-vector
@@ -156,9 +148,6 @@ setup:
 
 ---
 "Test named, boosted sparse_vector search with pruning config":
-  - skip:
-      version: " - 8.12.99"
-      reason: "pruning introduced in 8.13.0"
   - do:
       search:
         index: index-with-sparse-vector
@@ -198,10 +187,6 @@ setup:
 
 ---
 "Test sparse_vector search with default pruning config":
-  - skip:
-      version: " - 8.12.99"
-      reason: "pruning introduced in 8.13.0"
-
   - do:
       search:
         index: index-with-sparse-vector
@@ -219,10 +204,6 @@ setup:
 
 ---
 "Test sparse_vector search with a pruning configuration that only keeps pruned tokens":
-  - skip:
-      version: " - 8.12.99"
-      reason: "pruning introduced in 8.13.0"
-
   - do:
       search:
         index: index-with-sparse-vector

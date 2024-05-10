@@ -21,7 +21,6 @@ import org.elasticsearch.xpack.core.security.SecurityField;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.permission.RemoteClusterPermissionGroup;
 import org.elasticsearch.xpack.core.security.authz.permission.RemoteClusterPermissions;
-import org.elasticsearch.xpack.core.security.authz.privilege.ConfigurableClusterPrivileges;
 import org.elasticsearch.xpack.core.security.support.MetadataUtils;
 import org.elasticsearch.xpack.core.security.user.KibanaSystemUser;
 import org.elasticsearch.xpack.core.security.user.UsernamesField;
@@ -249,8 +248,8 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                     null,
                     null,
                     null,
-                    "Grants the minimum privileges required to write data into the monitoring indices (.monitoring-*). " +
-                        "This role also has the privileges necessary to create Metricbeat indices (metricbeat-*) and write data into them."
+                    "Grants the minimum privileges required to write data into the monitoring indices (.monitoring-*). "
+                        + "This role also has the privileges necessary to create Metricbeat indices (metricbeat-*) and write data into them."
                 )
             ),
             entry(

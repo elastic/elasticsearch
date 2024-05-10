@@ -873,7 +873,15 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
             joinAccumulator = joinHelper.new CandidateJoinAccumulator();
 
             peerFinder.activate(coordinationState.get().getLastAcceptedState().nodes());
-            clusterFormationFailureHelper.start();
+
+            // Only start the formation helper if NOT in shutdown.
+            // The shutdown process will disconnect the node from the cluster, and start
+            // rejoining processes, the failure of which we do not want to log about.
+            if (lifecycle.initializedOrStarted()) {
+                clusterFormationFailureHelper.start();
+            } else {
+                logger.info("This node has left the cluster due to shutdown. It is unlikely to successfully rejoin.");
+            }
 
             leaderHeartbeatService.stop();
             leaderChecker.setCurrentNodes(DiscoveryNodes.EMPTY_NODES);

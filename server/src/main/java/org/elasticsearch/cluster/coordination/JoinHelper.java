@@ -225,7 +225,7 @@ public class JoinHelper {
         void logWarnWithTimestamp() {
             logger.warn(
                 () -> format(
-                    "last failed join attempt was %s ago, failed to join %s with %s",
+                    "The last failed node-join response was received %s ago. The request was sent to %s, and the request was %s",
                     TimeValue.timeValueMillis(TimeValue.nsecToMSec(System.nanoTime() - timestamp)),
                     destination,
                     joinRequest

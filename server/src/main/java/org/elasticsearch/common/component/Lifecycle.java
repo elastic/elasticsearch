@@ -94,6 +94,11 @@ public final class Lifecycle {
         return state == State.CLOSED;
     }
 
+    public boolean initializedOrStarted() {
+        Lifecycle.State state = this.state;
+        return state == State.INITIALIZED || state == State.STARTED;
+    }
+
     public boolean stoppedOrClosed() {
         Lifecycle.State state = this.state;
         return state == State.STOPPED || state == State.CLOSED;

@@ -88,6 +88,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
@@ -715,9 +716,9 @@ public class StatelessCommitServiceTests extends ESTestCase {
         var stateRef = new AtomicReference<ClusterState>();
         try (var testHarness = new FakeStatelessNode(this::newEnvironment, this::newNodeEnvironment, xContentRegistry(), primaryTerm) {
             @Override
-            protected IndexShardRoutingTable getShardRoutingTable(ShardId shardId) {
+            protected Optional<IndexShardRoutingTable> getShardRoutingTable(ShardId shardId) {
                 assert stateRef.get() != null;
-                return stateRef.get().routingTable().shardRoutingTable(shardId);
+                return Optional.of(stateRef.get().routingTable().shardRoutingTable(shardId));
             }
 
             @Override
@@ -785,9 +786,9 @@ public class StatelessCommitServiceTests extends ESTestCase {
         var stateRef = new AtomicReference<ClusterState>();
         try (var testHarness = new FakeStatelessNode(this::newEnvironment, this::newNodeEnvironment, xContentRegistry(), primaryTerm) {
             @Override
-            protected IndexShardRoutingTable getShardRoutingTable(ShardId shardId) {
+            protected Optional<IndexShardRoutingTable> getShardRoutingTable(ShardId shardId) {
                 assert stateRef.get() != null;
-                return stateRef.get().routingTable().shardRoutingTable(shardId);
+                return Optional.of(stateRef.get().routingTable().shardRoutingTable(shardId));
             }
 
             @Override
@@ -861,9 +862,9 @@ public class StatelessCommitServiceTests extends ESTestCase {
         var stateRef = new AtomicReference<ClusterState>();
         try (var testHarness = new FakeStatelessNode(this::newEnvironment, this::newNodeEnvironment, xContentRegistry(), primaryTerm) {
             @Override
-            protected IndexShardRoutingTable getShardRoutingTable(ShardId shardId) {
+            protected Optional<IndexShardRoutingTable> getShardRoutingTable(ShardId shardId) {
                 assert stateRef.get() != null;
-                return stateRef.get().routingTable().shardRoutingTable(shardId);
+                return Optional.of(stateRef.get().routingTable().shardRoutingTable(shardId));
             }
 
             @Override
@@ -935,9 +936,9 @@ public class StatelessCommitServiceTests extends ESTestCase {
         var stateRef = new AtomicReference<ClusterState>();
         try (var testHarness = new FakeStatelessNode(this::newEnvironment, this::newNodeEnvironment, xContentRegistry(), primaryTerm) {
             @Override
-            protected IndexShardRoutingTable getShardRoutingTable(ShardId shardId) {
+            protected Optional<IndexShardRoutingTable> getShardRoutingTable(ShardId shardId) {
                 assert stateRef.get() != null;
-                return stateRef.get().routingTable().shardRoutingTable(shardId);
+                return Optional.of(stateRef.get().routingTable().shardRoutingTable(shardId));
             }
 
             @Override
@@ -1028,9 +1029,9 @@ public class StatelessCommitServiceTests extends ESTestCase {
         var stateRef = new AtomicReference<ClusterState>();
         try (var testHarness = new FakeStatelessNode(this::newEnvironment, this::newNodeEnvironment, xContentRegistry(), primaryTerm) {
             @Override
-            protected IndexShardRoutingTable getShardRoutingTable(ShardId shardId) {
+            protected Optional<IndexShardRoutingTable> getShardRoutingTable(ShardId shardId) {
                 assert stateRef.get() != null;
-                return stateRef.get().routingTable().shardRoutingTable(shardId);
+                return Optional.of(stateRef.get().routingTable().shardRoutingTable(shardId));
             }
 
             @Override
@@ -1104,9 +1105,9 @@ public class StatelessCommitServiceTests extends ESTestCase {
         var stateRef = new AtomicReference<ClusterState>();
         try (var testHarness = new FakeStatelessNode(this::newEnvironment, this::newNodeEnvironment, xContentRegistry(), primaryTerm) {
             @Override
-            protected IndexShardRoutingTable getShardRoutingTable(ShardId shardId) {
+            protected Optional<IndexShardRoutingTable> getShardRoutingTable(ShardId shardId) {
                 assert stateRef.get() != null;
-                return stateRef.get().routingTable().shardRoutingTable(shardId);
+                return Optional.of(stateRef.get().routingTable().shardRoutingTable(shardId));
             }
 
             @Override
@@ -1175,8 +1176,8 @@ public class StatelessCommitServiceTests extends ESTestCase {
         var stateRef = new AtomicReference<ClusterState>();
         try (var testHarness = new FakeStatelessNode(this::newEnvironment, this::newNodeEnvironment, xContentRegistry(), primaryTerm) {
             @Override
-            protected IndexShardRoutingTable getShardRoutingTable(ShardId shardId) {
-                return stateRef.get().routingTable().shardRoutingTable(shardId);
+            protected Optional<IndexShardRoutingTable> getShardRoutingTable(ShardId shardId) {
+                return Optional.of(stateRef.get().routingTable().shardRoutingTable(shardId));
             }
 
             @Override
@@ -1283,8 +1284,8 @@ public class StatelessCommitServiceTests extends ESTestCase {
         var stateRef = new AtomicReference<ClusterState>();
         try (var testHarness = new FakeStatelessNode(this::newEnvironment, this::newNodeEnvironment, xContentRegistry(), primaryTerm) {
             @Override
-            protected IndexShardRoutingTable getShardRoutingTable(ShardId shardId) {
-                return stateRef.get().routingTable().shardRoutingTable(shardId);
+            protected Optional<IndexShardRoutingTable> getShardRoutingTable(ShardId shardId) {
+                return Optional.of(stateRef.get().routingTable().shardRoutingTable(shardId));
             }
 
             @Override
@@ -1383,8 +1384,8 @@ public class StatelessCommitServiceTests extends ESTestCase {
         var stateRef = new AtomicReference<ClusterState>();
         try (var testHarness = new FakeStatelessNode(this::newEnvironment, this::newNodeEnvironment, xContentRegistry(), primaryTerm) {
             @Override
-            protected IndexShardRoutingTable getShardRoutingTable(ShardId shardId) {
-                return stateRef.get().routingTable().shardRoutingTable(shardId);
+            protected Optional<IndexShardRoutingTable> getShardRoutingTable(ShardId shardId) {
+                return Optional.of(stateRef.get().routingTable().shardRoutingTable(shardId));
             }
 
             @Override
@@ -1495,8 +1496,8 @@ public class StatelessCommitServiceTests extends ESTestCase {
         var stateRef = new AtomicReference<ClusterState>();
         try (var testHarness = new FakeStatelessNode(this::newEnvironment, this::newNodeEnvironment, xContentRegistry(), primaryTerm) {
             @Override
-            protected IndexShardRoutingTable getShardRoutingTable(ShardId shardId) {
-                return stateRef.get().routingTable().shardRoutingTable(shardId);
+            protected Optional<IndexShardRoutingTable> getShardRoutingTable(ShardId shardId) {
+                return Optional.of(stateRef.get().routingTable().shardRoutingTable(shardId));
             }
 
             @Override
@@ -1564,8 +1565,8 @@ public class StatelessCommitServiceTests extends ESTestCase {
         var stateRef = new AtomicReference<ClusterState>();
         try (var testHarness = new FakeStatelessNode(this::newEnvironment, this::newNodeEnvironment, xContentRegistry(), primaryTerm) {
             @Override
-            protected IndexShardRoutingTable getShardRoutingTable(ShardId shardId) {
-                return stateRef.get().routingTable().shardRoutingTable(shardId);
+            protected Optional<IndexShardRoutingTable> getShardRoutingTable(ShardId shardId) {
+                return Optional.of(stateRef.get().routingTable().shardRoutingTable(shardId));
             }
 
             @Override

@@ -2219,13 +2219,19 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
 
             // when validating is false, we return the conflicts instead of throwing an exception
             var overlaps = MetadataIndexTemplateService.v2TemplateOverlaps(state, "foo2", newTemplate, false);
-
             assertThat(overlaps, allOf(aMapWithSize(1), hasKey("foo")));
+
+            // when adding a template with validating false, we add a critical warning instead of throwing an exception
+            metadataIndexTemplateService.addIndexTemplateV2(state, false, "foo2", newTemplate, false);
+            assertCriticalWarnings(
+                "index template [foo2] has index patterns [abc, baz*] matching patterns from existing older templates"
+                    + " [foo] with patterns (foo => [egg*, baz]); this template [foo2] will take precedence during new index creation"
+            );
 
             // try now the same thing with validation on
             IllegalArgumentException e = expectThrows(
                 IllegalArgumentException.class,
-                () -> MetadataIndexTemplateService.v2TemplateOverlaps(state, "foo2", newTemplate, true)
+                () -> metadataIndexTemplateService.addIndexTemplateV2(state, false, "foo2", newTemplate)
             );
             assertThat(
                 e.getMessage(),
@@ -2255,7 +2261,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
                 .build();
             IllegalArgumentException e = expectThrows(
                 IllegalArgumentException.class,
-                () -> MetadataIndexTemplateService.v2TemplateOverlaps(state, "foo2", newTemplate, true)
+                () -> metadataIndexTemplateService.addIndexTemplateV2(state, false, "foo2", newTemplate)
             );
             assertThat(
                 e.getMessage(),

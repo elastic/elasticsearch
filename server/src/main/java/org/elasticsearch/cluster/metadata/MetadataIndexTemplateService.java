@@ -597,8 +597,8 @@ public class MetadataIndexTemplateService {
 
         Map<String, List<String>> overlaps = v2TemplateOverlaps(currentState, name, template, validateV2Overlaps);
 
-        overlaps = findConflictingV1Templates(currentState, name, template.indexPatterns());
-        if (overlaps.size() > 0) {
+        overlaps.putAll(findConflictingV1Templates(currentState, name, template.indexPatterns()));
+        if (overlaps.isEmpty() == false) {
             String warning = String.format(
                 Locale.ROOT,
                 "index template [%s] has index patterns %s matching patterns from "

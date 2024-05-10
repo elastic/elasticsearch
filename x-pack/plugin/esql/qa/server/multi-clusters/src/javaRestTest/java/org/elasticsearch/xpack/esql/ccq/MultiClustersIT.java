@@ -18,6 +18,7 @@ import org.elasticsearch.test.TestClustersThreadFilter;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.test.rest.TestFeatureService;
+import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.qa.rest.RestEsqlTestCase;
 import org.junit.After;
 import org.junit.Before;
@@ -122,7 +123,9 @@ public class MultiClustersIT extends ESRestTestCase {
     }
 
     private Map<String, Object> run(String query) throws IOException {
-        Map<String, Object> resp = runEsql(new RestEsqlTestCase.RequestObjectBuilder().query(query).build());
+        Map<String, Object> resp = runEsql(
+            new RestEsqlTestCase.RequestObjectBuilder().query(query).version(EsqlTestUtils.latestEsqlVersionOrSnapshot()).build()
+        );
         logger.info("--> query {} response {}", query, resp);
         return resp;
     }
@@ -133,13 +136,11 @@ public class MultiClustersIT extends ESRestTestCase {
 
     private Map<String, Object> runEsql(RestEsqlTestCase.RequestObjectBuilder requestObject) throws IOException {
         if (supportsAsync()) {
-            return RestEsqlTestCase.runEsqlAsync(requestObject, NO_WARNINGS);
+            return RestEsqlTestCase.runEsqlAsync(requestObject);
         } else {
-            return RestEsqlTestCase.runEsqlSync(requestObject, NO_WARNINGS);
+            return RestEsqlTestCase.runEsqlSync(requestObject);
         }
     }
-
-    private static final List<String> NO_WARNINGS = List.of();
 
     public void testCount() throws Exception {
         {

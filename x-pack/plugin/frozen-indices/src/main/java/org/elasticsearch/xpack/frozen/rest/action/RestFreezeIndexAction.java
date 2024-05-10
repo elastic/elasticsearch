@@ -26,6 +26,7 @@ import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 import static org.elasticsearch.rest.RestStatus.GONE;
+import static org.elasticsearch.rest.RestUtils.getMasterNodeTimeout;
 
 public final class RestFreezeIndexAction extends BaseRestHandler {
 
@@ -49,7 +50,7 @@ public final class RestFreezeIndexAction extends BaseRestHandler {
             // translate to a get indices request, so that we'll 404 on non-existent indices
             final GetIndexRequest getIndexRequest = new GetIndexRequest();
             getIndexRequest.indices(Strings.splitStringByCommaToArray(request.param("index")));
-            getIndexRequest.masterNodeTimeout(request.paramAsTime("master_timeout", getIndexRequest.masterNodeTimeout()));
+            getIndexRequest.masterNodeTimeout(getMasterNodeTimeout(request));
             getIndexRequest.indicesOptions(IndicesOptions.fromRequest(request, getIndexRequest.indicesOptions()));
             return channel -> client.admin().indices().getIndex(getIndexRequest, new RestBuilderListener<>(channel) {
                 @Override
@@ -62,8 +63,8 @@ public final class RestFreezeIndexAction extends BaseRestHandler {
         }
 
         FreezeRequest freezeRequest = new FreezeRequest(Strings.splitStringByCommaToArray(request.param("index")));
-        freezeRequest.timeout(request.paramAsTime("timeout", freezeRequest.timeout()));
-        freezeRequest.masterNodeTimeout(request.paramAsTime("master_timeout", freezeRequest.masterNodeTimeout()));
+        freezeRequest.ackTimeout(request.paramAsTime("timeout", freezeRequest.ackTimeout()));
+        freezeRequest.masterNodeTimeout(getMasterNodeTimeout(request));
         freezeRequest.indicesOptions(IndicesOptions.fromRequest(request, freezeRequest.indicesOptions()));
         String waitForActiveShards = request.param("wait_for_active_shards");
         if (waitForActiveShards != null) {

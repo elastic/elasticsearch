@@ -109,6 +109,7 @@ public class SenderServiceTests extends ESTestCase {
             List<String> input,
             Map<String, Object> taskSettings,
             InputType inputType,
+            TimeValue timeout,
             ActionListener<InferenceServiceResults> listener
         ) {
 
@@ -121,6 +122,7 @@ public class SenderServiceTests extends ESTestCase {
             List<String> input,
             Map<String, Object> taskSettings,
             InputType inputType,
+            TimeValue timeout,
             ActionListener<InferenceServiceResults> listener
         ) {
 
@@ -134,6 +136,7 @@ public class SenderServiceTests extends ESTestCase {
             Map<String, Object> taskSettings,
             InputType inputType,
             ChunkingOptions chunkingOptions,
+            TimeValue timeout,
             ActionListener<List<ChunkedInferenceServiceResults>> listener
         ) {
 

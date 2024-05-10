@@ -203,8 +203,8 @@ public class ConnectorFilteringTests extends ESTestCase {
                             }
                         ],
                         "validation": {
-                            "errors": [],
-                            "state": "valid"
+                            "errors": [{"ids": ["1"], "messages": ["some messages"]}],
+                            "state": "invalid"
                         }
                     },
                     "domain": "DEFAULT",

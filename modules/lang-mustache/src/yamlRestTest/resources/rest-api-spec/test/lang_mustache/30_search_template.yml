@@ -164,8 +164,8 @@
 
 ---
 "Test explain templated search":
-  - skip:
-      version: " - 8.7.99"
+  - requires:
+      cluster_features: ["gte_v8.8.0"]
       reason: Bug fix for explain in search template added in 8.8.0
 
   - do:

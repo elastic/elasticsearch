@@ -39,9 +39,9 @@ enum Database {
             Property.LOCATION
         ),
         Set.of(
-            Property.CONTINENT_NAME,
-            Property.COUNTRY_NAME,
             Property.COUNTRY_ISO_CODE,
+            Property.COUNTRY_NAME,
+            Property.CONTINENT_NAME,
             Property.REGION_ISO_CODE,
             Property.REGION_NAME,
             Property.CITY_NAME,
@@ -55,11 +55,63 @@ enum Database {
     Asn(
         Set.of(Property.IP, Property.ASN, Property.ORGANIZATION_NAME, Property.NETWORK),
         Set.of(Property.IP, Property.ASN, Property.ORGANIZATION_NAME, Property.NETWORK)
+    ),
+    AnonymousIp(
+        Set.of(
+            Property.IP,
+            Property.HOSTING_PROVIDER,
+            Property.TOR_EXIT_NODE,
+            Property.ANONYMOUS_VPN,
+            Property.ANONYMOUS,
+            Property.PUBLIC_PROXY,
+            Property.RESIDENTIAL_PROXY
+        ),
+        Set.of(
+            Property.HOSTING_PROVIDER,
+            Property.TOR_EXIT_NODE,
+            Property.ANONYMOUS_VPN,
+            Property.ANONYMOUS,
+            Property.PUBLIC_PROXY,
+            Property.RESIDENTIAL_PROXY
+        )
+    ),
+    Enterprise(
+        Set.of(
+            Property.IP,
+            Property.COUNTRY_ISO_CODE,
+            Property.COUNTRY_NAME,
+            Property.CONTINENT_NAME,
+            Property.REGION_ISO_CODE,
+            Property.REGION_NAME,
+            Property.CITY_NAME,
+            Property.TIMEZONE,
+            Property.LOCATION,
+            Property.ASN,
+            Property.ORGANIZATION_NAME,
+            Property.NETWORK,
+            Property.HOSTING_PROVIDER,
+            Property.TOR_EXIT_NODE,
+            Property.ANONYMOUS_VPN,
+            Property.ANONYMOUS,
+            Property.PUBLIC_PROXY,
+            Property.RESIDENTIAL_PROXY
+        ),
+        Set.of(
+            Property.COUNTRY_ISO_CODE,
+            Property.COUNTRY_NAME,
+            Property.CONTINENT_NAME,
+            Property.REGION_ISO_CODE,
+            Property.REGION_NAME,
+            Property.CITY_NAME,
+            Property.LOCATION
+        )
     );
 
     private static final String CITY_DB_SUFFIX = "-City";
     private static final String COUNTRY_DB_SUFFIX = "-Country";
     private static final String ASN_DB_SUFFIX = "-ASN";
+    private static final String ANONYMOUS_IP_DB_SUFFIX = "-Anonymous-IP";
+    private static final String ENTERPRISE_DB_SUFFIX = "-Enterprise";
 
     /**
      * Parses the passed-in databaseType (presumably from the passed-in databaseFile) and return the Database instance that is
@@ -79,6 +131,10 @@ enum Database {
                 database = Database.Country;
             } else if (databaseType.endsWith(Database.ASN_DB_SUFFIX)) {
                 database = Database.Asn;
+            } else if (databaseType.endsWith(Database.ANONYMOUS_IP_DB_SUFFIX)) {
+                database = Database.AnonymousIp;
+            } else if (databaseType.endsWith(Database.ENTERPRISE_DB_SUFFIX)) {
+                database = Database.Enterprise;
             }
         }
 
@@ -147,7 +203,13 @@ enum Database {
         LOCATION,
         ASN,
         ORGANIZATION_NAME,
-        NETWORK;
+        NETWORK,
+        HOSTING_PROVIDER,
+        TOR_EXIT_NODE,
+        ANONYMOUS_VPN,
+        ANONYMOUS,
+        PUBLIC_PROXY,
+        RESIDENTIAL_PROXY;
 
         /**
          * Parses a string representation of a property into an actual Property instance. Not all properties that exist are

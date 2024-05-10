@@ -1,7 +1,7 @@
 setup:
 
-  - skip:
-      version: " - 7.6.99"
+  - requires:
+      cluster_features: ["gte_v7.7.0"]
       reason: "constant_keyword was added in 7.7"
 
   - do:
@@ -202,8 +202,8 @@ setup:
 
 ---
 "Simple filter":
-  - skip:
-      version: " - 7.6.99"
+  - requires:
+      cluster_features: ["gte_v7.7.0"]
       reason: "constant_keyword was added in 7.7"
 
   - do:
@@ -283,8 +283,8 @@ setup:
 
 ---
 "Filter with histogram":
-  - skip:
-      version: " - 7.6.99"
+  - requires:
+      cluster_features: ["gte_v7.7.0"]
       reason: "constant_keyword was added in 7.7"
 
   - do:
@@ -417,10 +417,14 @@ setup:
 
 ---
 Cardinality agg:
+  - requires:
+      cluster_features: "gte_v7.7.0"
+      reason: "constant_keyword was added in 7.7"
   - skip:
-      version: " - 7.6.99, 8.9.00 - 8.10.99"
-      reason: "constant_keyword was added in 7.7, bug introduced in 8.9 and fixed in 8.11"
-
+      known_issues:
+        - cluster_feature: "gte_v8.9.0"
+          fixed_by: "gte_v8.11.0"
+      reason: "bug introduced in 8.9 and fixed in 8.11"
   - do:
       indices.create:
         index: test3
@@ -452,10 +456,10 @@ Cardinality agg:
   - match: { aggregations.card.value: 1 }
 ---
 "deprecated use of multi-fields":
-  - skip:
-      version: " - 8.13.99"
+  - requires:
+      cluster_features: ["gte_v8.14.0"]
       reason: "deprecation added in 8.14"
-      features: warnings
+      test_runner_features: warnings
 
   - do:
       warnings:

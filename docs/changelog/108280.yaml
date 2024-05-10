@@ -1,0 +1,6 @@
+pr: 108280
+summary: Ensure necessary security context for s3 bulk deletions
+area: Snapshot/Restore
+type: bug
+issues:
+  - 108049

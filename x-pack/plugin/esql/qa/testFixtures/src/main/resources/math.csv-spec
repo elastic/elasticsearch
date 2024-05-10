@@ -1213,21 +1213,6 @@ a:double
 // end::floor-result[]
 ;
 
-ceilFloorOfInfinite
-row i = 1.0/0.0 | eval c = ceil(i), f = floor(i);
-
-i:double | c:double | f:double
-Infinity | Infinity | Infinity
-;
-
-ceilFloorOfNegativeInfinite
-row i = -1.0/0.0 | eval c = ceil(i), f = floor(i);
-
-i:double  | c:double  | f:double
--Infinity | -Infinity | -Infinity
-;
-
-
 ceilFloorOfInteger
 row i = 1 | eval c = ceil(i), f = floor(i);
 
@@ -1426,4 +1411,41 @@ Alejandro      |McAlpine       |1.48           |1.48
 Amabile        |Gomatam        |2.09           |2.09           
 Anneke         |Preusig        |1.56           |1.56     
 //end::abs-employees-result[]
+;
+
+evalAbsString
+required_feature: esql.string_literal_auto_casting
+
+ROW number = -1.0
+| EVAL abs_number = ABS("10.0")
+;
+
+number:double  | abs_number:double
+-1.0           | 10.0
+;
+
+functionUnderArithmeticOperationAggString
+required_feature: esql.string_literal_auto_casting
+
+ROW a = 1
+| eval x = date_trunc(1 month, "2024-11-22") + 2 days, y = x + 3 days
+| stats count() by y
+;
+
+count():long | y:date
+1            | 2024-11-06T00:00:00.000Z
+;
+
+functionUnderArithmeticOperationString
+required_feature: esql.string_literal_auto_casting
+
+from employees
+| eval x = date_trunc(1 month, "2024-11-22") + 2 days, y = x + 3 days
+| sort emp_no
+| keep emp_no, x, y
+| limit 2;
+
+emp_no: integer | x:date     | y:date
+10001           | 2024-11-03 | 2024-11-06
+10002           | 2024-11-03 | 2024-11-06
 ;

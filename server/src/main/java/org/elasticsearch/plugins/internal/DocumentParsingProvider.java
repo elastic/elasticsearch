@@ -19,7 +19,7 @@ public interface DocumentParsingProvider {
         }
 
         @Override
-        public DocumentSizeReporter getDocumentParsingReporter() {
+        public DocumentSizeReporter getDocumentParsingReporter(String indexName) {
             return DocumentSizeReporter.EMPTY_INSTANCE;
         }
 
@@ -42,6 +42,6 @@ public interface DocumentParsingProvider {
     /**
      * @return an instance of a reporter to use when parsing has been completed and indexing successful
      */
-    DocumentSizeReporter getDocumentParsingReporter();
+    DocumentSizeReporter getDocumentParsingReporter(String indexName);
 
 }

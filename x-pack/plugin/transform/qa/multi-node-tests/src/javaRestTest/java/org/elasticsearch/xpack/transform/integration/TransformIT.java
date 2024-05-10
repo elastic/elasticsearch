@@ -241,38 +241,39 @@ public class TransformIT extends TransformRestTestCase {
             long sleepAfterStartMillis = randomLongBetween(0, 5_000);
             boolean force = randomBoolean();
             try {
-                // Create the continuous transform
+                // Create the continuous transform.
                 putTransform(transformId, config, RequestOptions.DEFAULT);
                 assertThat(getTransformTasks(), is(empty()));
                 assertThat(getTransformTasksFromClusterState(transformId), is(empty()));
 
                 startTransform(transformId, RequestOptions.DEFAULT);
-                // There is 1 transform task after start
+                // There is 1 transform task after start.
                 assertThat(getTransformTasks(), hasSize(1));
                 assertThat(getTransformTasksFromClusterState(transformId), hasSize(1));
 
                 Thread.sleep(sleepAfterStartMillis);
-                // There should still be 1 transform task as the transform is continuous
+                // There should still be 1 transform task as the transform is continuous.
                 assertThat(getTransformTasks(), hasSize(1));
                 assertThat(getTransformTasksFromClusterState(transformId), hasSize(1));
 
-                // Stop the transform with force set randomly
+                // Stop the transform with force set randomly.
                 stopTransform(transformId, true, null, false, force);
-                // After the transform is stopped, there should be no transform task left
-                assertThat(getTransformTasks(), is(empty()));
+                if (force) {
+                    // If the "force" has been used, then the persistent task is removed from the cluster state but the local task can still
+                    // be seen by the PersistentTasksNodeService. We need to wait until PersistentTasksNodeService reconciles the state.
+                    assertBusy(() -> assertThat(getTransformTasks(), is(empty())));
+                } else {
+                    // If the "force" hasn't been used then we can expect the local task to be already gone.
+                    assertThat(getTransformTasks(), is(empty()));
+                }
+                // After the transform is stopped, there should be no transform task left in the cluster state.
                 assertThat(getTransformTasksFromClusterState(transformId), is(empty()));
 
                 // Delete the transform
                 deleteTransform(transformId);
             } catch (AssertionError | Exception e) {
                 throw new AssertionError(
-                    format(
-                        "Failure at iteration %d (sleepAfterStartMillis=%s,force=%s): %s",
-                        i,
-                        sleepAfterStartMillis,
-                        force,
-                        e.getMessage()
-                    ),
+                    format("Failure at iteration %d (sleepAfterStart=%sms,force=%s): %s", i, sleepAfterStartMillis, force, e.getMessage()),
                     e
                 );
             }

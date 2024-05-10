@@ -24,6 +24,7 @@ import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.action.index.IndexRequestBuilder;
+import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.broadcast.BroadcastResponse;
 import org.elasticsearch.client.internal.Client;
@@ -45,6 +46,7 @@ import org.elasticsearch.common.Numbers;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexService;
@@ -1745,7 +1747,12 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         assertNotNull("should be at least one node with a primary shard", nodeWithPrimary);
         IndicesService indicesService = internalCluster().getInstance(IndicesService.class, nodeWithPrimary);
         IndexService indexService = indicesService.indexService(resolveIndex(index));
-        indexService.removeShard(0, "simulate node removal");
+        indexService.removeShard(
+            0,
+            "simulate node removal",
+            EsExecutors.DIRECT_EXECUTOR_SERVICE,
+            ActionTestUtils.assertNoFailureListener(v -> {})
+        );
 
         logger.info("--> unblocking blocked node [{}]", blockedNode);
         unblockNode(repo, blockedNode);

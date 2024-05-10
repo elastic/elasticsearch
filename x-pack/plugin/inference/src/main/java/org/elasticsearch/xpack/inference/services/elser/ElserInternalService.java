@@ -246,9 +246,11 @@ public class ElserInternalService implements InferenceService {
 
     @Override
     public void stop(String inferenceEntityId, ActionListener<Boolean> listener) {
+        var request = new StopTrainedModelDeploymentAction.Request(inferenceEntityId);
+        request.setForce(true);
         client.execute(
             StopTrainedModelDeploymentAction.INSTANCE,
-            new StopTrainedModelDeploymentAction.Request(inferenceEntityId),
+            request,
             listener.delegateFailureAndWrap((delegatedResponseListener, response) -> delegatedResponseListener.onResponse(Boolean.TRUE))
         );
     }
@@ -260,6 +262,7 @@ public class ElserInternalService implements InferenceService {
         List<String> input,
         Map<String, Object> taskSettings,
         InputType inputType,
+        TimeValue timeout,
         ActionListener<InferenceServiceResults> listener
     ) {
         // No task settings to override with requestTaskSettings
@@ -275,7 +278,7 @@ public class ElserInternalService implements InferenceService {
             model.getConfigurations().getInferenceEntityId(),
             TextExpansionConfigUpdate.EMPTY_UPDATE,
             input,
-            TimeValue.timeValueSeconds(10)  // TODO get timeout from request
+            timeout
         );
         client.execute(
             InferTrainedModelDeploymentAction.INSTANCE,
@@ -290,9 +293,10 @@ public class ElserInternalService implements InferenceService {
         Map<String, Object> taskSettings,
         InputType inputType,
         @Nullable ChunkingOptions chunkingOptions,
+        TimeValue timeout,
         ActionListener<List<ChunkedInferenceServiceResults>> listener
     ) {
-        chunkedInfer(model, null, input, taskSettings, inputType, chunkingOptions, listener);
+        chunkedInfer(model, null, input, taskSettings, inputType, chunkingOptions, timeout, listener);
     }
 
     @Override
@@ -303,6 +307,7 @@ public class ElserInternalService implements InferenceService {
         Map<String, Object> taskSettings,
         InputType inputType,
         @Nullable ChunkingOptions chunkingOptions,
+        TimeValue timeout,
         ActionListener<List<ChunkedInferenceServiceResults>> listener
     ) {
         try {
@@ -320,7 +325,7 @@ public class ElserInternalService implements InferenceService {
             model.getConfigurations().getInferenceEntityId(),
             configUpdate,
             input,
-            TimeValue.timeValueSeconds(10)  // TODO get timeout from request
+            timeout
         );
         request.setChunkResults(true);
 

@@ -12,6 +12,7 @@ import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.ann.Fixed;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
+import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlConfigurationFunction;
@@ -35,11 +36,16 @@ public class ToUpper extends EsqlConfigurationFunction {
 
     @FunctionInfo(
         returnType = { "keyword", "text" },
-        description = "Returns a new string representing the input string converted to upper case."
+        description = "Returns a new string representing the input string converted to upper case.",
+        examples = @Example(file = "string", tag = "to_upper")
     )
     public ToUpper(
         Source source,
-        @Param(name = "str", type = { "keyword", "text" }, description = "The input string") Expression field,
+        @Param(
+            name = "str",
+            type = { "keyword", "text" },
+            description = "String expression. If `null`, the function returns `null`."
+        ) Expression field,
         Configuration configuration
     ) {
         super(source, List.of(field), configuration);

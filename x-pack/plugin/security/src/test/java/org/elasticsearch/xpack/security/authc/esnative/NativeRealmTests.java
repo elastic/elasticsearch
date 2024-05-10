@@ -42,7 +42,6 @@ public class NativeRealmTests extends ESTestCase {
             concreteSecurityIndexName,
             indexStatus,
             IndexMetadata.State.OPEN,
-            null,
             "my_uuid"
         );
     }

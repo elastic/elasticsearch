@@ -340,7 +340,7 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
         return plan.get();
     }
 
-    // optimized doesn't know yet how to break down different multi count
+    // optimizer doesn't know yet how to break down different multi count
     public void testCountMultipleFieldsWithFilter() {
         var plan = plan("""
             from test
@@ -370,42 +370,17 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
         assertThat(expected.toString(), is(esStatsQuery.query().toString()));
     }
 
-    /**
-     * Expected
-     * ProjectExec[[c{r}#3, c{r}#3 AS call, c_literal{r}#7]]
-     * \_LimitExec[1000[INTEGER]]
-     *   \_AggregateExec[[],[COUNT([2a][KEYWORD]) AS c, COUNT(1[INTEGER]) AS c_literal],FINAL,null]
-     *     \_ExchangeExec[[count{r}#18, seen{r}#19, count{r}#20, seen{r}#21],true]
-     *       \_EsStatsQueryExec[test], stats[Stat[name=*, type=COUNT, query=null], Stat[name=*, type=COUNT, query=null]]],
-     *         query[{"esql_single_value":{"field":"emp_no","next":{"range":{"emp_no":{"gt":10010,"boost":1.0}}},
-     *         "source":"emp_no > 10010@2:9"}}][count{r}#23, seen{r}#24, count{r}#25, seen{r}#26], limit[],
-     */
+    // optimizer doesn't know yet how to normalize and deduplicate cout(*), count(), count(1) etc.
     public void testMultiCountAllWithFilter() {
         var plan = plan("""
             from test
             | where emp_no > 10010
             | stats c = count(), call = count(*), c_literal = count(1)
             """, IS_SV_STATS);
-
-        var project = as(plan, ProjectExec.class);
-        var projections = project.projections();
-        assertThat(Expressions.names(projections), contains("c", "call", "c_literal"));
-        var alias = as(projections.get(1), Alias.class);
-        assertThat(Expressions.name(alias.child()), is("c"));
-        var limit = as(project.child(), LimitExec.class);
-        var agg = as(limit.child(), AggregateExec.class);
-        assertThat(agg.getMode(), is(FINAL));
-        assertThat(Expressions.names(agg.aggregates()), contains("c", "c_literal"));
-        var exchange = as(agg.child(), ExchangeExec.class);
-        var esStatsQuery = as(exchange.child(), EsStatsQueryExec.class);
-        assertThat(esStatsQuery.limit(), is(nullValue()));
-        assertThat(Expressions.names(esStatsQuery.output()), contains("count", "seen", "count", "seen"));
-        var source = ((SingleValueQuery.Builder) esStatsQuery.query()).source();
-        var expected = wrapWithSingleQuery(QueryBuilders.rangeQuery("emp_no").gt(10010), "emp_no", source);
-        assertThat(expected.toString(), is(esStatsQuery.query().toString()));
+        assertThat(plan.anyMatch(EsQueryExec.class::isInstance), is(true));
     }
 
-    // optimized doesn't know yet how to break down different multi count
+    // optimizer doesn't know yet how to break down different multi count
     public void testCountFieldsAndAllWithFilter() {
         var plan = plan("""
             from test
@@ -657,11 +632,9 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
             new OutOfRangeTestCase("byte", smallerThanInteger, largerThanInteger),
             new OutOfRangeTestCase("short", smallerThanInteger, largerThanInteger),
             new OutOfRangeTestCase("integer", smallerThanInteger, largerThanInteger),
-            new OutOfRangeTestCase("long", smallerThanLong, largerThanLong),
+            new OutOfRangeTestCase("long", smallerThanLong, largerThanLong)
             // TODO: add unsigned_long https://github.com/elastic/elasticsearch/issues/102935
             // TODO: add half_float, float https://github.com/elastic/elasticsearch/issues/100130
-            new OutOfRangeTestCase("double", "-1.0/0.0", "1.0/0.0"),
-            new OutOfRangeTestCase("scaled_float", "-1.0/0.0", "1.0/0.0")
         );
 
         final String LT = "<";
@@ -678,8 +651,7 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
                 GT + testCase.tooLow,
                 GTE + testCase.tooLow,
                 NEQ + testCase.tooHigh,
-                NEQ + testCase.tooLow,
-                NEQ + "0.0/0.0"
+                NEQ + testCase.tooLow
             );
             List<String> alwaysFalsePredicates = List.of(
                 LT + testCase.tooLow,
@@ -687,12 +659,7 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
                 GT + testCase.tooHigh,
                 GTE + testCase.tooHigh,
                 EQ + testCase.tooHigh,
-                EQ + testCase.tooLow,
-                LT + "0.0/0.0",
-                LTE + "0.0/0.0",
-                GT + "0.0/0.0",
-                GTE + "0.0/0.0",
-                EQ + "0.0/0.0"
+                EQ + testCase.tooLow
             );
 
             for (String truePredicate : trueForSingleValuesPredicates) {
@@ -700,6 +667,7 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
                 var query = "from test | where " + comparison;
                 Source expectedSource = new Source(1, 18, comparison);
 
+                logger.info("Query: " + query);
                 EsQueryExec actualQueryExec = doTestOutOfRangeFilterPushdown(query, allTypeMappingAnalyzer);
 
                 assertThat(actualQueryExec.query(), is(instanceOf(SingleValueQuery.Builder.class)));

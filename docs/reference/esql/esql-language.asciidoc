@@ -1,11 +1,10 @@
 [[esql-language]]
-== Learning {esql}
-
+== {esql} reference
 ++++
-<titleabbrev>Learning {esql}</titleabbrev>
+<titleabbrev>{esql} reference</titleabbrev>
 ++++
 
-Detailed information about the {esql} language:
+Detailed reference documentation for the {esql} language:
 
 * <<esql-syntax>>
 * <<esql-commands>>

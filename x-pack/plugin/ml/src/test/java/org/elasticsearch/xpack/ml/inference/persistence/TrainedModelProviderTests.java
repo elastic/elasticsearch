@@ -67,7 +67,11 @@ import static org.mockito.Mockito.verify;
 public class TrainedModelProviderTests extends ESTestCase {
 
     public void testDeleteModelStoredAsResource() {
-        TrainedModelProvider trainedModelProvider = new TrainedModelProvider(mock(Client.class), xContentRegistry());
+        TrainedModelProvider trainedModelProvider = new TrainedModelProvider(
+            mock(Client.class),
+            mock(TrainedModelCacheMetadataService.class),
+            xContentRegistry()
+        );
         PlainActionFuture<Boolean> future = new PlainActionFuture<>();
         // Should be OK as we don't make any client calls
         trainedModelProvider.deleteTrainedModel("lang_ident_model_1", future);
@@ -77,7 +81,11 @@ public class TrainedModelProviderTests extends ESTestCase {
 
     public void testPutModelThatExistsAsResource() {
         TrainedModelConfig config = TrainedModelConfigTests.createTestInstance("lang_ident_model_1").build();
-        TrainedModelProvider trainedModelProvider = new TrainedModelProvider(mock(Client.class), xContentRegistry());
+        TrainedModelProvider trainedModelProvider = new TrainedModelProvider(
+            mock(Client.class),
+            mock(TrainedModelCacheMetadataService.class),
+            xContentRegistry()
+        );
         PlainActionFuture<Boolean> future = new PlainActionFuture<>();
         trainedModelProvider.storeTrainedModel(config, future);
         ElasticsearchException ex = expectThrows(ElasticsearchException.class, future::actionGet);
@@ -85,7 +93,11 @@ public class TrainedModelProviderTests extends ESTestCase {
     }
 
     public void testGetModelThatExistsAsResource() throws Exception {
-        TrainedModelProvider trainedModelProvider = new TrainedModelProvider(mock(Client.class), xContentRegistry());
+        TrainedModelProvider trainedModelProvider = new TrainedModelProvider(
+            mock(Client.class),
+            mock(TrainedModelCacheMetadataService.class),
+            xContentRegistry()
+        );
         for (String modelId : TrainedModelProvider.MODELS_STORED_AS_RESOURCE) {
             PlainActionFuture<TrainedModelConfig> future = new PlainActionFuture<>();
             trainedModelProvider.getTrainedModel(modelId, GetTrainedModelsAction.Includes.forModelDefinition(), null, future);
@@ -180,7 +192,11 @@ public class TrainedModelProviderTests extends ESTestCase {
     }
 
     public void testGetModelThatExistsAsResourceButIsMissing() {
-        TrainedModelProvider trainedModelProvider = new TrainedModelProvider(mock(Client.class), xContentRegistry());
+        TrainedModelProvider trainedModelProvider = new TrainedModelProvider(
+            mock(Client.class),
+            mock(TrainedModelCacheMetadataService.class),
+            xContentRegistry()
+        );
         ElasticsearchException ex = expectThrows(
             ElasticsearchException.class,
             () -> trainedModelProvider.loadModelFromResource("missing_model", randomBoolean())
@@ -350,7 +366,7 @@ public class TrainedModelProviderTests extends ESTestCase {
         try (var threadPool = createThreadPool()) {
             final var client = createMockClient(threadPool);
             var config = TrainedModelConfigTests.createTestInstance("inferenceEntityId").build();
-            var trainedModelProvider = new TrainedModelProvider(client, xContentRegistry());
+            var trainedModelProvider = new TrainedModelProvider(client, mock(TrainedModelCacheMetadataService.class), xContentRegistry());
             var future = new PlainActionFuture<Boolean>();
 
             trainedModelProvider.storeTrainedModelConfig(config, future);
@@ -362,7 +378,7 @@ public class TrainedModelProviderTests extends ESTestCase {
         try (var threadPool = createThreadPool()) {
             final var client = createMockClient(threadPool);
             var config = TrainedModelConfigTests.createTestInstance("inferenceEntityId").build();
-            var trainedModelProvider = new TrainedModelProvider(client, xContentRegistry());
+            var trainedModelProvider = new TrainedModelProvider(client, mock(TrainedModelCacheMetadataService.class), xContentRegistry());
             var future = new PlainActionFuture<Boolean>();
 
             trainedModelProvider.storeTrainedModelConfig(config, future, false);
@@ -374,7 +390,7 @@ public class TrainedModelProviderTests extends ESTestCase {
         try (var threadPool = createThreadPool()) {
             final var client = createMockClient(threadPool);
             var config = TrainedModelConfigTests.createTestInstance("inferenceEntityId").build();
-            var trainedModelProvider = new TrainedModelProvider(client, xContentRegistry());
+            var trainedModelProvider = new TrainedModelProvider(client, mock(TrainedModelCacheMetadataService.class), xContentRegistry());
             var future = new PlainActionFuture<Boolean>();
 
             trainedModelProvider.storeTrainedModelConfig(config, future, true);
@@ -386,7 +402,7 @@ public class TrainedModelProviderTests extends ESTestCase {
         try (var threadPool = createThreadPool()) {
             final var client = createMockClient(threadPool);
             var config = createTrainedModelConfigWithDefinition("inferenceEntityId");
-            var trainedModelProvider = new TrainedModelProvider(client, xContentRegistry());
+            var trainedModelProvider = new TrainedModelProvider(client, mock(TrainedModelCacheMetadataService.class), xContentRegistry());
             var future = new PlainActionFuture<Boolean>();
 
             trainedModelProvider.storeTrainedModel(config, future);
@@ -398,7 +414,7 @@ public class TrainedModelProviderTests extends ESTestCase {
         try (var threadPool = createThreadPool()) {
             final var client = createMockClient(threadPool);
             var config = createTrainedModelConfigWithDefinition("inferenceEntityId");
-            var trainedModelProvider = new TrainedModelProvider(client, xContentRegistry());
+            var trainedModelProvider = new TrainedModelProvider(client, mock(TrainedModelCacheMetadataService.class), xContentRegistry());
             var future = new PlainActionFuture<Boolean>();
 
             trainedModelProvider.storeTrainedModel(config, future, false);
@@ -410,7 +426,7 @@ public class TrainedModelProviderTests extends ESTestCase {
         try (var threadPool = createThreadPool()) {
             final var client = createMockClient(threadPool);
             var config = createTrainedModelConfigWithDefinition("inferenceEntityId");
-            var trainedModelProvider = new TrainedModelProvider(client, xContentRegistry());
+            var trainedModelProvider = new TrainedModelProvider(client, mock(TrainedModelCacheMetadataService.class), xContentRegistry());
             var future = new PlainActionFuture<Boolean>();
 
             trainedModelProvider.storeTrainedModel(config, future, true);
@@ -422,7 +438,7 @@ public class TrainedModelProviderTests extends ESTestCase {
         try (var threadPool = createThreadPool()) {
             final var client = createMockClient(threadPool);
             var config = TrainedModelDefinitionDocTests.createDefinitionDocInstance();
-            var trainedModelProvider = new TrainedModelProvider(client, xContentRegistry());
+            var trainedModelProvider = new TrainedModelProvider(client, mock(TrainedModelCacheMetadataService.class), xContentRegistry());
             var future = new PlainActionFuture<Void>();
 
             trainedModelProvider.storeTrainedModelDefinitionDoc(config, future);
@@ -434,7 +450,7 @@ public class TrainedModelProviderTests extends ESTestCase {
         try (var threadPool = createThreadPool()) {
             final var client = createMockClient(threadPool);
             var config = TrainedModelDefinitionDocTests.createDefinitionDocInstance();
-            var trainedModelProvider = new TrainedModelProvider(client, xContentRegistry());
+            var trainedModelProvider = new TrainedModelProvider(client, mock(TrainedModelCacheMetadataService.class), xContentRegistry());
             var future = new PlainActionFuture<Void>();
 
             trainedModelProvider.storeTrainedModelDefinitionDoc(config, "index", future, false);
@@ -446,7 +462,7 @@ public class TrainedModelProviderTests extends ESTestCase {
         try (var threadPool = createThreadPool()) {
             final var client = createMockClient(threadPool);
             var config = TrainedModelDefinitionDocTests.createDefinitionDocInstance();
-            var trainedModelProvider = new TrainedModelProvider(client, xContentRegistry());
+            var trainedModelProvider = new TrainedModelProvider(client, mock(TrainedModelCacheMetadataService.class), xContentRegistry());
             var future = new PlainActionFuture<Void>();
 
             trainedModelProvider.storeTrainedModelDefinitionDoc(config, "index", future, true);
@@ -458,7 +474,7 @@ public class TrainedModelProviderTests extends ESTestCase {
         try (var threadPool = createThreadPool()) {
             final var client = createMockClient(threadPool);
             var vocab = createVocabulary();
-            var trainedModelProvider = new TrainedModelProvider(client, xContentRegistry());
+            var trainedModelProvider = new TrainedModelProvider(client, mock(TrainedModelCacheMetadataService.class), xContentRegistry());
             var future = new PlainActionFuture<Void>();
 
             trainedModelProvider.storeTrainedModelVocabulary("inferenceEntityId", mock(VocabularyConfig.class), vocab, future);
@@ -470,7 +486,7 @@ public class TrainedModelProviderTests extends ESTestCase {
         try (var threadPool = createThreadPool()) {
             final var client = createMockClient(threadPool);
             var vocab = createVocabulary();
-            var trainedModelProvider = new TrainedModelProvider(client, xContentRegistry());
+            var trainedModelProvider = new TrainedModelProvider(client, mock(TrainedModelCacheMetadataService.class), xContentRegistry());
             var future = new PlainActionFuture<Void>();
 
             trainedModelProvider.storeTrainedModelVocabulary("inferenceEntityId", mock(VocabularyConfig.class), vocab, future, false);
@@ -482,7 +498,7 @@ public class TrainedModelProviderTests extends ESTestCase {
         try (var threadPool = createThreadPool()) {
             final var client = createMockClient(threadPool);
             var vocab = createVocabulary();
-            var trainedModelProvider = new TrainedModelProvider(client, xContentRegistry());
+            var trainedModelProvider = new TrainedModelProvider(client, mock(TrainedModelCacheMetadataService.class), xContentRegistry());
             var future = new PlainActionFuture<Void>();
 
             trainedModelProvider.storeTrainedModelVocabulary("inferenceEntityId", mock(VocabularyConfig.class), vocab, future, true);
@@ -494,7 +510,7 @@ public class TrainedModelProviderTests extends ESTestCase {
         try (var threadPool = createThreadPool()) {
             final var client = createMockClient(threadPool);
             var metadata = TrainedModelMetadataTests.randomInstance();
-            var trainedModelProvider = new TrainedModelProvider(client, xContentRegistry());
+            var trainedModelProvider = new TrainedModelProvider(client, mock(TrainedModelCacheMetadataService.class), xContentRegistry());
             var future = new PlainActionFuture<Void>();
 
             trainedModelProvider.storeTrainedModelMetadata(metadata, future);
@@ -506,7 +522,7 @@ public class TrainedModelProviderTests extends ESTestCase {
         try (var threadPool = createThreadPool()) {
             final var client = createMockClient(threadPool);
             var metadata = TrainedModelMetadataTests.randomInstance();
-            var trainedModelProvider = new TrainedModelProvider(client, xContentRegistry());
+            var trainedModelProvider = new TrainedModelProvider(client, mock(TrainedModelCacheMetadataService.class), xContentRegistry());
             var future = new PlainActionFuture<Void>();
 
             trainedModelProvider.storeTrainedModelMetadata(metadata, future, false);
@@ -518,7 +534,7 @@ public class TrainedModelProviderTests extends ESTestCase {
         try (var threadPool = createThreadPool()) {
             final var client = createMockClient(threadPool);
             var metadata = TrainedModelMetadataTests.randomInstance();
-            var trainedModelProvider = new TrainedModelProvider(client, xContentRegistry());
+            var trainedModelProvider = new TrainedModelProvider(client, mock(TrainedModelCacheMetadataService.class), xContentRegistry());
             var future = new PlainActionFuture<Void>();
 
             trainedModelProvider.storeTrainedModelMetadata(metadata, future, true);

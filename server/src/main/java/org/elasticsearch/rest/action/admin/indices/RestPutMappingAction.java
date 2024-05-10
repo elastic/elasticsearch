@@ -29,6 +29,7 @@ import java.util.Map;
 import static org.elasticsearch.index.mapper.MapperService.isMappingSourceTyped;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 import static org.elasticsearch.rest.RestRequest.Method.PUT;
+import static org.elasticsearch.rest.RestUtils.getMasterNodeTimeout;
 
 @ServerlessScope(Scope.PUBLIC)
 public class RestPutMappingAction extends BaseRestHandler {
@@ -90,8 +91,8 @@ public class RestPutMappingAction extends BaseRestHandler {
             putMappingRequest.source(sourceAsMap);
         }
 
-        putMappingRequest.timeout(request.paramAsTime("timeout", putMappingRequest.timeout()));
-        putMappingRequest.masterNodeTimeout(request.paramAsTime("master_timeout", putMappingRequest.masterNodeTimeout()));
+        putMappingRequest.ackTimeout(request.paramAsTime("timeout", putMappingRequest.ackTimeout()));
+        putMappingRequest.masterNodeTimeout(getMasterNodeTimeout(request));
         putMappingRequest.indicesOptions(IndicesOptions.fromRequest(request, putMappingRequest.indicesOptions()));
         putMappingRequest.writeIndexOnly(request.paramAsBoolean("write_index_only", false));
         return channel -> client.admin().indices().putMapping(putMappingRequest, new RestToXContentListener<>(channel));

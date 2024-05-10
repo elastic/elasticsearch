@@ -68,7 +68,7 @@ public class EsqlFeatures implements FeatureSpecification {
     /**
      * Support for spatial aggregation {@code ST_CENTROID}. Done in #104269.
      */
-    private static final NodeFeature ST_CENTROID = new NodeFeature("esql.st_centroid");
+    private static final NodeFeature ST_CENTROID_AGG = new NodeFeature("esql.st_centroid_agg");
 
     /**
      * Support for spatial aggregation {@code ST_INTERSECTS}. Done in #104907.
@@ -100,21 +100,76 @@ public class EsqlFeatures implements FeatureSpecification {
      */
     public static final NodeFeature FROM_OPTIONS = new NodeFeature("esql.from_options");
 
+    /**
+     * Cast string literals to a desired data type.
+     */
+    public static final NodeFeature STRING_LITERAL_AUTO_CASTING = new NodeFeature("esql.string_literal_auto_casting");
+
+    /**
+     * Base64 encoding and decoding functions.
+     */
+    public static final NodeFeature BASE64_DECODE_ENCODE = new NodeFeature("esql.base64_decode_encode");
+
+    /**
+     * Support for the :: casting operator
+     */
+    public static final NodeFeature CASTING_OPERATOR = new NodeFeature("esql.casting_operator");
+
+    /**
+     * Blocks can be labelled with {@link org.elasticsearch.compute.data.Block.MvOrdering#SORTED_ASCENDING} for optimizations.
+     * C.f. {@link org.elasticsearch.TransportVersions#ESQL_MV_ORDERING_SORTED_ASCENDING}.
+     */
+    public static final NodeFeature MV_ORDERING_SORTED_ASCENDING = new NodeFeature("esql.mv_ordering_sorted_ascending");
+
+    /**
+     * Support for metrics counter fields
+     */
+    public static final NodeFeature METRICS_COUNTER_FIELDS = new NodeFeature("esql.metrics_counter_fields");
+
+    /**
+     * Cast string literals to a desired data type for IN predicate and more types for BinaryComparison.
+     */
+    public static final NodeFeature STRING_LITERAL_AUTO_CASTING_EXTENDED = new NodeFeature("esql.string_literal_auto_casting_extended");
+
+    /**
+     * Support for metadata fields.
+     */
+    public static final NodeFeature METADATA_FIELDS = new NodeFeature("esql.metadata_fields");
+
+    /**
+     * Support for loading values over enrich. This is supported by all versions of ESQL but not
+     * the unit test CsvTests.
+     */
+    public static final NodeFeature ENRICH_LOAD = new NodeFeature("esql.enrich_load");
+
+    /**
+     * Support for timespan units abbreviations
+     */
+    public static final NodeFeature TIMESPAN_ABBREVIATIONS = new NodeFeature("esql.timespan_abbreviations");
+
     @Override
     public Set<NodeFeature> getFeatures() {
         return Set.of(
             ASYNC_QUERY,
             AGG_VALUES,
+            BASE64_DECODE_ENCODE,
             MV_SORT,
             DISABLE_NULLABLE_OPTS,
             ST_X_Y,
             FROM_OPTIONS,
             SPATIAL_POINTS_FROM_SOURCE,
             SPATIAL_SHAPES,
-            ST_CENTROID,
+            ST_CENTROID_AGG,
             ST_INTERSECTS,
             ST_CONTAINS_WITHIN,
-            ST_DISJOINT
+            ST_DISJOINT,
+            STRING_LITERAL_AUTO_CASTING,
+            CASTING_OPERATOR,
+            MV_ORDERING_SORTED_ASCENDING,
+            METRICS_COUNTER_FIELDS,
+            STRING_LITERAL_AUTO_CASTING_EXTENDED,
+            METADATA_FIELDS,
+            TIMESPAN_ABBREVIATIONS
         );
     }
 
@@ -125,7 +180,8 @@ public class EsqlFeatures implements FeatureSpecification {
             Map.entry(MV_WARN, Version.V_8_12_0),
             Map.entry(SPATIAL_POINTS, Version.V_8_12_0),
             Map.entry(CONVERT_WARN, Version.V_8_12_0),
-            Map.entry(POW_DOUBLE, Version.V_8_12_0)
+            Map.entry(POW_DOUBLE, Version.V_8_12_0),
+            Map.entry(ENRICH_LOAD, Version.V_8_12_0)
         );
     }
 }

@@ -63,22 +63,27 @@ public class SpatialIntersects extends SpatialRelatesFunction {
         new CartesianShapeIndexer("ST_Intersects")
     );
 
-    @FunctionInfo(
-        returnType = { "boolean" },
-        description = "Returns whether the two geometries or geometry columns intersect.",
-        examples = @Example(file = "spatial", tag = "st_intersects-airports")
-    )
+    @FunctionInfo(returnType = { "boolean" }, description = """
+        Returns true if two geometries intersect.
+        They intersect if they have any point in common, including their interior points
+        (points along lines or within polygons).
+        This is the inverse of the <<esql-st_disjoint,ST_DISJOINT>> function.
+        In mathematical terms: ST_Intersects(A, B) ⇔ A ⋂ B ≠ ∅""", examples = @Example(file = "spatial", tag = "st_intersects-airports"))
     public SpatialIntersects(
         Source source,
         @Param(
             name = "geomA",
             type = { "geo_point", "cartesian_point", "geo_shape", "cartesian_shape" },
-            description = "Geometry column name or variable of geometry type"
+            description = "Expression of type `geo_point`, `cartesian_point`, `geo_shape` or `cartesian_shape`. "
+                + "If `null`, the function returns `null`."
         ) Expression left,
         @Param(
             name = "geomB",
             type = { "geo_point", "cartesian_point", "geo_shape", "cartesian_shape" },
-            description = "Geometry column name or variable of geometry type"
+            description = "Expression of type `geo_point`, `cartesian_point`, `geo_shape` or `cartesian_shape`. "
+                + "If `null`, the function returns `null`.\n"
+                + "The second parameter must also have the same coordinate system as the first.\n"
+                + "This means it is not possible to combine `geo_*` and `cartesian_*` parameters."
         ) Expression right
     ) {
         this(source, left, right, false, false);

@@ -1,6 +1,0 @@
-pr: 106673
-summary: "ESQL: Fix fully pruned aggregates"
-area: ES|QL
-type: bug
-issues:
- - 106427

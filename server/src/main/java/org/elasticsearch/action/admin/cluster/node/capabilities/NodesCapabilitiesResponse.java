@@ -19,6 +19,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Optional;
 
 public class NodesCapabilitiesResponse extends BaseNodesResponse<NodeCapability> implements ToXContentFragment {
     protected NodesCapabilitiesResponse(ClusterName clusterName, List<NodeCapability> nodes, List<FailedNodeException> failures) {
@@ -35,12 +36,15 @@ public class NodesCapabilitiesResponse extends BaseNodesResponse<NodeCapability>
         TransportAction.localOnly();
     }
 
-    public boolean isSupported() {
-        return getNodes().isEmpty() == false && getNodes().stream().allMatch(NodeCapability::isSupported);
+    public Optional<Boolean> isSupported() {
+        // if there are any failures, we don't know if it is fully supported by all nodes in the cluster
+        if (hasFailures() || getNodes().isEmpty()) return Optional.empty();
+        return Optional.of(getNodes().stream().allMatch(NodeCapability::isSupported));
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        return builder.field("supported", isSupported());
+        Optional<Boolean> supported = isSupported();
+        return builder.field("supported", supported.orElse(null));
     }
 }

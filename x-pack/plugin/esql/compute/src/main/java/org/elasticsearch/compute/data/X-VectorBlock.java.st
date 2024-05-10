@@ -72,9 +72,8 @@ $endif$
     }
 
     @Override
-    public ReleasableIterator<$Type$Block> lookup(IntBlock positions, ByteSizeValue targetBlockSize) {
-        // TODO optimizations
-        return new $Type$Lookup(this, positions, targetBlockSize);
+    public ReleasableIterator<? extends $Type$Block> lookup(IntBlock positions, ByteSizeValue targetBlockSize) {
+        return vector.lookup(positions, targetBlockSize);
     }
 
     @Override

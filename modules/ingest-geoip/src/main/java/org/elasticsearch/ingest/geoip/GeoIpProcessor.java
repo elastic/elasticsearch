@@ -431,6 +431,8 @@ public final class GeoIpProcessor extends AbstractProcessor {
         boolean isPublicProxy = response.getTraits().isPublicProxy();
         boolean isResidentialProxy = response.getTraits().isResidentialProxy();
 
+        String domain = response.getTraits().getDomain();
+
         Map<String, Object> geoData = new HashMap<>();
         for (Property property : this.properties) {
             switch (property) {
@@ -523,6 +525,11 @@ public final class GeoIpProcessor extends AbstractProcessor {
                 }
                 case RESIDENTIAL_PROXY -> {
                     geoData.put("residential_proxy", isResidentialProxy);
+                }
+                case DOMAIN -> {
+                    if (domain != null) {
+                        geoData.put("domain", domain);
+                    }
                 }
             }
         }

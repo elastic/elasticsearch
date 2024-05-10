@@ -387,7 +387,7 @@ public class GeoIpProcessorTests extends ESTestCase {
         assertThat(ingestDocument.getSourceAndMetadata().get("source_field"), equalTo(ip));
         @SuppressWarnings("unchecked")
         Map<String, Object> geoData = (Map<String, Object>) ingestDocument.getSourceAndMetadata().get("target_field");
-        assertThat(geoData.size(), equalTo(18));
+        assertThat(geoData.size(), equalTo(19));
         assertThat(geoData.get("ip"), equalTo(ip));
         assertThat(geoData.get("country_iso_code"), equalTo("US"));
         assertThat(geoData.get("country_name"), equalTo("United States"));
@@ -409,6 +409,7 @@ public class GeoIpProcessorTests extends ESTestCase {
         assertThat(geoData.get("anonymous"), equalTo(false));
         assertThat(geoData.get("public_proxy"), equalTo(false));
         assertThat(geoData.get("residential_proxy"), equalTo(false));
+        assertThat(geoData.get("domain"), equalTo("frpt.net"));
     }
 
     public void testAddressIsNotInTheDatabase() throws Exception {

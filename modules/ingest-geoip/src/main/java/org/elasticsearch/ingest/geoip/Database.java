@@ -95,7 +95,8 @@ enum Database {
             Property.ANONYMOUS_VPN,
             Property.ANONYMOUS,
             Property.PUBLIC_PROXY,
-            Property.RESIDENTIAL_PROXY
+            Property.RESIDENTIAL_PROXY,
+            Property.DOMAIN
         ),
         Set.of(
             Property.COUNTRY_ISO_CODE,

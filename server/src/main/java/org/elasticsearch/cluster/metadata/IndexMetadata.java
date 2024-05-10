@@ -1706,7 +1706,11 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             builder.rolloverInfos.putAllFromMap(rolloverInfos.apply(part.rolloverInfos));
             builder.system(isSystem);
             builder.timestampRange(timestampRange);
-            builder.eventIngestedRange(eventIngestedRange);
+            if (timestampRange != IndexLongFieldRange.NO_SHARDS && eventIngestedRange == IndexLongFieldRange.NO_SHARDS) {
+                builder.eventIngestedRange(IndexLongFieldRange.UNKNOWN);  // set to UNKNOWN for older/mixed versions
+            } else {
+                builder.eventIngestedRange(eventIngestedRange);
+            }
             builder.stats(stats);
             builder.indexWriteLoadForecast(indexWriteLoadForecast);
             builder.shardSizeInBytesForecast(shardSizeInBytesForecast);

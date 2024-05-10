@@ -416,8 +416,7 @@ public class SearchableSnapshotsCanMatchOnCoordinatorIntegTests extends BaseFroz
      * MP TODO: explain what this test does
      * IDEA: only index with event.ingested, not @timestamp and ensure that it behaves as expected
      */
-    public void testEventIngestedRangeInSearchAgainstSearchableSnapshotShards()
-        throws Exception {
+    public void testEventIngestedRangeInSearchAgainstSearchableSnapshotShards() throws Exception {
         internalCluster().startMasterOnlyNode();
         internalCluster().startCoordinatingOnlyNode(Settings.EMPTY);
         final String dataNodeHoldingRegularIndex = internalCluster().startDataOnlyNode();
@@ -445,7 +444,7 @@ public class SearchableSnapshotsCanMatchOnCoordinatorIntegTests extends BaseFroz
         final int numberOfDocsInIndexOutsideSearchRange = between(350, 1000);
 
         // Either add data outside of the range, or documents that don't have timestamp data
-        final boolean indexDataWithTimestamp = true; // randomBoolean();  // MP TODO: for now always have event.ingested - change later?
+        final boolean indexDataWithTimestamp = true; // randomBoolean(); // MP TODO: for now always have event.ingested - change later?
         indexDocumentsWithEventIngestedOnly(
             indexOutsideSearchRange,
             numberOfDocsInIndexOutsideSearchRange,
@@ -489,7 +488,6 @@ public class SearchableSnapshotsCanMatchOnCoordinatorIntegTests extends BaseFroz
         assertThat(indexMetadata.getTimestampRange(), equalTo(IndexLongFieldRange.NO_SHARDS));
         assertThat(indexMetadata.getEventIngestedRange(), equalTo(IndexLongFieldRange.NO_SHARDS));
 
-
         // Allow the searchable snapshots to be finally mounted
         unblockNode(repositoryName, dataNodeHoldingSearchableSnapshot);
         waitUntilRecoveryIsDone(searchableSnapshotIndexOutsideSearchRange);
@@ -525,8 +523,6 @@ public class SearchableSnapshotsCanMatchOnCoordinatorIntegTests extends BaseFroz
                 .source(new SearchSourceBuilder().query(rangeQuery));
 
             assertResponse(client().search(request), searchResponse -> {
-                System.err.println("searchResponse: " + Strings.toString(searchResponse));
-
                 // All the regular index searches succeeded
                 assertThat(searchResponse.getSuccessfulShards(), equalTo(totalShards));
                 assertThat(searchResponse.getFailedShards(), equalTo(0));
@@ -549,8 +545,6 @@ public class SearchableSnapshotsCanMatchOnCoordinatorIntegTests extends BaseFroz
                 .source(new SearchSourceBuilder().query(rangeQuery));
 
             assertResponse(client().search(request), searchResponse -> {
-                System.err.println("searchResponse: " + Strings.toString(searchResponse));
-
                 // All the regular index searches succeeded
                 assertThat(searchResponse.getSuccessfulShards(), equalTo(totalShards));
                 assertThat(searchResponse.getFailedShards(), equalTo(0));
@@ -569,8 +563,7 @@ public class SearchableSnapshotsCanMatchOnCoordinatorIntegTests extends BaseFroz
                 null
             );
 
-            SearchShardsResponse searchShardsResponse = client().execute(TransportSearchShardsAction.TYPE, searchShardsRequest)
-                .actionGet();
+            SearchShardsResponse searchShardsResponse = client().execute(TransportSearchShardsAction.TYPE, searchShardsRequest).actionGet();
             assertThat(searchShardsResponse.getGroups().size(), equalTo(totalShards));
             List<List<SearchShardsGroup>> partitionedBySkipped = searchShardsResponse.getGroups()
                 .stream()
@@ -602,8 +595,7 @@ public class SearchableSnapshotsCanMatchOnCoordinatorIntegTests extends BaseFroz
             null
         );
 
-        SearchShardsResponse searchShardsResponse = client().execute(TransportSearchShardsAction.TYPE, searchShardsRequest)
-            .actionGet();
+        SearchShardsResponse searchShardsResponse = client().execute(TransportSearchShardsAction.TYPE, searchShardsRequest).actionGet();
         assertThat(searchShardsResponse.getGroups().size(), equalTo(totalShards));
         List<List<SearchShardsGroup>> partitionedBySkipped = searchShardsResponse.getGroups()
             .stream()
@@ -1071,10 +1063,7 @@ public class SearchableSnapshotsCanMatchOnCoordinatorIntegTests extends BaseFroz
         }
         indexRandom(true, false, indexRequestBuilders);
 
-        assertThat(
-            indicesAdmin().prepareForceMerge(index).setOnlyExpungeDeletes(true).setFlush(true).get().getFailedShards(),
-            equalTo(0)
-        );
+        assertThat(indicesAdmin().prepareForceMerge(index).setOnlyExpungeDeletes(true).setFlush(true).get().getFailedShards(), equalTo(0));
         refresh(index);
         forceMerge();
     }

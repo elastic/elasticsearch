@@ -28,11 +28,8 @@ import java.util.Map;
 public abstract class AbstractTestInferenceService implements InferenceService {
 
     protected static int stringWeight(String input, int position) {
-        int hashCode = input.hashCode();
-        if (hashCode < 0) {
-            hashCode = -hashCode;
-        }
-        return hashCode + position;
+        // Ensure non-negative and non-zero values for features
+        return Math.abs(input.hashCode()) + 1 + position;
     }
 
     @Override

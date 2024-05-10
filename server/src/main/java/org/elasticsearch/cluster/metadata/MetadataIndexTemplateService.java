@@ -38,6 +38,7 @@ import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.index.CloseUtils;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettingProvider;
@@ -1727,7 +1728,13 @@ public class MetadataIndexTemplateService {
 
         } finally {
             if (createdIndex != null) {
-                indicesService.removeIndex(createdIndex, NO_LONGER_ASSIGNED, " created for parsing template mapping");
+                indicesService.removeIndex(
+                    createdIndex,
+                    NO_LONGER_ASSIGNED,
+                    " created for parsing template mapping",
+                    CloseUtils.NO_SHARDS_CREATED_EXECUTOR,
+                    ActionListener.noop()
+                );
             }
         }
     }

@@ -44,6 +44,8 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.common.UUIDs;
+import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
@@ -134,6 +136,7 @@ import static java.util.Collections.emptyList;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
+import static org.elasticsearch.indices.cluster.AbstractIndicesClusterStateServiceTestCase.awaitIndexShardCloseAsyncTasks;
 import static org.elasticsearch.indices.cluster.IndicesClusterStateService.AllocatedIndices.IndexRemovalReason.DELETED;
 import static org.elasticsearch.search.SearchService.QUERY_PHASE_PARALLEL_COLLECTION_ENABLED;
 import static org.elasticsearch.search.SearchService.SEARCH_WORKER_THREADS_ENABLED;
@@ -280,6 +283,7 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
 
         assertEquals(1, service.getActiveContexts());
         assertAcked(indicesAdmin().prepareDelete("index"));
+        awaitIndexShardCloseAsyncTasks();
         assertEquals(0, service.getActiveContexts());
     }
 
@@ -1840,7 +1844,7 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
         }
         indicesAdmin().prepareRefresh("test").get();
 
-        String pitId = client().execute(
+        BytesReference pitId = client().execute(
             TransportOpenPointInTimeAction.TYPE,
             new OpenPointInTimeRequest("test").keepAlive(TimeValue.timeValueMinutes(10))
         ).actionGet().getPointInTimeId();
@@ -1862,7 +1866,7 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
         for (ShardSearchRequest shardRequest : shardRequests) {
             assertNotNull(shardRequest.source());
             assertNotNull(shardRequest.source().pointInTimeBuilder());
-            assertThat(shardRequest.source().pointInTimeBuilder().getEncodedId(), equalTo(""));
+            assertThat(shardRequest.source().pointInTimeBuilder().getEncodedId(), equalTo(BytesArray.EMPTY));
         }
     }
 

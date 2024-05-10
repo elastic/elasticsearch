@@ -17,7 +17,7 @@ class VectorScorerFactoryImpl implements VectorScorerFactory {
     static final VectorScorerFactoryImpl INSTANCE = null;
 
     @Override
-    public Optional<VectorScorer> getScalarQuantizedVectorScorer(
+    public Optional<VectorScorer> getInt7ScalarQuantizedVectorScorer(
         int dims,
         int maxOrd,
         float scoreCorrectionConstant,

@@ -8,7 +8,6 @@
 package org.elasticsearch.index.shard;
 
 import org.apache.logging.log4j.Level;
-import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.CorruptIndexException;
 import org.apache.lucene.index.DirectoryReader;
@@ -54,7 +53,6 @@ import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -64,6 +62,7 @@ import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ReleasableLock;
+import org.elasticsearch.common.util.concurrent.RunOnce;
 import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.core.Releasable;
@@ -150,6 +149,7 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.BrokenBarrierException;
 import java.util.concurrent.CountDownLatch;
@@ -194,7 +194,6 @@ import static org.hamcrest.Matchers.hasToString;
 import static org.hamcrest.Matchers.in;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.matchesRegex;
 import static org.hamcrest.Matchers.not;
@@ -276,7 +275,7 @@ public class IndexShardTests extends IndexShardTestCase {
         assertNotNull(shardPath);
         // fail shard
         shard.failShard("test shard fail", new CorruptIndexException("", ""));
-        shard.close("do not assert history", false);
+        closeShardNoCheck(shard);
         shard.store().close();
         // check state file still exists
         ShardStateMetadata shardStateMetadata = load(logger, shardPath.getShardStatePath());
@@ -292,6 +291,36 @@ public class IndexShardTests extends IndexShardTestCase {
             ),
             equalTo(false)
         );
+    }
+
+    public void testAsyncCloseShard() throws Exception {
+        final var shard = newStartedShard();
+        final var store = shard.store();
+        final var storeCloser = new RunOnce(store::close);
+        final var engine = Objects.requireNonNull(shard.getEngineOrNull());
+
+        final var closeFuture = new PlainActionFuture<Void>();
+        final var closeTasks = new ArrayList<Runnable>();
+        shard.close(getTestName(), randomBoolean(), closeTasks::add, closeFuture);
+
+        if (randomBoolean()) {
+            storeCloser.run();
+        }
+
+        assertFalse(closeFuture.isDone());
+        assertThat(closeTasks, hasSize(1));
+        assertEquals(IndexShardState.CLOSED, shard.state());
+        assertNull(shard.getEngineOrNull());
+        EngineTestCase.ensureOpen(engine); // does not throw ACE
+
+        if (randomBoolean()) {
+            storeCloser.run();
+        }
+        assertTrue(store.hasReferences());
+
+        closeTasks.forEach(Runnable::run);
+        storeCloser.run();
+        assertFalse(store.hasReferences());
     }
 
     ShardStateMetadata getShardStateMetadata(IndexShard shard) {
@@ -1477,7 +1506,7 @@ public class IndexShardTests extends IndexShardTestCase {
         snapshot = newShard.snapshotStoreMetadata();
         assertThat(snapshot.getSegmentsFile().name(), equalTo("segments_3"));
 
-        newShard.close("test", false);
+        closeShardNoCheck(newShard);
 
         snapshot = newShard.snapshotStoreMetadata();
         assertThat(snapshot.getSegmentsFile().name(), equalTo("segments_3"));
@@ -1766,7 +1795,7 @@ public class IndexShardTests extends IndexShardTestCase {
         AtomicInteger preDelete = new AtomicInteger();
         AtomicInteger postDelete = new AtomicInteger();
         AtomicInteger postDeleteException = new AtomicInteger();
-        shard.close("simon says", true);
+        flushAndCloseShardNoCheck(shard);
         shard = reinitShard(shard, new IndexingOperationListener() {
             @Override
             public Engine.Index preIndex(ShardId shardId, Engine.Index operation) {
@@ -1848,7 +1877,7 @@ public class IndexShardTests extends IndexShardTestCase {
         assertEquals(1, postDelete.get());
         assertEquals(0, postDeleteException.get());
 
-        shard.close("Unexpected close", true);
+        closeShardNoCheck(shard);
         shard.state = IndexShardState.STARTED; // It will generate exception
 
         try {
@@ -3499,9 +3528,7 @@ public class IndexShardTests extends IndexShardTestCase {
         );
 
         final MockLogAppender appender = new MockLogAppender();
-        appender.start();
-        Loggers.addAppender(LogManager.getLogger(IndexShard.class), appender);
-        try {
+        try (var ignored = appender.capturing(IndexShard.class)) {
             appender.addExpectation(
                 new MockLogAppender.SeenEventExpectation(
                     "expensive checks warning",
@@ -3532,9 +3559,6 @@ public class IndexShardTests extends IndexShardTestCase {
             );
 
             appender.assertAllExpectationsMatched();
-        } finally {
-            Loggers.removeAppender(LogManager.getLogger(IndexShard.class), appender);
-            appender.stop();
         }
 
         // check that corrupt marker is there
@@ -4001,7 +4025,6 @@ public class IndexShardTests extends IndexShardTestCase {
         closeShards(shard);
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/107462")
     public void testFlushTimeExcludingWaiting() throws Exception {
         IndexShard shard = newStartedShard();
         for (int i = 0; i < randomIntBetween(4, 10); i++) {
@@ -4027,9 +4050,9 @@ public class IndexShardTests extends IndexShardTestCase {
                 greaterThan(0L)
             );
             assertThat(
-                "Flush time excluding waiting should less than flush time with waiting",
+                "Flush time excluding waiting should be less or equal than the flush time with waiting",
                 flushStats.getTotalTimeExcludingWaitingOnLockMillis(),
-                lessThan(flushStats.getTotalTime().millis())
+                lessThanOrEqualTo(flushStats.getTotalTime().millis())
             );
         } finally {
             closeShards(shard);
@@ -4040,7 +4063,7 @@ public class IndexShardTests extends IndexShardTestCase {
     @TestLogging(reason = "testing traces of concurrent flushes", value = "org.elasticsearch.index.engine.Engine:TRACE")
     public void testFlushOnIdleConcurrentFlushDoesNotWait() throws Exception {
         final MockLogAppender mockLogAppender = new MockLogAppender();
-        try {
+        try (var ignored = mockLogAppender.capturing(Engine.class)) {
             CountDownLatch readyToCompleteFlushLatch = new CountDownLatch(1);
             IndexShard shard = newStartedShard(false, Settings.EMPTY, config -> new InternalEngine(config) {
                 @Override
@@ -4053,9 +4076,6 @@ public class IndexShardTests extends IndexShardTestCase {
             for (int i = 0; i < 3; i++) {
                 indexDoc(shard, "_doc", Integer.toString(i));
             }
-
-            mockLogAppender.start();
-            Loggers.addAppender(LogManager.getLogger(Engine.class), mockLogAppender);
 
             // Issue the first flushOnIdle request. The flush happens in the background using the flush threadpool.
             // Then wait for log message that flush acquired lock immediately
@@ -4110,9 +4130,6 @@ public class IndexShardTests extends IndexShardTestCase {
             assertTrue(shard.flush(new FlushRequest()));
 
             closeShards(shard);
-        } finally {
-            Loggers.removeAppender(LogManager.getLogger(Engine.class), mockLogAppender);
-            mockLogAppender.stop();
         }
     }
 
@@ -4372,7 +4389,7 @@ public class IndexShardTests extends IndexShardTestCase {
         Thread closeShardThread = new Thread(() -> {
             try {
                 safeAwait(readyToCloseLatch);
-                shard.close("testing", false);
+                closeShardNoCheck(shard);
                 // in integration tests, this is done as a listener on IndexService.
                 MockFSDirectoryFactory.checkIndex(logger, shard.store(), shard.shardId);
             } catch (IOException e) {
@@ -4813,7 +4830,7 @@ public class IndexShardTests extends IndexShardTestCase {
         recoveryThread.start();
         try {
             warmerStarted.await();
-            shard.close("testing", false);
+            closeShardNoCheck(shard);
             assertThat(shard.state, equalTo(IndexShardState.CLOSED));
         } finally {
             warmerBlocking.countDown();

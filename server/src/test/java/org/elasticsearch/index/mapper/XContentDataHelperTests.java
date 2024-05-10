@@ -23,17 +23,20 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class XContentDataHelperTests extends ESTestCase {
 
-    private String encodeAndDecode(String value) throws IOException {
-        XContentParser p = createParser(JsonXContent.jsonXContent, "{ \"foo\": " + value + " }");
-        assertThat(p.nextToken(), equalTo(XContentParser.Token.START_OBJECT));
-        assertThat(p.nextToken(), equalTo(XContentParser.Token.FIELD_NAME));
-        assertThat(p.currentName(), equalTo("foo"));
-        p.nextToken();
-
+    private String parse(XContentParser parser) throws IOException {
         XContentBuilder builder = XContentFactory.jsonBuilder();
         builder.humanReadable(true);
-        XContentDataHelper.decodeAndWrite(builder, XContentDataHelper.encodeToken(p));
+        builder.copyCurrentStructure(parser);
         return Strings.toString(builder);
+    }
+
+    private String encodeAndDecode(String value) throws IOException {
+        XContentParser parser = createParser(JsonXContent.jsonXContent, "{ \"foo\": " + value + " }");
+        assertThat(parser.nextToken(), equalTo(XContentParser.Token.START_OBJECT));
+        assertThat(parser.nextToken(), equalTo(XContentParser.Token.FIELD_NAME));
+        assertThat(parser.currentName(), equalTo("foo"));
+        parser.nextToken();
+        return parse(parser);
     }
 
     public void testBoolean() throws IOException {
@@ -75,10 +78,16 @@ public class XContentDataHelperTests extends ESTestCase {
         String object = "{\"name\":\"foo\"}";
         XContentParser p = createParser(JsonXContent.jsonXContent, object);
         assertThat(p.nextToken(), equalTo(XContentParser.Token.START_OBJECT));
+
         XContentBuilder builder = XContentFactory.jsonBuilder();
         builder.humanReadable(true);
         XContentDataHelper.decodeAndWrite(builder, XContentDataHelper.encodeToken(p));
         assertEquals(object, Strings.toString(builder));
+
+        XContentBuilder builder2 = XContentFactory.jsonBuilder();
+        builder2.humanReadable(true);
+        XContentDataHelper.decodeAndWrite(builder2, XContentDataHelper.encodeXContentBuilder(builder));
+        assertEquals(object, Strings.toString(builder2));
     }
 
     public void testArrayInt() throws IOException {
@@ -86,5 +95,16 @@ public class XContentDataHelperTests extends ESTestCase {
             + String.join(",", List.of(Integer.toString(randomInt()), Integer.toString(randomInt()), Integer.toString(randomInt())))
             + "]";
         assertEquals(values, encodeAndDecode(values));
+    }
+
+    public void testCloneSubContextWithParser() throws IOException {
+        String data = """
+            { "key1": "value1", "key2": "value2", "path": { "to": { "key3": "value3" }} }""".replace(" ", "");
+        XContentParser xContentParser = createParser(JsonXContent.jsonXContent, data);
+        xContentParser.nextToken();
+        TestDocumentParserContext context = new TestDocumentParserContext(xContentParser);
+        var tuple = XContentDataHelper.cloneSubContextWithParser(context);
+        assertEquals(data, parse(tuple.v1().parser()));
+        assertEquals(data, parse(tuple.v2()));
     }
 }

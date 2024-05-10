@@ -601,7 +601,7 @@ public final class DocumentParser {
                 new IgnoredSourceFieldMapper.NameValue(
                     isRoot ? arrayFieldName : context.parent().name() + "." + arrayFieldName,
                     isRoot ? 0 : context.parent().fullPath().length() + 1,
-                    XContentDataHelper.encode(tuple.v2())
+                    XContentDataHelper.encodeXContentBuilder(tuple.v2())
                 )
             );
             context = tuple.v1();

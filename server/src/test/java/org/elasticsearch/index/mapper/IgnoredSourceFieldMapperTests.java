@@ -11,11 +11,11 @@ package org.elasticsearch.index.mapper;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.hamcrest.Matchers;
 
 import java.io.IOException;
 import java.math.BigInteger;
 import java.util.Base64;
+import java.util.Locale;
 
 public class IgnoredSourceFieldMapperTests extends MapperServiceTestCase {
 
@@ -90,9 +90,8 @@ public class IgnoredSourceFieldMapperTests extends MapperServiceTestCase {
             b.field("int_value", intValue);
             b.field("string_value", stringValue);
         });
-        assertThat(syntheticSource, Matchers.containsString("\"boolean_value\":" + booleanValue));
-        assertThat(syntheticSource, Matchers.containsString("\"int_value\":" + intValue));
-        assertThat(syntheticSource, Matchers.containsString("\"string_value\":\"" + stringValue + "\""));
+        assertEquals(String.format(Locale.ROOT, """
+            {"boolean_value":%s,"int_value":%s,"string_value":"%s"}""", booleanValue, intValue, stringValue), syntheticSource);
     }
 
     public void testMultipleIgnoredFieldsSameObject() throws IOException {
@@ -108,10 +107,8 @@ public class IgnoredSourceFieldMapperTests extends MapperServiceTestCase {
             }
             b.endObject();
         });
-        assertThat(syntheticSource, Matchers.containsString("{\"bar\":{"));
-        assertThat(syntheticSource, Matchers.containsString("\"boolean_value\":" + booleanValue));
-        assertThat(syntheticSource, Matchers.containsString("\"int_value\":" + intValue));
-        assertThat(syntheticSource, Matchers.containsString("\"string_value\":\"" + stringValue + "\""));
+        assertEquals(String.format(Locale.ROOT, """
+            {"bar":{"boolean_value":%s,"int_value":%s,"string_value":"%s"}}""", booleanValue, intValue, stringValue), syntheticSource);
     }
 
     public void testMultipleIgnoredFieldsManyObjects() throws IOException {
@@ -141,9 +138,17 @@ public class IgnoredSourceFieldMapperTests extends MapperServiceTestCase {
             }
             b.endObject();
         });
-        assertThat(syntheticSource, Matchers.containsString("\"boolean_value\":" + booleanValue));
-        assertThat(syntheticSource, Matchers.containsString("\"path\":{\"to\":{\"int_value\":" + intValue));
-        assertThat(syntheticSource, Matchers.containsString("\"some\":{\"deeply\":{\"nested\":{\"string_value\":\"" + stringValue + "\""));
+        assertEquals(
+            String.format(
+                Locale.ROOT,
+                """
+                    {"boolean_value":%s,"path":{"to":{"int_value":%s,"some":{"deeply":{"nested":{"string_value":"%s"}}}}}}""",
+                booleanValue,
+                intValue,
+                stringValue
+            ),
+            syntheticSource
+        );
     }
 
     public void testDisabledRootObjectSingleField() throws IOException {
@@ -153,7 +158,8 @@ public class IgnoredSourceFieldMapperTests extends MapperServiceTestCase {
             b.field("enabled", false);
         })).documentMapper();
         var syntheticSource = syntheticSource(documentMapper, b -> { b.field("name", name); });
-        assertThat(syntheticSource, Matchers.containsString("\"name\":\"" + name + "\""));
+        assertEquals(String.format(Locale.ROOT, """
+            {"name":"%s"}""", name), syntheticSource);
     }
 
     public void testDisabledRootObjectManyFields() throws IOException {
@@ -188,9 +194,17 @@ public class IgnoredSourceFieldMapperTests extends MapperServiceTestCase {
             }
             b.endObject();
         });
-        assertThat(syntheticSource, Matchers.containsString("\"boolean_value\":" + booleanValue));
-        assertThat(syntheticSource, Matchers.containsString("\"path\":{\"to\":{\"int_value\":" + intValue));
-        assertThat(syntheticSource, Matchers.containsString("\"some\":{\"deeply\":{\"nested\":{\"string_value\":\"" + stringValue + "\""));
+        assertEquals(
+            String.format(
+                Locale.ROOT,
+                """
+                    {"boolean_value":%s,"path":{"to":{"int_value":%s,"some":{"deeply":{"nested":{"string_value":"%s"}}}}}}""",
+                booleanValue,
+                intValue,
+                stringValue
+            ),
+            syntheticSource
+        );
     }
 
     public void testDisabledObjectSingleField() throws IOException {
@@ -205,7 +219,8 @@ public class IgnoredSourceFieldMapperTests extends MapperServiceTestCase {
             }
             b.endObject();
         });
-        assertEquals("{\"path\":{\"name\":\"" + name + "\"}}", syntheticSource);
+        assertEquals(String.format(Locale.ROOT, """
+            {"path":{"name":"%s"}}""", name), syntheticSource);
     }
 
     public void testDisabledObjectManyFields() throws IOException {
@@ -240,9 +255,17 @@ public class IgnoredSourceFieldMapperTests extends MapperServiceTestCase {
             }
             b.endObject();
         });
-        assertThat(syntheticSource, Matchers.containsString("\"boolean_value\":" + booleanValue));
-        assertThat(syntheticSource, Matchers.containsString("\"path\":{\"int_value\":" + intValue));
-        assertThat(syntheticSource, Matchers.containsString("\"some\":{\"deeply\":{\"nested\":{\"string_value\":\"" + stringValue + "\""));
+        assertEquals(
+            String.format(
+                Locale.ROOT,
+                """
+                    {"boolean_value":%s,"path":{"int_value":%s,"to":{"some":{"deeply":{"nested":{"string_value":"%s"}}}}}}""",
+                booleanValue,
+                intValue,
+                stringValue
+            ),
+            syntheticSource
+        );
     }
 
     public void testDisabledSubObject() throws IOException {
@@ -276,9 +299,8 @@ public class IgnoredSourceFieldMapperTests extends MapperServiceTestCase {
             }
             b.endObject();
         });
-        assertThat(syntheticSource, Matchers.containsString("\"boolean_value\":" + booleanValue));
-        assertThat(syntheticSource, Matchers.containsString("\"path\":{\"int_value\":" + intValue));
-        assertThat(syntheticSource, Matchers.containsString("\"to\":{\"name\":\"" + name + "\"}}}"));
+        assertEquals(String.format(Locale.ROOT, """
+            {"boolean_value":%s,"path":{"int_value":%s,"to":{"name":"%s"}}}""", booleanValue, intValue, name), syntheticSource);
     }
 
     public void testMixedDisabledEnabledObjects() throws IOException {
@@ -331,10 +353,18 @@ public class IgnoredSourceFieldMapperTests extends MapperServiceTestCase {
             }
             b.endObject();
         });
-        assertThat(syntheticSource, Matchers.containsString("\"boolean_value\":" + booleanValue));
-        assertThat(syntheticSource, Matchers.containsString("\"path\":{\"int_value\":" + intValue));
-        assertThat(syntheticSource, Matchers.containsString("\"foo\":{\"name\":\"" + foo + "\"}"));
-        assertThat(syntheticSource, Matchers.containsString("\"bar\":{\"name\":\"" + bar + "\"}"));
+        assertEquals(
+            String.format(
+                Locale.ROOT,
+                """
+                    {"boolean_value":%s,"path":{"int_value":%s,"to":{"bar":{"name":"%s"},"foo":{"name":"%s"}}}}""",
+                booleanValue,
+                intValue,
+                bar,
+                foo
+            ),
+            syntheticSource
+        );
     }
 
     public void testRootArray() throws IOException {
@@ -357,7 +387,8 @@ public class IgnoredSourceFieldMapperTests extends MapperServiceTestCase {
             b.startObject().field("int_value", 20).endObject();
             b.endArray();
         });
-        assertEquals("{\"path\":[{\"int_value\":10},{\"int_value\":20}]}", syntheticSource);
+        assertEquals("""
+            {"path":[{"int_value":10},{"int_value":20}]}""", syntheticSource);
     }
 
     public void testNestedArray() throws IOException {
@@ -427,12 +458,10 @@ public class IgnoredSourceFieldMapperTests extends MapperServiceTestCase {
             }
             b.endObject();
         });
-        assertThat(syntheticSource, Matchers.containsString("\"boolean_value\":" + booleanValue));
-        assertThat(
-            syntheticSource,
-            Matchers.containsString(
-                "\"path\":{\"to\":[{\"some\":{\"name\":\"A\"}},{\"some\":{\"name\":\"B\"}},{\"another\":{\"name\":\"C\"}}]}"
-            )
+        assertEquals(
+            String.format(Locale.ROOT, """
+                {"boolean_value":%s,"path":{"to":[{"some":{"name":"A"}},{"some":{"name":"B"}},{"another":{"name":"C"}}]}}""", booleanValue),
+            syntheticSource
         );
     }
 }

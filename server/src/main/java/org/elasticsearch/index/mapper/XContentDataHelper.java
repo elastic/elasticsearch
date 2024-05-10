@@ -54,6 +54,14 @@ final class XContentDataHelper {
     }
 
     /**
+     * Build a {@link BytesRef} wrapping a byte array containing an encoded form
+     * of the passed XContentBuilder contents.
+     */
+    static BytesRef encodeXContentBuilder(XContentBuilder builder) throws IOException {
+        return new BytesRef(TypeUtils.encode(builder));
+    }
+
+    /**
      * Decode the value in the passed {@link BytesRef} and add it as a value to the
      * passed build. The assumption is that the passed value has encoded using the function
      * {@link #encodeToken(XContentParser)} above.
@@ -449,9 +457,5 @@ final class XContentDataHelper {
                 b.copyCurrentStructure(parser);
             }
         }
-    }
-
-    static BytesRef encode(XContentBuilder builder) throws IOException {
-        return new BytesRef(TypeUtils.encode(builder));
     }
 }

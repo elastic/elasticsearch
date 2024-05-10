@@ -64,6 +64,7 @@ public class CorruptionWhileRelocatingIT extends AbstractStatelessIntegTestCase 
         return super.nodeSettings().put(IndexingDiskController.INDEXING_DISK_INTERVAL_TIME_SETTING.getKey(), "1h");
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch-serverless/issues/1966")
     public void testMergeWhileRelocationCausesCorruption() throws Exception {
         final var indexNode = startMasterAndIndexNode();
         final var searchNode = startSearchNode();

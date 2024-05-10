@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.optimizer;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.compute.aggregation.QuantileStates;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.TestBlockFactory;
@@ -122,6 +123,7 @@ import org.elasticsearch.xpack.ql.util.StringUtils;
 import org.junit.BeforeClass;
 
 import java.lang.reflect.Constructor;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
@@ -4451,12 +4453,18 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         assertTrue(unresolvedUpdated.semanticEquals(fieldAttributeExp));
     }
 
+    private Expression getComparisonFromLogicalPlan(LogicalPlan plan) {
+        List<Expression> expressions = new ArrayList<>();
+        plan.forEachExpression(Expression.class, expressions::add);
+        return expressions.get(0);
+    }
+
     private void assertNotSimplified(String comparison) {
         String query = "FROM types | WHERE " + comparison;
-        LogicalPlan optimized = planTypes(query);
-        LogicalPlan raw = analyzerTypes.analyze(parser.createStatement(query));
+        Expression optimized = getComparisonFromLogicalPlan(planTypes(query));
+        Expression raw = getComparisonFromLogicalPlan(analyzerTypes.analyze(parser.createStatement(query)));
 
-        assertEquals(raw, optimized);
+        assertTrue(raw.semanticEquals(optimized));
     }
 
     private static String randomBinaryComparison() {
@@ -4530,6 +4538,51 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         assertNotSimplified("1 - integer " + randomBinaryComparison() + " " + Integer.MIN_VALUE);
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/108519")
+    public void testSimplifyComparisonArithmeticSkippedOnNegatingOverflow() {
+        assertNotSimplified("-integer " + randomBinaryComparison() + " " + Long.MIN_VALUE);
+        assertNotSimplified("-integer " + randomBinaryComparison() + " " + Integer.MIN_VALUE);
+    }
+
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/108519")
+    public void testSimplifyComparisonArithmeticSkippedOnDateOverflow() {
+        assertNotSimplified("date - 999999999 years > to_datetime(\"2010-01-01T01:01:01\")");
+        assertNotSimplified("date + -999999999 years > to_datetime(\"2010-01-01T01:01:01\")");
+    }
+
+    public void testSimplifyComparisonArithmeticSkippedOnMulDivByZero() {
+        assertNotSimplified("float / 0 " + randomBinaryComparison() + " 1");
+        assertNotSimplified("float * 0 " + randomBinaryComparison() + " 1");
+        assertNotSimplified("integer / 0 " + randomBinaryComparison() + " 1");
+        assertNotSimplified("integer * 0 " + randomBinaryComparison() + " 1");
+    }
+
+    public void testSimplifyComparisonArithmeticSkippedOnDiv() {
+        assertNotSimplified("integer / 4 " + randomBinaryComparison() + " 1");
+        assertNotSimplified("4 / integer " + randomBinaryComparison() + " 1");
+    }
+
+    public void testSimplifyComparisonArithmeticSkippedOnResultingFloatLiteral() {
+        assertNotSimplified("integer * 2 " + randomBinaryComparison() + " 3");
+    }
+
+    public void testSimplifyComparisonArithmeticSkippedOnFloatFieldWithPlusMinus() {
+        assertNotSimplified("float + 4 " + randomBinaryComparison() + " 1");
+        assertNotSimplified("4 + float " + randomBinaryComparison() + " 1");
+        assertNotSimplified("float - 4 " + randomBinaryComparison() + " 1");
+        assertNotSimplified("4 - float " + randomBinaryComparison() + " 1");
+    }
+
+    public void testSimplifyComparisonArithmeticSkippedOnFloats() {
+        for (String field : List.of("integer", "float")) {
+            for (Tuple<? extends Number, ? extends Number> nr : List.of(new Tuple<>(.4, 1), new Tuple<>(1, .4))) {
+                assertNotSimplified(field + " + " + nr.v1() + " " + randomBinaryComparison() + " " + nr.v2());
+                assertNotSimplified(field + " - " + nr.v1() + " " + randomBinaryComparison() + " " + nr.v2());
+                assertNotSimplified(nr.v1() + " + " + field + " " + randomBinaryComparison() + " " + nr.v2());
+                assertNotSimplified(nr.v1() + " - " + field + " " + randomBinaryComparison() + " " + nr.v2());
+            }
+        }
+    }
     public static WildcardLike wildcardLike(Expression left, String exp) {
         return new WildcardLike(EMPTY, left, new WildcardPattern(exp));
     }

@@ -750,7 +750,14 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                     null,
                     null,
                     MetadataUtils.DEFAULT_RESERVED_METADATA,
-                    null
+                    null,
+                    null,
+                    null,
+                    null,
+                    "Grants the necessary privileges to create snapshots of all the indices and to view their metadata. "
+                        + "This role enables users to view the configuration of existing snapshot repositories and snapshot details. "
+                        + "It does not grant authority to remove or add repositories or to restore snapshots. "
+                        + "It also does not enable to change index settings or to read or update data stream or index data."
                 )
             ),
             entry(
@@ -766,7 +773,14 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                             .build(),
                         RoleDescriptor.IndicesPrivileges.builder().indices(".enrich-*").privileges("manage", "write").build() },
                     null,
-                    MetadataUtils.DEFAULT_RESERVED_METADATA
+                    null,
+                    null,
+                    MetadataUtils.DEFAULT_RESERVED_METADATA,
+                    null,
+                    null,
+                    null,
+                    null,
+                    "Grants access to manage all enrich indices (.enrich-*) and all operations on ingest pipelines."
                 )
             ),
             entry("viewer", buildViewerRoleDescriptor()),

@@ -639,6 +639,13 @@ public class CompositeRolesStore {
             this.fieldPermissionsDefinition = new FieldPermissionsDefinition(groups);
             this.privileges.addAll(other.privileges);
 
+            // only works if all replication sections come _after_ search sections
+            if (other.privileges.contains("cross_cluster_replication_internal")) {
+                // keep this.query exactly as is
+                assert other.query == null;
+                return;
+            }
+
             if (this.query == null || other.query == null) {
                 this.query = null;
             } else {

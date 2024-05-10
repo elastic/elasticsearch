@@ -86,20 +86,17 @@ public class RemoteClusterSecurityWithSearchAndReplicationDlsRestIT extends Abst
         assertOK(performRequestAgainstFulfillingCluster(bulkRequest));
 
         final Request searchRequest = new Request("GET", Strings.format("/%s:test_index1/_search", REMOTE_CLUSTER_DLS, randomBoolean()));
-
-        {
-            final Response response = performRequestWithUser(searchRequest, REMOTE_SEARCH_USER_ALL);
-            assertOK(response);
-            final SearchResponse searchResponse = SearchResponseUtils.parseSearchResponse(responseAsParser(response));
-            try {
-                final List<String> actualIndices = Arrays.stream(searchResponse.getHits().getHits())
-                    .map(SearchHit::getIndex)
-                    .collect(Collectors.toList());
-                assertThat(actualIndices, containsInAnyOrder("test_index1"));
-                assertThat(searchResponse.getHits().getTotalHits().value, equalTo(1L));
-            } finally {
-                searchResponse.decRef();
-            }
+        final Response response = performRequestWithUser(searchRequest, REMOTE_SEARCH_USER_ALL);
+        assertOK(response);
+        final SearchResponse searchResponse = SearchResponseUtils.parseSearchResponse(responseAsParser(response));
+        try {
+            final List<String> actualIndices = Arrays.stream(searchResponse.getHits().getHits())
+                .map(SearchHit::getIndex)
+                .collect(Collectors.toList());
+            assertThat(actualIndices, containsInAnyOrder("test_index1"));
+            assertThat(searchResponse.getHits().getTotalHits().value, equalTo(1L));
+        } finally {
+            searchResponse.decRef();
         }
     }
 }

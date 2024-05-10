@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.core.security.action.apikey;
 
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
@@ -88,11 +87,6 @@ public class CrossClusterApiKeyRoleDescriptorBuilder {
             throw new IllegalArgumentException("replication does not support document or field level security");
         }
 
-        // TODO hack hack hack
-        for (var r : replication) {
-            r.setQuery(new BytesArray("{\"match_none\": {}}"));
-        }
-
         return new RoleDescriptor(
             ROLE_DESCRIPTOR_NAME,
             clusterPrivileges,
@@ -143,7 +137,7 @@ public class CrossClusterApiKeyRoleDescriptorBuilder {
             final String[] privileges = indexPrivilege.getPrivileges();
             if (Arrays.equals(privileges, CCR_INDICES_PRIVILEGE_NAMES)) {
                 if (indexPrivilege.isUsingDocumentOrFieldLevelSecurity()) {
-                    // throw new IllegalArgumentException("replication does not support document or field level security");
+                    throw new IllegalArgumentException("replication does not support document or field level security");
                 }
             } else if (false == Arrays.equals(privileges, CCS_INDICES_PRIVILEGE_NAMES)) {
                 throw new IllegalArgumentException("invalid indices privileges: [" + Strings.arrayToCommaDelimitedString(privileges));

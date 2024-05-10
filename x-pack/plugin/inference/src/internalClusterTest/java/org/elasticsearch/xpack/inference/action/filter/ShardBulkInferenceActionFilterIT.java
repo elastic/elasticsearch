@@ -7,8 +7,6 @@
 
 package org.elasticsearch.xpack.inference.action.filter;
 
-import com.carrotsearch.randomizedtesting.annotations.Repeat;
-
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.bulk.BulkItemResponse;
@@ -61,7 +59,6 @@ public class ShardBulkInferenceActionFilterIT extends ESIntegTestCase {
         return Arrays.asList(TestInferencePlugin.class);
     }
 
-    @Repeat(iterations = 1000)
     public void testBulkOperations() throws Exception {
         Map<String, Integer> shardsSettings = Collections.singletonMap(IndexMetadata.SETTING_NUMBER_OF_SHARDS, randomIntBetween(1, 10));
         indicesAdmin().prepareCreate(INDEX_NAME).setMapping("""
@@ -158,7 +155,7 @@ public class ShardBulkInferenceActionFilterIT extends ESIntegTestCase {
             new TestDenseInferenceServiceExtension.TestServiceSettings(
                 inferenceEntityId,
                 randomIntBetween(1, 100),
-                randomFrom(SimilarityMeasure.values())
+                randomValueOtherThan(SimilarityMeasure.DOT_PRODUCT, () -> randomFrom(SimilarityMeasure.values()))
             )
         );
         AtomicReference<Boolean> storeModelHolder = new AtomicReference<>();

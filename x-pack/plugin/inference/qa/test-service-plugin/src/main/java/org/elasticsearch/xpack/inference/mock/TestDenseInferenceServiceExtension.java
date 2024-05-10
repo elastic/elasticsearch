@@ -177,37 +177,8 @@ public class TestDenseInferenceServiceExtension implements InferenceServiceExten
             for (int j = 0; j < dimensions; j++) {
                 embedding[j] = input.hashCode() + (double)j;
             }
-            if (similarityMeasure == SimilarityMeasure.DOT_PRODUCT) {
-                embedding = normalizeVector(embedding);
-            }
 
             return embedding;
-        }
-
-        private static double[] normalizeVector(double[] vector) {
-            double[] normalizedVector = new double[vector.length];
-
-            // Calculate the Euclidean norm of the vector
-            double norm = calculateNorm(vector);
-
-            // Normalize each component of the vector
-            for (int i = 0; i < vector.length; i++) {
-                normalizedVector[i] = vector[i] / norm;
-            }
-
-            return normalizedVector;
-        }
-
-        private static double calculateNorm(double[] vector) {
-            double sumOfSquares = 0.0f;
-
-            // Calculate the sum of squares of each component
-            for (double component : vector) {
-                sumOfSquares += component * component;
-            }
-
-            // Return the square root of the sum of squares
-            return (float) Math.sqrt(sumOfSquares);
         }
     }
 

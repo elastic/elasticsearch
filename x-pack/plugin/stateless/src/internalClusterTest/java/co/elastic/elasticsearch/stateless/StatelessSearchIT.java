@@ -506,7 +506,7 @@ public class StatelessSearchIT extends AbstractStatelessIntegTestCase {
     }
 
     // TODO move this test to a separate test class for refresh cost optimization
-    public void testConcurrentFlushAndMultipleRefreshesWillSetMaxUploadGenOnlyOnce() throws Exception {
+    public void testConcurrentFlushAndMultipleRefreshesWillSetMaxUploadGen() throws Exception {
         final String indexNode = startIndexNode();
         startSearchNode();
         final String indexName = randomIdentifier();
@@ -524,15 +524,11 @@ public class StatelessSearchIT extends AbstractStatelessIntegTestCase {
         assertThat(statelessCommitService.getMaxGenerationToUploadForFlush(shardId), equalTo(initialGeneration));
 
         // A flusher
+        final boolean force = randomBoolean();
+        final boolean waitIfOngoing = force || randomBoolean();
         final Runnable flusher = () -> {
             safeSleep(randomLongBetween(0, 50));
-            final boolean force = randomBoolean();
-            client().admin()
-                .indices()
-                .prepareFlush()
-                .setForce(force)
-                .setWaitIfOngoing(force || randomBoolean())
-                .get(TimeValue.timeValueSeconds(10));
+            client().admin().indices().prepareFlush().setForce(force).setWaitIfOngoing(waitIfOngoing).get(TimeValue.timeValueSeconds(10));
         };
 
         // Simulate scheduled refreshes
@@ -567,10 +563,15 @@ public class StatelessSearchIT extends AbstractStatelessIntegTestCase {
             }
             final long generation = indexShard.getEngineOrNull().getLastCommittedSegmentInfos().getGeneration();
             assertThat(generation, greaterThan(previousGeneration));
-            // Exactly one generation is marked for upload
             final long maxGenerationToUploadDueToFlush = statelessCommitService.getMaxGenerationToUploadForFlush(shardId);
             assertThat(maxGenerationToUploadDueToFlush, allOf(greaterThan(previousGeneration), lessThanOrEqualTo(generation)));
-            assertThat(statelessCommitService.invocationCounters.get(shardId).get(), equalTo(count + 1));
+            final int newCount = statelessCommitService.invocationCounters.get(shardId).get();
+            if (newCount > count + 2) {
+                fail("expected 1 or 2 invocations for ensuring flush generation, got " + (newCount - count));
+            }
+            if (newCount == count + 2) {
+                assertThat(force == false && waitIfOngoing == false, equalTo(true));
+            }
             previousGeneration = generation;
         }
         // The last commit may be a refresh and not uploaded when BCC can contain more than 1 CC

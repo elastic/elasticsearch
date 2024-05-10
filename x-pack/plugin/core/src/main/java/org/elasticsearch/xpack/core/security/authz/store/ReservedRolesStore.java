@@ -596,7 +596,12 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                     null,
                     null,
                     MetadataUtils.getDeprecatedReservedMetadata("Please use the [transform_admin] role instead"),
-                    null
+                    null,
+                    null,
+                    null,
+                    null,
+                    "Grants manage_data_frame_transforms cluster privileges, which enable you to manage transforms. "
+                        + "This role also includes all Kibana privileges for the machine learning features."
                 )
             ),
             // DEPRECATED: to be removed in 9.0.0
@@ -623,7 +628,12 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                     null,
                     null,
                     MetadataUtils.getDeprecatedReservedMetadata("Please use the [transform_user] role instead"),
-                    null
+                    null,
+                    null,
+                    null,
+                    null,
+                    "Grants monitor_data_frame_transforms cluster privileges, which enable you to use transforms. "
+                        + "This role also includes all Kibana privileges for the machine learning features. "
                 )
             ),
             entry(

@@ -415,7 +415,7 @@ public class GeoIpProcessorTests extends ESTestCase {
         assertThat(ingestDocument.getSourceAndMetadata().get("source_field"), equalTo(ip));
         @SuppressWarnings("unchecked")
         Map<String, Object> geoData = (Map<String, Object>) ingestDocument.getSourceAndMetadata().get("target_field");
-        assertThat(geoData.size(), equalTo(21));
+        assertThat(geoData.size(), equalTo(22));
         assertThat(geoData.get("ip"), equalTo(ip));
         assertThat(geoData.get("country_iso_code"), equalTo("US"));
         assertThat(geoData.get("country_name"), equalTo("United States"));
@@ -440,6 +440,7 @@ public class GeoIpProcessorTests extends ESTestCase {
         assertThat(geoData.get("domain"), equalTo("frpt.net"));
         assertThat(geoData.get("isp"), equalTo("Fairpoint Communications"));
         assertThat(geoData.get("isp_organization"), equalTo("Fairpoint Communications"));
+        assertThat(geoData.get("connection_type"), equalTo("Cable/DSL"));
     }
 
     public void testIsp() throws Exception {

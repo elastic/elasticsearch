@@ -465,6 +465,8 @@ public final class GeoIpProcessor extends AbstractProcessor {
 
         String domain = response.getTraits().getDomain();
 
+        ConnectionType connectionType = response.getTraits().getConnectionType();
+
         Map<String, Object> geoData = new HashMap<>();
         for (Property property : this.properties) {
             switch (property) {
@@ -581,6 +583,11 @@ public final class GeoIpProcessor extends AbstractProcessor {
                 case MOBILE_NETWORK_CODE -> {
                     if (mobileNetworkCode != null) {
                         geoData.put("mobile_network_code", mobileNetworkCode);
+                    }
+                }
+                case CONNECTION_TYPE -> {
+                    if (connectionType != null) {
+                        geoData.put("connection_type", connectionType.toString());
                     }
                 }
             }

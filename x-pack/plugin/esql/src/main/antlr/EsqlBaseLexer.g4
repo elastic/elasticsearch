@@ -32,6 +32,16 @@ MULTILINE_COMMENT
 WS
     : [ \r\n\t]+ -> channel(HIDDEN)
     ;
+
+fragment INDEX_UNQUOTED_IDENTIFIER_PART
+    : ~[=`|,[\]/ \t\r\n]
+    | '/' ~[*/] // allow single / but not followed by another / or * which would start a comment
+    ;
+
+INDEX_UNQUOTED_IDENTIFIER
+    : INDEX_UNQUOTED_IDENTIFIER_PART+
+    ;
+
 //
 // Explain
 //
@@ -193,13 +203,8 @@ FROM_QUOTED_STRING : QUOTED_STRING -> type(QUOTED_STRING);
 OPTIONS : 'options';
 METADATA : 'metadata';
 
-fragment FROM_UNQUOTED_IDENTIFIER_PART
-    : ~[=`|,[\]/ \t\r\n]
-    | '/' ~[*/] // allow single / but not followed by another / or * which would start a comment
-    ;
-
-FROM_UNQUOTED_IDENTIFIER
-    : FROM_UNQUOTED_IDENTIFIER_PART+
+FROM_INDEX_UNQUOTED_IDENTIFIER
+    : INDEX_UNQUOTED_IDENTIFIER -> type(INDEX_UNQUOTED_IDENTIFIER)
     ;
 
 FROM_LINE_COMMENT
@@ -432,17 +437,8 @@ SETTING_WS
 mode METRICS_MODE;
 METRICS_PIPE : PIPE -> type(PIPE), popMode;
 
-fragment METRICS_UNQUOTED_IDENTIFIER_PART
-    : ~[=`|,[\]/ \t\r\n]
-    | '/' ~[*/] // allow single / but not followed by another / or * which would start a comment
-    ;
-
-METRICS_UNQUOTED_IDENTIFIER
-    : METRICS_UNQUOTED_IDENTIFIER_PART+ -> popMode, pushMode(CLOSING_METRICS_MODE)
-    ;
-
-METRICS_QUOTED_IDENTIFIER
-    : QUOTED_IDENTIFIER -> type(QUOTED_IDENTIFIER), popMode, pushMode(CLOSING_METRICS_MODE)
+METRICS_INDEX_UNQUOTED_IDENTIFIER
+    : INDEX_UNQUOTED_IDENTIFIER -> type(INDEX_UNQUOTED_IDENTIFIER), popMode, pushMode(CLOSING_METRICS_MODE)
     ;
 
 METRICS_LINE_COMMENT

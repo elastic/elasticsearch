@@ -365,13 +365,13 @@ public class EsqlBaseParserBaseListener implements EsqlBaseParserListener {
    *
    * <p>The default implementation does nothing.</p>
    */
-  @Override public void enterFromIdentifier(EsqlBaseParser.FromIdentifierContext ctx) { }
+  @Override public void enterIndexIdentifier(EsqlBaseParser.IndexIdentifierContext ctx) { }
   /**
    * {@inheritDoc}
    *
    * <p>The default implementation does nothing.</p>
    */
-  @Override public void exitFromIdentifier(EsqlBaseParser.FromIdentifierContext ctx) { }
+  @Override public void exitIndexIdentifier(EsqlBaseParser.IndexIdentifierContext ctx) { }
   /**
    * {@inheritDoc}
    *
@@ -444,18 +444,6 @@ public class EsqlBaseParserBaseListener implements EsqlBaseParserListener {
    * <p>The default implementation does nothing.</p>
    */
   @Override public void exitMetricsCommand(EsqlBaseParser.MetricsCommandContext ctx) { }
-  /**
-   * {@inheritDoc}
-   *
-   * <p>The default implementation does nothing.</p>
-   */
-  @Override public void enterMetricsIdentifier(EsqlBaseParser.MetricsIdentifierContext ctx) { }
-  /**
-   * {@inheritDoc}
-   *
-   * <p>The default implementation does nothing.</p>
-   */
-  @Override public void exitMetricsIdentifier(EsqlBaseParser.MetricsIdentifierContext ctx) { }
   /**
    * {@inheritDoc}
    *

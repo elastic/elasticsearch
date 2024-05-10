@@ -336,15 +336,15 @@ public interface EsqlBaseParserListener extends ParseTreeListener {
    */
   void exitFromCommand(EsqlBaseParser.FromCommandContext ctx);
   /**
-   * Enter a parse tree produced by {@link EsqlBaseParser#fromIdentifier}.
+   * Enter a parse tree produced by {@link EsqlBaseParser#indexIdentifier}.
    * @param ctx the parse tree
    */
-  void enterFromIdentifier(EsqlBaseParser.FromIdentifierContext ctx);
+  void enterIndexIdentifier(EsqlBaseParser.IndexIdentifierContext ctx);
   /**
-   * Exit a parse tree produced by {@link EsqlBaseParser#fromIdentifier}.
+   * Exit a parse tree produced by {@link EsqlBaseParser#indexIdentifier}.
    * @param ctx the parse tree
    */
-  void exitFromIdentifier(EsqlBaseParser.FromIdentifierContext ctx);
+  void exitIndexIdentifier(EsqlBaseParser.IndexIdentifierContext ctx);
   /**
    * Enter a parse tree produced by {@link EsqlBaseParser#fromOptions}.
    * @param ctx the parse tree
@@ -405,16 +405,6 @@ public interface EsqlBaseParserListener extends ParseTreeListener {
    * @param ctx the parse tree
    */
   void exitMetricsCommand(EsqlBaseParser.MetricsCommandContext ctx);
-  /**
-   * Enter a parse tree produced by {@link EsqlBaseParser#metricsIdentifier}.
-   * @param ctx the parse tree
-   */
-  void enterMetricsIdentifier(EsqlBaseParser.MetricsIdentifierContext ctx);
-  /**
-   * Exit a parse tree produced by {@link EsqlBaseParser#metricsIdentifier}.
-   * @param ctx the parse tree
-   */
-  void exitMetricsIdentifier(EsqlBaseParser.MetricsIdentifierContext ctx);
   /**
    * Enter a parse tree produced by {@link EsqlBaseParser#evalCommand}.
    * @param ctx the parse tree

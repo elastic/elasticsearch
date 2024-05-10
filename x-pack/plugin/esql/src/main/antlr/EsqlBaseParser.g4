@@ -105,11 +105,11 @@ field
     ;
 
 fromCommand
-    : FROM fromIdentifier (COMMA fromIdentifier)* metadata? fromOptions?
+    : FROM indexIdentifier (COMMA indexIdentifier)* metadata? fromOptions?
     ;
 
-fromIdentifier
-    : FROM_UNQUOTED_IDENTIFIER
+indexIdentifier
+    : INDEX_UNQUOTED_IDENTIFIER
     ;
 
 fromOptions
@@ -126,7 +126,7 @@ metadata
     ;
 
 metadataOption
-    : METADATA fromIdentifier (COMMA fromIdentifier)*
+    : METADATA indexIdentifier (COMMA indexIdentifier)*
     ;
 
 deprecated_metadata
@@ -134,12 +134,7 @@ deprecated_metadata
     ;
 
 metricsCommand
-    : METRICS metricsIdentifier (COMMA metricsIdentifier)* aggregates=fields? (BY grouping=fields)?
-    ;
-
-metricsIdentifier
-    : METRICS_UNQUOTED_IDENTIFIER
-    | QUOTED_IDENTIFIER
+    : METRICS indexIdentifier (COMMA indexIdentifier)* aggregates=fields? (BY grouping=fields)?
     ;
 
 evalCommand

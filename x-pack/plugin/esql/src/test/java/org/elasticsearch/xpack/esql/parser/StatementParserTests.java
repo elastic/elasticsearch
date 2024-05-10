@@ -1057,9 +1057,9 @@ public class StatementParserTests extends ESTestCase {
         assertStatement("METRICS foo", new EsqlUnresolvedRelation(EMPTY, new TableIdentifier(EMPTY, null, "foo"), List.of()));
         assertStatement("METRICS foo,bar", new EsqlUnresolvedRelation(EMPTY, new TableIdentifier(EMPTY, null, "foo,bar"), List.of()));
         assertStatement("METRICS foo*,bar", new EsqlUnresolvedRelation(EMPTY, new TableIdentifier(EMPTY, null, "foo*,bar"), List.of()));
-        assertStatement("METRICS `foo-*`,bar", new EsqlUnresolvedRelation(EMPTY, new TableIdentifier(EMPTY, null, "foo-*,bar"), List.of()));
+        assertStatement("METRICS foo-*,bar", new EsqlUnresolvedRelation(EMPTY, new TableIdentifier(EMPTY, null, "foo-*,bar"), List.of()));
         assertStatement(
-            "METRICS `foo-*`,bar+*",
+            "METRICS foo-*,bar+*",
             new EsqlUnresolvedRelation(EMPTY, new TableIdentifier(EMPTY, null, "foo-*,bar+*"), List.of())
         );
     }
@@ -1067,24 +1067,14 @@ public class StatementParserTests extends ESTestCase {
     public void testMetricsIdentifiers() {
         assumeTrue("requires snapshot build", Build.current().isSnapshot());
         Map<String, String> patterns = Map.of(
-            "metrics `foo`",
-            "foo",
-            "metrics `foo`,`test-*`",
-            "foo,test-*",
             "metrics foo,test-*",
             "foo,test-*",
             "metrics 123-test@foo_bar+baz1",
             "123-test@foo_bar+baz1",
-            "metrics `foo`,`test-*`,abc",
-            "foo,test-*,abc",
-            "metrics `foo,     test-*, abc, xyz`",
-            "foo,     test-*, abc, xyz",
-            "metrics `foo,     test-*, abc, xyz`,     test123",
-            "foo,     test-*, abc, xyz,test123",
             "metrics foo,   test,xyz",
             "foo,test,xyz",
-            "metrics <logstash-{now/M{yyyy.MM}}>, `<logstash-{now/d{yyyy.MM.dd|+12:00}}>`",
-            "<logstash-{now/M{yyyy.MM}}>,<logstash-{now/d{yyyy.MM.dd|+12:00}}>"
+            "metrics <logstash-{now/M{yyyy.MM}}>>",
+            "<logstash-{now/M{yyyy.MM}}>>"
         );
         for (Map.Entry<String, String> e : patterns.entrySet()) {
             assertStatement(e.getKey(), new EsqlUnresolvedRelation(EMPTY, new TableIdentifier(EMPTY, null, e.getValue()), List.of()));

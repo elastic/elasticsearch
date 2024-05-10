@@ -68,6 +68,10 @@ public class ShardSyncStateTests extends ESTestCase {
 
         shardSyncState.markCommitUploaded(3L);
         assertFalse(activeTranslogFile.hasReferences());
+
+        // Advance again to ensure that an assertion is not thrown from decrementing generation 3 file again
+        shardSyncState.markCommitUploaded(4L);
+        assertFalse(activeTranslogFile.hasReferences());
     }
 
     public void testActiveTranslogFileIsReferencedInNextSync() throws IOException {
@@ -104,14 +108,12 @@ public class ShardSyncStateTests extends ESTestCase {
         );
 
         shardSyncState.writeToBuffer(new BytesArray(new byte[10]), 0, new Translog.Location(0, 20, 10));
+        ShardSyncState.SyncState syncState = shardSyncState.pollSync(4);
+        assertThat(syncState.estimatedOps(), equalTo(3L));
+        assertThat(syncState.referencedTranslogFileOffsets(), equalTo(new int[] { 3, 2 }));
         shardSyncState.markSyncStarting(
             primaryTerm,
-            new TranslogReplicator.BlobTranslogFile(
-                4,
-                "",
-                Map.of(shardId, shardSyncState.pollSync(4).metadata(0, 10)),
-                Collections.singleton(shardId)
-            ) {
+            new TranslogReplicator.BlobTranslogFile(4, "", Map.of(shardId, syncState.metadata(0, 10)), Collections.singleton(shardId)) {
                 @Override
                 protected void closeInternal() {}
             }
@@ -121,35 +123,23 @@ public class ShardSyncStateTests extends ESTestCase {
 
         shardSyncState.writeToBuffer(new BytesArray(new byte[10]), 0, new Translog.Location(0, 30, 10));
         ShardSyncState.SyncState syncState2 = shardSyncState.pollSync(5);
-        assertThat(syncState2.estimatedOps(), equalTo(3L));
-        assertThat(syncState2.referencedTranslogFileOffsets(), equalTo(new int[] { 3, 1 }));
-    }
+        assertThat(syncState2.estimatedOps(), equalTo(4L));
+        assertThat(syncState2.referencedTranslogFileOffsets(), equalTo(new int[] { 4, 3, 1 }));
+        shardSyncState.markSyncStarting(
+            primaryTerm,
+            new TranslogReplicator.BlobTranslogFile(5, "", Map.of(shardId, syncState2.metadata(0, 10)), Collections.singleton(shardId)) {
+                @Override
+                protected void closeInternal() {}
+            }
+        );
 
-    public void testActiveTranslogFileIsReleasedIfCommitAlreadyHappened() throws IOException {
-        ShardId shardId = new ShardId(new Index("name", "uuid"), 0);
-        long primaryTerm = randomLongBetween(0, 20);
-        long generation = 2;
-        ShardSyncState shardSyncState = getShardSyncState(shardId, primaryTerm);
-        shardSyncState.writeToBuffer(new BytesArray(new byte[10]), 0, new Translog.Location(0, 0, 10));
-        ShardSyncState.SyncState syncState = shardSyncState.pollSync(generation);
+        // Now that 1 is fully marked as deleted, it will not be referenced in the next directory
+        shardSyncState.markTranslogDeleted(1);
 
-        TranslogReplicator.BlobTranslogFile activeTranslogFile = new TranslogReplicator.BlobTranslogFile(
-            generation,
-            "",
-            Map.of(shardId, syncState.metadata(0, 10)),
-            Collections.singleton(shardId)
-        ) {
-            @Override
-            protected void closeInternal() {}
-        };
-
-        shardSyncState.markCommitUploaded(3L);
-
-        assertTrue(activeTranslogFile.hasReferences());
-
-        shardSyncState.markSyncStarting(primaryTerm, activeTranslogFile);
-
-        assertFalse(activeTranslogFile.hasReferences());
+        shardSyncState.writeToBuffer(new BytesArray(new byte[10]), 0, new Translog.Location(0, 40, 10));
+        ShardSyncState.SyncState syncState3 = shardSyncState.pollSync(6);
+        assertThat(syncState3.estimatedOps(), equalTo(4L));
+        assertThat(syncState3.referencedTranslogFileOffsets(), equalTo(new int[] { 4, 2, 1 }));
     }
 
     public void testActiveTranslogFileIsNotReleasedAfterShardClose() throws IOException {
@@ -174,35 +164,13 @@ public class ShardSyncStateTests extends ESTestCase {
 
         assertTrue(activeTranslogFile.hasReferences());
 
-        shardSyncState.close(false);
-
-        assertTrue(activeTranslogFile.hasReferences());
-    }
-
-    public void testActiveTranslogFileIsNotReleasedWhenNodeShuttingDown() throws IOException {
-        ShardId shardId = new ShardId(new Index("name", "uuid"), 0);
-        long primaryTerm = randomLongBetween(0, 20);
-        long generation = randomLongBetween(1, 5);
-        ShardSyncState shardSyncState = getShardSyncState(shardId, primaryTerm);
-        shardSyncState.writeToBuffer(new BytesArray(new byte[10]), 0, new Translog.Location(0, 0, 10));
-        ShardSyncState.SyncState syncState = shardSyncState.pollSync(generation);
-
-        TranslogReplicator.BlobTranslogFile activeTranslogFile = new TranslogReplicator.BlobTranslogFile(
-            generation,
-            "",
-            Map.of(shardId, syncState.metadata(0, 10)),
-            Collections.singleton(shardId)
-        ) {
-            @Override
-            protected void closeInternal() {}
-        };
-
-        shardSyncState.markSyncStarting(primaryTerm, activeTranslogFile);
+        shardSyncState.close();
 
         assertTrue(activeTranslogFile.hasReferences());
 
-        shardSyncState.close(true);
+        shardSyncState.markCommitUploaded(generation + 1);
 
+        // Even if a commit comes in telling us to advance the start file ignore since the shard is closed.
         assertTrue(activeTranslogFile.hasReferences());
     }
 
@@ -224,16 +192,19 @@ public class ShardSyncStateTests extends ESTestCase {
             protected void closeInternal() {}
         };
 
-        boolean nodeClosing = randomBoolean();
-
-        shardSyncState.close(nodeClosing);
+        shardSyncState.close();
 
         shardSyncState.markSyncStarting(primaryTerm, activeTranslogFile);
 
         assertTrue(activeTranslogFile.hasReferences());
+
+        shardSyncState.markCommitUploaded(generation + 1);
+
+        // Even if a commit comes in telling us to advance the start file ignore since the shard is closed.
+        assertTrue(activeTranslogFile.hasReferences());
     }
 
-    public void testActiveTranslogFileCannotBeQueuedWithDifferentPrimaryTerm() throws IOException {
+    public void testActiveTranslogFileReleasedIfDifferentPrimaryTerm() throws IOException {
         ShardId shardId = new ShardId(new Index("name", "uuid"), 0);
         long primaryTerm = randomLongBetween(1, 20);
         long generation = randomLongBetween(1, 5);
@@ -253,6 +224,8 @@ public class ShardSyncStateTests extends ESTestCase {
 
         shardSyncState.markSyncStarting(primaryTerm - 1, activeTranslogFile);
 
+        // References are released because the advance of the primary term tells us we no longer need this sync
+        // TODO: Is this true? Maybe safer to just drop
         assertFalse(activeTranslogFile.hasReferences());
     }
 

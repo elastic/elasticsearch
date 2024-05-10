@@ -156,7 +156,7 @@ public class StatelessFileDeletionIT extends AbstractStatelessIntegTestCase {
         });
     }
 
-    public void testActiveTranslogFilesNotPrunedOnNotStop() throws Exception {
+    public void testActiveTranslogFilesNotPrunedOnNodeStop() throws Exception {
         startMasterOnlyNode();
 
         String indexNode = startIndexNode();

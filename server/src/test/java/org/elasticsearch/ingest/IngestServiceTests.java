@@ -2196,7 +2196,7 @@ public class IngestServiceTests extends ESTestCase {
             (slot, targetIndex, e) -> fail("Should not be redirecting failures"),
             failureHandler,
             completionHandler,
-            Names.WRITE
+            EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
         final IngestStats afterFifthRequestStats = ingestService.stats();
         assertThat(afterFifthRequestStats.pipelineStats().size(), equalTo(3));

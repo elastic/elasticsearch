@@ -36,7 +36,7 @@ public class SearchLoadProbe {
      * <p>
      * Setting `MAX_TIME_TO_CLEAR_QUEUE = 0` disables using queuing in load calculations.
      */
-    public static final TimeValue DEFAULT_MAX_TIME_TO_CLEAR_QUEUE = TimeValue.timeValueSeconds(1); // TODO Need to find a sensible default.
+    public static final TimeValue DEFAULT_MAX_TIME_TO_CLEAR_QUEUE = TimeValue.timeValueSeconds(30);
     public static final Setting<TimeValue> MAX_TIME_TO_CLEAR_QUEUE = Setting.timeSetting(
         "serverless.autoscaling.search.sampler.max_time_to_clear_queue",
         DEFAULT_MAX_TIME_TO_CLEAR_QUEUE,

@@ -384,7 +384,14 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                             .privileges("create_index", "create_doc")
                             .build() },
                     null,
-                    MetadataUtils.DEFAULT_RESERVED_METADATA
+                    null,
+                    null,
+                    MetadataUtils.DEFAULT_RESERVED_METADATA,
+                    null,
+                    null,
+                    null,
+                    null,
+                    "Grants access necessary for the APM system user to send system-level data (such as monitoring) to Elasticsearch.\n"
                 )
             ),
             entry(

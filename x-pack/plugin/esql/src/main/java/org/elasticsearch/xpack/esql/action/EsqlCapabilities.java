@@ -37,7 +37,11 @@ class EsqlCapabilities {
         return Set.copyOf(caps);
     }
 
-    private static String cap(NodeFeature feature) {
+    /**
+     * Convert a {@link NodeFeature} from {@link EsqlFeatures} into a
+     * capability.
+     */
+    public static String cap(NodeFeature feature) {
         assert feature.id().startsWith("esql.");
         return feature.id().substring("esql.".length());
     }

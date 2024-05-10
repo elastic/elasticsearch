@@ -158,11 +158,14 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
 
     protected static void checkCapabilities(RestClient client, TestFeatureService testFeatureService, String testName, CsvTestCase testCase)
         throws IOException {
+        if (testCase.requiredCapabilities.isEmpty()) {
+            return;
+        }
         try {
-            assumeTrue(
-                "Test " + testName + " requires " + testCase.requiredCapabilities,
-                clusterHasCapability(client, "POST", "/_query", List.of(), testCase.requiredCapabilities).orElse(false)
-            );
+            if (clusterHasCapability(client, "POST", "/_query", List.of(), testCase.requiredCapabilities).orElse(false)) {
+                return;
+            }
+            LOGGER.info("capabilities API returned false, we might be in a mixed version cluster so falling back to cluster features");
         } catch (ResponseException e) {
             if (e.getResponse().getStatusLine().getStatusCode() / 100 == 4) {
                 /*
@@ -174,12 +177,13 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
                  * because old versions of Elasticsearch return 400, not the expected
                  * 404.
                  */
-                for (String feature : testCase.requiredCapabilities) {
-                    assumeTrue("Test " + testName + " requires " + feature, testFeatureService.clusterHasFeature("esql." + feature));
-                }
+                LOGGER.info("capabilities API failed, falling back to cluster features");
             } else {
                 throw e;
             }
+        }
+        for (String feature : testCase.requiredCapabilities) {
+            assumeTrue("Test " + testName + " requires " + feature, testFeatureService.clusterHasFeature("esql." + feature));
         }
     }
 

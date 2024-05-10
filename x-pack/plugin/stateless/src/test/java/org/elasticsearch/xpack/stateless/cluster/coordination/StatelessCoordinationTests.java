@@ -102,9 +102,8 @@ public class StatelessCoordinationTests extends AtomicRegisterCoordinatorTests {
      * down in progress. This test sets a node as shutting down (in the cluster state), forces it to run for election, and then verifies
      * that an error message gets logged and the node refuses to run for election.
      */
-    @TestLogging(reason = "test uses a Coordinator log msg", value = "org.elasticsearch.cluster.coordination.Coordinator:TRACE")
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch-serverless/issues/1700")
-    public void testShutdownLogMessageDuringElectionAttempt() {
+    @TestLogging(reason = "test uses a Coordinator log msg", value = "org.elasticsearch.cluster.coordination.Coordinator:INFO")
+    public void testShutdownLogMessageDuringElectionAttempt() throws Exception {
         // There are two nodes so that a non-leader can be set to shutdown and then made to try to run for election.
         try (AbstractCoordinatorTestCase.Cluster cluster = new AbstractCoordinatorTestCase.Cluster(randomIntBetween(2, 5))) {
             logger.info("---> Running a test cluster of [" + cluster.size() + "] nodes");
@@ -144,7 +143,10 @@ public class StatelessCoordinationTests extends AtomicRegisterCoordinatorTests {
                 cluster.runFor(DEFAULT_CLUSTER_STATE_UPDATE_DELAY, "committing node shutdown update");
             }
 
-            assertThatLogger(() -> {
+            // Since the test runs with some disruptions and randmization, it is possible for the election scheduler of the nonLeader node
+            // to get closed before it gets to run an election in which case we will not see the log that skips pre-voting. Therefore,
+            // we'd need to repeat triggering an election.
+            assertBusy(() -> assertThatLogger(() -> {
                 // Force the nonLeader node to become a candidate for master election. This will trigger the election code and the log
                 // message saying that the node is ineligible for election during shutdown
                 AbstractCoordinatorTestCase.Cluster.becomeCandidate(nonLeader, "forcedForTesting");
@@ -154,10 +156,10 @@ public class StatelessCoordinationTests extends AtomicRegisterCoordinatorTests {
                 new MockLogAppender.SeenEventExpectation(
                     "log emitted by Coordinator when shut down is in progress",
                     Coordinator.class.getCanonicalName(),
-                    Level.TRACE,
+                    Level.INFO,
                     "skip prevoting as local node may not win election (node is ineligible for election during shutdown)*"
                 )
-            );
+            ));
         }
     }
 

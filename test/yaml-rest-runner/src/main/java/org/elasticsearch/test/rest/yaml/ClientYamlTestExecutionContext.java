@@ -295,13 +295,7 @@ public class ClientYamlTestExecutionContext {
             ClientYamlTestResponse resp = callApi("capabilities", params, emptyList(), emptyMap());
             // anything other than 200 should result in an exception, handled below
             assert resp.getStatusCode() == 200 : "Unknown response code " + resp.getStatusCode();
-
-            return switch (resp.evaluate("supported").toString()) {
-                case "unknown" -> Optional.empty();
-                case "true" -> Optional.of(true);
-                case "false" -> Optional.of(false);
-                default -> throw new IOException("Unexpected capabilities response " + resp.evaluate("supported"));
-            };
+            return Optional.ofNullable(resp.evaluate("supported"));
         } catch (ClientYamlTestResponseException responseException) {
             if (responseException.getRestTestResponse().getStatusCode() / 100 == 4) {
                 return Optional.empty(); // we don't know, the capabilities API is unsupported

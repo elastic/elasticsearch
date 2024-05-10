@@ -470,7 +470,7 @@ public abstract class AbstractStatelessIntegTestCase extends ESIntegTestCase {
         }
     }
 
-    private static BatchedCompoundCommit readLatestUploadedBcc(BlobContainer blobContainerForCommit) throws IOException {
+    protected static BatchedCompoundCommit readLatestUploadedBcc(BlobContainer blobContainerForCommit) throws IOException {
         final BlobMetadata latestUploadBccMetadata = blobContainerForCommit.listBlobsByPrefix(
             operationPurpose,
             StatelessCompoundCommit.PREFIX

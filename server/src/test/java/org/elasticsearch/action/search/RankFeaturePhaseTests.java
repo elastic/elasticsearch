@@ -1107,6 +1107,7 @@ public class RankFeaturePhaseTests extends ESTestCase {
                 // this is called after the RankFeaturePhaseCoordinatorContext has been executed
                 phaseDone.set(true);
                 finalResults[0] = reducedQueryPhase.sortedTopDocs().scoreDocs();
+                phaseResults.close();
                 logger.debug("Skipping moving to next phase");
             }
         };

@@ -1,4 +1,7 @@
+# Examples that were published in a blog post
+
 2023-08-08.full-blown-query
+required_feature: esql.enrich_load
 
   FROM employees
 | WHERE still_hired == true

@@ -26,7 +26,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
-public class IgnoredMetaFieldRollingUpgradeIT extends ParameterizedRollingUpgradeTestCase {
+public class IgnoredMetaFieldRollingUpgradeIT extends AbstractRollingUpgradeTestCase {
 
     private static final String TERMS_AGG_QUERY = Strings.format("""
         {

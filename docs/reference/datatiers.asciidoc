@@ -38,7 +38,7 @@ The way data tiers are used often depends on the data's category:
 - Content data remains on the <<content-tier,content tier>> for its entire
 data lifecycle. 
 
-- Time series data should progress through the 
+- Time series data may progress through the 
 descending temperature data tiers (hot, warm, cold, and frozen) according to your 
 performance, resiliency, and data retention requirements. 
 + 
@@ -216,7 +216,7 @@ tier.
 [[data-tier-allocation]]
 === Data tier index allocation
 
-The <<tier-preference-allocation-filter, `index.routing.allocation.include._tier_preference`>> setting determines the tier index shards should be allocated to.
+The <<tier-preference-allocation-filter, `index.routing.allocation.include._tier_preference`>> setting determines which tier the index should be allocated to.
 
 When you create an index, by default {es} sets the `_tier_preference`
 to `data_content` to automatically allocate the index shards to the content tier.
@@ -228,8 +228,8 @@ to `data_hot` to automatically allocate the index shards to the hot tier.
 At the time of index creation, you can override the default setting by explicitly setting 
 the preferred value in one of two ways:
 
-- By using an <<index-templates,index template>>. Refer to <<getting-started-index-lifecycle-management,Automate rollover with ILM>> for details.
-- From within the <<indices-create-index,create index>> request body. 
+- Using an <<index-templates,index template>>. Refer to <<getting-started-index-lifecycle-management,Automate rollover with ILM>> for details.
+- Within the <<indices-create-index,create index>> request body. 
 
 You can override this 
 setting after index creation by <<indices-update-settings,updating the index setting>> to the preferred 

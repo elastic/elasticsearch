@@ -98,7 +98,7 @@ public final class RankFeatureShardPhase {
     }
 
     private RankFeaturePhaseRankShardContext shardContext(SearchContext searchContext) {
-        return searchContext.request().source().rankBuilder() != null
+        return searchContext.request().source() != null && searchContext.request().source().rankBuilder() != null
             ? searchContext.request().source().rankBuilder().buildRankFeaturePhaseShardContext()
             : null;
     }

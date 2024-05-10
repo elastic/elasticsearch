@@ -1,6 +1,9 @@
 ---
 "Capabilities API":
 
+  - skip:
+      awaits_fix: "https://github.com/elastic/elasticsearch/issues/108509"
+
   - requires:
       capabilities:
         - method: GET

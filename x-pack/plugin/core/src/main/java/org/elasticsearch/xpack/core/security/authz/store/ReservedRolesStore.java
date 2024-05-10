@@ -523,7 +523,11 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                     null,
                     null,
                     null,
-                    "Grants the minimum privileges required to view machine learning configuration, status, and work with results."
+                    "Grants the minimum privileges required to view machine learning configuration, status, and work with results. "
+                        + "This role grants monitor_ml cluster privileges, read access to the .ml-notifications and .ml-anomalies* indices "
+                        + "(which store machine learning results), and write access to .ml-annotations* indices. "
+                        + "Machine learning users also need index privileges for source and destination indices "
+                        + "and roles that grant access to Kibana. "
                 )
             ),
             entry(
@@ -557,7 +561,15 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                     null,
                     null,
                     MetadataUtils.DEFAULT_RESERVED_METADATA,
-                    null
+                    null,
+                    null,
+                    null,
+                    null,
+                    "Provides all of the privileges of the machine_learning_user role plus the full use of the machine learning APIs. "
+                        + "Grants manage_ml cluster privileges, read access to .ml-anomalies*, .ml-notifications*, .ml-state*, "
+                        + ".ml-meta* indices and write access to .ml-annotations* indices. "
+                        + "Machine learning administrators also need index privileges for source and destination indices "
+                        + "and roles that grant access to Kibana."
                 )
             ),
             // DEPRECATED: to be removed in 9.0.0

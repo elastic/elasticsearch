@@ -1,0 +1,6 @@
+pr: 108494
+summary: Fixed overlapping templates warning when adding new template with validation
+  false
+area: Indices APIs
+type: bug
+issues: []

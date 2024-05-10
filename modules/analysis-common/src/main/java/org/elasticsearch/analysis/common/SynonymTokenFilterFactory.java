@@ -62,6 +62,8 @@ public class SynonymTokenFilterFactory extends AbstractTokenFilterFactory {
                     + "Instead, insert a lowercase filter in the filter chain before the synonym_graph filter."
             );
         }
+        // TODO: Determine synonym source type here and use it to set lenient
+
         this.expand = settings.getAsBoolean("expand", true);
         this.lenient = settings.getAsBoolean("lenient", false);
         this.format = settings.get("format", "");
@@ -170,6 +172,7 @@ public class SynonymTokenFilterFactory extends AbstractTokenFilterFactory {
             // provide fake synonyms on index creation and index metadata checks to ensure that we
             // don't block a master thread
             if (context != IndexCreationContext.RELOAD_ANALYZERS) {
+                // TODO: Improve this
                 return new ReaderWithOrigin(
                     new StringReader("fake rule => fake"),
                     "fake [" + synonymsSet + "] synonyms_set in .synonyms index",

@@ -224,8 +224,10 @@ public record IngestStats(Stats totalStats, List<PipelineStat> pipelineStats, Ma
             return this;
         }
 
-        Builder addPipelineMetrics(String pipelineId, IngestMetric ingestMetric, IngestPipelineMetric ingestPipelineMetrics) {
-            this.pipelineStats.add(new PipelineStat(pipelineId, ingestMetric.createStats(), ingestPipelineMetrics.createByteStats()));
+        Builder addPipelineMetrics(String pipelineId, IngestPipelineMetric ingestPipelineMetrics) {
+            this.pipelineStats.add(
+                new PipelineStat(pipelineId, ingestPipelineMetrics.createStats(), ingestPipelineMetrics.createByteStats())
+            );
             return this;
         }
 
@@ -283,8 +285,10 @@ public record IngestStats(Stats totalStats, List<PipelineStat> pipelineStats, Ma
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            builder.field("ingested_in_bytes", bytesIngested);
-            builder.field("produced_in_bytes", bytesProduced);
+            if (bytesIngested > 0 && bytesProduced > 0) {
+                builder.field("ingested_in_bytes", bytesIngested);
+                builder.field("produced_in_bytes", bytesProduced);
+            }
             return builder;
         }
 

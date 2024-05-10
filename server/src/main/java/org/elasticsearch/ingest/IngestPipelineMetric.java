@@ -8,45 +8,44 @@
 
 package org.elasticsearch.ingest;
 
-import java.util.concurrent.atomic.LongAdder;
+import org.elasticsearch.common.metrics.CounterMetric;
 
 /**
  * <p>Metrics to measure ingest actions, specific to pipelines.
- * <p>Meant to be used in conjunction with IngestMetric
  */
-public class IngestPipelineMetric {
+public class IngestPipelineMetric extends IngestMetric {
 
     /**
      * The amount of bytes received by a pipeline.
      */
-    private final LongAdder bytesReceived = new LongAdder();
+    private final CounterMetric bytesReceived = new CounterMetric();
 
     /**
      * The amount of bytes produced by a pipeline.
      */
-    private final LongAdder bytesProduced = new LongAdder();
+    private final CounterMetric bytesProduced = new CounterMetric();
 
     /**
      * Call this prior to the ingest action.
      * @param bytesReceived The number of bytes received by the pipeline.
      */
-    void preIngest(long bytesReceived) {
-        this.bytesReceived.add(bytesReceived);
+    void preIngestBytes(long bytesReceived) {
+        this.bytesReceived.inc(bytesReceived);
     }
 
     /**
      * Call this after performing the ingest action, even if the action failed.
      * @param bytesProduced The number of bytes resulting from running a request in the pipeline.
      */
-    void postIngest(long bytesProduced) {
-        this.bytesProduced.add(bytesProduced);
+    void postIngestBytes(long bytesProduced) {
+        this.bytesProduced.inc(bytesProduced);
     }
 
     /**
      * Creates a serializable representation for these metrics.
      */
     IngestStats.ByteStats createByteStats() {
-        return new IngestStats.ByteStats(this.bytesReceived.longValue(), this.bytesProduced.longValue());
+        return new IngestStats.ByteStats(this.bytesReceived.count(), this.bytesProduced.count());
     }
 
 }

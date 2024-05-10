@@ -2580,6 +2580,14 @@ pipeline.
 (integer)
 Total number of failed operations for the ingest pipeline.
 
+`ingested_in_bytes`
+(Optional, integer)
+Total number of bytes ingested by the pipeline, as the first pipeline.
+
+`produced_in_bytes`
+(Optional, integer)
+Total number of bytes produced by the pipeline, as the first pipeline.
+
 `processors`::
 (array of objects)
 Contains statistics for the ingest processors for the ingest pipeline.

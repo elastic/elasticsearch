@@ -16,6 +16,21 @@ teardown:
         index: "ingest_info_index"
         ignore_unavailable: true
 
+  - do:
+      indices.delete:
+        index: "ingest_info_index_two_pipelines"
+        ignore_unavailable: true
+
+  - do:
+      ingest.delete_pipeline:
+        id: "ingest_info_pipeline2"
+        ignore: 404
+
+  - do:
+      ingest.delete_pipeline:
+        id: "ingest_info_final_pipeline"
+        ignore: 404
+
 ---
 "Cluster ingest information":
   - do:
@@ -29,6 +44,38 @@ teardown:
                 "set" : {
                   "field": "pipeline",
                   "value": "pipeline"
+                }
+              }
+            ]
+          }
+
+  - do:
+      ingest.put_pipeline:
+        id: "ingest_info_pipeline2"
+        body:  >
+          {
+            "description": "_description",
+            "processors": [
+              {
+                "set" : {
+                  "field": "pipeline2",
+                  "value": "pipeline2"
+                }
+              }
+            ]
+          }
+
+  - do:
+      ingest.put_pipeline:
+        id: "ingest_info_final_pipeline"
+        body:  >
+          {
+            "description": "_description",
+            "processors": [
+              {
+                "set" : {
+                  "field": "final_pipeline",
+                  "value": "final_pipeline"
                 }
               }
             ]
@@ -65,6 +112,8 @@ teardown:
   - gte: { ingest.pipelines.ingest_info_pipeline.time_in_millis: 0 }
   - match: { ingest.pipelines.ingest_info_pipeline.current: 0 }
   - match: { ingest.pipelines.ingest_info_pipeline.failed: 0 }
+  - gt: { ingest.pipelines.ingest_info_pipeline.ingested_in_bytes: 0 }
+  - gt: { ingest.pipelines.ingest_info_pipeline.produced_in_bytes: 0 }
 
   # Processors section
   - is_true: ingest.pipelines.ingest_info_pipeline.processors.0.set
@@ -74,3 +123,35 @@ teardown:
   - gte: { ingest.pipelines.ingest_info_pipeline.processors.0.set.stats.time_in_millis: 0 }
   - match: { ingest.pipelines.ingest_info_pipeline.processors.0.set.stats.current: 0 }
   - match: { ingest.pipelines.ingest_info_pipeline.processors.0.set.stats.failed: 0 }
+
+  - do:
+      indices.create:
+        index: ingest_info_index_two_pipelines
+        body:
+          settings:
+            index:
+              default_pipeline: "ingest_info_pipeline2"
+              final_pipeline: "ingest_info_final_pipeline"
+          aliases:
+            test_alias: {}
+
+  - do:
+      bulk:
+        refresh: true
+        index: ingest_info_index_two_pipelines
+        body:
+          - '{"create": {}}'
+          - '{"some-field": "some-value"}'
+          - '{"create": {}}'
+          - '{"some-field": "another-value"}'
+
+  - do:
+      cluster.info:
+        target: [ ingest ]
+
+  - is_true: cluster_name
+
+  - gt: { ingest.pipelines.ingest_info_pipeline2.ingested_in_bytes: 0 }
+  - gt: { ingest.pipelines.ingest_info_pipeline2.produced_in_bytes: 0 }
+  - match: { ingest.pipelines.ingest_info_final_pipeline.ingested_in_bytes: null }
+  - match: { ingest.pipelines.ingest_info_final_pipeline.produced_in_bytes: null }

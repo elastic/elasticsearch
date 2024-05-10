@@ -38,8 +38,7 @@ public final class Pipeline {
     @Nullable
     private final Map<String, Object> metadata;
     private final CompoundProcessor compoundProcessor;
-    private final IngestMetric metrics;
-    private final IngestPipelineMetric ingestPipelineMetrics;
+    private final IngestPipelineMetric metrics;
     private final LongSupplier relativeTimeProvider;
     @Nullable
     private final Boolean deprecated;
@@ -80,8 +79,7 @@ public final class Pipeline {
         this.metadata = metadata;
         this.compoundProcessor = compoundProcessor;
         this.version = version;
-        this.metrics = new IngestMetric();
-        this.ingestPipelineMetrics = new IngestPipelineMetric();
+        this.metrics = new IngestPipelineMetric();
         this.relativeTimeProvider = relativeTimeProvider;
         this.deprecated = deprecated;
     }
@@ -201,7 +199,7 @@ public final class Pipeline {
     /**
      * The metrics associated with this pipeline.
      */
-    public IngestMetric getMetrics() {
+    public IngestPipelineMetric getMetrics() {
         return metrics;
     }
 
@@ -211,9 +209,5 @@ public final class Pipeline {
 
     public boolean isDeprecated() {
         return Boolean.TRUE.equals(deprecated);
-    }
-
-    public IngestPipelineMetric getPipelineMetrics() {
-        return ingestPipelineMetrics;
     }
 }

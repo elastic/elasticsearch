@@ -740,7 +740,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                         final long startTimeInNanos = System.nanoTime();
                         totalMetrics.preIngest();
                         if (firstPipeline != null) {
-                            firstPipeline.getPipelineMetrics().preIngest(indexRequest.ramBytesUsed());
+                            firstPipeline.getMetrics().preIngestBytes(indexRequest.ramBytesUsed());
                         }
                         final int slot = i;
                         final Releasable ref = refs.acquire();
@@ -757,9 +757,10 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                                     if (result.success) {
                                         if (result.shouldKeep == false) {
                                             onDropped.accept(slot);
+                                        } else {
+                                            assert firstPipeline != null;
+                                            firstPipeline.getMetrics().postIngestBytes(indexRequest.ramBytesUsed());
                                         }
-                                        assert firstPipeline != null;
-                                        firstPipeline.getPipelineMetrics().postIngest(indexRequest.ramBytesUsed());
                                     } else {
                                         // We were given a failure result in the onResponse method, so we must store the failure
                                         // Recover the original document state, track a failed ingest, and pass it along
@@ -1039,7 +1040,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
         pipelines.forEach((id, holder) -> {
             Pipeline pipeline = holder.pipeline;
             CompoundProcessor rootProcessor = pipeline.getCompoundProcessor();
-            statsBuilder.addPipelineMetrics(id, pipeline.getMetrics(), pipeline.getPipelineMetrics());
+            statsBuilder.addPipelineMetrics(id, pipeline.getMetrics());
             List<Tuple<Processor, IngestMetric>> processorMetrics = new ArrayList<>();
             collectProcessorMetrics(rootProcessor, processorMetrics);
             processorMetrics.forEach(t -> {

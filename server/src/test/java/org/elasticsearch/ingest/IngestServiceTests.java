@@ -2048,6 +2048,7 @@ public class IngestServiceTests extends ESTestCase {
         Map<String, Processor.Factory> map = Maps.newMapWithExpectedSize(2);
         map.put("mock", (factories, tag, description, config) -> processor);
         map.put("failure-mock", (factories, tag, description, config) -> processorFailure);
+        map.put("drop-mock", new DropProcessor.Factory());
         IngestService ingestService = createWithProcessors(map);
 
         final IngestStats initialStats = ingestService.stats();
@@ -2193,6 +2194,37 @@ public class IngestServiceTests extends ESTestCase {
         assertProcessorStats(0, afterForthRequestStats, "_id1", 1, 1, 0); // not carried forward since type changed
         assertProcessorStats(1, afterForthRequestStats, "_id1", 2, 0, 0); // carried forward and added from old stats
         assertProcessorStats(0, afterForthRequestStats, "_id2", 1, 0, 0);
+
+        // test with drop processor
+        putRequest = new PutPipelineRequest("_id3", new BytesArray("{\"processors\": [{\"drop-mock\" : {}}]}"), XContentType.JSON);
+        previousClusterState = clusterState;
+        clusterState = executePut(putRequest, clusterState);
+        ingestService.applyClusterState(new ClusterChangedEvent("", clusterState, previousClusterState));
+        indexRequest.setPipeline("_id3");
+        long startSize3 = indexRequest.ramBytesUsed();
+        ingestService.executeBulkRequest(
+            1,
+            List.of(indexRequest),
+            indexReq -> {},
+            (s) -> false,
+            (slot, targetIndex, e) -> fail("Should not be redirecting failures"),
+            failureHandler,
+            completionHandler,
+            Names.WRITE
+        );
+        final IngestStats afterFifthRequestStats = ingestService.stats();
+        assertThat(afterFifthRequestStats.pipelineStats().size(), equalTo(3));
+        // total
+        assertStats(afterFifthRequestStats.totalStats(), 5, 0, 0);
+        // pipeline
+        assertPipelineStats(afterFifthRequestStats.pipelineStats(), "_id1", 3, 0, 0, startSize1, endSize1);
+        assertPipelineStats(afterFifthRequestStats.pipelineStats(), "_id2", 1, 0, 0, startSize2, endSize2);
+        assertPipelineStats(afterFifthRequestStats.pipelineStats(), "_id3", 1, 0, 0, startSize3, 0);
+        // processor
+        assertProcessorStats(0, afterFifthRequestStats, "_id1", 1, 1, 0);
+        assertProcessorStats(1, afterFifthRequestStats, "_id1", 2, 0, 0);
+        assertProcessorStats(0, afterFifthRequestStats, "_id2", 1, 0, 0);
+
     }
 
     public void testStatName() {

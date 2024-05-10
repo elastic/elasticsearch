@@ -207,7 +207,12 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                         getRemoteIndicesReadPrivileges("metricbeat-*") },
                     null,
                     null,
-                    null
+                    "Grants the minimum privileges required for any user of X-Pack monitoring other than those required to use Kibana. "
+                        + "This role grants access to the monitoring indices and grants privileges necessary "
+                        + "for reading basic cluster information. "
+                        + "This role also includes all Kibana privileges for the Elastic Stack monitoring features. "
+                        + "Monitoring users should also be assigned the kibana_admin role, "
+                        + "or another role with access to the Kibana instance."
                 )
             ),
             entry(

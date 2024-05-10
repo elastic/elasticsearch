@@ -644,7 +644,12 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                     null,
                     null,
                     MetadataUtils.DEFAULT_RESERVED_METADATA,
-                    null
+                    null,
+                    null,
+                    null,
+                    null,
+                    "Grants manage_transform cluster privileges, which enable you to manage transforms. "
+                        + "This role also includes all Kibana privileges for the machine learning features."
                 )
             ),
             entry(
@@ -665,7 +670,12 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                     null,
                     null,
                     MetadataUtils.DEFAULT_RESERVED_METADATA,
-                    null
+                    null,
+                    null,
+                    null,
+                    null,
+                    "Grants monitor_transform cluster privileges, which enable you to perform read-only operations related to "
+                        + "transforms. This role also includes all Kibana privileges for the machine learning features."
                 )
             ),
             entry(

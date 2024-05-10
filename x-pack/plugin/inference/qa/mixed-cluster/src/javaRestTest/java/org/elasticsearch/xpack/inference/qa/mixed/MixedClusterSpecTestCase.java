@@ -10,12 +10,13 @@ package org.elasticsearch.xpack.inference.qa.mixed;
 import org.elasticsearch.Version;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
+import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.test.rest.TestFeatureService;
 import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.ClassRule;
 
-public class MixedClusterSpecIT extends BaseMixedIT {
+public abstract class MixedClusterSpecTestCase extends ESRestTestCase {
     @ClassRule
     public static ElasticsearchCluster cluster = Clusters.mixedVersionCluster();
 

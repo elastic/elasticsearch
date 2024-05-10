@@ -21,14 +21,14 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.xpack.inference.qa.mixed.MixedClusterSpecIT.bwcVersion;
+import static org.elasticsearch.xpack.inference.qa.mixed.MixedClusterSpecTestCase.bwcVersion;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.oneOf;
 
-public class CohereServiceMixedIT extends BaseMixedIT {
+public class CohereServiceMixedIT extends BaseMixedTestCase {
 
     private static final String COHERE_EMBEDDINGS_ADDED = "8.13.0";
     private static final String COHERE_RERANK_ADDED = "8.14.0";
@@ -63,6 +63,7 @@ public class CohereServiceMixedIT extends BaseMixedIT {
         // queue a response as PUT will call the service
         cohereEmbeddingsServer.enqueue(new MockResponse().setResponseCode(200).setBody(embeddingResponseByte()));
         put(inferenceIdInt8, embeddingConfigInt8(getUrl(cohereEmbeddingsServer)), TaskType.TEXT_EMBEDDING);
+
         // float model
         cohereEmbeddingsServer.enqueue(new MockResponse().setResponseCode(200).setBody(embeddingResponseFloat()));
         put(inferenceIdFloat, embeddingConfigFloat(getUrl(cohereEmbeddingsServer)), TaskType.TEXT_EMBEDDING);

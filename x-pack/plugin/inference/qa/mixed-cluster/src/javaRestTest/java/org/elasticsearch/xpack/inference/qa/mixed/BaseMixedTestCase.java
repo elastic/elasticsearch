@@ -16,32 +16,15 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.cluster.ElasticsearchCluster;
-import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 import org.elasticsearch.test.http.MockWebServer;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.hamcrest.Matchers;
-import org.junit.ClassRule;
 
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
-public abstract class BaseMixedIT extends ESRestTestCase {
-    @ClassRule
-    public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
-        .distribution(DistributionType.DEFAULT)
-        .setting("xpack.license.self_generated.type", "trial")
-        .setting("xpack.security.enabled", "true")
-        .plugin("inference-service-test")
-        .user("x_pack_rest_user", "x-pack-test-password")
-        .build();
-
-    @Override
-    protected String getTestRestCluster() {
-        return cluster.getHttpAddresses();
-    }
-
+public abstract class BaseMixedTestCase extends MixedClusterSpecTestCase {
     protected static String getUrl(MockWebServer webServer) {
         return Strings.format("http://%s:%s", webServer.getHostName(), webServer.getPort());
     }
@@ -123,8 +106,9 @@ public abstract class BaseMixedIT extends ESRestTestCase {
         var request = new Request("PUT", endpoint);
         request.setJsonEntity(modelConfig);
         var response = ESRestTestCase.client().performRequest(request);
-        ESRestTestCase.assertOKAndConsume(response);
         logger.warn("PUT response: {}", response.toString());
+        System.out.println("PUT response: " + response.toString());
+        ESRestTestCase.assertOKAndConsume(response);
     }
 
     protected static void assertOkOrCreated(Response response) throws IOException {

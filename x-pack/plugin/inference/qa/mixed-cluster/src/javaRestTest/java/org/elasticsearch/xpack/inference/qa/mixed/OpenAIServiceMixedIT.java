@@ -19,13 +19,13 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.xpack.inference.qa.mixed.MixedClusterSpecIT.bwcVersion;
+import static org.elasticsearch.xpack.inference.qa.mixed.MixedClusterSpecTestCase.bwcVersion;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.not;
 
-public class OpenAIServiceMixedIT extends BaseMixedIT {
+public class OpenAIServiceMixedIT extends BaseMixedTestCase {
 
     private static final String OPEN_AI_EMBEDDINGS_ADDED = "8.12.0";
     private static final String OPEN_AI_EMBEDDINGS_MODEL_SETTING_MOVED = "8.13.0";

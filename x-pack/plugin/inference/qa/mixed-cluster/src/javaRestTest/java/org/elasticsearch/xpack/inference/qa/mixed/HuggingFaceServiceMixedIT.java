@@ -19,10 +19,11 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.xpack.inference.qa.mixed.MixedClusterSpecIT.bwcVersion;
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.empty;
+import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.not;
 
-public class HuggingFaceServiceMixedIT extends BaseMixedIT {
+public class HuggingFaceServiceMixedIT extends BaseMixedTestCase {
 
     private static final String HF_EMBEDDINGS_ADDED = "8.12.0";
     private static final String HF_ELSER_ADDED = "8.12.0";

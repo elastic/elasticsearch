@@ -39,6 +39,7 @@ import org.apache.lucene.index.Sorter;
 import org.apache.lucene.index.VectorEncoding;
 import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.search.DocIdSetIterator;
+import org.apache.lucene.search.VectorScorer;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
@@ -457,6 +458,8 @@ public final class ES814ScalarQuantizedVectorsWriter extends FlatVectorsWriter {
                         docsWithField.cardinality(),
                         mergedQuantizationState, // TODO: bits
                         false, // TODO compress
+                        fieldInfo.getVectorSimilarityFunction(),
+                        vectorsScorer,
                         quantizationDataInput
                     )
                 );
@@ -649,6 +652,11 @@ public final class ES814ScalarQuantizedVectorsWriter extends FlatVectorsWriter {
             curDoc = target;
             return docID();
         }
+
+        @Override
+        public VectorScorer scorer(float[] floats) throws IOException {
+            throw new UnsupportedOperationException();
+        }
     }
 
     private static class QuantizedByteVectorValueSub extends DocIDMerger.Sub {
@@ -770,6 +778,11 @@ public final class ES814ScalarQuantizedVectorsWriter extends FlatVectorsWriter {
         public float getScoreCorrectionConstant() throws IOException {
             return current.values.getScoreCorrectionConstant();
         }
+
+        @Override
+        public VectorScorer vectorScorer(float[] floats) throws IOException {
+            throw new UnsupportedOperationException();
+        }
     }
 
     private static class QuantizedFloatVectorValues extends QuantizedByteVectorValues {
@@ -834,6 +847,11 @@ public final class ES814ScalarQuantizedVectorsWriter extends FlatVectorsWriter {
                 quantize();
             }
             return doc;
+        }
+
+        @Override
+        public VectorScorer vectorScorer(float[] floats) throws IOException {
+            throw new UnsupportedOperationException();
         }
 
         private void quantize() throws IOException {
@@ -931,6 +949,11 @@ public final class ES814ScalarQuantizedVectorsWriter extends FlatVectorsWriter {
         @Override
         public int advance(int target) throws IOException {
             return in.advance(target);
+        }
+
+        @Override
+        public VectorScorer vectorScorer(float[] floats) throws IOException {
+            throw new UnsupportedOperationException();
         }
     }
 }

@@ -10,6 +10,7 @@ package org.elasticsearch.index.mapper.vectors;
 
 import org.apache.lucene.index.FloatVectorValues;
 import org.apache.lucene.index.NumericDocValues;
+import org.apache.lucene.search.VectorScorer;
 
 import java.io.IOException;
 
@@ -61,6 +62,11 @@ public class DenormalizedCosineFloatVectorValues extends FloatVectorValues {
     @Override
     public int advance(int target) throws IOException {
         return in.advance(target);
+    }
+
+    @Override
+    public VectorScorer scorer(float[] floats) throws IOException {
+        return in.scorer(floats);
     }
 
     public float magnitude() {

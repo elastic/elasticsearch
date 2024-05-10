@@ -76,13 +76,18 @@ public abstract class BaseRestHandler implements RestHandler {
     @Override
     public abstract List<Route> routes();
 
+    private static final Set<String> ALWAYS_SUPPORTED = Set.of("format", "filter_path", "pretty", "human");
+
     @Override
     public final void handleRequest(RestRequest request, RestChannel channel, NodeClient client) throws Exception {
         // check if the query has any parameters that are not in the supported set (if declared)
         Set<String> supported = supportedQueryParameters();
-        if (supported != null && supported.containsAll(request.params().keySet()) == false) {
-            Set<String> unsupported = Sets.difference(request.params().keySet(), supported);
-            throw new IllegalArgumentException(unrecognized(request, unsupported, supported, "parameter"));
+        if (supported != null) {
+            var allSupported = Sets.union(ALWAYS_SUPPORTED, supported);
+            if (allSupported.containsAll(request.params().keySet()) == false) {
+                Set<String> unsupported = Sets.difference(request.params().keySet(), allSupported);
+                throw new IllegalArgumentException(unrecognized(request, unsupported, allSupported, "parameter"));
+            }
         }
 
         // prepare the request for execution; has the side effect of touching the request parameters

@@ -4583,6 +4583,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
             }
         }
     }
+
     public static WildcardLike wildcardLike(Expression left, String exp) {
         return new WildcardLike(EMPTY, left, new WildcardPattern(exp));
     }

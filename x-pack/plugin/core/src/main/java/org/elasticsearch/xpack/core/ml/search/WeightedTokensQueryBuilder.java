@@ -40,40 +40,30 @@ public class WeightedTokensQueryBuilder extends AbstractQueryBuilder<WeightedTok
     @Nullable
     private final TokenPruningConfig tokenPruningConfig;
 
-    public enum AllowedFieldType {
-        RANK_FEATURES("rank_features"),
-        SPARSE_VECTOR("sparse_vector");
-
-        private final String typeName;
-
-        AllowedFieldType(String typeName) {
-            this.typeName = typeName;
-        }
-
-        public String getTypeName() {
-            return typeName;
-        }
-
-        public static boolean isFieldTypeAllowed(String typeName) {
-            return Arrays.stream(values()).anyMatch(value -> value.typeName.equals(typeName));
-        }
-
-        public static String getAllowedFieldTypesAsString() {
-            return Arrays.stream(values()).map(value -> value.typeName).collect(Collectors.joining(", "));
-        }
-    }
+    private final List<String> DEFAULT_ALLOWED_FIELD_TYPES = List.of("sparse_vector", "rank_features");
+    private final List<String> allowedFieldTypes;
 
     public WeightedTokensQueryBuilder(String fieldName, List<WeightedToken> tokens) {
         this(fieldName, tokens, null);
     }
 
     public WeightedTokensQueryBuilder(String fieldName, List<WeightedToken> tokens, @Nullable TokenPruningConfig tokenPruningConfig) {
+        this(fieldName, tokens, tokenPruningConfig, null);
+    }
+
+    public WeightedTokensQueryBuilder(
+        String fieldName,
+        List<WeightedToken> tokens,
+        @Nullable TokenPruningConfig tokenPruningConfig,
+        List<String> allowedFieldTypes
+    ) {
         this.fieldName = Objects.requireNonNull(fieldName, "[" + NAME + "] requires a fieldName");
         this.tokens = Objects.requireNonNull(tokens, "[" + NAME + "] requires tokens");
         if (tokens.isEmpty()) {
             throw new IllegalArgumentException("[" + NAME + "] requires at least one token");
         }
         this.tokenPruningConfig = tokenPruningConfig;
+        this.allowedFieldTypes = allowedFieldTypes != null ? allowedFieldTypes : DEFAULT_ALLOWED_FIELD_TYPES;
     }
 
     public WeightedTokensQueryBuilder(StreamInput in) throws IOException {
@@ -81,6 +71,11 @@ public class WeightedTokensQueryBuilder extends AbstractQueryBuilder<WeightedTok
         this.fieldName = in.readString();
         this.tokens = in.readCollectionAsList(WeightedToken::new);
         this.tokenPruningConfig = in.readOptionalWriteable(TokenPruningConfig::new);
+        if (in.getTransportVersion().onOrAfter(TransportVersions.SPARSE_VECTOR_QUERY_ADDED)) {
+            this.allowedFieldTypes = in.readOptionalStringCollectionAsList();
+        } else {
+            this.allowedFieldTypes = DEFAULT_ALLOWED_FIELD_TYPES;
+        }
     }
 
     public String getFieldName() {
@@ -105,6 +100,9 @@ public class WeightedTokensQueryBuilder extends AbstractQueryBuilder<WeightedTok
         out.writeString(fieldName);
         out.writeCollection(tokens);
         out.writeOptionalWriteable(tokenPruningConfig);
+        if (out.getTransportVersion().onOrAfter(TransportVersions.SPARSE_VECTOR_QUERY_ADDED)) {
+            out.writeOptionalStringCollection(allowedFieldTypes);
+        }
     }
 
     @Override
@@ -132,14 +130,14 @@ public class WeightedTokensQueryBuilder extends AbstractQueryBuilder<WeightedTok
         }
 
         final String fieldTypeName = ft.typeName();
-        if (AllowedFieldType.isFieldTypeAllowed(fieldTypeName) == false) {
+        if (allowedFieldTypes.contains(fieldTypeName) == false) {
             throw new ElasticsearchParseException(
                 "["
                     + fieldTypeName
                     + "]"
                     + " is not an appropriate field type for this query. "
                     + "Allowed field types are ["
-                    + AllowedFieldType.getAllowedFieldTypesAsString()
+                    + String.join(", ", allowedFieldTypes)
                     + "]."
             );
         }

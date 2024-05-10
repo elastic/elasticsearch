@@ -319,12 +319,12 @@ setup:
 ---
 "Test sparse_vector displays error for invalid queried field type":
   - do:
-      catch: /field \[text_field\] must be type \[sparse_vector\] but is type \[text\]/
+      catch: /\[keyword\] is not an appropriate field type for this query. Allowed field types are \[sparse_vector\]./
       search:
         index: index-with-sparse-vector
         body:
           query:
             sparse_vector:
-              field: text
+              field: source_text
               inference_id: text_expansion_model
               text: "octopus comforter smells"

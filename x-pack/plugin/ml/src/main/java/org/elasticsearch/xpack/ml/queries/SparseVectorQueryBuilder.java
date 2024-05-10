@@ -220,7 +220,7 @@ public class SparseVectorQueryBuilder extends AbstractQueryBuilder<SparseVectorQ
             : null);
         if (queryVectors != null) {
             // TODO return `this` and remove call to weighted tokens builder
-            return new WeightedTokensQueryBuilder(fieldName, queryVectors, weightedTokensPruningConfig);
+            return new WeightedTokensQueryBuilder(fieldName, queryVectors, weightedTokensPruningConfig, List.of(ALLOWED_FIELD_TYPE));
         } else if (weightedTokensSupplier != null) {
             TextExpansionResults textExpansionResults = weightedTokensSupplier.get();
             if (textExpansionResults == null) {
@@ -229,7 +229,12 @@ public class SparseVectorQueryBuilder extends AbstractQueryBuilder<SparseVectorQ
 
             // TODO - Replace this with a new instance of SparseVectorQueryBuilder that uses `textExpansionResults.getWeightedTokens()`
             // as the input query vectors and remove call to weighted tokens builder
-            return new WeightedTokensQueryBuilder(fieldName, textExpansionResults.getWeightedTokens(), weightedTokensPruningConfig);
+            return new WeightedTokensQueryBuilder(
+                fieldName,
+                textExpansionResults.getWeightedTokens(),
+                weightedTokensPruningConfig,
+                List.of(ALLOWED_FIELD_TYPE)
+            );
         }
 
         // TODO move this to xpack core and use inference APIs

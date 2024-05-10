@@ -465,7 +465,11 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                     null,
                     null,
                     MetadataUtils.DEFAULT_RESERVED_METADATA,
-                    null
+                    null,
+                    null,
+                    null,
+                    null,
+                    "Grants access necessary to manage inference models and performing inference."
                 )
             ),
             entry(
@@ -478,7 +482,11 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                     null,
                     null,
                     MetadataUtils.DEFAULT_RESERVED_METADATA,
-                    null
+                    null,
+                    null,
+                    null,
+                    null,
+                    "Grants access necessary to perform inference."
                 )
             ),
             entry(

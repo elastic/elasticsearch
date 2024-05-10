@@ -1158,7 +1158,9 @@ public class ApiKeyServiceTests extends ESTestCase {
             getFastStoredHashAlgoForTests().hash(new SecureString(key.toCharArray())),
             "test",
             authentication,
-            type == ApiKey.Type.CROSS_CLUSTER ? Set.of() : Collections.singleton(SUPERUSER_ROLE_DESCRIPTOR),
+            type == ApiKey.Type.CROSS_CLUSTER
+                ? Set.of()
+                : ApiKeyService.removeUserRoleDescriptorDescriptions(Set.of(SUPERUSER_ROLE_DESCRIPTOR)),
             Instant.now(),
             Instant.now().plus(expiry),
             keyRoles,
@@ -1796,7 +1798,10 @@ public class ApiKeyServiceTests extends ESTestCase {
             RoleReference.ApiKeyRoleType.LIMITED_BY
         );
         assertEquals(1, limitedByRoleDescriptors.size());
-        assertEquals(SUPERUSER_ROLE_DESCRIPTOR, limitedByRoleDescriptors.get(0));
+        RoleDescriptor superuserWithoutDescription = ApiKeyService.removeUserRoleDescriptorDescriptions(Set.of(SUPERUSER_ROLE_DESCRIPTOR))
+            .iterator()
+            .next();
+        assertEquals(superuserWithoutDescription, limitedByRoleDescriptors.get(0));
         if (metadata == null) {
             assertNull(cachedApiKeyDoc.metadataFlattened);
         } else {

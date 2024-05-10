@@ -87,11 +87,9 @@ public class TextSimilarityRankTests extends ESSingleNodeTestCase {
                 return;
             }
 
-            // Discard the result of the inference action and respond with rerank results
-            chain.proceed(task, action, request, listener.delegateResponse((actionListener, exception) -> {
-                ActionResponse response = new InferenceAction.Response(new RankedDocsResults(RANKED_DOCS));
-                actionListener.onResponse((Response) response);
-            }));
+            // For inference action respond with rerank results
+            ActionResponse response = new InferenceAction.Response(new RankedDocsResults(RANKED_DOCS));
+            listener.onResponse((Response) response);
         }
     }
 

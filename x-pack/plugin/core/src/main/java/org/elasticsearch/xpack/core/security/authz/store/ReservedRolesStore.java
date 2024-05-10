@@ -103,7 +103,11 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
             )
         ),
         null,
-        null
+        "Grants full access to cluster management and data indices. "
+            + "This role also grants direct read-only access to restricted indices like .security. "
+            + "A user with this role can impersonate any other user in the system, "
+            + "manage security and create roles with unlimited privileges. "
+            + "Take extra care when assigning it to a user."
     );
 
     private static final Map<String, RoleDescriptor> ALL_RESERVED_ROLES = initializeReservedRoles();

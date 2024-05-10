@@ -287,11 +287,11 @@ public class StatelessBatchedBehavioursIT extends AbstractStatelessIntegTestCase
 
         final var indexShard = findIndexShard(indexName);
         // First empty commit is always uploaded
-        final AtomicLong latestUploadedGeneration = new AtomicLong(
-            indexShard.getEngineOrNull().getLastCommittedSegmentInfos().getGeneration()
-        );
+        final long initialGeneration = indexShard.getEngineOrNull().getLastCommittedSegmentInfos().getGeneration();
+        final AtomicLong latestUploadedGeneration = new AtomicLong(initialGeneration);
         final int numberOfRuns = between(1, 5);
         for (int i = 1; i <= numberOfRuns; i++) {
+            final long currentGeneration = initialGeneration + i;
             indexDocs(indexName, randomIntBetween(1, 100));
             refresh(indexName);
             final boolean isUpload = i % STATELESS_UPLOAD_MAX_COMMITS == 0;
@@ -301,7 +301,17 @@ public class StatelessBatchedBehavioursIT extends AbstractStatelessIntegTestCase
 
                 final var creationNotificationRequest = requestList.get(0);
                 assertThat(creationNotificationRequest.isUploaded(), is(false));
-                assertThat(creationNotificationRequest.getBatchedCompoundCommitGeneration(), equalTo(latestUploadedGeneration.get() + 1L));
+                assertThat(creationNotificationRequest.getCompoundCommit().generation(), equalTo(currentGeneration));
+                // The first (empty) and second BCC generations are next to each other, usually 3 and 4.
+                // The subsequent BCC generations are separated by the value of max_commits, e.g. 4, 7, 10 for max_commits=3
+                assertThat(
+                    creationNotificationRequest.getBatchedCompoundCommitGeneration(),
+                    equalTo(
+                        latestUploadedGeneration.get() == initialGeneration
+                            ? initialGeneration + 1
+                            : latestUploadedGeneration.get() + STATELESS_UPLOAD_MAX_COMMITS
+                    )
+                );
                 assertThat(
                     creationNotificationRequest.getLatestUploadedBatchedCompoundCommitTermAndGen().generation(),
                     equalTo(latestUploadedGeneration.get())

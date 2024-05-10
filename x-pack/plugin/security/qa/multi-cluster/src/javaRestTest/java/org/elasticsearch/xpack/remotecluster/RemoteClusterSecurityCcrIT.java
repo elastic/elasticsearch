@@ -64,6 +64,12 @@ public class RemoteClusterSecurityCcrIT extends AbstractRemoteClusterSecurityTes
             .keystore("cluster.remote.my_remote_cluster.credentials", () -> {
                 API_KEY_MAP_REF.updateAndGet(v -> v != null ? v : createCrossClusterAccessApiKey("""
                     {
+                      "search": [
+                        {
+                           "names": ["leader-index", "leader-alias", "metrics-*"],
+                           "query": {"match_none": {}}
+                        }
+                      ],
                       "replication": [
                         {
                            "names": ["leader-index", "leader-alias", "metrics-*"]

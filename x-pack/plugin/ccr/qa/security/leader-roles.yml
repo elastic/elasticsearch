@@ -6,3 +6,4 @@ ccruser:
       privileges:
         - manage
         - read
+      query: '{"match_none":{}}'

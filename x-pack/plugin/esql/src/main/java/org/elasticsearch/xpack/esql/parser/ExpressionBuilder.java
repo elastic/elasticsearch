@@ -658,24 +658,18 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
     }
 
     @Override
-    public Object visitInputNamedParam(EsqlBaseParser.InputNamedParamContext ctx) {
-        TypedParamValue param = paramByName(ctx.NAMED_PARAM());
-        return visitParam(ctx, param);
-    }
-
-    @Override
     public Object visitInputParam(EsqlBaseParser.InputParamContext ctx) {
-        TypedParamValue param = paramByToken(ctx.PARAM());
+        Param param = paramByToken(ctx.PARAM());
         return visitParam(ctx, param);
     }
 
     @Override
-    public Object visitInputPositionalParam(EsqlBaseParser.InputPositionalParamContext ctx) {
-        TypedParamValue param = paramByPosition(ctx.POSITIONAL_PARAM());
+    public Object visitInputParamNamedOrPositional(EsqlBaseParser.InputParamNamedOrPositionalContext ctx) {
+        Param param = paramByNameOrPosition(ctx.PARAM_NAMED_OR_POSITIONAL());
         return visitParam(ctx, param);
     }
 
-    private Object visitParam(EsqlBaseParser.ConstantContext ctx, TypedParamValue param) {
+    private Object visitParam(EsqlBaseParser.ParamsContext ctx, Param param) {
         DataType dataType = EsqlDataTypes.fromTypeName(param.type);
         Source source = source(ctx);
         if (dataType == null) {
@@ -685,18 +679,7 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
             // no conversion is required for null values
             return new Literal(source, null, dataType);
         }
-        final DataType sourceType;
-        try {
-            sourceType = DataTypes.fromJava(param.value);
-        } catch (QlIllegalArgumentException ex) {
-            throw new ParsingException(
-                ex,
-                source,
-                "Unexpected actual parameter type [{}] for type [{}]",
-                param.value.getClass().getName(),
-                param.type
-            );
-        }
+        DataType sourceType = DataTypes.fromJava(param.value);
         if (sourceType == dataType) {
             // no conversion is required if the value is already have correct type
             return new Literal(source, param.value, dataType);
@@ -718,7 +701,7 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
         }
     }
 
-    TypedParamValue paramByToken(TerminalNode node) {
+    Param paramByToken(TerminalNode node) {
         if (node == null) {
             return null;
         }
@@ -729,27 +712,23 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
         return params.getParamByTokenLocation(token);
     }
 
-    TypedParamValue paramByName(TerminalNode node) {
+    Param paramByNameOrPosition(TerminalNode node) {
         if (node == null) {
             return null;
         }
         Token token = node.getSymbol();
-        if (params.containsParamName(token.getText().substring(1)) == false) {
-            throw new ParsingException(source(node), "Unexpected parameter ?" + token.getText().substring(1));
+        String nameOrPosition = token.getText().substring(1);
+        if (nameOrPosition.matches("[0-9]+")) {
+            int index = Integer.parseInt(nameOrPosition);
+            if (params.paramByPosition(index) == null) {
+                throw new ParsingException(source(node), "Unexpected parameter ?" + index);
+            }
+            return params.paramByPosition(index);
+        } else {
+            if (params.containsParamName(nameOrPosition) == false) {
+                throw new ParsingException(source(node), "Unexpected parameter ?" + nameOrPosition);
+            }
+            return params.getParamByName(nameOrPosition);
         }
-        return params.getParamByName(token.getText().substring(1));
     }
-
-    TypedParamValue paramByPosition(TerminalNode node) {
-        if (node == null) {
-            return null;
-        }
-        Token token = node.getSymbol();
-        int index = Integer.parseInt(token.getText().substring(1));
-        if (params.paramByPosition(index) == null) {
-            throw new ParsingException(source(node), "Unexpected parameter ?" + index);
-        }
-        return params.paramByPosition(index);
-    }
-
 }

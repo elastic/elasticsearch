@@ -12,7 +12,6 @@ import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.RLike;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.WildcardLike;
@@ -79,7 +78,6 @@ import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 
-@TestLogging(value = "org.elasticsearch.xpack.esql:TRACE", reason = "debug")
 public class StatementParserTests extends ESTestCase {
 
     private static String FROM = "from test";
@@ -410,7 +408,7 @@ public class StatementParserTests extends ESTestCase {
     }
 
     public void testLimitConstraints() {
-        expectError("from text | limit -1", "line 1:19: no viable alternative at input 'limit -'");
+        expectError("from text | limit -1", "extraneous input '-' expecting {INTEGER_LITERAL, '?', PARAM_NAMED_OR_POSITIONAL}");
     }
 
     public void testBasicSortCommand() {
@@ -874,12 +872,12 @@ public class StatementParserTests extends ESTestCase {
             "row x = ?, y = ?, a = ?, b = ?, c = ?, d = ?",
             new Params(
                 List.of(
-                    new TypedParamValue(null, "integer", 1),
-                    new TypedParamValue(null, "keyword", "2"),
-                    new TypedParamValue(null, "date_period", "2 days"),
-                    new TypedParamValue(null, "time_duration", "4 hours"),
-                    new TypedParamValue(null, "version", "1.2.3"),
-                    new TypedParamValue(null, "ip", "127.0.0.1")
+                    new Param(null, "integer", 1),
+                    new Param(null, "keyword", "2"),
+                    new Param(null, "date_period", "2 days"),
+                    new Param(null, "time_duration", "4 hours"),
+                    new Param(null, "version", "1.2.3"),
+                    new Param(null, "ip", "127.0.0.1")
                 )
             )
         );
@@ -927,49 +925,37 @@ public class StatementParserTests extends ESTestCase {
     }
 
     public void testWrongIntervalParams() {
-        expectError("row x = ?", List.of(new TypedParamValue(null, "date_period", "12")), "Cannot parse [12] to DATE_PERIOD");
-        expectError("row x = ?", List.of(new TypedParamValue(null, "time_duration", "12")), "Cannot parse [12] to TIME_DURATION");
+        expectError("row x = ?", List.of(new Param(null, "date_period", "12")), "Cannot parse [12] to DATE_PERIOD");
+        expectError("row x = ?", List.of(new Param(null, "time_duration", "12")), "Cannot parse [12] to TIME_DURATION");
+        expectError("row x = ?", List.of(new Param(null, "date_period", "12 months foo")), "Cannot parse [12 months foo] to DATE_PERIOD");
         expectError(
             "row x = ?",
-            List.of(new TypedParamValue(null, "date_period", "12 months foo")),
-            "Cannot parse [12 months foo] to DATE_PERIOD"
-        );
-        expectError(
-            "row x = ?",
-            List.of(new TypedParamValue(null, "time_duration", "12 minutes bar")),
+            List.of(new Param(null, "time_duration", "12 minutes bar")),
             "Cannot parse [12 minutes bar] to TIME_DURATION"
         );
-        expectError("row x = ?", List.of(new TypedParamValue(null, "date_period", "12 foo")), "Unexpected time interval qualifier: 'foo'");
-        expectError(
-            "row x = ?",
-            List.of(new TypedParamValue(null, "time_duration", "12 bar")),
-            "Unexpected time interval qualifier: 'bar'"
-        );
-        expectError("row x = ?", List.of(new TypedParamValue(null, "date_period", "foo days")), "Cannot parse [foo days] to DATE_PERIOD");
-        expectError(
-            "row x = ?",
-            List.of(new TypedParamValue(null, "time_duration", "bar seconds")),
-            "Cannot parse [bar seconds] to TIME_DURATION"
-        );
+        expectError("row x = ?", List.of(new Param(null, "date_period", "12 foo")), "Unexpected time interval qualifier: 'foo'");
+        expectError("row x = ?", List.of(new Param(null, "time_duration", "12 bar")), "Unexpected time interval qualifier: 'bar'");
+        expectError("row x = ?", List.of(new Param(null, "date_period", "foo days")), "Cannot parse [foo days] to DATE_PERIOD");
+        expectError("row x = ?", List.of(new Param(null, "time_duration", "bar seconds")), "Cannot parse [bar seconds] to TIME_DURATION");
 
         expectError(
             "row x = ?",
-            List.of(new TypedParamValue(null, "date_period", "2 minutes")),
+            List.of(new Param(null, "date_period", "2 minutes")),
             "Cannot parse [2 minutes] to DATE_PERIOD, did you mean TIME_DURATION?"
         );
         expectError(
             "row x = ?",
-            List.of(new TypedParamValue(null, "time_duration", "11 months")),
+            List.of(new Param(null, "time_duration", "11 months")),
             "Cannot parse [11 months] to TIME_DURATION, did you mean DATE_PERIOD?"
         );
     }
 
     public void testMissingInputParams() {
-        expectError("row x = ?, y = ?", List.of(new TypedParamValue(null, "integer", 1)), "Not enough actual parameters 1");
+        expectError("row x = ?, y = ?", List.of(new Param(null, "integer", 1)), "Not enough actual parameters 1");
     }
 
     public void testNamedInputParams() {
-        LogicalPlan stm = statement("row x=?name1, y = ?name1", new Params(List.of(new TypedParamValue("name1", "integer", 1, false))));
+        LogicalPlan stm = statement("row x=?name1, y = ?name1", new Params(List.of(new Param("name1", "integer", 1, false))));
         assertThat(stm, instanceOf(Row.class));
         Row row = (Row) stm;
         assertThat(row.fields().size(), is(2));
@@ -988,7 +974,7 @@ public class StatementParserTests extends ESTestCase {
     }
 
     public void testPositionalInputParamsWithName() {
-        LogicalPlan stm = statement("row x=?1, y = ?name1", new Params(List.of(new TypedParamValue("name1", "integer", 1))));
+        LogicalPlan stm = statement("row x=?1, y = ?name1", new Params(List.of(new Param("name1", "integer", 1))));
         assertThat(stm, instanceOf(Row.class));
         Row row = (Row) stm;
         assertThat(row.fields().size(), is(2));
@@ -1007,7 +993,7 @@ public class StatementParserTests extends ESTestCase {
     }
 
     public void testPositionalInputParamsWithoutName() {
-        LogicalPlan stm = statement("row x=?1, y=?1", new Params(List.of(new TypedParamValue(null, "integer", 1))));
+        LogicalPlan stm = statement("row x=?1, y=?1", new Params(List.of(new Param(null, "integer", 1))));
         assertThat(stm, instanceOf(Row.class));
         Row row = (Row) stm;
         assertThat(row.fields().size(), is(2));
@@ -1026,7 +1012,7 @@ public class StatementParserTests extends ESTestCase {
     }
 
     public void testParamInLimit() {
-        LogicalPlan plan = statement("from test | limit ?", new Params(List.of(new TypedParamValue(null, "integer", 10))));
+        LogicalPlan plan = statement("from test | limit ?", new Params(List.of(new Param(null, "integer", 10))));
         assertThat(plan, instanceOf(Limit.class));
         Limit limit = (Limit) plan;
         assertThat(limit.limit(), instanceOf(Literal.class));
@@ -1034,10 +1020,7 @@ public class StatementParserTests extends ESTestCase {
         assertThat(limit.children().size(), equalTo(1));
         assertThat(limit.children().get(0), instanceOf(EsqlUnresolvedRelation.class));
 
-        plan = statement(
-            "from test | limit ?n1",
-            new Params(List.of(new TypedParamValue("n1", "integer", 10), new TypedParamValue("n2", "integer", 5)))
-        );
+        plan = statement("from test | limit ?n1", new Params(List.of(new Param("n1", "integer", 10), new Param("n2", "integer", 5))));
         assertThat(plan, instanceOf(Limit.class));
         limit = (Limit) plan;
         assertThat(limit.limit(), instanceOf(Literal.class));
@@ -1045,10 +1028,7 @@ public class StatementParserTests extends ESTestCase {
         assertThat(limit.children().size(), equalTo(1));
         assertThat(limit.children().get(0), instanceOf(EsqlUnresolvedRelation.class));
 
-        plan = statement(
-            "from test | limit ?2",
-            new Params(List.of(new TypedParamValue(null, "integer", 5), new TypedParamValue(null, "integer", 10)))
-        );
+        plan = statement("from test | limit ?2", new Params(List.of(new Param(null, "integer", 5), new Param(null, "integer", 10))));
         assertThat(plan, instanceOf(Limit.class));
         limit = (Limit) plan;
         assertThat(limit.limit(), instanceOf(Literal.class));
@@ -1060,7 +1040,7 @@ public class StatementParserTests extends ESTestCase {
     public void testParamInWhere() {
         LogicalPlan plan = statement(
             "from test | where x < ? |  limit ?",
-            new Params(List.of(new TypedParamValue(null, "integer", 5), new TypedParamValue(null, "integer", 10)))
+            new Params(List.of(new Param(null, "integer", 5), new Param(null, "integer", 10)))
         );
         assertThat(plan, instanceOf(Limit.class));
         Limit limit = (Limit) plan;
@@ -1075,7 +1055,7 @@ public class StatementParserTests extends ESTestCase {
 
         plan = statement(
             "from test | where x < ?n1 |  limit ?n2",
-            new Params(List.of(new TypedParamValue("n1", "integer", 5), new TypedParamValue("n2", "integer", 10)))
+            new Params(List.of(new Param("n1", "integer", 5), new Param("n2", "integer", 10)))
         );
         assertThat(plan, instanceOf(Limit.class));
         limit = (Limit) plan;
@@ -1090,7 +1070,7 @@ public class StatementParserTests extends ESTestCase {
 
         plan = statement(
             "from test | where x < ?1 |  limit ?2",
-            new Params(List.of(new TypedParamValue(null, "integer", 5), new TypedParamValue(null, "integer", 10)))
+            new Params(List.of(new Param(null, "integer", 5), new Param(null, "integer", 10)))
         );
         assertThat(plan, instanceOf(Limit.class));
         limit = (Limit) plan;
@@ -1109,10 +1089,10 @@ public class StatementParserTests extends ESTestCase {
             "from test | where x < ? | eval y = ? + ? |  limit ?",
             new Params(
                 List.of(
-                    new TypedParamValue(null, "integer", 5),
-                    new TypedParamValue(null, "integer", -1),
-                    new TypedParamValue(null, "integer", 100),
-                    new TypedParamValue(null, "integer", 10)
+                    new Param(null, "integer", 5),
+                    new Param(null, "integer", -1),
+                    new Param(null, "integer", 100),
+                    new Param(null, "integer", 10)
                 )
             )
         );
@@ -1134,10 +1114,10 @@ public class StatementParserTests extends ESTestCase {
             "from test | where x < ?n1 | eval y = ?n2 + ?n3 |  limit ?n4",
             new Params(
                 List.of(
-                    new TypedParamValue("n1", "integer", 5),
-                    new TypedParamValue("n2", "integer", -1),
-                    new TypedParamValue("n3", "integer", 100),
-                    new TypedParamValue("n4", "integer", 10)
+                    new Param("n1", "integer", 5),
+                    new Param("n2", "integer", -1),
+                    new Param("n3", "integer", 100),
+                    new Param("n4", "integer", 10)
                 )
             )
         );
@@ -1157,13 +1137,7 @@ public class StatementParserTests extends ESTestCase {
 
         plan = statement(
             "from test | where x < ?1 | eval y = ?2 + ?1 |  limit ?3",
-            new Params(
-                List.of(
-                    new TypedParamValue(null, "integer", 5),
-                    new TypedParamValue(null, "integer", -1),
-                    new TypedParamValue(null, "integer", 10)
-                )
-            )
+            new Params(List.of(new Param(null, "integer", 5), new Param(null, "integer", -1), new Param(null, "integer", 10)))
         );
         assertThat(plan, instanceOf(Limit.class));
         limit = (Limit) plan;
@@ -1185,10 +1159,10 @@ public class StatementParserTests extends ESTestCase {
             "from test | where x < ? | eval y = ? + ? |  stats count(?) by z",
             new Params(
                 List.of(
-                    new TypedParamValue(null, "integer", 5),
-                    new TypedParamValue(null, "integer", -1),
-                    new TypedParamValue(null, "integer", 100),
-                    new TypedParamValue(null, "keyword", "*")
+                    new Param(null, "integer", 5),
+                    new Param(null, "integer", -1),
+                    new Param(null, "integer", 100),
+                    new Param(null, "keyword", "*")
                 )
             )
         );
@@ -1210,10 +1184,10 @@ public class StatementParserTests extends ESTestCase {
             "from test | where x < ?n1 | eval y = ?n2 + ?n3 |  stats count(?n4) by z",
             new Params(
                 List.of(
-                    new TypedParamValue("n1", "integer", 5),
-                    new TypedParamValue("n2", "integer", -1),
-                    new TypedParamValue("n3", "integer", 100),
-                    new TypedParamValue("n4", "keyword", "*")
+                    new Param("n1", "integer", 5),
+                    new Param("n2", "integer", -1),
+                    new Param("n3", "integer", 100),
+                    new Param("n4", "keyword", "*")
                 )
             )
         );
@@ -1233,13 +1207,7 @@ public class StatementParserTests extends ESTestCase {
 
         plan = statement(
             "from test | where x < ?1 | eval y = ?2 + ?1 |  stats count(?3) by z",
-            new Params(
-                List.of(
-                    new TypedParamValue(null, "integer", 5),
-                    new TypedParamValue(null, "integer", -1),
-                    new TypedParamValue(null, "keyword", "*")
-                )
-            )
+            new Params(List.of(new Param(null, "integer", 5), new Param(null, "integer", -1), new Param(null, "keyword", "*")))
         );
         assertThat(plan, instanceOf(EsqlAggregate.class));
         agg = (EsqlAggregate) plan;
@@ -1261,10 +1229,10 @@ public class StatementParserTests extends ESTestCase {
             "from test | where x < ? | eval y = ? + ? |  stats count(?) by z",
             new Params(
                 List.of(
-                    new TypedParamValue(null, "integer", 5),
-                    new TypedParamValue(null, "integer", -1),
-                    new TypedParamValue(null, "integer", 100),
-                    new TypedParamValue(null, "keyword", "*")
+                    new Param(null, "integer", 5),
+                    new Param(null, "integer", -1),
+                    new Param(null, "integer", 100),
+                    new Param(null, "keyword", "*")
                 )
             )
         );
@@ -1456,7 +1424,7 @@ public class StatementParserTests extends ESTestCase {
         assertThat(e.getMessage(), containsString(errorMessage));
     }
 
-    private void expectError(String query, List<TypedParamValue> params, String errorMessage) {
+    private void expectError(String query, List<Param> params, String errorMessage) {
         ParsingException e = expectThrows(
             ParsingException.class,
             "Expected syntax error for " + query,

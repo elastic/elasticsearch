@@ -526,41 +526,17 @@ public interface EsqlBaseParserListener extends ParseTreeListener {
    */
   void exitBooleanLiteral(EsqlBaseParser.BooleanLiteralContext ctx);
   /**
-   * Enter a parse tree produced by the {@code inputParam}
+   * Enter a parse tree produced by the {@code inputParams}
    * labeled alternative in {@link EsqlBaseParser#constant}.
    * @param ctx the parse tree
    */
-  void enterInputParam(EsqlBaseParser.InputParamContext ctx);
+  void enterInputParams(EsqlBaseParser.InputParamsContext ctx);
   /**
-   * Exit a parse tree produced by the {@code inputParam}
+   * Exit a parse tree produced by the {@code inputParams}
    * labeled alternative in {@link EsqlBaseParser#constant}.
    * @param ctx the parse tree
    */
-  void exitInputParam(EsqlBaseParser.InputParamContext ctx);
-  /**
-   * Enter a parse tree produced by the {@code inputNamedParam}
-   * labeled alternative in {@link EsqlBaseParser#constant}.
-   * @param ctx the parse tree
-   */
-  void enterInputNamedParam(EsqlBaseParser.InputNamedParamContext ctx);
-  /**
-   * Exit a parse tree produced by the {@code inputNamedParam}
-   * labeled alternative in {@link EsqlBaseParser#constant}.
-   * @param ctx the parse tree
-   */
-  void exitInputNamedParam(EsqlBaseParser.InputNamedParamContext ctx);
-  /**
-   * Enter a parse tree produced by the {@code inputPositionalParam}
-   * labeled alternative in {@link EsqlBaseParser#constant}.
-   * @param ctx the parse tree
-   */
-  void enterInputPositionalParam(EsqlBaseParser.InputPositionalParamContext ctx);
-  /**
-   * Exit a parse tree produced by the {@code inputPositionalParam}
-   * labeled alternative in {@link EsqlBaseParser#constant}.
-   * @param ctx the parse tree
-   */
-  void exitInputPositionalParam(EsqlBaseParser.InputPositionalParamContext ctx);
+  void exitInputParams(EsqlBaseParser.InputParamsContext ctx);
   /**
    * Enter a parse tree produced by the {@code stringLiteral}
    * labeled alternative in {@link EsqlBaseParser#constant}.
@@ -610,6 +586,30 @@ public interface EsqlBaseParserListener extends ParseTreeListener {
    */
   void exitStringArrayLiteral(EsqlBaseParser.StringArrayLiteralContext ctx);
   /**
+   * Enter a parse tree produced by the {@code inputParam}
+   * labeled alternative in {@link EsqlBaseParser#params}.
+   * @param ctx the parse tree
+   */
+  void enterInputParam(EsqlBaseParser.InputParamContext ctx);
+  /**
+   * Exit a parse tree produced by the {@code inputParam}
+   * labeled alternative in {@link EsqlBaseParser#params}.
+   * @param ctx the parse tree
+   */
+  void exitInputParam(EsqlBaseParser.InputParamContext ctx);
+  /**
+   * Enter a parse tree produced by the {@code inputParamNamedOrPositional}
+   * labeled alternative in {@link EsqlBaseParser#params}.
+   * @param ctx the parse tree
+   */
+  void enterInputParamNamedOrPositional(EsqlBaseParser.InputParamNamedOrPositionalContext ctx);
+  /**
+   * Exit a parse tree produced by the {@code inputParamNamedOrPositional}
+   * labeled alternative in {@link EsqlBaseParser#params}.
+   * @param ctx the parse tree
+   */
+  void exitInputParamNamedOrPositional(EsqlBaseParser.InputParamNamedOrPositionalContext ctx);
+  /**
    * Enter a parse tree produced by {@link EsqlBaseParser#limitCommand}.
    * @param ctx the parse tree
    */
@@ -619,36 +619,6 @@ public interface EsqlBaseParserListener extends ParseTreeListener {
    * @param ctx the parse tree
    */
   void exitLimitCommand(EsqlBaseParser.LimitCommandContext ctx);
-  /**
-   * Enter a parse tree produced by {@link EsqlBaseParser#limitCommand_PARAM}.
-   * @param ctx the parse tree
-   */
-  void enterLimitCommand_PARAM(EsqlBaseParser.LimitCommand_PARAMContext ctx);
-  /**
-   * Exit a parse tree produced by {@link EsqlBaseParser#limitCommand_PARAM}.
-   * @param ctx the parse tree
-   */
-  void exitLimitCommand_PARAM(EsqlBaseParser.LimitCommand_PARAMContext ctx);
-  /**
-   * Enter a parse tree produced by {@link EsqlBaseParser#limitCommand_NAMED_PARAM}.
-   * @param ctx the parse tree
-   */
-  void enterLimitCommand_NAMED_PARAM(EsqlBaseParser.LimitCommand_NAMED_PARAMContext ctx);
-  /**
-   * Exit a parse tree produced by {@link EsqlBaseParser#limitCommand_NAMED_PARAM}.
-   * @param ctx the parse tree
-   */
-  void exitLimitCommand_NAMED_PARAM(EsqlBaseParser.LimitCommand_NAMED_PARAMContext ctx);
-  /**
-   * Enter a parse tree produced by {@link EsqlBaseParser#limitCommand_POSITIONAL_PARAM}.
-   * @param ctx the parse tree
-   */
-  void enterLimitCommand_POSITIONAL_PARAM(EsqlBaseParser.LimitCommand_POSITIONAL_PARAMContext ctx);
-  /**
-   * Exit a parse tree produced by {@link EsqlBaseParser#limitCommand_POSITIONAL_PARAM}.
-   * @param ctx the parse tree
-   */
-  void exitLimitCommand_POSITIONAL_PARAM(EsqlBaseParser.LimitCommand_POSITIONAL_PARAMContext ctx);
   /**
    * Enter a parse tree produced by {@link EsqlBaseParser#sortCommand}.
    * @param ctx the parse tree

@@ -144,13 +144,8 @@ ASTERISK : '*';
 SLASH : '/';
 PERCENT : '%';
 
-NAMED_PARAM
-    : '?' LETTER UNQUOTED_ID_BODY*
-    | '?' (UNDERSCORE | ASPERAND) UNQUOTED_ID_BODY+
-    ;
-
-POSITIONAL_PARAM
-    : '?' DIGIT+
+PARAM_NAMED_OR_POSITIONAL
+    : PARAM (LETTER | DIGIT)+
     ;
 
 // Brackets are funny. We can happen upon a CLOSING_BRACKET in two ways - one

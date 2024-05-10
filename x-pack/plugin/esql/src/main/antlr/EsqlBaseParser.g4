@@ -31,9 +31,6 @@ processingCommand
     : evalCommand
     | inlinestatsCommand
     | limitCommand
-    | limitCommand_PARAM
-    | limitCommand_NAMED_PARAM
-    | limitCommand_POSITIONAL_PARAM
     | keepCommand
     | sortCommand
     | statsCommand
@@ -172,29 +169,20 @@ constant
     | decimalValue                                                                      #decimalLiteral
     | integerValue                                                                      #integerLiteral
     | booleanValue                                                                      #booleanLiteral
-    | PARAM                                                                             #inputParam
-    | NAMED_PARAM                                                                       #inputNamedParam
-    | POSITIONAL_PARAM                                                                  #inputPositionalParam
+    | params                                                                            #inputParams
     | string                                                                            #stringLiteral
     | OPENING_BRACKET numericValue (COMMA numericValue)* CLOSING_BRACKET                #numericArrayLiteral
     | OPENING_BRACKET booleanValue (COMMA booleanValue)* CLOSING_BRACKET                #booleanArrayLiteral
     | OPENING_BRACKET string (COMMA string)* CLOSING_BRACKET                            #stringArrayLiteral
     ;
 
+params
+    : PARAM                        #inputParam
+    | PARAM_NAMED_OR_POSITIONAL    #inputParamNamedOrPositional
+    ;
+
 limitCommand
-    : LIMIT INTEGER_LITERAL
-    ;
-
-limitCommand_PARAM
-    : LIMIT PARAM
-    ;
-
-limitCommand_NAMED_PARAM
-    : LIMIT NAMED_PARAM
-    ;
-
-limitCommand_POSITIONAL_PARAM
-    : LIMIT POSITIONAL_PARAM
+    : LIMIT (INTEGER_LITERAL | params)
     ;
 
 sortCommand

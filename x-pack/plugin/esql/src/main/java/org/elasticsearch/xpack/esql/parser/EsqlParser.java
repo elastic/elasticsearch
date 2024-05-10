@@ -55,7 +55,7 @@ public class EsqlParser {
             lexer.removeErrorListeners();
             lexer.addErrorListener(ERROR_LISTENER);
 
-            Map<Token, TypedParamValue> positionalParamTokens = params.positionalParamTokens();
+            Map<Token, Param> positionalParamTokens = params.positionalParamTokens();
             TokenSource tokenSource = new ParametrizedTokenSource(lexer, positionalParamTokens, params);
 
             CommonTokenStream tokenStream = new CommonTokenStream(tokenSource);
@@ -117,11 +117,11 @@ public class EsqlParser {
     private static class ParametrizedTokenSource implements TokenSource {
 
         private TokenSource delegate;
-        private Map<Token, TypedParamValue> paramTokens;
+        private Map<Token, Param> paramTokens;
         private int param;
         private Params params;
 
-        ParametrizedTokenSource(TokenSource delegate, Map<Token, TypedParamValue> paramTokens, Params params) {
+        ParametrizedTokenSource(TokenSource delegate, Map<Token, Param> paramTokens, Params params) {
             this.delegate = delegate;
             this.paramTokens = paramTokens;
             this.params = params;

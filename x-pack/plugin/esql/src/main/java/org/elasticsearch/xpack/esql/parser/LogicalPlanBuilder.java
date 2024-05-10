@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.parser;
 import org.antlr.v4.runtime.ParserRuleContext;
 import org.antlr.v4.runtime.Token;
 import org.antlr.v4.runtime.tree.ParseTree;
+import org.antlr.v4.runtime.tree.TerminalNode;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.dissect.DissectException;
 import org.elasticsearch.dissect.DissectParser;
@@ -304,31 +305,22 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
     @Override
     public PlanFactory visitLimitCommand(EsqlBaseParser.LimitCommandContext ctx) {
         Source source = source(ctx);
-        int limit = stringToInt(ctx.INTEGER_LITERAL().getText());
-        return input -> new Limit(source, new Literal(source, limit, DataTypes.INTEGER), input);
-    }
-
-    @Override
-    public PlanFactory visitLimitCommand_PARAM(EsqlBaseParser.LimitCommand_PARAMContext ctx) {
-        Source source = source(ctx);
-        TypedParamValue param = paramByToken(ctx.PARAM());
+        Param param;
+        if (ctx.INTEGER_LITERAL() != null) {
+            int limit = stringToInt(ctx.INTEGER_LITERAL().getText());
+            return input -> new Limit(source, new Literal(source, limit, DataTypes.INTEGER), input);
+        }
+        TerminalNode node = (TerminalNode) ctx.params().getChild(0);
+        Token t = node.getSymbol();
+        String name = t.getText();
+        if (name.length() == 1) {
+            param = paramByToken(node);
+        } else {
+            param = paramByNameOrPosition(node);
+        }
         int limit = stringToInt(String.valueOf(param.value));
         return input -> new Limit(source, new Literal(source, limit, DataTypes.INTEGER), input);
-    }
 
-    @Override
-    public PlanFactory visitLimitCommand_NAMED_PARAM(EsqlBaseParser.LimitCommand_NAMED_PARAMContext ctx) {
-        Source source = source(ctx);
-        TypedParamValue param = paramByName(ctx.NAMED_PARAM());
-        int limit = stringToInt(String.valueOf(param.value));
-        return input -> new Limit(source, new Literal(source, limit, DataTypes.INTEGER), input);
-    }
-
-    public PlanFactory visitLimitCommand_POSITIONAL_PARAM(EsqlBaseParser.LimitCommand_POSITIONAL_PARAMContext ctx) {
-        Source source = source(ctx);
-        TypedParamValue param = paramByPosition(ctx.POSITIONAL_PARAM());
-        int limit = stringToInt(String.valueOf(param.value));
-        return input -> new Limit(source, new Literal(source, limit, DataTypes.INTEGER), input);
     }
 
     @Override

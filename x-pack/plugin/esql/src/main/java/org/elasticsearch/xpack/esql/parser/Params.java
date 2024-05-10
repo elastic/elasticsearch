@@ -16,41 +16,39 @@ import java.util.Map;
 
 public class Params {
 
-    private static final String UNNAMED = "unnamed";
-
     // This matches the named or unnamed parameters specified in an EsqlQueryRequest.params.
-    private List<TypedParamValue> paramsByPosition = new ArrayList<>();
+    private List<Param> paramsByPosition = new ArrayList<>();
 
     // This matches the named parameters specified in an EsqlQueryRequest.params.
-    private HashMap<String, TypedParamValue> paramsByName = new HashMap<>();
+    private HashMap<String, Param> paramsByName = new HashMap<>();
 
     // This is populated by EsqlParser, each parameter marker has an entry in paramsByToken
-    private Map<Token, TypedParamValue> paramsByToken = new HashMap<>();
+    private Map<Token, Param> paramsByToken = new HashMap<>();
 
     public Params() {}
 
-    public Params(List<TypedParamValue> params) {
+    public Params(List<Param> params) {
         this.paramsByPosition.addAll(params);
         populateNamedParams();
     }
 
     private void populateNamedParams() {
-        for (TypedParamValue p : this.paramsByPosition) {
-            if (p.name.equalsIgnoreCase(UNNAMED) != true) {
+        for (Param p : this.paramsByPosition) {
+            if (p.name != null) {
                 paramsByName.put(p.name, p);
             }
         }
     }
 
-    public List<TypedParamValue> positionalParams() {
+    public List<Param> positionalParams() {
         return this.paramsByPosition;
     }
 
-    public TypedParamValue paramByPosition(int index) {
+    public Param paramByPosition(int index) {
         return paramsByPosition.get(index - 1);
     }
 
-    public HashMap<String, TypedParamValue> namedParams() {
+    public HashMap<String, Param> namedParams() {
         return this.paramsByName;
     }
 
@@ -62,15 +60,15 @@ public class Params {
         return this.paramsByName.containsKey(paramName);
     }
 
-    public TypedParamValue getParamByName(String paramName) {
+    public Param getParamByName(String paramName) {
         return paramsByName.get(paramName);
     }
 
-    public void positionalParamTokens(Map<Token, TypedParamValue> paramsByToken) {
+    public void positionalParamTokens(Map<Token, Param> paramsByToken) {
         this.paramsByToken = paramsByToken;
     }
 
-    public Map<Token, TypedParamValue> positionalParamTokens() {
+    public Map<Token, Param> positionalParamTokens() {
         return this.paramsByToken;
     }
 
@@ -78,7 +76,7 @@ public class Params {
         return this.paramsByToken.containsKey(token);
     }
 
-    public TypedParamValue getParamByTokenLocation(Token tokenLocation) {
+    public Param getParamByTokenLocation(Token tokenLocation) {
         return this.paramsByToken.get(tokenLocation);
     }
 }

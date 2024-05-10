@@ -11,9 +11,7 @@ import java.util.Objects;
 /**
  * Represent a strongly typed parameter value
  */
-public class TypedParamValue {
-
-    private static final String UNNAMED = "unnamed";
+public class Param {
 
     public final String name;
     public final String type;
@@ -21,12 +19,12 @@ public class TypedParamValue {
     private boolean hasExplicitType;        // the type is explicitly set in the request or inferred by the parser
     private ContentLocation tokenLocation; // location of the token failing the parsing rules
 
-    public TypedParamValue(String name, String type, Object value) {
+    public Param(String name, String type, Object value) {
         this(name, type, value, true);
     }
 
-    public TypedParamValue(String name, String type, Object value, boolean hasExplicitType) {
-        this.name = name == null ? UNNAMED : name;
+    public Param(String name, String type, Object value, boolean hasExplicitType) {
+        this.name = name;
         this.value = value;
         this.type = type;
         this.hasExplicitType = hasExplicitType;
@@ -56,7 +54,7 @@ public class TypedParamValue {
         if (o == null || getClass() != o.getClass()) {
             return false;
         }
-        TypedParamValue that = (TypedParamValue) o;
+        Param that = (Param) o;
         return Objects.equals(value, that.value)
             && Objects.equals(type, that.type)
             && Objects.equals(hasExplicitType, that.hasExplicitType)
@@ -70,6 +68,6 @@ public class TypedParamValue {
 
     @Override
     public String toString() {
-        return String.valueOf(value) + " [" + name + "][" + type + "][" + hasExplicitType + "]";
+        return value + " [" + name + "][" + type + "][" + hasExplicitType + "]";
     }
 }

@@ -16,11 +16,11 @@ import org.elasticsearch.xcontent.XContentLocation;
 import org.elasticsearch.xcontent.XContentParseException;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.esql.parser.ContentLocation;
+import org.elasticsearch.xpack.esql.parser.Param;
 import org.elasticsearch.xpack.esql.parser.Params;
-import org.elasticsearch.xpack.esql.parser.TypedParamValue;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
+import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
 import org.elasticsearch.xpack.ql.InvalidArgumentException;
-import org.elasticsearch.xpack.ql.QlIllegalArgumentException;
 import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.type.DataTypes;
 
@@ -59,12 +59,6 @@ final class RequestXContent {
 
         void setValue(Object value) {
             this.value = value;
-        }
-
-        void reset() {
-            this.type = null;
-            this.value = null;
-            this.fields.clear();
         }
     }
 
@@ -151,7 +145,7 @@ final class RequestXContent {
     }
 
     private static Params parseParams(XContentParser p) throws IOException {
-        List<TypedParamValue> result = new ArrayList<>();
+        List<Param> result = new ArrayList<>();
         XContentParser.Token token = p.currentToken();
         boolean namedParameter = false;
         boolean unnamedParameter = false;
@@ -159,10 +153,10 @@ final class RequestXContent {
         if (token == XContentParser.Token.START_ARRAY) {
             Object value = null;
             String type = null;
-            TypedParamValue previousParam = null;
-            TypedParamValue currentParam = null;
+            Param previousParam = null;
+            Param currentParam = null;
             TempObjects param;
-            DataType dataType = DataTypes.KEYWORD;
+            DataType dataType;
 
             while ((token = p.nextToken()) != XContentParser.Token.END_ARRAY) {
                 XContentLocation loc = p.getTokenLocation();
@@ -170,14 +164,13 @@ final class RequestXContent {
                 if (token == XContentParser.Token.START_OBJECT) {
                     // we are at the start of a value/type pair... hopefully
                     param = PARAM_PARSER.apply(p, null);
-                    assert param.getFields().size() <= 1;
                     if (param.getFields().size() == 0) {
                         // value and type should be specified as a pair
                         if ((param.type != null && param.type.equalsIgnoreCase("null") != true && param.value == null)
                             || (param.value != null && param.type == null)) {
                             throw new InvalidArgumentException("Required a [value] and [type] pair");
                         }
-                        currentParam = new TypedParamValue(null, param.type, param.value);
+                        currentParam = new Param(null, param.type, param.value);
                         unnamedParameter = true;
                     } else {
                         for (Map.Entry<String, Object> entry : param.fields.entrySet()) {
@@ -185,14 +178,8 @@ final class RequestXContent {
                             if (entry.getKey().matches("[0-9]+")) {
                                 throw new InvalidArgumentException("Integer " + entry.getKey() + " is not a valid name for a parameter ");
                             }
-                            try {
-                                dataType = DataTypes.fromJava(entry.getValue());
-                            } catch (QlIllegalArgumentException ex) {
-                                throw new InvalidArgumentException(
-                                    "Unexpected actual parameter type [" + param.value.getClass().getName() + "] " + ex.getMessage()
-                                );
-                            }
-                            currentParam = new TypedParamValue(
+                            dataType = EsqlDataTypes.fromJava(entry.getValue());
+                            currentParam = new Param(
                                 entry.getKey(),
                                 dataType == null ? DataTypes.KEYWORD.toString() : dataType.toString(),
                                 entry.getValue(),
@@ -200,6 +187,9 @@ final class RequestXContent {
                             );
                         }
                         namedParameter = true;
+                    }
+                    if (unnamedParameter && namedParameter) {
+                        throw new InvalidArgumentException("Params contain both named and unnamed parameters");
                     }
                     /*
                      * Always set the xcontentlocation for the first param just in case the first one happens to not meet the parsing rules
@@ -236,22 +226,19 @@ final class RequestXContent {
                         throw new XContentParseException(loc, "Failed to parse object: unexpected token [" + token + "] found");
                     }
 
-                    currentParam = new TypedParamValue(null, type, value, false);
+                    currentParam = new Param(null, type, value, false);
                     if ((previousParam != null && previousParam.hasExplicitType()) || result.isEmpty()) {
                         currentParam.tokenLocation(toProto(loc));
                     }
                     unnamedParameter = true;
+                    if (unnamedParameter && namedParameter) {
+                        throw new InvalidArgumentException("Params contain both named and unnamed parameters");
+                    }
                 }
-
                 result.add(currentParam);
                 previousParam = currentParam;
             }
         }
-
-        if (unnamedParameter && namedParameter) {
-            throw new InvalidArgumentException("Params contain both named and unnamed parameters");
-        }
-
         return new Params(result);
     }
 

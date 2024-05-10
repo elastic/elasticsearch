@@ -106,9 +106,10 @@ public interface EstimatesRowSize {
         return switch (elementType) {
             case BOOLEAN -> 1;
             case BYTES_REF -> switch (dataType.typeName()) {
-                case "ip" -> 16;    // IP addresses, both IPv4 and IPv6, are encoded using 16 bytes.
+                case "ip" -> 16;      // IP addresses, both IPv4 and IPv6, are encoded using 16 bytes.
+                case "version" -> 15; // 8.15.2-SNAPSHOT is 15 bytes, most are shorter, some can be longer
                 case "geo_point", "cartesian_point" -> 21;  // WKB for points is typically 21 bytes.
-                case "geo_shape", "cartesian_shape" -> 100;  // wild estimate for the size of a shape.
+                case "geo_shape", "cartesian_shape" -> 200; // wild estimate, based on some test data (airport_city_boundaries)
                 default -> 50; // wild estimate for the size of a string.
             };
             case DOC -> throw new EsqlIllegalArgumentException("can't load a [doc] with field extraction");

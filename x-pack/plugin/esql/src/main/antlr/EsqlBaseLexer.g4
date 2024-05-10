@@ -453,6 +453,7 @@ METRICS_WS
     : WS -> channel(HIDDEN)
     ;
 
+// TODO: remove this workaround mode - see https://github.com/elastic/elasticsearch/issues/108528
 mode CLOSING_METRICS_MODE;
 
 CLOSING_METRICS_COMMA

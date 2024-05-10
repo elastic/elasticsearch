@@ -76,7 +76,7 @@ public class KibanaThreadPoolIT extends ESIntegTestCase {
         return Set.of(KibanaPlugin.class);
     }
 
-    public void testKibanaThreadPool() throws Exception {
+    public void testKibanaThreadPoolByPassesBlockedThreadPools() throws Exception {
         List<String> kibanaSystemIndices = Stream.of(
             KibanaPlugin.KIBANA_INDEX_DESCRIPTOR.getIndexPattern(),
             KibanaPlugin.REPORTING_INDEX_DESCRIPTOR.getIndexPattern(),

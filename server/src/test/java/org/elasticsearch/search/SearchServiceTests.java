@@ -42,6 +42,7 @@ import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.WriteRequest;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
@@ -674,7 +675,11 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
                                 }
 
                                 @Override
-                                public RankFeaturePhaseRankCoordinatorContext buildRankFeaturePhaseCoordinatorContext(int size, int from) {
+                                public RankFeaturePhaseRankCoordinatorContext buildRankFeaturePhaseCoordinatorContext(
+                                    int size,
+                                    int from,
+                                    Client client
+                                ) {
                                     return new RankFeaturePhaseRankCoordinatorContext(size, from, DEFAULT_RANK_WINDOW_SIZE) {
                                         @Override
                                         public void rankGlobalResults(
@@ -830,18 +835,22 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
                                 return false;
                             }
 
-                            @Override
-                            public RankFeaturePhaseRankCoordinatorContext buildRankFeaturePhaseCoordinatorContext(int size, int from) {
-                                return new RankFeaturePhaseRankCoordinatorContext(size, from, DEFAULT_RANK_WINDOW_SIZE) {
-                                    @Override
-                                    public void rankGlobalResults(
-                                        List<RankFeatureResult> rankSearchResults,
-                                        Consumer<ScoreDoc[]> onFinish
-                                    ) {
-                                        throw new IllegalStateException("should have failed earlier");
-                                    }
-                                };
-                            }
+                                @Override
+                                public RankFeaturePhaseRankCoordinatorContext buildRankFeaturePhaseCoordinatorContext(
+                                    int size,
+                                    int from,
+                                    Client client
+                                ) {
+                                    return new RankFeaturePhaseRankCoordinatorContext(size, from, DEFAULT_RANK_WINDOW_SIZE) {
+                                        @Override
+                                        public void rankGlobalResults(
+                                            List<RankFeatureResult> rankSearchResults,
+                                            Consumer<ScoreDoc[]> onFinish
+                                        ) {
+                                            throw new IllegalStateException("should have failed earlier");
+                                        }
+                                    };
+                                }
 
                             @Override
                             public QueryPhaseRankCoordinatorContext buildQueryPhaseCoordinatorContext(int size, int from) {
@@ -946,7 +955,11 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
                                 }
 
                                 @Override
-                                public RankFeaturePhaseRankCoordinatorContext buildRankFeaturePhaseCoordinatorContext(int size, int from) {
+                                public RankFeaturePhaseRankCoordinatorContext buildRankFeaturePhaseCoordinatorContext(
+                                    int size,
+                                    int from,
+                                    Client client
+                                ) {
                                     return new RankFeaturePhaseRankCoordinatorContext(size, from, DEFAULT_RANK_WINDOW_SIZE) {
                                         @Override
                                         public void rankGlobalResults(
@@ -1087,7 +1100,11 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
                                 }
 
                                 @Override
-                                public RankFeaturePhaseRankCoordinatorContext buildRankFeaturePhaseCoordinatorContext(int size, int from) {
+                                public RankFeaturePhaseRankCoordinatorContext buildRankFeaturePhaseCoordinatorContext(
+                                    int size,
+                                    int from,
+                                    Client client
+                                ) {
                                     return new RankFeaturePhaseRankCoordinatorContext(size, from, DEFAULT_RANK_WINDOW_SIZE) {
                                         @Override
                                         public void rankGlobalResults(

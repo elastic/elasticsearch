@@ -14,6 +14,7 @@ import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.tests.store.MockDirectoryWrapper;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
@@ -1005,7 +1006,7 @@ public class RankFeaturePhaseTests extends ESTestCase {
             }
 
             @Override
-            public RankFeaturePhaseRankCoordinatorContext buildRankFeaturePhaseCoordinatorContext(int size, int from) {
+            public RankFeaturePhaseRankCoordinatorContext buildRankFeaturePhaseCoordinatorContext(int size, int from, Client client) {
                 return rankFeaturePhaseRankCoordinatorContext;
             }
 
@@ -1118,7 +1119,7 @@ public class RankFeaturePhaseTests extends ESTestCase {
         AtomicBoolean phaseDone
     ) {
         // override the RankFeaturePhase to skip moving to next phase
-        return new RankFeaturePhase(results, null, mockSearchPhaseContext) {
+        return new RankFeaturePhase(results, null, mockSearchPhaseContext, null) {
             @Override
             public void moveToNextPhase(
                 SearchPhaseResults<SearchPhaseResult> phaseResults,

@@ -17,15 +17,24 @@ import org.elasticsearch.inference.TaskSettings;
 import org.elasticsearch.xpack.core.inference.results.ChatCompletionResults;
 import org.elasticsearch.xpack.core.inference.results.ChunkedSparseEmbeddingResults;
 import org.elasticsearch.xpack.core.inference.results.ChunkedTextEmbeddingByteResults;
+import org.elasticsearch.xpack.core.inference.results.ChunkedTextEmbeddingFloatResults;
 import org.elasticsearch.xpack.core.inference.results.ChunkedTextEmbeddingResults;
 import org.elasticsearch.xpack.core.inference.results.ErrorChunkedInferenceResults;
 import org.elasticsearch.xpack.core.inference.results.LegacyTextEmbeddingResults;
+import org.elasticsearch.xpack.core.inference.results.RankedDocsResults;
 import org.elasticsearch.xpack.core.inference.results.SparseEmbeddingResults;
 import org.elasticsearch.xpack.core.inference.results.TextEmbeddingByteResults;
 import org.elasticsearch.xpack.core.inference.results.TextEmbeddingResults;
+import org.elasticsearch.xpack.inference.services.azureopenai.AzureOpenAiSecretSettings;
+import org.elasticsearch.xpack.inference.services.azureopenai.completion.AzureOpenAiCompletionServiceSettings;
+import org.elasticsearch.xpack.inference.services.azureopenai.completion.AzureOpenAiCompletionTaskSettings;
+import org.elasticsearch.xpack.inference.services.azureopenai.embeddings.AzureOpenAiEmbeddingsServiceSettings;
+import org.elasticsearch.xpack.inference.services.azureopenai.embeddings.AzureOpenAiEmbeddingsTaskSettings;
 import org.elasticsearch.xpack.inference.services.cohere.CohereServiceSettings;
 import org.elasticsearch.xpack.inference.services.cohere.embeddings.CohereEmbeddingsServiceSettings;
 import org.elasticsearch.xpack.inference.services.cohere.embeddings.CohereEmbeddingsTaskSettings;
+import org.elasticsearch.xpack.inference.services.cohere.rerank.CohereRerankServiceSettings;
+import org.elasticsearch.xpack.inference.services.cohere.rerank.CohereRerankTaskSettings;
 import org.elasticsearch.xpack.inference.services.elasticsearch.ElasticsearchInternalServiceSettings;
 import org.elasticsearch.xpack.inference.services.elasticsearch.MultilingualE5SmallInternalServiceSettings;
 import org.elasticsearch.xpack.inference.services.elser.ElserInternalServiceSettings;
@@ -46,6 +55,11 @@ public class InferenceNamedWriteablesProvider {
 
     private InferenceNamedWriteablesProvider() {}
 
+    /**
+     * Registers and provides the `NamedWriteable` objects.
+     * Any new classes which implements NamedWriteable should be added here.
+     * In practice, that is anything which implements TaskSettings, ServiceSettings, or InferenceServiceResults.
+     */
     @SuppressWarnings("deprecation")
     public static List<NamedWriteableRegistry.Entry> getNamedWriteables() {
         List<NamedWriteableRegistry.Entry> namedWriteables = new ArrayList<>();
@@ -68,6 +82,9 @@ public class InferenceNamedWriteablesProvider {
         namedWriteables.add(
             new NamedWriteableRegistry.Entry(InferenceServiceResults.class, ChatCompletionResults.NAME, ChatCompletionResults::new)
         );
+        namedWriteables.add(
+            new NamedWriteableRegistry.Entry(InferenceServiceResults.class, RankedDocsResults.NAME, RankedDocsResults::new)
+        );
 
         // Chunked inference results
         namedWriteables.add(
@@ -89,6 +106,13 @@ public class InferenceNamedWriteablesProvider {
                 InferenceServiceResults.class,
                 ChunkedTextEmbeddingResults.NAME,
                 ChunkedTextEmbeddingResults::new
+            )
+        );
+        namedWriteables.add(
+            new NamedWriteableRegistry.Entry(
+                InferenceServiceResults.class,
+                ChunkedTextEmbeddingFloatResults.NAME,
+                ChunkedTextEmbeddingFloatResults::new
             )
         );
         namedWriteables.add(
@@ -183,6 +207,51 @@ public class InferenceNamedWriteablesProvider {
         );
         namedWriteables.add(
             new NamedWriteableRegistry.Entry(TaskSettings.class, CohereEmbeddingsTaskSettings.NAME, CohereEmbeddingsTaskSettings::new)
+        );
+        namedWriteables.add(
+            new NamedWriteableRegistry.Entry(ServiceSettings.class, CohereRerankServiceSettings.NAME, CohereRerankServiceSettings::new)
+        );
+        namedWriteables.add(
+            new NamedWriteableRegistry.Entry(TaskSettings.class, CohereRerankTaskSettings.NAME, CohereRerankTaskSettings::new)
+        );
+
+        // Azure OpenAI
+        namedWriteables.add(
+            new NamedWriteableRegistry.Entry(
+                AzureOpenAiSecretSettings.class,
+                AzureOpenAiSecretSettings.NAME,
+                AzureOpenAiSecretSettings::new
+            )
+        );
+
+        namedWriteables.add(
+            new NamedWriteableRegistry.Entry(
+                ServiceSettings.class,
+                AzureOpenAiEmbeddingsServiceSettings.NAME,
+                AzureOpenAiEmbeddingsServiceSettings::new
+            )
+        );
+        namedWriteables.add(
+            new NamedWriteableRegistry.Entry(
+                TaskSettings.class,
+                AzureOpenAiEmbeddingsTaskSettings.NAME,
+                AzureOpenAiEmbeddingsTaskSettings::new
+            )
+        );
+
+        namedWriteables.add(
+            new NamedWriteableRegistry.Entry(
+                ServiceSettings.class,
+                AzureOpenAiCompletionServiceSettings.NAME,
+                AzureOpenAiCompletionServiceSettings::new
+            )
+        );
+        namedWriteables.add(
+            new NamedWriteableRegistry.Entry(
+                TaskSettings.class,
+                AzureOpenAiCompletionTaskSettings.NAME,
+                AzureOpenAiCompletionTaskSettings::new
+            )
         );
 
         return namedWriteables;

@@ -21,7 +21,10 @@ import org.elasticsearch.xpack.esql.optimizer.LocalLogicalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.LocalLogicalPlanOptimizer;
 import org.elasticsearch.xpack.esql.optimizer.LocalPhysicalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.LocalPhysicalPlanOptimizer;
+import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
+import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.TopN;
+import org.elasticsearch.xpack.esql.plan.physical.AggregateExec;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
 import org.elasticsearch.xpack.esql.plan.physical.EsSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.EstimatesRowSize;
@@ -41,8 +44,6 @@ import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.FieldAttribute;
 import org.elasticsearch.xpack.ql.expression.predicate.Predicates;
 import org.elasticsearch.xpack.ql.options.EsSourceOptions;
-import org.elasticsearch.xpack.ql.plan.logical.Aggregate;
-import org.elasticsearch.xpack.ql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.ql.plan.logical.Filter;
 import org.elasticsearch.xpack.ql.plan.logical.Limit;
 import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
@@ -87,23 +88,19 @@ public class PlannerUtils {
 
         if (pipelineBreakers.isEmpty() == false) {
             UnaryPlan pipelineBreaker = (UnaryPlan) pipelineBreakers.get(0);
-            if (pipelineBreaker instanceof TopN topN) {
-                return new TopNExec(topN.source(), unused, topN.order(), topN.limit(), 2000);
+            if (pipelineBreaker instanceof TopN) {
+                Mapper mapper = new Mapper(true);
+                var physicalPlan = EstimatesRowSize.estimateRowSize(0, mapper.map(plan));
+                return physicalPlan.collectFirstChildren(TopNExec.class::isInstance).get(0);
             } else if (pipelineBreaker instanceof Limit limit) {
                 return new LimitExec(limit.source(), unused, limit.limit());
             } else if (pipelineBreaker instanceof OrderBy order) {
                 return new OrderExec(order.source(), unused, order.order());
-            } else if (pipelineBreaker instanceof Aggregate aggregate) {
-                // TODO handle this as a special PARTIAL step (intermediate)
-                /*return new AggregateExec(
-                    aggregate.source(),
-                    unused,
-                    aggregate.groupings(),
-                    aggregate.aggregates(),
-                    AggregateExec.Mode.PARTIAL,
-                    0
-                );*/
-                return null;
+            } else if (pipelineBreaker instanceof Aggregate) {
+                Mapper mapper = new Mapper(true);
+                var physicalPlan = EstimatesRowSize.estimateRowSize(0, mapper.map(plan));
+                var aggregate = (AggregateExec) physicalPlan.collectFirstChildren(AggregateExec.class::isInstance).get(0);
+                return aggregate.withMode(AggregateExec.Mode.PARTIAL);
             } else {
                 throw new EsqlIllegalArgumentException("unsupported unary physical plan node [" + pipelineBreaker.nodeName() + "]");
             }
@@ -251,13 +248,16 @@ public class PlannerUtils {
      * For example, spatial types can be extracted into doc-values under specific conditions, otherwise they extract as BytesRef.
      */
     public static ElementType toElementType(DataType dataType, MappedFieldType.FieldExtractPreference fieldExtractPreference) {
-        if (dataType == DataTypes.LONG || dataType == DataTypes.DATETIME || dataType == DataTypes.UNSIGNED_LONG) {
+        if (dataType == DataTypes.LONG
+            || dataType == DataTypes.DATETIME
+            || dataType == DataTypes.UNSIGNED_LONG
+            || dataType == EsqlDataTypes.COUNTER_LONG) {
             return ElementType.LONG;
         }
-        if (dataType == DataTypes.INTEGER) {
+        if (dataType == DataTypes.INTEGER || dataType == EsqlDataTypes.COUNTER_INTEGER) {
             return ElementType.INT;
         }
-        if (dataType == DataTypes.DOUBLE) {
+        if (dataType == DataTypes.DOUBLE || dataType == EsqlDataTypes.COUNTER_DOUBLE) {
             return ElementType.DOUBLE;
         }
         // unsupported fields are passed through as a BytesRef

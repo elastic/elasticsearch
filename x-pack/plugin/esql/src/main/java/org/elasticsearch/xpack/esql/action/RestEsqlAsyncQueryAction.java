@@ -46,7 +46,8 @@ public class RestEsqlAsyncQueryAction extends BaseRestHandler {
             esqlRequest = RequestXContent.parseAsync(parser);
         }
 
-        LOGGER.info("Beginning execution of ESQL async query.\nQuery string: [{}]", esqlRequest.query());
+        RestEsqlQueryAction.defaultVersionForOldClients(esqlRequest, request);
+        LOGGER.debug("Beginning execution of ESQL async query.\nQuery string: [{}]", esqlRequest.query());
 
         return channel -> {
             RestCancellableNodeClient cancellableClient = new RestCancellableNodeClient(client, request.getHttpChannel());

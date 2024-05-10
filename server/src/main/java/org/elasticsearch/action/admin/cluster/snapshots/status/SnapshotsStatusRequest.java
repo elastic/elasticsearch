@@ -36,17 +36,6 @@ public class SnapshotsStatusRequest extends MasterNodeRequest<SnapshotsStatusReq
 
     public SnapshotsStatusRequest() {}
 
-    /**
-     * Constructs a new get snapshots request with given repository name and list of snapshots
-     *
-     * @param repository repository name
-     * @param snapshots  list of snapshots
-     */
-    public SnapshotsStatusRequest(String repository, String[] snapshots) {
-        this.repository = repository;
-        this.snapshots = snapshots;
-    }
-
     public SnapshotsStatusRequest(StreamInput in) throws IOException {
         super(in);
         repository = in.readString();

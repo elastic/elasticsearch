@@ -261,7 +261,7 @@ public abstract class RecoverySource implements Writeable, ToXContentObject {
         public void addAdditionalFields(XContentBuilder builder, ToXContent.Params params) throws IOException {
             builder.field("repository", snapshot.getRepository())
                 .field("snapshot", snapshot.getSnapshotId().getName())
-                .field("version", version.toString())
+                .field("version", version.toReleaseVersion())
                 .field("index", index.getName())
                 .field("restoreUUID", restoreUUID);
         }

@@ -1,8 +1,8 @@
 ---
 "Remove alias with must_exist":
 
-  - skip:
-      version: " - 7.10.99"
+  - requires:
+      cluster_features: ["gte_v7.11.0"]
       reason: "must_exist does not work until 7.11"
 
   - do:
@@ -84,8 +84,8 @@
                 must_exist: true
 ---
 "Partial success with must_exist == false":
-  - skip:
-      version: " - 8.13.99"
+  - requires:
+      cluster_features: [ "gte_v8.14.0" ]
       reason: "alias action results do not work until 8.14"
   - do:
       indices.create:
@@ -110,8 +110,8 @@
   - match: { action_results.1.error.type: aliases_not_found_exception }
 ---
 "Partial success with must_exist == null (default)":
-  - skip:
-      version: " - 8.13.99"
+  - requires:
+      cluster_features: [ "gte_v8.14.0" ]
       reason: "alias action results do not work until 8.14"
   - do:
       indices.create:
@@ -135,8 +135,8 @@
   - match: { action_results.1.error.type: aliases_not_found_exception }
 ---
 "No action_results field if all actions successful":
-  - skip:
-      version: " - 8.13.99"
+  - requires:
+      cluster_features: [ "gte_v8.14.0" ]
       reason: "alias action results do not work until 8.14"
   - do:
       indices.create:
@@ -152,8 +152,8 @@
   - match: { action_results: null }
 ---
 "Single result per input action":
-  - skip:
-      version: " - 8.13.99"
+  - requires:
+      cluster_features: [ "gte_v8.14.0" ]
       reason: "alias action results do not work until 8.14"
   - do:
       indices.create:

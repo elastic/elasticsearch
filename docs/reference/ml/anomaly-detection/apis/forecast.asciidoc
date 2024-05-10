@@ -45,7 +45,7 @@ error occurs if you try to create a forecast for a job that has an
 
 `<job_id>`::
 (Required, string)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=job-id-anomaly-detection]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=job-id-anomaly-detection]
 
 [[ml-forecast-query-parms]]
 == {api-query-parms-title}

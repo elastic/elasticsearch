@@ -256,7 +256,7 @@ public class TransportIndicesAliasesAction extends TransportMasterNodeAction<Ind
         IndicesAliasesClusterStateUpdateRequest updateRequest = new IndicesAliasesClusterStateUpdateRequest(
             unmodifiableList(finalActions),
             unmodifiableList(actionResults)
-        ).ackTimeout(request.timeout()).masterNodeTimeout(request.masterNodeTimeout());
+        ).ackTimeout(request.ackTimeout()).masterNodeTimeout(request.masterNodeTimeout());
 
         indexAliasesService.indicesAliases(updateRequest, listener.delegateResponse((l, e) -> {
             logger.debug("failed to perform aliases", e);

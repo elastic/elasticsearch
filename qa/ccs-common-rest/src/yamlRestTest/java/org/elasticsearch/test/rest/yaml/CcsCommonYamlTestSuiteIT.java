@@ -23,7 +23,6 @@ import org.elasticsearch.client.RestClient;
 import org.elasticsearch.client.RestClientBuilder;
 import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.FeatureFlag;
@@ -102,6 +101,7 @@ public class CcsCommonYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
         .setting("node.roles", "[data,ingest,master,remote_cluster_client]")
         .setting("cluster.remote.remote_cluster.seeds", () -> "\"" + remoteCluster.getTransportEndpoint(0) + "\"")
         .setting("cluster.remote.connections_per_cluster", "1")
+        .setting("cluster.remote.remote_cluster.skip_unavailable", "false")
         .apply(commonClusterConfig)
         .build();
 
@@ -309,20 +309,8 @@ public class CcsCommonYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
                 getClusterStateFeatures(adminSearchClient),
                 semanticNodeVersions
             );
-            final TestFeatureService combinedTestFeatureService = new TestFeatureService() {
-                @Override
-                public boolean clusterHasFeature(String featureId) {
-                    return testFeatureService.clusterHasFeature(featureId) && searchTestFeatureService.clusterHasFeature(featureId);
-                }
-
-                @Override
-                public Set<String> getAllSupportedFeatures() {
-                    return Sets.intersection(
-                        testFeatureService.getAllSupportedFeatures(),
-                        searchTestFeatureService.getAllSupportedFeatures()
-                    );
-                }
-            };
+            final TestFeatureService combinedTestFeatureService = featureId -> testFeatureService.clusterHasFeature(featureId)
+                && searchTestFeatureService.clusterHasFeature(featureId);
             final Set<String> combinedOsSet = Stream.concat(osSet.stream(), Stream.of(searchOs)).collect(Collectors.toSet());
             final Set<String> combinedNodeVersions = Stream.concat(nodesVersions.stream(), searchNodeVersions.stream())
                 .collect(Collectors.toSet());

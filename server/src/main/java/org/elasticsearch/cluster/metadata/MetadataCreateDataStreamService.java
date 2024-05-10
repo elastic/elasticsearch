@@ -418,7 +418,7 @@ public class MetadataCreateDataStreamService {
         String failureStoreIndexName,
         @Nullable BiConsumer<Metadata.Builder, IndexMetadata> metadataTransformer
     ) throws Exception {
-        if (DataStream.isFailureStoreEnabled() == false) {
+        if (DataStream.isFailureStoreFeatureFlagEnabled() == false) {
             return currentState;
         }
 

@@ -1,9 +1,9 @@
 ---
 setup:
-  - skip:
-      version: " - 8.13.99"
+  - requires:
+      cluster_features: ["gte_v8.14.0"]
       reason: "data stream failure store rollover only supported in 8.14+"
-      features: allowed_warnings
+      test_runner_features: allowed_warnings
 
   - do:
       allowed_warnings:

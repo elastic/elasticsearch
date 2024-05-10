@@ -249,8 +249,8 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                     null,
                     null,
                     "Grants the minimum privileges required to write data into the monitoring indices (.monitoring-*). "
-                        + "This role also has the privileges necessary to create Metricbeat indices (metricbeat-*) " +
-                        "and write data into them."
+                        + "This role also has the privileges necessary to create Metricbeat indices (metricbeat-*) "
+                        + "and write data into them."
                 )
             ),
             entry(

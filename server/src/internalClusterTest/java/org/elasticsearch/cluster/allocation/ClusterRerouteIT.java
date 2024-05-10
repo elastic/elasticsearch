@@ -387,17 +387,16 @@ public class ClusterRerouteIT extends ESIntegTestCase {
             )
             .get();
 
-        MockLogAppender dryRunMockLog = new MockLogAppender();
-        dryRunMockLog.addExpectation(
-            new MockLogAppender.UnseenEventExpectation(
-                "no completed message logged on dry run",
-                TransportClusterRerouteAction.class.getName(),
-                Level.INFO,
-                "allocated an empty primary*"
-            )
-        );
+        try (var dryRunMockLog = MockLogAppender.capture(TransportClusterRerouteAction.class)) {
+            dryRunMockLog.addExpectation(
+                new MockLogAppender.UnseenEventExpectation(
+                    "no completed message logged on dry run",
+                    TransportClusterRerouteAction.class.getName(),
+                    Level.INFO,
+                    "allocated an empty primary*"
+                )
+            );
 
-        try (var ignored = dryRunMockLog.capturing(TransportClusterRerouteAction.class)) {
             AllocationCommand dryRunAllocation = new AllocateEmptyPrimaryAllocationCommand(indexName, 0, nodeName1, true);
             ClusterRerouteResponse dryRunResponse = clusterAdmin().prepareReroute()
                 .setExplain(randomBoolean())

@@ -341,7 +341,14 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                     new RoleDescriptor.IndicesPrivileges[] {
                         RoleDescriptor.IndicesPrivileges.builder().indices(".management-beats").privileges("all").build() },
                     null,
-                    MetadataUtils.DEFAULT_RESERVED_METADATA
+                    null,
+                    null,
+                    MetadataUtils.DEFAULT_RESERVED_METADATA,
+                    null,
+                    null,
+                    null,
+                    null,
+                    "Grants access to the .management-beats index, which contains configuration information for the Beats."
                 )
             ),
             entry(

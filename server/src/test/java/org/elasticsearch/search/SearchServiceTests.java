@@ -901,7 +901,7 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
         );
     }
 
-    public void testRankFeaturePhaseExceptionClearContextWhenAllShardFails() {
+    public void testRankFeaturePhaseExceptionAllShardFail() {
         final String indexName = "index";
         final String rankFeatureFieldName = "field";
         final String searchFieldName = "search_field";
@@ -1040,7 +1040,7 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
         );
     }
 
-    public void testRankFeaturePhaseExceptionClearContextWhenOneShardFails() {
+    public void testRankFeaturePhaseExceptionOneShardFails() {
         // if we have only one shard and it fails, it will fallback to context.onPhaseFailure which will eventually clean up all contexts.
         // in this test we want to make sure that even if one shard (of many) fails during the RankFeaturePhase, then the appropriate
         // context will have been cleaned up.

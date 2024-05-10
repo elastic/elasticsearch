@@ -690,7 +690,16 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                             .allowRestrictedIndices(true)
                             .build() },
                     null,
-                    MetadataUtils.DEFAULT_RESERVED_METADATA
+                    null,
+                    null,
+                    MetadataUtils.DEFAULT_RESERVED_METADATA,
+                    null,
+                    null,
+                    null,
+                    null,
+                    "Allows users to create and execute all Watcher actions. "
+                        + "Grants read access to the .watches index. Also grants read access "
+                        + "to the watch history and the triggered watches index."
                 )
             ),
             entry(
@@ -709,7 +718,14 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                             .privileges("read")
                             .build() },
                     null,
-                    MetadataUtils.DEFAULT_RESERVED_METADATA
+                    null,
+                    null,
+                    MetadataUtils.DEFAULT_RESERVED_METADATA,
+                    null,
+                    null,
+                    null,
+                    null,
+                    "Grants read access to the .watches index, the get watch action and the watcher stats."
                 )
             ),
             entry(

@@ -753,11 +753,37 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
             ),
             entry(
                 "rollup_user",
-                new RoleDescriptor("rollup_user", new String[] { "monitor_rollup" }, null, null, MetadataUtils.DEFAULT_RESERVED_METADATA)
+                new RoleDescriptor(
+                    "rollup_user",
+                    new String[] { "monitor_rollup" },
+                    null,
+                    null,
+                    null,
+                    null,
+                    MetadataUtils.DEFAULT_RESERVED_METADATA,
+                    null,
+                    null,
+                    null,
+                    null,
+                    "Grants monitor_rollup cluster privileges, which enable you to perform read-only operations related to rollups."
+                )
             ),
             entry(
                 "rollup_admin",
-                new RoleDescriptor("rollup_admin", new String[] { "manage_rollup" }, null, null, MetadataUtils.DEFAULT_RESERVED_METADATA)
+                new RoleDescriptor(
+                    "rollup_admin",
+                    new String[] { "manage_rollup" },
+                    null,
+                    null,
+                    null,
+                    null,
+                    MetadataUtils.DEFAULT_RESERVED_METADATA,
+                    null,
+                    null,
+                    null,
+                    null,
+                    "Grants manage_rollup cluster privileges, which enable you to manage and execute all rollup actions."
+                )
             ),
             entry(
                 "snapshot_user",

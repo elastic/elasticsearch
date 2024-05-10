@@ -187,6 +187,7 @@ public class RemoteClusterSecurityRestIT extends AbstractRemoteClusterSecurityTe
             final var putRoleRequest = new Request("PUT", "/_security/role/" + REMOTE_SEARCH_ROLE);
             putRoleRequest.setJsonEntity("""
                 {
+                  "description": "Role with privileges for remote and local indices.",
                   "indices": [
                     {
                       "names": ["local_index"],
@@ -293,6 +294,7 @@ public class RemoteClusterSecurityRestIT extends AbstractRemoteClusterSecurityTe
             final var putLocalSearchRoleRequest = new Request("PUT", "/_security/role/local_search");
             putLocalSearchRoleRequest.setJsonEntity(Strings.format("""
                 {
+                  "description": "Role with privileges for searching local only indices.",
                   "indices": [
                     {
                       "names": ["local_index"],

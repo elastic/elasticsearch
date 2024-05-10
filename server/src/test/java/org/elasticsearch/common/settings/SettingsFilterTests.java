@@ -119,7 +119,6 @@ public class SettingsFilterTests extends ESTestCase {
         Logger testLogger = LogManager.getLogger("org.elasticsearch.test");
         MockLogAppender appender = new MockLogAppender();
         try (var ignored = appender.capturing("org.elasticsearch.test")) {
-            appender.start();
             Arrays.stream(expectations).forEach(appender::addExpectation);
             consumer.accept(testLogger);
             appender.assertAllExpectationsMatched();

@@ -49,6 +49,7 @@ import java.util.List;
 import java.util.Set;
 
 import static org.elasticsearch.cluster.metadata.ReservedStateErrorMetadata.ErrorKind.TRANSIENT;
+import static org.elasticsearch.cluster.metadata.ReservedStateMetadata.EMPTY_VERSION;
 
 public class ReadinessServiceTests extends ESTestCase implements ReadinessClientProbe {
     private ClusterService clusterService;
@@ -59,7 +60,7 @@ public class ReadinessServiceTests extends ESTestCase implements ReadinessClient
 
     private static Metadata emptyReservedStateMetadata;
     static {
-        var fileSettingsState = new ReservedStateMetadata.Builder(FileSettingsService.NAMESPACE).version(-1L);
+        var fileSettingsState = new ReservedStateMetadata.Builder(FileSettingsService.NAMESPACE).version(EMPTY_VERSION);
         emptyReservedStateMetadata = new Metadata.Builder().put(fileSettingsState.build()).build();
     }
 

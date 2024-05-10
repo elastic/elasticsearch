@@ -59,17 +59,18 @@ public class CoordinatorRewriteContextProvider {
 
         DateFieldMapper.DateFieldType timestampFieldType = dateFieldMap.get(DataStream.TIMESTAMP_FIELD_NAME);
         IndexLongFieldRange timestampRange = indexMetadata.getTimestampRange();
-        /// MP TODO: should we also check eventIngestedRange.containsAllShardRanges() == false ??
-        if (timestampRange.containsAllShardRanges() == false) {
-            timestampRange = indexMetadata.getTimeSeriesTimestampRange(timestampFieldType);
-            if (timestampRange == null) {
-                /// MP TODO: does this logic need to change now? - can we short circuit without checking event.ingested (?)
-                return null;
-            }
-        }
 
         DateFieldMapper.DateFieldType eventIngestedFieldType = dateFieldMap.get(IndexMetadata.EVENT_INGESTED_FIELD_NAME);
         IndexLongFieldRange eventIngestedRange = indexMetadata.getEventIngestedRange();
+
+        /// MP TODO: should we also check eventIngestedRange.containsAllShardRanges() == false ??
+        if (timestampRange.containsAllShardRanges() == false && eventIngestedRange.containsAllShardRanges() == false) {
+            /// MP TODO: why are we reassigning the timestampRange here?
+            timestampRange = indexMetadata.getTimeSeriesTimestampRange(timestampFieldType);
+            if (timestampRange == null) {
+                return null;
+            }
+        }
 
         var atTimestampRangeInfo = new CoordinatorRewriteContext.DateFieldRange(timestampFieldType, timestampRange);
         var eventIngestedRangeInfo = new CoordinatorRewriteContext.DateFieldRange(eventIngestedFieldType, eventIngestedRange);

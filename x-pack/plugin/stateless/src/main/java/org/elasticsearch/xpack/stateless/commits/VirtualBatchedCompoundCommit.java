@@ -366,7 +366,7 @@ public class VirtualBatchedCompoundCommit extends AbstractRefCounted implements 
     }
 
     public long getTotalSizeInBytes() {
-        return pendingCompoundCommits.stream().mapToLong(PendingCompoundCommit::getSizeInBytes).sum();
+        return currentOffset.get();
     }
 
     public Map<String, BlobLocation> getInternalLocations() {

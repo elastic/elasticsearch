@@ -445,7 +445,7 @@ public class Stateless extends Plugin
         setAndGet(this.closedShardService, closedShardService);
         var translogReplicator = setAndGet(
             this.translogReplicator,
-            new TranslogReplicator(threadPool, settings, objectStoreService, consistencyService, indicesService)
+            new TranslogReplicator(threadPool, settings, objectStoreService, consistencyService)
         );
         components.add(translogReplicator);
         var refreshThrottlingService = setAndGet(this.refreshThrottlingService, new RefreshThrottlingService(settings, clusterService));

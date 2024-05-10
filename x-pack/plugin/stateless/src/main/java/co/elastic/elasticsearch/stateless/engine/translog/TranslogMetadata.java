@@ -43,7 +43,7 @@ public record TranslogMetadata(
             streamInput.readLong(),
             streamInput.readLong(),
             version >= CompoundTranslogHeader.VERSION_WITH_SHARD_TRANSLOG_GENERATION ? streamInput.readLong() : -1,
-            version >= CompoundTranslogHeader.VERSION_WITH_DIRECTORY ? Directory.readFromStore(streamInput, version) : null
+            version >= CompoundTranslogHeader.VERSION_WITH_BROKEN_DIRECTORY ? Directory.readFromStore(streamInput, version) : null
         );
     }
 
@@ -78,11 +78,16 @@ public record TranslogMetadata(
             + '}';
     }
 
-    record Directory(long estimatedOperationsToRecover, int[] referencedTranslogFileOffsets) implements Writeable {
+    public record Directory(long estimatedOperationsToRecover, int[] referencedTranslogFileOffsets) implements Writeable {
 
         public static Directory readFromStore(StreamInput streamInput, int version) throws IOException {
-            assert version >= CompoundTranslogHeader.VERSION_WITH_DIRECTORY;
-            return new Directory(streamInput.readVLong(), streamInput.readVIntArray());
+            assert version >= CompoundTranslogHeader.VERSION_WITH_BROKEN_DIRECTORY;
+            Directory directory = new Directory(streamInput.readVLong(), streamInput.readVIntArray());
+            if (version >= CompoundTranslogHeader.VERSION_WITH_FIXED_DIRECTORY) {
+                return directory;
+            } else {
+                return null;
+            }
         }
 
         // Currently referenced files are serialized as vInts offset from the current generation. This means that the average referenced

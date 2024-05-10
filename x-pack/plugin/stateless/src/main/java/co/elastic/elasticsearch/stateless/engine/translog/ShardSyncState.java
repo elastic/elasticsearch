@@ -33,8 +33,9 @@ import org.elasticsearch.index.translog.Translog;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.NavigableMap;
 import java.util.PriorityQueue;
-import java.util.concurrent.atomic.AtomicReference;
+import java.util.TreeMap;
 import java.util.function.LongConsumer;
 import java.util.function.LongSupplier;
 
@@ -47,8 +48,9 @@ class ShardSyncState {
     private final ThreadContext threadContext;
     private final BigArrays bigArrays;
     private final PriorityQueue<SyncListener> listeners = new PriorityQueue<>();
-    private final PriorityQueue<TranslogReplicator.BlobTranslogFile> referencedTranslogFiles = new PriorityQueue<>();
+    private final TreeMap<Long, TranslogReplicator.BlobTranslogFile> translogFiles = new TreeMap<>();
     private long markedTranslogStartFile = -1;
+    private long markedTranslogDeleteGeneration = -1;
     private volatile Translog.Location processedLocation = new Translog.Location(0, 0, 0);
     private volatile Translog.Location syncedLocation = new Translog.Location(0, 0, 0);
     private final Object bufferLock = new Object();
@@ -56,7 +58,7 @@ class ShardSyncState {
     // operations meaning that the translog start file will be marked.
     private long shardTranslogGeneration = 0;
     private BufferState bufferState = null;
-    private final AtomicReference<State> state = new AtomicReference<>(State.OPEN);
+    private volatile boolean isClosed = false;
 
     ShardSyncState(
         ShardId shardId,
@@ -88,7 +90,7 @@ class ShardSyncState {
         if (processedLocationCopy.compareTo(syncedLocation) > 0) {
             ensureSynced(processedLocationCopy, listener);
         } else {
-            if (state.get() != State.OPEN) {
+            if (isClosed) {
                 listener.onFailure(alreadyClosedException(shardId));
             } else {
                 listener.onResponse(null);
@@ -101,7 +103,7 @@ class ShardSyncState {
         boolean alreadyClosed = false;
         if (location.compareTo(syncedLocation) > 0) {
             synchronized (listeners) {
-                if (state.get() != State.OPEN) {
+                if (isClosed) {
                     alreadyClosed = true;
                 } else if (location.compareTo(syncedLocation) > 0) {
                     ContextPreservingActionListener<Void> contextPreservingActionListener = ContextPreservingActionListener
@@ -125,17 +127,15 @@ class ShardSyncState {
         // If the primary term changed this shard will eventually be closed and the listeners will be failed at that point, so we can
         // ignore them here.
         if (primaryTerm == currentPrimaryTerm.getAsLong()) {
-            synchronized (referencedTranslogFiles) {
-                if (markedTranslogStartFile > translogFile.generation()) {
-                    translogFile.decRef();
-                } else {
-                    assert referencedTranslogFiles.stream().allMatch(t -> t.generation() < translogFile.generation());
-                    switch (state.get()) {
-                        // Add if the shard is open. Decrement if shard is closed. Ignore is node is closing.
-                        case OPEN -> referencedTranslogFiles.add(translogFile);
-                        case CLOSED, CLOSED_NODE_STOPPING -> {
-                        }
-                    }
+            synchronized (translogFiles) {
+                // Since this is call before initiating an upload, the marked translog start file should never be less than the recovery
+                // start file
+                assert translogFile.generation() >= markedTranslogStartFile;
+                assert translogFiles.keySet().stream().allMatch(l -> l < translogFile.generation());
+                if (isClosed == false) {
+                    // Add if the shard is open. Ignore if the shard is closed. We cannot safely decrement as we don't know if the file will
+                    // be needed for a different recovery
+                    translogFiles.put(translogFile.generation(), translogFile);
                 }
             }
         } else {
@@ -160,17 +160,35 @@ class ShardSyncState {
     }
 
     public void markCommitUploaded(long translogStartFile) {
-        synchronized (referencedTranslogFiles) {
-            markedTranslogStartFile = Math.max(translogStartFile, markedTranslogStartFile);
-            releaseReferencedTranslogFiles(translogStartFile);
+        synchronized (translogFiles) {
+            if (isClosed == false) {
+                if (translogStartFile > markedTranslogStartFile) {
+                    for (TranslogReplicator.BlobTranslogFile file : translogFiles.subMap(markedTranslogStartFile, translogStartFile)
+                        .values()) {
+                        file.decRef();
+                    }
+                    markedTranslogStartFile = translogStartFile;
+                }
+            }
         }
     }
 
-    private void releaseReferencedTranslogFiles(long bound) {
-        TranslogReplicator.BlobTranslogFile activeTranslogFile;
-        while ((activeTranslogFile = referencedTranslogFiles.peek()) != null && bound > activeTranslogFile.generation()) {
-            referencedTranslogFiles.poll();
-            activeTranslogFile.decRef();
+    public void markTranslogDeleted(long translogGeneration) {
+        synchronized (translogFiles) {
+            if (isClosed == false) {
+                markedTranslogDeleteGeneration = Math.max(translogGeneration, markedTranslogDeleteGeneration);
+                if (markedTranslogDeleteGeneration == translogGeneration) {
+                    // Remove all files prior to this generation. There is a possibility that lower generation files may still be
+                    // referenced by other shards. For example imagine these translog files: [0, 1]. Shard A has not committed yet
+                    // and has ops in generation 0. Shard B has committed with a translogStartFile=2 and has ops in [0, 1]. Shard B has
+                    // decremented its references to 0 and 1. With this file 1 is deleted and cluster consistency passed. Shard B can now
+                    // remove its reference to both file 0 and 1, even though file 0 is hanging around for Shard A.
+                    NavigableMap<Long, TranslogReplicator.BlobTranslogFile> toRemove = translogFiles.headMap(translogGeneration, true);
+                    toRemove.clear();
+                } else {
+                    assert translogFiles.headMap(translogGeneration, true).isEmpty();
+                }
+            }
         }
     }
 
@@ -192,7 +210,7 @@ class ShardSyncState {
 
     public void writeToBuffer(BytesReference data, long seqNo, Translog.Location location) throws IOException {
         synchronized (bufferLock) {
-            if (state.get() != State.OPEN) {
+            if (isClosed) {
                 throw alreadyClosedException(shardId);
             }
             Translog.Location newProcessedLocation = new Translog.Location(
@@ -220,11 +238,10 @@ class ShardSyncState {
     public SyncState pollSync(long generation) {
         final int[] referencedTranslogFileOffsets;
         long estimatedOps = 0;
-        synchronized (referencedTranslogFiles) {
-            referencedTranslogFileOffsets = new int[referencedTranslogFiles.size()];
-
+        synchronized (translogFiles) {
+            referencedTranslogFileOffsets = new int[translogFiles.size()];
             int i = 0;
-            for (TranslogReplicator.BlobTranslogFile referencedFile : referencedTranslogFiles) {
+            for (TranslogReplicator.BlobTranslogFile referencedFile : translogFiles.values()) {
                 estimatedOps += referencedFile.checkpoints().get(shardId).totalOps();
                 referencedTranslogFileOffsets[i] = Math.toIntExact(generation - referencedFile.generation());
                 assert referencedTranslogFileOffsets[i] > 0 : generation + " " + referencedFile.generation();
@@ -239,12 +256,11 @@ class ShardSyncState {
         }
     }
 
-    public void close(boolean nodeStopping) {
+    public void close() {
         final ArrayList<ActionListener<Void>> toComplete;
-        if (nodeStopping) {
-            state.set(State.CLOSED_NODE_STOPPING);
-        } else {
-            state.set(State.CLOSED);
+        isClosed = true;
+        synchronized (translogFiles) {
+            translogFiles.clear();
         }
         synchronized (listeners) {
             toComplete = new ArrayList<>(listeners);

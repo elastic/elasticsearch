@@ -31,8 +31,6 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Set;
-import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 public class ObjectMapper extends Mapper {
@@ -842,26 +840,19 @@ public class ObjectMapper extends Mapper {
                 b.startObject(simpleName());
             }
 
-            if (ignoredValues != null && ignoredValues.isEmpty() == false) {
-                Set<String> arrays = ignoredValues.stream().map(IgnoredSourceFieldMapper.NameValue::name).collect(Collectors.toSet());
-                for (SourceLoader.SyntheticFieldLoader field : fields) {
-                    if (field.hasValue() && arrays.contains(field.fieldName()) == false) {
-                        field.write(b);
-                    }
+            for (SourceLoader.SyntheticFieldLoader field : fields) {
+                if (field.hasValue()) {
+                    field.write(b);
                 }
+            }
+            hasValue = false;
+            if (ignoredValues != null) {
                 for (IgnoredSourceFieldMapper.NameValue ignored : ignoredValues) {
                     b.field(ignored.getFieldName());
                     XContentDataHelper.decodeAndWrite(b, ignored.value());
                 }
                 ignoredValues = null;
-            } else {
-                for (SourceLoader.SyntheticFieldLoader field : fields) {
-                    if (field.hasValue()) {
-                        field.write(b);
-                    }
-                }
             }
-            hasValue = false;
             b.endObject();
         }
 
@@ -876,11 +867,6 @@ public class ObjectMapper extends Mapper {
                 hasValue |= loader.setIgnoredValues(objectsWithIgnoredFields);
             }
             return this.ignoredValues != null;
-        }
-
-        @Override
-        public String fieldName() {
-            return name();
         }
     }
 

@@ -1012,7 +1012,7 @@ public class WildcardFieldMapper extends FieldMapper {
 
         @Override
         public DocValuesLoader docValuesLoader(LeafReader leafReader, int[] docIdsInLeaf) throws IOException {
-            BinaryDocValues values = leafReader.getBinaryDocValues(fieldName());
+            BinaryDocValues values = leafReader.getBinaryDocValues(name());
             if (values == null) {
                 docValueCount = 0;
                 return null;
@@ -1060,11 +1060,6 @@ public class WildcardFieldMapper extends FieldMapper {
                 b.endArray();
             }
             storedValues = emptyList();
-        }
-
-        @Override
-        public String fieldName() {
-            return name();
         }
     }
 }

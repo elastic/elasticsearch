@@ -14,7 +14,6 @@ import org.apache.lucene.search.Query;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.fielddata.FieldDataContext;
@@ -551,7 +550,7 @@ public final class DocumentParser {
             if (parsesArrayValue(mapper)) {
                 parseObjectOrField(context, mapper);
             } else {
-                parseNonDynamicArray(context, mapper, lastFieldName, lastFieldName);
+                parseNonDynamicArray(context, lastFieldName, lastFieldName);
             }
         } else {
             parseArrayDynamic(context, lastFieldName);
@@ -565,7 +564,7 @@ public final class DocumentParser {
         } else {
             Mapper objectMapperFromTemplate = DynamicFieldsBuilder.createObjectMapperFromTemplate(context, currentFieldName);
             if (objectMapperFromTemplate == null) {
-                parseNonDynamicArray(context, objectMapperFromTemplate, currentFieldName, currentFieldName);
+                parseNonDynamicArray(context, currentFieldName, currentFieldName);
             } else {
                 if (parsesArrayValue(objectMapperFromTemplate)) {
                     if (context.addDynamicMapper(objectMapperFromTemplate) == false) {
@@ -576,7 +575,7 @@ public final class DocumentParser {
                     parseObjectOrField(context, objectMapperFromTemplate);
                     context.path().remove();
                 } else {
-                    parseNonDynamicArray(context, objectMapperFromTemplate, currentFieldName, currentFieldName);
+                    parseNonDynamicArray(context, currentFieldName, currentFieldName);
                 }
             }
         }
@@ -586,27 +585,8 @@ public final class DocumentParser {
         return mapper instanceof FieldMapper && ((FieldMapper) mapper).parsesArrayValue();
     }
 
-    private static void parseNonDynamicArray(
-        DocumentParserContext context,
-        @Nullable Mapper mapper,
-        final String lastFieldName,
-        String arrayFieldName
-    ) throws IOException {
-        if (context.mappingLookup().isSourceSynthetic()
-            && (mapper instanceof ObjectMapper objectMapper && objectMapper.trackArraySource())
-            && context.getSourceTracked() == false) {
-            var tuple = XContentDataHelper.cloneSubContext(context);
-            boolean isRoot = context.parent() instanceof RootObjectMapper;
-            context.addIgnoredField(
-                new IgnoredSourceFieldMapper.NameValue(
-                    isRoot ? arrayFieldName : context.parent().name() + "." + arrayFieldName,
-                    isRoot ? 0 : context.parent().fullPath().length() + 1,
-                    XContentDataHelper.encode(tuple.v2())
-                )
-            );
-            context = tuple.v1();
-        }
-
+    private static void parseNonDynamicArray(DocumentParserContext context, final String lastFieldName, String arrayFieldName)
+        throws IOException {
         XContentParser parser = context.parser();
         XContentParser.Token token;
         while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {

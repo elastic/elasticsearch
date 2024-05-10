@@ -215,11 +215,6 @@ public interface SourceLoader {
 
             @Override
             public void write(XContentBuilder b) {}
-
-            @Override
-            public String fieldName() {
-                return "";
-            }
         };
 
         /**
@@ -250,8 +245,6 @@ public interface SourceLoader {
         default boolean setIgnoredValues(Map<String, List<IgnoredSourceFieldMapper.NameValue>> objectsWithIgnoredFields) {
             return false;
         }
-
-        String fieldName();
 
         /**
          * Sync for stored field values.

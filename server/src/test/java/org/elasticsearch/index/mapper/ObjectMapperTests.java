@@ -165,6 +165,7 @@ public class ObjectMapperTests extends MapperServiceTestCase {
         assertNotNull(objectMapper);
         assertFalse(objectMapper.isEnabled());
         assertTrue(objectMapper.subobjects());
+        assertFalse(objectMapper.trackArraySource());
 
         // Setting 'enabled' to true is allowed, and updates the mapping.
         update = Strings.toString(
@@ -175,6 +176,7 @@ public class ObjectMapperTests extends MapperServiceTestCase {
                 .field("type", "object")
                 .field("enabled", true)
                 .field("subobjects", false)
+                .field("track_array_source", true)
                 .endObject()
                 .endObject()
                 .endObject()
@@ -185,6 +187,7 @@ public class ObjectMapperTests extends MapperServiceTestCase {
         assertNotNull(objectMapper);
         assertTrue(objectMapper.isEnabled());
         assertFalse(objectMapper.subobjects());
+        assertTrue(objectMapper.trackArraySource());
     }
 
     public void testFieldReplacementForIndexTemplates() throws IOException {
@@ -573,6 +576,7 @@ public class ObjectMapperTests extends MapperServiceTestCase {
                 b.field("subobjects", false);
                 b.field("enabled", false);
                 b.field("dynamic", false);
+                b.field("track_array_source", true);
                 b.startObject("properties");
                 propertiesBuilder.accept(b);
                 b.endObject();

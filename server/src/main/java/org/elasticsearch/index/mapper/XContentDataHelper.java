@@ -13,9 +13,7 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefIterator;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.util.ByteUtils;
-import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.CheckedFunction;
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
@@ -74,58 +72,6 @@ final class XContentDataHelper {
             case FLOAT_ENCODING -> TypeUtils.FLOAT.decodeAndWrite(b, r);
             default -> throw new IllegalArgumentException("Can't decode " + r);
         }
-    }
-
-    /**
-     * Stores the current parser structure (subtree) to an XContentBuilder and returns it, along with a DocumentParserContext
-     * wrapping it that can be used to reparse the subtree.
-     * The parser of the original context is also advanced to the end of the current structure (subtree) as a side effect.
-     */
-    static Tuple<DocumentParserContext, XContentBuilder> cloneSubContext(DocumentParserContext context) throws IOException {
-        var tuple = cloneSubContextParserConfiguration(context);
-        return Tuple.tuple(cloneDocumentParserContext(context, tuple.v1(), tuple.v2()), tuple.v2());
-    }
-
-    /**
-     * Initializes a XContentParser with the current parser structure (subtree) and returns it, along with a DocumentParserContext
-     * wrapping the subtree that can be used to reparse it.
-     * The parser of the original context is also advanced to the end of the current structure (subtree) as a side effect.
-     */
-    static Tuple<DocumentParserContext, XContentParser> cloneSubContextWithParser(DocumentParserContext context) throws IOException {
-        var tuple = cloneSubContextParserConfiguration(context);
-        XContentParser parser = XContentHelper.createParserNotCompressed(
-            tuple.v1(),
-            BytesReference.bytes(tuple.v2()),
-            context.parser().contentType()
-        );
-        assert parser.currentToken() == null;
-        parser.nextToken();
-        return Tuple.tuple(cloneDocumentParserContext(context, tuple.v1(), tuple.v2()), parser);
-    }
-
-    private static Tuple<XContentParserConfiguration, XContentBuilder> cloneSubContextParserConfiguration(DocumentParserContext context)
-        throws IOException {
-        XContentParser parser = context.parser();
-        XContentBuilder builder = XContentBuilder.builder(parser.contentType().xContent());
-        builder.copyCurrentStructure(parser);
-
-        XContentParserConfiguration configuration = XContentParserConfiguration.EMPTY.withRegistry(parser.getXContentRegistry())
-            .withDeprecationHandler(parser.getDeprecationHandler())
-            .withRestApiVersion(parser.getRestApiVersion());
-        return Tuple.tuple(configuration, builder);
-    }
-
-    private static DocumentParserContext cloneDocumentParserContext(
-        DocumentParserContext context,
-        XContentParserConfiguration configuration,
-        XContentBuilder builder
-    ) throws IOException {
-        DocumentParserContext subcontext = context.switchParser(
-            XContentHelper.createParserNotCompressed(configuration, BytesReference.bytes(builder), context.parser().contentType())
-        );
-        subcontext.setSourceTracked(true);  // Avoids double-tracking source for parser subtree.
-        subcontext.parser().nextToken();
-        return subcontext;
     }
 
     private static Object processToken(XContentParser parser, CheckedFunction<TypeUtils, Object, IOException> visitor) throws IOException {
@@ -449,9 +395,5 @@ final class XContentDataHelper {
                 b.copyCurrentStructure(parser);
             }
         }
-    }
-
-    static BytesRef encode(XContentBuilder builder) throws IOException {
-        return new BytesRef(TypeUtils.encode(builder));
     }
 }

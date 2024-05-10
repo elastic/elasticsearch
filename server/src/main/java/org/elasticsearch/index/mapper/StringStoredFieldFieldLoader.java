@@ -89,9 +89,4 @@ public abstract class StringStoredFieldFieldLoader implements SourceLoader.Synth
     public final DocValuesLoader docValuesLoader(LeafReader reader, int[] docIdsInLeaf) throws IOException {
         return null;
     }
-
-    @Override
-    public String fieldName() {
-        return name;
-    }
 }

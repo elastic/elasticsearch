@@ -76,7 +76,7 @@ public abstract class BaseRestHandler implements RestHandler {
     @Override
     public abstract List<Route> routes();
 
-    private static final Set<String> ALWAYS_SUPPORTED = Set.of("format", "Accept", "filter_path", "pretty", "human");
+    private static final Set<String> ALWAYS_SUPPORTED = Set.of("format", "filter_path", "pretty", "human");
 
     @Override
     public final void handleRequest(RestRequest request, RestChannel channel, NodeClient client) throws Exception {

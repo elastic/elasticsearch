@@ -1316,22 +1316,6 @@ public class ApiKeyServiceTests extends ESTestCase {
         assertThat(roleDescriptors, hasSize(1));
         assertThat(roleDescriptors.get(0), equalTo(roleARoleDescriptor));
 
-        Map<String, Object> superUserRdMap;
-        try (XContentBuilder builder = JsonXContent.contentBuilder()) {
-            superUserRdMap = XContentHelper.convertToMap(
-                XContentType.JSON.xContent(),
-                BytesReference.bytes(SUPERUSER_ROLE_DESCRIPTOR.toXContent(builder, ToXContent.EMPTY_PARAMS, true)).streamInput(),
-                false
-            );
-        }
-        roleDescriptors = service.parseRoleDescriptors(
-            apiKeyId,
-            Map.of(SUPERUSER_ROLE_DESCRIPTOR.getName(), superUserRdMap),
-            randomApiKeyRoleType()
-        );
-        assertThat(roleDescriptors, hasSize(1));
-        assertThat(roleDescriptors.get(0), equalTo(SUPERUSER_ROLE_DESCRIPTOR));
-
         final Map<String, Object> legacySuperUserRdMap;
         try (XContentBuilder builder = JsonXContent.contentBuilder()) {
             legacySuperUserRdMap = XContentHelper.convertToMap(

@@ -63,7 +63,7 @@ public class AzureOpenAiEmbeddingsServiceSettings extends FilteredXContentObject
      *
      * According to the docs 1000 tokens per minute (TPM) = 6 requests per minute (RPM). The limits change depending on the region
      * and model. The lowest text embedding limit is 240K TPM, so we'll default to that.
-     * Calculation: 240K TPM = 240 * 6 = 1440 requests per minute
+     * Calculation: 240K TPM = 240 * 6 = 1440 requests per minute (used `eastus` and `Text-Embedding-Ada-002` as basis for the calculation).
      */
     private static final RateLimitSettings DEFAULT_RATE_LIMIT_SETTINGS = new RateLimitSettings(1_440);
 

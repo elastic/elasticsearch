@@ -568,11 +568,9 @@ public class Netty4HttpServerTransportTests extends AbstractHttpServerTransportT
             }
         };
         // there's only one netty worker thread that's reused across client requests
-        Settings settings = Settings.builder()
-            .put(Netty4Plugin.WORKER_COUNT.getKey(), 1)
+        Settings settings = createBuilderWithPort().put(Netty4Plugin.WORKER_COUNT.getKey(), 1)
             .put(Netty4Plugin.SETTING_HTTP_WORKER_COUNT.getKey(), 0)
             .build();
-        NioEventLoopGroup group = new NioEventLoopGroup();
         AtomicBoolean acceptChannel = new AtomicBoolean();
         try (
             Netty4HttpServerTransport transport = new Netty4HttpServerTransport(
@@ -601,9 +599,9 @@ public class Netty4HttpServerTransportTests extends AbstractHttpServerTransportT
         ) {
             transport.start();
             int nRetries = randomIntBetween(7, 9);
-            for (int i = 0; i < nRetries; i++) {
-                acceptChannel.set(randomBoolean());
-                try (Netty4HttpClient client = new Netty4HttpClient()) {
+            try (Netty4HttpClient client = new Netty4HttpClient()) {
+                for (int i = 0; i < nRetries; i++) {
+                    acceptChannel.set(randomBoolean());
                     var responses = client.get(randomFrom(transport.boundAddress().boundAddresses()).address(), "/test/url");
                     try {
                         if (acceptChannel.get()) {
@@ -619,8 +617,6 @@ public class Netty4HttpServerTransportTests extends AbstractHttpServerTransportT
                     }
                 }
             }
-        } finally {
-            group.shutdownGracefully().await();
         }
     }
 

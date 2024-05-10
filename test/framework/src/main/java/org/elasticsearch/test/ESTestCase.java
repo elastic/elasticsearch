@@ -64,6 +64,7 @@ import org.elasticsearch.common.logging.HeaderWarningAppender;
 import org.elasticsearch.common.logging.LogConfigurator;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.lucene.Lucene;
+import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateUtils;
@@ -259,6 +260,7 @@ public abstract class ESTestCase extends LuceneTestCase {
         // TODO: consolidate logging initialization for tests so it all occurs in logconfigurator
         LogConfigurator.loadLog4jPlugins();
         LogConfigurator.configureESLogging();
+        MockLogAppender.init();
 
         final List<Appender> testAppenders = new ArrayList<>(3);
         for (String leakLoggerName : Arrays.asList("io.netty.util.ResourceLeakDetector", LeakTracker.class.getName())) {
@@ -885,6 +887,16 @@ public abstract class ESTestCase extends LuceneTestCase {
         return bytes;
     }
 
+    public static byte randomByteBetween(byte minInclusive, byte maxInclusive) {
+        return (byte) randomIntBetween(minInclusive, maxInclusive);
+    }
+
+    public static void randomBytesBetween(byte[] bytes, byte minInclusive, byte maxInclusive) {
+        for (int i = 0, len = bytes.length; i < len;) {
+            bytes[i++] = randomByteBetween(minInclusive, maxInclusive);
+        }
+    }
+
     public static BytesReference randomBytesReference(int length) {
         final var slices = new ArrayList<BytesReference>();
         var remaining = length;
@@ -1046,6 +1058,11 @@ public abstract class ESTestCase extends LuceneTestCase {
 
     public static String randomAlphaOfLength(int codeUnits) {
         return RandomizedTest.randomAsciiOfLength(codeUnits);
+    }
+
+    public static SecureString randomSecureStringOfLength(int codeUnits) {
+        var randomAlpha = randomAlphaOfLength(codeUnits);
+        return new SecureString(randomAlpha.toCharArray());
     }
 
     public static String randomNullOrAlphaOfLength(int codeUnits) {

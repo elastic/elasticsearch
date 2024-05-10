@@ -12,6 +12,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.ObjectObjectPagedHashMap;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.search.DocValueFormat;
+import org.elasticsearch.search.aggregations.AggregationErrors;
 import org.elasticsearch.search.aggregations.AggregationReduceContext;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorReducer;
@@ -29,6 +30,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 
 /**
  * Result of the significant terms aggregation.
@@ -208,10 +210,27 @@ public abstract class InternalSignificantTerms<A extends InternalSignificantTerm
                 reduceContext.bigArrays()
             );
 
+            private InternalAggregation referenceAgg = null;
+
             @Override
             public void accept(InternalAggregation aggregation) {
+                /*
+                canLeadReduction here is essentially checking if this shard returned data.  Unmapped shards (that didn't
+                specify a missing value) will be false. Since they didn't return data, we can safely skip them, and
+                doing so prevents us from accidentally taking one as the reference agg for type checking, which would cause
+                shards that actually returned data to fail.
+                 */
+                if (aggregation.canLeadReduction() == false) {
+                    return;
+                }
                 @SuppressWarnings("unchecked")
                 final InternalSignificantTerms<A, B> terms = (InternalSignificantTerms<A, B>) aggregation;
+                if (referenceAgg == null) {
+                    referenceAgg = terms;
+                } else if (referenceAgg.getClass().equals(terms.getClass()) == false) {
+                    // We got here because shards had different mappings for the same field (presumably different indices)
+                    throw AggregationErrors.reduceTypeMismatch(referenceAgg.getName(), Optional.empty());
+                }
                 // Compute the overall result set size and the corpus size using the
                 // top-level Aggregations from each shard
                 globalSubsetSize += terms.getSubsetSize();

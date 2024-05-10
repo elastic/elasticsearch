@@ -11,6 +11,8 @@ package org.elasticsearch.kibana;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.IndexingPressure;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.indices.SystemIndexThreadPoolTestCase;
 import org.elasticsearch.plugins.Plugin;
@@ -26,6 +28,20 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitC
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 
 public class KibanaThreadPoolIT extends SystemIndexThreadPoolTestCase {
+
+    @Override
+    protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
+        return Settings.builder()
+            .put(super.nodeSettings(nodeOrdinal, otherSettings))
+            .put(IndexingPressure.MAX_INDEXING_BYTES.getKey(), "1KB")
+            .put("thread_pool.search.size", 1)
+            .put("thread_pool.search.queue_size", 1)
+            .put("thread_pool.write.queue_size", 1)
+            .put("thread_pool.write.queue_size", 1)
+            .put("thread_pool.get.queue_size", 1)
+            .put("thread_pool.get.queue_size", 1)
+            .build();
+    }
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {

@@ -33,7 +33,6 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.CompositeBytesReference;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
-import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.io.stream.ReleasableBytesStreamOutput;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
@@ -51,13 +50,11 @@ import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.translog.Translog;
-import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
@@ -69,7 +66,6 @@ import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.LongConsumer;
-import java.util.function.Supplier;
 import java.util.function.ToLongFunction;
 
 import static org.elasticsearch.core.Strings.format;
@@ -107,7 +103,6 @@ public class TranslogReplicator extends AbstractLifecycleComponent {
     private final ObjectStoreService objectStoreService;
     private final StatelessClusterConsistencyService consistencyService;
     private final ToLongFunction<ShardId> currentPrimaryTerm;
-    private final Supplier<Lifecycle.State> indicesServiceState;
     private final ThreadPool threadPool;
     private final Executor executor;
     private final NodeSyncState nodeState = new NodeSyncState();
@@ -123,8 +118,7 @@ public class TranslogReplicator extends AbstractLifecycleComponent {
         final ThreadPool threadPool,
         final Settings settings,
         final ObjectStoreService objectStoreService,
-        final StatelessClusterConsistencyService consistencyService,
-        final IndicesService indicesService
+        final StatelessClusterConsistencyService consistencyService
     ) {
         this(threadPool, settings, objectStoreService, consistencyService, shardId -> {
             IndexMetadata index = consistencyService.state().metadata().index(shardId.getIndex());
@@ -132,7 +126,7 @@ public class TranslogReplicator extends AbstractLifecycleComponent {
                 return Long.MIN_VALUE;
             }
             return index.primaryTerm(shardId.getId());
-        }, indicesService::lifecycleState);
+        });
     }
 
     public TranslogReplicator(
@@ -142,18 +136,6 @@ public class TranslogReplicator extends AbstractLifecycleComponent {
         final StatelessClusterConsistencyService consistencyService,
         final ToLongFunction<ShardId> currentPrimaryTerm
     ) {
-        this(threadPool, settings, objectStoreService, consistencyService, currentPrimaryTerm, () -> Lifecycle.State.STARTED);
-
-    }
-
-    public TranslogReplicator(
-        final ThreadPool threadPool,
-        final Settings settings,
-        final ObjectStoreService objectStoreService,
-        final StatelessClusterConsistencyService consistencyService,
-        final ToLongFunction<ShardId> currentPrimaryTerm,
-        final Supplier<Lifecycle.State> indicesServiceState
-    ) {
         this.threadPool = threadPool;
         this.executor = threadPool.generic();
         this.objectStoreService = objectStoreService;
@@ -162,7 +144,6 @@ public class TranslogReplicator extends AbstractLifecycleComponent {
         this.flushSize = FLUSH_SIZE_SETTING.get(settings);
         this.consistencyService = consistencyService;
         this.currentPrimaryTerm = currentPrimaryTerm;
-        this.indicesServiceState = indicesServiceState;
         this.lastFlushTime = new AtomicLong(getCurrentTimeMillis());
     }
 
@@ -181,12 +162,16 @@ public class TranslogReplicator extends AbstractLifecycleComponent {
         }
     }
 
+    public Set<BlobTranslogFile> getUploadingTranslogFiles() {
+        return Set.copyOf(nodeState.uploadingTranslogFiles.values());
+    }
+
     public Set<BlobTranslogFile> getActiveTranslogFiles() {
-        return Collections.unmodifiableSet(new HashSet<>(nodeState.activeTranslogFiles));
+        return Set.copyOf(nodeState.activeTranslogFiles);
     }
 
     public Set<BlobTranslogFile> getTranslogFilesToDelete() {
-        return Collections.unmodifiableSet(new HashSet<>(nodeState.translogFilesToDelete));
+        return Set.copyOf(nodeState.translogFilesToDelete);
     }
 
     public BigArrays bigArrays() {
@@ -238,7 +223,7 @@ public class TranslogReplicator extends AbstractLifecycleComponent {
     protected void doClose() {
         isOpen.set(false);
         nodeState.close();
-        shardSyncStates.values().forEach((s) -> s.close(true));
+        shardSyncStates.values().forEach(ShardSyncState::close);
     }
 
     public void register(ShardId shardId, long primaryTerm, LongConsumer persistedSeqNoConsumer) {
@@ -261,7 +246,7 @@ public class TranslogReplicator extends AbstractLifecycleComponent {
         var unregistered = shardSyncStates.remove(shardId);
         logger.debug(() -> format("shard %s unregistered with translog replicator", shardId));
         assert unregistered != null;
-        unregistered.close(indicesServiceState.get() == Lifecycle.State.CLOSED || indicesServiceState.get() == Lifecycle.State.STOPPED);
+        unregistered.close();
     }
 
     public void add(final ShardId shardId, final BytesReference data, final long seqNo, final Translog.Location location) {
@@ -810,9 +795,7 @@ public class TranslogReplicator extends AbstractLifecycleComponent {
         private void clusterStateValidateForDeleteFinished(BlobTranslogFile fileToDelete) {
             ClusterState state = consistencyService.state();
             if (allShardsAtLeastYellow(fileToDelete, state)) {
-                translogFilesToDelete.remove(fileToDelete);
-                logger.debug(() -> format("scheduling translog file [%s] for async delete", fileToDelete.blobName()));
-                objectStoreService.asyncDeleteTranslogFile(fileToDelete.blobName);
+                deleteFile(fileToDelete);
             } else {
                 ClusterStateObserver observer = new ClusterStateObserver(
                     state.version(),
@@ -826,9 +809,7 @@ public class TranslogReplicator extends AbstractLifecycleComponent {
                     @Override
                     public void onNewClusterState(ClusterState state) {
                         assert allShardsAtLeastYellow(fileToDelete, state);
-                        translogFilesToDelete.remove(fileToDelete);
-                        logger.debug(() -> format("scheduling translog file [%s] for async delete", fileToDelete.blobName()));
-                        objectStoreService.asyncDeleteTranslogFile(fileToDelete.blobName);
+                        deleteFile(fileToDelete);
                     }
 
                     @Override
@@ -842,6 +823,18 @@ public class TranslogReplicator extends AbstractLifecycleComponent {
                     }
                 }, newState -> allShardsAtLeastYellow(fileToDelete, newState));
             }
+        }
+
+        private void deleteFile(BlobTranslogFile fileToDelete) {
+            translogFilesToDelete.remove(fileToDelete);
+            for (ShardId shardId : fileToDelete.includedShards) {
+                ShardSyncState shardSyncState = shardSyncStates.get(shardId);
+                if (shardSyncState != null) {
+                    shardSyncState.markTranslogDeleted(fileToDelete.generation());
+                }
+            }
+            logger.debug(() -> format("scheduling translog file [%s] for async delete", fileToDelete.blobName()));
+            objectStoreService.asyncDeleteTranslogFile(fileToDelete.blobName);
         }
 
         private static boolean allShardsAtLeastYellow(BlobTranslogFile fileToDelete, ClusterState state) {

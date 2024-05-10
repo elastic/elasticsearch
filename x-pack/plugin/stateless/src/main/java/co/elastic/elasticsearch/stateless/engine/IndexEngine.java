@@ -431,7 +431,7 @@ public class IndexEngine extends InternalEngine {
             throw VirtualBatchedCompoundCommit.buildResourceNotFoundException(shardId, vbccTermGen);
         } else {
             // This length adjustment is needed because the last CC is not padded in a vBCC
-            int length = Math.min(request.getLength(), Math.toIntExact(vbcc.getTotalSizeInBytes() - request.getOffset()));
+            long length = Math.min(request.getLength(), vbcc.getTotalSizeInBytes() - request.getOffset());
             vbcc.getBytesByRange(request.getOffset(), length, output);
         }
     }

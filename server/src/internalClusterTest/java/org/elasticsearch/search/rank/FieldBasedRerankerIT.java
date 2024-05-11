@@ -13,9 +13,12 @@ import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.TopDocs;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.search.SearchPhaseController;
+import org.elasticsearch.action.search.SearchPhaseExecutionException;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.search.SearchHit;
@@ -57,7 +60,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.hasRank;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
-@ESIntegTestCase.ClusterScope(minNumDataNodes = 3)
+@ESIntegTestCase.ClusterScope(minNumDataNodes = 2, maxNumDataNodes = 10)
 public class FieldBasedRerankerIT extends ESIntegTestCase {
 
     @Override
@@ -218,13 +221,15 @@ public class FieldBasedRerankerIT extends ESIntegTestCase {
         );
     }
 
-    public void testThrowingRankBuilderAllContextsAreClosed() throws Exception {
+    public void testThrowingRankBuilderAllContextsAreClosedPartialFailures() throws Exception {
         final String indexName = "test_index";
         final String rankFeatureField = "rankFeatureField";
         final String searchField = "searchField";
         final int rankWindowSize = 10;
 
-        createIndex(indexName);
+        // we have less than the max number of nodes here, so not all shards will have failed and "partial" results can be
+        // returned
+        createIndex(indexName, Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 10).build());
         indexRandom(
             true,
             prepareIndex(indexName).setId("1").setSource(rankFeatureField, 0.1, searchField, "A"),
@@ -234,6 +239,7 @@ public class FieldBasedRerankerIT extends ESIntegTestCase {
             prepareIndex(indexName).setId("5").setSource(rankFeatureField, 0.5, searchField, "E")
         );
 
+        // we have 10 shards and 2 documents, so when the exception is thrown we know that not all shards will report failures
         assertResponse(
             prepareSearch().setQuery(
                 boolQuery().should(constantScoreQuery(matchQuery(searchField, "A")).boost(randomFloat()))
@@ -256,6 +262,41 @@ public class FieldBasedRerankerIT extends ESIntegTestCase {
                 assertHitCount(response, 5);
                 assertTrue(response.getHits().getHits().length == 0);
             }
+        );
+    }
+
+    public void testThrowingRankBuilderAllContextsAreClosedAllShardsFail() throws Exception {
+        final String indexName = "test_index";
+        final String rankFeatureField = "rankFeatureField";
+        final String searchField = "searchField";
+        final int rankWindowSize = 10;
+
+        // we have 1 shard and 2 documents, so when the exception is thrown we know that all shards will have failed
+        createIndex(indexName, Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).build());
+        indexRandom(
+            true,
+            prepareIndex(indexName).setId("1").setSource(rankFeatureField, 0.1, searchField, "A"),
+            prepareIndex(indexName).setId("2").setSource(rankFeatureField, 0.2, searchField, "B"),
+            prepareIndex(indexName).setId("3").setSource(rankFeatureField, 0.3, searchField, "C"),
+            prepareIndex(indexName).setId("4").setSource(rankFeatureField, 0.4, searchField, "D"),
+            prepareIndex(indexName).setId("5").setSource(rankFeatureField, 0.5, searchField, "E")
+        );
+
+        expectThrows(
+            SearchPhaseExecutionException.class,
+            () -> prepareSearch().setQuery(
+                boolQuery().should(constantScoreQuery(matchQuery(searchField, "A")).boost(randomFloat()))
+                    .should(constantScoreQuery(matchQuery(searchField, "B")).boost(randomFloat()))
+                    .should(constantScoreQuery(matchQuery(searchField, "C")).boost(randomFloat()))
+                    .should(constantScoreQuery(matchQuery(searchField, "D")).boost(randomFloat()))
+                    .should(constantScoreQuery(matchQuery(searchField, "E")).boost(randomFloat()))
+            )
+                .setRankBuilder(new ThrowingRankBuilder(rankWindowSize, rankFeatureField))
+                .addFetchField(searchField)
+                .setTrackTotalHits(true)
+                .setAllowPartialSearchResults(true)
+                .setSize(10)
+                .get()
         );
     }
 

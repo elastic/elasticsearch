@@ -77,7 +77,7 @@ abstract sealed class AbstractScalarQuantizedVectorScorer implements VectorScore
         }
     }
 
-    protected final float fallbackScore(int firstByteOffset, int secondByteOffset) throws IOException {
+    protected final float fallbackScore(long firstByteOffset, long secondByteOffset) throws IOException {
         input.seek(firstByteOffset);
         byte[] a = new byte[dims];
         input.readBytes(a, 0, a.length);

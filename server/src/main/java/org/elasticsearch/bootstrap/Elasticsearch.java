@@ -279,9 +279,9 @@ class Elasticsearch {
         final Logger logger = LogManager.getLogger(Elasticsearch.class);
 
         // check if the user is running as root, and bail
-        if (NativeAccess.instance().definitelyRunningAsRoot()) {
+       /* if (NativeAccess.instance().definitelyRunningAsRoot()) {
             throw new RuntimeException("can not run elasticsearch as root");
-        }
+        }*/
 
         if (systemCallFilter) {
             /*

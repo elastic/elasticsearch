@@ -164,7 +164,7 @@ public class InferenceNamedWriteablesProvider {
                 AzureOpenAiEmbeddingsTaskSettings::new
             )
         );
-      
+
         namedWriteables.add(
             new NamedWriteableRegistry.Entry(
                 ServiceSettings.class,

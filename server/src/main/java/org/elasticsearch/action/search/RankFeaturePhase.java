@@ -98,12 +98,16 @@ public class RankFeaturePhase extends SearchPhase {
             // we send out a request to each shard in order to fetch the needed feature info
             for (int i = 0; i < docIdsToLoad.length; i++) {
                 List<Integer> entry = docIdsToLoad[i];
-                if (entry == null || entry.isEmpty()) {
-                    rankRequestCounter.countDown();
-                    continue;
-                }
                 SearchPhaseResult queryResult = queryPhaseResults.getAtomicArray().get(i);
-                executeRankFeatureShardPhase(queryResult, rankRequestCounter, entry);
+                if (entry == null || entry.isEmpty()) {
+                    if(queryResult != null) {
+                        releaseIrrelevantSearchContext(queryResult, context);
+                        progressListener.notifyRankFeatureResult(i);
+                    }
+                    rankRequestCounter.countDown();
+                }else {
+                    executeRankFeatureShardPhase(queryResult, rankRequestCounter, entry);
+                }
             }
         } else {
             moveToNextPhase(queryPhaseResults, reducedQueryPhase);

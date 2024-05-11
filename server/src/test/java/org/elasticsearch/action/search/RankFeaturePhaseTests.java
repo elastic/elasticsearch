@@ -87,10 +87,10 @@ public class RankFeaturePhaseTests extends ESTestCase {
         try (SearchPhaseResults<SearchPhaseResult> results = searchPhaseResults(controller, mockSearchPhaseContext)) {
             final ShardSearchContextId ctx = new ShardSearchContextId(UUIDs.base64UUID(), 123);
             QuerySearchResult queryResult = new QuerySearchResult(ctx, shard1Target, null);
-            queryResult.setShardIndex(shard1Target.getShardId().getId());
-            // generate the QuerySearchResults that the RankFeaturePhase would have received from QueryPhase
-            // here we have 2 results, with doc ids 1 and 2
             try {
+                queryResult.setShardIndex(shard1Target.getShardId().getId());
+                // generate the QuerySearchResults that the RankFeaturePhase would have received from QueryPhase
+                // here we have 2 results, with doc ids 1 and 2
                 int totalHits = randomIntBetween(2, 100);
                 final ScoreDoc[] shard1Docs = new ScoreDoc[] { new ScoreDoc(1, 10.0F), new ScoreDoc(2, 9.0F) };
                 populateQuerySearchResult(queryResult, totalHits, shard1Docs);
@@ -125,32 +125,37 @@ public class RankFeaturePhaseTests extends ESTestCase {
                         }
                     }
                 };
-                RankFeaturePhase rankFeaturePhase = rankFeaturePhase(results, mockSearchPhaseContext, finalResults, phaseDone);
-                rankFeaturePhase.run();
-
-                mockSearchPhaseContext.assertNoFailure();
-                assertTrue(mockSearchPhaseContext.failures.isEmpty());
-                assertTrue(phaseDone.get());
-                assertTrue(mockSearchPhaseContext.releasedSearchContexts.isEmpty());
-
-                SearchPhaseResults<SearchPhaseResult> rankPhaseResults = rankFeaturePhase.rankPhaseResults;
-                assertNotNull(rankPhaseResults.getAtomicArray());
-                assertEquals(1, rankPhaseResults.getAtomicArray().length());
-                assertEquals(1, rankPhaseResults.getSuccessfulResults().count());
-
-                SearchPhaseResult shard1Result = rankPhaseResults.getAtomicArray().get(0);
-                List<ExpectedRankFeatureDoc> expectedShardResults = List.of(
-                    new ExpectedRankFeatureDoc(1, 1, 110.0F, "ranked_1"),
-                    new ExpectedRankFeatureDoc(2, 2, 109.0F, "ranked_2")
-                );
-                List<ExpectedRankFeatureDoc> expectedFinalResults = new ArrayList<>(expectedShardResults);
-                assertShardResults(shard1Result, expectedShardResults);
-                assertFinalResults(finalResults[0], expectedFinalResults);
             } finally {
                 queryResult.decRef();
             }
-        }
 
+            RankFeaturePhase rankFeaturePhase = rankFeaturePhase(results, mockSearchPhaseContext, finalResults, phaseDone);
+            rankFeaturePhase.run();
+
+            mockSearchPhaseContext.assertNoFailure();
+            assertTrue(mockSearchPhaseContext.failures.isEmpty());
+            assertTrue(phaseDone.get());
+            assertTrue(mockSearchPhaseContext.releasedSearchContexts.isEmpty());
+
+            SearchPhaseResults<SearchPhaseResult> rankPhaseResults = rankFeaturePhase.rankPhaseResults;
+            assertNotNull(rankPhaseResults.getAtomicArray());
+            assertEquals(1, rankPhaseResults.getAtomicArray().length());
+            assertEquals(1, rankPhaseResults.getSuccessfulResults().count());
+
+            SearchPhaseResult shard1Result = rankPhaseResults.getAtomicArray().get(0);
+            List<ExpectedRankFeatureDoc> expectedShardResults = List.of(
+                new ExpectedRankFeatureDoc(1, 1, 110.0F, "ranked_1"),
+                new ExpectedRankFeatureDoc(2, 2, 109.0F, "ranked_2")
+            );
+            List<ExpectedRankFeatureDoc> expectedFinalResults = new ArrayList<>(expectedShardResults);
+            assertShardResults(shard1Result, expectedShardResults);
+            assertFinalResults(finalResults[0], expectedFinalResults);
+            rankFeaturePhase.rankPhaseResults.close();
+        } finally {
+            if (mockSearchPhaseContext.searchResponse.get() != null) {
+                mockSearchPhaseContext.searchResponse.get().decRef();
+            }
+        }
     }
 
     public void testRankFeaturePhaseWithMultipleShardsOneEmpty() {
@@ -171,20 +176,21 @@ public class RankFeaturePhaseTests extends ESTestCase {
             // generate the QuerySearchResults that the RankFeaturePhase would have received from QueryPhase
             // here we have 2 results, with doc ids 1 and 2 found on shards 0 and 1 respectively
             final ShardSearchContextId ctxShard1 = new ShardSearchContextId(UUIDs.base64UUID(), 123);
-            QuerySearchResult queryResultShard1 = new QuerySearchResult(ctxShard1, shard1Target, null);
-            queryResultShard1.setShardIndex(shard1Target.getShardId().getId());
-            final int shard1Results = randomIntBetween(1, 100);
-
             final ShardSearchContextId ctxShard2 = new ShardSearchContextId(UUIDs.base64UUID(), 456);
-            QuerySearchResult queryResultShard2 = new QuerySearchResult(ctxShard2, shard2Target, null);
-            queryResultShard2.setShardIndex(shard2Target.getShardId().getId());
-            final int shard2Results = randomIntBetween(1, 100);
-
             final ShardSearchContextId ctxShard3 = new ShardSearchContextId(UUIDs.base64UUID(), 789);
+
+            QuerySearchResult queryResultShard1 = new QuerySearchResult(ctxShard1, shard1Target, null);
+            QuerySearchResult queryResultShard2 = new QuerySearchResult(ctxShard2, shard2Target, null);
             QuerySearchResult queryResultShard3 = new QuerySearchResult(ctxShard3, shard2Target, null);
-            queryResultShard3.setShardIndex(shard3Target.getShardId().getId());
-            final int shard3Results = 0;
             try {
+                queryResultShard1.setShardIndex(shard1Target.getShardId().getId());
+                queryResultShard2.setShardIndex(shard2Target.getShardId().getId());
+                queryResultShard3.setShardIndex(shard3Target.getShardId().getId());
+
+                final int shard1Results = randomIntBetween(1, 100);
+                final int shard2Results = randomIntBetween(1, 100);
+                final int shard3Results = 0;
+
                 final ScoreDoc[] shard1Docs = new ScoreDoc[] { new ScoreDoc(1, 10.0F) };
                 populateQuerySearchResult(queryResultShard1, shard1Results, shard1Docs);
                 final ScoreDoc[] shard2Docs = new ScoreDoc[] { new ScoreDoc(2, 9.0F) };
@@ -208,9 +214,9 @@ public class RankFeaturePhaseTests extends ESTestCase {
                     ) {
                         // make sure to match the context id generated above, otherwise we throw
                         // first shard
-                        if (request.contextId().getId() == 123 && Arrays.equals(request.getDocIds(), new int[] { 1 })) {
-                            RankFeatureResult rankFeatureResult = new RankFeatureResult();
-                            try {
+                        RankFeatureResult rankFeatureResult = new RankFeatureResult();
+                        try {
+                            if (request.contextId().getId() == 123 && Arrays.equals(request.getDocIds(), new int[] { 1 })) {
                                 buildRankFeatureResult(
                                     mockSearchPhaseContext.getRequest().source().rankBuilder(),
                                     rankFeatureResult,
@@ -219,13 +225,8 @@ public class RankFeaturePhaseTests extends ESTestCase {
                                     shard1Docs
                                 );
                                 listener.onResponse(rankFeatureResult);
-                            } finally {
-                                rankFeatureResult.decRef();
-                            }
-                        } else if (request.contextId().getId() == 456 && Arrays.equals(request.getDocIds(), new int[] { 2 })) {
-                            // second shard
-                            RankFeatureResult rankFeatureResult = new RankFeatureResult();
-                            try {
+                            } else if (request.contextId().getId() == 456 && Arrays.equals(request.getDocIds(), new int[] { 2 })) {
+                                // second shard
                                 buildRankFeatureResult(
                                     mockSearchPhaseContext.getRequest().source().rankBuilder(),
                                     rankFeatureResult,
@@ -234,53 +235,53 @@ public class RankFeaturePhaseTests extends ESTestCase {
                                     shard2Docs
                                 );
                                 listener.onResponse(rankFeatureResult);
-                            } finally {
-                                rankFeatureResult.decRef();
-                            }
-                        } else if (request.contextId().getId() == 789) {
-                            RankFeatureResult rankFeatureResult = new RankFeatureResult();
-                            try {
+                            } else if (request.contextId().getId() == 789) {
                                 listener.onResponse(rankFeatureResult);
-                            } finally {
-                                rankFeatureResult.decRef();
+                            } else {
+                                listener.onFailure(new MockDirectoryWrapper.FakeIOException());
                             }
-                        } else {
-                            listener.onFailure(new MockDirectoryWrapper.FakeIOException());
+                        } finally {
+                            rankFeatureResult.decRef();
                         }
                     }
                 };
-                RankFeaturePhase rankFeaturePhase = rankFeaturePhase(results, mockSearchPhaseContext, finalResults, phaseDone);
-
-                rankFeaturePhase.run();
-                mockSearchPhaseContext.assertNoFailure();
-                assertTrue(mockSearchPhaseContext.failures.isEmpty());
-                assertTrue(phaseDone.get());
-                SearchPhaseResults<SearchPhaseResult> rankPhaseResults = rankFeaturePhase.rankPhaseResults;
-                assertNotNull(rankPhaseResults.getAtomicArray());
-                assertEquals(3, rankPhaseResults.getAtomicArray().length());
-                // one result is null
-                assertEquals(2, rankPhaseResults.getSuccessfulResults().count());
-
-                SearchPhaseResult shard1Result = rankPhaseResults.getAtomicArray().get(0);
-                List<ExpectedRankFeatureDoc> expectedShard1Results = List.of(new ExpectedRankFeatureDoc(1, 1, 110.0F, "ranked_1"));
-                assertShardResults(shard1Result, expectedShard1Results);
-
-                SearchPhaseResult shard2Result = rankPhaseResults.getAtomicArray().get(1);
-                List<ExpectedRankFeatureDoc> expectedShard2Results = List.of(new ExpectedRankFeatureDoc(2, 1, 109.0F, "ranked_2"));
-                assertShardResults(shard2Result, expectedShard2Results);
-
-                SearchPhaseResult shard3Result = rankPhaseResults.getAtomicArray().get(2);
-                assertNull(shard3Result);
-
-                List<ExpectedRankFeatureDoc> expectedFinalResults = List.of(
-                    new ExpectedRankFeatureDoc(1, 1, 110.0F, "ranked_1"),
-                    new ExpectedRankFeatureDoc(2, 2, 109.0F, "ranked_2")
-                );
-                assertFinalResults(finalResults[0], expectedFinalResults);
             } finally {
                 queryResultShard1.decRef();
                 queryResultShard2.decRef();
                 queryResultShard3.decRef();
+            }
+            RankFeaturePhase rankFeaturePhase = rankFeaturePhase(results, mockSearchPhaseContext, finalResults, phaseDone);
+
+            rankFeaturePhase.run();
+            mockSearchPhaseContext.assertNoFailure();
+            assertTrue(mockSearchPhaseContext.failures.isEmpty());
+            assertTrue(phaseDone.get());
+            SearchPhaseResults<SearchPhaseResult> rankPhaseResults = rankFeaturePhase.rankPhaseResults;
+            assertNotNull(rankPhaseResults.getAtomicArray());
+            assertEquals(3, rankPhaseResults.getAtomicArray().length());
+            // one result is null
+            assertEquals(2, rankPhaseResults.getSuccessfulResults().count());
+
+            SearchPhaseResult shard1Result = rankPhaseResults.getAtomicArray().get(0);
+            List<ExpectedRankFeatureDoc> expectedShard1Results = List.of(new ExpectedRankFeatureDoc(1, 1, 110.0F, "ranked_1"));
+            assertShardResults(shard1Result, expectedShard1Results);
+
+            SearchPhaseResult shard2Result = rankPhaseResults.getAtomicArray().get(1);
+            List<ExpectedRankFeatureDoc> expectedShard2Results = List.of(new ExpectedRankFeatureDoc(2, 1, 109.0F, "ranked_2"));
+            assertShardResults(shard2Result, expectedShard2Results);
+
+            SearchPhaseResult shard3Result = rankPhaseResults.getAtomicArray().get(2);
+            assertNull(shard3Result);
+
+            List<ExpectedRankFeatureDoc> expectedFinalResults = List.of(
+                new ExpectedRankFeatureDoc(1, 1, 110.0F, "ranked_1"),
+                new ExpectedRankFeatureDoc(2, 2, 109.0F, "ranked_2")
+            );
+            assertFinalResults(finalResults[0], expectedFinalResults);
+            rankFeaturePhase.rankPhaseResults.close();
+        } finally {
+            if (mockSearchPhaseContext.searchResponse.get() != null) {
+                mockSearchPhaseContext.searchResponse.get().decRef();
             }
         }
     }
@@ -311,8 +312,9 @@ public class RankFeaturePhaseTests extends ESTestCase {
             // here we have 2 results, with doc ids 1 and 2
             final ShardSearchContextId ctx = new ShardSearchContextId(UUIDs.base64UUID(), 123);
             QuerySearchResult queryResult = new QuerySearchResult(ctx, shard1Target, null);
-            queryResult.setShardIndex(shard1Target.getShardId().getId());
+
             try {
+                queryResult.setShardIndex(shard1Target.getShardId().getId());
                 int totalHits = randomIntBetween(2, 100);
                 final ScoreDoc[] shard1Docs = new ScoreDoc[] { new ScoreDoc(1, 10.0F), new ScoreDoc(2, 9.0F) };
                 populateQuerySearchResult(queryResult, totalHits, shard1Docs);
@@ -335,33 +337,38 @@ public class RankFeaturePhaseTests extends ESTestCase {
                         }
                     }
                 };
-                // override the RankFeaturePhase to skip moving to next phase
-                RankFeaturePhase rankFeaturePhase = rankFeaturePhase(results, mockSearchPhaseContext, finalResults, phaseDone);
-
-                rankFeaturePhase.run();
-                mockSearchPhaseContext.assertNoFailure();
-                assertTrue(mockSearchPhaseContext.failures.isEmpty());
-                assertTrue(phaseDone.get());
-
-                // in this case there was no additional "RankFeature" results on shards, so we shortcut directly to queryPhaseResults
-                SearchPhaseResults<SearchPhaseResult> rankPhaseResults = rankFeaturePhase.queryPhaseResults;
-                assertNotNull(rankPhaseResults.getAtomicArray());
-                assertEquals(1, rankPhaseResults.getAtomicArray().length());
-                assertEquals(1, rankPhaseResults.getSuccessfulResults().count());
-
-                SearchPhaseResult shardResult = rankPhaseResults.getAtomicArray().get(0);
-                assertTrue(shardResult instanceof QuerySearchResult);
-                QuerySearchResult rankResult = (QuerySearchResult) shardResult;
-                assertNull(rankResult.rankFeatureResult());
-                assertNotNull(rankResult.queryResult());
-
-                List<ExpectedRankFeatureDoc> expectedFinalResults = List.of(
-                    new ExpectedRankFeatureDoc(2, 1, -9.0F, null),
-                    new ExpectedRankFeatureDoc(1, 2, -10.0F, null)
-                );
-                assertFinalResults(finalResults[0], expectedFinalResults);
             } finally {
                 queryResult.decRef();
+            }
+            // override the RankFeaturePhase to skip moving to next phase
+            RankFeaturePhase rankFeaturePhase = rankFeaturePhase(results, mockSearchPhaseContext, finalResults, phaseDone);
+
+            rankFeaturePhase.run();
+            mockSearchPhaseContext.assertNoFailure();
+            assertTrue(mockSearchPhaseContext.failures.isEmpty());
+            assertTrue(phaseDone.get());
+
+            // in this case there was no additional "RankFeature" results on shards, so we shortcut directly to queryPhaseResults
+            SearchPhaseResults<SearchPhaseResult> rankPhaseResults = rankFeaturePhase.queryPhaseResults;
+            assertNotNull(rankPhaseResults.getAtomicArray());
+            assertEquals(1, rankPhaseResults.getAtomicArray().length());
+            assertEquals(1, rankPhaseResults.getSuccessfulResults().count());
+
+            SearchPhaseResult shardResult = rankPhaseResults.getAtomicArray().get(0);
+            assertTrue(shardResult instanceof QuerySearchResult);
+            QuerySearchResult rankResult = (QuerySearchResult) shardResult;
+            assertNull(rankResult.rankFeatureResult());
+            assertNotNull(rankResult.queryResult());
+
+            List<ExpectedRankFeatureDoc> expectedFinalResults = List.of(
+                new ExpectedRankFeatureDoc(2, 1, -9.0F, null),
+                new ExpectedRankFeatureDoc(1, 2, -10.0F, null)
+            );
+            assertFinalResults(finalResults[0], expectedFinalResults);
+            rankFeaturePhase.rankPhaseResults.close();
+        } finally {
+            if (mockSearchPhaseContext.searchResponse.get() != null) {
+                mockSearchPhaseContext.searchResponse.get().decRef();
             }
         }
     }
@@ -383,14 +390,14 @@ public class RankFeaturePhaseTests extends ESTestCase {
             // generate the QuerySearchResults that the RankFeaturePhase would have received from QueryPhase
             // here we have 2 results, with doc ids 1 and 2 found on shards 0 and 1 respectively
             final ShardSearchContextId ctxShard1 = new ShardSearchContextId(UUIDs.base64UUID(), 123);
-            QuerySearchResult queryResultShard1 = new QuerySearchResult(ctxShard1, shard1Target, null);
-            queryResultShard1.setShardIndex(shard1Target.getShardId().getId());
-
             final ShardSearchContextId ctxShard2 = new ShardSearchContextId(UUIDs.base64UUID(), 456);
-            QuerySearchResult queryResultShard2 = new QuerySearchResult(ctxShard2, shard2Target, null);
-            queryResultShard2.setShardIndex(shard2Target.getShardId().getId());
 
+            QuerySearchResult queryResultShard1 = new QuerySearchResult(ctxShard1, shard1Target, null);
+            QuerySearchResult queryResultShard2 = new QuerySearchResult(ctxShard2, shard2Target, null);
             try {
+                queryResultShard1.setShardIndex(shard1Target.getShardId().getId());
+                queryResultShard2.setShardIndex(shard2Target.getShardId().getId());
+
                 final int shard1Results = randomIntBetween(1, 100);
                 final ScoreDoc[] shard1Docs = new ScoreDoc[] { new ScoreDoc(1, 10.0F) };
                 populateQuerySearchResult(queryResultShard1, shard1Results, shard1Docs);
@@ -428,6 +435,7 @@ public class RankFeaturePhaseTests extends ESTestCase {
                             } finally {
                                 rankFeatureResult.decRef();
                             }
+
                         } else if (request.contextId().getId() == 123 && Arrays.equals(request.getDocIds(), new int[] { 1 })) {
                             // other shard; this one throws an exception
                             listener.onFailure(new IllegalArgumentException("simulated failure"));
@@ -436,31 +444,36 @@ public class RankFeaturePhaseTests extends ESTestCase {
                         }
                     }
                 };
-                RankFeaturePhase rankFeaturePhase = rankFeaturePhase(results, mockSearchPhaseContext, finalResults, phaseDone);
-                rankFeaturePhase.run();
-
-                mockSearchPhaseContext.assertNoFailure();
-                assertEquals(1, mockSearchPhaseContext.failures.size());
-                assertTrue(mockSearchPhaseContext.failures.get(0).getCause().getMessage().contains("simulated failure"));
-                assertTrue(phaseDone.get());
-
-                SearchPhaseResults<SearchPhaseResult> rankPhaseResults = rankFeaturePhase.rankPhaseResults;
-                assertNotNull(rankPhaseResults.getAtomicArray());
-                assertEquals(2, rankPhaseResults.getAtomicArray().length());
-                // one shard failed
-                assertEquals(1, rankPhaseResults.getSuccessfulResults().count());
-
-                SearchPhaseResult shard1Result = rankPhaseResults.getAtomicArray().get(0);
-                assertNull(shard1Result);
-
-                SearchPhaseResult shard2Result = rankPhaseResults.getAtomicArray().get(1);
-                List<ExpectedRankFeatureDoc> expectedShard2Results = List.of(new ExpectedRankFeatureDoc(2, 1, 109.0F, "ranked_2"));
-                List<ExpectedRankFeatureDoc> expectedFinalResults = new ArrayList<>(expectedShard2Results);
-                assertShardResults(shard2Result, expectedShard2Results);
-                assertFinalResults(finalResults[0], expectedFinalResults);
             } finally {
                 queryResultShard1.decRef();
                 queryResultShard2.decRef();
+            }
+            RankFeaturePhase rankFeaturePhase = rankFeaturePhase(results, mockSearchPhaseContext, finalResults, phaseDone);
+            rankFeaturePhase.run();
+
+            mockSearchPhaseContext.assertNoFailure();
+            assertEquals(1, mockSearchPhaseContext.failures.size());
+            assertTrue(mockSearchPhaseContext.failures.get(0).getCause().getMessage().contains("simulated failure"));
+            assertTrue(phaseDone.get());
+
+            SearchPhaseResults<SearchPhaseResult> rankPhaseResults = rankFeaturePhase.rankPhaseResults;
+            assertNotNull(rankPhaseResults.getAtomicArray());
+            assertEquals(2, rankPhaseResults.getAtomicArray().length());
+            // one shard failed
+            assertEquals(1, rankPhaseResults.getSuccessfulResults().count());
+
+            SearchPhaseResult shard1Result = rankPhaseResults.getAtomicArray().get(0);
+            assertNull(shard1Result);
+
+            SearchPhaseResult shard2Result = rankPhaseResults.getAtomicArray().get(1);
+            List<ExpectedRankFeatureDoc> expectedShard2Results = List.of(new ExpectedRankFeatureDoc(2, 1, 109.0F, "ranked_2"));
+            List<ExpectedRankFeatureDoc> expectedFinalResults = new ArrayList<>(expectedShard2Results);
+            assertShardResults(shard2Result, expectedShard2Results);
+            assertFinalResults(finalResults[0], expectedFinalResults);
+            rankFeaturePhase.rankPhaseResults.close();
+        } finally {
+            if (mockSearchPhaseContext.searchResponse.get() != null) {
+                mockSearchPhaseContext.searchResponse.get().decRef();
             }
         }
     }
@@ -482,8 +495,8 @@ public class RankFeaturePhaseTests extends ESTestCase {
             // here we have 2 results, with doc ids 1 and 2
             final ShardSearchContextId ctx = new ShardSearchContextId(UUIDs.base64UUID(), 123);
             QuerySearchResult queryResult = new QuerySearchResult(ctx, shard1Target, null);
-            queryResult.setShardIndex(shard1Target.getShardId().getId());
             try {
+                queryResult.setShardIndex(shard1Target.getShardId().getId());
                 int totalHits = randomIntBetween(2, 100);
                 final ScoreDoc[] shard1Docs = new ScoreDoc[] { new ScoreDoc(1, 10.0F), new ScoreDoc(2, 9.0F) };
                 populateQuerySearchResult(queryResult, totalHits, shard1Docs);
@@ -519,34 +532,39 @@ public class RankFeaturePhaseTests extends ESTestCase {
                         }
                     }
                 };
-                // override the RankFeaturePhase to skip moving to next phase
-                RankFeaturePhase rankFeaturePhase = new RankFeaturePhase(results, null, mockSearchPhaseContext) {
-                    @Override
-                    void innerRun() {
-                        throw new IllegalArgumentException("simulated failure");
-                    }
-
-                    @Override
-                    public void moveToNextPhase(
-                        SearchPhaseResults<SearchPhaseResult> phaseResults,
-                        SearchPhaseController.ReducedQueryPhase reducedQueryPhase
-                    ) {
-                        // this is called after the RankFeaturePhaseCoordinatorContext has been executed
-                        phaseDone.set(true);
-                        finalResults[0] = reducedQueryPhase.sortedTopDocs().scoreDocs();
-                        logger.debug("Skipping moving to next phase");
-                    }
-                };
-                assertEquals("rank-feature", rankFeaturePhase.getName());
-                rankFeaturePhase.run();
-                assertNotNull(mockSearchPhaseContext.phaseFailure.get());
-                assertTrue(mockSearchPhaseContext.phaseFailure.get().getMessage().contains("simulated failure"));
-                assertTrue(mockSearchPhaseContext.failures.isEmpty());
-                assertFalse(phaseDone.get());
-                assertTrue(rankFeaturePhase.rankPhaseResults.getAtomicArray().asList().isEmpty());
-                assertNull(finalResults[0][0]);
             } finally {
                 queryResult.decRef();
+            }
+            // override the RankFeaturePhase to raise an exception
+            RankFeaturePhase rankFeaturePhase = new RankFeaturePhase(results, null, mockSearchPhaseContext) {
+                @Override
+                void innerRun() {
+                    throw new IllegalArgumentException("simulated failure");
+                }
+
+                @Override
+                public void moveToNextPhase(
+                    SearchPhaseResults<SearchPhaseResult> phaseResults,
+                    SearchPhaseController.ReducedQueryPhase reducedQueryPhase
+                ) {
+                    // this is called after the RankFeaturePhaseCoordinatorContext has been executed
+                    phaseDone.set(true);
+                    finalResults[0] = reducedQueryPhase.sortedTopDocs().scoreDocs();
+                    logger.debug("Skipping moving to next phase");
+                }
+            };
+            assertEquals("rank-feature", rankFeaturePhase.getName());
+            rankFeaturePhase.run();
+            assertNotNull(mockSearchPhaseContext.phaseFailure.get());
+            assertTrue(mockSearchPhaseContext.phaseFailure.get().getMessage().contains("simulated failure"));
+            assertTrue(mockSearchPhaseContext.failures.isEmpty());
+            assertFalse(phaseDone.get());
+            assertTrue(rankFeaturePhase.rankPhaseResults.getAtomicArray().asList().isEmpty());
+            assertNull(finalResults[0][0]);
+            rankFeaturePhase.rankPhaseResults.close();
+        } finally {
+            if (mockSearchPhaseContext.searchResponse.get() != null) {
+                mockSearchPhaseContext.searchResponse.get().decRef();
             }
         }
     }
@@ -580,17 +598,18 @@ public class RankFeaturePhaseTests extends ESTestCase {
             // generate the QuerySearchResults that the RankFeaturePhase would have received from QueryPhase
             // here we have 4 results, with doc ids 1 and (11, 2, 200) found on shards 0 and 1 respectively
             final ShardSearchContextId ctxShard1 = new ShardSearchContextId(UUIDs.base64UUID(), 123);
-            QuerySearchResult queryResultShard1 = new QuerySearchResult(ctxShard1, shard1Target, null);
-            queryResultShard1.setShardIndex(shard1Target.getShardId().getId());
-
             final ShardSearchContextId ctxShard2 = new ShardSearchContextId(UUIDs.base64UUID(), 456);
-            QuerySearchResult queryResultShard2 = new QuerySearchResult(ctxShard2, shard2Target, null);
-            queryResultShard2.setShardIndex(shard2Target.getShardId().getId());
-
             final ShardSearchContextId ctxShard3 = new ShardSearchContextId(UUIDs.base64UUID(), 789);
+
+            QuerySearchResult queryResultShard1 = new QuerySearchResult(ctxShard1, shard1Target, null);
+            QuerySearchResult queryResultShard2 = new QuerySearchResult(ctxShard2, shard2Target, null);
             QuerySearchResult queryResultShard3 = new QuerySearchResult(ctxShard3, shard2Target, null);
-            queryResultShard3.setShardIndex(shard3Target.getShardId().getId());
+
             try {
+                queryResultShard1.setShardIndex(shard1Target.getShardId().getId());
+                queryResultShard2.setShardIndex(shard2Target.getShardId().getId());
+                queryResultShard3.setShardIndex(shard3Target.getShardId().getId());
+
                 final int shard1Results = randomIntBetween(1, 100);
                 final ScoreDoc[] shard1Docs = new ScoreDoc[] { new ScoreDoc(1, 10.0F) };
                 populateQuerySearchResult(queryResultShard1, shard1Results, shard1Docs);
@@ -620,11 +639,12 @@ public class RankFeaturePhaseTests extends ESTestCase {
                         SearchTask task,
                         final SearchActionListener<RankFeatureResult> listener
                     ) {
+
+                        RankFeatureResult rankFeatureResult = new RankFeatureResult();
                         // make sure to match the context id generated above, otherwise we throw
                         // first shard
-                        if (request.contextId().getId() == 123 && Arrays.equals(request.getDocIds(), new int[] { 1 })) {
-                            RankFeatureResult rankFeatureResult = new RankFeatureResult();
-                            try {
+                        try {
+                            if (request.contextId().getId() == 123 && Arrays.equals(request.getDocIds(), new int[] { 1 })) {
                                 buildRankFeatureResult(
                                     mockSearchPhaseContext.getRequest().source().rankBuilder(),
                                     rankFeatureResult,
@@ -633,13 +653,9 @@ public class RankFeaturePhaseTests extends ESTestCase {
                                     shard1Docs
                                 );
                                 listener.onResponse(rankFeatureResult);
-                            } finally {
-                                rankFeatureResult.decRef();
-                            }
-                        } else if (request.contextId().getId() == 456 && Arrays.equals(request.getDocIds(), new int[] { 11, 2, 200 })) {
-                            // second shard
-                            RankFeatureResult rankFeatureResult = new RankFeatureResult();
-                            try {
+                            } else if (request.contextId().getId() == 456 && Arrays.equals(request.getDocIds(), new int[] { 11, 2, 200 })) {
+                                // second shard
+
                                 buildRankFeatureResult(
                                     mockSearchPhaseContext.getRequest().source().rankBuilder(),
                                     rankFeatureResult,
@@ -648,49 +664,53 @@ public class RankFeaturePhaseTests extends ESTestCase {
                                     shard2Docs
                                 );
                                 listener.onResponse(rankFeatureResult);
-                            } finally {
-                                rankFeatureResult.decRef();
+                            } else {
+                                listener.onFailure(new MockDirectoryWrapper.FakeIOException());
                             }
-
-                        } else {
-                            listener.onFailure(new MockDirectoryWrapper.FakeIOException());
+                        } finally {
+                            rankFeatureResult.decRef();
                         }
                     }
                 };
-                RankFeaturePhase rankFeaturePhase = rankFeaturePhase(results, mockSearchPhaseContext, finalResults, phaseDone);
-                rankFeaturePhase.run();
-
-                mockSearchPhaseContext.assertNoFailure();
-                assertTrue(mockSearchPhaseContext.failures.isEmpty());
-                assertTrue(phaseDone.get());
-                SearchPhaseResults<SearchPhaseResult> rankPhaseResults = rankFeaturePhase.rankPhaseResults;
-                assertNotNull(rankPhaseResults.getAtomicArray());
-                assertEquals(3, rankPhaseResults.getAtomicArray().length());
-                // one result is null
-                assertEquals(2, rankPhaseResults.getSuccessfulResults().count());
-
-                SearchPhaseResult shard1Result = rankPhaseResults.getAtomicArray().get(0);
-                List<ExpectedRankFeatureDoc> expectedShard1Results = List.of(new ExpectedRankFeatureDoc(1, 1, 110.0F, "ranked_1"));
-                assertShardResults(shard1Result, expectedShard1Results);
-
-                SearchPhaseResult shard2Result = rankPhaseResults.getAtomicArray().get(1);
-                List<ExpectedRankFeatureDoc> expectedShard2Results = List.of(
-                    new ExpectedRankFeatureDoc(11, 1, 200.0F, "ranked_11"),
-                    new ExpectedRankFeatureDoc(2, 2, 109.0F, "ranked_2"),
-                    new ExpectedRankFeatureDoc(200, 3, 101.0F, "ranked_200")
-
-                );
-                assertShardResults(shard2Result, expectedShard2Results);
-
-                SearchPhaseResult shard3Result = rankPhaseResults.getAtomicArray().get(2);
-                assertNull(shard3Result);
-
-                List<ExpectedRankFeatureDoc> expectedFinalResults = List.of(new ExpectedRankFeatureDoc(1, 2, 110.0F, "ranked_1"));
-                assertFinalResults(finalResults[0], expectedFinalResults);
             } finally {
                 queryResultShard1.decRef();
                 queryResultShard2.decRef();
                 queryResultShard3.decRef();
+            }
+            RankFeaturePhase rankFeaturePhase = rankFeaturePhase(results, mockSearchPhaseContext, finalResults, phaseDone);
+            rankFeaturePhase.run();
+
+            mockSearchPhaseContext.assertNoFailure();
+            assertTrue(mockSearchPhaseContext.failures.isEmpty());
+            assertTrue(phaseDone.get());
+            SearchPhaseResults<SearchPhaseResult> rankPhaseResults = rankFeaturePhase.rankPhaseResults;
+            assertNotNull(rankPhaseResults.getAtomicArray());
+            assertEquals(3, rankPhaseResults.getAtomicArray().length());
+            // one result is null
+            assertEquals(2, rankPhaseResults.getSuccessfulResults().count());
+
+            SearchPhaseResult shard1Result = rankPhaseResults.getAtomicArray().get(0);
+            List<ExpectedRankFeatureDoc> expectedShard1Results = List.of(new ExpectedRankFeatureDoc(1, 1, 110.0F, "ranked_1"));
+            assertShardResults(shard1Result, expectedShard1Results);
+
+            SearchPhaseResult shard2Result = rankPhaseResults.getAtomicArray().get(1);
+            List<ExpectedRankFeatureDoc> expectedShard2Results = List.of(
+                new ExpectedRankFeatureDoc(11, 1, 200.0F, "ranked_11"),
+                new ExpectedRankFeatureDoc(2, 2, 109.0F, "ranked_2"),
+                new ExpectedRankFeatureDoc(200, 3, 101.0F, "ranked_200")
+
+            );
+            assertShardResults(shard2Result, expectedShard2Results);
+
+            SearchPhaseResult shard3Result = rankPhaseResults.getAtomicArray().get(2);
+            assertNull(shard3Result);
+
+            List<ExpectedRankFeatureDoc> expectedFinalResults = List.of(new ExpectedRankFeatureDoc(1, 2, 110.0F, "ranked_1"));
+            assertFinalResults(finalResults[0], expectedFinalResults);
+            rankFeaturePhase.rankPhaseResults.close();
+        } finally {
+            if (mockSearchPhaseContext.searchResponse.get() != null) {
+                mockSearchPhaseContext.searchResponse.get().decRef();
             }
         }
     }
@@ -723,17 +743,18 @@ public class RankFeaturePhaseTests extends ESTestCase {
             // generate the QuerySearchResults that the RankFeaturePhase would have received from QueryPhase
             // here we have 3 results, with doc ids 1, and (11, 2) found on shards 0 and 1 respectively
             final ShardSearchContextId ctxShard1 = new ShardSearchContextId(UUIDs.base64UUID(), 123);
-            QuerySearchResult queryResultShard1 = new QuerySearchResult(ctxShard1, shard1Target, null);
-            queryResultShard1.setShardIndex(shard1Target.getShardId().getId());
-
             final ShardSearchContextId ctxShard2 = new ShardSearchContextId(UUIDs.base64UUID(), 456);
-            QuerySearchResult queryResultShard2 = new QuerySearchResult(ctxShard2, shard2Target, null);
-            queryResultShard2.setShardIndex(shard2Target.getShardId().getId());
-
             final ShardSearchContextId ctxShard3 = new ShardSearchContextId(UUIDs.base64UUID(), 789);
+
+            QuerySearchResult queryResultShard1 = new QuerySearchResult(ctxShard1, shard1Target, null);
+            QuerySearchResult queryResultShard2 = new QuerySearchResult(ctxShard2, shard2Target, null);
             QuerySearchResult queryResultShard3 = new QuerySearchResult(ctxShard3, shard2Target, null);
-            queryResultShard3.setShardIndex(shard3Target.getShardId().getId());
+
             try {
+                queryResultShard1.setShardIndex(shard1Target.getShardId().getId());
+                queryResultShard2.setShardIndex(shard2Target.getShardId().getId());
+                queryResultShard3.setShardIndex(shard3Target.getShardId().getId());
+
                 final int shard1Results = randomIntBetween(1, 100);
                 final ScoreDoc[] shard1Docs = new ScoreDoc[] { new ScoreDoc(1, 10.0F) };
                 populateQuerySearchResult(queryResultShard1, shard1Results, shard1Docs);
@@ -760,11 +781,11 @@ public class RankFeaturePhaseTests extends ESTestCase {
                         SearchTask task,
                         final SearchActionListener<RankFeatureResult> listener
                     ) {
-                        // make sure to match the context id generated above, otherwise we throw
-                        // first shard
-                        if (request.contextId().getId() == 123 && Arrays.equals(request.getDocIds(), new int[] { 1 })) {
-                            RankFeatureResult rankFeatureResult = new RankFeatureResult();
-                            try {
+                        RankFeatureResult rankFeatureResult = new RankFeatureResult();
+                        try {
+                            // make sure to match the context id generated above, otherwise we throw
+                            // first shard
+                            if (request.contextId().getId() == 123 && Arrays.equals(request.getDocIds(), new int[] { 1 })) {
                                 buildRankFeatureResult(
                                     mockSearchPhaseContext.getRequest().source().rankBuilder(),
                                     rankFeatureResult,
@@ -773,13 +794,8 @@ public class RankFeaturePhaseTests extends ESTestCase {
                                     shard1Docs
                                 );
                                 listener.onResponse(rankFeatureResult);
-                            } finally {
-                                rankFeatureResult.decRef();
-                            }
-                        } else if (request.contextId().getId() == 456 && Arrays.equals(request.getDocIds(), new int[] { 11 })) {
-                            // second shard
-                            RankFeatureResult rankFeatureResult = new RankFeatureResult();
-                            try {
+                            } else if (request.contextId().getId() == 456 && Arrays.equals(request.getDocIds(), new int[] { 11 })) {
+                                // second shard
                                 buildRankFeatureResult(
                                     mockSearchPhaseContext.getRequest().source().rankBuilder(),
                                     rankFeatureResult,
@@ -788,50 +804,54 @@ public class RankFeaturePhaseTests extends ESTestCase {
                                     shard2Docs
                                 );
                                 listener.onResponse(rankFeatureResult);
-                            } finally {
-                                rankFeatureResult.decRef();
+                            } else {
+                                listener.onFailure(new MockDirectoryWrapper.FakeIOException());
                             }
-
-                        } else {
-                            listener.onFailure(new MockDirectoryWrapper.FakeIOException());
+                        } finally {
+                            rankFeatureResult.decRef();
                         }
                     }
                 };
-                RankFeaturePhase rankFeaturePhase = rankFeaturePhase(results, mockSearchPhaseContext, finalResults, phaseDone);
-                rankFeaturePhase.run();
-
-                mockSearchPhaseContext.assertNoFailure();
-                assertTrue(mockSearchPhaseContext.failures.isEmpty());
-                assertTrue(phaseDone.get());
-                SearchPhaseResults<SearchPhaseResult> rankPhaseResults = rankFeaturePhase.rankPhaseResults;
-                assertNotNull(rankPhaseResults.getAtomicArray());
-                assertEquals(3, rankPhaseResults.getAtomicArray().length());
-                // one result is null
-                assertEquals(2, rankPhaseResults.getSuccessfulResults().count());
-
-                SearchPhaseResult shard1Result = rankPhaseResults.getAtomicArray().get(0);
-                List<ExpectedRankFeatureDoc> expectedShardResults = List.of(new ExpectedRankFeatureDoc(1, 1, 110.0F, "ranked_1"));
-                assertShardResults(shard1Result, expectedShardResults);
-
-                SearchPhaseResult shard2Result = rankPhaseResults.getAtomicArray().get(1);
-                List<ExpectedRankFeatureDoc> expectedShard2Results = List.of(
-                    new ExpectedRankFeatureDoc(11, 1, 200.0F, "ranked_11"),
-                    new ExpectedRankFeatureDoc(2, 2, 109F, "ranked_2")
-                );
-                assertShardResults(shard2Result, expectedShard2Results);
-
-                SearchPhaseResult shard3Result = rankPhaseResults.getAtomicArray().get(2);
-                assertNull(shard3Result);
-
-                List<ExpectedRankFeatureDoc> expectedFinalResults = List.of(
-                    new ExpectedRankFeatureDoc(11, 1, 200.0F, "ranked_11"),
-                    new ExpectedRankFeatureDoc(1, 2, 110.0F, "ranked_1")
-                );
-                assertFinalResults(finalResults[0], expectedFinalResults);
             } finally {
                 queryResultShard1.decRef();
                 queryResultShard2.decRef();
                 queryResultShard3.decRef();
+            }
+            RankFeaturePhase rankFeaturePhase = rankFeaturePhase(results, mockSearchPhaseContext, finalResults, phaseDone);
+            rankFeaturePhase.run();
+
+            mockSearchPhaseContext.assertNoFailure();
+            assertTrue(mockSearchPhaseContext.failures.isEmpty());
+            assertTrue(phaseDone.get());
+            SearchPhaseResults<SearchPhaseResult> rankPhaseResults = rankFeaturePhase.rankPhaseResults;
+            assertNotNull(rankPhaseResults.getAtomicArray());
+            assertEquals(3, rankPhaseResults.getAtomicArray().length());
+            // one result is null
+            assertEquals(2, rankPhaseResults.getSuccessfulResults().count());
+
+            SearchPhaseResult shard1Result = rankPhaseResults.getAtomicArray().get(0);
+            List<ExpectedRankFeatureDoc> expectedShardResults = List.of(new ExpectedRankFeatureDoc(1, 1, 110.0F, "ranked_1"));
+            assertShardResults(shard1Result, expectedShardResults);
+
+            SearchPhaseResult shard2Result = rankPhaseResults.getAtomicArray().get(1);
+            List<ExpectedRankFeatureDoc> expectedShard2Results = List.of(
+                new ExpectedRankFeatureDoc(11, 1, 200.0F, "ranked_11"),
+                new ExpectedRankFeatureDoc(2, 2, 109F, "ranked_2")
+            );
+            assertShardResults(shard2Result, expectedShard2Results);
+
+            SearchPhaseResult shard3Result = rankPhaseResults.getAtomicArray().get(2);
+            assertNull(shard3Result);
+
+            List<ExpectedRankFeatureDoc> expectedFinalResults = List.of(
+                new ExpectedRankFeatureDoc(11, 1, 200.0F, "ranked_11"),
+                new ExpectedRankFeatureDoc(1, 2, 110.0F, "ranked_1")
+            );
+            assertFinalResults(finalResults[0], expectedFinalResults);
+            rankFeaturePhase.rankPhaseResults.close();
+        } finally {
+            if (mockSearchPhaseContext.searchResponse.get() != null) {
+                mockSearchPhaseContext.searchResponse.get().decRef();
             }
         }
     }
@@ -1107,7 +1127,6 @@ public class RankFeaturePhaseTests extends ESTestCase {
                 // this is called after the RankFeaturePhaseCoordinatorContext has been executed
                 phaseDone.set(true);
                 finalResults[0] = reducedQueryPhase.sortedTopDocs().scoreDocs();
-                phaseResults.close();
                 logger.debug("Skipping moving to next phase");
             }
         };

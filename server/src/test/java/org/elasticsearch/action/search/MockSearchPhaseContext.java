@@ -111,6 +111,8 @@ public final class MockSearchPhaseContext implements SearchPhaseContext {
     @Override
     public void onPhaseFailure(SearchPhase phase, String msg, Throwable cause) {
         phaseFailure.set(cause);
+        Releasables.close(releasables);
+        releasables.clear();
     }
 
     @Override

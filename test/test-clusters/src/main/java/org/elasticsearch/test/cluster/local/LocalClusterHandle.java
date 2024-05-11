@@ -16,6 +16,12 @@ import org.elasticsearch.test.cluster.util.Version;
 import java.io.InputStream;
 
 public interface LocalClusterHandle extends ClusterHandle {
+
+    /**
+     * Returns the number of nodes that are part of this cluster.
+     */
+    int getNumNodes();
+
     /**
      * Stops the node at a given index.
      * @param index of the node to stop

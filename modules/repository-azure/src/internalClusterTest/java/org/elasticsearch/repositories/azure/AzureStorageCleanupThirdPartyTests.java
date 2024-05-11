@@ -50,31 +50,26 @@ public class AzureStorageCleanupThirdPartyTests extends AbstractThirdPartyReposi
         System.getProperty("test.azure.container")
     );
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/107720")
     @Override
     public void testCreateSnapshot() {
         super.testCreateSnapshot();
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/107720")
     @Override
     public void testIndexLatest() throws Exception {
         super.testIndexLatest();
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/107720")
     @Override
     public void testListChildren() {
         super.testListChildren();
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/107720")
     @Override
     public void testCleanup() throws Exception {
         super.testCleanup();
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/107720")
     @Override
     public void testReadFromPositionWithLength() {
         super.testReadFromPositionWithLength();
@@ -162,7 +157,6 @@ public class AzureStorageCleanupThirdPartyTests extends AbstractThirdPartyReposi
         future.actionGet();
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/107720")
     public void testMultiBlockUpload() throws Exception {
         final BlobStoreRepository repo = getRepository();
         // The configured threshold for this test suite is 1mb

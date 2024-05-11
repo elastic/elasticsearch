@@ -100,12 +100,12 @@ public class RankFeaturePhase extends SearchPhase {
                 List<Integer> entry = docIdsToLoad[i];
                 SearchPhaseResult queryResult = queryPhaseResults.getAtomicArray().get(i);
                 if (entry == null || entry.isEmpty()) {
-                    if(queryResult != null) {
+                    if (queryResult != null) {
                         releaseIrrelevantSearchContext(queryResult, context);
                         progressListener.notifyRankFeatureResult(i);
                     }
                     rankRequestCounter.countDown();
-                }else {
+                } else {
                     executeRankFeatureShardPhase(queryResult, rankRequestCounter, entry);
                 }
             }

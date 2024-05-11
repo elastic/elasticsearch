@@ -235,7 +235,13 @@ public class FieldBasedRerankerIT extends ESIntegTestCase {
         );
 
         assertResponse(
-            prepareSearch().setQuery(boolQuery().should(constantScoreQuery(matchQuery(searchField, "F")).boost(randomFloat())))
+            prepareSearch().setQuery(
+                boolQuery().should(constantScoreQuery(matchQuery(searchField, "A")).boost(randomFloat()))
+                    .should(constantScoreQuery(matchQuery(searchField, "B")).boost(randomFloat()))
+                    .should(constantScoreQuery(matchQuery(searchField, "C")).boost(randomFloat()))
+                    .should(constantScoreQuery(matchQuery(searchField, "D")).boost(randomFloat()))
+                    .should(constantScoreQuery(matchQuery(searchField, "E")).boost(randomFloat()))
+            )
                 .setRankBuilder(new ThrowingRankBuilder(rankWindowSize, rankFeatureField))
                 .addFetchField(searchField)
                 .setTrackTotalHits(true)
@@ -243,7 +249,11 @@ public class FieldBasedRerankerIT extends ESIntegTestCase {
                 .setSize(10),
             response -> {
                 assertTrue(response.getFailedShards() > 0);
-                assertHitCount(response, 10);
+                assertTrue(
+                    Arrays.stream(response.getShardFailures())
+                        .allMatch(failure -> failure.getCause().getMessage().equals("This rank builder throws an exception"))
+                );
+                assertHitCount(response, 5);
                 assertTrue(response.getHits().getHits().length == 0);
             }
         );
@@ -252,21 +262,24 @@ public class FieldBasedRerankerIT extends ESIntegTestCase {
     public static class FieldBasedRankBuilder extends RankBuilder {
 
         public static final ParseField FIELD_FIELD = new ParseField("field");
-        static final ConstructingObjectParser<FieldBasedRankBuilder, Void> PARSER = new ConstructingObjectParser<>("rerank", args -> {
-            int rankWindowSize = args[0] == null ? DEFAULT_RANK_WINDOW_SIZE : (int) args[0];
-            String field = (String) args[1];
-            if (field == null || field.isEmpty()) {
-                throw new IllegalArgumentException("Field cannot be null or empty");
+        static final ConstructingObjectParser<FieldBasedRankBuilder, Void> PARSER = new ConstructingObjectParser<>(
+            "field-based-rank",
+            args -> {
+                int rankWindowSize = args[0] == null ? DEFAULT_RANK_WINDOW_SIZE : (int) args[0];
+                String field = (String) args[1];
+                if (field == null || field.isEmpty()) {
+                    throw new IllegalArgumentException("Field cannot be null or empty");
+                }
+                return new FieldBasedRankBuilder(rankWindowSize, field);
             }
-            return new FieldBasedRankBuilder(rankWindowSize, field);
-        });
+        );
 
         static {
             PARSER.declareInt(optionalConstructorArg(), RANK_WINDOW_SIZE_FIELD);
             PARSER.declareString(constructorArg(), FIELD_FIELD);
         }
 
-        private final String field;
+        protected final String field;
 
         public static FieldBasedRankBuilder fromXContent(XContentParser parser) throws IOException {
             return PARSER.parse(parser, null);
@@ -425,7 +438,7 @@ public class FieldBasedRerankerIT extends ESIntegTestCase {
     public static class ThrowingRankBuilder extends FieldBasedRankBuilder {
 
         public static final ParseField FIELD_FIELD = new ParseField("field");
-        static final ConstructingObjectParser<ThrowingRankBuilder, Void> PARSER = new ConstructingObjectParser<>("rerank", args -> {
+        static final ConstructingObjectParser<ThrowingRankBuilder, Void> PARSER = new ConstructingObjectParser<>("throwing-rank", args -> {
             int rankWindowSize = args[0] == null ? DEFAULT_RANK_WINDOW_SIZE : (int) args[0];
             String field = (String) args[1];
             if (field == null || field.isEmpty()) {
@@ -456,6 +469,15 @@ public class FieldBasedRerankerIT extends ESIntegTestCase {
             return "throwing-rank";
         }
 
+        @Override
+        public RankFeaturePhaseRankShardContext buildRankFeaturePhaseShardContext() {
+            return new RankFeaturePhaseRankShardContext(field) {
+                @Override
+                public RankShardResult buildRankFeatureShardResult(SearchHits hits, int shardId) {
+                    throw new IllegalArgumentException("This rank builder throws an exception");
+                }
+            };
+        }
     }
 
     public static class FieldBasedRerankerPlugin extends Plugin implements SearchPlugin {
@@ -467,7 +489,7 @@ public class FieldBasedRerankerIT extends ESIntegTestCase {
         public List<NamedWriteableRegistry.Entry> getNamedWriteables() {
             return List.of(
                 new NamedWriteableRegistry.Entry(RankBuilder.class, FIELD_BASED_RANK_BUILDER_NAME, FieldBasedRankBuilder::new),
-                new NamedWriteableRegistry.Entry(RankBuilder.class, THROWING_RANK_BUILDER_NAME, FieldBasedRankBuilder::new),
+                new NamedWriteableRegistry.Entry(RankBuilder.class, THROWING_RANK_BUILDER_NAME, ThrowingRankBuilder::new),
                 new NamedWriteableRegistry.Entry(RankShardResult.class, "rank-feature-shard", RankFeatureShardResult::new)
             );
         }

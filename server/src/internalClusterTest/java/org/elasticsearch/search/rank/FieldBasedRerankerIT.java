@@ -218,6 +218,37 @@ public class FieldBasedRerankerIT extends ESIntegTestCase {
         );
     }
 
+    public void testThrowingRankBuilderAllContextsAreClosed() throws Exception {
+        final String indexName = "test_index";
+        final String rankFeatureField = "rankFeatureField";
+        final String searchField = "searchField";
+        final int rankWindowSize = 10;
+
+        createIndex(indexName);
+        indexRandom(
+            true,
+            prepareIndex(indexName).setId("1").setSource(rankFeatureField, 0.1, searchField, "A"),
+            prepareIndex(indexName).setId("2").setSource(rankFeatureField, 0.2, searchField, "B"),
+            prepareIndex(indexName).setId("3").setSource(rankFeatureField, 0.3, searchField, "C"),
+            prepareIndex(indexName).setId("4").setSource(rankFeatureField, 0.4, searchField, "D"),
+            prepareIndex(indexName).setId("5").setSource(rankFeatureField, 0.5, searchField, "E")
+        );
+
+        assertResponse(
+            prepareSearch().setQuery(boolQuery().should(constantScoreQuery(matchQuery(searchField, "F")).boost(randomFloat())))
+                .setRankBuilder(new ThrowingRankBuilder(rankWindowSize, rankFeatureField))
+                .addFetchField(searchField)
+                .setTrackTotalHits(true)
+                .setAllowPartialSearchResults(true)
+                .setSize(10),
+            response -> {
+                assertTrue(response.getFailedShards() > 0);
+                assertHitCount(response, 10);
+                assertTrue(response.getHits().getHits().length == 0);
+            }
+        );
+    }
+
     public static class FieldBasedRankBuilder extends RankBuilder {
 
         public static final ParseField FIELD_FIELD = new ParseField("field");
@@ -391,21 +422,70 @@ public class FieldBasedRerankerIT extends ESIntegTestCase {
         }
     }
 
+    public static class ThrowingRankBuilder extends FieldBasedRankBuilder {
+
+        public static final ParseField FIELD_FIELD = new ParseField("field");
+        static final ConstructingObjectParser<ThrowingRankBuilder, Void> PARSER = new ConstructingObjectParser<>("rerank", args -> {
+            int rankWindowSize = args[0] == null ? DEFAULT_RANK_WINDOW_SIZE : (int) args[0];
+            String field = (String) args[1];
+            if (field == null || field.isEmpty()) {
+                throw new IllegalArgumentException("Field cannot be null or empty");
+            }
+            return new ThrowingRankBuilder(rankWindowSize, field);
+        });
+
+        static {
+            PARSER.declareInt(optionalConstructorArg(), RANK_WINDOW_SIZE_FIELD);
+            PARSER.declareString(constructorArg(), FIELD_FIELD);
+        }
+
+        public static FieldBasedRankBuilder fromXContent(XContentParser parser) throws IOException {
+            return PARSER.parse(parser, null);
+        }
+
+        public ThrowingRankBuilder(final int rankWindowSize, final String field) {
+            super(rankWindowSize, field);
+        }
+
+        public ThrowingRankBuilder(StreamInput in) throws IOException {
+            super(in);
+        }
+
+        @Override
+        public String getWriteableName() {
+            return "throwing-rank";
+        }
+
+    }
+
     public static class FieldBasedRerankerPlugin extends Plugin implements SearchPlugin {
 
-        private static final String NAME = "field-based-rank";
+        private static final String FIELD_BASED_RANK_BUILDER_NAME = "field-based-rank";
+        private static final String THROWING_RANK_BUILDER_NAME = "throwing-rank";
 
         @Override
         public List<NamedWriteableRegistry.Entry> getNamedWriteables() {
             return List.of(
-                new NamedWriteableRegistry.Entry(RankBuilder.class, NAME, FieldBasedRankBuilder::new),
+                new NamedWriteableRegistry.Entry(RankBuilder.class, FIELD_BASED_RANK_BUILDER_NAME, FieldBasedRankBuilder::new),
+                new NamedWriteableRegistry.Entry(RankBuilder.class, THROWING_RANK_BUILDER_NAME, FieldBasedRankBuilder::new),
                 new NamedWriteableRegistry.Entry(RankShardResult.class, "rank-feature-shard", RankFeatureShardResult::new)
             );
         }
 
         @Override
         public List<NamedXContentRegistry.Entry> getNamedXContent() {
-            return List.of(new NamedXContentRegistry.Entry(RankBuilder.class, new ParseField(NAME), FieldBasedRankBuilder::fromXContent));
+            return List.of(
+                new NamedXContentRegistry.Entry(
+                    RankBuilder.class,
+                    new ParseField(FIELD_BASED_RANK_BUILDER_NAME),
+                    FieldBasedRankBuilder::fromXContent
+                ),
+                new NamedXContentRegistry.Entry(
+                    RankBuilder.class,
+                    new ParseField(THROWING_RANK_BUILDER_NAME),
+                    ThrowingRankBuilder::fromXContent
+                )
+            );
         }
     }
 }

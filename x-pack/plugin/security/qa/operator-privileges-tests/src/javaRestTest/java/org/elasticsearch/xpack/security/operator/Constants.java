@@ -279,6 +279,7 @@ public class Constants {
         "cluster:admin/xpack/security/role_mapping/get",
         "cluster:admin/xpack/security/role_mapping/put",
         "cluster:admin/xpack/security/roles/cache/clear",
+        "cluster:admin/xpack/security/roles/put",
         "cluster:admin/xpack/security/saml/authenticate",
         "cluster:admin/xpack/security/saml/complete_logout",
         "cluster:admin/xpack/security/saml/invalidate",

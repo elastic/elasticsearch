@@ -12,30 +12,29 @@ import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.core.security.action.role.BulkPutRolesRequest;
+import org.elasticsearch.xpack.core.security.action.role.BulkPutRolesResponse;
 import org.elasticsearch.xpack.core.security.action.role.PutRoleAction;
-import org.elasticsearch.xpack.core.security.action.role.PutRoleRequest;
-import org.elasticsearch.xpack.core.security.action.role.PutRoleResponse;
 import org.elasticsearch.xpack.security.authz.store.NativeRolesStore;
 
-public class TransportPutRoleAction extends TransportAction<PutRoleRequest, PutRoleResponse> {
+import java.io.IOException;
+
+public class TransportBulkPutRolesAction extends TransportAction<BulkPutRolesRequest, BulkPutRolesResponse> {
 
     private final NativeRolesStore rolesStore;
 
     @Inject
-    public TransportPutRoleAction(ActionFilters actionFilters, NativeRolesStore rolesStore, TransportService transportService) {
+    public TransportBulkPutRolesAction(ActionFilters actionFilters, NativeRolesStore rolesStore, TransportService transportService) {
         super(PutRoleAction.NAME, actionFilters, transportService.getTaskManager());
         this.rolesStore = rolesStore;
     }
 
     @Override
-    protected void doExecute(Task task, final PutRoleRequest request, final ActionListener<PutRoleResponse> listener) {
-        rolesStore.putRole(request.getRefreshPolicy(), request.roleDescriptor(), listener.safeMap(created -> {
-            if (created) {
-                logger.info("added role [{}]", request.name());
-            } else {
-                logger.info("updated role [{}]", request.name());
-            }
-            return new PutRoleResponse(created);
-        }));
+    protected void doExecute(Task task, final BulkPutRolesRequest request, final ActionListener<BulkPutRolesResponse> listener) {
+        try {
+            rolesStore.putRoles(request.getRefreshPolicy(), request.getRoles(), listener);
+        } catch (IOException e) {
+            listener.onFailure(e);
+        }
     }
 }

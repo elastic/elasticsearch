@@ -11,8 +11,12 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.DelegatingActionListener;
 import org.elasticsearch.action.DocWriteResponse;
+import org.elasticsearch.action.bulk.BulkItemResponse;
+import org.elasticsearch.action.bulk.BulkRequest;
+import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.get.GetResponse;
@@ -24,6 +28,8 @@ import org.elasticsearch.action.search.MultiSearchResponse;
 import org.elasticsearch.action.search.MultiSearchResponse.Item;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.ContextPreservingActionListener;
+import org.elasticsearch.action.support.WriteRequest;
+import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -36,26 +42,33 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.security.ScrollHelper;
+import org.elasticsearch.xpack.core.security.action.role.BulkPutRolesResponse;
 import org.elasticsearch.xpack.core.security.action.role.ClearRolesCacheAction;
 import org.elasticsearch.xpack.core.security.action.role.ClearRolesCacheRequest;
 import org.elasticsearch.xpack.core.security.action.role.ClearRolesCacheResponse;
 import org.elasticsearch.xpack.core.security.action.role.DeleteRoleRequest;
-import org.elasticsearch.xpack.core.security.action.role.PutRoleRequest;
+import org.elasticsearch.xpack.core.security.action.role.RoleDescriptorRequestValidator;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor.IndicesPrivileges;
 import org.elasticsearch.xpack.core.security.authz.store.RoleRetrievalResult;
+import org.elasticsearch.xpack.core.security.authz.support.DLSRoleQueryValidator;
 import org.elasticsearch.xpack.core.security.support.NativeRealmValidationUtil;
+import org.elasticsearch.xpack.security.authz.ReservedRoleNameChecker;
 import org.elasticsearch.xpack.security.support.SecurityIndexManager;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -64,6 +77,7 @@ import java.util.function.BiConsumer;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.TransportVersions.ROLE_REMOTE_CLUSTER_PRIVS;
+import static org.elasticsearch.action.ValidateActions.addValidationError;
 import static org.elasticsearch.index.query.QueryBuilders.existsQuery;
 import static org.elasticsearch.search.SearchService.DEFAULT_KEEPALIVE_SETTING;
 import static org.elasticsearch.transport.RemoteClusterPortSettings.TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY;
@@ -106,6 +120,12 @@ public class NativeRolesStore implements BiConsumer<Set<String>, ActionListener<
         .allowDescription(true)
         .build();
 
+    private static final Set<DocWriteResponse.Result> UPDATE_ROLES_REFRESH_CACHE_RESULTS = Set.of(
+        DocWriteResponse.Result.CREATED,
+        DocWriteResponse.Result.UPDATED,
+        DocWriteResponse.Result.DELETED
+    );
+
     private final Settings settings;
     private final Client client;
     private final XPackLicenseState licenseState;
@@ -117,13 +137,19 @@ public class NativeRolesStore implements BiConsumer<Set<String>, ActionListener<
 
     private final FeatureService featureService;
 
+    private final ReservedRoleNameChecker reservedRoleNameChecker;
+
+    private final NamedXContentRegistry xContentRegistry;
+
     public NativeRolesStore(
         Settings settings,
         Client client,
         XPackLicenseState licenseState,
         SecurityIndexManager securityIndex,
         ClusterService clusterService,
-        FeatureService featureService
+        FeatureService featureService,
+        ReservedRoleNameChecker reservedRoleNameChecker,
+        NamedXContentRegistry xContentRegistry
     ) {
         this.settings = settings;
         this.client = client;
@@ -131,6 +157,8 @@ public class NativeRolesStore implements BiConsumer<Set<String>, ActionListener<
         this.securityIndex = securityIndex;
         this.clusterService = clusterService;
         this.featureService = featureService;
+        this.reservedRoleNameChecker = reservedRoleNameChecker;
+        this.xContentRegistry = xContentRegistry;
         this.enabled = settings.getAsBoolean(NATIVE_ROLES_ENABLED, true);
     }
 
@@ -258,68 +286,61 @@ public class NativeRolesStore implements BiConsumer<Set<String>, ActionListener<
         }
     }
 
-    public void putRole(final PutRoleRequest request, final RoleDescriptor role, final ActionListener<Boolean> listener) {
+    private Exception validateRoleDescriptor(RoleDescriptor role) {
+        ActionRequestValidationException validationException = null;
+        validationException = RoleDescriptorRequestValidator.validate(role, validationException);
+
+        if (reservedRoleNameChecker.isReserved(role.getName())) {
+            throw addValidationError("Role [" + role.getName() + "] is reserved and may not be used.", validationException);
+        }
+
+        if (role.isUsingDocumentOrFieldLevelSecurity() && DOCUMENT_LEVEL_SECURITY_FEATURE.checkWithoutTracking(licenseState) == false) {
+            return LicenseUtils.newComplianceException("field and document level security");
+        } else if (role.hasRemoteIndicesPrivileges()
+            && clusterService.state().getMinTransportVersion().before(TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY)) {
+                return new IllegalStateException(
+                    "all nodes must have version ["
+                        + TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY.toReleaseVersion()
+                        + "] or higher to support remote indices privileges"
+                );
+            } else if (role.hasRemoteClusterPermissions()
+                && clusterService.state().getMinTransportVersion().before(ROLE_REMOTE_CLUSTER_PRIVS)) {
+                    return new IllegalStateException(
+                        "all nodes must have version [" + ROLE_REMOTE_CLUSTER_PRIVS + "] or higher to support remote cluster privileges"
+                    );
+                } else if (role.hasDescription()
+                    && clusterService.state().getMinTransportVersion().before(TransportVersions.SECURITY_ROLE_DESCRIPTION)) {
+                        return new IllegalStateException(
+                            "all nodes must have version ["
+                                + TransportVersions.SECURITY_ROLE_DESCRIPTION.toReleaseVersion()
+                                + "] or higher to support specifying role description"
+                        );
+                    }
+        try {
+            DLSRoleQueryValidator.validateQueryField(role.getIndicesPrivileges(), xContentRegistry);
+        } catch (ElasticsearchException | IllegalArgumentException e) {
+            return e;
+        }
+
+        return validationException;
+    }
+
+    public void putRole(final WriteRequest.RefreshPolicy refreshPolicy, final RoleDescriptor role, final ActionListener<Boolean> listener) {
         if (enabled == false) {
             listener.onFailure(new IllegalStateException("Native role management is disabled"));
             return;
         }
+        Exception validationException = validateRoleDescriptor(role);
 
-        if (role.isUsingDocumentOrFieldLevelSecurity() && DOCUMENT_LEVEL_SECURITY_FEATURE.checkWithoutTracking(licenseState) == false) {
-            listener.onFailure(LicenseUtils.newComplianceException("field and document level security"));
-        } else if (role.hasRemoteIndicesPrivileges()
-            && clusterService.state().getMinTransportVersion().before(TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY)) {
-                listener.onFailure(
-                    new IllegalStateException(
-                        "all nodes must have version ["
-                            + TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY.toReleaseVersion()
-                            + "] or higher to support remote indices privileges"
-                    )
-                );
-            } else if (role.hasRemoteClusterPermissions()
-                && clusterService.state().getMinTransportVersion().before(ROLE_REMOTE_CLUSTER_PRIVS)) {
-                    listener.onFailure(
-                        new IllegalStateException(
-                            "all nodes must have version [" + ROLE_REMOTE_CLUSTER_PRIVS + "] or higher to support remote cluster privileges"
-                        )
-                    );
-                } else if (role.hasDescription()
-                    && clusterService.state().getMinTransportVersion().before(TransportVersions.SECURITY_ROLE_DESCRIPTION)) {
-                        listener.onFailure(
-                            new IllegalStateException(
-                                "all nodes must have version ["
-                                    + TransportVersions.SECURITY_ROLE_DESCRIPTION.toReleaseVersion()
-                                    + "] or higher to support specifying role description"
-                            )
-                        );
-                    } else {
-                        innerPutRole(request, role, listener);
-                    }
-    }
+        if (validationException != null) {
+            listener.onFailure(validationException);
+            return;
+        }
 
-    // pkg-private for testing
-    void innerPutRole(final PutRoleRequest request, final RoleDescriptor role, final ActionListener<Boolean> listener) {
-        final String roleName = role.getName();
-        assert NativeRealmValidationUtil.validateRoleName(roleName, false) == null : "Role name was invalid or reserved: " + roleName;
-        assert false == role.hasRestriction() : "restriction is not supported for native roles";
+        try {
+            IndexRequest indexRequest = createRoleIndexRequest(role);
+            indexRequest.setRefreshPolicy(refreshPolicy);
 
-        securityIndex.prepareIndexIfNeededThenExecute(listener::onFailure, () -> {
-            final XContentBuilder xContentBuilder;
-            try {
-                xContentBuilder = role.toXContent(
-                    jsonBuilder(),
-                    ToXContent.EMPTY_PARAMS,
-                    true,
-                    featureService.clusterHasFeature(clusterService.state(), SECURITY_ROLES_METADATA_FLATTENED)
-                );
-            } catch (IOException e) {
-                listener.onFailure(e);
-                return;
-            }
-            final IndexRequest indexRequest = client.prepareIndex(SECURITY_MAIN_ALIAS)
-                .setId(getIdForRole(roleName))
-                .setSource(xContentBuilder)
-                .setRefreshPolicy(request.getRefreshPolicy())
-                .request();
             executeAsyncWithOrigin(
                 client.threadPool().getThreadContext(),
                 SECURITY_ORIGIN,
@@ -329,18 +350,126 @@ public class NativeRolesStore implements BiConsumer<Set<String>, ActionListener<
                     public void onResponse(DocWriteResponse indexResponse) {
                         final boolean created = indexResponse.getResult() == DocWriteResponse.Result.CREATED;
                         logger.trace("Created role: [{}]", indexRequest);
-                        clearRoleCache(roleName, listener, created);
+                        clearRoleCache(role.getName(), listener, created);
                     }
 
                     @Override
                     public void onFailure(Exception e) {
-                        logger.error(() -> "failed to put role [" + roleName + "]", e);
+                        logger.error(() -> "failed to put role [" + role.getName() + "]", e);
                         listener.onFailure(e);
                     }
                 },
                 client::index
             );
-        });
+        } catch (IOException exception) {
+            listener.onFailure(exception);
+        }
+    }
+
+    public void putRoles(
+        final WriteRequest.RefreshPolicy refreshPolicy,
+        final List<RoleDescriptor> roles,
+        final ActionListener<BulkPutRolesResponse> listener
+    ) throws IOException {
+        if (enabled == false) {
+            listener.onFailure(new IllegalStateException("Native role management is disabled"));
+            return;
+        }
+        BulkRequest bulkRequest = new BulkRequest().setRefreshPolicy(refreshPolicy);
+        Map<String, Exception> validationErrorByRoleName = new HashMap<>();
+
+        for (RoleDescriptor role : roles) {
+            Exception validationException;
+            try {
+                validationException = validateRoleDescriptor(role);
+            } catch (Exception e) {
+                validationException = e;
+            }
+
+            if (validationException != null) {
+                validationErrorByRoleName.put(role.getName(), validationException);
+            } else {
+                bulkRequest.add(createRoleUpsertRequest(role));
+            }
+        }
+
+        if (bulkRequest.numberOfActions() == 0) {
+            BulkPutRolesResponse.Builder bulkPutRolesResponseBuilder = new BulkPutRolesResponse.Builder();
+            roles.stream()
+                .map(RoleDescriptor::getName)
+                .map(
+                    roleName -> BulkPutRolesResponse.Item.failure(roleName, validationErrorByRoleName.get(roleName), RestStatus.BAD_REQUEST)
+                )
+                .forEach(bulkPutRolesResponseBuilder::addItem);
+            bulkPutRolesResponseBuilder.setError(true);
+
+            listener.onResponse(bulkPutRolesResponseBuilder.build());
+            return;
+        }
+
+        executeAsyncWithOrigin(client.threadPool().getThreadContext(), SECURITY_ORIGIN, bulkRequest, new ActionListener<BulkResponse>() {
+            @Override
+            public void onResponse(BulkResponse bulkResponse) {
+                List<String> rolesToRefreshInCache = new ArrayList<>(roles.size());
+
+                Iterator<BulkItemResponse> bulkItemResponses = bulkResponse.iterator();
+                BulkPutRolesResponse.Builder bulkPutRolesResponseBuilder = new BulkPutRolesResponse.Builder();
+
+                roles.stream().map(RoleDescriptor::getName).map(roleName -> {
+                    if (validationErrorByRoleName.containsKey(roleName)) {
+                        return BulkPutRolesResponse.Item.failure(roleName, validationErrorByRoleName.get(roleName), RestStatus.BAD_REQUEST);
+                    }
+                    BulkItemResponse resp = bulkItemResponses.next();
+                    if (resp.isFailed()) {
+                        return BulkPutRolesResponse.Item.failure(roleName, resp.getFailure().getCause(), resp.getResponse().status());
+                    }
+                    if (UPDATE_ROLES_REFRESH_CACHE_RESULTS.contains(resp.getResponse().getResult())) {
+                        rolesToRefreshInCache.add(roleName);
+                    }
+                    return BulkPutRolesResponse.Item.success(roleName, resp.getResponse().getResult(), resp.getResponse().status());
+                }).forEach(bulkPutRolesResponseBuilder::addItem);
+
+                bulkPutRolesResponseBuilder.setError(bulkResponse.hasFailures() || validationErrorByRoleName.isEmpty() == false);
+                bulkPutRolesResponseBuilder.setTook(bulkResponse.getTook().millis());
+
+                clearRoleCache(rolesToRefreshInCache.toArray(String[]::new), ActionListener.wrap(res -> {
+                    listener.onResponse(bulkPutRolesResponseBuilder.build());
+                }, listener::onFailure), bulkResponse);
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                logger.error(() -> "failed to put roles", e);
+                listener.onFailure(e);
+            }
+        }, client::bulk);
+    }
+
+    private IndexRequest createRoleIndexRequest(final RoleDescriptor role) throws IOException {
+        return client.prepareIndex(SECURITY_MAIN_ALIAS)
+            .setId(getIdForRole(role.getName()))
+            .setSource(createRoleXContentBuilder(role))
+            .request();
+    }
+
+    private UpdateRequest createRoleUpsertRequest(final RoleDescriptor role) throws IOException {
+        return client.prepareUpdate(SECURITY_MAIN_ALIAS, getIdForRole(role.getName()))
+            .setDoc(createRoleXContentBuilder(role))
+            .setDocAsUpsert(true)
+            .request();
+    }
+
+    private XContentBuilder createRoleXContentBuilder(RoleDescriptor role) throws IOException {
+        assert NativeRealmValidationUtil.validateRoleName(role.getName(), false) == null
+            : "Role name was invalid or reserved: " + role.getName();
+        assert false == role.hasRestriction() : "restriction is not supported for native roles";
+        final XContentBuilder xContentBuilder;
+        return role.toXContent(
+            jsonBuilder(),
+            ToXContent.EMPTY_PARAMS,
+            true,
+            featureService.clusterHasFeature(clusterService.state(), SECURITY_ROLES_METADATA_FLATTENED)
+        );
     }
 
     public void usageStats(ActionListener<Map<String, Object>> listener) {
@@ -498,7 +627,11 @@ public class NativeRolesStore implements BiConsumer<Set<String>, ActionListener<
     }
 
     private <Response> void clearRoleCache(final String role, ActionListener<Response> listener, Response response) {
-        ClearRolesCacheRequest request = new ClearRolesCacheRequest().names(role);
+        clearRoleCache(new String[] { role }, listener, response);
+    }
+
+    private <Response> void clearRoleCache(final String[] roles, ActionListener<Response> listener, Response response) {
+        ClearRolesCacheRequest request = new ClearRolesCacheRequest().names(roles);
         executeAsyncWithOrigin(client, SECURITY_ORIGIN, ClearRolesCacheAction.INSTANCE, request, new ActionListener<>() {
             @Override
             public void onResponse(ClearRolesCacheResponse nodes) {
@@ -507,9 +640,9 @@ public class NativeRolesStore implements BiConsumer<Set<String>, ActionListener<
 
             @Override
             public void onFailure(Exception e) {
-                logger.error(() -> "unable to clear cache for role [" + role + "]", e);
+                logger.error(() -> "unable to clear cache for roles [" + Arrays.toString(roles) + "]", e);
                 ElasticsearchException exception = new ElasticsearchException(
-                    "clearing the cache for [" + role + "] failed. please clear the role cache manually",
+                    "clearing the cache for [" + Arrays.toString(roles) + "] failed. please clear the role cache manually",
                     e
                 );
                 listener.onFailure(exception);

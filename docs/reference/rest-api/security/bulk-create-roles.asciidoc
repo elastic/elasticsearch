@@ -1,0 +1,339 @@
+[role="xpack"]
+[[security-api-bulk-put-role]]
+=== Create or update roles in Bulk API
+preview::["This functionality is in technical preview and may be changed or removed in a future release. Elastic will work to fix any issues, but features in technical preview are not subject to the support SLA of official GA features."]
+++++
+<titleabbrev>Bulk create or update roles</titleabbrev>
+++++
+
+Bulk adds and updates roles in the native realm.
+
+[[security-api-bulk-put-role-request]]
+==== {api-request-title}
+
+`POST /_security/_bulk/role/` +
+
+[[security-api-bulk-put-role-prereqs]]
+==== {api-prereq-title}
+
+* To use this API, you must have at least the `manage_security` cluster
+privilege.
+
+[[security-api-bulk-put-role-desc]]
+==== {api-description-title}
+
+The role management APIs are generally the preferred way to manage roles, rather than using
+<<roles-management-file,file-based role management>>. The create
+or update roles API cannot update roles that are defined in roles files.
+
+[[security-api-bulk-put-role-path-params]]
+==== {api-path-parms-title}
+
+`refresh`::
+Optional setting of the {ref}/docs-refresh.html[refresh policy] for the write request. Defaults to Immediate.
+
+[[security-api-bulk-put-role-request-body]]
+==== {api-request-body-title}
+
+The following parameters can be specified in the body of a POST request
+and pertain to adding a set of roles:
+
+`roles`:: (object) The roles to add as a role name to role map.
+
+`applications`:: (list) A list of application privilege entries.
+`application` (required)::: (string) The name of the application to which this entry applies
+`privileges`::: (list) A list of strings, where each element is the name of an application
+privilege or action.
+`resources`::: (list) A list resources to which the privileges are applied.
+
+`cluster`:: (list) A list of cluster privileges. These privileges define the
+cluster level actions that users with this role are able to execute.
+
+`global`:: (object) An object defining global privileges. A global privilege is
+a form of cluster privilege that is request-aware. Support for global privileges
+is currently limited to the management of application privileges.
+This field is optional.
+
+`indices`:: (list) A list of indices permissions entries.
+`field_security`::: (object) The document fields that the owners of the role have
+read access to. For more information, see
+<<field-and-document-access-control>>.
+`names` (required)::: (list) A list of indices (or index name patterns) to which the
+permissions in this entry apply.
+`privileges`(required)::: (list) The index level privileges that the owners of the role
+have on the specified indices.
+`query`::: A search query that defines the documents the owners of the role have
+read access to. A document within the specified indices must match this query in
+order for it to be accessible by the owners of the role.
+
+`metadata`:: (object) Optional meta-data. Within the `metadata` object, keys
+that begin with `_` are reserved for system usage.
+
+`run_as`:: (list) A list of users that the owners of this role can impersonate.
+For more information, see
+<<run-as-privilege>>.
+
+`remote_indices`:: beta:[] (list) A list of remote indices permissions entries.
++
+--
+NOTE: Remote indices are effective for <<remote-clusters-api-key,remote clusters configured with the API key based model>>.
+They have no effect for remote clusters configured with the <<remote-clusters-cert,certificate based model>>.
+--
+`clusters` (required)::: (list) A list of cluster aliases to which the permissions
+in this entry apply.
+`field_security`::: (object) The document fields that the owners of the role have
+read access to. For more information, see
+<<field-and-document-access-control>>.
+`names` (required)::: (list) A list of indices (or index name patterns) on the remote clusters
+(specified with `clusters`) to which the permissions in this entry apply.
+`privileges`(required)::: (list) The index level privileges that the owners of the role
+have on the specified indices.
+`query`::: A search query that defines the documents the owners of the role have
+read access to. A document within the specified indices must match this query in
+order for it to be accessible by the owners of the role.
+
+For more information, see <<defining-roles>>.
+
+[[security-bulk-api-put-role-example]]
+==== {api-examples-title}
+
+The following example adds the roles called `my_admin_role` and `my_user_role`:
+
+[source,console]
+--------------------------------------------------
+POST /_security/_bulk/role
+{
+    "roles": {
+        "my_admin_role": {
+            "cluster": [
+                "all"
+            ],
+            "indices": [
+                {
+                    "names": [
+                        "index1",
+                        "index2"
+                    ],
+                    "privileges": [
+                        "all"
+                    ],
+                    "field_security": {
+                        "grant": [
+                            "title",
+                            "body"
+                        ]
+                    },
+                    "query": "{\"match\": {\"title\": \"foo\"}}"
+                }
+            ],
+            "applications": [
+                {
+                    "application": "myapp",
+                    "privileges": [
+                        "admin",
+                        "read"
+                    ],
+                    "resources": [
+                        "*"
+                    ]
+                }
+            ],
+            "run_as": [
+                "other_user"
+            ],
+            "metadata": {
+                "version": 1
+            }
+        },
+        "my_user_role": {
+            "cluster": [
+                "all"
+            ],
+            "indices": [
+                {
+                    "names": [
+                        "index1"
+                    ],
+                    "privileges": [
+                        "read"
+                    ],
+                    "field_security": {
+                        "grant": [
+                            "title",
+                            "body"
+                        ]
+                    },
+                    "query": "{\"match\": {\"title\": \"foo\"}}"
+                }
+            ],
+            "applications": [
+                {
+                    "application": "myapp",
+                    "privileges": [
+                        "admin",
+                        "read"
+                    ],
+                    "resources": [
+                        "*"
+                    ]
+                }
+            ],
+            "run_as": [
+                "other_user"
+            ],
+            "metadata": {
+                "version": 1
+            }
+        }
+    }
+}
+--------------------------------------------------
+
+A successful call returns a JSON structure that shows whether the roles has been
+created, updated or was a noop in the same order as in the bulk request.
+
+[source,console-result]
+--------------------------------------------------
+{
+    "took": 45,
+    "errors": false,
+    "items": [
+        {
+            "result": "created", <1>
+            "status": 201, <2>
+            "_id": "my_admin_role"
+        },
+        {
+            "result": "created",
+            "status": 201,
+            "_id": "my_user_role"
+        }
+    ]
+}
+--------------------------------------------------
+
+<1> When an existing role is updated, `result` is set to `updated` or when no changes were made it's set to `noop`.
+<2> When an existing role is updated, `status` is set to `200`.
+
+Errors are handled individually for each role create or update and the API therefore allows partial success.
+
+The following query would throw an error for `my_admin_role` but would be successful for the `my_user_role`.
+
+[source,console]
+--------------------------------------------------
+POST /_security/_bulk/role
+{
+    "roles": {
+        "my_admin_role": {
+            "cluster": [
+                "bad_cluster_privilege"
+            ],
+            "indices": [
+                {
+                    "names": [
+                        "index1",
+                        "index2"
+                    ],
+                    "privileges": ["all"],
+                    "field_security": {
+                        "grant": [
+                            "title",
+                            "body"
+                        ]
+                    },
+                    "query": "{\"match\": {\"title\": \"foo\"}}"
+                }
+            ],
+            "applications": [
+                {
+                    "application": "myapp",
+                    "privileges": [
+                        "admin",
+                        "read"
+                    ],
+                    "resources": [
+                        "*"
+                    ]
+                }
+            ],
+            "run_as": [
+                "other_user"
+            ],
+            "metadata": {
+                "version": 1
+            }
+        },
+        "my_user_role": {
+            "cluster": [
+                "all"
+            ],
+            "indices": [
+                {
+                    "names": [
+                        "index1"
+                    ],
+                    "privileges": [
+                        "read"
+                    ],
+                    "field_security": {
+                        "grant": [
+                            "title",
+                            "body"
+                        ]
+                    },
+                    "query": "{\"match\": {\"title\": \"foo\"}}"
+                }
+            ],
+            "applications": [
+                {
+                    "application": "myapp",
+                    "privileges": [
+                        "admin",
+                        "read"
+                    ],
+                    "resources": [
+                        "*"
+                    ]
+                }
+            ],
+            "run_as": [
+                "other_user"
+            ],
+            "metadata": {
+                "version": 1
+            }
+        }
+    }
+}
+--------------------------------------------------
+
+The result would then have the `errors` field set to `true` and hold the error for the `my_admin_role` update.
+
+
+[source,console-result]
+--------------------------------------------------
+{
+    "took": 4,
+    "errors": true, <1>
+    "items": [
+        {
+            "result": "failed",
+            "status": 400, <2>
+            "_id": "my_admin_role",
+            "error": {
+                "type": "action_request_validation_exception", <3>
+                "reason": "Validation Failed: 1: unknown cluster privilege [bad_cluster_privilege]." <4>
+            }
+        },
+        {
+            "result": "created",
+            "status": 201,
+            "_id": "my_user_role"
+        }
+    ]
+}
+--------------------------------------------------
+<1> The `errors` field indicates that the response contains errors.
+<2> THe http failure code of the error.
+<3> The type of error.
+<4> The error message.

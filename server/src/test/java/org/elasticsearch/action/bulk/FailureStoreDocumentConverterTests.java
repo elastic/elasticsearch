@@ -35,10 +35,24 @@ public class FailureStoreDocumentConverterTests extends ESTestCase {
 
         // The exception will be wrapped for the test to make sure the converter correctly unwraps it
         ElasticsearchException exception = new ElasticsearchException("Test exception please ignore");
-        exception.addHeader(CompoundProcessor.PIPELINE_ORIGIN_EXCEPTION_HEADER, Arrays.asList("some-failing-pipeline", "some-pipeline"));
-        exception.addHeader(CompoundProcessor.PROCESSOR_TAG_EXCEPTION_HEADER, "foo-tag");
-        exception.addHeader(CompoundProcessor.PROCESSOR_TYPE_EXCEPTION_HEADER, "bar-type");
-        exception = new RemoteTransportException("Test exception wrapper, please ignore", exception);
+        boolean withPipelineOrigin = randomBoolean();
+        if (withPipelineOrigin) {
+            exception.addHeader(
+                CompoundProcessor.PIPELINE_ORIGIN_EXCEPTION_HEADER,
+                Arrays.asList("some-failing-pipeline", "some-pipeline")
+            );
+        }
+        boolean withProcessorTag = randomBoolean();
+        if (withProcessorTag) {
+            exception.addHeader(CompoundProcessor.PROCESSOR_TAG_EXCEPTION_HEADER, "foo-tag");
+        }
+        boolean withProcessorType = randomBoolean();
+        if (withProcessorType) {
+            exception.addHeader(CompoundProcessor.PROCESSOR_TYPE_EXCEPTION_HEADER, "bar-type");
+        }
+        if (randomBoolean()) {
+            exception = new RemoteTransportException("Test exception wrapper, please ignore", exception);
+        }
 
         String targetIndexName = "rerouted_index";
         long testTime = 1702357200000L; // 2023-12-12T05:00:00.000Z
@@ -79,11 +93,20 @@ public class FailureStoreDocumentConverterTests extends ESTestCase {
         );
         assertThat(
             ObjectPath.eval("error.pipeline_trace", convertedRequest.sourceAsMap()),
-            is(equalTo(List.of("some-pipeline", "some-failing-pipeline")))
+            is(equalTo(withPipelineOrigin ? List.of("some-pipeline", "some-failing-pipeline") : null))
         );
-        assertThat(ObjectPath.eval("error.pipeline", convertedRequest.sourceAsMap()), is(equalTo("some-failing-pipeline")));
-        assertThat(ObjectPath.eval("error.processor_tag", convertedRequest.sourceAsMap()), is(equalTo("foo-tag")));
-        assertThat(ObjectPath.eval("error.processor_type", convertedRequest.sourceAsMap()), is(equalTo("bar-type")));
+        assertThat(
+            ObjectPath.eval("error.pipeline", convertedRequest.sourceAsMap()),
+            is(equalTo(withPipelineOrigin ? "some-failing-pipeline" : null))
+        );
+        assertThat(
+            ObjectPath.eval("error.processor_tag", convertedRequest.sourceAsMap()),
+            is(equalTo(withProcessorTag ? "foo-tag" : null))
+        );
+        assertThat(
+            ObjectPath.eval("error.processor_type", convertedRequest.sourceAsMap()),
+            is(equalTo(withProcessorType ? "bar-type" : null))
+        );
 
         assertThat(convertedRequest.isWriteToFailureStore(), is(true));
     }

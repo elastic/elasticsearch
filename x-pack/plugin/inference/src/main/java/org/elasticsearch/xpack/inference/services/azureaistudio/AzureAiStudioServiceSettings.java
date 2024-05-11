@@ -36,7 +36,7 @@ public abstract class AzureAiStudioServiceSettings extends FilteredXContentObjec
     protected final AzureAiStudioEndpointType endpointType;
     protected final RateLimitSettings rateLimitSettings;
 
-    protected static final RateLimitSettings DEFAULT_RATE_LIMIT_SETTINGS = new RateLimitSettings(1_440);
+    protected static final RateLimitSettings DEFAULT_RATE_LIMIT_SETTINGS = new RateLimitSettings(240);
 
     protected static BaseAzureAiStudioCommonFields fromMap(
         Map<String, Object> map,

@@ -15,7 +15,7 @@ import java.nio.charset.StandardCharsets;
 
 import static org.mockito.Mockito.mock;
 
-public class HuggingFaceAzureAndOpenAiErrorResponseEntityTests extends ESTestCase {
+public class HuggingFaceErrorResponseEntityTests extends ESTestCase {
     public void testFromResponse() {
         String responseJson = """
             {

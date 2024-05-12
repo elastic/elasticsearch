@@ -35,11 +35,8 @@ public class RankFeaturePhase extends SearchPhase {
 
     private static final Logger logger = LogManager.getLogger(RankFeaturePhase.class);
     private final SearchPhaseContext context;
-
-    // test-access
-    final SearchPhaseResults<SearchPhaseResult> queryPhaseResults;
+    private final SearchPhaseResults<SearchPhaseResult> queryPhaseResults;
     final SearchPhaseResults<SearchPhaseResult> rankPhaseResults;
-
     private final AggregatedDfs aggregatedDfs;
     private final SearchProgressListener progressListener;
 

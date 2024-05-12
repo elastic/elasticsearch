@@ -60,7 +60,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.hasRank;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
-@ESIntegTestCase.ClusterScope(minNumDataNodes = 2, maxNumDataNodes = 10)
+@ESIntegTestCase.ClusterScope(minNumDataNodes = 3)
 public class FieldBasedRerankerIT extends ESIntegTestCase {
 
     @Override

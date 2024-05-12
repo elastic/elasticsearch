@@ -1,0 +1,5 @@
+pr: 108538
+summary: Adding `RankFeature` implementation
+area: "Search, Ranking"
+type: feature
+issues: []

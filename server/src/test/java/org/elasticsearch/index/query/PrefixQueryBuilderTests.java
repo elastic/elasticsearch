@@ -166,6 +166,17 @@ public class PrefixQueryBuilderTests extends AbstractQueryTestCase<PrefixQueryBu
         }
     }
 
+    public void testMaxLengthExceeded() {
+        StringBuilder longValue = new StringBuilder();
+        for (int i = 0; i <= PrefixQueryBuilder.MAX_VALUE_LENGTH; i++) {
+            longValue.append("a");
+        }
+        
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
+            () -> new PrefixQueryBuilder("field", longValue.toString()));
+        assertEquals("value length exceeds maximum allowed length", e.getMessage());
+    }
+
     @Override
     public void testMustRewrite() throws IOException {
         SearchExecutionContext context = createSearchExecutionContext();

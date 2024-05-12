@@ -34,6 +34,7 @@ import java.util.Objects;
  */
 public class PrefixQueryBuilder extends AbstractQueryBuilder<PrefixQueryBuilder> implements MultiTermQueryBuilder {
     public static final String NAME = "prefix";
+    public static final int MAX_VALUE_LENGTH = 100;
 
     private static final ParseField PREFIX_FIELD = new ParseField("value");
     private static final ParseField REWRITE_FIELD = new ParseField("rewrite");
@@ -60,6 +61,9 @@ public class PrefixQueryBuilder extends AbstractQueryBuilder<PrefixQueryBuilder>
         }
         if (value == null) {
             throw new IllegalArgumentException("value cannot be null");
+        }
+        if (value.length() > MAX_VALUE_LENGTH) {
+            throw new IllegalArgumentException("value length exceeds maximum allowed length");
         }
         this.fieldName = fieldName;
         this.value = value;

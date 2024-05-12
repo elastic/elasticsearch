@@ -382,6 +382,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
             @Override
             public void onRejection(Exception e) {
                 // avoid leaks during node shutdown by executing on the current thread if the executor shuts down
+                assert e instanceof EsRejectedExecutionException esre && esre.isExecutorShutdown() : e;
                 doRun();
             }
 

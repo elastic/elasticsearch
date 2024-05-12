@@ -374,7 +374,16 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
     protected void fork(final Runnable runnable) {
         executor.execute(new AbstractRunnable() {
             @Override
-            public void onFailure(Exception e) {}
+            public void onFailure(Exception e) {
+                logger.error(() -> "unexpected error during [" + task + "]", e);
+                assert false : e;
+            }
+
+            @Override
+            public void onRejection(Exception e) {
+                // avoid leaks during node shutdown by executing on the current thread if the executor shuts down
+                doRun();
+            }
 
             @Override
             protected void doRun() {

@@ -120,6 +120,9 @@ public class EsqlParser {
         private Map<Token, Param> paramTokens;
         private int param;
         private Params params;
+        private boolean hasAnonymousParam = false;
+        private boolean hasNamedParam = false;
+        private boolean hasPositionalParam = false;
 
         ParametrizedTokenSource(TokenSource delegate, Map<Token, Param> paramTokens, Params params) {
             this.delegate = delegate;
@@ -131,8 +134,8 @@ public class EsqlParser {
         @Override
         public Token nextToken() {
             Token token = delegate.nextToken();
-
             if (token.getType() == EsqlBaseLexer.PARAM) {
+                hasAnonymousParam = true;
                 if (param >= params.positionalParams().size()) {
                     throw new ParsingException("Not enough actual parameters {}", params.positionalParams().size());
                 }
@@ -140,6 +143,23 @@ public class EsqlParser {
                 param++;
             }
 
+            if (token.getType() == EsqlBaseLexer.PARAM_NAMED_OR_POSITIONAL) {
+                if (token.getText().substring(1).matches("[0-9]+")) {
+                    hasPositionalParam = true;
+                } else {
+                    hasNamedParam = true;
+                }
+            }
+
+            if (hasAnonymousParam) {
+                if (hasNamedParam || hasPositionalParam) {
+                    throw new ParsingException("Mixed parameters are not supported.");
+                }
+            } else {
+                if (hasNamedParam && hasPositionalParam) {
+                    throw new ParsingException("Mixed parameters are not supported.");
+                }
+            }
             return token;
         }
 

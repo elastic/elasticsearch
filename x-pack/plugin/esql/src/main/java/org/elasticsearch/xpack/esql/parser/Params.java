@@ -48,6 +48,7 @@ public class Params {
         return paramsByPosition.get(index - 1);
     }
 
+    /*
     public HashMap<String, Param> namedParams() {
         return this.paramsByName;
     }
@@ -55,6 +56,7 @@ public class Params {
     public boolean isNamedParam() {
         return this.paramsByName.size() > 0;
     }
+     */
 
     public boolean containsParamName(String paramName) {
         return this.paramsByName.containsKey(paramName);
@@ -64,9 +66,11 @@ public class Params {
         return paramsByName.get(paramName);
     }
 
+    /*
     public void positionalParamTokens(Map<Token, Param> paramsByToken) {
         this.paramsByToken = paramsByToken;
     }
+     */
 
     public Map<Token, Param> positionalParamTokens() {
         return this.paramsByToken;

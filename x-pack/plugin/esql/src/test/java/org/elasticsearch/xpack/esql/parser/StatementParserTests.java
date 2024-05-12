@@ -12,6 +12,7 @@ import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.RLike;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.WildcardLike;
@@ -78,6 +79,7 @@ import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 
+@TestLogging(value = "org.elasticsearch.xpack.esql:TRACE", reason = "debug")
 public class StatementParserTests extends ESTestCase {
 
     private static String FROM = "from test";
@@ -973,25 +975,6 @@ public class StatementParserTests extends ESTestCase {
         assertThat(alias.child().fold(), is(1));
     }
 
-    public void testPositionalInputParamsWithName() {
-        LogicalPlan stm = statement("row x=?1, y = ?name1", new Params(List.of(new Param("name1", "integer", 1))));
-        assertThat(stm, instanceOf(Row.class));
-        Row row = (Row) stm;
-        assertThat(row.fields().size(), is(2));
-
-        NamedExpression field = row.fields().get(0);
-        assertThat(field.name(), is("x"));
-        assertThat(field, instanceOf(Alias.class));
-        Alias alias = (Alias) field;
-        assertThat(alias.child().fold(), is(1));
-
-        field = row.fields().get(1);
-        assertThat(field.name(), is("y"));
-        assertThat(field, instanceOf(Alias.class));
-        alias = (Alias) field;
-        assertThat(alias.child().fold(), is(1));
-    }
-
     public void testPositionalInputParamsWithoutName() {
         LogicalPlan stm = statement("row x=?1, y=?1", new Params(List.of(new Param(null, "integer", 1))));
         assertThat(stm, instanceOf(Row.class));
@@ -1249,6 +1232,41 @@ public class StatementParserTests extends ESTestCase {
         assertThat(((Literal) f.condition().children().get(1)).value(), equalTo(5));
         assertThat(f.children().size(), equalTo(1));
         assertThat(f.children().get(0), instanceOf(EsqlUnresolvedRelation.class));
+    }
+
+    public void testParamMixed() {
+        expectError(
+            "from test | where x < ? | eval y = ?n2 + ?n3 |  limit ?n4",
+            List.of(
+                new Param("n1", "integer", 5),
+                new Param("n2", "integer", -1),
+                new Param("n3", "integer", 100),
+                new Param("n4", "integer", 10)
+            ),
+            "Mixed parameters are not supported"
+        );
+
+        expectError(
+            "from test | where x < ?1 | eval y = ?n2 + ?n3 |  limit ?n4",
+            List.of(
+                new Param("n1", "integer", 5),
+                new Param("n2", "integer", -1),
+                new Param("n3", "integer", 100),
+                new Param("n4", "integer", 10)
+            ),
+            "Mixed parameters are not supported"
+        );
+
+        expectError(
+            "from test | where x < ? | eval y = ?2 + ?n3 |  limit ?n4",
+            List.of(
+                new Param("n1", "integer", 5),
+                new Param("n2", "integer", -1),
+                new Param("n3", "integer", 100),
+                new Param("n4", "integer", 10)
+            ),
+            "Mixed parameters are not supported"
+        );
     }
 
     public void testFieldContainingDotsAndNumbers() {

@@ -9,8 +9,8 @@ package org.elasticsearch.xpack.esql.parser;
 
 import org.antlr.v4.runtime.tree.TerminalNode;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.xpack.esql.parser.EsqlBaseParser.FromIdentifierContext;
 import org.elasticsearch.xpack.esql.parser.EsqlBaseParser.IdentifierContext;
+import org.elasticsearch.xpack.esql.parser.EsqlBaseParser.IndexIdentifierContext;
 
 import java.util.List;
 
@@ -24,8 +24,8 @@ abstract class IdentifierBuilder extends AbstractBuilder {
     }
 
     @Override
-    public String visitFromIdentifier(FromIdentifierContext ctx) {
-        return ctx == null ? null : unquoteIdentifier(null, ctx.FROM_UNQUOTED_IDENTIFIER());
+    public String visitIndexIdentifier(IndexIdentifierContext ctx) {
+        return ctx == null ? null : unquoteIdentifier(null, ctx.INDEX_UNQUOTED_IDENTIFIER());
     }
 
     protected static String unquoteIdentifier(TerminalNode quotedNode, TerminalNode unquotedNode) {
@@ -42,7 +42,7 @@ abstract class IdentifierBuilder extends AbstractBuilder {
         return quotedString.substring(1, quotedString.length() - 1).replace("``", "`");
     }
 
-    public String visitFromIdentifiers(List<FromIdentifierContext> ctx) {
+    public String visitIndexIdentifiers(List<IndexIdentifierContext> ctx) {
         return Strings.collectionToDelimitedString(visitList(this, ctx, String.class), ",");
     }
 }

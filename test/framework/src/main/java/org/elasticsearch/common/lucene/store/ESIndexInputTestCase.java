@@ -111,6 +111,8 @@ public class ESIndexInputTestCase extends ESTestCase {
                             readPos = between(readPos, randomAccessReadEnd);
                             indexInput.seek(readPos);
                         }
+
+                        indexInput.seek(readPos); // BUG these random-access reads shouldn't affect the current position
                     }
                     break;
                 case 4:

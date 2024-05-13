@@ -200,7 +200,6 @@ public class KibanaThreadPoolIT extends ESIntegTestCase {
         for (int i = 0; i < info.getQueueSize().singles(); i++) {
             try {
                 threadPool.executor(threadPoolName).execute(() -> {});
-                break;
             } catch (EsRejectedExecutionException e) {
                 // we can't be sure that some other task won't get queued in a test cluster
                 // but the threadpool's thread is already blocked

@@ -12,6 +12,8 @@ This can be achieved with one of two strategies:
 - Sending in precalculated token-weight pairs as query vectors
 
 These token-weight pairs are then used in a query against a <<sparse-vector,sparse vector>>.
+At query time, query vectors are calculated using the same inference model that was used to create the tokens.
+When querying, these query vectors are ORed together with their respective weights, which means scoring is effectively a <<vector-functions-dot-product,dot product>> calculation between stored dimensions and query dimensions.
 
 [discrete]
 [[sparse-vector-query-ex-request]]

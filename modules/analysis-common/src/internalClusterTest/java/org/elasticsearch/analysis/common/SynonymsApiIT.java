@@ -36,6 +36,7 @@ import static org.elasticsearch.action.synonyms.PutSynonymsAction.Request.SYNONY
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.CoreMatchers.is;
 
+@ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST)
 public class SynonymsApiIT extends ESIntegTestCase {
     private static final TimeValue DEFAULT_TIMEOUT = new TimeValue(1, TimeUnit.SECONDS);
 

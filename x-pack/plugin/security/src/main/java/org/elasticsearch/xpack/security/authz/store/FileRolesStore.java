@@ -67,7 +67,10 @@ public class FileRolesStore implements BiConsumer<Set<String>, ActionListener<Ro
     private static final Pattern IN_SEGMENT_LINE = Pattern.compile("^\\s+.+");
     private static final Pattern SKIP_LINE = Pattern.compile("(^#.*|^\\s*)");
     private static final Logger logger = LogManager.getLogger(FileRolesStore.class);
-    private static final RoleDescriptor.Parser ROLE_DESCRIPTOR_PARSER = RoleDescriptor.parserBuilder().allow2xFormat(true).build();
+    private static final RoleDescriptor.Parser ROLE_DESCRIPTOR_PARSER = RoleDescriptor.parserBuilder()
+        .allow2xFormat(true)
+        .allowDescription(true)
+        .build();
 
     private final Settings settings;
     private final Path file;
@@ -375,6 +378,16 @@ public class FileRolesStore implements BiConsumer<Set<String>, ActionListener<Ro
         ActionRequestValidationException ex = roleValidator.validatePredefinedRole(descriptor);
         if (ex != null) {
             throw ex;
+        }
+        Validation.Error validationError = Validation.Roles.validateRoleDescription(descriptor.getDescription());
+        if (validationError != null) {
+            logger.error(
+                "invalid role definition [{}] in roles file [{}]. invalid description - {}. skipping role... ",
+                roleName,
+                path.toAbsolutePath(),
+                validationError
+            );
+            return null;
         }
         return descriptor;
     }

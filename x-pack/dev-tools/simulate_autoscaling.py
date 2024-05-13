@@ -69,8 +69,8 @@ class Autoscaler:
 
   def __init__(self):
     self.num_allocations = 1
-    self.latency_estimator = Estimator(1e3, False)
-    self.rate_estimator = Estimator(1e3, True)
+    self.latency_estimator = Estimator(1e2, False)
+    self.rate_estimator = Estimator(1e2, True)
     self.request_count_since_last_rate_measurement = 0
     self.inference_count_since_last_measurement = 0
     self.sum_inference_time_since_last_measurement = 0
@@ -151,7 +151,7 @@ class Simulator:
 
   AVG_INFERENCE_TIME = 0.1
   PHYSICAL_CORES_PER_NODE = 4
-  MEASUREMENT_INTERVAL = 1
+  MEASUREMENT_INTERVAL = 10
 
   class EventType(enum.IntEnum):
     ALLOCATION_STARTED = 1

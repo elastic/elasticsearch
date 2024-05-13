@@ -528,7 +528,6 @@ You do so using the `bwc.refspec.{VERSION}` system property:
 -------------------------------------------------
 ./gradlew check -Dtests.bwc.refspec.8.15=origin/main
 -------------------------------------------------
-
 The branch needs to be available on the remote that the BWC makes of the repository you run the tests from.
 Using the remote is a handy trick to make sure that a branch is available and is up to date in the case of multiple runs.
 

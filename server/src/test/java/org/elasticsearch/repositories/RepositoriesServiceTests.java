@@ -10,6 +10,7 @@ package org.elasticsearch.repositories;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryRequest;
+import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterName;
@@ -313,18 +314,11 @@ public class RepositoriesServiceTests extends ESTestCase {
         // 2. repository creation successfully when current node become master node and repository is put again
         var request = new PutRepositoryRequest().name(repoName).type(TestRepository.TYPE);
 
-        repositoriesService.registerRepository(request, new ActionListener<>() {
-            @Override
-            public void onResponse(AcknowledgedResponse acknowledgedResponse) {
-                assertTrue(acknowledgedResponse.isAcknowledged());
-                assertThat(repositoriesService.repository(repoName), isA(TestRepository.class));
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                assert false : e;
-            }
-        });
+        var resultListener = new SubscribableListener<AcknowledgedResponse>();
+        repositoriesService.registerRepository(request, resultListener);
+        var resp = safeAwait(resultListener);
+        assertTrue(resp.isAcknowledged());
+        assertThat(repositoriesService.repository(repoName), isA(TestRepository.class));
     }
 
     private ClusterState createClusterStateWithRepo(String repoName, String repoType) {

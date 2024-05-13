@@ -8,18 +8,19 @@ package org.elasticsearch.xpack.rollup;
 
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockUtils;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.xpack.core.XPackFeatureSet;
 import org.elasticsearch.xpack.core.action.XPackUsageFeatureResponse;
 import org.elasticsearch.xpack.core.rollup.RollupFeatureSetUsage;
 
 import java.io.IOException;
 import java.util.concurrent.ExecutionException;
 
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.core.Is.is;
 import static org.mockito.Mockito.mock;
 
@@ -42,13 +43,15 @@ public class RollupInfoTransportActionTests extends ESTestCase {
         TransportService transportService = MockUtils.setupTransportServiceWithThreadpoolExecutor(threadPool);
         var usageAction = new RollupUsageTransportAction(transportService, null, threadPool, mock(ActionFilters.class), null);
         PlainActionFuture<XPackUsageFeatureResponse> future = new PlainActionFuture<>();
-        usageAction.masterOperation(null, null, null, future);
-        XPackFeatureSet.Usage rollupUsage = future.get().getUsage();
+        usageAction.masterOperation(null, null, ClusterState.EMPTY_STATE, future);
+        RollupFeatureSetUsage rollupUsage = (RollupFeatureSetUsage) future.get().getUsage();
         BytesStreamOutput out = new BytesStreamOutput();
         rollupUsage.writeTo(out);
-        XPackFeatureSet.Usage serializedUsage = new RollupFeatureSetUsage(out.bytes().streamInput());
+        var serializedUsage = new RollupFeatureSetUsage(out.bytes().streamInput());
         assertThat(rollupUsage.name(), is(serializedUsage.name()));
         assertThat(rollupUsage.enabled(), is(serializedUsage.enabled()));
+        assertThat(rollupUsage.enabled(), is(serializedUsage.enabled()));
+        assertThat(rollupUsage.getNumberOfRollupJobs(), equalTo(serializedUsage.getNumberOfRollupJobs()));
     }
 
 }

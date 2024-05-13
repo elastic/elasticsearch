@@ -39,6 +39,8 @@ import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.blobcache.common.ByteRange;
 import org.elasticsearch.blobcache.shared.SharedBytes;
 import org.elasticsearch.common.blobstore.OperationPurpose;
+import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.ThrottledTaskRunner;
 import org.elasticsearch.core.Releasable;
@@ -64,12 +66,19 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.LongConsumer;
 
+import static co.elastic.elasticsearch.stateless.commits.StatelessCommitService.STATELESS_UPLOAD_DELAYED;
 import static co.elastic.elasticsearch.stateless.lucene.SearchDirectory.unwrapDirectory;
 import static org.elasticsearch.blobcache.common.BlobCacheBufferedIndexInput.BUFFER_SIZE;
 import static org.elasticsearch.blobcache.shared.SharedBytes.MAX_BYTES_PER_WRITE;
 import static org.elasticsearch.core.Strings.format;
 
 public class SharedBlobCacheWarmingService {
+
+    public static final Setting<Boolean> STATELESS_BLOB_CACHE_WARMING_ALLOW_FETCH_FROM_INDEXING = Setting.boolSetting(
+        "stateless.blob_cache_warming.allow_fetch_from_indexing",
+        STATELESS_UPLOAD_DELAYED,
+        Setting.Property.NodeScope
+    );
 
     /** Region of a blob **/
     private record BlobRegion(BlobFile blob, int region) {}
@@ -127,13 +136,13 @@ public class SharedBlobCacheWarmingService {
     private final ThreadPool threadPool;
     private final Executor fetchExecutor;
     private final ThrottledTaskRunner throttledTaskRunner;
-    private final boolean uploadDelayed;
+    private final boolean allowFetchFromIndexing;
 
-    public SharedBlobCacheWarmingService(StatelessSharedBlobCacheService cacheService, ThreadPool threadPool, boolean uploadDelayed) {
+    public SharedBlobCacheWarmingService(StatelessSharedBlobCacheService cacheService, ThreadPool threadPool, Settings settings) {
         this.cacheService = cacheService;
         this.threadPool = threadPool;
         this.fetchExecutor = threadPool.executor(Stateless.PREWARM_THREAD_POOL);
-        this.uploadDelayed = uploadDelayed;
+        this.allowFetchFromIndexing = STATELESS_BLOB_CACHE_WARMING_ALLOW_FETCH_FROM_INDEXING.get(settings);
 
         // the PREWARM_THREAD_POOL does the actual work but we want to limit the number of prewarming tasks in flight at once so that each
         // one completes sooner, so we use a ThrottledTaskRunner. The throttle limit is a little more than the threadpool size just to avoid
@@ -359,7 +368,7 @@ public class SharedBlobCacheWarmingService {
             final int endRegion = (int) ((end - (end % regionSize == 0 ? 1 : 0)) / regionSize);
 
             if (startRegion == endRegion) {
-                if (uploadDelayed) {
+                if (allowFetchFromIndexing) {
                     enqueue(new BlobRegion(location.blobFile(), startRegion), fileName, location, position, length, listener);
                 } else {
                     addRegion(new BlobRegion(location.blobFile(), startRegion), fileName, listener);
@@ -367,7 +376,7 @@ public class SharedBlobCacheWarmingService {
             } else {
                 try (var listeners = new RefCountingListener(listener)) {
                     for (int r = startRegion; r <= endRegion; r++) {
-                        if (uploadDelayed) {
+                        if (allowFetchFromIndexing) {
                             // adjust the position & length to the region
                             var range = ByteRange.of(Math.max(start, (long) r * regionSize), Math.min(end, (r + 1L) * regionSize));
                             enqueue(
@@ -432,7 +441,8 @@ public class SharedBlobCacheWarmingService {
             long length,
             ActionListener<Void> listener
         ) {
-            assert uploadDelayed : "method should only be called when uploads are delayed";
+            assert allowFetchFromIndexing
+                : "method should only be called when " + STATELESS_BLOB_CACHE_WARMING_ALLOW_FETCH_FROM_INDEXING.getKey() + " is true";
             var blobRanges = queues.computeIfAbsent(blobRegion, BlobRangesQueue::new);
             if (blobRanges.add(fileName, blobLocation, position, length, listener)) {
                 createWarmingTask(blobRanges);

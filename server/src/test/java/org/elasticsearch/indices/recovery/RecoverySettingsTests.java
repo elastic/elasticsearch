@@ -9,10 +9,7 @@
 package org.elasticsearch.indices.recovery;
 
 import org.apache.logging.log4j.Level;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
@@ -492,15 +489,13 @@ public class RecoverySettingsTests extends ESTestCase {
 
         final ClusterSettings clusterSettings = new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
         final RecoverySettings recoverySettings = new RecoverySettings(settings, clusterSettings);
-        final MockLogAppender mockAppender = new MockLogAppender();
-        mockAppender.addExpectation(
-            new MockLogAppender.UnseenEventExpectation("no warnings", RecoverySettings.class.getCanonicalName(), Level.WARN, "*")
-        );
-        mockAppender.start();
-        final Logger logger = LogManager.getLogger(RecoverySettings.class);
-        Loggers.addAppender(logger, mockAppender);
 
-        try {
+        final MockLogAppender mockAppender = new MockLogAppender();
+        try (var ignored = mockAppender.capturing(RecoverySettings.class)) {
+            mockAppender.addExpectation(
+                new MockLogAppender.UnseenEventExpectation("no warnings", RecoverySettings.class.getCanonicalName(), Level.WARN, "*")
+            );
+
             assertThat(recoverySettings.getUseSnapshotsDuringRecovery(), is(false));
 
             for (int i = 0; i < 4; i++) {
@@ -514,9 +509,6 @@ public class RecoverySettingsTests extends ESTestCase {
             releasable.close();
 
             mockAppender.assertAllExpectationsMatched();
-        } finally {
-            Loggers.removeAppender(logger, mockAppender);
-            mockAppender.stop();
         }
     }
 

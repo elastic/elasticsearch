@@ -58,10 +58,12 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
         private boolean includeDefaults = false;
 
         public Request(String[] names) {
+            super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT);
             this.names = names;
         }
 
         public Request(String[] names, boolean includeDefaults) {
+            super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT);
             this.names = names;
             this.includeDefaults = includeDefaults;
         }
@@ -346,7 +348,8 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
                 }
                 if (dataStream.getLifecycle() != null) {
                     builder.field(LIFECYCLE_FIELD.getPreferredName());
-                    dataStream.getLifecycle().toXContent(builder, params, rolloverConfiguration, globalRetention);
+                    dataStream.getLifecycle()
+                        .toXContent(builder, params, rolloverConfiguration, dataStream.isSystem() ? null : globalRetention);
                 }
                 if (ilmPolicyName != null) {
                     builder.field(ILM_POLICY_FIELD.getPreferredName(), ilmPolicyName);

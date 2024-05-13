@@ -64,7 +64,7 @@ public class RoundTests extends AbstractFunctionTestCase {
         suppliers = anyNullIsNull(
             suppliers,
             (nullPosition, nullValueDataType, original) -> nullPosition == 0 ? nullValueDataType : original.expectedType(),
-            (nullPosition, original) -> original
+            (nullPosition, nullData, original) -> original
         );
 
         suppliers.add(new TestCaseSupplier("two doubles", List.of(DataTypes.DOUBLE, DataTypes.INTEGER), () -> {

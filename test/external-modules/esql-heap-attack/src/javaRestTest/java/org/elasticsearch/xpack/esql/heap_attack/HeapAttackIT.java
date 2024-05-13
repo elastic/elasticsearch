@@ -263,16 +263,15 @@ public class HeapAttackIT extends ESRestTestCase {
         columns = columns.item(matchesMap().entry("name", "c").entry("type", "long"));
         columns = columns.item(matchesMap().entry("name", "d").entry("type", "long"));
         columns = columns.item(matchesMap().entry("name", "e").entry("type", "long"));
-        for (int i = 0; i < 10; i++) {
+        for (int i = 0; i < 20; i++) {
             columns = columns.item(matchesMap().entry("name", "i0" + i).entry("type", "long"));
         }
         assertMap(map, matchesMap().entry("columns", columns).entry("values", hasSize(10_000)));
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/108104")
     public void testTooManyEval() throws IOException {
         initManyLongs();
-        assertCircuitBreaks(() -> manyEval(1000));
+        assertCircuitBreaks(() -> manyEval(490));
     }
 
     private Response manyEval(int evalLines) throws IOException {
@@ -280,7 +279,7 @@ public class HeapAttackIT extends ESRestTestCase {
         query.append("FROM manylongs");
         for (int e = 0; e < evalLines; e++) {
             query.append("\n| EVAL ");
-            for (int i = 0; i < 10; i++) {
+            for (int i = 0; i < 20; i++) {
                 if (i != 0) {
                     query.append(", ");
                 }

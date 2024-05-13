@@ -85,7 +85,9 @@ public final class PutFollowAction extends ActionType<PutFollowAction.Response> 
         private FollowParameters parameters = new FollowParameters();
         private ActiveShardCount waitForActiveShards = ActiveShardCount.NONE;
 
-        public Request() {}
+        public Request() {
+            super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT, DEFAULT_ACK_TIMEOUT);
+        }
 
         public String getFollowerIndex() {
             return followerIndex;

@@ -1066,5 +1066,10 @@ public class WildcardFieldMapper extends FieldMapper {
             }
             storedValues = emptyList();
         }
+
+        @Override
+        public String fieldName() {
+            return name();
+        }
     }
 }

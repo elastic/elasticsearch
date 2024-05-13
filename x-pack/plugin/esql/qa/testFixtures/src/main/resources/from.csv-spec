@@ -130,7 +130,7 @@ c:l | name:k
 ;
 
 convertFromDatetimeWithOptions
-required_feature: esql.from_options
+required_capability: from_options
 
 // tag::convertFromDatetimeWithOptions[]
   FROM employees OPTIONS "allow_no_indices"="false","preference"="_local"

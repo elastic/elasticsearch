@@ -556,6 +556,11 @@ public class HistogramFieldMapper extends FieldMapper {
 
                 b.endObject();
             }
+
+            @Override
+            public String fieldName() {
+                return name();
+            }
         };
     }
 }

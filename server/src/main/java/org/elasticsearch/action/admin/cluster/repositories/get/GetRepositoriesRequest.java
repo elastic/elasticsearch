@@ -25,7 +25,9 @@ public class GetRepositoriesRequest extends MasterNodeReadRequest<GetRepositorie
 
     private String[] repositories = Strings.EMPTY_ARRAY;
 
-    public GetRepositoriesRequest() {}
+    public GetRepositoriesRequest() {
+        super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT);
+    }
 
     /**
      * Constructs a new get repositories request with a list of repositories.
@@ -36,6 +38,7 @@ public class GetRepositoriesRequest extends MasterNodeReadRequest<GetRepositorie
      * @param repositories list of repositories
      */
     public GetRepositoriesRequest(String[] repositories) {
+        super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT);
         this.repositories = repositories;
     }
 

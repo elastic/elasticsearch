@@ -38,7 +38,7 @@ public class GetMlAutoscalingStats extends ActionType<Response> {
     public static class Request extends AcknowledgedRequest<Request> {
 
         public Request(TimeValue timeout) {
-            super(timeout);
+            super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT, timeout);
         }
 
         public Request(StreamInput in) throws IOException {

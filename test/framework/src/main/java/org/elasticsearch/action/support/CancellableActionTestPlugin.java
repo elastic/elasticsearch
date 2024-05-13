@@ -26,6 +26,7 @@ import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.ExceptionsHelper.unwrapCause;
 import static org.elasticsearch.action.support.ActionTestUtils.assertNoFailureListener;
+import static org.elasticsearch.action.support.ActionTestUtils.assertNoSuccessListener;
 import static org.elasticsearch.test.ESIntegTestCase.internalCluster;
 import static org.elasticsearch.test.ESTestCase.asInstanceOf;
 import static org.elasticsearch.test.ESTestCase.randomInt;
@@ -37,7 +38,6 @@ import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
-import static org.junit.Assert.fail;
 
 /**
  * Utility plugin that captures the invocation of an action on a node after the task has been registered with the {@link TaskManager},
@@ -128,19 +128,11 @@ public class CancellableActionTestPlugin extends Plugin implements ActionPlugin 
                     if (capturingListener != null) {
                         final var cancellableTask = asInstanceOf(CancellableTask.class, task);
                         capturingListener.addListener(assertNoFailureListener(captured -> {
-                            cancellableTask.addListener(() -> chain.proceed(task, action, request, new ActionListener<>() {
-                                @Override
-                                public void onResponse(Response response) {
-                                    fail("cancelled action should not succeed, but got " + response);
-                                }
-
-                                @Override
-                                public void onFailure(Exception e) {
-                                    assertThat(unwrapCause(e), instanceOf(TaskCancelledException.class));
-                                    listener.onFailure(e);
-                                    captured.countDownLatch().countDown();
-                                }
-                            }));
+                            cancellableTask.addListener(() -> chain.proceed(task, action, request, assertNoSuccessListener(e -> {
+                                assertThat(unwrapCause(e), instanceOf(TaskCancelledException.class));
+                                listener.onFailure(e);
+                                captured.countDownLatch().countDown();
+                            })));
                             assertFalse(cancellableTask.isCancelled());
                             captured.doCancel().run();
                         }));

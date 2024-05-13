@@ -178,5 +178,10 @@ public class DocCountFieldMapper extends MetadataFieldMapper {
             }
             b.field(NAME, postings.freq());
         }
+
+        @Override
+        public String fieldName() {
+            return NAME;
+        }
     }
 }

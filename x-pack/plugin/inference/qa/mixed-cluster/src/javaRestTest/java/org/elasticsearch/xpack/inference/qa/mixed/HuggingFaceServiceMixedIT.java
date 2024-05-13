@@ -7,11 +7,14 @@
 
 package org.elasticsearch.xpack.inference.qa.mixed;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.test.http.MockResponse;
 import org.elasticsearch.test.http.MockWebServer;
+import org.elasticsearch.xpack.inference.services.cohere.CohereService;
+import org.elasticsearch.xpack.inference.services.huggingface.HuggingFaceService;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 
@@ -27,6 +30,7 @@ public class HuggingFaceServiceMixedIT extends BaseMixedTestCase {
 
     private static final String HF_EMBEDDINGS_ADDED = "8.12.0";
     private static final String HF_ELSER_ADDED = "8.12.0";
+    private static final String MINIMUM_SUPPORTED_VERSION = "8.15.0";
 
     private static MockWebServer embeddingsServer;
     private static MockWebServer elserServer;
@@ -50,6 +54,10 @@ public class HuggingFaceServiceMixedIT extends BaseMixedTestCase {
     public void testHFEmbeddings() throws IOException {
         var embeddingsSupported = bwcVersion.onOrAfter(Version.fromString(HF_EMBEDDINGS_ADDED));
         assumeTrue("Hugging Face embedding service added in " + HF_EMBEDDINGS_ADDED, embeddingsSupported);
+        assumeTrue(
+            "HuggingFace service requires at least " + MINIMUM_SUPPORTED_VERSION,
+            bwcVersion.onOrAfter(Version.fromString(MINIMUM_SUPPORTED_VERSION))
+        );
 
         final String inferenceId = "mixed-cluster-embeddings";
 
@@ -71,6 +79,10 @@ public class HuggingFaceServiceMixedIT extends BaseMixedTestCase {
     public void testElser() throws IOException {
         var supported = bwcVersion.onOrAfter(Version.fromString(HF_ELSER_ADDED));
         assumeTrue("HF elser service added in " + HF_ELSER_ADDED, supported);
+        assumeTrue(
+            "HuggingFace service requires at least " + MINIMUM_SUPPORTED_VERSION,
+            bwcVersion.onOrAfter(Version.fromString(MINIMUM_SUPPORTED_VERSION))
+        );
 
         final String inferenceId = "mixed-cluster-elser";
         final String upgradedClusterId = "upgraded-cluster-elser";

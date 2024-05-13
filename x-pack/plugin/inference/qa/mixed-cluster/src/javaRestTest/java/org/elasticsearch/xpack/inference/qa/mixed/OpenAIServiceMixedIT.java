@@ -7,11 +7,14 @@
 
 package org.elasticsearch.xpack.inference.qa.mixed;
 
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.test.http.MockResponse;
 import org.elasticsearch.test.http.MockWebServer;
+import org.elasticsearch.xpack.inference.services.openai.OpenAiService;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 
@@ -30,6 +33,7 @@ public class OpenAIServiceMixedIT extends BaseMixedTestCase {
     private static final String OPEN_AI_EMBEDDINGS_ADDED = "8.12.0";
     private static final String OPEN_AI_EMBEDDINGS_MODEL_SETTING_MOVED = "8.13.0";
     private static final String OPEN_AI_COMPLETIONS_ADDED = "8.14.0";
+    private static final String MINIMUM_SUPPORTED_VERSION = "8.15.0";
 
     private static MockWebServer openAiEmbeddingsServer;
     private static MockWebServer openAiChatCompletionsServer;
@@ -53,6 +57,10 @@ public class OpenAIServiceMixedIT extends BaseMixedTestCase {
     public void testOpenAiEmbeddings() throws IOException {
         var openAiEmbeddingsSupported = bwcVersion.onOrAfter(Version.fromString(OPEN_AI_EMBEDDINGS_ADDED));
         assumeTrue("OpenAI embedding service added in " + OPEN_AI_EMBEDDINGS_ADDED, openAiEmbeddingsSupported);
+        assumeTrue(
+            "OpenAI service requires at least " + MINIMUM_SUPPORTED_VERSION,
+            bwcVersion.onOrAfter(Version.fromString(MINIMUM_SUPPORTED_VERSION))
+        );
 
         final String inferenceId = "mixed-cluster-embeddings";
 
@@ -82,6 +90,10 @@ public class OpenAIServiceMixedIT extends BaseMixedTestCase {
     public void testOpenAiCompletions() throws IOException {
         var openAiEmbeddingsSupported = bwcVersion.onOrAfter(Version.fromString(OPEN_AI_EMBEDDINGS_ADDED));
         assumeTrue("OpenAI completions service added in " + OPEN_AI_COMPLETIONS_ADDED, openAiEmbeddingsSupported);
+        assumeTrue(
+            "OpenAI service requires at least " + MINIMUM_SUPPORTED_VERSION,
+            bwcVersion.onOrAfter(Version.fromString(MINIMUM_SUPPORTED_VERSION))
+        );
 
         final String inferenceId = "mixed-cluster-completions";
         final String upgradedClusterId = "upgraded-cluster-completions";

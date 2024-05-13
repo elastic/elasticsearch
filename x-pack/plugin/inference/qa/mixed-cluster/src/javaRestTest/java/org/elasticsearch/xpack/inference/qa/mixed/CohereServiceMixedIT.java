@@ -7,12 +7,15 @@
 
 package org.elasticsearch.xpack.inference.qa.mixed;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.test.http.MockResponse;
 import org.elasticsearch.test.http.MockWebServer;
+import org.elasticsearch.xpack.inference.services.cohere.CohereService;
 import org.elasticsearch.xpack.inference.services.cohere.embeddings.CohereEmbeddingType;
+import org.elasticsearch.xpack.inference.services.openai.OpenAiService;
 import org.hamcrest.Matchers;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
@@ -33,6 +36,7 @@ public class CohereServiceMixedIT extends BaseMixedTestCase {
     private static final String COHERE_EMBEDDINGS_ADDED = "8.13.0";
     private static final String COHERE_RERANK_ADDED = "8.14.0";
     private static final String BYTE_ALIAS_FOR_INT8_ADDED = "8.14.0";
+    private static final String MINIMUM_SUPPORTED_VERSION = "8.15.0";
 
     private static MockWebServer cohereEmbeddingsServer;
     private static MockWebServer cohereRerankServer;
@@ -56,6 +60,10 @@ public class CohereServiceMixedIT extends BaseMixedTestCase {
     public void testCohereEmbeddings() throws IOException {
         var embeddingsSupported = bwcVersion.onOrAfter(Version.fromString(COHERE_EMBEDDINGS_ADDED));
         assumeTrue("Cohere embedding service added in " + COHERE_EMBEDDINGS_ADDED, embeddingsSupported);
+        assumeTrue(
+            "Cohere service requires at least " + MINIMUM_SUPPORTED_VERSION,
+            bwcVersion.onOrAfter(Version.fromString(MINIMUM_SUPPORTED_VERSION))
+        );
 
         final String inferenceIdInt8 = "mixed-cluster-cohere-embeddings-int8";
         final String inferenceIdFloat = "mixed-cluster-cohere-embeddings-float";
@@ -106,6 +114,10 @@ public class CohereServiceMixedIT extends BaseMixedTestCase {
     public void testRerank() throws IOException {
         var rerankSupported = bwcVersion.onOrAfter(Version.fromString(COHERE_RERANK_ADDED));
         assumeTrue("Cohere rerank service added in " + COHERE_RERANK_ADDED, rerankSupported);
+        assumeTrue(
+            "Cohere service requires at least " + MINIMUM_SUPPORTED_VERSION,
+            bwcVersion.onOrAfter(Version.fromString(MINIMUM_SUPPORTED_VERSION))
+        );
 
         final String inferenceId = "mixed-cluster-rerank";
 

@@ -1370,7 +1370,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
         private final DataStreamAutoShardingEvent autoShardingEvent;
         private Set<String> lookup;
 
-        private DataStreamIndices(
+        protected DataStreamIndices(
             String namePrefix,
             List<Index> indices,
             boolean rolloverOnWrite,

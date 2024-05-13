@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.inference.services.elasticsearch;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.ModelConfigurations;
+import org.elasticsearch.inference.TaskSettings;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xpack.core.ml.action.CreateTrainedModelAssignmentAction;
 import org.elasticsearch.xpack.core.ml.action.StartTrainedModelDeploymentAction;
@@ -23,6 +24,16 @@ public abstract class ElasticsearchModel extends Model {
         ElasticsearchInternalServiceSettings serviceSettings
     ) {
         super(new ModelConfigurations(inferenceEntityId, taskType, service, serviceSettings));
+    }
+
+    public ElasticsearchModel(
+        String inferenceEntityId,
+        TaskType taskType,
+        String service,
+        ElasticsearchInternalServiceSettings serviceSettings,
+        TaskSettings taskSettings
+    ) {
+        super(new ModelConfigurations(inferenceEntityId, taskType, service, serviceSettings, taskSettings));
     }
 
     @Override

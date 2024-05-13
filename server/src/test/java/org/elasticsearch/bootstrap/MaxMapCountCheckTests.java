@@ -15,7 +15,6 @@ import org.apache.logging.log4j.core.LogEvent;
 import org.apache.logging.log4j.message.Message;
 import org.apache.lucene.util.Constants;
 import org.elasticsearch.cluster.metadata.Metadata;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.test.AbstractBootstrapCheckTestCase;
@@ -133,22 +132,20 @@ public class MaxMapCountCheckTests extends AbstractBootstrapCheckTestCase {
             when(reader.readLine()).thenThrow(ioException);
             final Logger logger = LogManager.getLogger("testGetMaxMapCountIOException");
             final MockLogAppender appender = new MockLogAppender();
-            appender.start();
-            appender.addExpectation(
-                new MessageLoggingExpectation(
-                    "expected logged I/O exception",
-                    "testGetMaxMapCountIOException",
-                    Level.WARN,
-                    "I/O exception while trying to read [" + procSysVmMaxMapCountPath + "]",
-                    e -> ioException == e
-                )
-            );
-            Loggers.addAppender(logger, appender);
-            assertThat(check.getMaxMapCount(logger), equalTo(-1L));
-            appender.assertAllExpectationsMatched();
+            try (var ignored = appender.capturing("testGetMaxMapCountIOException")) {
+                appender.addExpectation(
+                    new MessageLoggingExpectation(
+                        "expected logged I/O exception",
+                        "testGetMaxMapCountIOException",
+                        Level.WARN,
+                        "I/O exception while trying to read [" + procSysVmMaxMapCountPath + "]",
+                        e -> ioException == e
+                    )
+                );
+                assertThat(check.getMaxMapCount(logger), equalTo(-1L));
+                appender.assertAllExpectationsMatched();
+            }
             verify(reader).close();
-            Loggers.removeAppender(logger, appender);
-            appender.stop();
         }
 
         {
@@ -156,22 +153,20 @@ public class MaxMapCountCheckTests extends AbstractBootstrapCheckTestCase {
             when(reader.readLine()).thenReturn("eof");
             final Logger logger = LogManager.getLogger("testGetMaxMapCountNumberFormatException");
             final MockLogAppender appender = new MockLogAppender();
-            appender.start();
-            appender.addExpectation(
-                new MessageLoggingExpectation(
-                    "expected logged number format exception",
-                    "testGetMaxMapCountNumberFormatException",
-                    Level.WARN,
-                    "unable to parse vm.max_map_count [eof]",
-                    e -> e instanceof NumberFormatException && e.getMessage().equals("For input string: \"eof\"")
-                )
-            );
-            Loggers.addAppender(logger, appender);
-            assertThat(check.getMaxMapCount(logger), equalTo(-1L));
-            appender.assertAllExpectationsMatched();
+            try (var ignored = appender.capturing("testGetMaxMapCountNumberFormatException")) {
+                appender.addExpectation(
+                    new MessageLoggingExpectation(
+                        "expected logged number format exception",
+                        "testGetMaxMapCountNumberFormatException",
+                        Level.WARN,
+                        "unable to parse vm.max_map_count [eof]",
+                        e -> e instanceof NumberFormatException && e.getMessage().equals("For input string: \"eof\"")
+                    )
+                );
+                assertThat(check.getMaxMapCount(logger), equalTo(-1L));
+                appender.assertAllExpectationsMatched();
+            }
             verify(reader).close();
-            Loggers.removeAppender(logger, appender);
-            appender.stop();
         }
 
     }

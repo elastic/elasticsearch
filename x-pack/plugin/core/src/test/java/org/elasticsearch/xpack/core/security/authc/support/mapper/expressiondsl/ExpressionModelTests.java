@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.core.security.authc.support.mapper.expressiondsl
 
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.core.LogEvent;
 import org.apache.logging.log4j.message.Message;
 import org.elasticsearch.common.logging.Loggers;
@@ -72,19 +71,11 @@ public class ExpressionModelTests extends ESTestCase {
 
     private void doWithLoggingExpectations(List<? extends MockLogAppender.LoggingExpectation> expectations, CheckedRunnable<Exception> body)
         throws Exception {
-        final Logger modelLogger = LogManager.getLogger(ExpressionModel.class);
         final MockLogAppender mockAppender = new MockLogAppender();
-        mockAppender.start();
-        try {
-            Loggers.addAppender(modelLogger, mockAppender);
+        try (var ignored = mockAppender.capturing(ExpressionModel.class)) {
             expectations.forEach(mockAppender::addExpectation);
-
             body.run();
-
             mockAppender.assertAllExpectationsMatched();
-        } finally {
-            Loggers.removeAppender(modelLogger, mockAppender);
-            mockAppender.stop();
         }
     }
 

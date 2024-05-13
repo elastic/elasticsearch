@@ -16,7 +16,6 @@ import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
-import org.hamcrest.CoreMatchers;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -119,7 +118,7 @@ public class AzureOpenAiSecretSettingsTests extends AbstractWireSerializingTestC
         String xContentResult = Strings.toString(builder);
 
         var expectedResult = Strings.format("{\"%s\":\"apikey\"}", API_KEY);
-        assertThat(xContentResult, CoreMatchers.is(expectedResult));
+        assertThat(xContentResult, is(expectedResult));
     }
 
     public void testToXContext_WritesEntraIdOnlyWhenApiKeyIsNull() throws IOException {
@@ -129,7 +128,7 @@ public class AzureOpenAiSecretSettingsTests extends AbstractWireSerializingTestC
         String xContentResult = Strings.toString(builder);
 
         var expectedResult = Strings.format("{\"%s\":\"entraid\"}", ENTRA_ID);
-        assertThat(xContentResult, CoreMatchers.is(expectedResult));
+        assertThat(xContentResult, is(expectedResult));
     }
 
     @Override

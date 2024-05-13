@@ -46,7 +46,7 @@ from ul_logs | sort bytes_in desc nulls last, id | limit 12;
 ;
 
 filterPushDownGT
-required_feature: esql.mv_warn
+required_capability: mv_warn
 
 from ul_logs | where bytes_in >= to_ul(74330435873664882) | sort bytes_in | eval div = bytes_in / to_ul(pow(10., 15)) | keep bytes_in, div, id | limit 12;
 warning:Line 1:22: evaluation of [bytes_in >= to_ul(74330435873664882)] failed, treating result as null. Only first 20 failures recorded.
@@ -68,7 +68,7 @@ warning:Line 1:22: java.lang.IllegalArgumentException: single-value function enc
 ;
 
 filterPushDownRange
-required_feature: esql.mv_warn
+required_capability: mv_warn
 
 from ul_logs | where bytes_in >= to_ul(74330435873664882) | where bytes_in <= to_ul(316080452389500167)  | sort bytes_in | eval div = bytes_in / to_ul(pow(10., 15)) | keep bytes_in, div, id | limit 12;
 warning:Line 1:22: evaluation of [bytes_in >= to_ul(74330435873664882)] failed, treating result as null. Only first 20 failures recorded.
@@ -84,7 +84,7 @@ warning:#[Emulated:Line 1:67: java.lang.IllegalArgumentException: single-value f
 ;
 
 filterPushDownIn
-required_feature: esql.mv_warn
+required_capability: mv_warn
 
 // TODO: testing framework doesn't perform implicit conversion to UL of given values, needs explicit conversion
 from ul_logs | where bytes_in in (to_ul(74330435873664882), to_ul(154551962150890564), to_ul(195161570976258241)) | sort bytes_in | keep bytes_in, id;
@@ -98,7 +98,7 @@ warning:Line 1:22: java.lang.IllegalArgumentException: single-value function enc
 ;
 
 filterOnFieldsEquality
-required_feature: esql.mv_warn
+required_capability: mv_warn
 
 from ul_logs | where bytes_in == bytes_out;
 warning:Line 1:22: evaluation of [bytes_in == bytes_out] failed, treating result as null. Only first 20 failures recorded.
@@ -109,7 +109,7 @@ warning:Line 1:22: java.lang.IllegalArgumentException: single-value function enc
 ;
 
 filterOnFieldsInequality
-required_feature: esql.mv_warn
+required_capability: mv_warn
 
 from ul_logs | sort id | where bytes_in < bytes_out | eval b_in = bytes_in / to_ul(pow(10.,15)), b_out = bytes_out / to_ul(pow(10.,15)) | limit 5;
 warning:Line 1:32: evaluation of [bytes_in < bytes_out] failed, treating result as null. Only first 20 failures recorded.
@@ -140,7 +140,7 @@ from ul_logs | stats c = count(bytes_in) by bytes_in | sort c desc, bytes_in des
 ;
 
 case
-required_feature: esql.mv_warn
+required_capability: mv_warn
 
 from ul_logs | where case(bytes_in == to_ul(154551962150890564), true, false);
 warning:Line 1:27: evaluation of [bytes_in == to_ul(154551962150890564)] failed, treating result as null. Only first 20 failures recorded.
@@ -151,7 +151,7 @@ warning:Line 1:27: java.lang.IllegalArgumentException: single-value function enc
 ;
 
 toDegrees
-required_feature: esql.mv_warn
+required_capability: mv_warn
 
 FROM ul_logs | WHERE bytes_in == bytes_out | EVAL deg = TO_DEGREES(bytes_in) | KEEP bytes_in, deg
 ;
@@ -163,7 +163,7 @@ warning:Line 1:22: java.lang.IllegalArgumentException: single-value function enc
 ;
 
 toRadians
-required_feature: esql.mv_warn
+required_capability: mv_warn
 
 FROM ul_logs | WHERE bytes_in == bytes_out | EVAL rad = TO_RADIANS(bytes_in) | KEEP bytes_in, rad
 ;

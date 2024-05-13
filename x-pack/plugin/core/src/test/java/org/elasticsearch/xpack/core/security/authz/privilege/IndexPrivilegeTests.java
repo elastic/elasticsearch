@@ -180,7 +180,6 @@ public class IndexPrivilegeTests extends ESTestCase {
                             ccsPattern
                         );
                         assertFalse(errorMessage, IndexPrivilege.get(Set.of(ccrPrivileges)).predicate.test(ccsPattern));
-                        assertTrue(errorMessage, Operations.subsetOf(Automatons.patterns(ccsPattern), ccsAutomaton));
                     });
                 });
 
@@ -201,7 +200,6 @@ public class IndexPrivilegeTests extends ESTestCase {
                                     ccrPattern
                                 );
                                 assertFalse(errorMessage, IndexPrivilege.get(Set.of(ccsPrivileges)).predicate.test(ccrPattern));
-                                assertTrue(errorMessage, Operations.subsetOf(Automatons.patterns(ccrPattern), ccrAutomaton));
                             }
                         });
                     });

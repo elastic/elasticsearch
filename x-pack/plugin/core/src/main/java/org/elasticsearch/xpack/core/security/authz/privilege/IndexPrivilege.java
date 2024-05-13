@@ -74,6 +74,7 @@ import static org.elasticsearch.xpack.core.security.support.Automatons.unionAndM
  */
 public final class IndexPrivilege extends Privilege {
     private static final Logger logger = LogManager.getLogger(IndexPrivilege.class);
+    
 
     private static final Automaton ALL_AUTOMATON = patterns("indices:*", "internal:transport/proxy/indices:*");
     private static final Automaton READ_AUTOMATON = patterns(

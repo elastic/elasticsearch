@@ -10,6 +10,11 @@ random.seed(170681)
 
 
 class Estimator:
+  """
+  This implements a 1d Kalman filter with manoeuvre detection.
+  Rather than a derived dynamics model, we simply fix how much we want to smooth in the steady state.
+  (see also: https://en.wikipedia.org/wiki/Kalman_filter)
+  """
   def __init__(self, smoothing_factor, autodetect_dynamics_change):
     self.value = None
     self.variance = None
@@ -17,6 +22,7 @@ class Estimator:
     self.autodetect_dynamics_change = autodetect_dynamics_change
 
   def dynamics_change_detected(self, value, variance):
+    """Returns whether if the (value, variance) is more than 10 stddev unlikely."""
     return (self.variance is not None and self.autodetect_dynamics_change
             and abs(value - self.value) ** 2.0 / (self.variance + variance) > 100.0)
 
@@ -24,6 +30,8 @@ class Estimator:
     process_variance = variance / self.smoothing_factor
 
     if dynamics_changed or self.dynamics_change_detected(value, variance):
+      # If we know we likely had a change in the quantity we're estimating or the prediction is 10 stddev off,
+      # we inject extra noise in the dynamics for this step.
       process_variance *= self.smoothing_factor
       print(f'dynamic changed: value={value} state={self.value} +-/ {self.error()} '
             f'(external event={dynamics_changed})')
@@ -50,15 +58,22 @@ class Estimator:
 
 
 class Autoscaler:
+  """
+  The autoscaler keeps track of estimates of the request rate and inference latency.
+  When capacity is almost exhausted it scales up, and when there's too much overcapacity
+  it scales down.
+  """
 
   AUTOSCALE_UP_THRESHOLD = 0.9
   AUTOSCALE_DOWN_THRESHOLD = 0.85
 
   def __init__(self):
     self.num_allocations = 1
-    self.latency_estimator = Estimator(1e6, False)
+    self.latency_estimator = Estimator(1e3, False)
     self.rate_estimator = Estimator(1e3, True)
     self.request_count_since_last_rate_measurement = 0
+    self.inference_count_since_last_measurement = 0
+    self.sum_inference_time_since_last_measurement = 0
     self.num_allocation_changed_since_last_inference = True
 
   def add_request(self):
@@ -67,16 +82,28 @@ class Autoscaler:
   def measure_rate(self, interval):
     rate = self.request_count_since_last_rate_measurement / interval
     rate_estimate = estimate if (estimate := self.rate_estimator.estimate()) is not None else rate
-    variance = max(1.0, rate_estimate * interval) / interval**2
+    variance = max(1.0, rate_estimate * interval) / interval ** 2
     self.rate_estimator.add(rate, variance)
     self.request_count_since_last_rate_measurement = 0
     return rate
 
   def add_inference_time(self, inference_time):
+    self.inference_count_since_last_measurement += 1
+    self.sum_inference_time_since_last_measurement += inference_time
+
+  def measure_inference_time(self):
+    if not self.inference_count_since_last_measurement:
+      return None
+
+    inference_time = self.sum_inference_time_since_last_measurement / self.inference_count_since_last_measurement
     latency_estimate = estimate if (estimate := self.latency_estimator.estimate()) is not None else inference_time
-    variance = latency_estimate ** 2.0
+    variance = latency_estimate ** 2 / self.inference_count_since_last_measurement
+
     self.latency_estimator.add(inference_time, variance, self.num_allocation_changed_since_last_inference)
     self.num_allocation_changed_since_last_inference = False
+    self.inference_count_since_last_measurement = 0
+    self.sum_inference_time_since_last_measurement = 0
+    return inference_time
 
   def get_load(self):
     rate = self.rate_estimator.estimate()
@@ -106,6 +133,21 @@ class Autoscaler:
 
 
 class Simulator:
+  """
+  We simulate a Poisson process for inference arrivals with time varying rate parameter. This models a
+  variety of rate dynamics: smooth ramp, smooth periodic, shock and steady.
+  Inference is modelled as mean duration + noise. The mean duration captures the behaviour of
+  vCPUs which is that throughput is largely constant after all physical cores on a node are occupied.
+
+  We assume perfect load balancing, i.e. that every allocation of inference is never waiting whilst there are
+  inferences to be done. Inferences can only be picked off once they have arrived and allocations can only
+  pick an inference "inference duration" after they picked their last inference. We assume they are selected
+  FIFO.
+
+  The key user parameters are the number of waiting inferences and the average and maximum delay to
+  receive each inference which can be calculated from the difference between when inference calls arrived
+  and when they are available.
+  """
 
   AVG_INFERENCE_TIME = 0.1
   PHYSICAL_CORES_PER_NODE = 4
@@ -115,7 +157,7 @@ class Simulator:
     ALLOCATION_STARTED = 1
     REQUEST = 2
     INFERENCE_COMPLETED = 3
-    MEASURE_RATE = 4
+    MEASURE = 4
 
   def __init__(self, start_time, end_time, get_request_rate):
     self.start_time = start_time
@@ -138,6 +180,11 @@ class Simulator:
     self.num_ml_nodes = []
 
   def get_avg_inference_time(self):
+    """
+    Assumes 2*PHYSICAL_CORES_PER_NODE allocations per ML node, which have to share the
+    PHYSICAL_CORES_PER_NODE real cores. Assigning more allocations to a node than its
+    number of cores leads to increased inference times.
+    """
     physical_cores = self.num_allocations // (2 * self.PHYSICAL_CORES_PER_NODE) * self.PHYSICAL_CORES_PER_NODE
     remaining_allocations = self.num_allocations % (2 * self.PHYSICAL_CORES_PER_NODE)
     if remaining_allocations < self.PHYSICAL_CORES_PER_NODE:
@@ -148,6 +195,12 @@ class Simulator:
     return self.AVG_INFERENCE_TIME * self.num_allocations / physical_cores
 
   def get_random_inference_time(self):
+    """
+    Return a random inference time, which consists of:
+    - average inference time
+    - random uniform noise multiplier (between 0.5 and 1.5)
+    - environment factor, leading sporadically to 10x latency
+    """
     request_factor = random.uniform(0.5, 1.5)
     environment_factor = 10 if random.random() < 0.01 else 0.90901
     return request_factor * environment_factor * self.get_avg_inference_time()
@@ -161,7 +214,8 @@ class Simulator:
     for alloc_id in range(self.num_allocations):
       heapq.heappush(events, (0, Simulator.EventType.ALLOCATION_STARTED, alloc_id, None))
 
-    # create all requests
+    # create all requests following a Poisson process
+    # this assumes TIME_STEP << 1 / rate, otherwise they'll be too few events
     TIME_STEP = 0.001
     time = self.start_time + TIME_STEP / 2
     while time < self.end_time:
@@ -173,7 +227,7 @@ class Simulator:
     time = self.start_time
     while time < self.end_time:
       time += self.MEASUREMENT_INTERVAL
-      heapq.heappush(events, (time, Simulator.EventType.MEASURE_RATE, None, None))
+      heapq.heappush(events, (time, Simulator.EventType.MEASURE, None, None))
 
     return events
 
@@ -199,9 +253,11 @@ class Simulator:
         autoscaler.add_request()
         inference_queue.append(time)
 
-      elif type == Simulator.EventType.MEASURE_RATE:
+      elif type == Simulator.EventType.MEASURE:
         rate = autoscaler.measure_rate(self.MEASUREMENT_INTERVAL)
         self.request_rate_data.append((time, rate))
+        inference_time = autoscaler.measure_inference_time()
+        self.inference_time_data.append((time, inference_time))
 
       elif type == Simulator.EventType.INFERENCE_COMPLETED:
         autoscaler.add_inference_time(inference_time)
@@ -212,7 +268,6 @@ class Simulator:
         request_time = inference_queue.popleft()
         wait_time = time - request_time
         self.wait_times.append((time, wait_time))
-        self.inference_time_data.append((time, inference_time))
         alloc_id = available_allocations.pop()
         inference_time = self.get_random_inference_time()
         heapq.heappush(events, (time + inference_time, Simulator.EventType.INFERENCE_COMPLETED, alloc_id, inference_time))
@@ -268,7 +323,7 @@ class Simulator:
     axs[1].plot(*zip(*self.inference_time_estimates), label='estimate')
     axs[1].plot(*zip(*self.inference_time_truth), label='truth')
     axs[1].legend(loc='upper right')
-    axs[1].set_ylim([0.05, 0.25])
+    axs[1].set_ylim([0.05, 0.30])
 
     axs[2].set_title('Wait time')
     axs[2].plot(*zip(*self.wait_times), label='data')
@@ -294,6 +349,7 @@ class Simulator:
                 [Autoscaler.AUTOSCALE_UP_THRESHOLD, Autoscaler.AUTOSCALE_UP_THRESHOLD],
                 label='threshold down')
     axs[5].legend(loc='upper right')
+    axs[5].set_ylim([0.0, 1.2])
 
     plt.tight_layout()
     plt.show()
@@ -304,6 +360,10 @@ class Simulator:
 
 
 class TrafficPatterns:
+  """
+  Different request traffic profiles for the simulator.
+  """
+
   START_TIME = 0
   END_TIME = 5 * 3600
 
@@ -325,7 +385,7 @@ class TrafficPatterns:
 
   @staticmethod
   def constant(_):
-    return 1
+    return 10
 
   @staticmethod
   def jump(time):
@@ -337,7 +397,12 @@ class TrafficPatterns:
             TrafficPatterns.occasionally, TrafficPatterns.constant, TrafficPatterns.jump]
 
 
-for get_request_rate in TrafficPatterns.all():
-  simulator = Simulator(TrafficPatterns.START_TIME, TrafficPatterns. END_TIME, get_request_rate)
-  simulator.run()
-  simulator.create_figure()
+def main():
+  for get_request_rate in TrafficPatterns.all():
+    simulator = Simulator(TrafficPatterns.START_TIME, TrafficPatterns. END_TIME, get_request_rate)
+    simulator.run()
+    simulator.create_figure()
+
+
+if __name__ == "__main__":
+  main()

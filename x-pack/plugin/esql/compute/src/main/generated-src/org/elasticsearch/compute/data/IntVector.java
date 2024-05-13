@@ -10,6 +10,8 @@ package org.elasticsearch.compute.data;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.core.ReleasableIterator;
 
 import java.io.IOException;
 
@@ -26,6 +28,9 @@ public sealed interface IntVector extends Vector permits ConstantIntVector, IntA
 
     @Override
     IntVector filter(int... positions);
+
+    @Override
+    ReleasableIterator<? extends IntBlock> lookup(IntBlock positions, ByteSizeValue targetBlockSize);
 
     /**
      * The minimum value in the Vector. An empty Vector will return {@link Integer#MAX_VALUE}.

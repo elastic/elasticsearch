@@ -18,7 +18,9 @@
 package co.elastic.elasticsearch.stateless.cache;
 
 import co.elastic.elasticsearch.stateless.AbstractStatelessIntegTestCase;
+import co.elastic.elasticsearch.stateless.IndexingDiskController;
 import co.elastic.elasticsearch.stateless.Stateless;
+import co.elastic.elasticsearch.stateless.action.TransportGetVirtualBatchedCompoundCommitChunkAction;
 import co.elastic.elasticsearch.stateless.commits.StatelessCommitService;
 import co.elastic.elasticsearch.stateless.commits.StatelessCompoundCommit;
 import co.elastic.elasticsearch.stateless.engine.IndexEngine;
@@ -43,6 +45,7 @@ import org.elasticsearch.snapshots.mockstore.MockRepository;
 import org.elasticsearch.test.InternalSettingsPlugin;
 import org.elasticsearch.test.MockLogAppender;
 import org.elasticsearch.test.junit.annotations.TestLogging;
+import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.shutdown.PutShutdownNodeAction;
 import org.elasticsearch.xpack.shutdown.ShutdownPlugin;
@@ -51,6 +54,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.CountDownLatch;
 
 import static co.elastic.elasticsearch.stateless.objectstore.ObjectStoreTestUtils.getObjectStoreMockRepository;
 import static org.elasticsearch.test.MockLogAppender.assertThatLogger;
@@ -153,7 +157,7 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessIntegTestC
         var indexNodeB = startIndexNode(cacheSettings);
         ensureStableCluster(3);
 
-        blockObjectStoreRepository(indexName, indexNodeB);
+        failObjectStoreAndFetchFromIndexingNodeAfterPrewarming(indexName, indexNodeB);
 
         assertThatLogger(() -> {
             var shutdownNodeId = client().admin().cluster().prepareState().get().getState().nodes().resolveNode(indexNodeA).getId();
@@ -235,7 +239,7 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessIntegTestC
         ensureGreen(indexName);
 
         // Verify that we performed pre-warming and don't need to hit the object store on searches
-        blockObjectStoreRepository(indexName, searchNodeA);
+        failObjectStoreAndFetchFromIndexingNodeAfterPrewarming(indexName, searchNodeA);
 
         setReplicaCount(1, indexName);
         ensureGreen(indexName);
@@ -245,10 +249,71 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessIntegTestC
         ensureStableCluster(4);
 
         // The cache also gets pre-warmed when a shard gets relocated to a new node
-        blockObjectStoreRepository(indexName, searchNodeB);
+        failObjectStoreAndFetchFromIndexingNodeAfterPrewarming(indexName, searchNodeB);
         shutdownNode(searchNodeA);
         ensureGreen(indexName);
         assertThat(findSearchShard(resolveIndex(indexName), 0).routingEntry().currentNodeId(), equalTo(getNodeId(searchNodeB)));
+        assertHitCount(prepareSearch(indexName).setSize(0), totalDocs);
+    }
+
+    public void testSearchNodeWarmingFromIndexingNodeInMixedUploadDelaySettings() {
+        var cacheSettings = Settings.builder()
+            .put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), CACHE_SIZE.getStringRep())
+            .put(SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(), REGION_SIZE.getStringRep())
+            .put(IndexingDiskController.INDEXING_DISK_INTERVAL_TIME_SETTING.getKey(), TimeValue.timeValueHours(1L))
+            .build();
+        boolean indexNodeUploadDelayed = randomBoolean();
+        var indexNodeSettings = indexNodeUploadDelayed
+            ? Settings.builder()
+                .put(cacheSettings)
+                .put(StatelessCommitService.STATELESS_UPLOAD_DELAYED.getKey(), true)
+                .put(StatelessCommitService.STATELESS_UPLOAD_MAX_AMOUNT_COMMITS.getKey(), 100)
+                .build()
+            : cacheSettings;
+        startMasterOnlyNode();
+        startIndexNode(indexNodeSettings);
+
+        final String indexName = randomIdentifier();
+        assertAcked(
+            prepareCreate(
+                indexName,
+                Settings.builder()
+                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                    .put(EngineConfig.USE_COMPOUND_FILE, randomBoolean())
+            )
+        );
+        ensureGreen(indexName);
+
+        int totalDocs = randomIntBetween(1, 10);
+        indexDocs(indexName, totalDocs);
+        refresh(indexName);
+
+        var searchNodeSettings = Settings.builder()
+            .put(cacheSettings)
+            .put(SharedBlobCacheWarmingService.STATELESS_BLOB_CACHE_WARMING_ALLOW_FETCH_FROM_INDEXING.getKey(), true)
+            .build();
+        var searchNode = startSearchNode(searchNodeSettings);
+        ensureStableCluster(3);
+
+        // When upload is delayed, instantiate latch for seeing at least one request to the indexing node for getting VBCC chunks
+        CountDownLatch latch = new CountDownLatch(1);
+        final var transportService = MockTransportService.getInstance(searchNode);
+        transportService.addSendBehavior((connection, requestId, action, request, options) -> {
+            if (action.equals(TransportGetVirtualBatchedCompoundCommitChunkAction.NAME + "[p]")) {
+                latch.countDown();
+            }
+            connection.sendRequest(requestId, action, request, options);
+        });
+
+        // After pre-warming, we fail when the search node tries to fetch from the object store or the indexing node
+        failObjectStoreAndFetchFromIndexingNodeAfterPrewarming(indexName, searchNode);
+
+        setReplicaCount(1, indexName);
+        if (indexNodeUploadDelayed) {
+            safeAwait(latch);
+        }
+        ensureGreen(indexName);
         assertHitCount(prepareSearch(indexName).setSize(0), totalDocs);
     }
 
@@ -269,7 +334,7 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessIntegTestC
         );
     }
 
-    private void blockObjectStoreRepository(String indexName, String node) {
+    private void failObjectStoreAndFetchFromIndexingNodeAfterPrewarming(String indexName, String node) {
         final long generationToBlock = getShardEngine(findIndexShard(indexName), IndexEngine.class).getCurrentGeneration();
         final var warmingService = (BlockingSharedBlobCacheWarmingService) internalCluster().getInstance(PluginsService.class, node)
             .filterPlugins(TestStateless.class)
@@ -277,12 +342,19 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessIntegTestC
             .orElseThrow(() -> new AssertionError(TestStateless.class.getName() + " plugin not found"))
             .getSharedBlobCacheWarmingService();
         final var mockRepositoryB = getObjectStoreMockRepository(internalCluster().getInstance(ObjectStoreService.class, node));
+        final var transportService = MockTransportService.getInstance(node);
         warmingService.addListener(ActionListener.running(() -> {
-            logger.info("--> block object store repository after warming");
+            logger.info("--> fail object store repository after warming");
             mockRepositoryB.setRandomControlIOExceptionRate(1.0);
             mockRepositoryB.setRandomDataFileIOExceptionRate(1.0);
             mockRepositoryB.setMaximumNumberOfFailures(Long.MAX_VALUE);
             mockRepositoryB.setRandomIOExceptionPattern(".*" + StatelessCompoundCommit.blobNameFromGeneration(generationToBlock) + ".*");
+            transportService.addSendBehavior((connection, requestId, action, request, options) -> {
+                if (action.equals(TransportGetVirtualBatchedCompoundCommitChunkAction.NAME + "[p]")) {
+                    assert false : "should not have sent a request for VBCC data to the indexing node but sent request " + request;
+                }
+                connection.sendRequest(requestId, action, request, options);
+            });
         }));
     }
 
@@ -296,9 +368,9 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessIntegTestC
         protected SharedBlobCacheWarmingService createSharedBlobCacheWarmingService(
             StatelessSharedBlobCacheService cacheService,
             ThreadPool threadPool,
-            boolean uploadDelayed
+            Settings settings
         ) {
-            return new BlockingSharedBlobCacheWarmingService(cacheService, threadPool, uploadDelayed);
+            return new BlockingSharedBlobCacheWarmingService(cacheService, threadPool, settings);
         }
     }
 
@@ -306,8 +378,8 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessIntegTestC
 
         private final CopyOnWriteArrayList<ActionListener<Void>> listeners = new CopyOnWriteArrayList<>();
 
-        BlockingSharedBlobCacheWarmingService(StatelessSharedBlobCacheService cacheService, ThreadPool threadPool, boolean uploadDelayed) {
-            super(cacheService, threadPool, uploadDelayed);
+        BlockingSharedBlobCacheWarmingService(StatelessSharedBlobCacheService cacheService, ThreadPool threadPool, Settings settings) {
+            super(cacheService, threadPool, settings);
         }
 
         void addListener(ActionListener<Void> listener) {

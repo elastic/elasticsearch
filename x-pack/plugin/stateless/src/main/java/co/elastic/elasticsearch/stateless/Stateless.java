@@ -419,11 +419,7 @@ public class Stateless extends Plugin
         components.add(consistencyService);
         var commitCleaner = new StatelessCommitCleaner(consistencyService, threadPool, objectStoreService);
         components.add(commitCleaner);
-        var cacheWarmingService = createSharedBlobCacheWarmingService(
-            cacheService,
-            threadPool,
-            StatelessCommitService.STATELESS_UPLOAD_DELAYED.get(settings)
-        );
+        var cacheWarmingService = createSharedBlobCacheWarmingService(cacheService, threadPool, settings);
         setAndGet(this.sharedBlobCacheWarmingService, cacheWarmingService);
         var commitService = createStatelessCommitService(
             settings,
@@ -580,9 +576,9 @@ public class Stateless extends Plugin
     protected SharedBlobCacheWarmingService createSharedBlobCacheWarmingService(
         StatelessSharedBlobCacheService cacheService,
         ThreadPool threadPool,
-        boolean statelessUploadDelayed
+        Settings settings
     ) {
-        return new SharedBlobCacheWarmingService(cacheService, threadPool, statelessUploadDelayed);
+        return new SharedBlobCacheWarmingService(cacheService, threadPool, settings);
     }
 
     @Override
@@ -787,6 +783,7 @@ public class Stateless extends Plugin
             IndexingDiskController.INDEXING_DISK_RESERVED_BYTES_SETTING,
             BlobStoreHealthIndicator.POLL_INTERVAL_SETTING,
             BlobStoreHealthIndicator.CHECK_TIMEOUT_SETTING,
+            SharedBlobCacheWarmingService.STATELESS_BLOB_CACHE_WARMING_ALLOW_FETCH_FROM_INDEXING,
             StatelessClusterStateCleanupService.CLUSTER_STATE_CLEANUP_DELAY_SETTING,
             StatelessClusterStateCleanupService.RETRY_TIMEOUT_SETTING,
             StatelessClusterStateCleanupService.RETRY_INITIAL_DELAY_SETTING,

@@ -10,9 +10,6 @@ START_TIME = 0
 END_TIME = 5*3600
 MEASUREMENT_INTERVAL = 1
 
-AUTO_SCALE_UP_THRESHOLD = 0.9
-AUTO_SCALE_DOWN_THRESHOLD = 0.8
-
 AVG_INFERENCE_TIME = 0.1
 PHYSICAL_CORES_PER_NODE = 4
 
@@ -31,7 +28,8 @@ class Estimator:
 
     if dynamics_changed or abs(value - self.value)**2 / (self.variance + variance) > 100:
       process_variance *= self.smoothing_factor
-      print(f'dynamic changed: value={value} state={self.value} +-/ {math.sqrt(self.variance)}')
+      print(f'dynamic changed: value={value} state={self.value} +-/ {math.sqrt(self.variance)} '
+            f'(external event={dynamics_changed})')
 
     gain = (self.variance + process_variance) / (self.variance + process_variance + variance)
     self.value += gain * (value - self.value)
@@ -47,6 +45,54 @@ class Estimator:
     return self.value + math.sqrt(self.variance)
 
 
+class Autoscaler:
+
+  AUTOSCALE_UP_THRESHOLD = 0.9
+  AUTOSCALE_DOWN_THRESHOLD = 0.85
+
+  def __init__(self):
+    self.num_allocations = 1
+    self.latency_estimator = Estimator(0.1, 100, 1e6)
+    self.rate_estimator = Estimator(0, 100, 1e3)
+    self.request_count_since_last_rate_measurement = 0
+    self.num_allocation_changed_since_last_inference = True
+
+  def add_request(self):
+    self.request_count_since_last_rate_measurement += 1
+
+  def measure_rate(self):
+    rate = self.request_count_since_last_rate_measurement / MEASUREMENT_INTERVAL
+    variance = max(1.0, self.rate_estimator.estimate() * MEASUREMENT_INTERVAL) / MEASUREMENT_INTERVAL**2
+    self.rate_estimator.add(rate, variance)
+    self.request_count_since_last_rate_measurement = 0
+    return rate
+
+  def add_inference_time(self, inference_time):
+    variance = self.latency_estimator.estimate() ** 2
+    self.latency_estimator.add(inference_time, variance, self.num_allocation_changed_since_last_inference)
+    self.num_allocation_changed_since_last_inference = False
+
+  def get_load(self):
+    return self.rate_estimator.estimate() * self.latency_estimator.estimate()
+
+  def get_load_lower(self):
+    return self.rate_estimator.lower() * self.latency_estimator.lower()
+
+  def get_load_upper(self):
+    return self.rate_estimator.upper() * self.latency_estimator.upper()
+
+  def autoscale(self):
+    while self.get_load_lower() / self.num_allocations > Autoscaler.AUTOSCALE_UP_THRESHOLD:
+      self.num_allocations += 1
+      self.num_allocation_changed_since_last_inference = True
+
+    while self.num_allocations > 1 and self.get_load_upper() / (self.num_allocations - 1) < Autoscaler.AUTOSCALE_DOWN_THRESHOLD:
+      self.num_allocations -= 1
+      self.num_allocation_changed_since_last_inference = True
+
+    return self.num_allocations
+
+
 class Simulator:
 
   class EventType(enum.IntEnum):
@@ -57,9 +103,6 @@ class Simulator:
 
   def __init__(self, get_request_rate):
     self.get_request_rate = get_request_rate
-
-    # state of the system
-    self.events = []  # contains tuple of (time, type, allocation_id, inference_time)
     self.num_allocations = 1
 
     # data for the graphs
@@ -69,12 +112,12 @@ class Simulator:
     self.inference_time_data = []
     self.inference_time_estimates = []
     self.inference_time_truth = []
+    self.load_estimates = []
+    self.load_truth = []
     self.wait_times = []
     self.queue_sizes = []
     self.num_allocations_list = []
     self.num_ml_nodes = []
-    self.est_loads = []
-    self.real_loads = []
 
   def get_avg_inference_time(self):
     physical_cores = self.num_allocations // (2 * PHYSICAL_CORES_PER_NODE) * PHYSICAL_CORES_PER_NODE
@@ -91,42 +134,40 @@ class Simulator:
   def create_events(self):
     print('creating events...')
 
+    events = []  # contains tuple of (time, type, allocation_id, inference_time)
+
     # initial allocations
     for alloc_id in range(self.num_allocations):
-      heapq.heappush(self.events, (0, Simulator.EventType.ALLOCATION_STARTED, alloc_id, None))
+      heapq.heappush(events, (0, Simulator.EventType.ALLOCATION_STARTED, alloc_id, None))
 
     # create all requests
     TIME_STEP = 0.001
     time = START_TIME + TIME_STEP / 2
     while time < END_TIME:
       if random.random() < self.get_request_rate(time) * TIME_STEP:
-        heapq.heappush(self.events, (time, Simulator.EventType.REQUEST, None, None))
+        heapq.heappush(events, (time, Simulator.EventType.REQUEST, None, None))
       time += TIME_STEP
 
     # measurement timestamps
     time = 0
     while time < END_TIME:
       time += MEASUREMENT_INTERVAL
-      heapq.heappush(self.events, (time, Simulator.EventType.MEASURE_RATE, None, None))
+      heapq.heappush(events, (time, Simulator.EventType.MEASURE_RATE, None, None))
 
-  def simulate(self):
+    return events
+
+  def simulate(self, events):
     print('simulating traffic...')
 
-    latency_estimator = Estimator(0.1, 100, 1e6)
-    rate_estimator = Estimator(0, 100, 1e3)
+    autoscaler = Autoscaler()
 
     available_allocations = set()
     inference_queue = deque()  # contains request time
-
-
     last_data_time = 0
 
-    num_requests = 0
-    num_allocations_changed = False
-
-    while self.events:
+    while events:
       # handle events
-      time, type, alloc_id, inference_time = heapq.heappop(self.events)
+      time, type, alloc_id, inference_time = heapq.heappop(events)
       if time > END_TIME:
         break
 
@@ -134,21 +175,15 @@ class Simulator:
         available_allocations.add(alloc_id)
 
       elif type == Simulator.EventType.REQUEST:
-        num_requests += 1
+        autoscaler.add_request()
         inference_queue.append(time)
 
       elif type == Simulator.EventType.MEASURE_RATE:
-        rate = num_requests / MEASUREMENT_INTERVAL
+        rate = autoscaler.measure_rate()
         self.request_rate_data.append((time, rate))
-        variance = max(1.0, rate_estimator.estimate() * MEASUREMENT_INTERVAL) / MEASUREMENT_INTERVAL**2
-        rate_estimator.add(rate, variance)
-        num_requests = 0
 
       elif type == Simulator.EventType.INFERENCE_COMPLETED:
-        variance = latency_estimator.estimate() ** 2
-        latency_estimator.add(inference_time, variance, num_allocations_changed)
-        num_allocations_changed = False
-
+        autoscaler.add_inference_time(inference_time)
         if alloc_id < self.num_allocations:
           available_allocations.add(alloc_id)
 
@@ -159,11 +194,7 @@ class Simulator:
         self.inference_time_data.append((time, inference_time))
         alloc_id = available_allocations.pop()
         inference_time = self.get_random_inference_time()
-        heapq.heappush(self.events, (time + inference_time, Simulator.EventType.INFERENCE_COMPLETED, alloc_id, inference_time))
-
-      est_request_count = rate_estimator.estimate()
-      est_inference_time = latency_estimator.estimate()
-      needed_allocations = est_request_count * est_inference_time
+        heapq.heappush(events, (time + inference_time, Simulator.EventType.INFERENCE_COMPLETED, alloc_id, inference_time))
 
       # collect data
       collect_data = time > last_data_time + 1
@@ -172,26 +203,20 @@ class Simulator:
         self.queue_sizes.append((time, len(inference_queue)))
         self.num_allocations_list.append((time, self.num_allocations))
         self.num_ml_nodes.append((time, math.ceil(self.num_allocations / (2 * PHYSICAL_CORES_PER_NODE))))
-        self.request_rate_estimates.append((time, est_request_count))
+        self.request_rate_estimates.append((time, autoscaler.rate_estimator.estimate()))
         self.request_rate_truth.append((time, self.get_request_rate(time)))
-        self.inference_time_estimates.append((time, est_inference_time))
+        self.inference_time_estimates.append((time, autoscaler.latency_estimator.estimate()))
         self.inference_time_truth.append((time, self.get_avg_inference_time()))
-        self.est_loads.append((time, needed_allocations / self.num_allocations))
-        self.real_loads.append((time, self.get_request_rate(time) * self.get_avg_inference_time() / self.num_allocations))
+        self.load_estimates.append((time, autoscaler.get_load() / self.num_allocations))
+        self.load_truth.append((time, self.get_request_rate(time) * self.get_avg_inference_time() / self.num_allocations))
 
-      # autoscaling
-      needed_allocations_lower = latency_estimator.lower() * rate_estimator.lower()
-      while needed_allocations_lower > AUTO_SCALE_UP_THRESHOLD * self.num_allocations:
-        heapq.heappush(self.events, (time, Simulator.EventType.ALLOCATION_STARTED, self.num_allocations, None))
-        self.num_allocations += 1
-        num_allocations_changed = True
-        print(time, f'autoscale up to {self.num_allocations} (wanted={needed_allocations} / {needed_allocations_lower})')
-
-      needed_allocations_upper = latency_estimator.upper() * rate_estimator.upper()
-      while self.num_allocations > 1 and needed_allocations_upper < AUTO_SCALE_DOWN_THRESHOLD * (self.num_allocations - 1):
-        self.num_allocations -= 1
-        num_allocations_changed = True
-        print(time, f'autoscale down to {self.num_allocations} (wanted={needed_allocations} / {needed_allocations_upper})')
+      # autoscale
+      autoscaled_num_allocations = autoscaler.autoscale()
+      if autoscaled_num_allocations != self.num_allocations:
+        for alloc_id in range(self.num_allocations, autoscaled_num_allocations):
+          heapq.heappush(events, (time, Simulator.EventType.ALLOCATION_STARTED, alloc_id, None))
+        print(time, f'autoscale from {self.num_allocations} to {autoscaled_num_allocations}')
+        self.num_allocations = autoscaled_num_allocations
 
     print("avg num allocations:", sum(x for t,x in self.num_allocations_list) / len(self.num_allocations_list))
     print("avg wait time", sum(x for t,x in self.wait_times) / len(self.wait_times))
@@ -214,41 +239,41 @@ class Simulator:
     axs[0].plot(*zip(*self.request_rate_data), label='data')
     axs[0].plot(*zip(*self.request_rate_estimates), label='estimate')
     axs[0].plot(*zip(*self.request_rate_truth), label='truth')
-    axs[0].legend(loc='upper left')
+    axs[0].legend(loc='upper right')
 
     axs[1].set_title('Inference time')
     axs[1].plot(*zip(*self.inference_time_data), label='data')
     axs[1].plot(*zip(*self.inference_time_estimates), label='estimate')
     axs[1].plot(*zip(*self.inference_time_truth), label='truth')
-    axs[1].legend(loc='upper left')
+    axs[1].legend(loc='upper right')
 
     axs[2].set_title('Wait time')
     axs[2].plot(*zip(*self.wait_times), label='data')
     axs[2].plot(*zip(*Simulator.create_average_buckets(self.wait_times, 60)), label='1-minute average')
-    axs[2].legend(loc='upper left')
+    axs[2].legend(loc='upper right')
 
     axs[3].set_title('Queue size')
     axs[3].plot(*zip(*self.queue_sizes), label='data')
-    axs[3].legend(loc='upper left')
+    axs[3].legend(loc='upper right')
 
     axs[4].set_title('Num allocations / ML nodes')
     axs[4].plot(*zip(*self.num_allocations_list), label='allocations')
     axs[4].plot(*zip(*self.num_ml_nodes), label='ML nodes')
-    axs[4].legend(loc='upper left')
+    axs[4].legend(loc='upper right')
 
     axs[5].set_title('Load')
-    axs[5].plot(*zip(*self.est_loads), label='estimate')
-    axs[5].plot(*zip(*self.real_loads), label='truth')
-    axs[5].plot([START_TIME, END_TIME], [AUTO_SCALE_DOWN_THRESHOLD, AUTO_SCALE_DOWN_THRESHOLD], label='threshold up')
-    axs[5].plot([START_TIME, END_TIME], [AUTO_SCALE_UP_THRESHOLD, AUTO_SCALE_UP_THRESHOLD], label='threshold down')
-    axs[5].legend(loc='upper left')
+    axs[5].plot(*zip(*self.load_estimates), label='estimate')
+    axs[5].plot(*zip(*self.load_truth), label='truth')
+    axs[5].plot([START_TIME, END_TIME], [Autoscaler.AUTOSCALE_DOWN_THRESHOLD, Autoscaler.AUTOSCALE_DOWN_THRESHOLD], label='threshold up')
+    axs[5].plot([START_TIME, END_TIME], [Autoscaler.AUTOSCALE_UP_THRESHOLD, Autoscaler.AUTOSCALE_UP_THRESHOLD], label='threshold down')
+    axs[5].legend(loc='upper right')
 
     plt.tight_layout()
     plt.show()
 
   def run(self):
-    self.create_events()
-    self.simulate()
+    events = self.create_events()
+    self.simulate(events)
 
 
 def linear_increasing(time):
@@ -270,7 +295,7 @@ def jump(time):
   return 1 if time<3600 else 100
 
 
-for get_request_rate in [linear_increasing, oscillating_2h, oscillating_5h, jump, occasionally]:
+for get_request_rate in [oscillating_2h]: # [linear_increasing, oscillating_2h, oscillating_5h, jump, occasionally]:
   simulator = Simulator(get_request_rate)
   simulator.run()
   simulator.create_figure()

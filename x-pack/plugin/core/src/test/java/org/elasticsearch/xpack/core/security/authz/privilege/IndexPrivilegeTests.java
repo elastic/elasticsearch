@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.core.security.authz.privilege;
 
+import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.Operations;
 import org.elasticsearch.action.admin.indices.refresh.RefreshAction;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsAction;
@@ -168,43 +169,42 @@ public class IndexPrivilegeTests extends ESTestCase {
             Automatons.recordPatterns = true;
             // check that the action patterns for remote CCS are not allowed by remote CCR privileges
             Arrays.stream(CCS_INDICES_PRIVILEGE_NAMES).forEach(ccsPrivilege -> {
-                Automatons.getPatterns(IndexPrivilege.get(Set.of(ccsPrivilege)).getAutomaton()).forEach(ccsPattern -> {
+                Automaton ccsAutomaton = IndexPrivilege.get(Set.of(ccsPrivilege)).getAutomaton();
+                Automatons.getPatterns(ccsAutomaton).forEach(ccsPattern -> {
                     Arrays.stream(CCR_INDICES_PRIVILEGE_NAMES).forEach(ccrPrivileges -> {
-                        assertFalse(
-                            String.format(
-                                Locale.ROOT,
-                                "CCR privilege \"%s\" allows CCS action \"%s\". This could result in an "
-                                    + "accidental bleeding of permission between RCS 2.0's search and replication index permissions",
-                                ccrPrivileges,
-                                ccsPattern
-                            ),
-                            IndexPrivilege.get(Set.of(ccrPrivileges)).predicate.test(ccsPattern)
+                        String errorMessage = String.format(
+                            Locale.ROOT,
+                            "CCR privilege \"%s\" allows CCS action \"%s\". This could result in an "
+                                + "accidental bleeding of permission between RCS 2.0's search and replication index permissions",
+                            ccrPrivileges,
+                            ccsPattern
                         );
+                        assertFalse(errorMessage, IndexPrivilege.get(Set.of(ccrPrivileges)).predicate.test(ccsPattern));
+                        assertTrue(errorMessage, Operations.subsetOf(Automatons.patterns(ccsPattern), ccsAutomaton));
                     });
                 });
 
                 // check that the action patterns for remote CCR are not allowed by remote CCS privileges
                 Arrays.stream(CCR_INDICES_PRIVILEGE_NAMES).forEach(ccrPrivilege -> {
-                    Automatons.getPatterns(IndexPrivilege.get(Set.of(ccrPrivilege)).getAutomaton()).forEach(ccrPattern -> {
+                    Automaton ccrAutomaton = IndexPrivilege.get(Set.of(ccrPrivilege)).getAutomaton();
+                    Automatons.getPatterns(ccrAutomaton).forEach(ccrPattern -> {
                         Arrays.stream(CCS_INDICES_PRIVILEGE_NAMES).forEach(ccsPrivileges -> {
                             if ("indices:data/read/xpack/ccr/shard_changes*".equals(ccrPattern)) {
                                 // do nothing, this action is only applicable to CCR workflows and is a moot point if CCS technically has
                                 // access to the index pattern for this action granted by CCR
                             } else {
-                                assertFalse(
-                                    String.format(
-                                        Locale.ROOT,
-                                        "CCS privilege \"%s\" allows CCR action \"%s\". This could result in an accidental bleeding of "
-                                            + "permission between RCS 2.0's search and replication index permissions",
-                                        ccsPrivileges,
-                                        ccrPattern
-                                    ),
-                                    IndexPrivilege.get(Set.of(ccsPrivileges)).predicate.test(ccrPattern)
+                                String errorMessage = String.format(
+                                    Locale.ROOT,
+                                    "CCS privilege \"%s\" allows CCR action \"%s\". This could result in an accidental bleeding of "
+                                        + "permission between RCS 2.0's search and replication index permissions",
+                                    ccsPrivileges,
+                                    ccrPattern
                                 );
+                                assertFalse(errorMessage, IndexPrivilege.get(Set.of(ccsPrivileges)).predicate.test(ccrPattern));
+                                assertTrue(errorMessage, Operations.subsetOf(Automatons.patterns(ccrPattern), ccrAutomaton));
                             }
                         });
                     });
-
                 });
             });
         } finally {

@@ -121,7 +121,7 @@ static inline int32_t sqr7u_inner(int8_t *a, int8_t *b, size_t dims) {
 EXPORT int32_t sqr7u(int8_t* a, int8_t* b, size_t dims) {
     int32_t res = 0;
     int i = 0;
-    if (i > SQR7U_STRIDE_BYTES_LEN) {
+    if (dims > SQR7U_STRIDE_BYTES_LEN) {
         i += dims & ~(SQR7U_STRIDE_BYTES_LEN - 1);
         res = sqr7u_inner(a, b, i);
     }

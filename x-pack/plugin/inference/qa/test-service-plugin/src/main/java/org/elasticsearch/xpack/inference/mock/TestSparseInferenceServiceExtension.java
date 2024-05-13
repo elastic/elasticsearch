@@ -30,7 +30,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.inference.results.ChunkedSparseEmbeddingResults;
 import org.elasticsearch.xpack.core.inference.results.SparseEmbeddingResults;
 import org.elasticsearch.xpack.core.ml.inference.results.ChunkedTextExpansionResults;
-import org.elasticsearch.xpack.core.ml.search.WeightedToken;
+import org.elasticsearch.xpack.core.ml.inference.results.TextExpansionResults;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -119,9 +119,9 @@ public class TestSparseInferenceServiceExtension implements InferenceServiceExte
         private SparseEmbeddingResults makeResults(List<String> input) {
             var embeddings = new ArrayList<SparseEmbeddingResults.Embedding>();
             for (int i = 0; i < input.size(); i++) {
-                var tokens = new ArrayList<WeightedToken>();
+                var tokens = new ArrayList<SparseEmbeddingResults.WeightedToken>();
                 for (int j = 0; j < 5; j++) {
-                    tokens.add(new WeightedToken(Integer.toString(j), (float) j));
+                    tokens.add(new SparseEmbeddingResults.WeightedToken("feature_" + j, stringWeight(input.get(i), j)));
                 }
                 embeddings.add(new SparseEmbeddingResults.Embedding(tokens, false));
             }
@@ -129,21 +129,22 @@ public class TestSparseInferenceServiceExtension implements InferenceServiceExte
         }
 
         private List<ChunkedInferenceServiceResults> makeChunkedResults(List<String> input) {
-            var chunks = new ArrayList<ChunkedTextExpansionResults.ChunkedResult>();
+            List<ChunkedInferenceServiceResults> results = new ArrayList<>();
             for (int i = 0; i < input.size(); i++) {
-                var tokens = new ArrayList<WeightedToken>();
+                var tokens = new ArrayList<TextExpansionResults.WeightedToken>();
                 for (int j = 0; j < 5; j++) {
-                    tokens.add(new WeightedToken(Integer.toString(j), (float) j));
+                    tokens.add(new TextExpansionResults.WeightedToken("feature_" + j, stringWeight(input.get(i), j)));
                 }
-                chunks.add(new ChunkedTextExpansionResults.ChunkedResult(input.get(i), tokens));
+                results.add(
+                    new ChunkedSparseEmbeddingResults(List.of(new ChunkedTextExpansionResults.ChunkedResult(input.get(i), tokens)))
+                );
             }
-            return List.of(new ChunkedSparseEmbeddingResults(chunks));
+            return results;
         }
 
         protected ServiceSettings getServiceSettingsFromMap(Map<String, Object> serviceSettingsMap) {
             return TestServiceSettings.fromMap(serviceSettingsMap);
         }
-
     }
 
     public record TestServiceSettings(String model, String hiddenField, boolean shouldReturnHiddenField) implements ServiceSettings {

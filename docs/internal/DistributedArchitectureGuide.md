@@ -1,13 +1,12 @@
 # Distributed Area Internals
 
-The Distributed Area contains Indexing and Coordination.
+The Distributed Area contains indexing and coordination systems.
 
-Indexing covers the index path, stretching from the user REST command through shard routing down to the translog and storage
-engine. Reindexing is effectively reading from a source index and writing to a destination index. Shard recovery and cross
-cluster replication also fall under indexing.
-
-Coordination encompasses the distributed components relating to cluster coordination, networking, shard allocation decisions
-(i.e. the balancer algorithms), cluster autoscaling stats, the discovery plugin system, task management, and snapshot/restore.
+The index path stretches from the user REST command through shard routing down to each individual shard's translog and storage
+engine. Reindexing is effectively reading from a source index and writing to a destination index (perhaps on different nodes).
+The coordination side includes cluster coordination, shard allocation, cluster autoscaling stats, task management, and cross
+cluster replication. Less obviously coordination systems include networking, the discovery plugin system, the snapshot/restore
+logic, and shard recovery.
 
 A guide to the general Elasticsearch components can be found [here](https://github.com/elastic/elasticsearch/blob/main/docs/internal/GeneralArchitectureGuide.md).
 

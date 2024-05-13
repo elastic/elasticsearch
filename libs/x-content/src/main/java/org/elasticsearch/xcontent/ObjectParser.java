@@ -613,11 +613,7 @@ public final class ObjectParser<Value, Context> extends AbstractObjectParser<Val
     }
 
     private void throwFailedToParse(XContentParser parser, String currentFieldName, Exception ex) {
-        throw new XContentParseException(
-            parser.getTokenLocation(),
-            "[" + name + "] failed to parse field [" + currentFieldName + "]" + ", " + ex.getMessage(),
-            ex
-        );
+        throw new XContentParseException(parser.getTokenLocation(), "[" + name + "] failed to parse field [" + currentFieldName + "]", ex);
     }
 
     private void parseSub(

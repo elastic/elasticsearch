@@ -126,6 +126,7 @@ public class RestEsqlIT extends RestEsqlTestCase {
         }
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/108367")
     public void testDoLogWithDebug() throws IOException {
         try {
             setLoggingLevel("DEBUG");

@@ -22,5 +22,5 @@ ignore_missing_component_templates:
 template:
   settings:
     index:
-      default_pipeline: apm@default-pipeline
+      default_pipeline: metrics-apm.app@default-pipeline
       final_pipeline: metrics-apm@pipeline

@@ -16,6 +16,7 @@ import org.elasticsearch.xpack.ql.expression.TypeResolutions;
 import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.type.DataTypes;
 import org.elasticsearch.xpack.ql.util.SpatialCoordinateTypes;
+import org.hamcrest.Matcher;
 
 import java.io.IOException;
 import java.lang.reflect.Field;
@@ -28,6 +29,7 @@ import static org.elasticsearch.xpack.esql.expression.function.scalar.spatial.Sp
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.isSpatial;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.isSpatialGeo;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.isString;
+import static org.hamcrest.Matchers.equalTo;
 
 public abstract class SpatialRelatesFunctionTestCase extends AbstractFunctionTestCase {
 
@@ -188,11 +190,11 @@ public abstract class SpatialRelatesFunctionTestCase extends AbstractFunctionTes
         }
     }
 
-    private static String spatialEvaluatorString(DataType leftType, DataType rightType) {
+    private static Matcher<String> spatialEvaluatorString(DataType leftType, DataType rightType) {
         String crsType = isSpatialGeo(pickSpatialType(leftType, rightType)) ? "Geo" : "Cartesian";
-        return getFunctionClassName()
-            + crsType
-            + "SourceAndSourceEvaluator[leftValue=Attribute[channel=0], rightValue=Attribute[channel=1]]";
+        return equalTo(
+            getFunctionClassName() + crsType + "SourceAndSourceEvaluator[leftValue=Attribute[channel=0], rightValue=Attribute[channel=1]]"
+        );
     }
 
     private static int countGeo(DataType... types) {

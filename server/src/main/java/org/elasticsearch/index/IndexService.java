@@ -649,6 +649,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                             onResponse(null); // otherwise ignore the exception
                         }
                     }, l -> indexShard.close(reason, flushEngine, closeExecutor, l));
+                    listener.afterIndexShardClosing(sId, indexShard, indexSettings);
                 }
             }
         } finally {

@@ -339,6 +339,10 @@ public class ServiceUtils {
         return ServiceUtils.removeAsType(map, settingName, Float.class);
     }
 
+    public static Double extractOptionalDouble(Map<String, Object> map, String settingName) {
+        return ServiceUtils.removeAsType(map, settingName, Double.class);
+    }
+
     public static <E extends Enum<E>> E extractRequiredEnum(
         Map<String, Object> map,
         String settingName,

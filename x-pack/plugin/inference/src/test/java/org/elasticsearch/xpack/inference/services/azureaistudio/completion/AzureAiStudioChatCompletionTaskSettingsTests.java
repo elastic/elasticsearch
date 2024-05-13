@@ -31,15 +31,15 @@ import static org.hamcrest.Matchers.is;
 public class AzureAiStudioChatCompletionTaskSettingsTests extends ESTestCase {
 
     public void testFromMap_AllValues() {
-        var taskMap = getTaskSettingsMap(1.0f, 2.0f, true, 512);
+        var taskMap = getTaskSettingsMap(1.0, 2.0, true, 512);
         assertEquals(
-            new AzureAiStudioChatCompletionTaskSettings(1.0f, 2.0f, true, 512),
+            new AzureAiStudioChatCompletionTaskSettings(1.0, 2.0, true, 512),
             AzureAiStudioChatCompletionTaskSettings.fromMap(taskMap)
         );
     }
 
     public void testFromMap_TemperatureIsInvalidValue_ThrowsStatusException() {
-        var taskMap = getTaskSettingsMap(null, 2.0f, true, 512);
+        var taskMap = getTaskSettingsMap(null, 2.0, true, 512);
         taskMap.put(TEMPERATURE_FIELD, "invalid");
 
         var thrownException = expectThrows(
@@ -49,12 +49,12 @@ public class AzureAiStudioChatCompletionTaskSettingsTests extends ESTestCase {
 
         MatcherAssert.assertThat(
             thrownException.getMessage(),
-            is(Strings.format("field [temperature] is not of the expected type. The value [invalid] cannot be converted to a [Float]"))
+            is(Strings.format("field [temperature] is not of the expected type. The value [invalid] cannot be converted to a [Double]"))
         );
     }
 
     public void testFromMap_TopPIsInvalidValue_ThrowsStatusException() {
-        var taskMap = getTaskSettingsMap(null, 2.0f, true, 512);
+        var taskMap = getTaskSettingsMap(null, 2.0, true, 512);
         taskMap.put(TOP_P_FIELD, "invalid");
 
         var thrownException = expectThrows(
@@ -64,12 +64,12 @@ public class AzureAiStudioChatCompletionTaskSettingsTests extends ESTestCase {
 
         MatcherAssert.assertThat(
             thrownException.getMessage(),
-            is(Strings.format("field [top_p] is not of the expected type. The value [invalid] cannot be converted to a [Float]"))
+            is(Strings.format("field [top_p] is not of the expected type. The value [invalid] cannot be converted to a [Double]"))
         );
     }
 
     public void testFromMap_DoSampleIsInvalidValue_ThrowsValidationException() {
-        var taskMap = getTaskSettingsMap(null, 2.0f, true, 512);
+        var taskMap = getTaskSettingsMap(null, 2.0, true, 512);
         taskMap.put(DO_SAMPLE_FIELD, "invalid");
 
         var thrownException = expectThrows(ValidationException.class, () -> AzureAiStudioChatCompletionTaskSettings.fromMap(taskMap));
@@ -81,7 +81,7 @@ public class AzureAiStudioChatCompletionTaskSettingsTests extends ESTestCase {
     }
 
     public void testFromMap_MaxNewTokensIsInvalidValue_ThrowsValidationException() {
-        var taskMap = getTaskSettingsMap(null, 2.0f, true, 512);
+        var taskMap = getTaskSettingsMap(null, 2.0, true, 512);
         taskMap.put(MAX_NEW_TOKENS_FIELD, "invalid");
 
         var thrownException = expectThrows(ValidationException.class, () -> AzureAiStudioChatCompletionTaskSettings.fromMap(taskMap));
@@ -103,7 +103,7 @@ public class AzureAiStudioChatCompletionTaskSettingsTests extends ESTestCase {
     }
 
     public void testOverrideWith_KeepsOriginalValuesWithOverridesAreNull() {
-        var settings = AzureAiStudioChatCompletionTaskSettings.fromMap(getTaskSettingsMap(1.0f, 2.0f, true, 512));
+        var settings = AzureAiStudioChatCompletionTaskSettings.fromMap(getTaskSettingsMap(1.0, 2.0, true, 512));
         var overrideSettings = AzureAiStudioChatCompletionTaskSettings.of(
             settings,
             AzureAiStudioChatCompletionRequestTaskSettings.EMPTY_SETTINGS
@@ -112,31 +112,31 @@ public class AzureAiStudioChatCompletionTaskSettingsTests extends ESTestCase {
     }
 
     public void testOverrideWith_UsesTemperatureOverride() {
-        var settings = AzureAiStudioChatCompletionTaskSettings.fromMap(getTaskSettingsMap(1.0f, 2.0f, true, 512));
-        var overrideSettings = AzureAiStudioChatCompletionRequestTaskSettings.fromMap(getTaskSettingsMap(5.3f, null, null, null));
+        var settings = AzureAiStudioChatCompletionTaskSettings.fromMap(getTaskSettingsMap(1.0, 2.0, true, 512));
+        var overrideSettings = AzureAiStudioChatCompletionRequestTaskSettings.fromMap(getTaskSettingsMap(5.3, null, null, null));
         var overriddenTaskSettings = AzureAiStudioChatCompletionTaskSettings.of(settings, overrideSettings);
-        MatcherAssert.assertThat(overriddenTaskSettings, is(new AzureAiStudioChatCompletionTaskSettings(5.3f, 2.0f, true, 512)));
+        MatcherAssert.assertThat(overriddenTaskSettings, is(new AzureAiStudioChatCompletionTaskSettings(5.3, 2.0, true, 512)));
     }
 
     public void testOverrideWith_UsesTopPOverride() {
-        var settings = AzureAiStudioChatCompletionTaskSettings.fromMap(getTaskSettingsMap(1.0f, 2.0f, true, 512));
-        var overrideSettings = AzureAiStudioChatCompletionRequestTaskSettings.fromMap(getTaskSettingsMap(null, 0.2f, null, null));
+        var settings = AzureAiStudioChatCompletionTaskSettings.fromMap(getTaskSettingsMap(1.0, 2.0, true, 512));
+        var overrideSettings = AzureAiStudioChatCompletionRequestTaskSettings.fromMap(getTaskSettingsMap(null, 0.2, null, null));
         var overriddenTaskSettings = AzureAiStudioChatCompletionTaskSettings.of(settings, overrideSettings);
-        MatcherAssert.assertThat(overriddenTaskSettings, is(new AzureAiStudioChatCompletionTaskSettings(1.0f, 0.2f, true, 512)));
+        MatcherAssert.assertThat(overriddenTaskSettings, is(new AzureAiStudioChatCompletionTaskSettings(1.0, 0.2, true, 512)));
     }
 
     public void testOverrideWith_UsesDoSampleOverride() {
-        var settings = AzureAiStudioChatCompletionTaskSettings.fromMap(getTaskSettingsMap(1.0f, 2.0f, true, 512));
+        var settings = AzureAiStudioChatCompletionTaskSettings.fromMap(getTaskSettingsMap(1.0, 2.0, true, 512));
         var overrideSettings = AzureAiStudioChatCompletionRequestTaskSettings.fromMap(getTaskSettingsMap(null, null, false, null));
         var overriddenTaskSettings = AzureAiStudioChatCompletionTaskSettings.of(settings, overrideSettings);
-        MatcherAssert.assertThat(overriddenTaskSettings, is(new AzureAiStudioChatCompletionTaskSettings(1.0f, 2.0f, false, 512)));
+        MatcherAssert.assertThat(overriddenTaskSettings, is(new AzureAiStudioChatCompletionTaskSettings(1.0, 2.0, false, 512)));
     }
 
     public void testOverrideWith_UsesMaxNewTokensOverride() {
-        var settings = AzureAiStudioChatCompletionTaskSettings.fromMap(getTaskSettingsMap(1.0f, 2.0f, true, 512));
+        var settings = AzureAiStudioChatCompletionTaskSettings.fromMap(getTaskSettingsMap(1.0, 2.0, true, 512));
         var overrideSettings = AzureAiStudioChatCompletionRequestTaskSettings.fromMap(getTaskSettingsMap(null, null, null, 128));
         var overriddenTaskSettings = AzureAiStudioChatCompletionTaskSettings.of(settings, overrideSettings);
-        MatcherAssert.assertThat(overriddenTaskSettings, is(new AzureAiStudioChatCompletionTaskSettings(1.0f, 2.0f, true, 128)));
+        MatcherAssert.assertThat(overriddenTaskSettings, is(new AzureAiStudioChatCompletionTaskSettings(1.0, 2.0, true, 128)));
     }
 
     public void testToXContent_WithoutParameters() throws IOException {
@@ -150,7 +150,7 @@ public class AzureAiStudioChatCompletionTaskSettingsTests extends ESTestCase {
     }
 
     public void testToXContent_WithParameters() throws IOException {
-        var settings = AzureAiStudioChatCompletionTaskSettings.fromMap(getTaskSettingsMap(1.0f, 2.0f, true, 512));
+        var settings = AzureAiStudioChatCompletionTaskSettings.fromMap(getTaskSettingsMap(1.0, 2.0, true, 512));
 
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
         settings.toXContent(builder, null);
@@ -161,8 +161,8 @@ public class AzureAiStudioChatCompletionTaskSettingsTests extends ESTestCase {
     }
 
     public static Map<String, Object> getTaskSettingsMap(
-        @Nullable Float temperature,
-        @Nullable Float topP,
+        @Nullable Double temperature,
+        @Nullable Double topP,
         @Nullable Boolean doSample,
         @Nullable Integer maxNewTokens
     ) {

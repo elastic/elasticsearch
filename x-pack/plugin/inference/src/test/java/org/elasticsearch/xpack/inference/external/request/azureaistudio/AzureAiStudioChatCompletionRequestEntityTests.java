@@ -30,16 +30,16 @@ public class AzureAiStudioChatCompletionRequestEntityTests extends ESTestCase {
     }
 
     public void testToXContent_WhenTokenEndpoint_WithTemperatureParam() throws IOException {
-        var entity = new AzureAiStudioChatCompletionRequestEntity(List.of("abc"), AzureAiStudioEndpointType.TOKEN, 1.0f, null, null, null);
+        var entity = new AzureAiStudioChatCompletionRequestEntity(List.of("abc"), AzureAiStudioEndpointType.TOKEN, 1.0, null, null, null);
         var request = getXContentAsString(entity);
-        var expectedRequest = getExpectedTokenEndpointRequest(List.of("abc"), 1.0f, null, null, null);
+        var expectedRequest = getExpectedTokenEndpointRequest(List.of("abc"), 1.0, null, null, null);
         assertThat(request, is(expectedRequest));
     }
 
     public void testToXContent_WhenTokenEndpoint_WithTopPParam() throws IOException {
-        var entity = new AzureAiStudioChatCompletionRequestEntity(List.of("abc"), AzureAiStudioEndpointType.TOKEN, null, 2.0f, null, null);
+        var entity = new AzureAiStudioChatCompletionRequestEntity(List.of("abc"), AzureAiStudioEndpointType.TOKEN, null, 2.0, null, null);
         var request = getXContentAsString(entity);
-        var expectedRequest = getExpectedTokenEndpointRequest(List.of("abc"), null, 2.0f, null, null);
+        var expectedRequest = getExpectedTokenEndpointRequest(List.of("abc"), null, 2.0, null, null);
         assertThat(request, is(expectedRequest));
     }
 
@@ -75,13 +75,13 @@ public class AzureAiStudioChatCompletionRequestEntityTests extends ESTestCase {
         var entity = new AzureAiStudioChatCompletionRequestEntity(
             List.of("abc"),
             AzureAiStudioEndpointType.REALTIME,
-            1.0f,
+            1.0,
             null,
             null,
             null
         );
         var request = getXContentAsString(entity);
-        var expectedRequest = getExpectedRealtimeEndpointRequest(List.of("abc"), 1.0f, null, null, null);
+        var expectedRequest = getExpectedRealtimeEndpointRequest(List.of("abc"), 1.0, null, null, null);
         assertThat(request, is(expectedRequest));
     }
 
@@ -90,12 +90,12 @@ public class AzureAiStudioChatCompletionRequestEntityTests extends ESTestCase {
             List.of("abc"),
             AzureAiStudioEndpointType.REALTIME,
             null,
-            2.0f,
+            2.0,
             null,
             null
         );
         var request = getXContentAsString(entity);
-        var expectedRequest = getExpectedRealtimeEndpointRequest(List.of("abc"), null, 2.0f, null, null);
+        var expectedRequest = getExpectedRealtimeEndpointRequest(List.of("abc"), null, 2.0, null, null);
         assertThat(request, is(expectedRequest));
     }
 
@@ -135,8 +135,8 @@ public class AzureAiStudioChatCompletionRequestEntityTests extends ESTestCase {
 
     private String getExpectedTokenEndpointRequest(
         List<String> inputs,
-        @Nullable Float temperature,
-        @Nullable Float topP,
+        @Nullable Double temperature,
+        @Nullable Double topP,
         @Nullable Boolean doSample,
         @Nullable Integer maxNewTokens
     ) {
@@ -151,8 +151,8 @@ public class AzureAiStudioChatCompletionRequestEntityTests extends ESTestCase {
 
     private String getExpectedRealtimeEndpointRequest(
         List<String> inputs,
-        @Nullable Float temperature,
-        @Nullable Float topP,
+        @Nullable Double temperature,
+        @Nullable Double topP,
         @Nullable Boolean doSample,
         @Nullable Integer maxNewTokens
     ) {
@@ -184,7 +184,7 @@ public class AzureAiStudioChatCompletionRequestEntityTests extends ESTestCase {
         return Strings.format("{\"content\":\"%s\",\"role\":\"user\"}", input);
     }
 
-    private String addParameters(String expected, Float temperature, Float topP, Boolean doSample, Integer maxNewTokens) {
+    private String addParameters(String expected, Double temperature, Double topP, Boolean doSample, Integer maxNewTokens) {
         if (temperature == null && topP == null && doSample == null && maxNewTokens == null) {
             return expected;
         }

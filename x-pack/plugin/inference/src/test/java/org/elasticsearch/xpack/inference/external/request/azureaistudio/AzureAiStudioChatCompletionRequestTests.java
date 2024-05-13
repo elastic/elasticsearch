@@ -54,7 +54,7 @@ public class AzureAiStudioChatCompletionRequestTests extends ESTestCase {
             AzureAiStudioProvider.OPENAI,
             AzureAiStudioEndpointType.TOKEN,
             "apikey",
-            1.0f,
+            1.0,
             null,
             null,
             null,
@@ -68,7 +68,7 @@ public class AzureAiStudioChatCompletionRequestTests extends ESTestCase {
         var requestMap = entityAsMap(httpPost.getEntity().getContent());
         assertThat(requestMap, aMapWithSize(2));
         assertThat(requestMap.get("messages"), is(List.of(Map.of("role", "user", "content", "abcd"))));
-        assertThat(requestMap.get("parameters"), is(getParameterMap(1.0f, null, null, null)));
+        assertThat(requestMap.get("parameters"), is(getParameterMap(1.0, null, null, null)));
     }
 
     public void testCreateRequest_WithOpenAiProviderTokenEndpoint_WithTopPParam() throws IOException {
@@ -78,7 +78,7 @@ public class AzureAiStudioChatCompletionRequestTests extends ESTestCase {
             AzureAiStudioEndpointType.TOKEN,
             "apikey",
             null,
-            2.0f,
+            2.0,
             null,
             null,
             "abcd"
@@ -91,7 +91,7 @@ public class AzureAiStudioChatCompletionRequestTests extends ESTestCase {
         var requestMap = entityAsMap(httpPost.getEntity().getContent());
         assertThat(requestMap, aMapWithSize(2));
         assertThat(requestMap.get("messages"), is(List.of(Map.of("role", "user", "content", "abcd"))));
-        assertThat(requestMap.get("parameters"), is(getParameterMap(null, 2.0f, null, null)));
+        assertThat(requestMap.get("parameters"), is(getParameterMap(null, 2.0, null, null)));
     }
 
     public void testCreateRequest_WithOpenAiProviderTokenEndpoint_WithDoSampleParam() throws IOException {
@@ -164,7 +164,7 @@ public class AzureAiStudioChatCompletionRequestTests extends ESTestCase {
             AzureAiStudioProvider.COHERE,
             AzureAiStudioEndpointType.TOKEN,
             "apikey",
-            1.0f,
+            1.0,
             null,
             null,
             null,
@@ -178,7 +178,7 @@ public class AzureAiStudioChatCompletionRequestTests extends ESTestCase {
         var requestMap = entityAsMap(httpPost.getEntity().getContent());
         assertThat(requestMap, aMapWithSize(2));
         assertThat(requestMap.get("messages"), is(List.of(Map.of("role", "user", "content", "abcd"))));
-        assertThat(requestMap.get("parameters"), is(getParameterMap(1.0f, null, null, null)));
+        assertThat(requestMap.get("parameters"), is(getParameterMap(1.0, null, null, null)));
     }
 
     public void testCreateRequest_WithCohereProviderTokenEndpoint_WithTopPParam() throws IOException {
@@ -188,7 +188,7 @@ public class AzureAiStudioChatCompletionRequestTests extends ESTestCase {
             AzureAiStudioEndpointType.TOKEN,
             "apikey",
             null,
-            2.0f,
+            2.0,
             null,
             null,
             "abcd"
@@ -201,7 +201,7 @@ public class AzureAiStudioChatCompletionRequestTests extends ESTestCase {
         var requestMap = entityAsMap(httpPost.getEntity().getContent());
         assertThat(requestMap, aMapWithSize(2));
         assertThat(requestMap.get("messages"), is(List.of(Map.of("role", "user", "content", "abcd"))));
-        assertThat(requestMap.get("parameters"), is(getParameterMap(null, 2.0f, null, null)));
+        assertThat(requestMap.get("parameters"), is(getParameterMap(null, 2.0, null, null)));
     }
 
     public void testCreateRequest_WithCohereProviderTokenEndpoint_WithDoSampleParam() throws IOException {
@@ -278,7 +278,7 @@ public class AzureAiStudioChatCompletionRequestTests extends ESTestCase {
             AzureAiStudioProvider.MISTRAL,
             AzureAiStudioEndpointType.REALTIME,
             "apikey",
-            1.0f,
+            1.0,
             null,
             null,
             null,
@@ -296,7 +296,7 @@ public class AzureAiStudioChatCompletionRequestTests extends ESTestCase {
         var input_data = (Map<String, Object>) requestMap.get("input_data");
         assertThat(input_data, aMapWithSize(2));
         assertThat(input_data.get("input_string"), is(List.of(Map.of("role", "user", "content", "abcd"))));
-        assertThat(input_data.get("parameters"), is(getParameterMap(1.0f, null, null, null)));
+        assertThat(input_data.get("parameters"), is(getParameterMap(1.0, null, null, null)));
     }
 
     public void testCreateRequest_WithMistralProviderRealtimeEndpoint_WithTopPParam() throws IOException {
@@ -306,7 +306,7 @@ public class AzureAiStudioChatCompletionRequestTests extends ESTestCase {
             AzureAiStudioEndpointType.REALTIME,
             "apikey",
             null,
-            2.0f,
+            2.0,
             null,
             null,
             "abcd"
@@ -323,7 +323,7 @@ public class AzureAiStudioChatCompletionRequestTests extends ESTestCase {
         var input_data = (Map<String, Object>) requestMap.get("input_data");
         assertThat(input_data, aMapWithSize(2));
         assertThat(input_data.get("input_string"), is(List.of(Map.of("role", "user", "content", "abcd"))));
-        assertThat(input_data.get("parameters"), is(getParameterMap(null, 2.0f, null, null)));
+        assertThat(input_data.get("parameters"), is(getParameterMap(null, 2.0, null, null)));
     }
 
     public void testCreateRequest_WithMistralProviderRealtimeEndpoint_WithDoSampleParam() throws IOException {
@@ -406,17 +406,17 @@ public class AzureAiStudioChatCompletionRequestTests extends ESTestCase {
     }
 
     private Map<String, Object> getParameterMap(
-        @Nullable Float temperature,
-        @Nullable Float topP,
+        @Nullable Double temperature,
+        @Nullable Double topP,
         @Nullable Boolean doSample,
         @Nullable Integer maxNewTokens
     ) {
         var map = new HashMap<String, Object>();
         if (temperature != null) {
-            map.put("temperature", (double) temperature);
+            map.put("temperature", temperature);
         }
         if (topP != null) {
-            map.put("top_p", (double) topP);
+            map.put("top_p", topP);
         }
         if (doSample != null) {
             map.put("do_sample", doSample);
@@ -442,8 +442,8 @@ public class AzureAiStudioChatCompletionRequestTests extends ESTestCase {
         AzureAiStudioProvider provider,
         AzureAiStudioEndpointType endpointType,
         String apiKey,
-        @Nullable Float temperature,
-        @Nullable Float topP,
+        @Nullable Double temperature,
+        @Nullable Double topP,
         @Nullable Boolean doSample,
         @Nullable Integer maxNewTokens,
         String input

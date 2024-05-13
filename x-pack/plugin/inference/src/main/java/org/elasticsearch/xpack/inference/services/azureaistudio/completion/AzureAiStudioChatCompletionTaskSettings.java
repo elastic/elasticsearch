@@ -23,7 +23,7 @@ import java.util.Map;
 import java.util.Objects;
 
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalBoolean;
-import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalFloat;
+import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalDouble;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalPositiveInteger;
 import static org.elasticsearch.xpack.inference.services.azureaistudio.AzureAiStudioConstants.DO_SAMPLE_FIELD;
 import static org.elasticsearch.xpack.inference.services.azureaistudio.AzureAiStudioConstants.MAX_NEW_TOKENS_FIELD;
@@ -36,8 +36,8 @@ public class AzureAiStudioChatCompletionTaskSettings implements TaskSettings {
     public static AzureAiStudioChatCompletionTaskSettings fromMap(Map<String, Object> map) {
         ValidationException validationException = new ValidationException();
 
-        var temperature = extractOptionalFloat(map, TEMPERATURE_FIELD);
-        var topP = extractOptionalFloat(map, TOP_P_FIELD);
+        var temperature = extractOptionalDouble(map, TEMPERATURE_FIELD);
+        var topP = extractOptionalDouble(map, TOP_P_FIELD);
         var doSample = extractOptionalBoolean(map, DO_SAMPLE_FIELD, validationException);
         var maxNewTokens = extractOptionalPositiveInteger(
             map,
@@ -74,8 +74,8 @@ public class AzureAiStudioChatCompletionTaskSettings implements TaskSettings {
     }
 
     public AzureAiStudioChatCompletionTaskSettings(
-        @Nullable Float temperature,
-        @Nullable Float topP,
+        @Nullable Double temperature,
+        @Nullable Double topP,
         @Nullable Boolean doSample,
         @Nullable Integer maxNewTokens
     ) {
@@ -87,22 +87,22 @@ public class AzureAiStudioChatCompletionTaskSettings implements TaskSettings {
     }
 
     public AzureAiStudioChatCompletionTaskSettings(StreamInput in) throws IOException {
-        this.temperature = in.readOptionalFloat();
-        this.topP = in.readOptionalFloat();
+        this.temperature = in.readOptionalDouble();
+        this.topP = in.readOptionalDouble();
         this.doSample = in.readOptionalBoolean();
         this.maxNewTokens = in.readOptionalInt();
     }
 
-    private final Float temperature;
-    private final Float topP;
+    private final Double temperature;
+    private final Double topP;
     private final Boolean doSample;
     private final Integer maxNewTokens;
 
-    public Float temperature() {
+    public Double temperature() {
         return temperature;
     }
 
-    public Float topP() {
+    public Double topP() {
         return topP;
     }
 
@@ -130,8 +130,8 @@ public class AzureAiStudioChatCompletionTaskSettings implements TaskSettings {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeOptionalFloat(temperature);
-        out.writeOptionalFloat(topP);
+        out.writeOptionalDouble(temperature);
+        out.writeOptionalDouble(topP);
         out.writeOptionalBoolean(doSample);
         out.writeOptionalInt(maxNewTokens);
     }

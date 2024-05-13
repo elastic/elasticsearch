@@ -31,8 +31,8 @@ public class AzureAiStudioChatCompletionModelTests extends ESTestCase {
             AzureAiStudioProvider.OPENAI,
             AzureAiStudioEndpointType.TOKEN,
             "apikey",
-            1.0f,
-            2.0f,
+            1.0,
+            2.0,
             false,
             512,
             null
@@ -50,13 +50,13 @@ public class AzureAiStudioChatCompletionModelTests extends ESTestCase {
             AzureAiStudioProvider.OPENAI,
             AzureAiStudioEndpointType.TOKEN,
             "apikey",
-            1.0f,
+            1.0,
             null,
             null,
             null,
             null
         );
-        var requestTaskSettings = getTaskSettingsMap(0.5f, null, null, null);
+        var requestTaskSettings = getTaskSettingsMap(0.5, null, null, null);
         var overriddenModel = AzureAiStudioChatCompletionModel.of(model, requestTaskSettings);
         assertThat(
             overriddenModel,
@@ -67,7 +67,7 @@ public class AzureAiStudioChatCompletionModelTests extends ESTestCase {
                     AzureAiStudioProvider.OPENAI,
                     AzureAiStudioEndpointType.TOKEN,
                     "apikey",
-                    0.5f,
+                    0.5,
                     null,
                     null,
                     null,
@@ -85,12 +85,12 @@ public class AzureAiStudioChatCompletionModelTests extends ESTestCase {
             AzureAiStudioEndpointType.TOKEN,
             "apikey",
             null,
-            0.8f,
+            0.8,
             null,
             null,
             null
         );
-        var requestTaskSettings = getTaskSettingsMap(null, 0.5f, null, null);
+        var requestTaskSettings = getTaskSettingsMap(null, 0.5, null, null);
         var overriddenModel = AzureAiStudioChatCompletionModel.of(model, requestTaskSettings);
         assertThat(
             overriddenModel,
@@ -102,7 +102,7 @@ public class AzureAiStudioChatCompletionModelTests extends ESTestCase {
                     AzureAiStudioEndpointType.TOKEN,
                     "apikey",
                     null,
-                    0.5f,
+                    0.5,
                     null,
                     null,
                     null
@@ -216,8 +216,8 @@ public class AzureAiStudioChatCompletionModelTests extends ESTestCase {
         AzureAiStudioProvider provider,
         AzureAiStudioEndpointType endpointType,
         String apiKey,
-        @Nullable Float temperature,
-        @Nullable Float topP,
+        @Nullable Double temperature,
+        @Nullable Double topP,
         @Nullable Boolean doSample,
         @Nullable Integer maxNewTokens,
         @Nullable RateLimitSettings rateLimitSettings

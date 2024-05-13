@@ -468,6 +468,21 @@ public class ServiceUtilsTests extends ESTestCase {
         );
     }
 
+    public void testExtractOptionalDouble_ExtractsAsDouble() {
+        Map<String, Object> map = modifiableMap(Map.of("key", 1.01));
+        var result = ServiceUtils.extractOptionalDouble(map, "key");
+        assertEquals(Double.valueOf(1.01), result);
+        assertTrue(map.isEmpty());
+    }
+
+    public void testExtractOptionalDouble_ReturnsNullWhenKeyNotPresent() {
+        Map<String, Object> map = modifiableMap(Map.of("key", 1.01));
+        var result = ServiceUtils.extractOptionalDouble(map, "other_key");
+        assertNull(result);
+        assertThat(map.size(), is(1));
+        assertThat(map.get("key"), is(1.01));
+    }
+
     public void testExtractOptionalFloat_ExtractsAFloat() {
         Map<String, Object> map = modifiableMap(Map.of("key", 1.0f));
         var result = ServiceUtils.extractOptionalFloat(map, "key");

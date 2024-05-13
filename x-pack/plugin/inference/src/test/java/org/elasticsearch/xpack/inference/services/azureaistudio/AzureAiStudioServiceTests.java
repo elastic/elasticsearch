@@ -309,7 +309,7 @@ public class AzureAiStudioServiceTests extends ESTestCase {
 
             var config = getRequestConfigMap(
                 serviceSettings,
-                getChatCompletionTaskSettingsMap(null, 2.0f, null, null),
+                getChatCompletionTaskSettingsMap(null, 2.0, null, null),
                 getSecretSettingsMap("secret")
             );
 
@@ -330,7 +330,7 @@ public class AzureAiStudioServiceTests extends ESTestCase {
 
     public void testParseRequestConfig_ThrowsWhenAnExtraKeyExistsInChatCompletionTaskSettingsMap() throws IOException {
         try (var service = createService()) {
-            var taskSettings = getChatCompletionTaskSettingsMap(null, 2.0f, null, null);
+            var taskSettings = getChatCompletionTaskSettingsMap(null, 2.0, null, null);
             taskSettings.put("extra_key", "value");
 
             var config = getRequestConfigMap(
@@ -361,7 +361,7 @@ public class AzureAiStudioServiceTests extends ESTestCase {
 
             var config = getRequestConfigMap(
                 getChatCompletionServiceSettingsMap("http://target.local", "openai", "token"),
-                getChatCompletionTaskSettingsMap(null, 2.0f, null, null),
+                getChatCompletionTaskSettingsMap(null, 2.0, null, null),
                 secretSettings
             );
 
@@ -472,7 +472,7 @@ public class AzureAiStudioServiceTests extends ESTestCase {
         try (var service = createService()) {
             var config = getPersistedConfigMap(
                 getChatCompletionServiceSettingsMap("http://target.local", "openai", "token"),
-                getChatCompletionTaskSettingsMap(1.0f, 2.0f, true, 512),
+                getChatCompletionTaskSettingsMap(1.0, 2.0, true, 512),
                 getSecretSettingsMap("secret")
             );
 
@@ -484,8 +484,8 @@ public class AzureAiStudioServiceTests extends ESTestCase {
             assertThat(chatCompletionModel.getServiceSettings().target(), is("http://target.local"));
             assertThat(chatCompletionModel.getServiceSettings().provider(), is(AzureAiStudioProvider.OPENAI));
             assertThat(chatCompletionModel.getServiceSettings().endpointType(), is(AzureAiStudioEndpointType.TOKEN));
-            assertThat(chatCompletionModel.getTaskSettings().temperature(), is(1.0f));
-            assertThat(chatCompletionModel.getTaskSettings().topP(), is(2.0f));
+            assertThat(chatCompletionModel.getTaskSettings().temperature(), is(1.0));
+            assertThat(chatCompletionModel.getTaskSettings().topP(), is(2.0));
             assertThat(chatCompletionModel.getTaskSettings().doSample(), is(true));
             assertThat(chatCompletionModel.getTaskSettings().maxNewTokens(), is(512));
         }
@@ -519,7 +519,7 @@ public class AzureAiStudioServiceTests extends ESTestCase {
         try (var service = createService()) {
             var config = getPersistedConfigMap(
                 getChatCompletionServiceSettingsMap("http://target.local", "openai", "token"),
-                getChatCompletionTaskSettingsMap(1.0f, 2.0f, true, 512),
+                getChatCompletionTaskSettingsMap(1.0, 2.0, true, 512),
                 getSecretSettingsMap("secret")
             );
 
@@ -598,7 +598,7 @@ public class AzureAiStudioServiceTests extends ESTestCase {
         try (var service = createService()) {
             var serviceSettings = getChatCompletionServiceSettingsMap("http://target.local", "openai", "token");
             serviceSettings.put("extra_key", "value");
-            var taskSettings = getChatCompletionTaskSettingsMap(1.0f, 2.0f, true, 512);
+            var taskSettings = getChatCompletionTaskSettingsMap(1.0, 2.0, true, 512);
             var secretSettings = getSecretSettingsMap("secret");
             var config = getPersistedConfigMap(serviceSettings, taskSettings, secretSettings);
 
@@ -611,7 +611,7 @@ public class AzureAiStudioServiceTests extends ESTestCase {
     public void testParsePersistedConfig_DoesNotThrowWhenAnExtraKeyExistsInChatCompletionTaskSettingsMap() throws IOException {
         try (var service = createService()) {
             var serviceSettings = getChatCompletionServiceSettingsMap("http://target.local", "openai", "token");
-            var taskSettings = getChatCompletionTaskSettingsMap(1.0f, 2.0f, true, 512);
+            var taskSettings = getChatCompletionTaskSettingsMap(1.0, 2.0, true, 512);
             taskSettings.put("extra_key", "value");
             var secretSettings = getSecretSettingsMap("secret");
             var config = getPersistedConfigMap(serviceSettings, taskSettings, secretSettings);
@@ -625,7 +625,7 @@ public class AzureAiStudioServiceTests extends ESTestCase {
     public void testParsePersistedConfig_DoesNotThrowWhenAnExtraKeyExistsInChatCompletionSecretSettingsMap() throws IOException {
         try (var service = createService()) {
             var serviceSettings = getChatCompletionServiceSettingsMap("http://target.local", "openai", "token");
-            var taskSettings = getChatCompletionTaskSettingsMap(1.0f, 2.0f, true, 512);
+            var taskSettings = getChatCompletionTaskSettingsMap(1.0, 2.0, true, 512);
             var secretSettings = getSecretSettingsMap("secret");
             secretSettings.put("extra_key", "value");
             var config = getPersistedConfigMap(serviceSettings, taskSettings, secretSettings);
@@ -663,7 +663,7 @@ public class AzureAiStudioServiceTests extends ESTestCase {
         try (var service = createService()) {
             var config = getPersistedConfigMap(
                 getChatCompletionServiceSettingsMap("http://target.local", "openai", "token"),
-                getChatCompletionTaskSettingsMap(1.0f, 2.0f, true, 512),
+                getChatCompletionTaskSettingsMap(1.0, 2.0, true, 512),
                 Map.of()
             );
 
@@ -675,8 +675,8 @@ public class AzureAiStudioServiceTests extends ESTestCase {
             assertThat(chatCompletionModel.getServiceSettings().target(), is("http://target.local"));
             assertThat(chatCompletionModel.getServiceSettings().provider(), is(AzureAiStudioProvider.OPENAI));
             assertThat(chatCompletionModel.getServiceSettings().endpointType(), is(AzureAiStudioEndpointType.TOKEN));
-            assertThat(chatCompletionModel.getTaskSettings().temperature(), is(1.0f));
-            assertThat(chatCompletionModel.getTaskSettings().topP(), is(2.0f));
+            assertThat(chatCompletionModel.getTaskSettings().temperature(), is(1.0));
+            assertThat(chatCompletionModel.getTaskSettings().topP(), is(2.0));
             assertThat(chatCompletionModel.getTaskSettings().doSample(), is(true));
             assertThat(chatCompletionModel.getTaskSettings().maxNewTokens(), is(512));
         }
@@ -1116,8 +1116,8 @@ public class AzureAiStudioServiceTests extends ESTestCase {
     }
 
     public static Map<String, Object> getChatCompletionTaskSettingsMap(
-        @Nullable Float temperature,
-        @Nullable Float topP,
+        @Nullable Double temperature,
+        @Nullable Double topP,
         @Nullable Boolean doSample,
         @Nullable Integer maxNewTokens
     ) {

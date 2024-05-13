@@ -31,8 +31,8 @@ import static org.elasticsearch.xpack.inference.services.azureaistudio.AzureAiSt
 public record AzureAiStudioChatCompletionRequestEntity(
     List<String> messages,
     AzureAiStudioEndpointType endpointType,
-    @Nullable Float temperature,
-    @Nullable Float topP,
+    @Nullable Double temperature,
+    @Nullable Double topP,
     @Nullable Boolean doSample,
     @Nullable Integer maxNewTokens
 ) implements ToXContentObject {

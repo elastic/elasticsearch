@@ -14,7 +14,7 @@ import org.elasticsearch.inference.ModelConfigurations;
 import java.util.Map;
 
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalBoolean;
-import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalFloat;
+import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalDouble;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalPositiveInteger;
 import static org.elasticsearch.xpack.inference.services.azureaistudio.AzureAiStudioConstants.DO_SAMPLE_FIELD;
 import static org.elasticsearch.xpack.inference.services.azureaistudio.AzureAiStudioConstants.MAX_NEW_TOKENS_FIELD;
@@ -22,8 +22,8 @@ import static org.elasticsearch.xpack.inference.services.azureaistudio.AzureAiSt
 import static org.elasticsearch.xpack.inference.services.azureaistudio.AzureAiStudioConstants.TOP_P_FIELD;
 
 public record AzureAiStudioChatCompletionRequestTaskSettings(
-    @Nullable Float temperature,
-    @Nullable Float topP,
+    @Nullable Double temperature,
+    @Nullable Double topP,
     @Nullable Boolean doSample,
     @Nullable Integer maxNewTokens
 ) {
@@ -49,8 +49,8 @@ public record AzureAiStudioChatCompletionRequestTaskSettings(
 
         ValidationException validationException = new ValidationException();
 
-        Float temperature = extractOptionalFloat(map, TEMPERATURE_FIELD);
-        Float topP = extractOptionalFloat(map, TOP_P_FIELD);
+        Double temperature = extractOptionalDouble(map, TEMPERATURE_FIELD);
+        Double topP = extractOptionalDouble(map, TOP_P_FIELD);
         Boolean doSample = extractOptionalBoolean(map, DO_SAMPLE_FIELD, validationException);
         Integer maxNewTokens = extractOptionalPositiveInteger(
             map,

@@ -35,13 +35,13 @@ public class AzureAiStudioChatCompletionRequestTaskSettingsTests extends ESTestC
     }
 
     public void testFromMap_ReturnsTemperature() {
-        var settings = AzureAiStudioChatCompletionRequestTaskSettings.fromMap(new HashMap<>(Map.of(TEMPERATURE_FIELD, 0.1f)));
-        assertThat(settings.temperature(), is(0.1f));
+        var settings = AzureAiStudioChatCompletionRequestTaskSettings.fromMap(new HashMap<>(Map.of(TEMPERATURE_FIELD, 0.1)));
+        assertThat(settings.temperature(), is(0.1));
     }
 
     public void testFromMap_ReturnsTopP() {
-        var settings = AzureAiStudioChatCompletionRequestTaskSettings.fromMap(new HashMap<>(Map.of(TOP_P_FIELD, 0.1f)));
-        assertThat(settings.topP(), is(0.1f));
+        var settings = AzureAiStudioChatCompletionRequestTaskSettings.fromMap(new HashMap<>(Map.of(TOP_P_FIELD, 0.1)));
+        assertThat(settings.topP(), is(0.1));
     }
 
     public void testFromMap_ReturnsDoSample() {
@@ -62,7 +62,7 @@ public class AzureAiStudioChatCompletionRequestTaskSettingsTests extends ESTestC
 
         MatcherAssert.assertThat(
             thrownException.getMessage(),
-            is(Strings.format("field [temperature] is not of the expected type. The value [invalid] cannot be converted to a [Float]"))
+            is(Strings.format("field [temperature] is not of the expected type. The value [invalid] cannot be converted to a [Double]"))
         );
     }
 
@@ -74,7 +74,7 @@ public class AzureAiStudioChatCompletionRequestTaskSettingsTests extends ESTestC
 
         MatcherAssert.assertThat(
             thrownException.getMessage(),
-            is(Strings.format("field [top_p] is not of the expected type. The value [invalid] cannot be converted to a [Float]"))
+            is(Strings.format("field [top_p] is not of the expected type. The value [invalid] cannot be converted to a [Double]"))
         );
     }
 

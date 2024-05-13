@@ -7,7 +7,7 @@ setup:
       reason: "sparse_vector query introduced in 8.15"
   - do:
       headers:
-        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
+        Authorization: "Basic dGVzdF91c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" #test_user credentials
       indices.create:
         index: index-with-sparse-vector
         body:
@@ -20,7 +20,7 @@ setup:
 
   - do:
       headers:
-        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
+        Authorization: "Basic dGVzdF91c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" #test_user credentials
       indices.create:
         index: unrelated
         body:
@@ -31,7 +31,7 @@ setup:
 
   - do:
       headers:
-        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
+        Authorization: "Basic dGVzdF91c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" #test_user credentials
       ml.put_trained_model:
         model_id: "text_expansion_model"
         body: >
@@ -50,14 +50,14 @@ setup:
           }
   - do:
       headers:
-        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
+        Authorization: "Basic dGVzdF91c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" #test_user credentials
       ml.put_trained_model_vocabulary:
         model_id: "text_expansion_model"
         body: >
           { "vocabulary": ["[PAD]", "[UNK]", "these", "are", "my", "words", "the", "washing", "machine", "is", "leaking", "octopus", "comforter", "smells"] }
   - do:
       headers:
-        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
+        Authorization: "Basic dGVzdF91c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" #test_user credentials
       ml.put_trained_model_definition_part:
         model_id: "text_expansion_model"
         part: 0
@@ -69,7 +69,7 @@ setup:
           }
   - do:
       headers:
-        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
+        Authorization: "Basic dGVzdF91c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" #test_user credentials
         Content-Type: application/json
       bulk:
         index: index-with-sparse-vector
@@ -90,7 +90,7 @@ setup:
 
   - do:
       headers:
-        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
+        Authorization: "Basic dGVzdF91c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" #test_user credentials
         Content-Type: application/json
       ml.start_trained_model_deployment:
         model_id: text_expansion_model

@@ -3,7 +3,7 @@
 *Parameters*
 
 `first`::
-
+First of the columns to evaluate.
 
 `rest`::
-
+The rest of the columns to evaluate.

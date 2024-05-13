@@ -1211,6 +1211,7 @@ public class DockerTests extends PackagingTestCase {
     /**
      * Check that readiness listener works
      */
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/108523")
     public void test500Readiness() throws Exception {
         assertFalse(readinessProbe(9399));
         // Disabling security so we wait for green

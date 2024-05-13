@@ -41,13 +41,6 @@ public class IpFilterRemoteAddressFilterTests extends ESTestCase {
     private IpFilterRemoteAddressFilter handler;
     private ThreadPool threadPool;
 
-    @Override
-    @Before
-    public void setUp() throws Exception {
-        super.setUp();
-        this.threadPool = new TestThreadPool(getTestName());
-    }
-
     @After
     public void terminate() throws Exception {
         terminate(threadPool);
@@ -95,6 +88,7 @@ public class IpFilterRemoteAddressFilterTests extends ESTestCase {
             ipFilter.setBoundHttpTransportAddress(httpTransport.boundAddress());
         }
 
+        this.threadPool = new TestThreadPool(getTestName());
         if (isHttpEnabled) {
             handler = new IpFilterRemoteAddressFilter(ipFilter, IPFilter.HTTP_PROFILE_NAME, threadPool.getThreadContext());
         } else {
@@ -102,7 +96,6 @@ public class IpFilterRemoteAddressFilterTests extends ESTestCase {
         }
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/108441")
     public void testThatFilteringWorksByIp() throws Exception {
         InetSocketAddress localhostAddr = new InetSocketAddress(InetAddresses.forString("127.0.0.1"), 12345);
         assertThat(handler.accept(mock(ChannelHandlerContext.class), localhostAddr), is(true));

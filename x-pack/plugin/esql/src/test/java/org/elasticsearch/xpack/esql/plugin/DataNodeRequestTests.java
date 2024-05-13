@@ -86,7 +86,7 @@ public class DataNodeRequestTests extends AbstractWireSerializingTestCase<DataNo
         );
         DataNodeRequest request = new DataNodeRequest(
             sessionId,
-            EsqlConfigurationSerializationTests.randomConfiguration(query),
+            EsqlConfigurationSerializationTests.randomConfiguration(query, EsqlConfigurationSerializationTests.randomTables()),
             randomAlphaOfLength(10),
             shardIds,
             aliasFilters,

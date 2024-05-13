@@ -1,4 +1,6 @@
 tests:
+- class: "org.elasticsearch.xpack.transform.transforms.scheduling.MonotonicClockTests"
+  issue: "https://github.com/elastic/elasticsearch/issues/108529"
 # Examples:
 #
 #  Mute a single test case in a YAML test suite:

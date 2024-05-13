@@ -37,10 +37,12 @@ public class ObjectMapper extends Mapper {
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(ObjectMapper.class);
 
     public static final String CONTENT_TYPE = "object";
+    static final String STORE_ARRAY_SOURCE_PARAM = "store_array_source";
 
     public static class Defaults {
         public static final boolean ENABLED = true;
         public static final Explicit<Boolean> SUBOBJECTS = Explicit.IMPLICIT_TRUE;
+        public static final Explicit<Boolean> TRACK_ARRAY_SOURCE = Explicit.IMPLICIT_FALSE;
         public static final Dynamic DYNAMIC = Dynamic.TRUE;
     }
 
@@ -78,6 +80,7 @@ public class ObjectMapper extends Mapper {
     public static class Builder extends Mapper.Builder {
         protected final Explicit<Boolean> subobjects;
         protected Explicit<Boolean> enabled = Explicit.IMPLICIT_TRUE;
+        protected Explicit<Boolean> trackArraySource = Defaults.TRACK_ARRAY_SOURCE;
         protected Dynamic dynamic;
         protected final List<Mapper.Builder> mappersBuilders = new ArrayList<>();
 
@@ -88,6 +91,11 @@ public class ObjectMapper extends Mapper {
 
         public Builder enabled(boolean enabled) {
             this.enabled = Explicit.explicitBoolean(enabled);
+            return this;
+        }
+
+        public Builder trackArraySource(boolean value) {
+            this.trackArraySource = Explicit.explicitBoolean(value);
             return this;
         }
 
@@ -182,6 +190,7 @@ public class ObjectMapper extends Mapper {
                 context.buildFullName(name()),
                 enabled,
                 subobjects,
+                trackArraySource,
                 dynamic,
                 buildMappers(context.createChildContext(name(), dynamic))
             );
@@ -241,6 +250,9 @@ public class ObjectMapper extends Mapper {
                 return true;
             } else if (fieldName.equals("enabled")) {
                 builder.enabled(XContentMapValues.nodeBooleanValue(fieldNode, fieldName + ".enabled"));
+                return true;
+            } else if (fieldName.equals(STORE_ARRAY_SOURCE_PARAM)) {
+                builder.trackArraySource(XContentMapValues.nodeBooleanValue(fieldNode, fieldName + ".track_array_source"));
                 return true;
             } else if (fieldName.equals("properties")) {
                 if (fieldNode instanceof Collection && ((Collection) fieldNode).isEmpty()) {
@@ -369,6 +381,7 @@ public class ObjectMapper extends Mapper {
 
     protected final Explicit<Boolean> enabled;
     protected final Explicit<Boolean> subobjects;
+    protected final Explicit<Boolean> trackArraySource;
     protected final Dynamic dynamic;
 
     protected final Map<String, Mapper> mappers;
@@ -378,6 +391,7 @@ public class ObjectMapper extends Mapper {
         String fullPath,
         Explicit<Boolean> enabled,
         Explicit<Boolean> subobjects,
+        Explicit<Boolean> trackArraySource,
         Dynamic dynamic,
         Map<String, Mapper> mappers
     ) {
@@ -387,6 +401,7 @@ public class ObjectMapper extends Mapper {
         this.fullPath = internFieldName(fullPath);
         this.enabled = enabled;
         this.subobjects = subobjects;
+        this.trackArraySource = trackArraySource;
         this.dynamic = dynamic;
         if (mappers == null) {
             this.mappers = Map.of();
@@ -412,7 +427,7 @@ public class ObjectMapper extends Mapper {
      * This is typically used in the context of a mapper merge when there's not enough budget to add the entire object.
      */
     ObjectMapper withoutMappers() {
-        return new ObjectMapper(simpleName(), fullPath, enabled, subobjects, dynamic, Map.of());
+        return new ObjectMapper(simpleName(), fullPath, enabled, subobjects, trackArraySource, dynamic, Map.of());
     }
 
     @Override
@@ -454,6 +469,10 @@ public class ObjectMapper extends Mapper {
         return subobjects.value();
     }
 
+    public final boolean trackArraySource() {
+        return trackArraySource.value();
+    }
+
     @Override
     public void validate(MappingLookup mappers) {
         for (Mapper mapper : this.mappers.values()) {
@@ -480,6 +499,7 @@ public class ObjectMapper extends Mapper {
             fullPath,
             mergeResult.enabled,
             mergeResult.subObjects,
+            mergeResult.trackArraySource,
             mergeResult.dynamic,
             mergeResult.mappers
         );
@@ -488,6 +508,7 @@ public class ObjectMapper extends Mapper {
     protected record MergeResult(
         Explicit<Boolean> enabled,
         Explicit<Boolean> subObjects,
+        Explicit<Boolean> trackArraySource,
         ObjectMapper.Dynamic dynamic,
         Map<String, Mapper> mappers
     ) {
@@ -519,11 +540,26 @@ public class ObjectMapper extends Mapper {
             } else {
                 subObjects = existing.subobjects;
             }
+            final Explicit<Boolean> trackArraySource;
+            if (mergeWithObject.trackArraySource.explicit()) {
+                if (reason == MergeReason.INDEX_TEMPLATE) {
+                    trackArraySource = mergeWithObject.trackArraySource;
+                } else if (existing.trackArraySource != mergeWithObject.trackArraySource) {
+                    throw new MapperException(
+                        "the [track_array_source] parameter can't be updated for the object mapping [" + existing.name() + "]"
+                    );
+                } else {
+                    trackArraySource = existing.trackArraySource;
+                }
+            } else {
+                trackArraySource = existing.trackArraySource;
+            }
             MapperMergeContext objectMergeContext = existing.createChildContext(parentMergeContext, existing.simpleName());
             Map<String, Mapper> mergedMappers = buildMergedMappers(existing, mergeWithObject, objectMergeContext, subObjects.value());
             return new MergeResult(
                 enabled,
                 subObjects,
+                trackArraySource,
                 mergeWithObject.dynamic != null ? mergeWithObject.dynamic : existing.dynamic,
                 mergedMappers
             );
@@ -679,6 +715,9 @@ public class ObjectMapper extends Mapper {
         }
         if (subobjects != Defaults.SUBOBJECTS) {
             builder.field("subobjects", subobjects.value());
+        }
+        if (trackArraySource != Defaults.TRACK_ARRAY_SOURCE) {
+            builder.field(STORE_ARRAY_SOURCE_PARAM, trackArraySource.value());
         }
         if (custom != null) {
             custom.toXContent(builder, params);

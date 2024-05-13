@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.inference.services.azureaistudio.completion;
 
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.MatcherAssert;
 
@@ -19,6 +20,7 @@ import static org.elasticsearch.xpack.inference.services.azureaistudio.AzureAiSt
 import static org.elasticsearch.xpack.inference.services.azureaistudio.AzureAiStudioConstants.MAX_NEW_TOKENS_FIELD;
 import static org.elasticsearch.xpack.inference.services.azureaistudio.AzureAiStudioConstants.TEMPERATURE_FIELD;
 import static org.elasticsearch.xpack.inference.services.azureaistudio.AzureAiStudioConstants.TOP_P_FIELD;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
 
 public class AzureAiStudioChatCompletionRequestTaskSettingsTests extends ESTestCase {
@@ -78,25 +80,25 @@ public class AzureAiStudioChatCompletionRequestTaskSettingsTests extends ESTestC
 
     public void testFromMap_DoSampleIsInvalidValue_ThrowsStatusException() {
         var thrownException = expectThrows(
-            ElasticsearchStatusException.class,
+            ValidationException.class,
             () -> AzureAiStudioChatCompletionRequestTaskSettings.fromMap(new HashMap<>(Map.of(DO_SAMPLE_FIELD, "invalid")))
         );
 
         MatcherAssert.assertThat(
             thrownException.getMessage(),
-            is(Strings.format("field [do_sample] is not of the expected type. The value [invalid] cannot be converted to a [Boolean]"))
+            containsString("field [do_sample] is not of the expected type. The value [invalid] cannot be converted to a [Boolean]")
         );
     }
 
     public void testFromMap_MaxTokensIsInvalidValue_ThrowsStatusException() {
         var thrownException = expectThrows(
-            ElasticsearchStatusException.class,
+            ValidationException.class,
             () -> AzureAiStudioChatCompletionRequestTaskSettings.fromMap(new HashMap<>(Map.of(MAX_NEW_TOKENS_FIELD, "invalid")))
         );
 
         MatcherAssert.assertThat(
             thrownException.getMessage(),
-            is(Strings.format("field [max_new_tokens] is not of the expected type. The value [invalid] cannot be converted to a [Integer]"))
+            containsString("field [max_new_tokens] is not of the expected type. The value [invalid] cannot be converted to a [Integer]")
         );
     }
 

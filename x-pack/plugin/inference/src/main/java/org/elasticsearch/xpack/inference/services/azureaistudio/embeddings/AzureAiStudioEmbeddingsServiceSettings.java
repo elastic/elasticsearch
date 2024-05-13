@@ -63,12 +63,7 @@ public class AzureAiStudioEmbeddingsServiceSettings extends AzureAiStudioService
         Integer dims = removeAsType(map, DIMENSIONS, Integer.class);
         Integer maxTokens = removeAsType(map, MAX_INPUT_TOKENS, Integer.class);
 
-        Boolean dimensionsSetByUser = extractOptionalBoolean(
-            map,
-            DIMENSIONS_SET_BY_USER,
-            ModelConfigurations.SERVICE_SETTINGS,
-            validationException
-        );
+        Boolean dimensionsSetByUser = extractOptionalBoolean(map, DIMENSIONS_SET_BY_USER, validationException);
 
         switch (context) {
             case REQUEST -> {

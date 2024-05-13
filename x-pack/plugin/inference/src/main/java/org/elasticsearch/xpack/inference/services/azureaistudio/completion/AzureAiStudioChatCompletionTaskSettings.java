@@ -38,7 +38,7 @@ public class AzureAiStudioChatCompletionTaskSettings implements TaskSettings {
 
         var temperature = extractOptionalFloat(map, TEMPERATURE_FIELD);
         var topP = extractOptionalFloat(map, TOP_P_FIELD);
-        var doSample = extractOptionalBoolean(map, DO_SAMPLE_FIELD, ModelConfigurations.TASK_SETTINGS, validationException);
+        var doSample = extractOptionalBoolean(map, DO_SAMPLE_FIELD, validationException);
         var maxNewTokens = extractOptionalPositiveInteger(
             map,
             MAX_NEW_TOKENS_FIELD,

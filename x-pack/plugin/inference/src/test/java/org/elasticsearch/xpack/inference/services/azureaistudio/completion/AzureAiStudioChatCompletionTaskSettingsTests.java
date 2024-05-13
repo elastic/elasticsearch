@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.inference.services.azureaistudio.completion;
 
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -24,6 +25,7 @@ import static org.elasticsearch.xpack.inference.services.azureaistudio.AzureAiSt
 import static org.elasticsearch.xpack.inference.services.azureaistudio.AzureAiStudioConstants.MAX_NEW_TOKENS_FIELD;
 import static org.elasticsearch.xpack.inference.services.azureaistudio.AzureAiStudioConstants.TEMPERATURE_FIELD;
 import static org.elasticsearch.xpack.inference.services.azureaistudio.AzureAiStudioConstants.TOP_P_FIELD;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
 
 public class AzureAiStudioChatCompletionTaskSettingsTests extends ESTestCase {
@@ -66,33 +68,29 @@ public class AzureAiStudioChatCompletionTaskSettingsTests extends ESTestCase {
         );
     }
 
-    public void testFromMap_DoSampleIsInvalidValue_ThrowsStatusException() {
+    public void testFromMap_DoSampleIsInvalidValue_ThrowsValidationException() {
         var taskMap = getTaskSettingsMap(null, 2.0f, true, 512);
         taskMap.put(DO_SAMPLE_FIELD, "invalid");
 
-        var thrownException = expectThrows(
-            ElasticsearchStatusException.class,
-            () -> AzureAiStudioChatCompletionTaskSettings.fromMap(taskMap)
-        );
+        var thrownException = expectThrows(ValidationException.class, () -> AzureAiStudioChatCompletionTaskSettings.fromMap(taskMap));
 
         MatcherAssert.assertThat(
             thrownException.getMessage(),
-            is(Strings.format("field [do_sample] is not of the expected type. The value [invalid] cannot be converted to a [Boolean]"))
+            containsString("field [do_sample] is not of the expected type. The value [invalid] cannot be converted to a [Boolean]")
         );
     }
 
-    public void testFromMap_MaxNewTokensIsInvalidValue_ThrowsStatusException() {
+    public void testFromMap_MaxNewTokensIsInvalidValue_ThrowsValidationException() {
         var taskMap = getTaskSettingsMap(null, 2.0f, true, 512);
         taskMap.put(MAX_NEW_TOKENS_FIELD, "invalid");
 
-        var thrownException = expectThrows(
-            ElasticsearchStatusException.class,
-            () -> AzureAiStudioChatCompletionTaskSettings.fromMap(taskMap)
-        );
+        var thrownException = expectThrows(ValidationException.class, () -> AzureAiStudioChatCompletionTaskSettings.fromMap(taskMap));
 
         MatcherAssert.assertThat(
             thrownException.getMessage(),
-            is(Strings.format("field [max_new_tokens] is not of the expected type. The value [invalid] cannot be converted to a [Integer]"))
+            containsString(
+                Strings.format("field [max_new_tokens] is not of the expected type. The value [invalid] cannot be converted to a [Integer]")
+            )
         );
     }
 

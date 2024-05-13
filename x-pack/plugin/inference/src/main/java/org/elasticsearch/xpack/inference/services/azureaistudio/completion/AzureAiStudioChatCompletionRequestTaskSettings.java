@@ -51,7 +51,7 @@ public record AzureAiStudioChatCompletionRequestTaskSettings(
 
         Float temperature = extractOptionalFloat(map, TEMPERATURE_FIELD);
         Float topP = extractOptionalFloat(map, TOP_P_FIELD);
-        Boolean doSample = extractOptionalBoolean(map, DO_SAMPLE_FIELD, ModelConfigurations.TASK_SETTINGS, validationException);
+        Boolean doSample = extractOptionalBoolean(map, DO_SAMPLE_FIELD, validationException);
         Integer maxNewTokens = extractOptionalPositiveInteger(
             map,
             MAX_NEW_TOKENS_FIELD,

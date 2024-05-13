@@ -35,28 +35,19 @@ import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.blobstore.OptionalBytesReference;
 import org.elasticsearch.common.blobstore.support.FilterBlobContainer;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
 import org.elasticsearch.common.util.concurrent.FutureUtils;
-import org.elasticsearch.common.util.concurrent.StoppableExecutorServiceWrapper;
-import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.threadpool.TestThreadPool;
-import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
-import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.Deque;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.BrokenBarrierException;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CyclicBarrier;
-import java.util.concurrent.Executor;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -66,8 +57,6 @@ import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThan;
-import static org.hamcrest.Matchers.notNullValue;
-import static org.hamcrest.Matchers.nullValue;
 
 public class StatelessElectionStrategyTests extends ESTestCase {
 
@@ -231,7 +220,8 @@ public class StatelessElectionStrategyTests extends ESTestCase {
 
     public void testBeforeCommitRetriesCurrentTermReads() throws Exception {
         var registerValueRef = new AtomicReference<OptionalBytesReference>();
-        var capturingThreadPool = new CapturingThreadPool(getTestName());
+        final var deterministicTaskQueue = new DeterministicTaskQueue();
+        final var threadPool = deterministicTaskQueue.getThreadPool();
         try (var fakeStatelessNode = new FakeStatelessNode(this::newEnvironment, this::newNodeEnvironment, xContentRegistry()) {
             @Override
             public BlobContainer wrapBlobContainer(BlobPath path, BlobContainer innerContainer) {
@@ -250,7 +240,7 @@ public class StatelessElectionStrategyTests extends ESTestCase {
         }) {
             var electionStrategy = new StatelessElectionStrategy(
                 fakeStatelessNode.objectStoreService::getClusterStateBlobContainer,
-                capturingThreadPool
+                threadPool
             );
             registerValueRef.set(OptionalBytesReference.MISSING);
 
@@ -259,16 +249,18 @@ public class StatelessElectionStrategyTests extends ESTestCase {
 
             final var failAllReads = randomBoolean();
 
-            var nextTask = capturingThreadPool.tasks.poll();
-            assertThat(nextTask, is(notNullValue()));
-            assertThat(nextTask.v1(), is(equalTo(TimeValue.ZERO)));
-            nextTask.v2().run();
+            final var startTime = deterministicTaskQueue.getCurrentTimeMillis();
+            assertTrue(deterministicTaskQueue.hasRunnableTasks());
+            deterministicTaskQueue.runAllRunnableTasks();
             assertThat(beforeCommitListener.isDone(), is(false));
 
             for (int retry = 0; retry < StatelessElectionStrategy.MAX_READ_CURRENT_LEASE_TERM_RETRIES; retry++) {
-                var retryTask = capturingThreadPool.tasks.poll();
-                assertThat(retryTask, is(notNullValue()));
-                assertThat(retryTask.v1(), is(equalTo(StatelessElectionStrategy.READ_CURRENT_LEASE_TERM_RETRY_DELAY)));
+                deterministicTaskQueue.advanceTime();
+                assertTrue(deterministicTaskQueue.hasRunnableTasks());
+                assertEquals(
+                    startTime + (retry + 1) * StatelessElectionStrategy.READ_CURRENT_LEASE_TERM_RETRY_DELAY.millis(),
+                    deterministicTaskQueue.getCurrentTimeMillis()
+                );
 
                 assertThat(beforeCommitListener.isDone(), is(false));
 
@@ -276,16 +268,11 @@ public class StatelessElectionStrategyTests extends ESTestCase {
                     registerValueRef.set(OptionalBytesReference.of(new StatelessElectionStrategy.Lease(1, 0).asBytes()));
                 }
 
-                retryTask.v2().run();
-
-                // The register read is dispatched into SNAPSHOT_META thread pool
-                var readRegisterTask = capturingThreadPool.tasks.poll();
-                assertThat(readRegisterTask, is(notNullValue()));
-                assertThat(readRegisterTask.v1(), is(equalTo(TimeValue.ZERO)));
-                readRegisterTask.v2().run();
+                deterministicTaskQueue.runAllRunnableTasks();
             }
 
-            assertThat(capturingThreadPool.tasks.poll(), is(nullValue()));
+            assertFalse(deterministicTaskQueue.hasRunnableTasks());
+            assertFalse(deterministicTaskQueue.hasDeferredTasks());
             if (failAllReads) {
                 assertEquals(
                     "failing commit of cluster state version [2] in term [1] after [4] failed attempts to verify the current term",
@@ -294,8 +281,6 @@ public class StatelessElectionStrategyTests extends ESTestCase {
             } else {
                 beforeCommitListener.get();
             }
-        } finally {
-            ThreadPool.terminate(capturingThreadPool, 5, TimeUnit.SECONDS);
         }
     }
 
@@ -435,29 +420,5 @@ public class StatelessElectionStrategyTests extends ESTestCase {
 
     private Join getJoin(DiscoveryNode sourceNode, DiscoveryNode targetNode) {
         return new Join(sourceNode, targetNode, 1, 0, 0);
-    }
-
-    class CapturingThreadPool extends TestThreadPool {
-        final Deque<Tuple<TimeValue, Runnable>> tasks = new ArrayDeque<>();
-
-        CapturingThreadPool(String name) {
-            super(name);
-        }
-
-        @Override
-        public ScheduledCancellable schedule(Runnable task, TimeValue delay, Executor executor) {
-            tasks.add(new Tuple<>(delay, task));
-            return null;
-        }
-
-        @Override
-        public ExecutorService executor(String name) {
-            return new StoppableExecutorServiceWrapper(super.executor(name)) {
-                @Override
-                public void execute(Runnable command) {
-                    tasks.add(new Tuple<>(TimeValue.ZERO, command));
-                }
-            };
-        }
     }
 }

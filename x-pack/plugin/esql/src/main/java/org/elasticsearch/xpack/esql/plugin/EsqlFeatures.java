@@ -22,6 +22,10 @@ import java.util.Set;
  * this was used for controlling which features are tested so many of the
  * examples below are *just* used for that. Don't make more of those - add them
  * to {@link EsqlCapabilities} instead.
+ * <p>
+ *     NOTE: You can't remove a feature now and probably never will be able to.
+ *     Only add more of these if you need a fast CPU level check.
+ * </p>
  */
 public class EsqlFeatures implements FeatureSpecification {
     /**

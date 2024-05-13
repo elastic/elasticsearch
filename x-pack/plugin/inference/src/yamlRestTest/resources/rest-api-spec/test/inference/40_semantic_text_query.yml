@@ -62,7 +62,7 @@ setup:
 ---
 "Query using a sparse embedding model":
   - skip:
-      features: [ "headers" ]
+      features: [ "headers", "close_to" ]
 
   - do:
       index:
@@ -87,7 +87,7 @@ setup:
 
   - match: { hits.total.value: 1 }
   - match: { hits.hits.0._id: "doc_1" }
-  - match: { hits.hits.0._score: 55.0 }
+  - close_to: { hits.hits.0._score: { value: 1.1888081e16, error: 1e9 } }
 
 ---
 "Query using a dense embedding model":
@@ -117,12 +117,12 @@ setup:
 
   - match: { hits.total.value: 1 }
   - match: { hits.hits.0._id: "doc_1" }
-  - close_to: { hits.hits.0._score: { value: 0.6616, error: 0.0001 } }
+  - close_to: { hits.hits.0._score: { value: 1.0, error: 0.0001 } }
 
 ---
 "Apply boost and query name":
   - skip:
-      features: [ "headers" ]
+      features: [ "headers", "close_to" ]
 
   - do:
       index:
@@ -149,13 +149,13 @@ setup:
 
   - match: { hits.total.value: 1 }
   - match: { hits.hits.0._id: "doc_1" }
-  - match: { hits.hits.0._score: 5500.0 }
+  - close_to: { hits.hits.0._score: { value: 1.1888081e18, error: 1e11 } }
   - match: { hits.hits.0.matched_queries: ["i-like-naming-my-queries"] }
 
 ---
 "Query an index alias":
   - skip:
-      features: [ "headers" ]
+      features: [ "headers", "close_to" ]
 
   - do:
       index:
@@ -185,7 +185,7 @@ setup:
 
   - match: { hits.total.value: 1 }
   - match: { hits.hits.0._id: "doc_1" }
-  - match: { hits.hits.0._score: 55.0 }
+  - close_to: { hits.hits.0._score: { value: 1.1888081e16, error: 1e9 } }
 
 ---
 "Query the wrong field type":

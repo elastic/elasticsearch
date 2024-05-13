@@ -9,17 +9,9 @@ highlight:
   body: |-
     This introduces a new custom parser for ISO-8601 datetimes, for the `iso8601`, `strict_date_optional_time`, and
     `strict_date_optional_time_nanos` built-in date formats. This provides a performance improvement over the
-    default Java date-time parsing.
-breaking:
-  area: Mapping
-  title: Some invalid ISO-8601 datetime strings will no longer be accepted
-  details: |-
-    A new parser has been introduced for the `iso8601`, `strict_date_optional_time`, and
-    `strict_date_optional_time_nanos` built-in date formats. This parser no longer accepts
-    nonsensical date-time strings that have multiple fractional seconds fields or multiple timezone specifiers.
-    These strings are not valid according to ISO-8601, and the parsing behaviour of such strings was undefined.
-    If the previous behaviour is desired, you can set the JVM property `es.datetime.fallback_parsers=true`.
-    Note that this option will be removed in Elasticsearch v10.
-  impact: |-
-    If your ingest data contains such invalid strings, they will be rejected as invalid data.
-    Set the `es.datetime.fallback_parsers=true` JVM property to re-enable the old parsing behaviour.
+    default Java date-time parsing. Whilst it maintains much of the same behaviour,
+    the new parser does not accept nonsensical date-time strings that have multiple fractional seconds fields
+    or multiple timezone specifiers. If the new parser fails to parse a string, it will then use the previous parser
+    to parse it. If a large proportion of the input data consists of these invalid strings, this may cause
+    a small performance degradation. If you wish to force the use of the old parsers regardless,
+    set the JVM property `es.datetime.java_time_parsers=true` on all ES nodes.

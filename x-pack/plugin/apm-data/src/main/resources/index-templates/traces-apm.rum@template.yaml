@@ -23,7 +23,7 @@ ignore_missing_component_templates:
 template:
   settings:
     index:
-      default_pipeline: apm@default-pipeline
+      default_pipeline: traces-apm.rum@default-pipeline
       final_pipeline: traces-apm@pipeline
   mappings:
     properties:

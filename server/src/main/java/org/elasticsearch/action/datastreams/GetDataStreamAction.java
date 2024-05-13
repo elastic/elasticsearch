@@ -323,17 +323,6 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
                 builder.field(ALLOW_CUSTOM_ROUTING.getPreferredName(), dataStream.isAllowCustomRouting());
                 builder.field(REPLICATED.getPreferredName(), dataStream.isReplicated());
                 builder.field(ROLLOVER_ON_WRITE.getPreferredName(), dataStream.rolloverOnWrite());
-                if (DataStream.isFailureStoreFeatureFlagEnabled()) {
-                    builder.startObject(DataStream.FAILURE_STORE_FIELD.getPreferredName());
-                    builder.field(FAILURE_STORE_ENABLED.getPreferredName(), dataStream.isFailureStoreEnabled());
-                    builder.field(
-                        DataStream.ROLLOVER_ON_WRITE_FIELD.getPreferredName(),
-                        dataStream.getFailureIndices().isRolloverOnWrite()
-                    );
-                    indicesToXContent(builder, dataStream.getFailureIndices().getIndices());
-                    addAutoShardingEvent(builder, params, dataStream.getFailureIndices().getAutoShardingEvent());
-                    builder.endObject();
-                }
                 addAutoShardingEvent(builder, params, dataStream.getAutoShardingEvent());
                 if (timeSeries != null) {
                     builder.startObject(TIME_SERIES.getPreferredName());
@@ -347,6 +336,17 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
                         builder.endObject();
                     }
                     builder.endArray();
+                    builder.endObject();
+                }
+                if (DataStream.isFailureStoreFeatureFlagEnabled()) {
+                    builder.startObject(DataStream.FAILURE_STORE_FIELD.getPreferredName());
+                    builder.field(FAILURE_STORE_ENABLED.getPreferredName(), dataStream.isFailureStoreEnabled());
+                    builder.field(
+                        DataStream.ROLLOVER_ON_WRITE_FIELD.getPreferredName(),
+                        dataStream.getFailureIndices().isRolloverOnWrite()
+                    );
+                    indicesToXContent(builder, dataStream.getFailureIndices().getIndices());
+                    addAutoShardingEvent(builder, params, dataStream.getFailureIndices().getAutoShardingEvent());
                     builder.endObject();
                 }
                 builder.endObject();

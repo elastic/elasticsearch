@@ -1370,13 +1370,14 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
         private final DataStreamAutoShardingEvent autoShardingEvent;
         private Set<String> lookup;
 
-        public DataStreamIndices(
+        private DataStreamIndices(
             String namePrefix,
             List<Index> indices,
             boolean rolloverOnWrite,
             DataStreamAutoShardingEvent autoShardingEvent
         ) {
             this.namePrefix = namePrefix;
+            // The list of indices is expected to be an immutable list, for performance reasons.
             this.indices = indices;
             this.rolloverOnWrite = rolloverOnWrite;
             this.autoShardingEvent = autoShardingEvent;
@@ -1462,8 +1463,11 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
                 this.autoShardingEvent = dataStreamIndices.autoShardingEvent;
             }
 
+            /**
+             * Set the list of indices. We always create an immutable copy for performance reasons.
+             */
             public Builder setIndices(List<Index> indices) {
-                this.indices = indices;
+                this.indices = List.copyOf(indices);
                 return this;
             }
 

@@ -1657,6 +1657,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
         private void maybeResendLatestNewCommitNotification() {
             final BatchedCompoundCommit latestBatchedCompoundCommitUploaded;
             final BlobReference latestBlobReference;
+            final CommitReferencesInfo latestCommitReferencesInfo;
 
             // Get latest uploaded stateless compound commit and the respective compound commit blob
             synchronized (this) {
@@ -1667,11 +1668,19 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                 PrimaryTermAndGeneration termGen = latestBatchedCompoundCommitUploaded.primaryTermAndGeneration();
                 latestBlobReference = primaryTermAndGenToBlobReference.get(termGen);
                 assert latestBlobReference != null : "could not find latest " + termGen + " in compound commit blobs";
+                latestCommitReferencesInfo = commitReferencesInfos.get(
+                    latestBatchedCompoundCommitUploaded.last().primaryTermAndGeneration()
+                );
+                assert latestCommitReferencesInfo != null
+                    : "Unable to get latest commit reference info from " + latestBatchedCompoundCommitUploaded;
             }
 
             final boolean anyOldBlobReferencesStillInUse = primaryTermAndGenToBlobReference.values()
                 .stream()
-                .anyMatch(blobReference -> blobReference != latestBlobReference && blobReference.isExternalReadersClosed() == false);
+                .anyMatch(
+                    blobReference -> latestCommitReferencesInfo.referencesBCC(blobReference.primaryTermAndGeneration) == false
+                        && blobReference.isExternalReadersClosed() == false
+                );
 
             // Resend the notification if older blob references are still in use
             if (anyOldBlobReferencesStillInUse) {

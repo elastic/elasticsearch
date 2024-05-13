@@ -2,7 +2,7 @@
 setup:
   - do:
       indices.create:
-        index:  test
+        index: test
         body:
           settings:
             index.number_of_shards: 1
@@ -27,8 +27,8 @@ setup:
 
   - do:
       index:
-        index:   test
-        id:      "1"
+        index: test
+        id: "1"
         refresh: true
         body:
           stored_keyword: "stored_keyword_value"
@@ -144,8 +144,7 @@ fetch _seq_no via fields:
 ---
 fetch fields with none stored_fields:
   - skip:
-      version: " - 7.99.99"
-      reason: "from illegal_argument_exception to action_request_validation_exception"
+      awaits_fix: "https://github.com/elastic/elasticsearch/issues/107466"
 
   - do:
       catch: "bad_request"
@@ -153,7 +152,7 @@ fetch fields with none stored_fields:
         index: test
         body:
           stored_fields: _none_
-          fields: [stored_keyword, keyword, stored_value, value, ignored_keyword, ignored_value, _ignored]
+          fields: [ stored_keyword, keyword, stored_value, value, ignored_keyword, ignored_value, _ignored ]
 
   - match: { status: 400 }
   - match: { error.root_cause.0.type: action_request_validation_exception }

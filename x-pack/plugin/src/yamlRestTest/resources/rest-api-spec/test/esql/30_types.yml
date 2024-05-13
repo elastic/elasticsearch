@@ -35,6 +35,7 @@ constant_keyword:
       esql.query:
         body:
           query: 'from test'
+          version: 2024.04.01
   - match: { columns.0.name: color }
   - match: { columns.0.type: keyword }
   - match: { columns.1.name: kind }
@@ -49,7 +50,7 @@ constant_keyword:
       esql.query:
         body:
           query: 'from test | eval l=length(kind) | keep l'
-
+          version: 2024.04.01
   - match: {columns.0.name: l}
   - match: {columns.0.type: integer}
   - length: {values: 1}
@@ -80,6 +81,7 @@ constant_keyword with null value:
       esql.query:
         body:
           query: 'from test | limit 1'
+          version: 2024.04.01
   - match: { columns.0.name: color }
   - match: { columns.0.type: keyword }
   - match: { columns.1.name: kind }
@@ -113,6 +115,7 @@ multivalued keyword:
       esql.query:
         body:
           query: 'from test'
+          version: 2024.04.01
   - match: {columns.0.name: card}
   - match: {columns.0.type: keyword}
   - length: {values: 1}
@@ -144,6 +147,7 @@ keyword no doc_values:
       esql.query:
         body:
           query: 'from test'
+          version: 2024.04.01
   - match: {columns.0.name: card}
   - match: {columns.0.type: keyword}
   - length: {values: 1}
@@ -174,6 +178,7 @@ wildcard:
       esql.query:
         body:
           query: 'from test'
+          version: 2024.04.01
   - match: {columns.0.name: card}
   - match: {columns.0.type: keyword}
   - length: {values: 1}
@@ -185,6 +190,7 @@ wildcard:
       esql.query:
         body:
           query: 'from test | eval l=length(card) | keep l'
+          version: 2024.04.01
   - match: {columns.0.name: l}
   - match: {columns.0.type: integer}
   - length: {values: 1}
@@ -225,6 +231,7 @@ numbers:
       esql.query:
         body:
           query: 'from test'
+          version: 2024.04.01
   - match: {columns.0.name: d}
   - match: {columns.0.type: double}
   - match: {columns.1.name: i}
@@ -276,6 +283,7 @@ small_numbers:
       esql.query:
         body:
           query: 'from test'
+          version: 2024.04.01
   - match: {columns.0.name: b}
   - match: {columns.0.type: integer}
   - match: {columns.1.name: f}
@@ -296,6 +304,7 @@ small_numbers:
       esql.query:
         body:
           query: 'from test | eval sum_d = b + f + hf + s, sum_i = b + s | keep sum_d, sum_i'
+          version: 2024.04.01
   - match: {columns.0.name: sum_d}
   - match: {columns.0.type: double}
   - match: {columns.1.name: sum_i}
@@ -310,6 +319,7 @@ small_numbers:
       esql.query:
         body:
           query: 'from test | eval r_f = round(f), r_hf = round(hf) | keep r_f, r_hf'
+          version: 2024.04.01
   - match: {columns.0.name: r_f}
   - match: {columns.0.type: double}
   - match: {columns.1.name: r_hf}
@@ -346,6 +356,7 @@ scaled_float:
       esql.query:
         body:
           query: 'from test'
+          version: 2024.04.01
   - match: {columns.0.name: d}
   - match: {columns.0.type: double}
   - match: {columns.1.name: f}
@@ -360,6 +371,7 @@ scaled_float:
       esql.query:
         body:
           query: 'from test | eval sum = d + f | keep sum'
+          version: 2024.04.01
   - match: {columns.0.name: sum}
   - match: {columns.0.type: double}
   - length: {values: 1}
@@ -390,6 +402,7 @@ multivalued boolean:
       esql.query:
         body:
           query: 'from test'
+          version: 2024.04.01
   - match: { columns.0.name: booleans }
   - match: { columns.0.type: boolean }
   - length: { values: 1 }
@@ -422,6 +435,7 @@ ip:
       esql.query:
         body:
           query: 'from test'
+          version: 2024.04.01
   - match: { columns.0.name: ip }
   - match: { columns.0.type: ip }
   - match: { columns.1.name: keyword }
@@ -436,7 +450,7 @@ ip:
       esql.query:
         body:
           query: 'from test | where keyword == "127.0.0.2" | rename ip as IP | drop keyword'
-
+          version: 2024.04.01
   - match: {columns.0.name: IP }
   - match: {columns.0.type: ip }
   - length: {values: 1 }
@@ -492,6 +506,7 @@ alias:
       esql.query:
         body:
           query: 'from test | keep foo, bar, level1.level2, level2_alias, some_long, some_long_alias, some_long_alias2, some_date, some_date_alias | sort level2_alias'
+          version: 2024.04.01
   - match: { columns.0.name: foo }
   - match: { columns.0.type: keyword }
   - match: { columns.1.name: bar }
@@ -536,6 +551,7 @@ alias:
       esql.query:
         body:
           query: 'from test | where bar == "abc" | keep foo, bar, level1.level2, level2_alias'
+          version: 2024.04.01
   - match: { columns.0.name: foo }
   - match: { columns.0.type: keyword }
   - match: { columns.1.name: bar }
@@ -556,6 +572,7 @@ alias:
       esql.query:
         body:
           query: 'from test | where level2_alias == 10 | keep foo, bar, level1.level2, level2_alias'
+          version: 2024.04.01
   - match: { columns.0.name: foo }
   - match: { columns.0.type: keyword }
   - match: { columns.1.name: bar }
@@ -576,6 +593,7 @@ alias:
       esql.query:
         body:
           query: 'from test | where level2_alias == 20'
+          version: 2024.04.01
   - length: { values: 0 }
 
   - do:
@@ -584,6 +602,7 @@ alias:
       esql.query:
         body:
           query: 'from test | stats x = max(level2_alias)'
+          version: 2024.04.01
   - match: { columns.0.name: x }
   - match: { columns.0.type: long }
   - length: { values: 1 }
@@ -614,6 +633,7 @@ version:
       esql.query:
         body:
           query: 'from test'
+          version: 2024.04.01
   - match: { columns.0.name: version }
   - match: { columns.0.type: version }
   - length: { values: 1 }
@@ -647,6 +667,7 @@ id:
       esql.query:
         body:
           query: 'from test metadata _id | keep _id, kw'
+          version: 2024.04.01
   - match: { columns.0.name: _id }
   - match: { columns.0.type: keyword }
   - length: { values: 1 }
@@ -678,6 +699,7 @@ unsigned_long:
       esql.query:
         body:
           query: 'from test'
+          version: 2024.04.01
   - match: { columns.0.name: number }
   - match: { columns.0.type: unsigned_long }
   - length: { values: 1 }
@@ -701,6 +723,7 @@ _source:
       esql.query:
         body:
           query: 'FROM test METADATA _source | KEEP _source | LIMIT 1'
+          version: 2024.04.01
   - match: { columns.0.name: _source }
   - match: { columns.0.type: _source }
   - length: { values: 1 }
@@ -736,6 +759,7 @@ _source keep all:
       esql.query:
         body:
           query: 'FROM test METADATA _source | LIMIT 1'
+          version: 2024.04.01
   - match: { columns.0.name: _source }
   - match: { columns.0.type: _source }
   - length: { values: 1 }
@@ -772,6 +796,7 @@ _source disabled:
       esql.query:
         body:
           query: 'FROM test METADATA _source | KEEP _source | LIMIT 1'
+          version: 2024.04.01
   - match: { columns.0.name: _source }
   - match: { columns.0.type: _source }
   - length: { values: 1 }
@@ -800,6 +825,7 @@ text:
       esql.query:
         body:
           query: 'FROM test | LIMIT 1'
+          version: 2024.04.01
   - match: {columns.0.name: card}
   - match: {columns.0.type: text}
   - length: {values: 1}
@@ -831,6 +857,7 @@ synthetic _source text stored:
       esql.query:
         body:
           query: 'FROM test | LIMIT 1'
+          version: 2024.04.01
   - match: {columns.0.name: card}
   - match: {columns.0.type: text}
   - length: {values: 1}
@@ -864,6 +891,7 @@ synthetic _source text with parent keyword:
       esql.query:
         body:
           query: 'FROM test | KEEP card.text | LIMIT 1'
+          version: 2024.04.01
   - match: {columns.0.name: card.text}
   - match: {columns.0.type: text}
   - length: {values: 1}
@@ -897,6 +925,7 @@ geo_point:
       esql.query:
         body:
           query: 'from test'
+          version: 2024.04.01
   - match: { columns.0.name: location }
   - match: { columns.0.type: geo_point }
   - length: { values: 1 }
@@ -930,6 +959,7 @@ cartesian_point:
       esql.query:
         body:
           query: 'from test'
+          version: 2024.04.01
   - match: { columns.0.name: location }
   - match: { columns.0.type: cartesian_point }
   - length: { values: 1 }

@@ -31,7 +31,9 @@ import java.util.Map;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.convertToUri;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.createUri;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalEnum;
+import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalPositiveInteger;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalString;
+import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalTimeValue;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractRequiredSecureString;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractRequiredString;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.getEmbeddingSize;
@@ -70,6 +72,21 @@ public class ServiceUtilsTests extends ESTestCase {
         assertThat(map.entrySet(), empty());
     }
 
+    public void testRemoveAsType_Validation_WithTheCorrectType() {
+        Map<String, Object> map = new HashMap<>(Map.of("a", 5, "b", "a string", "c", Boolean.TRUE, "d", 1.0));
+
+        ValidationException validationException = new ValidationException();
+        Integer i = ServiceUtils.removeAsType(map, "a", Integer.class, validationException);
+        assertEquals(Integer.valueOf(5), i);
+        assertNull(map.get("a")); // field has been removed
+        assertThat(validationException.validationErrors(), empty());
+
+        String str = ServiceUtils.removeAsType(map, "b", String.class, validationException);
+        assertEquals("a string", str);
+        assertNull(map.get("b"));
+        assertThat(validationException.validationErrors(), empty());
+    }
+
     public void testRemoveAsTypeWithInCorrectType() {
         Map<String, Object> map = new HashMap<>(Map.of("a", 5, "b", "a string", "c", Boolean.TRUE, "d", 5.0, "e", 5));
 
@@ -105,6 +122,62 @@ public class ServiceUtilsTests extends ESTestCase {
         e = expectThrows(ElasticsearchStatusException.class, () -> ServiceUtils.removeAsType(map, "e", Double.class));
         assertThat(
             e.getMessage(),
+            containsString("field [e] is not of the expected type. The value [5] cannot be converted to a [Double]")
+        );
+        assertNull(map.get("d"));
+
+        assertThat(map.entrySet(), empty());
+    }
+
+    public void testRemoveAsType_Validation_WithInCorrectType() {
+        Map<String, Object> map = new HashMap<>(Map.of("a", 5, "b", "a string", "c", Boolean.TRUE, "d", 5.0, "e", 5));
+
+        var validationException = new ValidationException();
+        Object result = ServiceUtils.removeAsType(map, "a", String.class, validationException);
+        assertNull(result);
+        assertThat(validationException.validationErrors(), hasSize(1));
+        assertThat(
+            validationException.validationErrors().get(0),
+            containsString("field [a] is not of the expected type. The value [5] cannot be converted to a [String]")
+        );
+
+        validationException = new ValidationException();
+        ServiceUtils.removeAsType(map, "b", Boolean.class, validationException);
+        assertThat(validationException.validationErrors(), hasSize(1));
+        assertThat(
+            validationException.validationErrors().get(0),
+            containsString("field [b] is not of the expected type. The value [a string] cannot be converted to a [Boolean]")
+        );
+        assertNull(map.get("b"));
+
+        validationException = new ValidationException();
+        result = ServiceUtils.removeAsType(map, "c", Integer.class, validationException);
+        assertNull(result);
+        assertThat(validationException.validationErrors(), hasSize(1));
+        assertThat(
+            validationException.validationErrors().get(0),
+            containsString("field [c] is not of the expected type. The value [true] cannot be converted to a [Integer]")
+        );
+        assertNull(map.get("c"));
+
+        // cannot convert double to integer
+        validationException = new ValidationException();
+        result = ServiceUtils.removeAsType(map, "d", Integer.class, validationException);
+        assertNull(result);
+        assertThat(validationException.validationErrors(), hasSize(1));
+        assertThat(
+            validationException.validationErrors().get(0),
+            containsString("field [d] is not of the expected type. The value [5.0] cannot be converted to a [Integer]")
+        );
+        assertNull(map.get("d"));
+
+        // cannot convert integer to double
+        validationException = new ValidationException();
+        result = ServiceUtils.removeAsType(map, "e", Double.class, validationException);
+        assertNull(result);
+        assertThat(validationException.validationErrors(), hasSize(1));
+        assertThat(
+            validationException.validationErrors().get(0),
             containsString("field [e] is not of the expected type. The value [5] cannot be converted to a [Double]")
         );
         assertNull(map.get("d"));
@@ -196,10 +269,11 @@ public class ServiceUtilsTests extends ESTestCase {
 
     public void testExtractRequiredString_CreatesString() {
         var validation = new ValidationException();
+        validation.addValidationError("previous error");
         Map<String, Object> map = modifiableMap(Map.of("key", "value"));
         var createdString = extractRequiredString(map, "key", "scope", validation);
 
-        assertTrue(validation.validationErrors().isEmpty());
+        assertThat(validation.validationErrors(), hasSize(1));
         assertNotNull(createdString);
         assertThat(createdString, is("value"));
         assertTrue(map.isEmpty());
@@ -207,24 +281,27 @@ public class ServiceUtilsTests extends ESTestCase {
 
     public void testExtractRequiredString_AddsException_WhenFieldDoesNotExist() {
         var validation = new ValidationException();
+        validation.addValidationError("previous error");
+
         Map<String, Object> map = modifiableMap(Map.of("key", "value"));
         var createdString = extractRequiredSecureString(map, "abc", "scope", validation);
 
         assertNull(createdString);
-        assertFalse(validation.validationErrors().isEmpty());
+        assertThat(validation.validationErrors(), hasSize(2));
         assertThat(map.size(), is(1));
-        assertThat(validation.validationErrors().get(0), is("[scope] does not contain the required setting [abc]"));
+        assertThat(validation.validationErrors().get(1), is("[scope] does not contain the required setting [abc]"));
     }
 
     public void testExtractRequiredString_AddsException_WhenFieldIsEmpty() {
         var validation = new ValidationException();
+        validation.addValidationError("previous error");
         Map<String, Object> map = modifiableMap(Map.of("key", ""));
         var createdString = extractOptionalString(map, "key", "scope", validation);
 
         assertNull(createdString);
         assertFalse(validation.validationErrors().isEmpty());
         assertTrue(map.isEmpty());
-        assertThat(validation.validationErrors().get(0), is("[scope] Invalid value empty string. [key] must be a non-empty string"));
+        assertThat(validation.validationErrors().get(1), is("[scope] Invalid value empty string. [key] must be a non-empty string"));
     }
 
     public void testExtractOptionalString_CreatesString() {
@@ -240,11 +317,12 @@ public class ServiceUtilsTests extends ESTestCase {
 
     public void testExtractOptionalString_DoesNotAddException_WhenFieldDoesNotExist() {
         var validation = new ValidationException();
+        validation.addValidationError("previous error");
         Map<String, Object> map = modifiableMap(Map.of("key", "value"));
         var createdString = extractOptionalString(map, "abc", "scope", validation);
 
         assertNull(createdString);
-        assertTrue(validation.validationErrors().isEmpty());
+        assertThat(validation.validationErrors(), hasSize(1));
         assertThat(map.size(), is(1));
     }
 
@@ -257,6 +335,14 @@ public class ServiceUtilsTests extends ESTestCase {
         assertFalse(validation.validationErrors().isEmpty());
         assertTrue(map.isEmpty());
         assertThat(validation.validationErrors().get(0), is("[scope] Invalid value empty string. [key] must be a non-empty string"));
+    }
+
+    public void testExtractOptionalPositiveInt() {
+        var validation = new ValidationException();
+        validation.addValidationError("previous error");
+        Map<String, Object> map = modifiableMap(Map.of("abc", 1));
+        assertEquals(Integer.valueOf(1), extractOptionalPositiveInteger(map, "abc", "scope", validation));
+        assertThat(validation.validationErrors(), hasSize(1));
     }
 
     public void testExtractOptionalEnum_ReturnsNull_WhenFieldDoesNotExist() {
@@ -326,6 +412,60 @@ public class ServiceUtilsTests extends ESTestCase {
         assertThat(createdEnum, is(InputType.CLASSIFICATION));
         assertTrue(validation.validationErrors().isEmpty());
         assertTrue(map.isEmpty());
+    }
+
+    public void testExtractOptionalTimeValue_ReturnsNull_WhenKeyDoesNotExist() {
+        var validation = new ValidationException();
+        Map<String, Object> map = modifiableMap(Map.of("key", 1));
+        var timeValue = extractOptionalTimeValue(map, "a", "scope", validation);
+
+        assertNull(timeValue);
+        assertTrue(validation.validationErrors().isEmpty());
+    }
+
+    public void testExtractOptionalTimeValue_CreatesTimeValue_Of3Seconds() {
+        var validation = new ValidationException();
+        Map<String, Object> map = modifiableMap(Map.of("key", "3s"));
+        var timeValue = extractOptionalTimeValue(map, "key", "scope", validation);
+
+        assertTrue(validation.validationErrors().isEmpty());
+        assertNotNull(timeValue);
+        assertThat(timeValue, is(TimeValue.timeValueSeconds(3)));
+        assertTrue(map.isEmpty());
+    }
+
+    public void testExtractOptionalTimeValue_ReturnsNullAndAddsException_WhenTimeValueIsInvalid_InvalidUnit() {
+        var validation = new ValidationException();
+        Map<String, Object> map = modifiableMap(Map.of("key", "3abc"));
+        var timeValue = extractOptionalTimeValue(map, "key", "scope", validation);
+
+        assertFalse(validation.validationErrors().isEmpty());
+        assertNull(timeValue);
+        assertTrue(map.isEmpty());
+        assertThat(
+            validation.validationErrors().get(0),
+            is(
+                "[scope] Invalid time value [3abc]. [key] must be a valid time value string: failed to parse setting [key] "
+                    + "with value [3abc] as a time value: unit is missing or unrecognized"
+            )
+        );
+    }
+
+    public void testExtractOptionalTimeValue_ReturnsNullAndAddsException_WhenTimeValueIsInvalid_NegativeNumber() {
+        var validation = new ValidationException();
+        Map<String, Object> map = modifiableMap(Map.of("key", "-3d"));
+        var timeValue = extractOptionalTimeValue(map, "key", "scope", validation);
+
+        assertFalse(validation.validationErrors().isEmpty());
+        assertNull(timeValue);
+        assertTrue(map.isEmpty());
+        assertThat(
+            validation.validationErrors().get(0),
+            is(
+                "[scope] Invalid time value [-3d]. [key] must be a valid time value string: failed to parse setting [key] "
+                    + "with value [-3d] as a time value: negative durations are not supported"
+            )
+        );
     }
 
     public void testGetEmbeddingSize_ReturnsError_WhenTextEmbeddingResults_IsEmpty() {

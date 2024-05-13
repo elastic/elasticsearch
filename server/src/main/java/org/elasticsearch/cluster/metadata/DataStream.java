@@ -765,12 +765,14 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
         LongSupplier nowSupplier,
         DataStreamGlobalRetention globalRetention
     ) {
-        if (lifecycle == null || lifecycle.isEnabled() == false || lifecycle.getEffectiveDataRetention(globalRetention) == null) {
+        if (lifecycle == null
+            || lifecycle.isEnabled() == false
+            || lifecycle.getEffectiveDataRetention(isSystem() ? null : globalRetention) == null) {
             return List.of();
         }
 
         List<Index> indicesPastRetention = getNonWriteIndicesOlderThan(
-            lifecycle.getEffectiveDataRetention(globalRetention),
+            lifecycle.getEffectiveDataRetention(isSystem() ? null : globalRetention),
             indexMetadataSupplier,
             this::isIndexManagedByDataStreamLifecycle,
             nowSupplier
@@ -976,7 +978,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
             in.getTransportVersion().onOrAfter(TransportVersions.V_8_9_X) ? in.readOptionalWriteable(DataStreamLifecycle::new) : null,
             in.getTransportVersion().onOrAfter(DataStream.ADDED_FAILURE_STORE_TRANSPORT_VERSION) ? in.readBoolean() : false,
             in.getTransportVersion().onOrAfter(DataStream.ADDED_FAILURE_STORE_TRANSPORT_VERSION) ? readIndices(in) : List.of(),
-            in.getTransportVersion().onOrAfter(TransportVersions.LAZY_ROLLOVER_ADDED) ? in.readBoolean() : false,
+            in.getTransportVersion().onOrAfter(TransportVersions.V_8_13_0) ? in.readBoolean() : false,
             in.getTransportVersion().onOrAfter(DataStream.ADDED_AUTO_SHARDING_EVENT_VERSION)
                 ? in.readOptionalWriteable(DataStreamAutoShardingEvent::new)
                 : null
@@ -1020,7 +1022,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
             out.writeBoolean(failureStoreEnabled);
             out.writeCollection(failureIndices);
         }
-        if (out.getTransportVersion().onOrAfter(TransportVersions.LAZY_ROLLOVER_ADDED)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_13_0)) {
             out.writeBoolean(rolloverOnWrite);
         }
         if (out.getTransportVersion().onOrAfter(DataStream.ADDED_AUTO_SHARDING_EVENT_VERSION)) {
@@ -1150,7 +1152,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
         }
         if (lifecycle != null) {
             builder.field(LIFECYCLE.getPreferredName());
-            lifecycle.toXContent(builder, params, rolloverConfiguration, globalRetention);
+            lifecycle.toXContent(builder, params, rolloverConfiguration, isSystem() ? null : globalRetention);
         }
         builder.field(ROLLOVER_ON_WRITE_FIELD.getPreferredName(), rolloverOnWrite);
         if (autoShardingEvent != null) {

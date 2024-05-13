@@ -13,14 +13,19 @@ import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.test.rest.yaml.ClientYamlTestExecutionContext;
+import org.elasticsearch.test.rest.yaml.section.PrerequisiteSection.CapabilitiesCheck;
+import org.elasticsearch.test.rest.yaml.section.PrerequisiteSection.KnownIssue;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.yaml.YamlXContent;
 import org.junit.AssumptionViolatedException;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Optional;
 import java.util.Set;
 
+import static java.lang.Boolean.FALSE;
+import static java.lang.Boolean.TRUE;
 import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonList;
 import static org.hamcrest.Matchers.contains;
@@ -34,6 +39,9 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
+import static org.hamcrest.Matchers.oneOf;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -149,6 +157,11 @@ public class PrerequisiteSectionTests extends AbstractClientYamlTestFragmentPars
         // Skip even if OS is matching
         assertFalse(section.skipCriteriaMet(mockContext));
         assertFalse(section.requiresCriteriaMet(mockContext));
+    }
+
+    public void testSkipAwaitsFix() {
+        PrerequisiteSection section = new PrerequisiteSection.PrerequisiteSectionBuilder().skipIfAwaitsFix("bugurl").build();
+        assertTrue(section.skipCriteriaMet(mock(ClientYamlTestExecutionContext.class)));
     }
 
     public void testSkipOs() {
@@ -306,6 +319,57 @@ public class PrerequisiteSectionTests extends AbstractClientYamlTestFragmentPars
         assertThat(skipSectionBuilder.skipReason, equalTo("Delete ignores the parent param"));
     }
 
+    public void testParseSkipSectionAwaitsFix() throws Exception {
+        parser = createParser(YamlXContent.yamlXContent, """
+            skip:
+              awaits_fix: "bugurl"
+            """);
+
+        var skipSectionBuilder = PrerequisiteSection.parseInternal(parser);
+        assertThat(skipSectionBuilder.skipAwaitsFix, is("bugurl"));
+    }
+
+    public void testParseSkipSectionKnownIssues() throws Exception {
+        parser = createParser(YamlXContent.yamlXContent, """
+            skip:
+              reason: "skip known bugs"
+              known_issues:
+              - cluster_feature: feature1
+                fixed_by: featureFix1
+              - cluster_feature: feature2
+                fixed_by: featureFix2""");
+
+        var skipSectionBuilder = PrerequisiteSection.parseInternal(parser);
+        assertThat(skipSectionBuilder.skipReason, is("skip known bugs"));
+        assertThat(
+            skipSectionBuilder.skipKnownIssues,
+            contains(
+                new KnownIssue("feature1", "featureFix1"), //
+                new KnownIssue("feature2", "featureFix2")
+            )
+        );
+    }
+
+    public void testParseSkipSectionIncompleteKnownIssues() throws Exception {
+        parser = createParser(YamlXContent.yamlXContent, """
+            skip:
+              reason: "skip known bugs"
+              known_issues:
+              - cluster_feature: feature1""");
+
+        Exception e = expectThrows(ParsingException.class, () -> PrerequisiteSection.parseInternal(parser));
+        parser = null; // parser is not fully consumed, prevent validation
+        assertThat(
+            e.getMessage(),
+            is(
+                oneOf(
+                    ("Expected all of [cluster_feature, fixed_by], but got [cluster_feature]"),
+                    ("Expected all of [fixed_by, cluster_feature], but got [cluster_feature]")
+                )
+            )
+        );
+    }
+
     public void testParseSkipSectionNoReason() throws Exception {
         parser = createParser(YamlXContent.yamlXContent, """
             skip:
@@ -313,7 +377,7 @@ public class PrerequisiteSectionTests extends AbstractClientYamlTestFragmentPars
             """);
 
         Exception e = expectThrows(ParsingException.class, () -> PrerequisiteSection.parseInternal(parser));
-        assertThat(e.getMessage(), is("reason is mandatory within skip version section"));
+        assertThat(e.getMessage(), is("reason is mandatory within this skip section"));
     }
 
     public void testParseSkipSectionNoVersionNorFeature() throws Exception {
@@ -323,10 +387,7 @@ public class PrerequisiteSectionTests extends AbstractClientYamlTestFragmentPars
             """);
 
         Exception e = expectThrows(ParsingException.class, () -> PrerequisiteSection.parseInternal(parser));
-        assertThat(
-            e.getMessage(),
-            is("at least one criteria (version, cluster features, runner features, os) is mandatory within a skip section")
-        );
+        assertThat(e.getMessage(), is("at least one predicate is mandatory within a skip or requires section"));
     }
 
     public void testParseSkipSectionOsNoVersion() throws Exception {
@@ -438,6 +499,42 @@ public class PrerequisiteSectionTests extends AbstractClientYamlTestFragmentPars
         assertThat(skipSectionBuilder.requiredClusterFeatures, contains("needed-feature"));
         assertThat(skipSectionBuilder.skipReason, is("test cannot run when undesired-feature are present"));
         assertThat(skipSectionBuilder.requiresReason, is("test needs needed-feature to run"));
+
+        assertThat(parser.currentToken(), equalTo(XContentParser.Token.END_ARRAY));
+        assertThat(parser.nextToken(), nullValue());
+    }
+
+    public void testParseRequireAndSkipSectionsCapabilities() throws Exception {
+        parser = createParser(YamlXContent.yamlXContent, """
+            - requires:
+               capabilities:
+                 - path: /a
+                 - method: POST
+                   path: /b
+                   parameters: [param1, param2]
+                 - method: PUT
+                   path: /c
+                   capabilities: [a, b, c]
+               reason: required to run test
+            - skip:
+               capabilities:
+                 - path: /d
+                   parameters: param1
+                   capabilities: a
+               reason: undesired if supported
+            """);
+
+        var skipSectionBuilder = PrerequisiteSection.parseInternal(parser);
+        assertThat(skipSectionBuilder, notNullValue());
+        assertThat(
+            skipSectionBuilder.requiredCapabilities,
+            contains(
+                new CapabilitiesCheck("GET", "/a", null, null),
+                new CapabilitiesCheck("POST", "/b", "param1,param2", null),
+                new CapabilitiesCheck("PUT", "/c", null, "a,b,c")
+            )
+        );
+        assertThat(skipSectionBuilder.skipCapabilities, contains(new CapabilitiesCheck("GET", "/d", "param1", "a")));
 
         assertThat(parser.currentToken(), equalTo(XContentParser.Token.END_ARRAY));
         assertThat(parser.nextToken(), nullValue());
@@ -577,6 +674,68 @@ public class PrerequisiteSectionTests extends AbstractClientYamlTestFragmentPars
 
         assertFalse(section.skipCriteriaMet(mockContext));
         assertTrue(section.requiresCriteriaMet(mockContext));
+    }
+
+    public void testSkipKnownIssue() {
+        PrerequisiteSection section = new PrerequisiteSection(
+            List.of(Prerequisites.skipOnKnownIssue(List.of(new KnownIssue("bug1", "fix1"), new KnownIssue("bug2", "fix2")))),
+            "foobar",
+            emptyList(),
+            "foobar",
+            emptyList()
+        );
+
+        var mockContext = mock(ClientYamlTestExecutionContext.class);
+        assertFalse(section.skipCriteriaMet(mockContext));
+
+        when(mockContext.clusterHasFeature("bug1")).thenReturn(true);
+        assertTrue(section.skipCriteriaMet(mockContext));
+
+        when(mockContext.clusterHasFeature("fix1")).thenReturn(true);
+        assertFalse(section.skipCriteriaMet(mockContext));
+
+        when(mockContext.clusterHasFeature("bug2")).thenReturn(true);
+        assertTrue(section.skipCriteriaMet(mockContext));
+
+        when(mockContext.clusterHasFeature("fix2")).thenReturn(true);
+        assertFalse(section.skipCriteriaMet(mockContext));
+    }
+
+    public void testEvaluateCapabilities() {
+        List<CapabilitiesCheck> skipCapabilities = List.of(
+            new CapabilitiesCheck("GET", "/s", null, "c1,c2"),
+            new CapabilitiesCheck("GET", "/s", "p1,p2", "c1")
+        );
+        List<CapabilitiesCheck> requiredCapabilities = List.of(
+            new CapabilitiesCheck("GET", "/r", null, null),
+            new CapabilitiesCheck("GET", "/r", "p1", null)
+        );
+        PrerequisiteSection section = new PrerequisiteSection(
+            List.of(Prerequisites.skipCapabilities(skipCapabilities)),
+            "skip",
+            List.of(Prerequisites.requireCapabilities(requiredCapabilities)),
+            "required",
+            emptyList()
+        );
+
+        var context = mock(ClientYamlTestExecutionContext.class);
+
+        // when the capabilities API is unavailable:
+        assertTrue(section.skipCriteriaMet(context)); // always skip if unavailable
+        assertFalse(section.requiresCriteriaMet(context)); // always fail requirements / skip if unavailable
+
+        when(context.clusterHasCapabilities(anyString(), anyString(), any(), any())).thenReturn(Optional.of(FALSE));
+        assertFalse(section.skipCriteriaMet(context));
+        assertFalse(section.requiresCriteriaMet(context));
+
+        when(context.clusterHasCapabilities("GET", "/s", null, "c1,c2")).thenReturn(Optional.of(TRUE));
+        assertTrue(section.skipCriteriaMet(context));
+
+        when(context.clusterHasCapabilities("GET", "/r", null, null)).thenReturn(Optional.of(TRUE));
+        assertFalse(section.requiresCriteriaMet(context));
+
+        when(context.clusterHasCapabilities("GET", "/r", "p1", null)).thenReturn(Optional.of(TRUE));
+        assertTrue(section.requiresCriteriaMet(context));
     }
 
     public void evaluateEmpty() {

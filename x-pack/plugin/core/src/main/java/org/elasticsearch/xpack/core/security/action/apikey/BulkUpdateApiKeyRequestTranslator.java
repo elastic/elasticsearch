@@ -26,8 +26,9 @@ public interface BulkUpdateApiKeyRequestTranslator {
     BulkUpdateApiKeyRequest translate(RestRequest request) throws IOException;
 
     class Default implements BulkUpdateApiKeyRequestTranslator {
+        private static final RoleDescriptor.Parser ROLE_DESCRIPTOR_PARSER = RoleDescriptor.parserBuilder().allowRestriction(true).build();
         private static final ConstructingObjectParser<BulkUpdateApiKeyRequest, Void> PARSER = createParser(
-            (n, p) -> RoleDescriptor.parse(n, p, false)
+            (n, p) -> ROLE_DESCRIPTOR_PARSER.parse(n, p)
         );
 
         @SuppressWarnings("unchecked")

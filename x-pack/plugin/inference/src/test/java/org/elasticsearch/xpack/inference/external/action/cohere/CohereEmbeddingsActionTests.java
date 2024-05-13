@@ -352,7 +352,7 @@ public class CohereEmbeddingsActionTests extends ESTestCase {
     ) {
         var model = CohereEmbeddingsModelTests.createModel(url, apiKey, taskSettings, 1024, 1024, modelName, embeddingType);
 
-        return new CohereEmbeddingsAction(sender, model);
+        return new CohereEmbeddingsAction(sender, model, threadPool);
     }
 
 }

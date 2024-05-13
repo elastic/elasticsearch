@@ -8,33 +8,36 @@
 package org.elasticsearch.xpack.inference.external.http.sender;
 
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.inference.common.TruncatorTests;
 
 import static org.elasticsearch.xpack.inference.services.openai.embeddings.OpenAiEmbeddingsModelTests.createModel;
 
 public class OpenAiEmbeddingsExecutableRequestCreatorTests {
-    public static OpenAiEmbeddingsExecutableRequestCreator makeCreator(
-        String url,
-        @Nullable String org,
-        String apiKey,
-        String modelName,
-        @Nullable String user
-    ) {
-        var model = createModel(url, org, apiKey, modelName, user);
-
-        return new OpenAiEmbeddingsExecutableRequestCreator(model, TruncatorTests.createTruncator());
-    }
-
-    public static OpenAiEmbeddingsExecutableRequestCreator makeCreator(
+    public static OpenAiEmbeddingsRequestManager makeCreator(
         String url,
         @Nullable String org,
         String apiKey,
         String modelName,
         @Nullable String user,
-        String inferenceEntityId
+        ThreadPool threadPool
+    ) {
+        var model = createModel(url, org, apiKey, modelName, user);
+
+        return OpenAiEmbeddingsRequestManager.of(model, TruncatorTests.createTruncator(), threadPool);
+    }
+
+    public static OpenAiEmbeddingsRequestManager makeCreator(
+        String url,
+        @Nullable String org,
+        String apiKey,
+        String modelName,
+        @Nullable String user,
+        String inferenceEntityId,
+        ThreadPool threadPool
     ) {
         var model = createModel(url, org, apiKey, modelName, user, inferenceEntityId);
 
-        return new OpenAiEmbeddingsExecutableRequestCreator(model, TruncatorTests.createTruncator());
+        return OpenAiEmbeddingsRequestManager.of(model, TruncatorTests.createTruncator(), threadPool);
     }
 }

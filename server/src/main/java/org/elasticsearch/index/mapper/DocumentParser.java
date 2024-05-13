@@ -124,7 +124,17 @@ public final class DocumentParser {
 
             if (context.root().isEnabled() == false) {
                 // entire type is disabled
-                context.parser().skipChildren();
+                if (context.mappingLookup().isSourceSynthetic()) {
+                    context.addIgnoredField(
+                        new IgnoredSourceFieldMapper.NameValue(
+                            MapperService.SINGLE_MAPPING_NAME,
+                            0,
+                            XContentDataHelper.encodeToken(context.parser())
+                        )
+                    );
+                } else {
+                    context.parser().skipChildren();
+                }
             } else if (emptyDoc == false) {
                 parseObjectOrNested(context);
             }
@@ -246,18 +256,29 @@ public final class DocumentParser {
     }
 
     static void parseObjectOrNested(DocumentParserContext context) throws IOException {
+        XContentParser parser = context.parser();
+        String currentFieldName = parser.currentName();
         if (context.parent().isEnabled() == false) {
-            context.parser().skipChildren();
+            // entire type is disabled
+            if (context.mappingLookup().isSourceSynthetic()) {
+                context.addIgnoredField(
+                    new IgnoredSourceFieldMapper.NameValue(
+                        context.parent().fullPath(),
+                        context.parent().fullPath().indexOf(currentFieldName),
+                        XContentDataHelper.encodeToken(parser)
+                    )
+                );
+            } else {
+                parser.skipChildren();
+            }
             return;
         }
-        XContentParser parser = context.parser();
         XContentParser.Token token = parser.currentToken();
         if (token == XContentParser.Token.VALUE_NULL) {
             // the object is null ("obj1" : null), simply bail
             return;
         }
 
-        String currentFieldName = parser.currentName();
         if (token.isValue()) {
             throwOnConcreteValue(context.parent(), currentFieldName, context);
         }
@@ -696,6 +717,10 @@ public final class DocumentParser {
      */
     private static void parseCopyFields(DocumentParserContext context, List<String> copyToFields) throws IOException {
         for (String field : copyToFields) {
+            if (context.mappingLookup().inferenceFields().get(field) != null) {
+                // ignore copy_to that targets inference fields, values are already extracted in the coordinating node to perform inference.
+                continue;
+            }
             // In case of a hierarchy of nested documents, we need to figure out
             // which document the field should go to
             LuceneDocument targetDoc = null;
@@ -813,7 +838,15 @@ public final class DocumentParser {
 
     private static class NoOpObjectMapper extends ObjectMapper {
         NoOpObjectMapper(String name, String fullPath) {
-            super(name, fullPath, Explicit.IMPLICIT_TRUE, Explicit.IMPLICIT_TRUE, Dynamic.RUNTIME, Collections.emptyMap());
+            super(
+                name,
+                fullPath,
+                Explicit.IMPLICIT_TRUE,
+                Explicit.IMPLICIT_TRUE,
+                Explicit.IMPLICIT_FALSE,
+                Dynamic.RUNTIME,
+                Collections.emptyMap()
+            );
         }
 
         @Override

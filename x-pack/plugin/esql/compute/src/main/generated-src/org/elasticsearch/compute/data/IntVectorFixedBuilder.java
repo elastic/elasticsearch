@@ -47,6 +47,11 @@ final class IntVectorFixedBuilder implements IntVector.FixedBuilder {
     }
 
     @Override
+    public long estimatedBytes() {
+        return ramBytesUsed(values.length);
+    }
+
+    @Override
     public IntVector build() {
         if (nextIndex < 0) {
             throw new IllegalStateException("already closed");

@@ -18,6 +18,7 @@ import org.elasticsearch.xpack.core.slm.action.StartSLMAction;
 import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.POST;
+import static org.elasticsearch.rest.RestUtils.getMasterNodeTimeout;
 
 @ServerlessScope(Scope.INTERNAL)
 public class RestStartSLMAction extends BaseRestHandler {
@@ -35,8 +36,8 @@ public class RestStartSLMAction extends BaseRestHandler {
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) {
         StartSLMAction.Request request = new StartSLMAction.Request();
-        request.timeout(restRequest.paramAsTime("timeout", request.timeout()));
-        request.masterNodeTimeout(restRequest.paramAsTime("master_timeout", request.masterNodeTimeout()));
+        request.ackTimeout(restRequest.paramAsTime("timeout", request.ackTimeout()));
+        request.masterNodeTimeout(getMasterNodeTimeout(restRequest));
         return channel -> client.execute(StartSLMAction.INSTANCE, request, new RestToXContentListener<>(channel));
     }
 }

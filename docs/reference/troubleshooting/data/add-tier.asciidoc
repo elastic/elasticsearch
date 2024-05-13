@@ -6,7 +6,7 @@ The allocation of indices in an {es} deployment can be allocated on <<data-tiers
 In order to allow indices to be allocated, follow these steps to add the <<data-tiers, data tier>>
 the indices expect to be allocated on to your deployment:
 
-include::{es-repo-dir}/tab-widgets/troubleshooting/data/add-tier-widget.asciidoc[]
+include::{es-ref-dir}/tab-widgets/troubleshooting/data/add-tier-widget.asciidoc[]
 
 
 

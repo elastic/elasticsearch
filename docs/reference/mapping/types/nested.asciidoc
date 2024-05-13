@@ -11,6 +11,8 @@ independently of each other.
 TIP: When ingesting key-value pairs with a large, arbitrary set of keys, you might consider modeling each key-value pair as its own nested document with `key` and `value` fields. Instead, consider using the <<flattened,flattened>> data type, which maps an entire object as a single field and allows for simple searches over its contents.
 Nested documents and queries are typically expensive, so using the `flattened` data type for this use case is a better option.
 
+WARNING: Nested fields have incomplete support in Kibana. While they are visible and searchable in Discover, they cannot be used to build visualizations in Lens.
+
 [[nested-arrays-flattening-objects]]
 ==== How arrays of objects are flattened
 
@@ -220,11 +222,11 @@ then 101 Lucene documents would be created: one for the parent document, and one
 nested object. Because of the expense associated with `nested` mappings, Elasticsearch puts
 settings in place to guard against performance problems:
 
-include::{es-repo-dir}/mapping/mapping-settings-limit.asciidoc[tag=nested-fields-limit]
+include::{es-ref-dir}/mapping/mapping-settings-limit.asciidoc[tag=nested-fields-limit]
 
 In the previous example, the `user` mapping would count as only 1 towards this limit.
 
-include::{es-repo-dir}/mapping/mapping-settings-limit.asciidoc[tag=nested-objects-limit]
+include::{es-ref-dir}/mapping/mapping-settings-limit.asciidoc[tag=nested-objects-limit]
 
 To illustrate how this setting works, consider adding another `nested` type called `comments`
 to the previous example mapping. For each document, the combined number of `user` and `comment`

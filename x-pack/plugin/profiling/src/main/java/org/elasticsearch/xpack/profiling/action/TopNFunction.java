@@ -123,12 +123,20 @@ final class TopNFunction implements Cloneable, ToXContentObject, Comparable<TopN
         this.totalCount += totalCount;
     }
 
+    public double getSelfAnnualCO2Tons() {
+        return selfAnnualCO2Tons;
+    }
+
     public void addSelfAnnualCO2Tons(double co2Tons) {
         this.selfAnnualCO2Tons += co2Tons;
     }
 
     public void addTotalAnnualCO2Tons(double co2Tons) {
         this.totalAnnualCO2Tons += co2Tons;
+    }
+
+    public double getSelfAnnualCostsUSD() {
+        return selfAnnualCostsUSD;
     }
 
     public void addSelfAnnualCostsUSD(double costs) {

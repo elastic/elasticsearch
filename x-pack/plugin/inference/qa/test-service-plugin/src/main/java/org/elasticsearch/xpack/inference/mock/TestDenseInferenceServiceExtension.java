@@ -125,7 +125,7 @@ public class TestDenseInferenceServiceExtension implements InferenceServiceExten
             for (int i = 0; i < input.size(); i++) {
                 List<Float> values = new ArrayList<>();
                 for (int j = 0; j < dimensions; j++) {
-                    values.add((float) j);
+                    values.add((float) stringWeight(input.get(i), j));
                 }
                 embeddings.add(new FloatEmbedding(values));
             }
@@ -136,8 +136,8 @@ public class TestDenseInferenceServiceExtension implements InferenceServiceExten
             var results = new ArrayList<ChunkedInferenceServiceResults>();
             for (int i = 0; i < input.size(); i++) {
                 double[] values = new double[dimensions];
-                for (int j = 0; j < 5; j++) {
-                    values[j] = j;
+                for (int j = 0; j < dimensions; j++) {
+                    values[j] = stringWeight(input.get(i), j);
                 }
                 results.add(
                     new org.elasticsearch.xpack.core.inference.results.ChunkedTextEmbeddingResults(
@@ -173,7 +173,7 @@ public class TestDenseInferenceServiceExtension implements InferenceServiceExten
             SimilarityMeasure similarity = null;
             String similarityStr = (String) map.remove("similarity");
             if (similarityStr != null) {
-                similarity = SimilarityMeasure.valueOf(similarityStr);
+                similarity = SimilarityMeasure.fromString(similarityStr);
             }
 
             return new TestServiceSettings(model, dimensions, similarity);

@@ -35,6 +35,7 @@ import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.SenderService;
 import org.elasticsearch.xpack.inference.services.ServiceComponents;
 import org.elasticsearch.xpack.inference.services.ServiceUtils;
+import org.elasticsearch.xpack.inference.services.azureopenai.completion.AzureOpenAiCompletionModel;
 import org.elasticsearch.xpack.inference.services.azureopenai.embeddings.AzureOpenAiEmbeddingsModel;
 import org.elasticsearch.xpack.inference.services.azureopenai.embeddings.AzureOpenAiEmbeddingsServiceSettings;
 
@@ -121,19 +122,23 @@ public class AzureOpenAiService extends SenderService {
         String failureMessage,
         ConfigurationParseContext context
     ) {
-        if (taskType == TaskType.TEXT_EMBEDDING) {
-            return new AzureOpenAiEmbeddingsModel(
-                inferenceEntityId,
-                taskType,
-                NAME,
-                serviceSettings,
-                taskSettings,
-                secretSettings,
-                context
-            );
+        switch (taskType) {
+            case TEXT_EMBEDDING -> {
+                return new AzureOpenAiEmbeddingsModel(
+                    inferenceEntityId,
+                    taskType,
+                    NAME,
+                    serviceSettings,
+                    taskSettings,
+                    secretSettings,
+                    context
+                );
+            }
+            case COMPLETION -> {
+                return new AzureOpenAiCompletionModel(inferenceEntityId, taskType, NAME, serviceSettings, taskSettings, secretSettings);
+            }
+            default -> throw new ElasticsearchStatusException(failureMessage, RestStatus.BAD_REQUEST);
         }
-
-        throw new ElasticsearchStatusException(failureMessage, RestStatus.BAD_REQUEST);
     }
 
     @Override
@@ -283,7 +288,8 @@ public class AzureOpenAiService extends SenderService {
             embeddingSize,
             model.getServiceSettings().dimensionsSetByUser(),
             model.getServiceSettings().maxInputTokens(),
-            similarityToUse
+            similarityToUse,
+            model.getServiceSettings().rateLimitSettings()
         );
 
         return new AzureOpenAiEmbeddingsModel(model, serviceSettings);
@@ -291,6 +297,6 @@ public class AzureOpenAiService extends SenderService {
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.ML_INFERENCE_AZURE_OPENAI_EMBEDDINGS;
+        return TransportVersions.ML_INFERENCE_RATE_LIMIT_SETTINGS_ADDED;
     }
 }

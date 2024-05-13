@@ -161,7 +161,11 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
         assert failureStoreRedirects.isEmpty() != true : "Attempting to redirect failures, but none were present in the queue";
         final ClusterState clusterState = observer.setAndGetObservedState();
         // If the cluster is blocked at this point, discard the failure store redirects and complete the response with the original failures
-        if (handleBlockExceptions(clusterState, ActionRunnable.run(listener, this::doRedirectFailures), this::discardRedirectsAndFinish)) {
+        if (handleBlockExceptions(
+            clusterState,
+            ActionRunnable.wrap(listener, (l) -> this.doRedirectFailures()),
+            this::discardRedirectsAndFinish
+        )) {
             return;
         }
         Map<ShardId, List<BulkItemRequest>> requestsByShard = drainAndGroupRedirectsByShards(clusterState);
@@ -294,6 +298,10 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
                     bulkRequest.getRefreshPolicy(),
                     requests.toArray(new BulkItemRequest[0])
                 );
+                var indexMetadata = clusterState.getMetadata().index(shardId.getIndexName());
+                if (indexMetadata != null && indexMetadata.getInferenceFields().isEmpty() == false) {
+                    bulkShardRequest.setInferenceFieldMap(indexMetadata.getInferenceFields());
+                }
                 bulkShardRequest.waitForActiveShards(bulkRequest.waitForActiveShards());
                 bulkShardRequest.timeout(bulkRequest.timeout());
                 bulkShardRequest.routedBasedOnClusterVersion(clusterState.version());

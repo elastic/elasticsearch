@@ -17,6 +17,8 @@ import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -89,6 +91,7 @@ public interface SourceLoader {
                 .storedFieldLoaders()
                 .map(Map.Entry::getKey)
                 .collect(Collectors.toSet());
+            this.requiredStoredFields.add(IgnoredSourceFieldMapper.NAME);
         }
 
         @Override
@@ -122,11 +125,26 @@ public interface SourceLoader {
 
             @Override
             public Source source(LeafStoredFieldLoader storedFieldLoader, int docId) throws IOException {
+                // Maps the names of existing objects to lists of ignored fields they contain.
+                Map<String, List<IgnoredSourceFieldMapper.NameValue>> objectsWithIgnoredFields = null;
+
                 for (Map.Entry<String, List<Object>> e : storedFieldLoader.storedFields().entrySet()) {
                     SyntheticFieldLoader.StoredFieldLoader loader = storedFieldLoaders.get(e.getKey());
                     if (loader != null) {
                         loader.load(e.getValue());
                     }
+                    if (IgnoredSourceFieldMapper.NAME.equals(e.getKey())) {
+                        for (Object value : e.getValue()) {
+                            if (objectsWithIgnoredFields == null) {
+                                objectsWithIgnoredFields = new HashMap<>();
+                            }
+                            IgnoredSourceFieldMapper.NameValue nameValue = IgnoredSourceFieldMapper.decode(value);
+                            objectsWithIgnoredFields.computeIfAbsent(nameValue.getParentFieldName(), k -> new ArrayList<>()).add(nameValue);
+                        }
+                    }
+                }
+                if (objectsWithIgnoredFields != null) {
+                    loader.setIgnoredValues(objectsWithIgnoredFields);
                 }
                 if (docValuesLoader != null) {
                     docValuesLoader.advanceToDoc(docId);
@@ -197,6 +215,11 @@ public interface SourceLoader {
 
             @Override
             public void write(XContentBuilder b) {}
+
+            @Override
+            public String fieldName() {
+                return "";
+            }
         };
 
         /**
@@ -223,6 +246,20 @@ public interface SourceLoader {
          * Write values for this document.
          */
         void write(XContentBuilder b) throws IOException;
+
+        /**
+         * Allows for identifying and tracking additional field values to include in the field source.
+         * @param objectsWithIgnoredFields maps object names to lists of fields they contain with special source handling
+         * @return true if any matching fields are identified
+         */
+        default boolean setIgnoredValues(Map<String, List<IgnoredSourceFieldMapper.NameValue>> objectsWithIgnoredFields) {
+            return false;
+        }
+
+        /**
+         * Returns the canonical field name for this loader.
+         */
+        String fieldName();
 
         /**
          * Sync for stored field values.

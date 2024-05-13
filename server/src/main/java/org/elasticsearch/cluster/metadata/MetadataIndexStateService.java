@@ -11,6 +11,7 @@ package org.elasticsearch.cluster.metadata;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.admin.indices.close.CloseIndexClusterStateUpdateRequest;
@@ -1128,13 +1129,21 @@ public class MetadataIndexStateService {
                     final Settings.Builder updatedSettings = Settings.builder().put(indexMetadata.getSettings());
                     updatedSettings.remove(VERIFIED_BEFORE_CLOSE_SETTING.getKey());
 
-                    IndexMetadata newIndexMetadata = IndexMetadata.builder(indexMetadata)
+                    IndexMetadata.Builder builder = IndexMetadata.builder(indexMetadata)
                         .state(IndexMetadata.State.OPEN)
                         .settingsVersion(indexMetadata.getSettingsVersion() + 1)
                         .settings(updatedSettings)
-                        .timestampRange(IndexLongFieldRange.NO_SHARDS)
-                        .eventIngestedRange(IndexLongFieldRange.NO_SHARDS)
-                        .build();
+                        .timestampRange(IndexLongFieldRange.NO_SHARDS);
+
+                    if (currentState.getMinTransportVersion().before(TransportVersions.EVENT_INGESTED_RANGE_IN_CLUSTER_STATE)) {
+                        // for versions for we added event.ingested range to cluster state, default to UNKNOWN since it will
+                        // not be handled properly for older clusters in a mixed-cluster env
+                        builder.eventIngestedRange(IndexLongFieldRange.UNKNOWN);
+                    } else {
+                        builder.eventIngestedRange(IndexLongFieldRange.NO_SHARDS);
+                    }
+
+                    IndexMetadata newIndexMetadata = builder.build();
 
                     // The index might be closed because we couldn't import it due to an old incompatible
                     // version, so we need to verify its compatibility.

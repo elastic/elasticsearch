@@ -833,10 +833,9 @@ public class SearchAsYouTypeFieldMapperTests extends MapperTestCase {
 
             private void mapping(XContentBuilder b) throws IOException {
                 b.field("type", "search_as_you_type");
-                b.field("index", false);
-//                if (rarely()) {
-//                    b.field("index", false);
-//                }
+                if (rarely()) {
+                    b.field("index", false);
+                }
                 if (rarely()) {
                     b.field("store", true);
                 }

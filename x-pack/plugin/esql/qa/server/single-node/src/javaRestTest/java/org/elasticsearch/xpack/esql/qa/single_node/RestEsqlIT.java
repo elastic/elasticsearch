@@ -139,15 +139,15 @@ public class RestEsqlIT extends RestEsqlTestCase {
             assertEquals(List.of(List.of(1)), result.get("values"));
             boolean[] found = new boolean[] { false };
             for (int i = 0; i < cluster.getNumNodes(); i++) {
-                try (InputStream log = cluster.getNodeLog(0, LogType.SERVER)) {
+                try (InputStream log = cluster.getNodeLog(i, LogType.SERVER)) {
                     Streams.readAllLines(log, line -> {
                         if (line.contains("DO_LOG_ME")) {
                             found[0] = true;
                         }
                     });
-                    assertThat(found[0], equalTo(true));
                 }
             }
+            assertThat(found[0], equalTo(true));
         } finally {
             setLoggingLevel(null);
         }

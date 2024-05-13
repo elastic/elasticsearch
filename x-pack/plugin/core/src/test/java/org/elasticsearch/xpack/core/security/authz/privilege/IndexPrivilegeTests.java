@@ -17,12 +17,17 @@ import org.elasticsearch.action.update.TransportUpdateAction;
 import org.elasticsearch.common.util.iterable.Iterables;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.rollup.action.GetRollupIndexCapsAction;
+import org.elasticsearch.xpack.core.security.support.Automatons;
 import org.elasticsearch.xpack.core.transform.action.GetCheckpointAction;
 
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
+import java.util.Locale;
 import java.util.Set;
 
+import static org.elasticsearch.xpack.core.security.action.apikey.CrossClusterApiKeyRoleDescriptorBuilder.CCR_INDICES_PRIVILEGE_NAMES;
+import static org.elasticsearch.xpack.core.security.action.apikey.CrossClusterApiKeyRoleDescriptorBuilder.CCS_INDICES_PRIVILEGE_NAMES;
 import static org.elasticsearch.xpack.core.security.authz.privilege.IndexPrivilege.findPrivilegesThatGrant;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
@@ -143,5 +148,67 @@ public class IndexPrivilegeTests extends ESTestCase {
             is(false)
         );
         assertThat(Operations.subsetOf(crossClusterReplicationInternal.automaton, IndexPrivilege.get(Set.of("all")).automaton), is(true));
+    }
+
+    /**
+     * RCS 2.0 allows a single API key to define replication and search blocks. If both are defined, this results in an API key with 2
+     * sets of indices permissions. Due to the way API keys (and roles) work across the multiple index permission, the set of index
+     * patterns allowed are effectively the most generous of the sets of index patterns since the index patterns are OR'ed together. For
+     * example, `foo` OR `*` results in access to `*`. So, if you have a search access defined as `foo`, but replication access defined
+     * as `*`, the API key effectively allows access to index pattern `*`. This means that across search and replication access, the action
+     * names used are the primary means by which we can constrain CCS to the set of search index patterns. For example, if replication
+     * allowed access to `indices:data/read/get` for `*` , then the replication permissions would effectively bleed over to search
+     * permissions since search allows `indices:data/read/*`. In that contrived example CCS could read documents thanks to the CCR
+     * privileges, irrespective of the expected search privileges. This obviously is not desirable and in practice when both search and
+     * replication are defined the isolation between CCS and CCR is only achieved because the action names for the workflows do not
+     * overlap. This test helps to ensure that the actions names used for RCS 2.0 do not bleed over between search and replication.
+     */
+    public void testRemoteClusterPrivsDoNotOverlap() {
+        try {
+            Automatons.recordPatterns = true;
+            // check that the action patterns for remote CCS are not allowed by remote CCR privileges
+            Arrays.stream(CCS_INDICES_PRIVILEGE_NAMES).forEach(ccsPrivilege -> {
+                Automatons.getPatterns(IndexPrivilege.get(Set.of(ccsPrivilege)).getAutomaton()).forEach(ccsPattern -> {
+                    Arrays.stream(CCR_INDICES_PRIVILEGE_NAMES).forEach(ccrPrivileges -> {
+                        assertFalse(
+                            String.format(
+                                Locale.ROOT,
+                                "CCR privilege \"%s\" allows CCS action \"%s\". This could result in an "
+                                    + "accidental bleeding of permission between RCS 2.0's search and replication index permissions",
+                                ccrPrivileges,
+                                ccsPattern
+                            ),
+                            IndexPrivilege.get(Set.of(ccrPrivileges)).predicate.test(ccsPattern)
+                        );
+                    });
+                });
+
+                // check that the action patterns for remote CCR are not allowed by remote CCS privileges
+                Arrays.stream(CCR_INDICES_PRIVILEGE_NAMES).forEach(ccrPrivilege -> {
+                    Automatons.getPatterns(IndexPrivilege.get(Set.of(ccrPrivilege)).getAutomaton()).forEach(ccrPattern -> {
+                        Arrays.stream(CCS_INDICES_PRIVILEGE_NAMES).forEach(ccsPrivileges -> {
+                            if ("indices:data/read/xpack/ccr/shard_changes*".equals(ccrPattern)) {
+                                // do nothing, this action is only applicable to CCR workflows and is a moot point if CCS technically has
+                                // access to the index pattern for this action granted by CCR
+                            } else {
+                                assertFalse(
+                                    String.format(
+                                        Locale.ROOT,
+                                        "CCS privilege \"%s\" allows CCR action \"%s\". This could result in an accidental bleeding of "
+                                            + "permission between RCS 2.0's search and replication index permissions",
+                                        ccsPrivileges,
+                                        ccrPattern
+                                    ),
+                                    IndexPrivilege.get(Set.of(ccsPrivileges)).predicate.test(ccrPattern)
+                                );
+                            }
+                        });
+                    });
+
+                });
+            });
+        } finally {
+            Automatons.recordPatterns = false;
+        }
     }
 }

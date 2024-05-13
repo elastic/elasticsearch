@@ -830,6 +830,11 @@ public class ObjectMapper extends Mapper {
             }
             return this.ignoredValues != null;
         }
+
+        @Override
+        public String fieldName() {
+            return name();
+        }
     }
 
     protected boolean isRoot() {

@@ -165,7 +165,7 @@ public class ObjectMapperTests extends MapperServiceTestCase {
         assertNotNull(objectMapper);
         assertFalse(objectMapper.isEnabled());
         assertTrue(objectMapper.subobjects());
-        assertFalse(objectMapper.trackArraySource());
+        assertFalse(objectMapper.storeArraySource());
 
         // Setting 'enabled' to true is allowed, and updates the mapping.
         update = Strings.toString(
@@ -187,7 +187,7 @@ public class ObjectMapperTests extends MapperServiceTestCase {
         assertNotNull(objectMapper);
         assertTrue(objectMapper.isEnabled());
         assertFalse(objectMapper.subobjects());
-        assertTrue(objectMapper.trackArraySource());
+        assertTrue(objectMapper.storeArraySource());
     }
 
     public void testFieldReplacementForIndexTemplates() throws IOException {

@@ -593,7 +593,7 @@ public final class DocumentParser {
         String arrayFieldName
     ) throws IOException {
         if (context.mappingLookup().isSourceSynthetic()
-            && (mapper instanceof ObjectMapper objectMapper && objectMapper.trackArraySource())
+            && (mapper instanceof ObjectMapper objectMapper && objectMapper.storeArraySource())
             && context.getSourceTracked() == false) {
             var tuple = XContentDataHelper.cloneSubContext(context);
             boolean isRoot = context.parent() instanceof RootObjectMapper;

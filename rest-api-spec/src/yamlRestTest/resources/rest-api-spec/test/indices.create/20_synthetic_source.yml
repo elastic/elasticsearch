@@ -359,7 +359,7 @@ object array:
               span:
                 properties:
                   links:
-                    track_array_source: true
+                    store_array_source: true
                     properties:
                       span:
                         properties:

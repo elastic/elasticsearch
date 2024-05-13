@@ -256,8 +256,6 @@ public interface SourceLoader {
             return false;
         }
 
-        String fieldName();
-
         /**
          * Returns the canonical field name for this loader.
          */

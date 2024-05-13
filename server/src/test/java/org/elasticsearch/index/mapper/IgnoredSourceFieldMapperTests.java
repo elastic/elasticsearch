@@ -372,7 +372,7 @@ public class IgnoredSourceFieldMapperTests extends MapperServiceTestCase {
             b.startObject("path");
             {
                 b.field("type", "object");
-                b.field("track_array_source", true);
+                b.field("store_array_source", true);
                 b.startObject("properties");
                 {
                     b.startObject("int_value").field("type", "integer").endObject();
@@ -399,7 +399,7 @@ public class IgnoredSourceFieldMapperTests extends MapperServiceTestCase {
                 b.field("type", "object");
                 b.startObject("properties");
                 {
-                    b.startObject("to").field("type", "object").field("track_array_source", true);
+                    b.startObject("to").field("type", "object").field("store_array_source", true);
                     {
                         b.startObject("properties");
                         {

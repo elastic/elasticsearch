@@ -47,6 +47,13 @@ import static java.time.temporal.ChronoField.SECOND_OF_MINUTE;
 
 public class DateFormatters {
 
+    /**
+     * The ISO8601 parser is as close as possible to the java.time based parsers, but there are some strings
+     * that are no longer accepted (multiple fractional seconds, or multiple timezones) by the ISO parser.
+     * If a string cannot be parsed by the ISO parser, it then tries the java.time one.
+     * If there's lots of these strings, trying the ISO parser, then the java.time parser, might cause a performance drop.
+     * So provide a JVM option so that users can just use the java.time parsers, if they really need to.
+     */
     @UpdateForV9    // evaluate if we need to deprecate/remove this
     private static final boolean JAVA_TIME_PARSERS_ONLY = Booleans.parseBoolean(System.getProperty("es.datetime.java_time_parsers"), false);
 
@@ -54,8 +61,7 @@ public class DateFormatters {
         // when this is used directly in tests ES logging may not have been initialized yet
         LoggerFactory logger;
         if (JAVA_TIME_PARSERS_ONLY && (logger = LoggerFactory.provider()) != null) {
-            logger.getLogger(DateFormatters.class)
-                .warn("Using fallback datetime parsers. This option will be removed in Elasticsearch v10");
+            logger.getLogger(DateFormatters.class).info("Using java.time datetime parsers only");
         }
     }
 

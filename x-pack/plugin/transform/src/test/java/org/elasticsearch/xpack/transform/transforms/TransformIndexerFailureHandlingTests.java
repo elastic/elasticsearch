@@ -535,7 +535,10 @@ public class TransformIndexerFailureHandlingTests extends ESTestCase {
         );
         try {
             AtomicReference<IndexerState> state = new AtomicReference<>(IndexerState.STOPPED);
-            Function<SearchRequest, SearchResponse> searchFunction = searchRequest -> searchResponse;
+            Function<SearchRequest, SearchResponse> searchFunction = searchRequest -> {
+                searchResponse.mustIncRef();
+                return searchResponse;
+            };
 
             Function<BulkRequest, BulkResponse> bulkFunction = bulkRequest -> new BulkResponse(new BulkItemResponse[0], 100);
 
@@ -627,7 +630,10 @@ public class TransformIndexerFailureHandlingTests extends ESTestCase {
         );
         try {
             AtomicReference<IndexerState> state = new AtomicReference<>(IndexerState.STOPPED);
-            Function<SearchRequest, SearchResponse> searchFunction = searchRequest -> searchResponse;
+            Function<SearchRequest, SearchResponse> searchFunction = searchRequest -> {
+                searchResponse.mustIncRef();
+                return searchResponse;
+            };
 
             Function<BulkRequest, BulkResponse> bulkFunction = bulkRequest -> new BulkResponse(new BulkItemResponse[0], 100);
 
@@ -735,6 +741,7 @@ public class TransformIndexerFailureHandlingTests extends ESTestCase {
                             new ShardSearchFailure[] { new ShardSearchFailure(new Exception()) }
                         );
                     }
+                    searchResponse.mustIncRef();
                     return searchResponse;
                 }
             };

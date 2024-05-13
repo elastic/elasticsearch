@@ -225,7 +225,6 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
         this.cacheWarmingService = cacheWarmingService;
         this.shardInactivityMonitor = new ShardInactivityMonitor();
         this.statelessUploadDelayed = STATELESS_UPLOAD_DELAYED.get(settings);
-        logger.info("[{}] is [{}]", STATELESS_UPLOAD_DELAYED.getKey(), statelessUploadDelayed ? "enabled" : "disabled");
         this.virtualBccUploadMaxAge = STATELESS_UPLOAD_VBCC_MAX_AGE.get(settings);
         if (statelessUploadDelayed) {
             this.scheduledUploadMonitor = new ScheduledUploadMonitor(
@@ -237,16 +236,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
             this.scheduledUploadMonitor = null;
         }
         this.bccMaxAmountOfCommits = STATELESS_UPLOAD_MAX_AMOUNT_COMMITS.get(settings);
-        final ByteSizeValue bccUploadMaxSize = STATELESS_UPLOAD_MAX_SIZE.get(settings);
-        this.bccUploadMaxSizeInBytes = bccUploadMaxSize.getBytes();
-        if (statelessUploadDelayed) {
-            logger.info(
-                "delayed upload with [max_commits={}], [max_size={}], [max_age={}]",
-                bccMaxAmountOfCommits,
-                bccUploadMaxSize.getStringRep(),
-                virtualBccUploadMaxAge.getStringRep()
-            );
-        }
+        this.bccUploadMaxSizeInBytes = STATELESS_UPLOAD_MAX_SIZE.get(settings).getBytes();
     }
 
     private static Optional<IndexShardRoutingTable> shardRoutingTableFunction(ClusterService clusterService, ShardId shardId) {

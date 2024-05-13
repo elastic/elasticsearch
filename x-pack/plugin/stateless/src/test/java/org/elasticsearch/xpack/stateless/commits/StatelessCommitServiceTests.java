@@ -1789,11 +1789,7 @@ public class StatelessCommitServiceTests extends ESTestCase {
                     clusterService.threadPool(),
                     client,
                     getCommitCleaner(),
-                    new SharedBlobCacheWarmingService(
-                        sharedCacheService,
-                        threadPool,
-                        StatelessCommitService.STATELESS_UPLOAD_DELAYED.get(nodeSettings)
-                    )
+                    new SharedBlobCacheWarmingService(sharedCacheService, threadPool, nodeSettings)
                 ) {
                     @Override
                     protected ShardCommitState createShardCommitState(

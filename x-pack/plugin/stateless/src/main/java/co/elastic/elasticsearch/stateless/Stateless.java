@@ -530,7 +530,7 @@ public class Stateless extends Plugin
 
         recoveryCommitRegistrationHandler.set(new RecoveryCommitRegistrationHandler(client, clusterService));
 
-        statelessIndexSettingProvider.initialize(services.indexNameExpressionResolver());
+        statelessIndexSettingProvider.initialize(clusterService, services.indexNameExpressionResolver());
 
         if (hasIndexRole) {
             components.add(new IndexingDiskController(nodeEnvironment, settings, threadPool, indicesService, commitService));
@@ -792,7 +792,8 @@ public class Stateless extends Plugin
             ObjectStoreGCTask.STALE_INDICES_GC_ENABLED_SETTING,
             ObjectStoreGCTask.STALE_TRANSLOGS_GC_ENABLED_SETTING,
             ObjectStoreGCTask.STALE_TRANSLOGS_GC_FILES_LIMIT_SETTING,
-            ObjectStoreGCTask.GC_INTERVAL_SETTING
+            ObjectStoreGCTask.GC_INTERVAL_SETTING,
+            StatelessIndexSettingProvider.DEFAULT_NUMBER_OF_SHARDS_FOR_REGULAR_INDICES_SETTING
         );
     }
 

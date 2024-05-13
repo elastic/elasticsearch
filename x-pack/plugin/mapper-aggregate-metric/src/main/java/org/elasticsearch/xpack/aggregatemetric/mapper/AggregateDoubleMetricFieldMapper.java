@@ -706,6 +706,11 @@ public class AggregateDoubleMetricFieldMapper extends FieldMapper {
         }
 
         @Override
+        public String fieldName() {
+            return name;
+        }
+
+        @Override
         public Stream<Map.Entry<String, StoredFieldLoader>> storedFieldLoaders() {
             return Stream.of();
         }

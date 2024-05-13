@@ -176,7 +176,7 @@ public class ObjectMapperTests extends MapperServiceTestCase {
                 .field("type", "object")
                 .field("enabled", true)
                 .field("subobjects", false)
-                .field(ObjectMapper.STORE_ARRAY_SOURCE, true)
+                .field(ObjectMapper.STORE_ARRAY_SOURCE_PARAM, true)
                 .endObject()
                 .endObject()
                 .endObject()
@@ -576,7 +576,7 @@ public class ObjectMapperTests extends MapperServiceTestCase {
                 b.field("subobjects", false);
                 b.field("enabled", false);
                 b.field("dynamic", false);
-                b.field(ObjectMapper.STORE_ARRAY_SOURCE, true);
+                b.field(ObjectMapper.STORE_ARRAY_SOURCE_PARAM, true);
                 b.startObject("properties");
                 propertiesBuilder.accept(b);
                 b.endObject();

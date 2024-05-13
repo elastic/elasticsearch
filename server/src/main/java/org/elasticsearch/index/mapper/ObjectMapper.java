@@ -37,7 +37,7 @@ public class ObjectMapper extends Mapper {
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(ObjectMapper.class);
 
     public static final String CONTENT_TYPE = "object";
-    static final String STORE_ARRAY_SOURCE = "store_array_source";
+    static final String STORE_ARRAY_SOURCE_PARAM = "store_array_source";
 
     public static class Defaults {
         public static final boolean ENABLED = true;
@@ -251,7 +251,7 @@ public class ObjectMapper extends Mapper {
             } else if (fieldName.equals("enabled")) {
                 builder.enabled(XContentMapValues.nodeBooleanValue(fieldNode, fieldName + ".enabled"));
                 return true;
-            } else if (fieldName.equals(STORE_ARRAY_SOURCE)) {
+            } else if (fieldName.equals(STORE_ARRAY_SOURCE_PARAM)) {
                 builder.trackArraySource(XContentMapValues.nodeBooleanValue(fieldNode, fieldName + ".track_array_source"));
                 return true;
             } else if (fieldName.equals("properties")) {
@@ -717,7 +717,7 @@ public class ObjectMapper extends Mapper {
             builder.field("subobjects", subobjects.value());
         }
         if (trackArraySource != Defaults.TRACK_ARRAY_SOURCE) {
-            builder.field(STORE_ARRAY_SOURCE, trackArraySource.value());
+            builder.field(STORE_ARRAY_SOURCE_PARAM, trackArraySource.value());
         }
         if (custom != null) {
             custom.toXContent(builder, params);

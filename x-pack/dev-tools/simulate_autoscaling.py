@@ -10,35 +10,43 @@ random.seed(170681)
 
 
 class Estimator:
-  def __init__(self, value, variance, smoothing_factor, autodetect_dynamics_change):
-    self.value = value
-    self.variance = variance
+  def __init__(self, smoothing_factor, autodetect_dynamics_change):
+    self.value = None
+    self.variance = None
     self.smoothing_factor = smoothing_factor
     self.autodetect_dynamics_change = autodetect_dynamics_change
 
   def dynamics_change_detected(self, value, variance):
-    return self.autodetect_dynamics_change and abs(value - self.value)**2 / (self.variance + variance) > 100
+    return (self.variance is not None and self.autodetect_dynamics_change
+            and abs(value - self.value) ** 2.0 / (self.variance + variance) > 100.0)
 
   def add(self, value, variance, dynamics_changed=False) -> None:
     process_variance = variance / self.smoothing_factor
 
     if dynamics_changed or self.dynamics_change_detected(value, variance):
       process_variance *= self.smoothing_factor
-      print(f'dynamic changed: value={value} state={self.value} +-/ {math.sqrt(self.variance)} '
+      print(f'dynamic changed: value={value} state={self.value} +-/ {self.error()} '
             f'(external event={dynamics_changed})')
 
-    gain = (self.variance + process_variance) / (self.variance + process_variance + variance)
-    self.value += gain * (value - self.value)
-    self.variance = (1 - gain) * (self.variance + process_variance)
+    if self.variance is None:
+      self.value = value
+      self.variance = variance
+    else:
+      gain = (self.variance + process_variance) / (self.variance + process_variance + variance)
+      self.value += gain * (value - self.value)
+      self.variance = (1 - gain) * (self.variance + process_variance)
 
   def estimate(self) -> float:
     return self.value
 
+  def error(self):
+    return math.sqrt(self.variance) if self.variance is not None else self.value
+
   def lower(self):
-    return max(0.0, self.value - math.sqrt(self.variance))
+    return None if self.value is None else max(0.0, self.value - self.error())
 
   def upper(self):
-    return self.value + math.sqrt(self.variance)
+    return None if self.value is None else self.value + self.error()
 
 
 class Autoscaler:
@@ -48,8 +56,8 @@ class Autoscaler:
 
   def __init__(self):
     self.num_allocations = 1
-    self.latency_estimator = Estimator(0.1, 100, 1e6, False)
-    self.rate_estimator = Estimator(0, 100, 1e3, True)
+    self.latency_estimator = Estimator(1e6, False)
+    self.rate_estimator = Estimator(1e3, True)
     self.request_count_since_last_rate_measurement = 0
     self.num_allocation_changed_since_last_inference = True
 
@@ -58,31 +66,39 @@ class Autoscaler:
 
   def measure_rate(self, interval):
     rate = self.request_count_since_last_rate_measurement / interval
-    variance = max(1.0, self.rate_estimator.estimate() * interval) / interval**2
+    rate_estimate = estimate if (estimate := self.rate_estimator.estimate()) is not None else rate
+    variance = max(1.0, rate_estimate * interval) / interval**2
     self.rate_estimator.add(rate, variance)
     self.request_count_since_last_rate_measurement = 0
     return rate
 
   def add_inference_time(self, inference_time):
-    variance = self.latency_estimator.estimate() ** 2
+    latency_estimate = estimate if (estimate := self.latency_estimator.estimate()) is not None else inference_time
+    variance = latency_estimate ** 2.0
     self.latency_estimator.add(inference_time, variance, self.num_allocation_changed_since_last_inference)
     self.num_allocation_changed_since_last_inference = False
 
   def get_load(self):
-    return self.rate_estimator.estimate() * self.latency_estimator.estimate()
+    rate = self.rate_estimator.estimate()
+    latency = self.latency_estimator.estimate()
+    return None if rate is None or latency is None else rate * latency
 
   def get_load_lower(self):
-    return self.rate_estimator.lower() * self.latency_estimator.lower()
+    rate = self.rate_estimator.lower()
+    latency = self.latency_estimator.lower()
+    return None if rate is None or latency is None else rate * latency
 
   def get_load_upper(self):
-    return self.rate_estimator.upper() * self.latency_estimator.upper()
+    rate = self.rate_estimator.upper()
+    latency = self.latency_estimator.upper()
+    return None if rate is None or latency is None else rate * latency
 
   def autoscale(self):
-    while self.get_load_lower() / self.num_allocations > Autoscaler.AUTOSCALE_UP_THRESHOLD:
+    while (load := self.get_load_lower()) is not None and load / self.num_allocations > Autoscaler.AUTOSCALE_UP_THRESHOLD:
       self.num_allocations += 1
       self.num_allocation_changed_since_last_inference = True
 
-    while self.num_allocations > 1 and self.get_load_upper() / (self.num_allocations - 1) < Autoscaler.AUTOSCALE_DOWN_THRESHOLD:
+    while self.num_allocations > 1 and (load := self.get_load_upper()) is not None and load / (self.num_allocations - 1) < Autoscaler.AUTOSCALE_DOWN_THRESHOLD:
       self.num_allocations -= 1
       self.num_allocation_changed_since_last_inference = True
 
@@ -212,7 +228,8 @@ class Simulator:
         self.request_rate_truth.append((time, self.get_request_rate(time)))
         self.inference_time_estimates.append((time, autoscaler.latency_estimator.estimate()))
         self.inference_time_truth.append((time, self.get_avg_inference_time()))
-        self.load_estimates.append((time, autoscaler.get_load() / self.num_allocations))
+        if (load := autoscaler.get_load()) is not None:
+          self.load_estimates.append((time, load / self.num_allocations))
         self.load_truth.append((time, self.get_request_rate(time) * self.get_avg_inference_time() / self.num_allocations))
 
       # autoscale

@@ -1902,18 +1902,8 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
             175,
             TransportVersions.V_8_12_0
         ),
-        SEARCH_TIMEOUT_EXCEPTION(
-            SearchTimeoutException.class,
-            SearchTimeoutException::new,
-            176,
-            TransportVersions.SEARCH_TIMEOUT_EXCEPTION_ADDED
-        ),
-        INGEST_GRAPH_STRUCTURE_EXCEPTION(
-            GraphStructureException.class,
-            GraphStructureException::new,
-            177,
-            TransportVersions.INGEST_GRAPH_STRUCTURE_EXCEPTION
-        ),
+        SEARCH_TIMEOUT_EXCEPTION(SearchTimeoutException.class, SearchTimeoutException::new, 176, TransportVersions.V_8_13_0),
+        INGEST_GRAPH_STRUCTURE_EXCEPTION(GraphStructureException.class, GraphStructureException::new, 177, TransportVersions.V_8_13_0),
         FAILURE_INDEX_NOT_SUPPORTED_EXCEPTION(
             FailureIndexNotSupportedException.class,
             FailureIndexNotSupportedException::new,

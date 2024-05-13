@@ -1,5 +1,0 @@
-pr: 108276
-summary: Fix tsdb codec when doc-values spread in two blocks
-area: TSDB
-type: bug
-issues: []

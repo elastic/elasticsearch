@@ -8,32 +8,43 @@
 
 package org.elasticsearch.index.codec.vectors;
 
+import org.apache.lucene.codecs.KnnFieldVectorsWriter;
 import org.apache.lucene.codecs.hnsw.DefaultFlatVectorScorer;
+import org.apache.lucene.codecs.hnsw.FlatFieldVectorsWriter;
 import org.apache.lucene.codecs.hnsw.FlatVectorsFormat;
 import org.apache.lucene.codecs.hnsw.FlatVectorsReader;
+import org.apache.lucene.codecs.hnsw.FlatVectorsScorer;
 import org.apache.lucene.codecs.hnsw.FlatVectorsWriter;
 import org.apache.lucene.codecs.hnsw.ScalarQuantizedVectorScorer;
 import org.apache.lucene.codecs.lucene99.Lucene99FlatVectorsFormat;
 import org.apache.lucene.codecs.lucene99.Lucene99ScalarQuantizedVectorsReader;
+import org.apache.lucene.codecs.lucene99.Lucene99ScalarQuantizedVectorsWriter;
 import org.apache.lucene.index.ByteVectorValues;
+import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.FloatVectorValues;
+import org.apache.lucene.index.MergeState;
 import org.apache.lucene.index.SegmentReadState;
 import org.apache.lucene.index.SegmentWriteState;
+import org.apache.lucene.index.Sorter;
+import org.apache.lucene.index.VectorSimilarityFunction;
+import org.apache.lucene.util.hnsw.CloseableRandomVectorScorerSupplier;
+import org.apache.lucene.util.hnsw.RandomAccessVectorValues;
 import org.apache.lucene.util.hnsw.RandomVectorScorer;
+import org.apache.lucene.util.hnsw.RandomVectorScorerSupplier;
+import org.apache.lucene.util.quantization.QuantizedByteVectorValues;
+import org.apache.lucene.util.quantization.QuantizedVectorsReader;
+import org.apache.lucene.util.quantization.RandomAccessQuantizedByteVectorValues;
+import org.apache.lucene.util.quantization.ScalarQuantizer;
+import org.elasticsearch.vec.VectorScorerFactory;
+import org.elasticsearch.vec.VectorScorerSupplierAdapter;
+import org.elasticsearch.vec.VectorSimilarityType;
 
 import java.io.IOException;
+import java.util.Optional;
 
 public class ES814ScalarQuantizedVectorsFormat extends FlatVectorsFormat {
-    public static final String QUANTIZED_VECTOR_COMPONENT = "QVEC";
 
     static final String NAME = "ES814ScalarQuantizedVectorsFormat";
-
-    static final int VERSION_START = 0;
-    static final int VERSION_CURRENT = VERSION_START;
-    static final String META_CODEC_NAME = "Lucene99ScalarQuantizedVectorsFormatMeta";
-    static final String VECTOR_DATA_CODEC_NAME = "Lucene99ScalarQuantizedVectorsFormatData";
-    static final String META_EXTENSION = "vemq";
-    static final String VECTOR_DATA_EXTENSION = "veq";
 
     private static final FlatVectorsFormat rawVectorFormat = new Lucene99FlatVectorsFormat(new DefaultFlatVectorScorer());
 
@@ -48,7 +59,7 @@ public class ES814ScalarQuantizedVectorsFormat extends FlatVectorsFormat {
      * calculated as `1-1/(vector_dimensions + 1)`
      */
     public final Float confidenceInterval;
-    final ScalarQuantizedVectorScorer flatVectorScorer;
+    final FlatVectorsScorer flatVectorScorer;
 
     public ES814ScalarQuantizedVectorsFormat(Float confidenceInterval) {
         if (confidenceInterval != null
@@ -63,7 +74,7 @@ public class ES814ScalarQuantizedVectorsFormat extends FlatVectorsFormat {
             );
         }
         this.confidenceInterval = confidenceInterval;
-        this.flatVectorScorer = new ScalarQuantizedVectorScorer(new DefaultFlatVectorScorer());
+        this.flatVectorScorer = new ESFlatVectorsScorer(new ScalarQuantizedVectorScorer(new DefaultFlatVectorScorer()));
     }
 
     @Override
@@ -73,7 +84,9 @@ public class ES814ScalarQuantizedVectorsFormat extends FlatVectorsFormat {
 
     @Override
     public FlatVectorsWriter fieldsWriter(SegmentWriteState state) throws IOException {
-        return new ES814ScalarQuantizedVectorsWriter(state, confidenceInterval, rawVectorFormat.fieldsWriter(state), flatVectorScorer);
+        return new ES814ScalarQuantizedVectorsWriter(
+            new Lucene99ScalarQuantizedVectorsWriter(state, confidenceInterval, rawVectorFormat.fieldsWriter(state), flatVectorScorer)
+        );
     }
 
     @Override
@@ -83,11 +96,51 @@ public class ES814ScalarQuantizedVectorsFormat extends FlatVectorsFormat {
         );
     }
 
-    static class ES814ScalarQuantizedVectorsReader extends FlatVectorsReader {
+    static class ES814ScalarQuantizedVectorsWriter extends FlatVectorsWriter {
 
-        final FlatVectorsReader reader;
+        final FlatVectorsWriter writer;
 
-        ES814ScalarQuantizedVectorsReader(FlatVectorsReader reader) {
+        ES814ScalarQuantizedVectorsWriter(FlatVectorsWriter writer) {
+            super(writer.getFlatVectorScorer());
+            this.writer = writer;
+        }
+
+        @Override
+        public FlatFieldVectorsWriter<?> addField(FieldInfo fieldInfo, KnnFieldVectorsWriter<?> knnFieldVectorsWriter) throws IOException {
+            return writer.addField(fieldInfo, knnFieldVectorsWriter);
+        }
+
+        @Override
+        public CloseableRandomVectorScorerSupplier mergeOneFieldToIndex(FieldInfo fieldInfo, MergeState mergeState) throws IOException {
+            return writer.mergeOneFieldToIndex(fieldInfo, mergeState);
+        }
+
+        @Override
+        public void finish() throws IOException {
+            writer.finish();
+        }
+
+        @Override
+        public void flush(int i, Sorter.DocMap docMap) throws IOException {
+            writer.flush(i, docMap);
+        }
+
+        @Override
+        public void close() throws IOException {
+            writer.close();
+        }
+
+        @Override
+        public long ramBytesUsed() {
+            return writer.ramBytesUsed();
+        }
+    }
+
+    static class ES814ScalarQuantizedVectorsReader extends FlatVectorsReader implements QuantizedVectorsReader {
+
+        final Lucene99ScalarQuantizedVectorsReader reader;
+
+        ES814ScalarQuantizedVectorsReader(Lucene99ScalarQuantizedVectorsReader reader) {
             super(reader.getFlatVectorScorer());
             this.reader = reader;
         }
@@ -125,6 +178,60 @@ public class ES814ScalarQuantizedVectorsFormat extends FlatVectorsFormat {
         @Override
         public long ramBytesUsed() {
             return reader.ramBytesUsed();
+        }
+
+        @Override
+        public QuantizedByteVectorValues getQuantizedVectorValues(String fieldName) throws IOException {
+            return reader.getQuantizedVectorValues(fieldName);
+        }
+
+        @Override
+        public ScalarQuantizer getQuantizationState(String fieldName) {
+            return reader.getQuantizationState(fieldName);
+        }
+    }
+
+    static final class ESFlatVectorsScorer implements FlatVectorsScorer {
+
+        final FlatVectorsScorer delegate;
+
+        ESFlatVectorsScorer(FlatVectorsScorer delegte) {
+            this.delegate = delegte;
+        }
+
+        @Override
+        public RandomVectorScorerSupplier getRandomVectorScorerSupplier(VectorSimilarityFunction sim, RandomAccessVectorValues values)
+            throws IOException {
+            if (values instanceof RandomAccessQuantizedByteVectorValues qValues && values.getSlice() != null) {
+                Optional<VectorScorerFactory> factory = VectorScorerFactory.instance();
+                if (factory.isPresent()) {
+                    var scorer = factory.get()
+                        .getInt7ScalarQuantizedVectorScorer(
+                            qValues.dimension(),
+                            qValues.size(),
+                            qValues.getScalarQuantizer().getConstantMultiplier(),
+                            VectorSimilarityType.of(sim),
+                            values.getSlice()
+                        )
+                        .map(VectorScorerSupplierAdapter::new);
+                    if (scorer.isPresent()) {
+                        return scorer.get();
+                    }
+                }
+            }
+            return delegate.getRandomVectorScorerSupplier(sim, values);
+        }
+
+        @Override
+        public RandomVectorScorer getRandomVectorScorer(VectorSimilarityFunction sim, RandomAccessVectorValues values, float[] query)
+            throws IOException {
+            return delegate.getRandomVectorScorer(sim, values, query);
+        }
+
+        @Override
+        public RandomVectorScorer getRandomVectorScorer(VectorSimilarityFunction sim, RandomAccessVectorValues values, byte[] query)
+            throws IOException {
+            return delegate.getRandomVectorScorer(sim, values, query);
         }
     }
 }

@@ -15,6 +15,8 @@ These token-weight pairs are then used in a query against a <<sparse-vector,spar
 At query time, query vectors are calculated using the same inference model that was used to create the tokens.
 When querying, these query vectors are ORed together with their respective weights, which means scoring is effectively a <<vector-functions-dot-product,dot product>> calculation between stored dimensions and query dimensions.
 
+For example, a stored vector `{"feature_0": 0.12, "feature_1": 1.2, "feature_2": 3.0}` with query vector `{"feature_0": 2.5, "feature_2": 0.2}` would score the document `_score = 0.12*2.5 + 3.0*0.2 = 0.9`
+
 [discrete]
 [[sparse-vector-query-ex-request]]
 === Example request using an {nlp} model

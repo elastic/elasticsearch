@@ -11,7 +11,7 @@ import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 import org.elasticsearch.test.cluster.util.Version;
 
-public class Clusters {
+public class MixedClustersSpec {
     public static ElasticsearchCluster mixedVersionCluster() {
         Version oldVersion = Version.fromString(System.getProperty("tests.old_cluster_version"));
         return ElasticsearchCluster.local()

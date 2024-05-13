@@ -18,7 +18,7 @@ import org.junit.ClassRule;
 
 public abstract class MixedClusterSpecTestCase extends ESRestTestCase {
     @ClassRule
-    public static ElasticsearchCluster cluster = Clusters.mixedVersionCluster();
+    public static ElasticsearchCluster cluster = MixedClustersSpec.mixedVersionCluster();
 
     @Override
     protected String getTestRestCluster() {

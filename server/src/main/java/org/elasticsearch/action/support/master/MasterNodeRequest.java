@@ -23,7 +23,9 @@ public abstract class MasterNodeRequest<Request extends MasterNodeRequest<Reques
 
     /**
      * The default timeout for master-node requests. It's super-trappy to have such a default, because it makes it all too easy to forget
-     * to add a mechanism by which clients can change it. We shouldn't use this any more and should work towards removing it.
+     * to add a mechanism by which clients can change it. Without such a mechanism things will work fine until we encounter a large cluster
+     * that is struggling to process cluster state updates fast enough, and it's a disaster if we cannot extend the master-node timeout in
+     * those cases. We shouldn't use this any more and should work towards removing it.
      * <p>
      * For requests which originate in the REST layer, use {@link org.elasticsearch.rest.RestUtils#getMasterNodeTimeout} to determine the
      * timeout.

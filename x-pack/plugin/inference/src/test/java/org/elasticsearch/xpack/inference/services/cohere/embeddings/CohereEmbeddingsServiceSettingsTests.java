@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.inference.services.cohere.embeddings;
 
-import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -247,7 +246,7 @@ public class CohereEmbeddingsServiceSettingsTests extends AbstractWireSerializin
 
     public void testFromMap_ReturnsFailure_WhenEmbeddingTypesAreNotValid() {
         var exception = expectThrows(
-            ElasticsearchStatusException.class,
+            ValidationException.class,
             () -> CohereEmbeddingsServiceSettings.fromMap(
                 new HashMap<>(Map.of(CohereEmbeddingsServiceSettings.EMBEDDING_TYPE, List.of("abc"))),
                 ConfigurationParseContext.PERSISTENT
@@ -256,7 +255,7 @@ public class CohereEmbeddingsServiceSettingsTests extends AbstractWireSerializin
 
         MatcherAssert.assertThat(
             exception.getMessage(),
-            is("field [embedding_type] is not of the expected type. The value [[abc]] cannot be converted to a [String]")
+            containsString("field [embedding_type] is not of the expected type. The value [[abc]] cannot be converted to a [String]")
         );
     }
 

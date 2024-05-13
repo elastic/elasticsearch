@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.inference;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.support.ActionFilter;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -46,6 +47,7 @@ import org.elasticsearch.xpack.inference.action.TransportGetInferenceModelAction
 import org.elasticsearch.xpack.inference.action.TransportInferenceAction;
 import org.elasticsearch.xpack.inference.action.TransportInferenceUsageAction;
 import org.elasticsearch.xpack.inference.action.TransportPutInferenceModelAction;
+import org.elasticsearch.xpack.inference.action.filter.ShardBulkInferenceActionFilter;
 import org.elasticsearch.xpack.inference.common.Truncator;
 import org.elasticsearch.xpack.inference.external.http.HttpClientManager;
 import org.elasticsearch.xpack.inference.external.http.HttpSettings;
@@ -78,6 +80,8 @@ import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import static java.util.Collections.singletonList;
+
 public class InferencePlugin extends Plugin implements ActionPlugin, ExtensiblePlugin, SystemIndexPlugin, MapperPlugin, SearchPlugin {
 
     /**
@@ -103,6 +107,7 @@ public class InferencePlugin extends Plugin implements ActionPlugin, ExtensibleP
     private final SetOnce<ServiceComponents> serviceComponents = new SetOnce<>();
 
     private final SetOnce<InferenceServiceRegistry> inferenceServiceRegistry = new SetOnce<>();
+    private final SetOnce<ShardBulkInferenceActionFilter> shardBulkInferenceActionFilter = new SetOnce<>();
     private List<InferenceServiceExtension> inferenceServiceExtensions;
 
     public InferencePlugin(Settings settings) {
@@ -167,6 +172,9 @@ public class InferencePlugin extends Plugin implements ActionPlugin, ExtensibleP
         var registry = new InferenceServiceRegistry(inferenceServices, factoryContext);
         registry.init(services.client());
         inferenceServiceRegistry.set(registry);
+
+        var actionFilter = new ShardBulkInferenceActionFilter(registry, modelRegistry);
+        shardBulkInferenceActionFilter.set(actionFilter);
 
         return List.of(modelRegistry, registry);
     }
@@ -276,6 +284,13 @@ public class InferencePlugin extends Plugin implements ActionPlugin, ExtensibleP
     }
 
     @Override
+    public Collection<ActionFilter> getActionFilters() {
+        if (SemanticTextFeature.isEnabled()) {
+            return singletonList(shardBulkInferenceActionFilter.get());
+        }
+        return List.of();
+    }
+
     public List<QuerySpec<?>> getQueries() {
         if (SemanticTextFeature.isEnabled()) {
             return List.of(new QuerySpec<>(SemanticQueryBuilder.NAME, SemanticQueryBuilder::new, SemanticQueryBuilder::fromXContent));

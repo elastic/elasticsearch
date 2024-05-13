@@ -104,7 +104,7 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
         if (in.getTransportVersion().onOrAfter(TransportVersions.V_7_12_0)) {
             origin = in.readString();
         }
-        if (in.getTransportVersion().onOrAfter(TransportVersions.REQUIRE_DATA_STREAM_ADDED)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_13_0)) {
             requireDataStream = in.readBoolean();
         } else {
             requireDataStream = false;
@@ -487,7 +487,7 @@ public class CreateIndexRequest extends AcknowledgedRequest<CreateIndexRequest> 
         if (out.getTransportVersion().onOrAfter(TransportVersions.V_7_12_0)) {
             out.writeString(origin);
         }
-        if (out.getTransportVersion().onOrAfter(TransportVersions.REQUIRE_DATA_STREAM_ADDED)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_13_0)) {
             out.writeOptionalBoolean(this.requireDataStream);
         }
     }

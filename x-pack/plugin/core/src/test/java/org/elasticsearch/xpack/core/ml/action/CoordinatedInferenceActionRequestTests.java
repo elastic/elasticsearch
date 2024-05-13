@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.core.ml.action;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.xpack.core.ml.AbstractBWCWireSerializationTestCase;
@@ -22,23 +23,21 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-import static org.elasticsearch.TransportVersions.ML_INFERENCE_REQUEST_INPUT_TYPE_ADDED;
-import static org.elasticsearch.TransportVersions.UPDATE_API_KEY_EXPIRATION_TIME_ADDED;
 import static org.hamcrest.Matchers.is;
 
 public class CoordinatedInferenceActionRequestTests extends AbstractBWCWireSerializationTestCase<CoordinatedInferenceAction.Request> {
     public void testSerializesPrefixType_WhenTransportVersionIs_InputTypeAdded() throws IOException {
         var instance = createTestInstance();
         instance.setPrefixType(TrainedModelPrefixStrings.PrefixType.INGEST);
-        var copy = copyWriteable(instance, getNamedWriteableRegistry(), instanceReader(), ML_INFERENCE_REQUEST_INPUT_TYPE_ADDED);
-        assertOnBWCObject(copy, instance, ML_INFERENCE_REQUEST_INPUT_TYPE_ADDED);
+        var copy = copyWriteable(instance, getNamedWriteableRegistry(), instanceReader(), TransportVersions.V_8_13_0);
+        assertOnBWCObject(copy, instance, TransportVersions.V_8_13_0);
         assertThat(copy.getPrefixType(), is(TrainedModelPrefixStrings.PrefixType.INGEST));
     }
 
     public void testSerializesPrefixType_DoesNotSerialize_WhenTransportVersion_IsPriorToInputTypeAdded() throws IOException {
         var instance = createTestInstance();
         instance.setPrefixType(TrainedModelPrefixStrings.PrefixType.INGEST);
-        var copy = copyWriteable(instance, getNamedWriteableRegistry(), instanceReader(), UPDATE_API_KEY_EXPIRATION_TIME_ADDED);
+        var copy = copyWriteable(instance, getNamedWriteableRegistry(), instanceReader(), TransportVersions.V_8_12_1);
 
         assertNotSame(copy, instance);
         assertNotEquals(copy, instance);
@@ -117,7 +116,7 @@ public class CoordinatedInferenceActionRequestTests extends AbstractBWCWireSeria
         CoordinatedInferenceAction.Request instance,
         TransportVersion version
     ) {
-        if (version.before(ML_INFERENCE_REQUEST_INPUT_TYPE_ADDED)) {
+        if (version.before(TransportVersions.V_8_13_0)) {
             instance.setPrefixType(TrainedModelPrefixStrings.PrefixType.NONE);
         }
 

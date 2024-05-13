@@ -39,6 +39,7 @@ public class GetAutoscalingCapacityAction extends ActionType<GetAutoscalingCapac
 
         public Request() {
 
+            super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT, DEFAULT_ACK_TIMEOUT);
         }
 
         public Request(final StreamInput in) throws IOException {

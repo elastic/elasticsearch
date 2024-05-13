@@ -50,6 +50,7 @@ import org.elasticsearch.test.client.NoOpClient;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.security.test.TestRestrictedIndices;
+import org.elasticsearch.xpack.security.support.SecuritySystemIndices.SecurityMainIndexMappingVersion;
 import org.elasticsearch.xpack.security.test.SecurityTestUtils;
 import org.hamcrest.Matchers;
 import org.junit.Before;
@@ -63,7 +64,6 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
 
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
-import static org.elasticsearch.xpack.security.support.SecuritySystemIndices.INTERNAL_MAIN_INDEX_MAPPINGS_FORMAT;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
@@ -389,7 +389,10 @@ public class SecurityIndexManagerTests extends ESTestCase {
 
         // Ensure that the mappings for the index are out-of-date, so that the security index manager will
         // attempt to update them.
-        int previousVersion = INTERNAL_MAIN_INDEX_MAPPINGS_FORMAT - 1;
+        int previousVersion = randomValueOtherThanMany(
+            v -> v.onOrAfter(SecurityMainIndexMappingVersion.latest()),
+            () -> randomFrom(SecurityMainIndexMappingVersion.values())
+        ).id();
 
         // State recovered with index, with mappings with a prior version
         ClusterState.Builder clusterStateBuilder = createClusterState(
@@ -419,11 +422,15 @@ public class SecurityIndexManagerTests extends ESTestCase {
 
         // Hard-code a failure here.
         doReturn("Nope").when(descriptorSpy).getMinimumMappingsVersionMessage(anyString());
-        doReturn(null).when(descriptorSpy).getDescriptorCompatibleWith(eq(new SystemIndexDescriptor.MappingsVersion(1, 0)));
+        doReturn(null).when(descriptorSpy)
+            .getDescriptorCompatibleWith(eq(new SystemIndexDescriptor.MappingsVersion(SecurityMainIndexMappingVersion.latest().id(), 0)));
 
         // Ensure that the mappings for the index are out-of-date, so that the security index manager will
         // attempt to update them.
-        int previousVersion = INTERNAL_MAIN_INDEX_MAPPINGS_FORMAT - 1;
+        int previousVersion = randomValueOtherThanMany(
+            v -> v.onOrAfter(SecurityMainIndexMappingVersion.latest()),
+            () -> randomFrom(SecurityMainIndexMappingVersion.values())
+        ).id();
 
         ClusterState.Builder clusterStateBuilder = createClusterState(
             TestRestrictedIndices.INTERNAL_SECURITY_MAIN_INDEX_7,
@@ -457,7 +464,7 @@ public class SecurityIndexManagerTests extends ESTestCase {
             SecuritySystemIndices.SECURITY_MAIN_ALIAS,
             SecuritySystemIndices.INTERNAL_MAIN_INDEX_FORMAT,
             IndexMetadata.State.OPEN,
-            getMappings(INTERNAL_MAIN_INDEX_MAPPINGS_FORMAT)
+            getMappings(SecurityMainIndexMappingVersion.latest().id())
         );
         manager.clusterChanged(event(markShardsAvailable(clusterStateBuilder)));
         manager.prepareIndexIfNeededThenExecute(prepareException::set, () -> prepareRunnableCalled.set(true));
@@ -480,7 +487,7 @@ public class SecurityIndexManagerTests extends ESTestCase {
             SecuritySystemIndices.SECURITY_MAIN_ALIAS,
             SecuritySystemIndices.INTERNAL_MAIN_INDEX_FORMAT,
             IndexMetadata.State.OPEN,
-            getMappings(INTERNAL_MAIN_INDEX_MAPPINGS_FORMAT),
+            getMappings(SecurityMainIndexMappingVersion.latest().id()),
             Map.of()
         );
         manager.clusterChanged(event(markShardsAvailable(clusterStateBuilder)));
@@ -628,7 +635,7 @@ public class SecurityIndexManagerTests extends ESTestCase {
             format,
             state,
             mappings,
-            Map.of(indexName, new SystemIndexDescriptor.MappingsVersion(1, 0))
+            Map.of(indexName, new SystemIndexDescriptor.MappingsVersion(SecurityMainIndexMappingVersion.latest().id(), 0))
         );
     }
 
@@ -689,7 +696,7 @@ public class SecurityIndexManagerTests extends ESTestCase {
     }
 
     private static String getMappings() {
-        return getMappings(INTERNAL_MAIN_INDEX_MAPPINGS_FORMAT);
+        return getMappings(SecurityMainIndexMappingVersion.latest().id());
     }
 
     private static String getMappings(Integer version) {

@@ -4001,6 +4001,7 @@ public class TranslogTests extends ESTestCase {
     }
 
     public void testDisabledFsync() throws IOException {
+        var translogDir = createTempDir();
         var config = new TranslogConfig(
             shardId,
             translogDir,

@@ -29,7 +29,10 @@ teardown:
       security.delete_role:
         name: "backwards_role"
         ignore: 404
-
+  - do:
+      security.delete_role:
+        name: "role_with_description"
+        ignore: 404
 ---
 "Test put role api":
   - do:
@@ -83,3 +86,21 @@ teardown:
   - match: { admin_role.metadata.key2:  "val2" }
   - match: { admin_role.indices.0.names.0: "*" }
   - match: { admin_role.indices.0.privileges.0:  "all" }
+
+  - do:
+      security.put_role:
+        name: "role_with_description"
+        body:  >
+          {
+            "description": "Allows all security-related operations such as CRUD operations on users and roles and cache clearing.",
+            "cluster": ["manage_security"]
+          }
+  - match: { role: { created: true } }
+
+  - do:
+      headers:
+        Authorization: "Basic am9lOnMza3JpdC1wYXNzd29yZA=="
+      security.get_role:
+        name: "role_with_description"
+  - match: { role_with_description.cluster.0:  "manage_security" }
+  - match: { role_with_description.description:  "Allows all security-related operations such as CRUD operations on users and roles and cache clearing." }

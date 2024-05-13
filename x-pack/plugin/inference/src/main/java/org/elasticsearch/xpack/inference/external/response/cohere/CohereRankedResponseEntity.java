@@ -148,14 +148,12 @@ public class CohereRankedResponseEntity {
         }
 
         if (index == -1) {
-            logger.error("Failed to find required field [index] in Cohere embeddings response");
+            logger.warn("Failed to find required field [index] in Cohere rerank response");
         }
         if (relevanceScore == -1) {
-            logger.error("Failed to find required field [relevance_score] in Cohere embeddings response");
+            logger.warn("Failed to find required field [relevance_score] in Cohere rerank response");
         }
-        if (documentText == null) {
-            logger.error("Failed to find required field [document] in Cohere embeddings response");
-        }
+        // documentText may or may not be present depending on the request parameter
 
         return new RankedDocsResults.RankedDoc(index, relevanceScore, documentText);
     }

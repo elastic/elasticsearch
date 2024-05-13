@@ -1,11 +1,13 @@
 import org.elasticsearch.gradle.internal.info.BuildParams
 import org.elasticsearch.gradle.internal.test.InternalClusterTestPlugin
+import org.elasticsearch.gradle.util.GradleUtils
 
 plugins {
     id("elasticsearch.internal-es-plugin")
     id("elasticsearch.internal-cluster-test")
     id("elasticsearch.internal-yaml-rest-test")
     id("elasticsearch.internal-test-artifact")
+    id("elasticsearch.internal-java-rest-test")
 }
 
 esplugin {
@@ -26,6 +28,8 @@ configurations {
     }
 }
 
+GradleUtils.extendSourceSet(project, "main", "javaRestTest", tasks.withType<Test>().named("javaRestTest"))
+
 dependencies {
     compileOnly(xpackModule("core"))
     compileOnly(xpackModule("blob-cache"))
@@ -43,6 +47,7 @@ dependencies {
     testImplementation("org.elasticsearch.plugin:repository-gcs")
     testImplementation("org.elasticsearch.plugin:repository-azure")
     testImplementation(testArtifact("org.elasticsearch:server"))
+    javaRestTestImplementation(project(":libs:serverless-shared-constants"))
 }
 
 restResources {
@@ -130,5 +135,9 @@ tasks {
         systemProperty("test.s3.bucket", System.getenv("stateless_aws_s3_bucket"))
         systemProperty("test.s3.region", System.getenv("stateless_aws_s3_region"))
         systemProperty("test.s3.base_path", System.getenv("stateless_aws_s3_base_path"))
+    }
+
+    javaRestTest {
+        usesDefaultDistribution()
     }
 }

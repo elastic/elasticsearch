@@ -7,14 +7,11 @@
 
 package org.elasticsearch.xpack.inference.qa.mixed;
 
-import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.test.http.MockResponse;
 import org.elasticsearch.test.http.MockWebServer;
-import org.elasticsearch.xpack.inference.services.openai.OpenAiService;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 

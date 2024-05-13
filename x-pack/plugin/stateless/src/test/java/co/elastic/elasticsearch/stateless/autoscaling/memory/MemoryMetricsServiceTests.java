@@ -88,25 +88,24 @@ public class MemoryMetricsServiceTests extends ESTestCase {
             expectedSizeInBytes += nameSuffix;
             map.put(
                 new Index("name-" + nameSuffix, "uuid-" + nameSuffix),
-                new MemoryMetricsService.IndexMemoryMetrics(nameSuffix, MetricQuality.EXACT, System::nanoTime)
+                new MemoryMetricsService.IndexMemoryMetrics(nameSuffix, MetricQuality.EXACT, System.nanoTime())
             );
         }
 
-        MemoryMetricsService.IndexMemoryMetrics result;
-        result = service.getTotalIndicesMappingSize();
-        assertThat(result.getSizeInBytes(), equalTo(expectedSizeInBytes));
-        assertThat(result.getMetricQuality(), equalTo(MetricQuality.EXACT));
+        var result = service.calculateTotalIndicesMappingSize();
+        assertThat(result.sizeInBytes(), equalTo(expectedSizeInBytes));
+        assertThat(result.metricQuality(), equalTo(MetricQuality.EXACT));
 
         // simulate MINIMUM `quality` attribute on a random metric
         int nameSuffix = randomIntBetween(1, numberOfIndices);
         map.put(
             new Index("name-" + nameSuffix, "uuid-" + nameSuffix),
-            new MemoryMetricsService.IndexMemoryMetrics(nameSuffix, MetricQuality.MINIMUM, System::nanoTime)
+            new MemoryMetricsService.IndexMemoryMetrics(nameSuffix, MetricQuality.MINIMUM, System.nanoTime())
         );
-        result = service.getTotalIndicesMappingSize();
-        assertThat(result.getSizeInBytes(), equalTo(expectedSizeInBytes));
+        result = service.calculateTotalIndicesMappingSize();
+        assertThat(result.sizeInBytes(), equalTo(expectedSizeInBytes));
         // verify that the whole batch has MISSING `quality` attribute
-        assertThat(result.getMetricQuality(), equalTo(MetricQuality.MINIMUM));
+        assertThat(result.metricQuality(), equalTo(MetricQuality.MINIMUM));
     }
 
     public void testConcurrentUpdateMetricHigherSeqNoWins() throws InterruptedException {
@@ -136,7 +135,7 @@ public class MemoryMetricsServiceTests extends ESTestCase {
 
         safeAwait(latch);
 
-        assertThat(100L, equalTo(service.getTotalIndicesMappingSize().getSizeInBytes()));
+        assertThat(100L, equalTo(service.calculateTotalIndicesMappingSize().sizeInBytes()));
     }
 
     public void testReportNonExactMetricsInTotalIndicesMappingSize() throws Exception {
@@ -178,14 +177,14 @@ public class MemoryMetricsServiceTests extends ESTestCase {
                 );
             }
 
-            customService.getTotalIndicesMappingSize();
+            customService.calculateTotalIndicesMappingSize();
             mockLogAppender.assertAllExpectationsMatched();
 
             // Second call doesn't result in duplicate logs
             mockLogAppender.addExpectation(
                 new MockLogAppender.UnseenEventExpectation("no warnings", MemoryMetricsService.class.getName(), Level.WARN, "*")
             );
-            customService.getTotalIndicesMappingSize();
+            customService.calculateTotalIndicesMappingSize();
             mockLogAppender.assertAllExpectationsMatched();
         }
     }
@@ -210,7 +209,7 @@ public class MemoryMetricsServiceTests extends ESTestCase {
             mockLogAppender.addExpectation(
                 new MockLogAppender.UnseenEventExpectation("no warnings", MemoryMetricsService.class.getName(), Level.WARN, "*")
             );
-            service.getTotalIndicesMappingSize();
+            service.calculateTotalIndicesMappingSize();
             mockLogAppender.assertAllExpectationsMatched();
         }
     }
@@ -229,7 +228,7 @@ public class MemoryMetricsServiceTests extends ESTestCase {
             mockLogAppender.addExpectation(
                 new MockLogAppender.UnseenEventExpectation("no warnings", MemoryMetricsService.class.getName(), Level.WARN, "*")
             );
-            service.getTotalIndicesMappingSize();
+            service.calculateTotalIndicesMappingSize();
             mockLogAppender.assertAllExpectationsMatched();
         }
     }

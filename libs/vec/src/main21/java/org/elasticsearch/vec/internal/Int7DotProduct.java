@@ -47,6 +47,7 @@ public final class Int7DotProduct extends AbstractInt7ScalarQuantizedVectorScore
 
         if (firstSeg != null && secondSeg != null) {
             int dotProduct = dotProduct7u(firstSeg, secondSeg, length);
+            assert dotProduct >= 0;
             float adjustedDistance = dotProduct * scoreCorrectionConstant + firstOffset + secondOffset;
             return Math.max((1 + adjustedDistance) / 2, 0f);
         } else {

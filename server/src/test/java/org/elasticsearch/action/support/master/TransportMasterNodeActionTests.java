@@ -7,6 +7,7 @@
  */
 package org.elasticsearch.action.support.master;
 
+import org.apache.logging.log4j.Level;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.ActionListener;
@@ -36,6 +37,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.service.ClusterApplierService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -58,6 +60,8 @@ import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.MockLogAppender;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.transport.CapturingTransport;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -475,6 +479,7 @@ public class TransportMasterNodeActionTests extends ESTestCase {
         assertFalse(request.hasReferences());
     }
 
+    @TestLogging(reason = "testing TRACE logging", value = "org.elasticsearch.cluster.service:TRACE")
     public void testMasterBecomesAvailable() throws ExecutionException, InterruptedException {
         Request request = new Request();
         if (randomBoolean()) {
@@ -482,11 +487,24 @@ public class TransportMasterNodeActionTests extends ESTestCase {
         }
         setState(clusterService, ClusterStateCreationUtils.state(localNode, null, allNodes));
         PlainActionFuture<Response> listener = new PlainActionFuture<>();
-        ActionTestUtils.execute(new Action("internal:testAction", transportService, clusterService, threadPool), null, request, listener);
+        final var task = new Task(randomNonNegativeLong(), "test", "internal:testAction", "", TaskId.EMPTY_TASK_ID, Map.of());
+        ActionTestUtils.execute(new Action("internal:testAction", transportService, clusterService, threadPool), task, request, listener);
         assertFalse(listener.isDone());
         request.decRef();
         assertTrue(request.hasReferences());
-        setState(clusterService, ClusterStateCreationUtils.state(localNode, localNode, allNodes));
+
+        MockLogAppender.assertThatLogger(
+            () -> setState(clusterService, ClusterStateCreationUtils.state(localNode, localNode, allNodes)),
+            ClusterApplierService.class,
+            new MockLogAppender.SeenEventExpectation(
+                "listener log",
+                ClusterApplierService.class.getCanonicalName(),
+                Level.TRACE,
+                "calling [ClusterStateObserver[ObservingContext[ContextPreservingListener[listener for [execution of ["
+                    + task
+                    + "]] retrying after cluster state version [*]]]]] with change to version [*]"
+            )
+        );
         assertTrue(listener.isDone());
         assertFalse(request.hasReferences());
         listener.get();

@@ -34,12 +34,31 @@ median_duration:double | env:keyword
 simple
 required_feature: esql.enrich_load
 
-row language_code = "1"  
-| enrich languages_policy
+// tag::enrich[]
+ROW language_code = "1"  
+| ENRICH languages_policy
+// end::enrich[]
 ;
 
+// tag::enrich-result[]
 language_code:keyword  | language_name:keyword 
 1                      | English 
+// end::enrich-result[]       
+;
+
+enrichOnSimple
+required_feature: esql.enrich_load
+
+// tag::enrich_on[]
+ROW a = "1"  
+| ENRICH languages_policy ON a
+// end::enrich_on[]
+;
+
+// tag::enrich_on-result[]
+a:keyword  | language_name:keyword 
+1          | English 
+// end::enrich_on-result[]       
 ;
 
 
@@ -83,6 +102,22 @@ emp_no:integer | x:keyword | language_name:keyword
 ;
 
 
+withSimple
+required_feature: esql.enrich_load
+
+// tag::enrich_with[]
+ROW a = "1"  
+| ENRICH languages_policy ON a WITH language_name
+// end::enrich_with[]
+;
+
+// tag::enrich_with-result[]
+a:keyword  | language_name:keyword 
+1          | English 
+// end::enrich_with-result[]       
+;
+
+
 withAlias
 required_feature: esql.enrich_load
 
@@ -93,6 +128,21 @@ emp_no:integer | x:keyword | lang:keyword
 10001          | 2         | French
 10002          | 5         | null
 10003          | 4         | German
+;
+
+withAliasSimple
+required_feature: esql.enrich_load
+
+// tag::enrich_rename[]
+ROW a = "1"  
+| ENRICH languages_policy ON a WITH name = language_name
+// end::enrich_rename[]
+;
+
+// tag::enrich_rename-result[]
+a:keyword  | name:keyword 
+1          | English 
+// end::enrich_rename-result[]       
 ;
 
 

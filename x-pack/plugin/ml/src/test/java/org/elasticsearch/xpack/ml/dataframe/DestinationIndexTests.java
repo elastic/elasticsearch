@@ -61,6 +61,7 @@ import java.util.List;
 import java.util.Map;
 
 import static java.util.Collections.singletonMap;
+import static org.elasticsearch.action.support.ActionTestUtils.assertNoSuccessListener;
 import static org.elasticsearch.common.xcontent.support.XContentMapValues.extractValue;
 import static org.elasticsearch.xpack.ml.DefaultMachineLearningExtension.ANALYTICS_DEST_INDEX_ALLOWED_SETTINGS;
 import static org.hamcrest.Matchers.arrayContaining;
@@ -334,10 +335,7 @@ public class DestinationIndexTests extends ESTestCase {
                 clock,
                 config,
                 ANALYTICS_DEST_INDEX_ALLOWED_SETTINGS,
-                ActionListener.wrap(
-                    response -> fail("should not succeed"),
-                    e -> assertThat(e.getMessage(), Matchers.matchesRegex(finalErrorMessage))
-                )
+                assertNoSuccessListener(e -> assertThat(e.getMessage(), Matchers.matchesRegex(finalErrorMessage)))
             );
 
             return null;
@@ -578,8 +576,7 @@ public class DestinationIndexTests extends ESTestCase {
             clock,
             config,
             ANALYTICS_DEST_INDEX_ALLOWED_SETTINGS,
-            ActionListener.wrap(
-                response -> fail("should not succeed"),
+            assertNoSuccessListener(
                 e -> assertThat(
                     e.getMessage(),
                     equalTo("A field that matches the dest.results_field [ml] already exists; please set a different results_field")

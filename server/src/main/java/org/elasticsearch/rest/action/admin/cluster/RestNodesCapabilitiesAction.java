@@ -11,6 +11,7 @@ package org.elasticsearch.rest.action.admin.cluster;
 import org.elasticsearch.action.admin.cluster.node.capabilities.NodesCapabilitiesRequest;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.Scope;
@@ -25,6 +26,8 @@ import java.util.Set;
 
 @ServerlessScope(Scope.INTERNAL)
 public class RestNodesCapabilitiesAction extends BaseRestHandler {
+
+    public static final NodeFeature CAPABILITIES_ACTION = new NodeFeature("rest.capabilities_action");
 
     @Override
     public List<Route> routes() {

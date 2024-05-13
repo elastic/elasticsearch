@@ -113,7 +113,7 @@ public class Setting<T> implements ToXContentObject {
         DeprecatedWarning,
 
         /**
-         * Node scope
+         * Cluster-level or configuration file-level setting. Not an index setting.
          */
         NodeScope,
 

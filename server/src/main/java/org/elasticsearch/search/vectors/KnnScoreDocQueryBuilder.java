@@ -63,7 +63,7 @@ public class KnnScoreDocQueryBuilder extends AbstractQueryBuilder<KnnScoreDocQue
     public KnnScoreDocQueryBuilder(StreamInput in) throws IOException {
         super(in);
         this.scoreDocs = in.readArray(Lucene::readScoreDoc, ScoreDoc[]::new);
-        if (in.getTransportVersion().onOrAfter(TransportVersions.NESTED_KNN_MORE_INNER_HITS)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_13_0)) {
             this.fieldName = in.readOptionalString();
             if (in.readBoolean()) {
                 if (in.getTransportVersion().onOrAfter(TransportVersions.KNN_EXPLICIT_BYTE_QUERY_VECTOR_PARSING)) {
@@ -100,7 +100,7 @@ public class KnnScoreDocQueryBuilder extends AbstractQueryBuilder<KnnScoreDocQue
     @Override
     protected void doWriteTo(StreamOutput out) throws IOException {
         out.writeArray(Lucene::writeScoreDoc, scoreDocs);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.NESTED_KNN_MORE_INNER_HITS)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_13_0)) {
             out.writeOptionalString(fieldName);
             if (queryVector != null) {
                 out.writeBoolean(true);

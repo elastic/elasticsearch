@@ -31,14 +31,13 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Set;
-import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 public class ObjectMapper extends Mapper {
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(ObjectMapper.class);
 
     public static final String CONTENT_TYPE = "object";
+    static final String STORE_ARRAY_SOURCE_PARAM = "store_array_source";
 
     public static class Defaults {
         public static final boolean ENABLED = true;
@@ -191,7 +190,6 @@ public class ObjectMapper extends Mapper {
                 context.buildFullName(name()),
                 enabled,
                 subobjects,
-                trackArraySource,
                 dynamic,
                 buildMappers(context.createChildContext(name(), dynamic))
             );
@@ -251,9 +249,6 @@ public class ObjectMapper extends Mapper {
                 return true;
             } else if (fieldName.equals("enabled")) {
                 builder.enabled(XContentMapValues.nodeBooleanValue(fieldNode, fieldName + ".enabled"));
-                return true;
-            } else if (fieldName.equals("track_array_source")) {
-                builder.trackArraySource(XContentMapValues.nodeBooleanValue(fieldNode, fieldName + ".track_array_source"));
                 return true;
             } else if (fieldName.equals("properties")) {
                 if (fieldNode instanceof Collection && ((Collection) fieldNode).isEmpty()) {
@@ -509,7 +504,6 @@ public class ObjectMapper extends Mapper {
     protected record MergeResult(
         Explicit<Boolean> enabled,
         Explicit<Boolean> subObjects,
-        Explicit<Boolean> trackArraySource,
         ObjectMapper.Dynamic dynamic,
         Map<String, Mapper> mappers
     ) {
@@ -560,7 +554,6 @@ public class ObjectMapper extends Mapper {
             return new MergeResult(
                 enabled,
                 subObjects,
-                trackArraySource,
                 mergeWithObject.dynamic != null ? mergeWithObject.dynamic : existing.dynamic,
                 mergedMappers
             );
@@ -718,7 +711,7 @@ public class ObjectMapper extends Mapper {
             builder.field("subobjects", subobjects.value());
         }
         if (trackArraySource != Defaults.TRACK_ARRAY_SOURCE) {
-            builder.field("track_array_source", trackArraySource.value());
+            builder.field(STORE_ARRAY_SOURCE_PARAM, trackArraySource.value());
         }
         if (custom != null) {
             custom.toXContent(builder, params);

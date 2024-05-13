@@ -2106,9 +2106,9 @@ public abstract class ESTestCase extends LuceneTestCase {
      * these things to complete almost immediately, but sometimes the CI runner executes things rather slowly so we use {@code 10s} as a
      * fairly relaxed definition of "immediately".
      * <p>
-     * A well-designed test should not need to wait for longer than this. If you think you need to do so, instead seek a better way to write
-     * the test such that it does not need to wait for so long. Tests that take 10s of seconds to complete are a big drag on CI times which
-     * slows everyone down.
+     * A well-designed test should not need to wait for anything close to this duration when run in isolation. If you think you need to do
+     * so, instead seek a better way to write the test such that it does not need to wait for so long. Tests that take multiple seconds to
+     * complete are a big drag on CI times which slows everyone down.
      * <p>
      * For instance, tests which verify things that require the passage of time ought to simulate this (e.g. using a {@link
      * org.elasticsearch.common.util.concurrent.DeterministicTaskQueue}). Excessive busy-waits ought to be replaced by blocking waits (e.g.

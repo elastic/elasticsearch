@@ -97,7 +97,7 @@ public class ApiKeyRestIT extends SecurityOnTrialLicenseRestTestCase {
         createUser(MANAGE_API_KEY_USER, END_USER_PASSWORD, List.of("manage_api_key_role"));
         createRole("manage_api_key_role", Set.of("manage_api_key"));
         createUser(MANAGE_SECURITY_USER, END_USER_PASSWORD, List.of("manage_security_role"));
-        createRole("manage_security_role", Set.of("manage_security"));
+        createRoleWithDescription("manage_security_role", Set.of("manage_security"), "Allows all security-related operations!");
     }
 
     @After
@@ -1681,6 +1681,134 @@ public class ApiKeyRestIT extends SecurityOnTrialLicenseRestTestCase {
         assertThat(updateResponse4.evaluate("updated"), is(false));
     }
 
+    public void testUserRoleDescriptionsGetsRemoved() throws IOException {
+        // Creating API key whose owner's role (limited-by) has description should succeed,
+        // and limited-by role descriptor should be filtered to remove description.
+        {
+            final Request createRestApiKeyRequest = new Request("POST", "_security/api_key");
+            setUserForRequest(createRestApiKeyRequest, MANAGE_SECURITY_USER, END_USER_PASSWORD);
+            createRestApiKeyRequest.setJsonEntity("""
+                {
+                     "name": "my-api-key"
+                }
+                """);
+            final ObjectPath createRestApiKeyResponse = assertOKAndCreateObjectPath(client().performRequest(createRestApiKeyRequest));
+            String apiKeyId = createRestApiKeyResponse.evaluate("id");
+
+            ObjectPath fetchResponse = assertOKAndCreateObjectPath(fetchApiKeyWithUser(MANAGE_SECURITY_USER, apiKeyId, true));
+            assertThat(fetchResponse.evaluate("api_keys.0.id"), equalTo(apiKeyId));
+            assertThat(fetchResponse.evaluate("api_keys.0.role_descriptors"), equalTo(Map.of()));
+            assertThat(fetchResponse.evaluate("api_keys.0.limited_by.0.manage_security_role.description"), is(nullValue()));
+
+            // Updating should behave the same as create. No limited-by role description should be persisted.
+            final Request updateRequest = new Request("PUT", "_security/api_key/" + apiKeyId);
+            setUserForRequest(updateRequest, MANAGE_SECURITY_USER, END_USER_PASSWORD);
+            updateRequest.setJsonEntity("""
+                {
+                     "role_descriptors":{
+                        "my-role": {
+                            "cluster": ["all"]
+                        }
+                    }
+                }
+                """);
+            assertThat(responseAsMap(client().performRequest(updateRequest)).get("updated"), equalTo(true));
+            fetchResponse = assertOKAndCreateObjectPath(fetchApiKeyWithUser(MANAGE_SECURITY_USER, apiKeyId, true));
+            assertThat(fetchResponse.evaluate("api_keys.0.id"), equalTo(apiKeyId));
+            assertThat(fetchResponse.evaluate("api_keys.0.limited_by.0.manage_security_role.description"), is(nullValue()));
+            assertThat(fetchResponse.evaluate("api_keys.0.role_descriptors.my-role.cluster"), equalTo(List.of("all")));
+        }
+        {
+            final Request grantApiKeyRequest = new Request("POST", "_security/api_key/grant");
+            grantApiKeyRequest.setJsonEntity(Strings.format("""
+                {
+                   "grant_type":"password",
+                   "username":"%s",
+                   "password":"%s",
+                   "api_key":{
+                      "name":"my-granted-api-key",
+                      "role_descriptors":{
+                         "my-role":{
+                            "cluster":["all"]
+                         }
+                      }
+                   }
+                }""", MANAGE_SECURITY_USER, END_USER_PASSWORD));
+            String grantedApiKeyId = assertOKAndCreateObjectPath(adminClient().performRequest(grantApiKeyRequest)).evaluate("id");
+            var fetchResponse = assertOKAndCreateObjectPath(fetchApiKeyWithUser(MANAGE_SECURITY_USER, grantedApiKeyId, true));
+            assertThat(fetchResponse.evaluate("api_keys.0.id"), equalTo(grantedApiKeyId));
+            assertThat(fetchResponse.evaluate("api_keys.0.name"), equalTo("my-granted-api-key"));
+            assertThat(fetchResponse.evaluate("api_keys.0.limited_by.0.manage_security_role.description"), is(nullValue()));
+            assertThat(fetchResponse.evaluate("api_keys.0.role_descriptors.my-role.cluster"), equalTo(List.of("all")));
+        }
+    }
+
+    public void testCreatingApiKeyWithRoleDescriptionFails() throws IOException {
+        final Request createRequest = new Request("POST", "_security/api_key");
+        setUserForRequest(createRequest, MANAGE_SECURITY_USER, END_USER_PASSWORD);
+        createRequest.setJsonEntity("""
+            {
+                 "name": "my-api-key"
+            }
+            """);
+        final ObjectPath createResponse = assertOKAndCreateObjectPath(client().performRequest(createRequest));
+        String apiKeyId = createResponse.evaluate("id");
+
+        final Request updateRequest = new Request("PUT", "_security/api_key/" + apiKeyId);
+        setUserForRequest(updateRequest, MANAGE_SECURITY_USER, END_USER_PASSWORD);
+        updateRequest.setJsonEntity("""
+            {
+                 "role_descriptors":{
+                    "my-role": {
+                        "description": "This description should not be allowed!"
+                    }
+                }
+            }
+            """);
+
+        var e = expectThrows(ResponseException.class, () -> client().performRequest(updateRequest));
+        assertThat(e.getMessage(), containsString("failed to parse role [my-role]. unexpected field [description]"));
+    }
+
+    public void testUpdatingApiKeyWithRoleDescriptionFails() throws IOException {
+        final Request createRestApiKeyRequest = new Request("POST", "_security/api_key");
+        setUserForRequest(createRestApiKeyRequest, MANAGE_SECURITY_USER, END_USER_PASSWORD);
+        createRestApiKeyRequest.setJsonEntity("""
+            {
+                 "name": "my-api-key",
+                 "role_descriptors":{
+                    "my-role": {
+                        "description": "This description should not be allowed!"
+                    }
+                }
+            }
+            """);
+
+        var e = expectThrows(ResponseException.class, () -> client().performRequest(createRestApiKeyRequest));
+        assertThat(e.getMessage(), containsString("failed to parse role [my-role]. unexpected field [description]"));
+    }
+
+    public void testGrantApiKeyWithRoleDescriptionFails() throws Exception {
+        final Request grantApiKeyRequest = new Request("POST", "_security/api_key/grant");
+        setUserForRequest(grantApiKeyRequest, MANAGE_SECURITY_USER, END_USER_PASSWORD);
+        grantApiKeyRequest.setJsonEntity(Strings.format("""
+            {
+               "grant_type":"password",
+               "username":"%s",
+               "password":"%s",
+               "api_key":{
+                  "name":"my-granted-api-key",
+                  "role_descriptors":{
+                     "my-role":{
+                        "description": "This role does not grant any permissions!"
+                     }
+                  }
+               }
+            }""", MANAGE_SECURITY_USER, END_USER_PASSWORD.toString()));
+        var e = expectThrows(ResponseException.class, () -> client().performRequest(grantApiKeyRequest));
+        assertThat(e.getMessage(), containsString("failed to parse role [my-role]. unexpected field [description]"));
+    }
+
     public void testWorkflowsRestrictionSupportForApiKeys() throws IOException {
         final Request createApiKeyRequest = new Request("POST", "_security/api_key");
         createApiKeyRequest.setJsonEntity("""
@@ -1914,6 +2042,22 @@ public class ApiKeyRestIT extends SecurityOnTrialLicenseRestTestCase {
         Response getApiKeyResponse = adminClient().performRequest(getApiKeyRequest);
         assertOK(getApiKeyResponse);
         return getApiKeyResponse;
+    }
+
+    private Response fetchApiKeyWithUser(String username, String apiKeyId, boolean withLimitedBy) throws IOException {
+        final Request fetchRequest;
+        if (randomBoolean()) {
+            fetchRequest = new Request("GET", "/_security/api_key");
+            fetchRequest.addParameter("id", apiKeyId);
+            fetchRequest.addParameter("with_limited_by", String.valueOf(withLimitedBy));
+        } else {
+            fetchRequest = new Request("GET", "/_security/_query/api_key");
+            fetchRequest.addParameter("with_limited_by", String.valueOf(withLimitedBy));
+            fetchRequest.setJsonEntity(Strings.format("""
+                { "query": { "ids": { "values": ["%s"] } } }""", apiKeyId));
+        }
+        setUserForRequest(fetchRequest, username, END_USER_PASSWORD);
+        return client().performRequest(fetchRequest);
     }
 
     private void assertBadCreateCrossClusterApiKeyRequest(String body, String expectedErrorMessage) throws IOException {
@@ -2178,7 +2322,26 @@ public class ApiKeyRestIT extends SecurityOnTrialLicenseRestTestCase {
                     remoteIndicesClusterAliases
                 )
             ),
+            null,
             null
+        );
+        getSecurityClient().putRole(role);
+    }
+
+    protected void createRoleWithDescription(String name, Collection<String> clusterPrivileges, String description) throws IOException {
+        final RoleDescriptor role = new RoleDescriptor(
+            name,
+            clusterPrivileges.toArray(String[]::new),
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            description
         );
         getSecurityClient().putRole(role);
     }

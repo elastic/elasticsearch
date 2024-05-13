@@ -63,18 +63,18 @@ public class HuggingFaceServiceUpgradeIT extends InferenceUpgradeTestCase {
             embeddingsServer.enqueue(new MockResponse().setResponseCode(200).setBody(embeddingResponse()));
             put(oldClusterId, embeddingConfig(getUrl(embeddingsServer)), TaskType.TEXT_EMBEDDING);
 
-            var configs = (List<Map<String, Object>>) get(TaskType.TEXT_EMBEDDING, oldClusterId).get("models");
+            var configs = (List<Map<String, Object>>) get(TaskType.TEXT_EMBEDDING, oldClusterId).get("endpoints");
             assertThat(configs, hasSize(1));
 
             assertEmbeddingInference(oldClusterId);
         } else if (isMixedCluster()) {
-            var configs = (List<Map<String, Object>>) get(TaskType.TEXT_EMBEDDING, oldClusterId).get("models");
+            var configs = (List<Map<String, Object>>) get(TaskType.TEXT_EMBEDDING, oldClusterId).get("endpoints");
             assertEquals("hugging_face", configs.get(0).get("service"));
 
             assertEmbeddingInference(oldClusterId);
         } else if (isUpgradedCluster()) {
             // check old cluster model
-            var configs = (List<Map<String, Object>>) get(TaskType.TEXT_EMBEDDING, oldClusterId).get("models");
+            var configs = (List<Map<String, Object>>) get(TaskType.TEXT_EMBEDDING, oldClusterId).get("endpoints");
             assertEquals("hugging_face", configs.get(0).get("service"));
 
             // Inference on old cluster model
@@ -83,7 +83,7 @@ public class HuggingFaceServiceUpgradeIT extends InferenceUpgradeTestCase {
             embeddingsServer.enqueue(new MockResponse().setResponseCode(200).setBody(embeddingResponse()));
             put(upgradedClusterId, embeddingConfig(getUrl(embeddingsServer)), TaskType.TEXT_EMBEDDING);
 
-            configs = (List<Map<String, Object>>) get(TaskType.TEXT_EMBEDDING, upgradedClusterId).get("models");
+            configs = (List<Map<String, Object>>) get(TaskType.TEXT_EMBEDDING, upgradedClusterId).get("endpoints");
             assertThat(configs, hasSize(1));
 
             assertEmbeddingInference(upgradedClusterId);
@@ -110,17 +110,17 @@ public class HuggingFaceServiceUpgradeIT extends InferenceUpgradeTestCase {
 
         if (isOldCluster()) {
             put(oldClusterId, elserConfig(getUrl(elserServer)), TaskType.SPARSE_EMBEDDING);
-            var configs = (List<Map<String, Object>>) get(TaskType.SPARSE_EMBEDDING, oldClusterId).get("models");
+            var configs = (List<Map<String, Object>>) get(TaskType.SPARSE_EMBEDDING, oldClusterId).get("endpoints");
             assertThat(configs, hasSize(1));
 
             assertElser(oldClusterId);
         } else if (isMixedCluster()) {
-            var configs = (List<Map<String, Object>>) get(TaskType.SPARSE_EMBEDDING, oldClusterId).get("models");
+            var configs = (List<Map<String, Object>>) get(TaskType.SPARSE_EMBEDDING, oldClusterId).get("endpoints");
             assertEquals("hugging_face", configs.get(0).get("service"));
             assertElser(oldClusterId);
         } else if (isUpgradedCluster()) {
             // check old cluster model
-            var configs = (List<Map<String, Object>>) get(TaskType.SPARSE_EMBEDDING, oldClusterId).get("models");
+            var configs = (List<Map<String, Object>>) get(TaskType.SPARSE_EMBEDDING, oldClusterId).get("endpoints");
             assertEquals("hugging_face", configs.get(0).get("service"));
             var taskSettings = (Map<String, Object>) configs.get(0).get("task_settings");
             assertThat(taskSettings.keySet(), empty());
@@ -129,7 +129,7 @@ public class HuggingFaceServiceUpgradeIT extends InferenceUpgradeTestCase {
 
             // New endpoint
             put(upgradedClusterId, elserConfig(getUrl(elserServer)), TaskType.SPARSE_EMBEDDING);
-            configs = (List<Map<String, Object>>) get(upgradedClusterId).get("models");
+            configs = (List<Map<String, Object>>) get(upgradedClusterId).get("endpoints");
             assertThat(configs, hasSize(1));
 
             assertElser(upgradedClusterId);

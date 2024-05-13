@@ -1377,7 +1377,8 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
             DataStreamAutoShardingEvent autoShardingEvent
         ) {
             this.namePrefix = namePrefix;
-            // The list of indices is expected to be an immutable list, for performance reasons.
+            // The list of indices is expected to be an immutable list. We don't create an immutable copy here, as it might have
+            // impact on the performance on some usages.
             this.indices = indices;
             this.rolloverOnWrite = rolloverOnWrite;
             this.autoShardingEvent = autoShardingEvent;
@@ -1464,7 +1465,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
             }
 
             /**
-             * Set the list of indices. We always create an immutable copy for performance reasons.
+             * Set the list of indices. We always create an immutable copy as that's what the constructor expects.
              */
             public Builder setIndices(List<Index> indices) {
                 this.indices = List.copyOf(indices);

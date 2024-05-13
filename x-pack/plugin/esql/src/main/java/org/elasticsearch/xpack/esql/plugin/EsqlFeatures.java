@@ -10,10 +10,19 @@ package org.elasticsearch.xpack.esql.plugin;
 import org.elasticsearch.Version;
 import org.elasticsearch.features.FeatureSpecification;
 import org.elasticsearch.features.NodeFeature;
+import org.elasticsearch.rest.action.admin.cluster.RestNodesCapabilitiesAction;
+import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 
 import java.util.Map;
 import java.util.Set;
 
+/**
+ * {@link NodeFeature}s declared by ESQL. These should be used for fast checks
+ * on the node. Before the introduction of the {@link RestNodesCapabilitiesAction}
+ * this was used for controlling which features are tested so many of the
+ * examples below are *just* used for that. Don't make more of those - add them
+ * to {@link EsqlCapabilities} instead.
+ */
 public class EsqlFeatures implements FeatureSpecification {
     /**
      * Introduction of {@code MV_SORT}, {@code MV_SLICE}, and {@code MV_ZIP}.

@@ -416,15 +416,13 @@ public final class DocumentParser {
                 context.path().add(currentFieldName);
             } else {
                 if (context.mappingLookup().isSourceSynthetic()
-                    && fieldMapper.supportsSyntheticSourceNatively() == false
-                    && fieldMapper.fallbackSyntheticSourceOptIn()) {
+                    && fieldMapper.syntheticSourceMode() == FieldMapper.SyntheticSourceMode.FALLBACK) {
                     Tuple<XContentParser, XContentParser> clonedParsers = XContentHelper.cloneParser(context.parser());
 
-                    int parentOffset = context.parent() instanceof RootObjectMapper ? 0 : context.parent().fullPath().length() + 1;
                     context.addIgnoredField(
-                        new IgnoredSourceFieldMapper.NameValue(
+                        IgnoredSourceFieldMapper.NameValue.fromContext(
+                            context,
                             fieldMapper.name(),
-                            parentOffset,
                             XContentDataHelper.encodeToken(clonedParsers.v1())
                         )
                     );

@@ -440,19 +440,29 @@ public abstract class FieldMapper extends Mapper {
     }
 
     /**
-     * If a mapper natively supports synthetic source, f.e. by constructing it from doc values.
-     * @return true or false
+     * Specifies the mode of synthetic source support by the mapper.
+     *
+     * <pre>
+     * {@link NATIVE} - mapper natively supports synthetic source, f.e. by constructing it from doc values.
+     *
+     * {@link FALLBACK} - mapper does not have native support but uses fallback implementation.
+     *
+     * {@link NOT_SUPPORTED} - synthetic source is not supported.
+     * </pre>
      */
-    protected boolean supportsSyntheticSourceNatively() {
-        return false;
+    protected enum SyntheticSourceMode {
+        NATIVE,
+        FALLBACK,
+        NOT_SUPPORTED
     }
 
     /**
-     * If a mapper opts in to use fallback synthetic source implementation.
-     * @return true or false
+     * Specifies the mode of synthetic source support by the mapper.
+     *
+     * @return {@link SyntheticSourceMode}
      */
-    protected boolean fallbackSyntheticSourceOptIn() {
-        return false;
+    protected SyntheticSourceMode syntheticSourceMode() {
+        return SyntheticSourceMode.NOT_SUPPORTED;
     }
 
     /**
@@ -464,7 +474,9 @@ public abstract class FieldMapper extends Mapper {
      */
     @Override
     public SourceLoader.SyntheticFieldLoader syntheticFieldLoader() {
-        return fallbackSyntheticSourceOptIn() ? SourceLoader.SyntheticFieldLoader.NOTHING : super.syntheticFieldLoader();
+        return syntheticSourceMode() != SyntheticSourceMode.NOT_SUPPORTED
+            ? SourceLoader.SyntheticFieldLoader.NOTHING
+            : super.syntheticFieldLoader();
     }
 
     public static final class MultiFields implements Iterable<FieldMapper>, ToXContent {

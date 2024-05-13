@@ -763,8 +763,8 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
     }
 
     @Override
-    protected boolean fallbackSyntheticSourceOptIn() {
-        return true;
+    protected SyntheticSourceMode syntheticSourceMode() {
+        return SyntheticSourceMode.FALLBACK;
     }
 
     /**

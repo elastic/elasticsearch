@@ -571,8 +571,8 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<GeoPoi
     }
 
     @Override
-    protected boolean supportsSyntheticSourceNatively() {
-        return true;
+    protected SyntheticSourceMode syntheticSourceMode() {
+        return SyntheticSourceMode.NATIVE;
     }
 
     @Override

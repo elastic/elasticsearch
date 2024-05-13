@@ -366,11 +366,10 @@ public abstract class DocumentParserContext {
                 if (mappingLookup.exceedsLimit(indexSettings().getMappingTotalFieldsLimit(), additionalFieldsToAdd)) {
                     if (mappingLookup.isSourceSynthetic()) {
                         try {
-                            int parentOffset = parent() instanceof RootObjectMapper ? 0 : parent().fullPath().length() + 1;
                             addIgnoredField(
-                                new IgnoredSourceFieldMapper.NameValue(
+                                IgnoredSourceFieldMapper.NameValue.fromContext(
+                                    this,
                                     mapper.name(),
-                                    parentOffset,
                                     XContentDataHelper.encodeToken(parser())
                                 )
                             );

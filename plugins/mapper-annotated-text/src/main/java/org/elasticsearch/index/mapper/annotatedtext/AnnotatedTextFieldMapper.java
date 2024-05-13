@@ -572,8 +572,8 @@ public class AnnotatedTextFieldMapper extends FieldMapper {
     }
 
     @Override
-    protected boolean supportsSyntheticSourceNatively() {
-        return true;
+    protected SyntheticSourceMode syntheticSourceMode() {
+        return SyntheticSourceMode.NATIVE;
     }
 
     @Override

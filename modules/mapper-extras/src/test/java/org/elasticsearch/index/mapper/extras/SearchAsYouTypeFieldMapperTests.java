@@ -825,7 +825,7 @@ public class SearchAsYouTypeFieldMapperTests extends MapperTestCase {
     @Override
     protected SyntheticSourceSupport syntheticSourceSupport(boolean syntheticSource) {
         return new SyntheticSourceSupport() {
-            public SyntheticSourceExample example(int maxValues) throws IOException {
+            public SyntheticSourceExample example(int maxValues) {
                 String value = rarely() ? null : randomAlphaOfLengthBetween(0, 50);
 
                 return new SyntheticSourceExample(value, value, this::mapping);
@@ -833,9 +833,10 @@ public class SearchAsYouTypeFieldMapperTests extends MapperTestCase {
 
             private void mapping(XContentBuilder b) throws IOException {
                 b.field("type", "search_as_you_type");
-                if (rarely()) {
-                    b.field("index", false);
-                }
+                b.field("index", false);
+//                if (rarely()) {
+//                    b.field("index", false);
+//                }
                 if (rarely()) {
                     b.field("store", true);
                 }

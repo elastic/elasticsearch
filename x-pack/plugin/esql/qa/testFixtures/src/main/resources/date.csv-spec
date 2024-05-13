@@ -621,6 +621,40 @@ dt:datetime              |plus_post:datetime |plus_pre:datetime
 2100-01-01T01:01:01.001Z |null               |null
 ;
 
+datePlusQuarter
+# "quarter" introduced in 8.15
+required_feature: esql.timespan_abbreviations
+row dt = to_dt("2100-01-01T01:01:01.000Z")
+| eval plusQuarter = dt + 2 quarters
+;
+
+dt:datetime              | plusQuarter:datetime
+2100-01-01T01:01:01.000Z | 2100-07-01T01:01:01.000Z
+;
+
+datePlusAbbreviatedDurations
+# abbreviations introduced in 8.15
+required_feature: esql.timespan_abbreviations
+row dt = to_dt("2100-01-01T00:00:00.000Z")
+| eval plusDurations = dt + 1 h + 2 min + 2 sec + 1 s + 4 ms
+;
+
+dt:datetime              | plusDurations:datetime
+2100-01-01T00:00:00.000Z | 2100-01-01T01:02:03.004Z
+;
+
+datePlusAbbreviatedPeriods
+# abbreviations introduced in 8.15
+required_feature: esql.timespan_abbreviations
+row dt = to_dt("2100-01-01T00:00:00.000Z")
+| eval plusDurations = dt + 0 yr + 1y + 2 q + 3 mo + 4 w + 3 d
+;
+
+dt:datetime              | plusDurations:datetime
+2100-01-01T00:00:00.000Z | 2101-11-01T00:00:00.000Z
+;
+
+
 dateMinusDuration
 row dt = to_dt("2100-01-01T01:01:01.001Z")
 | eval minus = dt - 1 hour - 1 minute - 1 second - 1 milliseconds;

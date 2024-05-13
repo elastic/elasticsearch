@@ -272,7 +272,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
                                 context,
                                 null,
                                 documentParsingProvider,
-                                request.isSimulated()
+                                false
                             );
                         }
                         finishRequest();

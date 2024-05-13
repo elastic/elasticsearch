@@ -5,7 +5,7 @@ The Distributed Area contains indexing and coordination systems.
 The index path stretches from the user REST command through shard routing down to each individual shard's translog and storage
 engine. Reindexing is effectively reading from a source index and writing to a destination index (perhaps on different nodes).
 The coordination side includes cluster coordination, shard allocation, cluster autoscaling stats, task management, and cross
-cluster replication. Less obviously coordination systems include networking, the discovery plugin system, the snapshot/restore
+cluster replication. Less obvious coordination systems include networking, the discovery plugin system, the snapshot/restore
 logic, and shard recovery.
 
 A guide to the general Elasticsearch components can be found [here](https://github.com/elastic/elasticsearch/blob/main/docs/internal/GeneralArchitectureGuide.md).

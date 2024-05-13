@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.spatial;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.ann.ConvertEvaluator;
 import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.function.scalar.UnaryScalarFunction;
@@ -34,8 +35,20 @@ import static org.elasticsearch.xpack.ql.util.SpatialCoordinateTypes.UNSPECIFIED
  * Alternatively it is well described in PostGIS documentation at <a href="https://postgis.net/docs/ST_X.html">PostGIS:ST_X</a>.
  */
 public class StX extends UnaryScalarFunction {
-    @FunctionInfo(returnType = "double", description = "Extracts the x-coordinate from a point geometry.")
-    public StX(Source source, @Param(name = "point", type = { "geo_point", "cartesian_point" }) Expression field) {
+    @FunctionInfo(
+        returnType = "double",
+        description = "Extracts the `x` coordinate from the supplied point.\n"
+            + "If the points is of type `geo_point` this is equivalent to extracting the `longitude` value.",
+        examples = @Example(file = "spatial", tag = "st_x_y")
+    )
+    public StX(
+        Source source,
+        @Param(
+            name = "point",
+            type = { "geo_point", "cartesian_point" },
+            description = "Expression of type `geo_point` or `cartesian_point`. If `null`, the function returns `null`."
+        ) Expression field
+    ) {
         super(source, field);
     }
 

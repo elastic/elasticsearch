@@ -24,7 +24,7 @@ import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 
-import static org.junit.Assert.fail;
+import static org.elasticsearch.test.ESTestCase.fail;
 
 public class ActionTestUtils {
 
@@ -84,7 +84,7 @@ public class ActionTestUtils {
         return new ActionListener<>() {
             @Override
             public void onResponse(T result) {
-                fail("unexpected success with result [" + result + "]");
+                fail(null, "unexpected success with result [%s] while expecting to handle failure with [%s]", result, consumer);
             }
 
             @Override
@@ -95,7 +95,7 @@ public class ActionTestUtils {
                     if (e2 != e) {
                         e2.addSuppressed(e);
                     }
-                    ESTestCase.fail(e2, "unexpected failure in onFailure");
+                    fail(e2, "unexpected failure in onFailure handler for [%s]", consumer);
                 }
             }
         };

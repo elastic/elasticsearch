@@ -26,7 +26,6 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.Future;
 import java.util.concurrent.Phaser;
 import java.util.stream.Stream;
 
@@ -34,7 +33,6 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.startsWith;
 
 /**
@@ -140,24 +138,35 @@ public class KibanaThreadPoolIT extends ESIntegTestCase {
         // register this test's thread
         phaser.register();
 
-        for (String nodeName : internalCluster().getNodeNames()) {
-            ThreadPool threadPool = internalCluster().getInstance(ThreadPool.class, nodeName);
-            for (String threadPoolName : threadPoolsToBlock()) {
-                blockThreadPool(threadPoolName, threadPool, phaser);
-                fillThreadPoolQueues(threadPoolName, threadPool);
-            }
-        }
+        blockThreadPool(phaser);
+        phaser.arriveAndAwaitAdvance();
 
-        assertBusy(
-            () -> assertThat(phaser.getArrivedParties(), equalTo(threadPoolsToBlock().size() * internalCluster().getNodeNames().length))
-        );
+        fillQueues();
+
         logger.debug("number of nodes " + internalCluster().getNodeNames().length);
         logger.debug("number of parties arrived " + phaser.getArrivedParties());
-        phaser.arriveAndAwaitAdvance();
         try {
             runnable.run();
         } finally {
             phaser.arriveAndAwaitAdvance();
+        }
+    }
+
+    private void blockThreadPool(Phaser phaser) {
+        for (String nodeName : internalCluster().getNodeNames()) {
+            ThreadPool threadPool = internalCluster().getInstance(ThreadPool.class, nodeName);
+            for (String threadPoolName : threadPoolsToBlock()) {
+                blockThreadPool(threadPoolName, threadPool, phaser);
+            }
+        }
+    }
+
+    private void fillQueues() {
+        for (String nodeName : internalCluster().getNodeNames()) {
+            ThreadPool threadPool = internalCluster().getInstance(ThreadPool.class, nodeName);
+            for (String threadPoolName : threadPoolsToBlock()) {
+                fillThreadPoolQueues(threadPoolName, threadPool);
+            }
         }
     }
 
@@ -174,12 +183,14 @@ public class KibanaThreadPoolIT extends ESIntegTestCase {
         for (int i = 0; i < info.getMax(); i++) {
             // we need to make sure that there is a task blocking a thread pool
             // otherwise a queue might end up having a spot
-            Future<?> submit = null;
             do {
                 try {
-                    submit = threadPool.executor(threadPoolName).submit(waitAction);
-                } catch (EsRejectedExecutionException e) {}
-            } while (submit == null);
+                    threadPool.executor(threadPoolName).execute(waitAction);
+                    break;
+                } catch (EsRejectedExecutionException e) {
+                    // if exception was thrown when submitting, retry.
+                }
+            } while (true);
         }
     }
 
@@ -187,13 +198,13 @@ public class KibanaThreadPoolIT extends ESIntegTestCase {
         ThreadPool.Info info = threadPool.info(threadPoolName);
 
         for (int i = 0; i < info.getQueueSize().singles(); i++) {
-            Future<?> submit = null;
-            do {
-                try {
-                    submit = threadPool.executor(threadPoolName).submit(() -> {});
-                } catch (EsRejectedExecutionException e) {}
-            } while (submit == null);
-            // we can't be sure that some other task won't get queued in a test cluster
+            try {
+                threadPool.executor(threadPoolName).execute(() -> {});
+                break;
+            } catch (EsRejectedExecutionException e) {
+                // we can't be sure that some other task won't get queued in a test cluster
+                // but the threadpool's thread is already blocked
+            }
         }
     }
 

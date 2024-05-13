@@ -1,0 +1,34 @@
+// Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+// or more contributor license agreements. Licensed under the Elastic License
+// 2.0; you may not use this file except in compliance with the Elastic License
+// 2.0.
+
+//
+// Query translator tests. Format:
+//
+// <name>[-Ignore]
+// <esql-query-line1>
+// [<esql-query-line2>
+// ...
+// <esql-query-line-n];
+// [<matcher-1> <expectation-1>EOL
+// <matcher-2> <expectation-2>EOL
+// ...
+// ]
+// ;
+//
+// Notes:
+//   - The ESQL query can span multiple lines and should be terminated with semicolon (;)
+//   - The currently supported matchers: `CONTAINS` (the default one), `REGEX`
+//   - To ignore a test, add -Ignore to the end of the name
+//   - Matchers can be skipped, if you just want to test that a query is optimized/plan without errors
+//   - Do not use whitespaces in the relevant parts of the query itself, as they will be removed.
+//     For example to match: '"params":{"v0":"point","v1":"point( 10 20 )"}
+//     you should use: "point(1020)" instead of "point( 10 20 )", otherwise the assertion will fail.
+
+// Range queries
+///////////////
+RangeQueryNumerical
+FROM test | WHERE 10 < int AND int < 12;
+"range":{"int":{"gt":10
+;

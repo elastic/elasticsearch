@@ -561,7 +561,6 @@ public class StatelessFileDeletionIT extends AbstractStatelessIntegTestCase {
         testCommitsRetainementWithSearchScroll(TestSearchScrollCase.COMMITS_RETAINED_UNTIL_SCROLL_CLOSES);
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch-serverless/issues/1881")
     public void testCommitsAreDroppedAfterScrollClosesAndIndexingInactivity() throws Exception {
         testCommitsRetainementWithSearchScroll(TestSearchScrollCase.COMMITS_DROPPED_AFTER_SCROLL_CLOSES_AND_INDEXING_INACTIVITY);
     }

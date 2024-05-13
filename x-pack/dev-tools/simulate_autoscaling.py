@@ -388,13 +388,13 @@ class TrafficPatterns:
     return 10
 
   @staticmethod
-  def jump(time):
-    return 1 if time < 3600 else 100
+  def jumps(time):
+    return 1 if time % 3600 < 1800 else 100
 
   @staticmethod
   def all():
     return [TrafficPatterns.linear_increasing, TrafficPatterns.oscillating_2h, TrafficPatterns.oscillating_5h,
-            TrafficPatterns.occasionally, TrafficPatterns.constant, TrafficPatterns.jump]
+            TrafficPatterns.occasionally, TrafficPatterns.constant, TrafficPatterns.jumps]
 
 
 def main():

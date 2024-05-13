@@ -99,11 +99,10 @@ public class AutoscalingMemoryMetricsIT extends AbstractStatelessIntegTestCase {
             });
         }
 
-        final MemoryMetricsService.IndexMemoryMetrics totalIndexMappingSizeBeforeUpdate = internalCluster().getCurrentMasterNodeInstance(
-            MemoryMetricsService.class
-        ).getTotalIndicesMappingSize();
+        final var totalIndexMappingSizeBeforeUpdate = internalCluster().getCurrentMasterNodeInstance(MemoryMetricsService.class)
+            .calculateTotalIndicesMappingSize();
 
-        final long sizeBeforeIndexCreate = totalIndexMappingSizeBeforeUpdate.getSizeInBytes();
+        final long sizeBeforeIndexCreate = totalIndexMappingSizeBeforeUpdate.sizeInBytes();
         assertThat(sizeBeforeIndexCreate, equalTo(0L));
 
         final int mappingFieldsCount = randomIntBetween(10, 1000);
@@ -114,11 +113,10 @@ public class AutoscalingMemoryMetricsIT extends AbstractStatelessIntegTestCase {
         assertBusy(() -> {
             // Note that asserting busy here (and in tests below) is needed to ensure that writing thread completed update of
             // MemoryMetricsService
-            final MemoryMetricsService.IndexMemoryMetrics totalIndexMappingSizeAfterUpdate = internalCluster().getCurrentMasterNodeInstance(
-                MemoryMetricsService.class
-            ).getTotalIndicesMappingSize();
+            final var totalIndexMappingSizeAfterUpdate = internalCluster().getCurrentMasterNodeInstance(MemoryMetricsService.class)
+                .calculateTotalIndicesMappingSize();
 
-            final long sizeAfterIndexCreate = totalIndexMappingSizeAfterUpdate.getSizeInBytes();
+            final long sizeAfterIndexCreate = totalIndexMappingSizeAfterUpdate.sizeInBytes();
             final long expectedMemoryOverhead = 1024 * mappingFieldsCount;
             // Note that strict comparison is not possible here (and tests below) because of presence of metadata mapping fields e.g.
             // _index, _source, etc
@@ -127,7 +125,7 @@ public class AutoscalingMemoryMetricsIT extends AbstractStatelessIntegTestCase {
             assertThat(sizeAfterIndexCreate, greaterThan(sizeBeforeIndexCreate + expectedMemoryOverhead));
 
             // ensure that all expected updates have arrived to master
-            assertThat(totalIndexMappingSizeAfterUpdate.getMetricQuality(), equalTo(MetricQuality.EXACT));
+            assertThat(totalIndexMappingSizeAfterUpdate.metricQuality(), equalTo(MetricQuality.EXACT));
         });
     }
 
@@ -139,11 +137,10 @@ public class AutoscalingMemoryMetricsIT extends AbstractStatelessIntegTestCase {
         createIndex(INDEX_NAME, 1, 0);
         ensureGreen(INDEX_NAME);
 
-        final MemoryMetricsService.IndexMemoryMetrics totalIndexMappingSizeBeforeUpdate = internalCluster().getCurrentMasterNodeInstance(
-            MemoryMetricsService.class
-        ).getTotalIndicesMappingSize();
+        final var totalIndexMappingSizeBeforeUpdate = internalCluster().getCurrentMasterNodeInstance(MemoryMetricsService.class)
+            .calculateTotalIndicesMappingSize();
 
-        final long sizeBeforeMappingUpdate = totalIndexMappingSizeBeforeUpdate.getSizeInBytes();
+        final long sizeBeforeMappingUpdate = totalIndexMappingSizeBeforeUpdate.sizeInBytes();
 
         // We need to delay the second update until the mapping got updated to MISSING on the master node
         final CountDownLatch mappingUpdated = new CountDownLatch(1);
@@ -165,13 +162,12 @@ public class AutoscalingMemoryMetricsIT extends AbstractStatelessIntegTestCase {
         mappingUpdated.countDown();
 
         assertBusy(() -> {
-            final MemoryMetricsService.IndexMemoryMetrics totalIndexMappingSizeAfterUpdate = internalCluster().getCurrentMasterNodeInstance(
-                MemoryMetricsService.class
-            ).getTotalIndicesMappingSize();
-            final long sizeAfterMappingUpdate = totalIndexMappingSizeAfterUpdate.getSizeInBytes();
+            final var totalIndexMappingSizeAfterUpdate = internalCluster().getCurrentMasterNodeInstance(MemoryMetricsService.class)
+                .calculateTotalIndicesMappingSize();
+            final long sizeAfterMappingUpdate = totalIndexMappingSizeAfterUpdate.sizeInBytes();
             final long expectedMemoryOverhead = 1024 * mappingFieldsCount;
             assertThat(sizeAfterMappingUpdate, greaterThan(sizeBeforeMappingUpdate + expectedMemoryOverhead));
-            assertThat(totalIndexMappingSizeAfterUpdate.getMetricQuality(), equalTo(MetricQuality.EXACT));
+            assertThat(totalIndexMappingSizeAfterUpdate.metricQuality(), equalTo(MetricQuality.EXACT));
         });
     }
 
@@ -191,10 +187,9 @@ public class AutoscalingMemoryMetricsIT extends AbstractStatelessIntegTestCase {
             });
         }
 
-        final MemoryMetricsService.IndexMemoryMetrics totalIndexMappingSizeBeforeUpdate = internalCluster().getCurrentMasterNodeInstance(
-            MemoryMetricsService.class
-        ).getTotalIndicesMappingSize();
-        final long sizeBeforeIndexCreate = totalIndexMappingSizeBeforeUpdate.getSizeInBytes();
+        final var totalIndexMappingSizeBeforeUpdate = internalCluster().getCurrentMasterNodeInstance(MemoryMetricsService.class)
+            .calculateTotalIndicesMappingSize();
+        final long sizeBeforeIndexCreate = totalIndexMappingSizeBeforeUpdate.sizeInBytes();
 
         final int mappingFieldsCount = randomIntBetween(10, 1000);
         final XContentBuilder indexMapping = createIndexMapping(mappingFieldsCount);
@@ -204,24 +199,22 @@ public class AutoscalingMemoryMetricsIT extends AbstractStatelessIntegTestCase {
         // memory goes up
         assertBusy(() -> assertThat(transportMetricCounter.get(), greaterThanOrEqualTo(1)));
         assertBusy(() -> {
-            final MemoryMetricsService.IndexMemoryMetrics totalIndexMappingSizeAfterUpdate = internalCluster().getCurrentMasterNodeInstance(
-                MemoryMetricsService.class
-            ).getTotalIndicesMappingSize();
-            final long sizeAfterIndexCreate = totalIndexMappingSizeAfterUpdate.getSizeInBytes();
+            final var totalIndexMappingSizeAfterUpdate = internalCluster().getCurrentMasterNodeInstance(MemoryMetricsService.class)
+                .calculateTotalIndicesMappingSize();
+            final long sizeAfterIndexCreate = totalIndexMappingSizeAfterUpdate.sizeInBytes();
             assertThat(sizeAfterIndexCreate, greaterThan(sizeBeforeIndexCreate));  // sanity check
-            assertThat(totalIndexMappingSizeAfterUpdate.getMetricQuality(), equalTo(MetricQuality.EXACT));
+            assertThat(totalIndexMappingSizeAfterUpdate.metricQuality(), equalTo(MetricQuality.EXACT));
         });
 
         assertAcked(indicesAdmin().prepareDelete(INDEX_NAME).get());
 
         // memory goes down
         assertBusy(() -> {
-            final MemoryMetricsService.IndexMemoryMetrics totalIndexMappingSizeAfterDelete = internalCluster().getCurrentMasterNodeInstance(
-                MemoryMetricsService.class
-            ).getTotalIndicesMappingSize();
-            final long sizeAfterIndexDelete = totalIndexMappingSizeAfterDelete.getSizeInBytes();
+            final var totalIndexMappingSizeAfterDelete = internalCluster().getCurrentMasterNodeInstance(MemoryMetricsService.class)
+                .calculateTotalIndicesMappingSize();
+            final long sizeAfterIndexDelete = totalIndexMappingSizeAfterDelete.sizeInBytes();
             assertThat(sizeAfterIndexDelete, equalTo(sizeBeforeIndexCreate));
-            assertThat(totalIndexMappingSizeAfterDelete.getMetricQuality(), equalTo(MetricQuality.EXACT));
+            assertThat(totalIndexMappingSizeAfterDelete.metricQuality(), equalTo(MetricQuality.EXACT));
         });
     }
 
@@ -311,13 +304,12 @@ public class AutoscalingMemoryMetricsIT extends AbstractStatelessIntegTestCase {
         ensureStableCluster(1 + indexNodes);
 
         assertBusy(() -> {
-            final MemoryMetricsService.IndexMemoryMetrics totalIndexMappingSizeBeforeIndexCreate = internalCluster()
-                .getCurrentMasterNodeInstance(MemoryMetricsService.class)
-                .getTotalIndicesMappingSize();
-            final long sizeBeforeIndexCreate = totalIndexMappingSizeBeforeIndexCreate.getSizeInBytes();
+            final var totalIndexMappingSizeBeforeIndexCreate = internalCluster().getCurrentMasterNodeInstance(MemoryMetricsService.class)
+                .calculateTotalIndicesMappingSize();
+            final long sizeBeforeIndexCreate = totalIndexMappingSizeBeforeIndexCreate.sizeInBytes();
             // no indices created, thus 0
             assertThat(sizeBeforeIndexCreate, equalTo(0L));
-            assertThat(totalIndexMappingSizeBeforeIndexCreate.getMetricQuality(), equalTo(MetricQuality.EXACT));
+            assertThat(totalIndexMappingSizeBeforeIndexCreate.metricQuality(), equalTo(MetricQuality.EXACT));
         });
 
         final AtomicInteger transportMetricCounter = new AtomicInteger(0);
@@ -350,12 +342,11 @@ public class AutoscalingMemoryMetricsIT extends AbstractStatelessIntegTestCase {
 
         assertBusy(() -> assertThat(transportMetricCounter.get(), greaterThanOrEqualTo(1)), 60, TimeUnit.SECONDS);
         assertBusy(() -> {
-            final MemoryMetricsService.IndexMemoryMetrics totalIndexMappingSizeIndexCreate = internalCluster().getCurrentMasterNodeInstance(
-                MemoryMetricsService.class
-            ).getTotalIndicesMappingSize();
-            final long sizeAfterIndexCreate = totalIndexMappingSizeIndexCreate.getSizeInBytes();
+            final var totalIndexMappingSizeIndexCreate = internalCluster().getCurrentMasterNodeInstance(MemoryMetricsService.class)
+                .calculateTotalIndicesMappingSize();
+            final long sizeAfterIndexCreate = totalIndexMappingSizeIndexCreate.sizeInBytes();
             assertThat(sizeAfterIndexCreate, greaterThan(minimalEstimatedOverhead.sum()));
-            assertThat(totalIndexMappingSizeIndexCreate.getMetricQuality(), equalTo(MetricQuality.EXACT));
+            assertThat(totalIndexMappingSizeIndexCreate.metricQuality(), equalTo(MetricQuality.EXACT));
         });
 
         for (int i = 0; i < numberOfIndices; i++) {
@@ -365,13 +356,12 @@ public class AutoscalingMemoryMetricsIT extends AbstractStatelessIntegTestCase {
 
         assertBusy(() -> assertThat(transportMetricCounter.get(), greaterThanOrEqualTo(2)), 60, TimeUnit.SECONDS);
         assertBusy(() -> {
-            final MemoryMetricsService.IndexMemoryMetrics totalIndexMappingSizeAfterIndexDelete = internalCluster()
-                .getCurrentMasterNodeInstance(MemoryMetricsService.class)
-                .getTotalIndicesMappingSize();
-            final long sizeAfterIndexDelete = totalIndexMappingSizeAfterIndexDelete.getSizeInBytes();
+            final var totalIndexMappingSizeAfterIndexDelete = internalCluster().getCurrentMasterNodeInstance(MemoryMetricsService.class)
+                .calculateTotalIndicesMappingSize();
+            final long sizeAfterIndexDelete = totalIndexMappingSizeAfterIndexDelete.sizeInBytes();
             // back to previous state when no indices existed
             assertThat(sizeAfterIndexDelete, equalTo(0L));
-            assertThat(totalIndexMappingSizeAfterIndexDelete.getMetricQuality(), equalTo(MetricQuality.EXACT));
+            assertThat(totalIndexMappingSizeAfterIndexDelete.metricQuality(), equalTo(MetricQuality.EXACT));
         }, 60, TimeUnit.SECONDS);
     }
 
@@ -394,12 +384,11 @@ public class AutoscalingMemoryMetricsIT extends AbstractStatelessIntegTestCase {
         }
 
         assertBusy(() -> {
-            final MemoryMetricsService.IndexMemoryMetrics totalIndexMappingSizeIndexCreate = internalCluster().getCurrentMasterNodeInstance(
-                MemoryMetricsService.class
-            ).getTotalIndicesMappingSize();
-            final long sizeAfterIndexCreate = totalIndexMappingSizeIndexCreate.getSizeInBytes();
+            final var totalIndexMappingSizeIndexCreate = internalCluster().getCurrentMasterNodeInstance(MemoryMetricsService.class)
+                .calculateTotalIndicesMappingSize();
+            final long sizeAfterIndexCreate = totalIndexMappingSizeIndexCreate.sizeInBytes();
             assertThat(sizeAfterIndexCreate, greaterThan(minimalEstimatedOverhead.sum()));
-            assertThat(totalIndexMappingSizeIndexCreate.getMetricQuality(), equalTo(MetricQuality.EXACT));
+            assertThat(totalIndexMappingSizeIndexCreate.metricQuality(), equalTo(MetricQuality.EXACT));
         });
 
         internalCluster().stopCurrentMasterNode();
@@ -411,12 +400,11 @@ public class AutoscalingMemoryMetricsIT extends AbstractStatelessIntegTestCase {
         });
 
         assertBusy(() -> {
-            final MemoryMetricsService.IndexMemoryMetrics totalIndexMappingSizeIndexCreate = internalCluster().getCurrentMasterNodeInstance(
-                MemoryMetricsService.class
-            ).getTotalIndicesMappingSize();
-            final long sizeAfterIndexCreate = totalIndexMappingSizeIndexCreate.getSizeInBytes();
+            final var totalIndexMappingSizeIndexCreate = internalCluster().getCurrentMasterNodeInstance(MemoryMetricsService.class)
+                .calculateTotalIndicesMappingSize();
+            final long sizeAfterIndexCreate = totalIndexMappingSizeIndexCreate.sizeInBytes();
             assertThat(sizeAfterIndexCreate, greaterThan(minimalEstimatedOverhead.sum()));
-            assertThat(totalIndexMappingSizeIndexCreate.getMetricQuality(), equalTo(MetricQuality.EXACT));
+            assertThat(totalIndexMappingSizeIndexCreate.metricQuality(), equalTo(MetricQuality.EXACT));
         });
     }
 
@@ -441,22 +429,20 @@ public class AutoscalingMemoryMetricsIT extends AbstractStatelessIntegTestCase {
         );
 
         assertBusy(() -> {
-            final MemoryMetricsService.IndexMemoryMetrics totalIndexMappingSizeIndexCreate = internalCluster().getCurrentMasterNodeInstance(
-                MemoryMetricsService.class
-            ).getTotalIndicesMappingSize();
-            assertThat(totalIndexMappingSizeIndexCreate.getMetricQuality(), equalTo(MetricQuality.MISSING));
+            final var totalIndexMappingSizeIndexCreate = internalCluster().getCurrentMasterNodeInstance(MemoryMetricsService.class)
+                .calculateTotalIndicesMappingSize();
+            assertThat(totalIndexMappingSizeIndexCreate.metricQuality(), equalTo(MetricQuality.MISSING));
         });
 
         updateIndexSettings(Settings.builder().put("index.routing.allocation.require._name", indexNode2));
         primaryShardRelocated.set(true);
 
         assertBusy(() -> {
-            final MemoryMetricsService.IndexMemoryMetrics totalIndexMappingSizeIndexCreate = internalCluster().getCurrentMasterNodeInstance(
-                MemoryMetricsService.class
-            ).getTotalIndicesMappingSize();
-            final long sizeAfterIndexCreate = totalIndexMappingSizeIndexCreate.getSizeInBytes();
+            final var totalIndexMappingSizeIndexCreate = internalCluster().getCurrentMasterNodeInstance(MemoryMetricsService.class)
+                .calculateTotalIndicesMappingSize();
+            final long sizeAfterIndexCreate = totalIndexMappingSizeIndexCreate.sizeInBytes();
             assertThat(sizeAfterIndexCreate, greaterThan(0L));
-            assertThat(totalIndexMappingSizeIndexCreate.getMetricQuality(), equalTo(MetricQuality.EXACT));
+            assertThat(totalIndexMappingSizeIndexCreate.metricQuality(), equalTo(MetricQuality.EXACT));
 
             // Make sure the index stats are assigned to node2
             assertThat(
@@ -509,19 +495,19 @@ public class AutoscalingMemoryMetricsIT extends AbstractStatelessIntegTestCase {
 
         assertBusy(() -> {
             var totalIndicesMappingSize = internalCluster().getCurrentMasterNodeInstance(MemoryMetricsService.class)
-                .getTotalIndicesMappingSize();
-            final long sizeAfterIndexCreate = totalIndicesMappingSize.getSizeInBytes();
+                .calculateTotalIndicesMappingSize();
+            final long sizeAfterIndexCreate = totalIndicesMappingSize.sizeInBytes();
             assertThat(sizeAfterIndexCreate, greaterThan(0L));
-            assertThat(totalIndicesMappingSize.getMetricQuality(), equalTo(MetricQuality.MINIMUM));
+            assertThat(totalIndicesMappingSize.metricQuality(), equalTo(MetricQuality.MINIMUM));
         });
 
         updateIndexSettings(Settings.builder().put("index.routing.allocation.require._name", indexNode2));
 
         assertBusy(() -> {
             var totalIndicesMappingSize = internalCluster().getCurrentMasterNodeInstance(MemoryMetricsService.class)
-                .getTotalIndicesMappingSize();
-            assertThat(totalIndicesMappingSize.getSizeInBytes(), greaterThan(0L));
-            assertThat(totalIndicesMappingSize.getMetricQuality(), equalTo(MetricQuality.EXACT));
+                .calculateTotalIndicesMappingSize();
+            assertThat(totalIndicesMappingSize.sizeInBytes(), greaterThan(0L));
+            assertThat(totalIndicesMappingSize.metricQuality(), equalTo(MetricQuality.EXACT));
             // Make sure the index stats are assigned to node2
             assertThat(
                 internalCluster().getCurrentMasterNodeInstance(MemoryMetricsService.class)
@@ -557,12 +543,11 @@ public class AutoscalingMemoryMetricsIT extends AbstractStatelessIntegTestCase {
 
         assertBusy(() -> assertThat(transportMetricCounter.get(), greaterThanOrEqualTo(1)));
         assertBusy(() -> {
-            final MemoryMetricsService.IndexMemoryMetrics indexMemoryMetrics = internalCluster().getCurrentMasterNodeInstance(
-                MemoryMetricsService.class
-            ).getTotalIndicesMappingSize();
-            final long sizeInBytes = indexMemoryMetrics.getSizeInBytes();
+            final var indexMemoryMetrics = internalCluster().getCurrentMasterNodeInstance(MemoryMetricsService.class)
+                .calculateTotalIndicesMappingSize();
+            final long sizeInBytes = indexMemoryMetrics.sizeInBytes();
             sizeAfterIndexCreate.set(sizeInBytes);
-            assertThat(indexMemoryMetrics.getMetricQuality(), equalTo(MetricQuality.EXACT));
+            assertThat(indexMemoryMetrics.metricQuality(), equalTo(MetricQuality.EXACT));
         });
 
         // create test repository
@@ -601,11 +586,10 @@ public class AutoscalingMemoryMetricsIT extends AbstractStatelessIntegTestCase {
         // assert that fresh data points have arrived
         assertBusy(() -> assertThat(transportMetricCounter.get(), greaterThan(currentTransportMetricCounter)));
         assertBusy(() -> {
-            final MemoryMetricsService.IndexMemoryMetrics indexMemoryMetrics = internalCluster().getCurrentMasterNodeInstance(
-                MemoryMetricsService.class
-            ).getTotalIndicesMappingSize();
-            final long sizeAfterIndexReCreate = indexMemoryMetrics.getSizeInBytes();
-            assertThat(indexMemoryMetrics.getMetricQuality(), equalTo(MetricQuality.EXACT));
+            final var indexMemoryMetrics = internalCluster().getCurrentMasterNodeInstance(MemoryMetricsService.class)
+                .calculateTotalIndicesMappingSize();
+            final long sizeAfterIndexReCreate = indexMemoryMetrics.sizeInBytes();
+            assertThat(indexMemoryMetrics.metricQuality(), equalTo(MetricQuality.EXACT));
             // ensure that before and after _restore mapping size matches
             assertThat(sizeAfterIndexReCreate, equalTo(sizeAfterIndexCreate.get()));
         });
@@ -625,13 +609,12 @@ public class AutoscalingMemoryMetricsIT extends AbstractStatelessIntegTestCase {
         // to compare memory metrics before and after snapshot `_restore` call
         final AtomicLong sizeAfterIndexCreate = new AtomicLong();
         assertBusy(() -> {
-            final MemoryMetricsService.IndexMemoryMetrics indexMemoryMetrics = internalCluster().getCurrentMasterNodeInstance(
-                MemoryMetricsService.class
-            ).getTotalIndicesMappingSize();
-            final long sizeInBytes = indexMemoryMetrics.getSizeInBytes();
+            final var indexMemoryMetrics = internalCluster().getCurrentMasterNodeInstance(MemoryMetricsService.class)
+                .calculateTotalIndicesMappingSize();
+            final long sizeInBytes = indexMemoryMetrics.sizeInBytes();
             assertTrue(sizeInBytes > 0);
             sizeAfterIndexCreate.set(sizeInBytes);
-            assertThat(indexMemoryMetrics.getMetricQuality(), equalTo(MetricQuality.EXACT));
+            assertThat(indexMemoryMetrics.metricQuality(), equalTo(MetricQuality.EXACT));
         });
 
         // create test repository
@@ -646,10 +629,9 @@ public class AutoscalingMemoryMetricsIT extends AbstractStatelessIntegTestCase {
             indicesAdmin().putMapping(new PutMappingRequest(SYSTEM_INDEX_NAME).source(createIndexMapping(numberOfFields + 10))).get()
         );
         assertBusy(() -> {
-            final MemoryMetricsService.IndexMemoryMetrics indexMemoryMetrics = internalCluster().getCurrentMasterNodeInstance(
-                MemoryMetricsService.class
-            ).getTotalIndicesMappingSize();
-            final long sizeAfterMappingUpdate = indexMemoryMetrics.getSizeInBytes();
+            final var indexMemoryMetrics = internalCluster().getCurrentMasterNodeInstance(MemoryMetricsService.class)
+                .calculateTotalIndicesMappingSize();
+            final long sizeAfterMappingUpdate = indexMemoryMetrics.sizeInBytes();
             assertTrue(sizeAfterMappingUpdate > sizeAfterIndexCreate.get());
         });
 
@@ -662,13 +644,12 @@ public class AutoscalingMemoryMetricsIT extends AbstractStatelessIntegTestCase {
         assertEquals(restoreSnapshotResponse.getRestoreInfo().totalShards(), restoreSnapshotResponse.getRestoreInfo().successfulShards());
 
         assertBusy(() -> {
-            final MemoryMetricsService.IndexMemoryMetrics indexMemoryMetrics = internalCluster().getCurrentMasterNodeInstance(
-                MemoryMetricsService.class
-            ).getTotalIndicesMappingSize();
-            final long sizeAfterIndexReCreate = indexMemoryMetrics.getSizeInBytes();
+            final var indexMemoryMetrics = internalCluster().getCurrentMasterNodeInstance(MemoryMetricsService.class)
+                .calculateTotalIndicesMappingSize();
+            final long sizeAfterIndexReCreate = indexMemoryMetrics.sizeInBytes();
             // ensure that before and after _restore mapping size matches
             assertThat(sizeAfterIndexReCreate, equalTo(sizeAfterIndexCreate.get()));
-            assertThat(indexMemoryMetrics.getMetricQuality(), equalTo(MetricQuality.EXACT));
+            assertThat(indexMemoryMetrics.metricQuality(), equalTo(MetricQuality.EXACT));
         });
 
         deleteRepository("test-repo");

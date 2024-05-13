@@ -94,7 +94,7 @@ public class MemoryMetricsService implements ClusterStateListener {
     }
 
     public MemoryMetrics getMemoryMetrics() {
-        final IndexMemoryMetrics totalIndicesMappingSize = getTotalIndicesMappingSize();
+        final var totalIndicesMappingSize = calculateTotalIndicesMappingSize();
 
         final long nodeMemoryInBytes = Math.min(
             HeapToSystemMemory.dataNode(INDEX_MEMORY_OVERHEAD * indicesCount() + WORKLOAD_MEMORY_OVERHEAD),
@@ -116,8 +116,11 @@ public class MemoryMetricsService implements ClusterStateListener {
         return indicesMemoryMetrics.size(); // since mapping is Index -> IndexMemoryMetrics
     }
 
-    IndexMemoryMetrics getTotalIndicesMappingSize() {
-        // rolling sum & metric quality, if any of qualities is not `EXACT` report the whole batch as such
+    // Total mapping size of all known indices, and whether it is exact or not.
+    record TotalIndicesMappingsSize(long sizeInBytes, MetricQuality metricQuality) {}
+
+    // Calculates rolling sum & metric quality of all known indices, if any of qualities is not `EXACT` report the whole batch as such.
+    TotalIndicesMappingsSize calculateTotalIndicesMappingSize() {
         long sizeInBytes = 0;
         MetricQuality metricQuality = MetricQuality.EXACT;
         // Can't control the frequency in which getTotalIndicesMappingSize is called, so we need to make sure we run the stale check
@@ -136,7 +139,7 @@ public class MemoryMetricsService implements ClusterStateListener {
                 logger.warn("Memory metrics are stale for index {}", indexMemoryMetrics);
             }
         }
-        return new IndexMemoryMetrics(sizeInBytes, metricQuality, relativeTimeInNanosSupplier);
+        return new TotalIndicesMappingsSize(sizeInBytes, metricQuality);
     }
 
     // visible for testing
@@ -182,7 +185,11 @@ public class MemoryMetricsService implements ClusterStateListener {
         // new master use case: no indices exist in internal map
         if (event.nodesDelta().masterNodeChanged() || initialized == false) {
             for (IndexMetadata indexMetadata : event.state().metadata()) {
-                IndexMemoryMetrics indexMemoryMetrics = new IndexMemoryMetrics(0, MetricQuality.MISSING, relativeTimeInNanosSupplier);
+                IndexMemoryMetrics indexMemoryMetrics = new IndexMemoryMetrics(
+                    0,
+                    MetricQuality.MISSING,
+                    relativeTimeInNanosSupplier.getAsLong()
+                );
 
                 // new master should track the current assigned primary shard node in order to accept updates from such nodes
                 var shardRouting = getPrimaryShardRouting(event, indexMetadata.getIndex());
@@ -207,7 +214,10 @@ public class MemoryMetricsService implements ClusterStateListener {
                 final Index index = indexMetadata.getIndex();
 
                 // index created use case, EXACT values will be sent by index node
-                indicesMemoryMetrics.putIfAbsent(index, new IndexMemoryMetrics(0, MetricQuality.MISSING, relativeTimeInNanosSupplier));
+                indicesMemoryMetrics.putIfAbsent(
+                    index,
+                    new IndexMemoryMetrics(0, MetricQuality.MISSING, relativeTimeInNanosSupplier.getAsLong())
+                );
 
                 // index mapping update use case
                 final IndexMetadata oldIndexMetadata = event.previousState().metadata().index(index);
@@ -257,8 +267,8 @@ public class MemoryMetricsService implements ClusterStateListener {
         private String metricShardNodeId;   // node id which hosts sending primary 0-shard
         private long updateTimestampNanos;
 
-        IndexMemoryMetrics(long sizeInBytes, MetricQuality metricQuality, LongSupplier relativeTimeInNanosSupplier) {
-            this(sizeInBytes, 0, metricQuality, null, relativeTimeInNanosSupplier.getAsLong());
+        IndexMemoryMetrics(long sizeInBytes, MetricQuality metricQuality, long updateTimestampNanos) {
+            this(sizeInBytes, 0, metricQuality, null, updateTimestampNanos);
         }
 
         IndexMemoryMetrics(long sizeInBytes, long seqNo, MetricQuality metricQuality, String metricShardNodeId, long updateTimestampNanos) {

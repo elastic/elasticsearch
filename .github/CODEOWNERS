@@ -61,4 +61,4 @@ server/src/main/java/org/elasticsearch/plugins @elastic/es-core-infra
 server/src/main/java/org/elasticsearch/threadpool @elastic/es-core-infra
 
 # Security
-x-pack/plugin/core/src/main/java/org/elasticsearch/xpack/core/security/authz/privilege/IndexPrivilege @elastic/es-security
+x-pack/plugin/core/src/main/java/org/elasticsearch/xpack/core/security/authz/privilege @elastic/es-security

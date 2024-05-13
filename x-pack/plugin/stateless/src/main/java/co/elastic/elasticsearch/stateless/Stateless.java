@@ -285,6 +285,7 @@ public class Stateless extends Plugin
 
     public Stateless(Settings settings) {
         validateSettings(settings);
+        logSettings(settings);
         // It is dangerous to retain these settings because they will be further modified after this ctor due
         // to the call to #additionalSettings. We only parse out the components that has already been set.
         sharedCachedSettingExplicitlySet = SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.exists(settings);
@@ -1177,6 +1178,27 @@ public class Stateless extends Plugin
         if (Objects.equals(SHARDS_ALLOCATOR_TYPE_SETTING.get(settings), DESIRED_BALANCE_ALLOCATOR) == false) {
             throw new IllegalArgumentException(
                 NAME + " can only be used with " + SHARDS_ALLOCATOR_TYPE_SETTING.getKey() + "=" + DESIRED_BALANCE_ALLOCATOR
+            );
+        }
+    }
+
+    private static void logSettings(final Settings settings) {
+        // TODO: Move the logging back to StatelessCommitService#new once ES-8507 is resolved
+        final boolean delayedUploadEnabled = StatelessCommitService.STATELESS_UPLOAD_DELAYED.get(settings);
+        logger.info(
+            "delayed upload [{}] is [{}]",
+            StatelessCommitService.STATELESS_UPLOAD_DELAYED.getKey(),
+            delayedUploadEnabled ? "enabled" : "disabled"
+        );
+        if (delayedUploadEnabled) {
+            final var bccMaxAmountOfCommits = StatelessCommitService.STATELESS_UPLOAD_MAX_AMOUNT_COMMITS.get(settings);
+            final var bccUploadMaxSize = StatelessCommitService.STATELESS_UPLOAD_MAX_SIZE.get(settings);
+            final var virtualBccUploadMaxAge = StatelessCommitService.STATELESS_UPLOAD_VBCC_MAX_AGE.get(settings);
+            logger.info(
+                "delayed upload with [max_commits={}], [max_size={}], [max_age={}]",
+                bccMaxAmountOfCommits,
+                bccUploadMaxSize.getStringRep(),
+                virtualBccUploadMaxAge.getStringRep()
             );
         }
     }

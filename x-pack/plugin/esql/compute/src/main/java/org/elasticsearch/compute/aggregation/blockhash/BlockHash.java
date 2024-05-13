@@ -35,7 +35,7 @@ import java.util.List;
  * @see BytesRefHash
  */
 public abstract sealed class BlockHash implements Releasable, SeenGroupIds //
-    permits BooleanBlockHash, BytesRefBlockHash, DoubleBlockHash, IntBlockHash, LongBlockHash,   //
+    permits BooleanBlockHash, BytesRefBlockHash, DoubleBlockHash, IntBlockHash, LongBlockHash, BytesRef3BlockHash, //
     NullBlockHash, PackedValuesBlockHash, BytesRefLongBlockHash, LongLongBlockHash, TimeSeriesBlockHash {
 
     protected final BlockFactory blockFactory;
@@ -95,6 +95,9 @@ public abstract sealed class BlockHash implements Releasable, SeenGroupIds //
         if (groups.size() == 1) {
             return newForElementType(groups.get(0).channel(), groups.get(0).elementType(), blockFactory);
         }
+        if (groups.size() == 3 && groups.stream().allMatch(g -> g.elementType == ElementType.BYTES_REF)) {
+            return new BytesRef3BlockHash(blockFactory, groups.get(0).channel, groups.get(1).channel, groups.get(2).channel, emitBatchSize);
+        }
         if (allowBrokenOptimizations && groups.size() == 2) {
             var g1 = groups.get(0);
             var g2 = groups.get(1);
@@ -108,6 +111,13 @@ public abstract sealed class BlockHash implements Releasable, SeenGroupIds //
                 return new BytesRefLongBlockHash(blockFactory, g2.channel(), g1.channel(), true, emitBatchSize);
             }
         }
+        return new PackedValuesBlockHash(groups, blockFactory, emitBatchSize);
+    }
+
+    /**
+     * Temporary method to build a {@link PackedValuesBlockHash}.
+     */
+    public static BlockHash buildPackedValuesBlockHash(List<GroupSpec> groups, BlockFactory blockFactory, int emitBatchSize) {
         return new PackedValuesBlockHash(groups, blockFactory, emitBatchSize);
     }
 

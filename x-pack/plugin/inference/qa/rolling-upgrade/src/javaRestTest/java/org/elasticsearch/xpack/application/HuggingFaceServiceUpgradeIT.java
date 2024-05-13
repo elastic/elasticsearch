@@ -13,8 +13,6 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.test.http.MockResponse;
 import org.elasticsearch.test.http.MockWebServer;
-import org.junit.AfterClass;
-import org.junit.BeforeClass;
 
 import java.io.IOException;
 import java.util.List;
@@ -36,7 +34,7 @@ public class HuggingFaceServiceUpgradeIT extends InferenceUpgradeTestCase {
         super(upgradedNodes);
     }
 
-    @BeforeClass
+    // @BeforeClass
     public static void startWebServer() throws IOException {
         embeddingsServer = new MockWebServer();
         embeddingsServer.start();
@@ -45,13 +43,14 @@ public class HuggingFaceServiceUpgradeIT extends InferenceUpgradeTestCase {
         elserServer.start();
     }
 
-    @AfterClass
+    // @AfterClass for the awaits fix
     public static void shutdown() {
         embeddingsServer.close();
         elserServer.close();
     }
 
     @SuppressWarnings("unchecked")
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/107887")
     public void testHFEmbeddings() throws IOException {
         var embeddingsSupported = getOldClusterTestVersion().onOrAfter(HF_EMBEDDINGS_ADDED);
         assumeTrue("Hugging Face embedding service added in " + HF_EMBEDDINGS_ADDED, embeddingsSupported);
@@ -64,18 +63,18 @@ public class HuggingFaceServiceUpgradeIT extends InferenceUpgradeTestCase {
             embeddingsServer.enqueue(new MockResponse().setResponseCode(200).setBody(embeddingResponse()));
             put(oldClusterId, embeddingConfig(getUrl(embeddingsServer)), TaskType.TEXT_EMBEDDING);
 
-            var configs = (List<Map<String, Object>>) get(TaskType.TEXT_EMBEDDING, oldClusterId).get("models");
+            var configs = (List<Map<String, Object>>) get(TaskType.TEXT_EMBEDDING, oldClusterId).get("endpoints");
             assertThat(configs, hasSize(1));
 
             assertEmbeddingInference(oldClusterId);
         } else if (isMixedCluster()) {
-            var configs = (List<Map<String, Object>>) get(TaskType.TEXT_EMBEDDING, oldClusterId).get("models");
+            var configs = (List<Map<String, Object>>) get(TaskType.TEXT_EMBEDDING, oldClusterId).get("endpoints");
             assertEquals("hugging_face", configs.get(0).get("service"));
 
             assertEmbeddingInference(oldClusterId);
         } else if (isUpgradedCluster()) {
             // check old cluster model
-            var configs = (List<Map<String, Object>>) get(TaskType.TEXT_EMBEDDING, oldClusterId).get("models");
+            var configs = (List<Map<String, Object>>) get(TaskType.TEXT_EMBEDDING, oldClusterId).get("endpoints");
             assertEquals("hugging_face", configs.get(0).get("service"));
 
             // Inference on old cluster model
@@ -84,7 +83,7 @@ public class HuggingFaceServiceUpgradeIT extends InferenceUpgradeTestCase {
             embeddingsServer.enqueue(new MockResponse().setResponseCode(200).setBody(embeddingResponse()));
             put(upgradedClusterId, embeddingConfig(getUrl(embeddingsServer)), TaskType.TEXT_EMBEDDING);
 
-            configs = (List<Map<String, Object>>) get(TaskType.TEXT_EMBEDDING, upgradedClusterId).get("models");
+            configs = (List<Map<String, Object>>) get(TaskType.TEXT_EMBEDDING, upgradedClusterId).get("endpoints");
             assertThat(configs, hasSize(1));
 
             assertEmbeddingInference(upgradedClusterId);
@@ -101,6 +100,7 @@ public class HuggingFaceServiceUpgradeIT extends InferenceUpgradeTestCase {
     }
 
     @SuppressWarnings("unchecked")
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/107887")
     public void testElser() throws IOException {
         var supported = getOldClusterTestVersion().onOrAfter(HF_ELSER_ADDED);
         assumeTrue("HF elser service added in " + HF_ELSER_ADDED, supported);
@@ -110,17 +110,17 @@ public class HuggingFaceServiceUpgradeIT extends InferenceUpgradeTestCase {
 
         if (isOldCluster()) {
             put(oldClusterId, elserConfig(getUrl(elserServer)), TaskType.SPARSE_EMBEDDING);
-            var configs = (List<Map<String, Object>>) get(TaskType.SPARSE_EMBEDDING, oldClusterId).get("models");
+            var configs = (List<Map<String, Object>>) get(TaskType.SPARSE_EMBEDDING, oldClusterId).get("endpoints");
             assertThat(configs, hasSize(1));
 
             assertElser(oldClusterId);
         } else if (isMixedCluster()) {
-            var configs = (List<Map<String, Object>>) get(TaskType.SPARSE_EMBEDDING, oldClusterId).get("models");
+            var configs = (List<Map<String, Object>>) get(TaskType.SPARSE_EMBEDDING, oldClusterId).get("endpoints");
             assertEquals("hugging_face", configs.get(0).get("service"));
             assertElser(oldClusterId);
         } else if (isUpgradedCluster()) {
             // check old cluster model
-            var configs = (List<Map<String, Object>>) get(TaskType.SPARSE_EMBEDDING, oldClusterId).get("models");
+            var configs = (List<Map<String, Object>>) get(TaskType.SPARSE_EMBEDDING, oldClusterId).get("endpoints");
             assertEquals("hugging_face", configs.get(0).get("service"));
             var taskSettings = (Map<String, Object>) configs.get(0).get("task_settings");
             assertThat(taskSettings.keySet(), empty());
@@ -129,7 +129,7 @@ public class HuggingFaceServiceUpgradeIT extends InferenceUpgradeTestCase {
 
             // New endpoint
             put(upgradedClusterId, elserConfig(getUrl(elserServer)), TaskType.SPARSE_EMBEDDING);
-            configs = (List<Map<String, Object>>) get(upgradedClusterId).get("models");
+            configs = (List<Map<String, Object>>) get(upgradedClusterId).get("endpoints");
             assertThat(configs, hasSize(1));
 
             assertElser(upgradedClusterId);

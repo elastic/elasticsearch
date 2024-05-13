@@ -134,4 +134,8 @@ public final class AnalyzerTestUtils {
     public static void loadEnrichPolicyResolution(EnrichResolution enrich, String policy, String field, String index, String mapping) {
         loadEnrichPolicyResolution(enrich, EnrichPolicy.MATCH_TYPE, policy, field, index, mapping);
     }
+
+    public static IndexResolution tsdbIndexResolution() {
+        return loadMapping("tsdb-mapping.json", "test");
+    }
 }

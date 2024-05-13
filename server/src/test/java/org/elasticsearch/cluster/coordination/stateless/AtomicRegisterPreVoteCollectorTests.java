@@ -9,12 +9,10 @@
 package org.elasticsearch.cluster.coordination.stateless;
 
 import org.apache.logging.log4j.Level;
-import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockLogAppender;
@@ -85,11 +83,8 @@ public class AtomicRegisterPreVoteCollectorTests extends ESTestCase {
         final var heartbeatFrequency = TimeValue.timeValueSeconds(randomIntBetween(15, 30));
         final var maxTimeSinceLastHeartbeat = TimeValue.timeValueSeconds(2 * heartbeatFrequency.seconds());
         DiscoveryNodeUtils.create("master");
-        final var logger = LogManager.getLogger(AtomicRegisterPreVoteCollector.class);
         final var appender = new MockLogAppender();
-        appender.start();
-        try {
-            Loggers.addAppender(logger, appender);
+        try (var ignored = appender.capturing(AtomicRegisterPreVoteCollector.class)) {
             appender.addExpectation(
                 new MockLogAppender.SeenEventExpectation(
                     "log emitted when skipping election",
@@ -123,9 +118,6 @@ public class AtomicRegisterPreVoteCollectorTests extends ESTestCase {
 
             assertThat(startElection.get(), is(false));
             appender.assertAllExpectationsMatched();
-        } finally {
-            Loggers.removeAppender(logger, appender);
-            appender.stop();
         }
     }
 

@@ -730,6 +730,7 @@ public class ObjectMapper extends Mapper {
     private class SyntheticSourceFieldLoader implements SourceLoader.SyntheticFieldLoader {
         private final List<SourceLoader.SyntheticFieldLoader> fields;
         private boolean hasValue;
+        private List<IgnoredSourceFieldMapper.NameValue> ignoredValues;
 
         private SyntheticSourceFieldLoader(List<SourceLoader.SyntheticFieldLoader> fields) {
             this.fields = fields;
@@ -787,18 +788,51 @@ public class ObjectMapper extends Mapper {
             if (hasValue == false) {
                 return;
             }
-            startSyntheticField(b);
+            if (isRoot()) {
+                if (isEnabled() == false) {
+                    // If the root object mapper is disabled, it is expected to contain
+                    // the source encapsulated within a single ignored source value.
+                    assert ignoredValues.size() == 1 : ignoredValues.size();
+                    XContentDataHelper.decodeAndWrite(b, ignoredValues.get(0).value());
+                    ignoredValues = null;
+                    return;
+                }
+                b.startObject();
+            } else {
+                b.startObject(simpleName());
+            }
+
             for (SourceLoader.SyntheticFieldLoader field : fields) {
                 if (field.hasValue()) {
                     field.write(b);
                 }
             }
-            b.endObject();
             hasValue = false;
+            if (ignoredValues != null) {
+                for (IgnoredSourceFieldMapper.NameValue ignored : ignoredValues) {
+                    b.field(ignored.getFieldName());
+                    XContentDataHelper.decodeAndWrite(b, ignored.value());
+                }
+                ignoredValues = null;
+            }
+            b.endObject();
+        }
+
+        @Override
+        public boolean setIgnoredValues(Map<String, List<IgnoredSourceFieldMapper.NameValue>> objectsWithIgnoredFields) {
+            if (objectsWithIgnoredFields == null || objectsWithIgnoredFields.isEmpty()) {
+                return false;
+            }
+            ignoredValues = objectsWithIgnoredFields.remove(name());
+            hasValue |= ignoredValues != null;
+            for (SourceLoader.SyntheticFieldLoader loader : fields) {
+                hasValue |= loader.setIgnoredValues(objectsWithIgnoredFields);
+            }
+            return this.ignoredValues != null;
         }
     }
 
-    protected void startSyntheticField(XContentBuilder b) throws IOException {
-        b.startObject(simpleName());
+    protected boolean isRoot() {
+        return false;
     }
 }

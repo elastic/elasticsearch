@@ -65,6 +65,7 @@ module org.elasticsearch.server {
     exports org.elasticsearch.action.admin.cluster.desirednodes;
     exports org.elasticsearch.action.admin.cluster.health;
     exports org.elasticsearch.action.admin.cluster.migration;
+    exports org.elasticsearch.action.admin.cluster.node.capabilities;
     exports org.elasticsearch.action.admin.cluster.node.hotthreads;
     exports org.elasticsearch.action.admin.cluster.node.info;
     exports org.elasticsearch.action.admin.cluster.node.reload;
@@ -426,6 +427,7 @@ module org.elasticsearch.server {
             org.elasticsearch.rest.RestFeatures,
             org.elasticsearch.indices.IndicesFeatures,
             org.elasticsearch.action.admin.cluster.allocation.AllocationStatsFeatures,
+            org.elasticsearch.index.mapper.MapperFeatures,
             org.elasticsearch.search.retriever.RetrieversFeatures;
 
     uses org.elasticsearch.plugins.internal.SettingsExtension;

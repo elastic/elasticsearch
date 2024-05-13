@@ -257,7 +257,7 @@ class NodeConstruction {
             ThreadPool threadPool = constructor.createThreadPool(settings, telemetryProvider.getMeterRegistry());
             SettingsModule settingsModule = constructor.validateSettings(initialEnvironment.settings(), settings, threadPool);
 
-            SearchModule searchModule = constructor.createSearchModule(settingsModule.getSettings(), threadPool);
+            SearchModule searchModule = constructor.createSearchModule(settingsModule.getSettings(), threadPool, telemetryProvider);
             constructor.createClientAndRegistries(settingsModule.getSettings(), threadPool, searchModule);
             DocumentParsingProvider documentParsingProvider = constructor.getDocumentParsingProvider();
 
@@ -525,9 +525,9 @@ class NodeConstruction {
         return settingsModule;
     }
 
-    private SearchModule createSearchModule(Settings settings, ThreadPool threadPool) {
+    private SearchModule createSearchModule(Settings settings, ThreadPool threadPool, TelemetryProvider telemetryProvider) {
         IndexSearcher.setMaxClauseCount(SearchUtils.calculateMaxClauseValue(threadPool));
-        return new SearchModule(settings, pluginsService.filterPlugins(SearchPlugin.class).toList());
+        return new SearchModule(settings, pluginsService.filterPlugins(SearchPlugin.class).toList(), telemetryProvider);
     }
 
     /**
@@ -584,6 +584,27 @@ class NodeConstruction {
         modules.add(b -> { b.bind(ScriptService.class).toInstance(scriptService); });
 
         return scriptService;
+    }
+
+    private DataStreamGlobalRetentionResolver createDataStreamServicesAndGlobalRetentionResolver(
+        ThreadPool threadPool,
+        ClusterService clusterService,
+        IndicesService indicesService,
+        MetadataCreateIndexService metadataCreateIndexService
+    ) {
+        DataStreamGlobalRetentionResolver dataStreamGlobalRetentionResolver = new DataStreamGlobalRetentionResolver(
+            DataStreamFactoryRetention.load(pluginsService, clusterService.getClusterSettings())
+        );
+        modules.bindToInstance(DataStreamGlobalRetentionResolver.class, dataStreamGlobalRetentionResolver);
+        modules.bindToInstance(
+            MetadataCreateDataStreamService.class,
+            new MetadataCreateDataStreamService(threadPool, clusterService, metadataCreateIndexService)
+        );
+        modules.bindToInstance(
+            MetadataDataStreamsService.class,
+            new MetadataDataStreamsService(clusterService, indicesService, dataStreamGlobalRetentionResolver)
+        );
+        return dataStreamGlobalRetentionResolver;
     }
 
     private UpdateHelper createUpdateHelper(DocumentParsingProvider documentParsingProvider, ScriptService scriptService) {
@@ -746,6 +767,7 @@ class NodeConstruction {
         );
 
         final ShardLimitValidator shardLimitValidator = new ShardLimitValidator(settings, clusterService);
+
         final MetadataCreateIndexService metadataCreateIndexService = new MetadataCreateIndexService(
             settings,
             clusterService,
@@ -761,12 +783,6 @@ class NodeConstruction {
             indexSettingProviders
         );
 
-        modules.bindToInstance(
-            MetadataCreateDataStreamService.class,
-            new MetadataCreateDataStreamService(threadPool, clusterService, metadataCreateIndexService)
-        );
-        modules.bindToInstance(MetadataDataStreamsService.class, new MetadataDataStreamsService(clusterService, indicesService));
-
         final MetadataUpdateSettingsService metadataUpdateSettingsService = new MetadataUpdateSettingsService(
             clusterService,
             clusterModule.getAllocationService(),
@@ -776,10 +792,12 @@ class NodeConstruction {
             threadPool
         );
 
-        DataStreamGlobalRetentionResolver dataStreamGlobalRetentionResolver = new DataStreamGlobalRetentionResolver(
-            DataStreamFactoryRetention.load(pluginsService, clusterService.getClusterSettings())
+        final DataStreamGlobalRetentionResolver dataStreamGlobalRetentionResolver = createDataStreamServicesAndGlobalRetentionResolver(
+            threadPool,
+            clusterService,
+            indicesService,
+            metadataCreateIndexService
         );
-        modules.bindToInstance(DataStreamGlobalRetentionResolver.class, dataStreamGlobalRetentionResolver);
 
         record PluginServiceInstances(
             Client client,
@@ -851,7 +869,8 @@ class NodeConstruction {
                 indicesService,
                 systemIndices,
                 indexSettingProviders,
-                metadataCreateIndexService
+                metadataCreateIndexService,
+                dataStreamGlobalRetentionResolver
             ),
             pluginsService.loadSingletonServiceProvider(RestExtension.class, RestExtension::allowAll)
         );
@@ -1426,7 +1445,8 @@ class NodeConstruction {
         IndicesService indicesService,
         SystemIndices systemIndices,
         IndexSettingProviders indexSettingProviders,
-        MetadataCreateIndexService metadataCreateIndexService
+        MetadataCreateIndexService metadataCreateIndexService,
+        DataStreamGlobalRetentionResolver globalRetentionResolver
     ) {
         List<ReservedClusterStateHandler<?>> reservedStateHandlers = new ArrayList<>();
 
@@ -1440,7 +1460,8 @@ class NodeConstruction {
             settingsModule.getIndexScopedSettings(),
             xContentRegistry,
             systemIndices,
-            indexSettingProviders
+            indexSettingProviders,
+            globalRetentionResolver
         );
         reservedStateHandlers.add(new ReservedComposableIndexTemplateAction(templateService, settingsModule.getIndexScopedSettings()));
 

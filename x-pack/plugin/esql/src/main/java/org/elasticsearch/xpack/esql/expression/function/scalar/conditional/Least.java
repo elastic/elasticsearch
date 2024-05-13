@@ -11,6 +11,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
+import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunction;
@@ -37,14 +38,24 @@ public class Least extends EsqlScalarFunction implements OptionalArgument {
     private DataType dataType;
 
     @FunctionInfo(
-        returnType = { "integer", "long", "double", "boolean", "keyword", "text", "ip", "version" },
-        description = "Returns the minimum value from many columns."
+        returnType = { "boolean", "double", "integer", "ip", "keyword", "long", "text", "version" },
+        description = "Returns the minimum value from multiple columns. "
+            + "This is similar to <<esql-mv_min>> except it is intended to run on multiple columns at once.",
+        examples = @Example(file = "math", tag = "least")
     )
     public Least(
         Source source,
-        @Param(name = "first", type = { "integer", "long", "double", "boolean", "keyword", "text", "ip", "version" }) Expression first,
-        @Param(name = "rest", type = { "integer", "long", "double", "boolean", "keyword", "text", "ip", "version" }, optional = true) List<
-            Expression> rest
+        @Param(
+            name = "first",
+            type = { "boolean", "double", "integer", "ip", "keyword", "long", "text", "version" },
+            description = "First of the columns to evaluate."
+        ) Expression first,
+        @Param(
+            name = "rest",
+            type = { "boolean", "double", "integer", "ip", "keyword", "long", "text", "version" },
+            description = "The rest of the columns to evaluate.",
+            optional = true
+        ) List<Expression> rest
     ) {
         super(source, Stream.concat(Stream.of(first), rest.stream()).toList());
     }

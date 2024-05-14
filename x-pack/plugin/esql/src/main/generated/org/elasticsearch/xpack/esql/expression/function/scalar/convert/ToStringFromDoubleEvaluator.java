@@ -98,8 +98,8 @@ public final class ToStringFromDoubleEvaluator extends AbstractConvertFunction.A
     }
 
     @Override
-    public ToStringFromDoubleEvaluator get(DriverContext context) {
-      return new ToStringFromDoubleEvaluator(field.get(context), source, context, new Warnings(source));
+    public ToStringFromDoubleEvaluator get(DriverContext context, boolean collectWarnings) {
+      return new ToStringFromDoubleEvaluator(field.get(context, collectWarnings), source, context, collectWarnings ? new Warnings(source) : Warnings.NOOP_WARNINGS);
     }
 
     @Override

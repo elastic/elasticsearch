@@ -100,8 +100,8 @@ public class CoalesceTests extends AbstractFunctionTestCase {
             return EvalMapper.toEvaluator(child, layout);
         };
         try (
-                EvalOperator.ExpressionEvaluator eval = exp.toEvaluator(map).get(driverContext(), true);
-                Block block = eval.eval(row(testCase.getDataValues()))
+            EvalOperator.ExpressionEvaluator eval = exp.toEvaluator(map).get(driverContext(), true);
+            Block block = eval.eval(row(testCase.getDataValues()))
         ) {
             assertThat(toJavaObject(block, 0), testCase.getMatcher());
         }

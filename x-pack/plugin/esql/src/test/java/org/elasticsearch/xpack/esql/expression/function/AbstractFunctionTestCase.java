@@ -404,8 +404,8 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
                 b++;
             }
             try (
-                    ExpressionEvaluator eval = evaluator(expression).get(context, true);
-                    Block block = eval.eval(new Page(positions, manyPositionsBlocks))
+                ExpressionEvaluator eval = evaluator(expression).get(context, true);
+                Block block = eval.eval(new Page(positions, manyPositionsBlocks))
             ) {
                 for (int p = 0; p < positions; p++) {
                     if (nullPositions.contains(p)) {

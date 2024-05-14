@@ -96,8 +96,8 @@ public final class NotEvaluator implements EvalOperator.ExpressionEvaluator {
     }
 
     @Override
-    public NotEvaluator get(DriverContext context) {
-      return new NotEvaluator(source, v.get(context), context, new Warnings(source));
+    public NotEvaluator get(DriverContext context, boolean collectWarnings) {
+      return new NotEvaluator(source, v.get(context, collectWarnings), context, collectWarnings ? new Warnings(source) : Warnings.NOOP_WARNINGS);
     }
 
     @Override

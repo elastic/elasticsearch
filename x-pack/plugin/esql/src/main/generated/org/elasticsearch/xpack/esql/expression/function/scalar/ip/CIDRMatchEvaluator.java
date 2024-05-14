@@ -156,9 +156,9 @@ public final class CIDRMatchEvaluator implements EvalOperator.ExpressionEvaluato
     }
 
     @Override
-    public CIDRMatchEvaluator get(DriverContext context) {
-      EvalOperator.ExpressionEvaluator[] cidrs = Arrays.stream(this.cidrs).map(a -> a.get(context)).toArray(EvalOperator.ExpressionEvaluator[]::new);
-      return new CIDRMatchEvaluator(source, ip.get(context), cidrs, context, new Warnings(source));
+    public CIDRMatchEvaluator get(DriverContext context, boolean collectWarnings) {
+      EvalOperator.ExpressionEvaluator[] cidrs = Arrays.stream(this.cidrs).map(a -> a.get(context, collectWarnings)).toArray(EvalOperator.ExpressionEvaluator[]::new);
+      return new CIDRMatchEvaluator(source, ip.get(context, collectWarnings), cidrs, context, collectWarnings ? new Warnings(source) : Warnings.NOOP_WARNINGS);
     }
 
     @Override

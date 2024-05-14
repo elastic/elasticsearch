@@ -115,8 +115,8 @@ public final class MvZipEvaluator implements EvalOperator.ExpressionEvaluator {
     }
 
     @Override
-    public MvZipEvaluator get(DriverContext context) {
-      return new MvZipEvaluator(source, leftField.get(context), rightField.get(context), delim.get(context), context, new Warnings(source));
+    public MvZipEvaluator get(DriverContext context, boolean collectWarnings) {
+      return new MvZipEvaluator(source, leftField.get(context, collectWarnings), rightField.get(context, collectWarnings), delim.get(context, collectWarnings), context, collectWarnings ? new Warnings(source) : Warnings.NOOP_WARNINGS);
     }
 
     @Override

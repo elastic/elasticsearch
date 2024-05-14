@@ -96,8 +96,8 @@ public final class SinEvaluator implements EvalOperator.ExpressionEvaluator {
     }
 
     @Override
-    public SinEvaluator get(DriverContext context) {
-      return new SinEvaluator(source, val.get(context), context, new Warnings(source));
+    public SinEvaluator get(DriverContext context, boolean collectWarnings) {
+      return new SinEvaluator(source, val.get(context, collectWarnings), context, collectWarnings ? new Warnings(source) : Warnings.NOOP_WARNINGS);
     }
 
     @Override

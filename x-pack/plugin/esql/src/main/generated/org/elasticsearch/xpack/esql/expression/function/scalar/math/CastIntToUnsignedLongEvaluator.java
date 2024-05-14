@@ -98,8 +98,8 @@ public final class CastIntToUnsignedLongEvaluator implements EvalOperator.Expres
     }
 
     @Override
-    public CastIntToUnsignedLongEvaluator get(DriverContext context) {
-      return new CastIntToUnsignedLongEvaluator(source, v.get(context), context, new Warnings(source));
+    public CastIntToUnsignedLongEvaluator get(DriverContext context, boolean collectWarnings) {
+      return new CastIntToUnsignedLongEvaluator(source, v.get(context, collectWarnings), context, collectWarnings ? new Warnings(source) : Warnings.NOOP_WARNINGS);
     }
 
     @Override

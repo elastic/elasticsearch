@@ -97,8 +97,8 @@ public final class ToBooleanFromDoubleEvaluator extends AbstractConvertFunction.
     }
 
     @Override
-    public ToBooleanFromDoubleEvaluator get(DriverContext context) {
-      return new ToBooleanFromDoubleEvaluator(field.get(context), source, context, new Warnings(source));
+    public ToBooleanFromDoubleEvaluator get(DriverContext context, boolean collectWarnings) {
+      return new ToBooleanFromDoubleEvaluator(field.get(context, collectWarnings), source, context, collectWarnings ? new Warnings(source) : Warnings.NOOP_WARNINGS);
     }
 
     @Override

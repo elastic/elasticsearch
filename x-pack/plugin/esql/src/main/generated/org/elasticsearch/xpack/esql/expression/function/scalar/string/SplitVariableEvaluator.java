@@ -134,8 +134,8 @@ public final class SplitVariableEvaluator implements EvalOperator.ExpressionEval
     }
 
     @Override
-    public SplitVariableEvaluator get(DriverContext context) {
-      return new SplitVariableEvaluator(source, str.get(context), delim.get(context), scratch.apply(context), context, new Warnings(source));
+    public SplitVariableEvaluator get(DriverContext context, boolean collectWarnings) {
+      return new SplitVariableEvaluator(source, str.get(context, collectWarnings), delim.get(context, collectWarnings), scratch.apply(context), context, collectWarnings ? new Warnings(source) : Warnings.NOOP_WARNINGS);
     }
 
     @Override

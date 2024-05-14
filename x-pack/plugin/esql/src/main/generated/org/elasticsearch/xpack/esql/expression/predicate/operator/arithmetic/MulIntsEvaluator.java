@@ -131,8 +131,8 @@ public final class MulIntsEvaluator implements EvalOperator.ExpressionEvaluator 
     }
 
     @Override
-    public MulIntsEvaluator get(DriverContext context) {
-      return new MulIntsEvaluator(source, lhs.get(context), rhs.get(context), context, new Warnings(source));
+    public MulIntsEvaluator get(DriverContext context, boolean collectWarnings) {
+      return new MulIntsEvaluator(source, lhs.get(context, collectWarnings), rhs.get(context, collectWarnings), context, collectWarnings ? new Warnings(source) : Warnings.NOOP_WARNINGS);
     }
 
     @Override

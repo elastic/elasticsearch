@@ -111,8 +111,8 @@ public final class ToDegreesEvaluator extends AbstractConvertFunction.AbstractEv
     }
 
     @Override
-    public ToDegreesEvaluator get(DriverContext context) {
-      return new ToDegreesEvaluator(field.get(context), source, context, new Warnings(source));
+    public ToDegreesEvaluator get(DriverContext context, boolean collectWarnings) {
+      return new ToDegreesEvaluator(field.get(context, collectWarnings), source, context, collectWarnings ? new Warnings(source) : Warnings.NOOP_WARNINGS);
     }
 
     @Override

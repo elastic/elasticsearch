@@ -108,8 +108,8 @@ public final class Log10UnsignedLongEvaluator implements EvalOperator.Expression
     }
 
     @Override
-    public Log10UnsignedLongEvaluator get(DriverContext context) {
-      return new Log10UnsignedLongEvaluator(source, val.get(context), context, new Warnings(source));
+    public Log10UnsignedLongEvaluator get(DriverContext context, boolean collectWarnings) {
+      return new Log10UnsignedLongEvaluator(source, val.get(context, collectWarnings), context, collectWarnings ? new Warnings(source) : Warnings.NOOP_WARNINGS);
     }
 
     @Override

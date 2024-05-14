@@ -122,8 +122,8 @@ public final class LessThanOrEqualIntsEvaluator implements EvalOperator.Expressi
     }
 
     @Override
-    public LessThanOrEqualIntsEvaluator get(DriverContext context) {
-      return new LessThanOrEqualIntsEvaluator(source, lhs.get(context), rhs.get(context), context, new Warnings(source));
+    public LessThanOrEqualIntsEvaluator get(DriverContext context, boolean collectWarnings) {
+      return new LessThanOrEqualIntsEvaluator(source, lhs.get(context, collectWarnings), rhs.get(context, collectWarnings), context, collectWarnings ? new Warnings(source) : Warnings.NOOP_WARNINGS);
     }
 
     @Override

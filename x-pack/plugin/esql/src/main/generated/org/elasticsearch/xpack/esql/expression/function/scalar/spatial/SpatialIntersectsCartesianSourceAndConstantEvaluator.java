@@ -120,8 +120,9 @@ public final class SpatialIntersectsCartesianSourceAndConstantEvaluator implemen
     }
 
     @Override
-    public SpatialIntersectsCartesianSourceAndConstantEvaluator get(DriverContext context) {
-      return new SpatialIntersectsCartesianSourceAndConstantEvaluator(source, leftValue.get(context), rightValue, context, new Warnings(source));
+    public SpatialIntersectsCartesianSourceAndConstantEvaluator get(DriverContext context,
+        boolean collectWarnings) {
+      return new SpatialIntersectsCartesianSourceAndConstantEvaluator(source, leftValue.get(context, collectWarnings), rightValue, context, collectWarnings ? new Warnings(source) : Warnings.NOOP_WARNINGS);
     }
 
     @Override

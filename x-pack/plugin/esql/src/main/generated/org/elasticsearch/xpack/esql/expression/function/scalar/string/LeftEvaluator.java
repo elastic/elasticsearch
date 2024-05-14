@@ -142,8 +142,8 @@ public final class LeftEvaluator implements EvalOperator.ExpressionEvaluator {
     }
 
     @Override
-    public LeftEvaluator get(DriverContext context) {
-      return new LeftEvaluator(source, out.apply(context), cp.apply(context), str.get(context), length.get(context), context, new Warnings(source));
+    public LeftEvaluator get(DriverContext context, boolean collectWarnings) {
+      return new LeftEvaluator(source, out.apply(context), cp.apply(context), str.get(context, collectWarnings), length.get(context, collectWarnings), context, collectWarnings ? new Warnings(source) : Warnings.NOOP_WARNINGS);
     }
 
     @Override

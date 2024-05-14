@@ -128,8 +128,8 @@ public final class StartsWithEvaluator implements EvalOperator.ExpressionEvaluat
     }
 
     @Override
-    public StartsWithEvaluator get(DriverContext context) {
-      return new StartsWithEvaluator(source, str.get(context), prefix.get(context), context, new Warnings(source));
+    public StartsWithEvaluator get(DriverContext context, boolean collectWarnings) {
+      return new StartsWithEvaluator(source, str.get(context, collectWarnings), prefix.get(context, collectWarnings), context, collectWarnings ? new Warnings(source) : Warnings.NOOP_WARNINGS);
     }
 
     @Override

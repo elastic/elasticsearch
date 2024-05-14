@@ -116,8 +116,9 @@ public final class SpatialIntersectsGeoPointDocValuesAndConstantEvaluator implem
     }
 
     @Override
-    public SpatialIntersectsGeoPointDocValuesAndConstantEvaluator get(DriverContext context) {
-      return new SpatialIntersectsGeoPointDocValuesAndConstantEvaluator(source, leftValue.get(context), rightValue, context, new Warnings(source));
+    public SpatialIntersectsGeoPointDocValuesAndConstantEvaluator get(DriverContext context,
+        boolean collectWarnings) {
+      return new SpatialIntersectsGeoPointDocValuesAndConstantEvaluator(source, leftValue.get(context, collectWarnings), rightValue, context, collectWarnings ? new Warnings(source) : Warnings.NOOP_WARNINGS);
     }
 
     @Override

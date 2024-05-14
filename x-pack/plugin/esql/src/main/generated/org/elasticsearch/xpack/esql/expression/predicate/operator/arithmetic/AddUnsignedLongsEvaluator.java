@@ -131,8 +131,8 @@ public final class AddUnsignedLongsEvaluator implements EvalOperator.ExpressionE
     }
 
     @Override
-    public AddUnsignedLongsEvaluator get(DriverContext context) {
-      return new AddUnsignedLongsEvaluator(source, lhs.get(context), rhs.get(context), context, new Warnings(source));
+    public AddUnsignedLongsEvaluator get(DriverContext context, boolean collectWarnings) {
+      return new AddUnsignedLongsEvaluator(source, lhs.get(context, collectWarnings), rhs.get(context, collectWarnings), context, collectWarnings ? new Warnings(source) : Warnings.NOOP_WARNINGS);
     }
 
     @Override

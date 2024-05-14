@@ -303,13 +303,14 @@ public class ConvertEvaluatorImplementer {
         MethodSpec.Builder builder = MethodSpec.methodBuilder("get").addAnnotation(Override.class);
         builder.addModifiers(Modifier.PUBLIC);
         builder.addParameter(DRIVER_CONTEXT, "context");
+        builder.addParameter(TypeName.BOOLEAN, "collectWarnings");
         builder.returns(implementation);
 
         List<String> args = new ArrayList<>();
-        args.add("field.get(context)");
+        args.add("field.get(context, collectWarnings)");
         args.add("source");
         args.add("context");
-        args.add("new Warnings(source)");
+        args.add("collectWarnings ? new Warnings(source) : Warnings.NOOP_WARNINGS");
         builder.addStatement("return new $T($L)", implementation, args.stream().collect(Collectors.joining(", ")));
         return builder.build();
     }

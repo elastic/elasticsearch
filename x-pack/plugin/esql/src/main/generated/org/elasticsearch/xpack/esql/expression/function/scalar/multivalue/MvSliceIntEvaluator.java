@@ -127,8 +127,8 @@ public final class MvSliceIntEvaluator implements EvalOperator.ExpressionEvaluat
     }
 
     @Override
-    public MvSliceIntEvaluator get(DriverContext context) {
-      return new MvSliceIntEvaluator(source, field.get(context), start.get(context), end.get(context), context, new Warnings(source));
+    public MvSliceIntEvaluator get(DriverContext context, boolean collectWarnings) {
+      return new MvSliceIntEvaluator(source, field.get(context, collectWarnings), start.get(context, collectWarnings), end.get(context, collectWarnings), context, collectWarnings ? new Warnings(source) : Warnings.NOOP_WARNINGS);
     }
 
     @Override

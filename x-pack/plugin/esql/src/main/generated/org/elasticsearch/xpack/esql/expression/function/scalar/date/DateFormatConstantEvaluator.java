@@ -106,8 +106,8 @@ public final class DateFormatConstantEvaluator implements EvalOperator.Expressio
     }
 
     @Override
-    public DateFormatConstantEvaluator get(DriverContext context) {
-      return new DateFormatConstantEvaluator(source, val.get(context), formatter, context, new Warnings(source));
+    public DateFormatConstantEvaluator get(DriverContext context, boolean collectWarnings) {
+      return new DateFormatConstantEvaluator(source, val.get(context, collectWarnings), formatter, context, collectWarnings ? new Warnings(source) : Warnings.NOOP_WARNINGS);
     }
 
     @Override

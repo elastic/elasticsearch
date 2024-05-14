@@ -116,8 +116,8 @@ public final class SubDatetimesEvaluator implements EvalOperator.ExpressionEvalu
     }
 
     @Override
-    public SubDatetimesEvaluator get(DriverContext context) {
-      return new SubDatetimesEvaluator(source, datetime.get(context), temporalAmount, context, new Warnings(source));
+    public SubDatetimesEvaluator get(DriverContext context, boolean collectWarnings) {
+      return new SubDatetimesEvaluator(source, datetime.get(context, collectWarnings), temporalAmount, context, collectWarnings ? new Warnings(source) : Warnings.NOOP_WARNINGS);
     }
 
     @Override

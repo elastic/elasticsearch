@@ -106,8 +106,8 @@ public final class ToUpperEvaluator implements EvalOperator.ExpressionEvaluator 
     }
 
     @Override
-    public ToUpperEvaluator get(DriverContext context) {
-      return new ToUpperEvaluator(source, val.get(context), locale, context, new Warnings(source));
+    public ToUpperEvaluator get(DriverContext context, boolean collectWarnings) {
+      return new ToUpperEvaluator(source, val.get(context, collectWarnings), locale, context, collectWarnings ? new Warnings(source) : Warnings.NOOP_WARNINGS);
     }
 
     @Override

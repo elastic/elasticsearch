@@ -107,8 +107,8 @@ public final class NegIntsEvaluator implements EvalOperator.ExpressionEvaluator 
     }
 
     @Override
-    public NegIntsEvaluator get(DriverContext context) {
-      return new NegIntsEvaluator(source, v.get(context), context, new Warnings(source));
+    public NegIntsEvaluator get(DriverContext context, boolean collectWarnings) {
+      return new NegIntsEvaluator(source, v.get(context, collectWarnings), context, collectWarnings ? new Warnings(source) : Warnings.NOOP_WARNINGS);
     }
 
     @Override

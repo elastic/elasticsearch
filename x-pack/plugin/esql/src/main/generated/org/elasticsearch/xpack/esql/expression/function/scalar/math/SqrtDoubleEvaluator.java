@@ -107,8 +107,8 @@ public final class SqrtDoubleEvaluator implements EvalOperator.ExpressionEvaluat
     }
 
     @Override
-    public SqrtDoubleEvaluator get(DriverContext context) {
-      return new SqrtDoubleEvaluator(source, val.get(context), context, new Warnings(source));
+    public SqrtDoubleEvaluator get(DriverContext context, boolean collectWarnings) {
+      return new SqrtDoubleEvaluator(source, val.get(context, collectWarnings), context, collectWarnings ? new Warnings(source) : Warnings.NOOP_WARNINGS);
     }
 
     @Override

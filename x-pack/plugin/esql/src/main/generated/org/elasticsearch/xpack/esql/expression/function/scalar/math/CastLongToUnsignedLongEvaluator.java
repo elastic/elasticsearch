@@ -96,8 +96,8 @@ public final class CastLongToUnsignedLongEvaluator implements EvalOperator.Expre
     }
 
     @Override
-    public CastLongToUnsignedLongEvaluator get(DriverContext context) {
-      return new CastLongToUnsignedLongEvaluator(source, v.get(context), context, new Warnings(source));
+    public CastLongToUnsignedLongEvaluator get(DriverContext context, boolean collectWarnings) {
+      return new CastLongToUnsignedLongEvaluator(source, v.get(context, collectWarnings), context, collectWarnings ? new Warnings(source) : Warnings.NOOP_WARNINGS);
     }
 
     @Override

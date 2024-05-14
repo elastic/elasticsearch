@@ -116,8 +116,8 @@ public final class AddDatetimesEvaluator implements EvalOperator.ExpressionEvalu
     }
 
     @Override
-    public AddDatetimesEvaluator get(DriverContext context) {
-      return new AddDatetimesEvaluator(source, datetime.get(context), temporalAmount, context, new Warnings(source));
+    public AddDatetimesEvaluator get(DriverContext context, boolean collectWarnings) {
+      return new AddDatetimesEvaluator(source, datetime.get(context, collectWarnings), temporalAmount, context, collectWarnings ? new Warnings(source) : Warnings.NOOP_WARNINGS);
     }
 
     @Override

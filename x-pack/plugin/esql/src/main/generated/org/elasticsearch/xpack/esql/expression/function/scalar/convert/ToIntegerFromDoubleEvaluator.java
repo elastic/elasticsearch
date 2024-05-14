@@ -112,8 +112,8 @@ public final class ToIntegerFromDoubleEvaluator extends AbstractConvertFunction.
     }
 
     @Override
-    public ToIntegerFromDoubleEvaluator get(DriverContext context) {
-      return new ToIntegerFromDoubleEvaluator(field.get(context), source, context, new Warnings(source));
+    public ToIntegerFromDoubleEvaluator get(DriverContext context, boolean collectWarnings) {
+      return new ToIntegerFromDoubleEvaluator(field.get(context, collectWarnings), source, context, collectWarnings ? new Warnings(source) : Warnings.NOOP_WARNINGS);
     }
 
     @Override

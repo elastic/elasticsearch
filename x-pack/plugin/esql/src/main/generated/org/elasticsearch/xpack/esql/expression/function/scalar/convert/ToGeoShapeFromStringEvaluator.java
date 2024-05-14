@@ -114,8 +114,8 @@ public final class ToGeoShapeFromStringEvaluator extends AbstractConvertFunction
     }
 
     @Override
-    public ToGeoShapeFromStringEvaluator get(DriverContext context) {
-      return new ToGeoShapeFromStringEvaluator(field.get(context), source, context, new Warnings(source));
+    public ToGeoShapeFromStringEvaluator get(DriverContext context, boolean collectWarnings) {
+      return new ToGeoShapeFromStringEvaluator(field.get(context, collectWarnings), source, context, collectWarnings ? new Warnings(source) : Warnings.NOOP_WARNINGS);
     }
 
     @Override

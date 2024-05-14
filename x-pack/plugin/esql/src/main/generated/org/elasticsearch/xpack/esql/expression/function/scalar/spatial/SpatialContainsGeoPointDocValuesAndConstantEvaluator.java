@@ -116,8 +116,9 @@ public final class SpatialContainsGeoPointDocValuesAndConstantEvaluator implemen
     }
 
     @Override
-    public SpatialContainsGeoPointDocValuesAndConstantEvaluator get(DriverContext context) {
-      return new SpatialContainsGeoPointDocValuesAndConstantEvaluator(source, leftValue.get(context), rightValue, context, new Warnings(source));
+    public SpatialContainsGeoPointDocValuesAndConstantEvaluator get(DriverContext context,
+        boolean collectWarnings) {
+      return new SpatialContainsGeoPointDocValuesAndConstantEvaluator(source, leftValue.get(context, collectWarnings), rightValue, context, collectWarnings ? new Warnings(source) : Warnings.NOOP_WARNINGS);
     }
 
     @Override

@@ -122,8 +122,8 @@ public final class NotEqualsDoublesEvaluator implements EvalOperator.ExpressionE
     }
 
     @Override
-    public NotEqualsDoublesEvaluator get(DriverContext context) {
-      return new NotEqualsDoublesEvaluator(source, lhs.get(context), rhs.get(context), context, new Warnings(source));
+    public NotEqualsDoublesEvaluator get(DriverContext context, boolean collectWarnings) {
+      return new NotEqualsDoublesEvaluator(source, lhs.get(context, collectWarnings), rhs.get(context, collectWarnings), context, collectWarnings ? new Warnings(source) : Warnings.NOOP_WARNINGS);
     }
 
     @Override

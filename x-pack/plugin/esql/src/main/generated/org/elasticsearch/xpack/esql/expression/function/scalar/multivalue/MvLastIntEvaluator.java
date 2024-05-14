@@ -76,8 +76,8 @@ public final class MvLastIntEvaluator extends AbstractMultivalueFunction.Abstrac
     }
 
     @Override
-    public MvLastIntEvaluator get(DriverContext context) {
-      return new MvLastIntEvaluator(field.get(context), context);
+    public MvLastIntEvaluator get(DriverContext context, boolean collectWarnings) {
+      return new MvLastIntEvaluator(field.get(context, collectWarnings), context);
     }
 
     @Override

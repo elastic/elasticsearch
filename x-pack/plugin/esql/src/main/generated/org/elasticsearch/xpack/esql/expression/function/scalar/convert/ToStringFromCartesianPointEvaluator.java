@@ -99,8 +99,8 @@ public final class ToStringFromCartesianPointEvaluator extends AbstractConvertFu
     }
 
     @Override
-    public ToStringFromCartesianPointEvaluator get(DriverContext context) {
-      return new ToStringFromCartesianPointEvaluator(field.get(context), source, context, new Warnings(source));
+    public ToStringFromCartesianPointEvaluator get(DriverContext context, boolean collectWarnings) {
+      return new ToStringFromCartesianPointEvaluator(field.get(context, collectWarnings), source, context, collectWarnings ? new Warnings(source) : Warnings.NOOP_WARNINGS);
     }
 
     @Override

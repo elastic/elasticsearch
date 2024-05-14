@@ -111,8 +111,8 @@ public final class DateExtractConstantEvaluator implements EvalOperator.Expressi
     }
 
     @Override
-    public DateExtractConstantEvaluator get(DriverContext context) {
-      return new DateExtractConstantEvaluator(source, value.get(context), chronoField, zone, context, new Warnings(source));
+    public DateExtractConstantEvaluator get(DriverContext context, boolean collectWarnings) {
+      return new DateExtractConstantEvaluator(source, value.get(context, collectWarnings), chronoField, zone, context, collectWarnings ? new Warnings(source) : Warnings.NOOP_WARNINGS);
     }
 
     @Override

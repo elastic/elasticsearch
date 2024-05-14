@@ -115,8 +115,8 @@ public final class ToIntegerFromStringEvaluator extends AbstractConvertFunction.
     }
 
     @Override
-    public ToIntegerFromStringEvaluator get(DriverContext context) {
-      return new ToIntegerFromStringEvaluator(field.get(context), source, context, new Warnings(source));
+    public ToIntegerFromStringEvaluator get(DriverContext context, boolean collectWarnings) {
+      return new ToIntegerFromStringEvaluator(field.get(context, collectWarnings), source, context, collectWarnings ? new Warnings(source) : Warnings.NOOP_WARNINGS);
     }
 
     @Override

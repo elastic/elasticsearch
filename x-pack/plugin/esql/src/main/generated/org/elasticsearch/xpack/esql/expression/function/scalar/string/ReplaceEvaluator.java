@@ -165,8 +165,8 @@ public final class ReplaceEvaluator implements EvalOperator.ExpressionEvaluator 
     }
 
     @Override
-    public ReplaceEvaluator get(DriverContext context) {
-      return new ReplaceEvaluator(source, str.get(context), regex.get(context), newStr.get(context), context, new Warnings(source));
+    public ReplaceEvaluator get(DriverContext context, boolean collectWarnings) {
+      return new ReplaceEvaluator(source, str.get(context, collectWarnings), regex.get(context, collectWarnings), newStr.get(context, collectWarnings), context, collectWarnings ? new Warnings(source) : Warnings.NOOP_WARNINGS);
     }
 
     @Override

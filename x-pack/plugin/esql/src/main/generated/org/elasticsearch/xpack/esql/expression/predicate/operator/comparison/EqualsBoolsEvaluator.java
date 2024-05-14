@@ -120,8 +120,8 @@ public final class EqualsBoolsEvaluator implements EvalOperator.ExpressionEvalua
     }
 
     @Override
-    public EqualsBoolsEvaluator get(DriverContext context) {
-      return new EqualsBoolsEvaluator(source, lhs.get(context), rhs.get(context), context, new Warnings(source));
+    public EqualsBoolsEvaluator get(DriverContext context, boolean collectWarnings) {
+      return new EqualsBoolsEvaluator(source, lhs.get(context, collectWarnings), rhs.get(context, collectWarnings), context, collectWarnings ? new Warnings(source) : Warnings.NOOP_WARNINGS);
     }
 
     @Override

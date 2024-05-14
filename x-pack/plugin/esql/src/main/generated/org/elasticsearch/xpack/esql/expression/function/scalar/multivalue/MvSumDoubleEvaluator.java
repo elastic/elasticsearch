@@ -87,8 +87,8 @@ public final class MvSumDoubleEvaluator extends AbstractMultivalueFunction.Abstr
     }
 
     @Override
-    public MvSumDoubleEvaluator get(DriverContext context) {
-      return new MvSumDoubleEvaluator(field.get(context), context);
+    public MvSumDoubleEvaluator get(DriverContext context, boolean collectWarnings) {
+      return new MvSumDoubleEvaluator(field.get(context, collectWarnings), context);
     }
 
     @Override

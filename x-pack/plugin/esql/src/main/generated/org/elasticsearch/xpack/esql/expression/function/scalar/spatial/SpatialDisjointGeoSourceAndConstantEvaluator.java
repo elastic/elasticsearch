@@ -120,8 +120,9 @@ public final class SpatialDisjointGeoSourceAndConstantEvaluator implements EvalO
     }
 
     @Override
-    public SpatialDisjointGeoSourceAndConstantEvaluator get(DriverContext context) {
-      return new SpatialDisjointGeoSourceAndConstantEvaluator(source, leftValue.get(context), rightValue, context, new Warnings(source));
+    public SpatialDisjointGeoSourceAndConstantEvaluator get(DriverContext context,
+        boolean collectWarnings) {
+      return new SpatialDisjointGeoSourceAndConstantEvaluator(source, leftValue.get(context, collectWarnings), rightValue, context, collectWarnings ? new Warnings(source) : Warnings.NOOP_WARNINGS);
     }
 
     @Override

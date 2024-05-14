@@ -122,8 +122,8 @@ public final class LessThanIntsEvaluator implements EvalOperator.ExpressionEvalu
     }
 
     @Override
-    public LessThanIntsEvaluator get(DriverContext context) {
-      return new LessThanIntsEvaluator(source, lhs.get(context), rhs.get(context), context, new Warnings(source));
+    public LessThanIntsEvaluator get(DriverContext context, boolean collectWarnings) {
+      return new LessThanIntsEvaluator(source, lhs.get(context, collectWarnings), rhs.get(context, collectWarnings), context, collectWarnings ? new Warnings(source) : Warnings.NOOP_WARNINGS);
     }
 
     @Override

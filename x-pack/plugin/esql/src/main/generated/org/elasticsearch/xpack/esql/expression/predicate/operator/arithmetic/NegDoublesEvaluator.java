@@ -96,8 +96,8 @@ public final class NegDoublesEvaluator implements EvalOperator.ExpressionEvaluat
     }
 
     @Override
-    public NegDoublesEvaluator get(DriverContext context) {
-      return new NegDoublesEvaluator(source, v.get(context), context, new Warnings(source));
+    public NegDoublesEvaluator get(DriverContext context, boolean collectWarnings) {
+      return new NegDoublesEvaluator(source, v.get(context, collectWarnings), context, collectWarnings ? new Warnings(source) : Warnings.NOOP_WARNINGS);
     }
 
     @Override

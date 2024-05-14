@@ -122,8 +122,8 @@ public final class GreaterThanIntsEvaluator implements EvalOperator.ExpressionEv
     }
 
     @Override
-    public GreaterThanIntsEvaluator get(DriverContext context) {
-      return new GreaterThanIntsEvaluator(source, lhs.get(context), rhs.get(context), context, new Warnings(source));
+    public GreaterThanIntsEvaluator get(DriverContext context, boolean collectWarnings) {
+      return new GreaterThanIntsEvaluator(source, lhs.get(context, collectWarnings), rhs.get(context, collectWarnings), context, collectWarnings ? new Warnings(source) : Warnings.NOOP_WARNINGS);
     }
 
     @Override

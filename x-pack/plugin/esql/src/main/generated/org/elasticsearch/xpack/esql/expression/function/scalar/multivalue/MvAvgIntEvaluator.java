@@ -146,8 +146,8 @@ public final class MvAvgIntEvaluator extends AbstractMultivalueFunction.Abstract
     }
 
     @Override
-    public MvAvgIntEvaluator get(DriverContext context) {
-      return new MvAvgIntEvaluator(field.get(context), context);
+    public MvAvgIntEvaluator get(DriverContext context, boolean collectWarnings) {
+      return new MvAvgIntEvaluator(field.get(context, collectWarnings), context);
     }
 
     @Override

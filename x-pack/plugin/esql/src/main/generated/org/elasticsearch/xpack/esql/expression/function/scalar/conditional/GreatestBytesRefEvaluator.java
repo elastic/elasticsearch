@@ -127,9 +127,9 @@ public final class GreatestBytesRefEvaluator implements EvalOperator.ExpressionE
     }
 
     @Override
-    public GreatestBytesRefEvaluator get(DriverContext context) {
-      EvalOperator.ExpressionEvaluator[] values = Arrays.stream(this.values).map(a -> a.get(context)).toArray(EvalOperator.ExpressionEvaluator[]::new);
-      return new GreatestBytesRefEvaluator(source, values, context, new Warnings(source));
+    public GreatestBytesRefEvaluator get(DriverContext context, boolean collectWarnings) {
+      EvalOperator.ExpressionEvaluator[] values = Arrays.stream(this.values).map(a -> a.get(context, collectWarnings)).toArray(EvalOperator.ExpressionEvaluator[]::new);
+      return new GreatestBytesRefEvaluator(source, values, context, collectWarnings ? new Warnings(source) : Warnings.NOOP_WARNINGS);
     }
 
     @Override

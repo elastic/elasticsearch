@@ -98,8 +98,8 @@ public final class CastIntToDoubleEvaluator implements EvalOperator.ExpressionEv
     }
 
     @Override
-    public CastIntToDoubleEvaluator get(DriverContext context) {
-      return new CastIntToDoubleEvaluator(source, v.get(context), context, new Warnings(source));
+    public CastIntToDoubleEvaluator get(DriverContext context, boolean collectWarnings) {
+      return new CastIntToDoubleEvaluator(source, v.get(context, collectWarnings), context, collectWarnings ? new Warnings(source) : Warnings.NOOP_WARNINGS);
     }
 
     @Override

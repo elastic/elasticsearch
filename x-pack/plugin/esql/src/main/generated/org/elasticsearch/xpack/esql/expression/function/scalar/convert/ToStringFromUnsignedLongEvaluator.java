@@ -98,8 +98,8 @@ public final class ToStringFromUnsignedLongEvaluator extends AbstractConvertFunc
     }
 
     @Override
-    public ToStringFromUnsignedLongEvaluator get(DriverContext context) {
-      return new ToStringFromUnsignedLongEvaluator(field.get(context), source, context, new Warnings(source));
+    public ToStringFromUnsignedLongEvaluator get(DriverContext context, boolean collectWarnings) {
+      return new ToStringFromUnsignedLongEvaluator(field.get(context, collectWarnings), source, context, collectWarnings ? new Warnings(source) : Warnings.NOOP_WARNINGS);
     }
 
     @Override

@@ -96,8 +96,8 @@ public final class AbsLongEvaluator implements EvalOperator.ExpressionEvaluator 
     }
 
     @Override
-    public AbsLongEvaluator get(DriverContext context) {
-      return new AbsLongEvaluator(source, fieldVal.get(context), context, new Warnings(source));
+    public AbsLongEvaluator get(DriverContext context, boolean collectWarnings) {
+      return new AbsLongEvaluator(source, fieldVal.get(context, collectWarnings), context, collectWarnings ? new Warnings(source) : Warnings.NOOP_WARNINGS);
     }
 
     @Override

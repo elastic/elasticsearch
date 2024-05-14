@@ -107,8 +107,8 @@ public final class SinhEvaluator implements EvalOperator.ExpressionEvaluator {
     }
 
     @Override
-    public SinhEvaluator get(DriverContext context) {
-      return new SinhEvaluator(source, val.get(context), context, new Warnings(source));
+    public SinhEvaluator get(DriverContext context, boolean collectWarnings) {
+      return new SinhEvaluator(source, val.get(context, collectWarnings), context, collectWarnings ? new Warnings(source) : Warnings.NOOP_WARNINGS);
     }
 
     @Override

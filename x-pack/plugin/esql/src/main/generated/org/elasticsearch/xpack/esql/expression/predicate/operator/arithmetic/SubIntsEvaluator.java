@@ -131,8 +131,8 @@ public final class SubIntsEvaluator implements EvalOperator.ExpressionEvaluator 
     }
 
     @Override
-    public SubIntsEvaluator get(DriverContext context) {
-      return new SubIntsEvaluator(source, lhs.get(context), rhs.get(context), context, new Warnings(source));
+    public SubIntsEvaluator get(DriverContext context, boolean collectWarnings) {
+      return new SubIntsEvaluator(source, lhs.get(context, collectWarnings), rhs.get(context, collectWarnings), context, collectWarnings ? new Warnings(source) : Warnings.NOOP_WARNINGS);
     }
 
     @Override

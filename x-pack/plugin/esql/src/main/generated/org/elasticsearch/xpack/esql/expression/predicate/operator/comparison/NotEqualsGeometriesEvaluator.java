@@ -127,8 +127,8 @@ public final class NotEqualsGeometriesEvaluator implements EvalOperator.Expressi
     }
 
     @Override
-    public NotEqualsGeometriesEvaluator get(DriverContext context) {
-      return new NotEqualsGeometriesEvaluator(source, lhs.get(context), rhs.get(context), context, new Warnings(source));
+    public NotEqualsGeometriesEvaluator get(DriverContext context, boolean collectWarnings) {
+      return new NotEqualsGeometriesEvaluator(source, lhs.get(context, collectWarnings), rhs.get(context, collectWarnings), context, collectWarnings ? new Warnings(source) : Warnings.NOOP_WARNINGS);
     }
 
     @Override

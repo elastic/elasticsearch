@@ -139,7 +139,11 @@ public final class EvalMapper {
                     Releasables.closeExpectNoException(leftEval, rightEval);
                 }
             }
-            return (driverContext, collectWarnings) -> new BooleanLogicExpressionEvaluator(bc, leftEval.get(driverContext, true), rightEval.get(driverContext, true));
+            return (driverContext, collectWarnings) -> new BooleanLogicExpressionEvaluator(
+                bc,
+                leftEval.get(driverContext, true),
+                rightEval.get(driverContext, true)
+            );
         }
     }
 

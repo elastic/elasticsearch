@@ -99,8 +99,8 @@ public final class ToStringFromGeoPointEvaluator extends AbstractConvertFunction
     }
 
     @Override
-    public ToStringFromGeoPointEvaluator get(DriverContext context) {
-      return new ToStringFromGeoPointEvaluator(field.get(context), source, context, new Warnings(source));
+    public ToStringFromGeoPointEvaluator get(DriverContext context, boolean collectWarnings) {
+      return new ToStringFromGeoPointEvaluator(field.get(context, collectWarnings), source, context, collectWarnings ? new Warnings(source) : Warnings.NOOP_WARNINGS);
     }
 
     @Override

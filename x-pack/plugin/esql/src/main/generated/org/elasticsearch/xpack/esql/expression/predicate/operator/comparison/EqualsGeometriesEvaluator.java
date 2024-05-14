@@ -127,8 +127,8 @@ public final class EqualsGeometriesEvaluator implements EvalOperator.ExpressionE
     }
 
     @Override
-    public EqualsGeometriesEvaluator get(DriverContext context) {
-      return new EqualsGeometriesEvaluator(source, lhs.get(context), rhs.get(context), context, new Warnings(source));
+    public EqualsGeometriesEvaluator get(DriverContext context, boolean collectWarnings) {
+      return new EqualsGeometriesEvaluator(source, lhs.get(context, collectWarnings), rhs.get(context, collectWarnings), context, collectWarnings ? new Warnings(source) : Warnings.NOOP_WARNINGS);
     }
 
     @Override

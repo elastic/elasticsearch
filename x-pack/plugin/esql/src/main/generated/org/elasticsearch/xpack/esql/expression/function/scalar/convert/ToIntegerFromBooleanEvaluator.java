@@ -97,8 +97,8 @@ public final class ToIntegerFromBooleanEvaluator extends AbstractConvertFunction
     }
 
     @Override
-    public ToIntegerFromBooleanEvaluator get(DriverContext context) {
-      return new ToIntegerFromBooleanEvaluator(field.get(context), source, context, new Warnings(source));
+    public ToIntegerFromBooleanEvaluator get(DriverContext context, boolean collectWarnings) {
+      return new ToIntegerFromBooleanEvaluator(field.get(context, collectWarnings), source, context, collectWarnings ? new Warnings(source) : Warnings.NOOP_WARNINGS);
     }
 
     @Override

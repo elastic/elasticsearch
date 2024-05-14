@@ -127,8 +127,8 @@ public final class GreaterThanOrEqualKeywordsEvaluator implements EvalOperator.E
     }
 
     @Override
-    public GreaterThanOrEqualKeywordsEvaluator get(DriverContext context) {
-      return new GreaterThanOrEqualKeywordsEvaluator(source, lhs.get(context), rhs.get(context), context, new Warnings(source));
+    public GreaterThanOrEqualKeywordsEvaluator get(DriverContext context, boolean collectWarnings) {
+      return new GreaterThanOrEqualKeywordsEvaluator(source, lhs.get(context, collectWarnings), rhs.get(context, collectWarnings), context, collectWarnings ? new Warnings(source) : Warnings.NOOP_WARNINGS);
     }
 
     @Override

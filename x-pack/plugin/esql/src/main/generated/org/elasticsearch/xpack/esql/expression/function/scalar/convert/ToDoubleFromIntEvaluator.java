@@ -97,8 +97,8 @@ public final class ToDoubleFromIntEvaluator extends AbstractConvertFunction.Abst
     }
 
     @Override
-    public ToDoubleFromIntEvaluator get(DriverContext context) {
-      return new ToDoubleFromIntEvaluator(field.get(context), source, context, new Warnings(source));
+    public ToDoubleFromIntEvaluator get(DriverContext context, boolean collectWarnings) {
+      return new ToDoubleFromIntEvaluator(field.get(context, collectWarnings), source, context, collectWarnings ? new Warnings(source) : Warnings.NOOP_WARNINGS);
     }
 
     @Override

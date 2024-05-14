@@ -128,8 +128,8 @@ public final class MvSliceLongEvaluator implements EvalOperator.ExpressionEvalua
     }
 
     @Override
-    public MvSliceLongEvaluator get(DriverContext context) {
-      return new MvSliceLongEvaluator(source, field.get(context), start.get(context), end.get(context), context, new Warnings(source));
+    public MvSliceLongEvaluator get(DriverContext context, boolean collectWarnings) {
+      return new MvSliceLongEvaluator(source, field.get(context, collectWarnings), start.get(context, collectWarnings), end.get(context, collectWarnings), context, collectWarnings ? new Warnings(source) : Warnings.NOOP_WARNINGS);
     }
 
     @Override

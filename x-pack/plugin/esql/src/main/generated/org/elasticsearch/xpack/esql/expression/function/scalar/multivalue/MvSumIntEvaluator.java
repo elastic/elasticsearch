@@ -76,8 +76,8 @@ public final class MvSumIntEvaluator extends AbstractMultivalueFunction.Abstract
     }
 
     @Override
-    public MvSumIntEvaluator get(DriverContext context) {
-      return new MvSumIntEvaluator(source, field.get(context), context, new Warnings(source));
+    public MvSumIntEvaluator get(DriverContext context, boolean collectWarnings) {
+      return new MvSumIntEvaluator(source, field.get(context, collectWarnings), context, collectWarnings ? new Warnings(source) : Warnings.NOOP_WARNINGS);
     }
 
     @Override

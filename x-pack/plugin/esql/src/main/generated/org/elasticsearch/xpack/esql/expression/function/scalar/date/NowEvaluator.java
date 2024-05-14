@@ -65,8 +65,8 @@ public final class NowEvaluator implements EvalOperator.ExpressionEvaluator {
     }
 
     @Override
-    public NowEvaluator get(DriverContext context) {
-      return new NowEvaluator(source, now, context, new Warnings(source));
+    public NowEvaluator get(DriverContext context, boolean collectWarnings) {
+      return new NowEvaluator(source, now, context, collectWarnings ? new Warnings(source) : Warnings.NOOP_WARNINGS);
     }
 
     @Override

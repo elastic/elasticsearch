@@ -119,8 +119,8 @@ public final class ToBase64Evaluator implements EvalOperator.ExpressionEvaluator
     }
 
     @Override
-    public ToBase64Evaluator get(DriverContext context) {
-      return new ToBase64Evaluator(source, field.get(context), oScratch.apply(context), context, new Warnings(source));
+    public ToBase64Evaluator get(DriverContext context, boolean collectWarnings) {
+      return new ToBase64Evaluator(source, field.get(context, collectWarnings), oScratch.apply(context), context, collectWarnings ? new Warnings(source) : Warnings.NOOP_WARNINGS);
     }
 
     @Override

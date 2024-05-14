@@ -336,6 +336,7 @@ public class EvaluatorImplementer {
         MethodSpec.Builder builder = MethodSpec.methodBuilder("get").addAnnotation(Override.class);
         builder.addModifiers(Modifier.PUBLIC);
         builder.addParameter(DRIVER_CONTEXT, "context");
+        builder.addParameter(TypeName.BOOLEAN, "collectWarnings");
         builder.returns(implementation);
 
         List<String> args = new ArrayList<>();
@@ -347,7 +348,7 @@ public class EvaluatorImplementer {
             }
         }
         args.add("context");
-        args.add("new Warnings(source)");
+        args.add("collectWarnings ? new Warnings(source) : Warnings.NOOP_WARNINGS");
         builder.addStatement("return new $T($L)", implementation, args.stream().collect(Collectors.joining(", ")));
         return builder.build();
     }
@@ -482,7 +483,7 @@ public class EvaluatorImplementer {
 
         @Override
         public String factoryInvocation(MethodSpec.Builder factoryMethodBuilder) {
-            return name + ".get(context)";
+            return name + ".get(context, collectWarnings)";
         }
 
         @Override
@@ -607,7 +608,7 @@ public class EvaluatorImplementer {
         @Override
         public String factoryInvocation(MethodSpec.Builder factoryMethodBuilder) {
             factoryMethodBuilder.addStatement(
-                "$T[] $L = Arrays.stream(this.$L).map(a -> a.get(context)).toArray($T[]::new)",
+                "$T[] $L = Arrays.stream(this.$L).map(a -> a.get(context, collectWarnings)).toArray($T[]::new)",
                 EXPRESSION_EVALUATOR,
                 name,
                 name,
@@ -915,7 +916,7 @@ public class EvaluatorImplementer {
 
         @Override
         public String factoryInvocation(MethodSpec.Builder factoryMethodBuilder) {
-            return name + ".get(context)";
+            return name + ".get(context, collectWarnings)";
         }
 
         @Override

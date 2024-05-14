@@ -133,8 +133,8 @@ public final class MvMaxBooleanEvaluator extends AbstractMultivalueFunction.Abst
     }
 
     @Override
-    public MvMaxBooleanEvaluator get(DriverContext context) {
-      return new MvMaxBooleanEvaluator(field.get(context), context);
+    public MvMaxBooleanEvaluator get(DriverContext context, boolean collectWarnings) {
+      return new MvMaxBooleanEvaluator(field.get(context, collectWarnings), context);
     }
 
     @Override

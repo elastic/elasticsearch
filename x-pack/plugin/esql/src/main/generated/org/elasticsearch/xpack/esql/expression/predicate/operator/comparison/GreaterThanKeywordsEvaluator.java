@@ -127,8 +127,8 @@ public final class GreaterThanKeywordsEvaluator implements EvalOperator.Expressi
     }
 
     @Override
-    public GreaterThanKeywordsEvaluator get(DriverContext context) {
-      return new GreaterThanKeywordsEvaluator(source, lhs.get(context), rhs.get(context), context, new Warnings(source));
+    public GreaterThanKeywordsEvaluator get(DriverContext context, boolean collectWarnings) {
+      return new GreaterThanKeywordsEvaluator(source, lhs.get(context, collectWarnings), rhs.get(context, collectWarnings), context, collectWarnings ? new Warnings(source) : Warnings.NOOP_WARNINGS);
     }
 
     @Override

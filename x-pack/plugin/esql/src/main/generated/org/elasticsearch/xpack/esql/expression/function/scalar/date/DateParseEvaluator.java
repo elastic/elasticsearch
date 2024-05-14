@@ -145,8 +145,8 @@ public final class DateParseEvaluator implements EvalOperator.ExpressionEvaluato
     }
 
     @Override
-    public DateParseEvaluator get(DriverContext context) {
-      return new DateParseEvaluator(source, val.get(context), formatter.get(context), zoneId, context, new Warnings(source));
+    public DateParseEvaluator get(DriverContext context, boolean collectWarnings) {
+      return new DateParseEvaluator(source, val.get(context, collectWarnings), formatter.get(context, collectWarnings), zoneId, context, collectWarnings ? new Warnings(source) : Warnings.NOOP_WARNINGS);
     }
 
     @Override

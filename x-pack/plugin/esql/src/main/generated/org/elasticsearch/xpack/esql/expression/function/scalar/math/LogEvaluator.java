@@ -131,8 +131,8 @@ public final class LogEvaluator implements EvalOperator.ExpressionEvaluator {
     }
 
     @Override
-    public LogEvaluator get(DriverContext context) {
-      return new LogEvaluator(source, base.get(context), value.get(context), context, new Warnings(source));
+    public LogEvaluator get(DriverContext context, boolean collectWarnings) {
+      return new LogEvaluator(source, base.get(context, collectWarnings), value.get(context, collectWarnings), context, collectWarnings ? new Warnings(source) : Warnings.NOOP_WARNINGS);
     }
 
     @Override

@@ -142,8 +142,8 @@ public final class RightEvaluator implements EvalOperator.ExpressionEvaluator {
     }
 
     @Override
-    public RightEvaluator get(DriverContext context) {
-      return new RightEvaluator(source, out.apply(context), cp.apply(context), str.get(context), length.get(context), context, new Warnings(source));
+    public RightEvaluator get(DriverContext context, boolean collectWarnings) {
+      return new RightEvaluator(source, out.apply(context), cp.apply(context), str.get(context, collectWarnings), length.get(context, collectWarnings), context, collectWarnings ? new Warnings(source) : Warnings.NOOP_WARNINGS);
     }
 
     @Override

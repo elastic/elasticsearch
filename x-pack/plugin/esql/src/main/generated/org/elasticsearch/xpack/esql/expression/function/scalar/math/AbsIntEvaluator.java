@@ -96,8 +96,8 @@ public final class AbsIntEvaluator implements EvalOperator.ExpressionEvaluator {
     }
 
     @Override
-    public AbsIntEvaluator get(DriverContext context) {
-      return new AbsIntEvaluator(source, fieldVal.get(context), context, new Warnings(source));
+    public AbsIntEvaluator get(DriverContext context, boolean collectWarnings) {
+      return new AbsIntEvaluator(source, fieldVal.get(context, collectWarnings), context, collectWarnings ? new Warnings(source) : Warnings.NOOP_WARNINGS);
     }
 
     @Override

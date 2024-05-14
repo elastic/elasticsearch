@@ -120,8 +120,9 @@ public final class SpatialIntersectsGeoSourceAndConstantEvaluator implements Eva
     }
 
     @Override
-    public SpatialIntersectsGeoSourceAndConstantEvaluator get(DriverContext context) {
-      return new SpatialIntersectsGeoSourceAndConstantEvaluator(source, leftValue.get(context), rightValue, context, new Warnings(source));
+    public SpatialIntersectsGeoSourceAndConstantEvaluator get(DriverContext context,
+        boolean collectWarnings) {
+      return new SpatialIntersectsGeoSourceAndConstantEvaluator(source, leftValue.get(context, collectWarnings), rightValue, context, collectWarnings ? new Warnings(source) : Warnings.NOOP_WARNINGS);
     }
 
     @Override

@@ -133,8 +133,8 @@ public final class MvMinBooleanEvaluator extends AbstractMultivalueFunction.Abst
     }
 
     @Override
-    public MvMinBooleanEvaluator get(DriverContext context) {
-      return new MvMinBooleanEvaluator(field.get(context), context);
+    public MvMinBooleanEvaluator get(DriverContext context, boolean collectWarnings) {
+      return new MvMinBooleanEvaluator(field.get(context, collectWarnings), context);
     }
 
     @Override

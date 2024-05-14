@@ -98,8 +98,8 @@ public final class SignumUnsignedLongEvaluator implements EvalOperator.Expressio
     }
 
     @Override
-    public SignumUnsignedLongEvaluator get(DriverContext context) {
-      return new SignumUnsignedLongEvaluator(source, val.get(context), context, new Warnings(source));
+    public SignumUnsignedLongEvaluator get(DriverContext context, boolean collectWarnings) {
+      return new SignumUnsignedLongEvaluator(source, val.get(context, collectWarnings), context, collectWarnings ? new Warnings(source) : Warnings.NOOP_WARNINGS);
     }
 
     @Override

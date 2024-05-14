@@ -140,8 +140,9 @@ public final class SpatialDisjointGeoSourceAndSourceEvaluator implements EvalOpe
     }
 
     @Override
-    public SpatialDisjointGeoSourceAndSourceEvaluator get(DriverContext context) {
-      return new SpatialDisjointGeoSourceAndSourceEvaluator(source, leftValue.get(context), rightValue.get(context), context, new Warnings(source));
+    public SpatialDisjointGeoSourceAndSourceEvaluator get(DriverContext context,
+        boolean collectWarnings) {
+      return new SpatialDisjointGeoSourceAndSourceEvaluator(source, leftValue.get(context, collectWarnings), rightValue.get(context, collectWarnings), context, collectWarnings ? new Warnings(source) : Warnings.NOOP_WARNINGS);
     }
 
     @Override

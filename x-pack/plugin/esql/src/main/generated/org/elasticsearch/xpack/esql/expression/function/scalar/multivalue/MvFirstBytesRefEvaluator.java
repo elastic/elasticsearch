@@ -80,8 +80,8 @@ public final class MvFirstBytesRefEvaluator extends AbstractMultivalueFunction.A
     }
 
     @Override
-    public MvFirstBytesRefEvaluator get(DriverContext context) {
-      return new MvFirstBytesRefEvaluator(field.get(context), context);
+    public MvFirstBytesRefEvaluator get(DriverContext context, boolean collectWarnings) {
+      return new MvFirstBytesRefEvaluator(field.get(context, collectWarnings), context);
     }
 
     @Override

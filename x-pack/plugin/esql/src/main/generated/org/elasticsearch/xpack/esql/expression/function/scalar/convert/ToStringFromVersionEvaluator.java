@@ -99,8 +99,8 @@ public final class ToStringFromVersionEvaluator extends AbstractConvertFunction.
     }
 
     @Override
-    public ToStringFromVersionEvaluator get(DriverContext context) {
-      return new ToStringFromVersionEvaluator(field.get(context), source, context, new Warnings(source));
+    public ToStringFromVersionEvaluator get(DriverContext context, boolean collectWarnings) {
+      return new ToStringFromVersionEvaluator(field.get(context, collectWarnings), source, context, collectWarnings ? new Warnings(source) : Warnings.NOOP_WARNINGS);
     }
 
     @Override

@@ -165,8 +165,8 @@ public final class DateDiffEvaluator implements EvalOperator.ExpressionEvaluator
     }
 
     @Override
-    public DateDiffEvaluator get(DriverContext context) {
-      return new DateDiffEvaluator(source, unit.get(context), startTimestamp.get(context), endTimestamp.get(context), context, new Warnings(source));
+    public DateDiffEvaluator get(DriverContext context, boolean collectWarnings) {
+      return new DateDiffEvaluator(source, unit.get(context, collectWarnings), startTimestamp.get(context, collectWarnings), endTimestamp.get(context, collectWarnings), context, collectWarnings ? new Warnings(source) : Warnings.NOOP_WARNINGS);
     }
 
     @Override

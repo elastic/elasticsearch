@@ -98,8 +98,8 @@ public final class CastLongToDoubleEvaluator implements EvalOperator.ExpressionE
     }
 
     @Override
-    public CastLongToDoubleEvaluator get(DriverContext context) {
-      return new CastLongToDoubleEvaluator(source, v.get(context), context, new Warnings(source));
+    public CastLongToDoubleEvaluator get(DriverContext context, boolean collectWarnings) {
+      return new CastLongToDoubleEvaluator(source, v.get(context, collectWarnings), context, collectWarnings ? new Warnings(source) : Warnings.NOOP_WARNINGS);
     }
 
     @Override

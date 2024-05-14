@@ -115,8 +115,8 @@ public final class ToLongFromStringEvaluator extends AbstractConvertFunction.Abs
     }
 
     @Override
-    public ToLongFromStringEvaluator get(DriverContext context) {
-      return new ToLongFromStringEvaluator(field.get(context), source, context, new Warnings(source));
+    public ToLongFromStringEvaluator get(DriverContext context, boolean collectWarnings) {
+      return new ToLongFromStringEvaluator(field.get(context, collectWarnings), source, context, collectWarnings ? new Warnings(source) : Warnings.NOOP_WARNINGS);
     }
 
     @Override

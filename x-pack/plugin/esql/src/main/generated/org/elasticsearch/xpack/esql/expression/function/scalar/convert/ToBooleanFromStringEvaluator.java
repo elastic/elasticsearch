@@ -100,8 +100,8 @@ public final class ToBooleanFromStringEvaluator extends AbstractConvertFunction.
     }
 
     @Override
-    public ToBooleanFromStringEvaluator get(DriverContext context) {
-      return new ToBooleanFromStringEvaluator(field.get(context), source, context, new Warnings(source));
+    public ToBooleanFromStringEvaluator get(DriverContext context, boolean collectWarnings) {
+      return new ToBooleanFromStringEvaluator(field.get(context, collectWarnings), source, context, collectWarnings ? new Warnings(source) : Warnings.NOOP_WARNINGS);
     }
 
     @Override

@@ -140,8 +140,9 @@ public final class SpatialContainsGeoSourceAndSourceEvaluator implements EvalOpe
     }
 
     @Override
-    public SpatialContainsGeoSourceAndSourceEvaluator get(DriverContext context) {
-      return new SpatialContainsGeoSourceAndSourceEvaluator(source, leftValue.get(context), rightValue.get(context), context, new Warnings(source));
+    public SpatialContainsGeoSourceAndSourceEvaluator get(DriverContext context,
+        boolean collectWarnings) {
+      return new SpatialContainsGeoSourceAndSourceEvaluator(source, leftValue.get(context, collectWarnings), rightValue.get(context, collectWarnings), context, collectWarnings ? new Warnings(source) : Warnings.NOOP_WARNINGS);
     }
 
     @Override

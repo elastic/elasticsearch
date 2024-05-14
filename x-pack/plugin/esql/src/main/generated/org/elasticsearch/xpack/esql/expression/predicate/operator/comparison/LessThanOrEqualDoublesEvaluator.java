@@ -122,8 +122,8 @@ public final class LessThanOrEqualDoublesEvaluator implements EvalOperator.Expre
     }
 
     @Override
-    public LessThanOrEqualDoublesEvaluator get(DriverContext context) {
-      return new LessThanOrEqualDoublesEvaluator(source, lhs.get(context), rhs.get(context), context, new Warnings(source));
+    public LessThanOrEqualDoublesEvaluator get(DriverContext context, boolean collectWarnings) {
+      return new LessThanOrEqualDoublesEvaluator(source, lhs.get(context, collectWarnings), rhs.get(context, collectWarnings), context, collectWarnings ? new Warnings(source) : Warnings.NOOP_WARNINGS);
     }
 
     @Override

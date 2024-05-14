@@ -96,8 +96,8 @@ public final class ToRadiansEvaluator extends AbstractConvertFunction.AbstractEv
     }
 
     @Override
-    public ToRadiansEvaluator get(DriverContext context) {
-      return new ToRadiansEvaluator(field.get(context), source, context, new Warnings(source));
+    public ToRadiansEvaluator get(DriverContext context, boolean collectWarnings) {
+      return new ToRadiansEvaluator(field.get(context, collectWarnings), source, context, collectWarnings ? new Warnings(source) : Warnings.NOOP_WARNINGS);
     }
 
     @Override

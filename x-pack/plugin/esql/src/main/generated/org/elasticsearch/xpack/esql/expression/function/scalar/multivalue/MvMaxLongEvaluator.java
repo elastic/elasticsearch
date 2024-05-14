@@ -132,8 +132,8 @@ public final class MvMaxLongEvaluator extends AbstractMultivalueFunction.Abstrac
     }
 
     @Override
-    public MvMaxLongEvaluator get(DriverContext context) {
-      return new MvMaxLongEvaluator(field.get(context), context);
+    public MvMaxLongEvaluator get(DriverContext context, boolean collectWarnings) {
+      return new MvMaxLongEvaluator(field.get(context, collectWarnings), context);
     }
 
     @Override

@@ -98,8 +98,8 @@ public final class ToStringFromIntEvaluator extends AbstractConvertFunction.Abst
     }
 
     @Override
-    public ToStringFromIntEvaluator get(DriverContext context) {
-      return new ToStringFromIntEvaluator(field.get(context), source, context, new Warnings(source));
+    public ToStringFromIntEvaluator get(DriverContext context, boolean collectWarnings) {
+      return new ToStringFromIntEvaluator(field.get(context, collectWarnings), source, context, collectWarnings ? new Warnings(source) : Warnings.NOOP_WARNINGS);
     }
 
     @Override

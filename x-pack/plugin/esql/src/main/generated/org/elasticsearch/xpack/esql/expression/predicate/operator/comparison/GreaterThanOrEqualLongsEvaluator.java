@@ -122,8 +122,8 @@ public final class GreaterThanOrEqualLongsEvaluator implements EvalOperator.Expr
     }
 
     @Override
-    public GreaterThanOrEqualLongsEvaluator get(DriverContext context) {
-      return new GreaterThanOrEqualLongsEvaluator(source, lhs.get(context), rhs.get(context), context, new Warnings(source));
+    public GreaterThanOrEqualLongsEvaluator get(DriverContext context, boolean collectWarnings) {
+      return new GreaterThanOrEqualLongsEvaluator(source, lhs.get(context, collectWarnings), rhs.get(context, collectWarnings), context, collectWarnings ? new Warnings(source) : Warnings.NOOP_WARNINGS);
     }
 
     @Override

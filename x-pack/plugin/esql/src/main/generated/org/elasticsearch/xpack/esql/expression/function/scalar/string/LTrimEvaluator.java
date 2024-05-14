@@ -99,8 +99,8 @@ public final class LTrimEvaluator implements EvalOperator.ExpressionEvaluator {
     }
 
     @Override
-    public LTrimEvaluator get(DriverContext context) {
-      return new LTrimEvaluator(source, val.get(context), context, new Warnings(source));
+    public LTrimEvaluator get(DriverContext context, boolean collectWarnings) {
+      return new LTrimEvaluator(source, val.get(context, collectWarnings), context, collectWarnings ? new Warnings(source) : Warnings.NOOP_WARNINGS);
     }
 
     @Override

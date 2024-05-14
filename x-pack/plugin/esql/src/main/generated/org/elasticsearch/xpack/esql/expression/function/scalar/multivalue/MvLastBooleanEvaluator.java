@@ -77,8 +77,8 @@ public final class MvLastBooleanEvaluator extends AbstractMultivalueFunction.Abs
     }
 
     @Override
-    public MvLastBooleanEvaluator get(DriverContext context) {
-      return new MvLastBooleanEvaluator(field.get(context), context);
+    public MvLastBooleanEvaluator get(DriverContext context, boolean collectWarnings) {
+      return new MvLastBooleanEvaluator(field.get(context, collectWarnings), context);
     }
 
     @Override

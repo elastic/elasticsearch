@@ -140,8 +140,9 @@ public final class SpatialWithinCartesianSourceAndSourceEvaluator implements Eva
     }
 
     @Override
-    public SpatialWithinCartesianSourceAndSourceEvaluator get(DriverContext context) {
-      return new SpatialWithinCartesianSourceAndSourceEvaluator(source, leftValue.get(context), rightValue.get(context), context, new Warnings(source));
+    public SpatialWithinCartesianSourceAndSourceEvaluator get(DriverContext context,
+        boolean collectWarnings) {
+      return new SpatialWithinCartesianSourceAndSourceEvaluator(source, leftValue.get(context, collectWarnings), rightValue.get(context, collectWarnings), context, collectWarnings ? new Warnings(source) : Warnings.NOOP_WARNINGS);
     }
 
     @Override

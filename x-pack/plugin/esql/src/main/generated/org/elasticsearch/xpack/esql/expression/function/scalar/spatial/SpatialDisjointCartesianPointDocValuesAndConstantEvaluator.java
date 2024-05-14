@@ -116,8 +116,9 @@ public final class SpatialDisjointCartesianPointDocValuesAndConstantEvaluator im
     }
 
     @Override
-    public SpatialDisjointCartesianPointDocValuesAndConstantEvaluator get(DriverContext context) {
-      return new SpatialDisjointCartesianPointDocValuesAndConstantEvaluator(source, leftValue.get(context), rightValue, context, new Warnings(source));
+    public SpatialDisjointCartesianPointDocValuesAndConstantEvaluator get(DriverContext context,
+        boolean collectWarnings) {
+      return new SpatialDisjointCartesianPointDocValuesAndConstantEvaluator(source, leftValue.get(context, collectWarnings), rightValue, context, collectWarnings ? new Warnings(source) : Warnings.NOOP_WARNINGS);
     }
 
     @Override

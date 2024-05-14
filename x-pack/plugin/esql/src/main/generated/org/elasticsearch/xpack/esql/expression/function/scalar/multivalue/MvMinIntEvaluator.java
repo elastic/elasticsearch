@@ -132,8 +132,8 @@ public final class MvMinIntEvaluator extends AbstractMultivalueFunction.Abstract
     }
 
     @Override
-    public MvMinIntEvaluator get(DriverContext context) {
-      return new MvMinIntEvaluator(field.get(context), context);
+    public MvMinIntEvaluator get(DriverContext context, boolean collectWarnings) {
+      return new MvMinIntEvaluator(field.get(context, collectWarnings), context);
     }
 
     @Override

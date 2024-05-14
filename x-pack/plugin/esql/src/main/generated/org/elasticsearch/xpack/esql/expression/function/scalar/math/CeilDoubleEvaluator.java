@@ -96,8 +96,8 @@ public final class CeilDoubleEvaluator implements EvalOperator.ExpressionEvaluat
     }
 
     @Override
-    public CeilDoubleEvaluator get(DriverContext context) {
-      return new CeilDoubleEvaluator(source, val.get(context), context, new Warnings(source));
+    public CeilDoubleEvaluator get(DriverContext context, boolean collectWarnings) {
+      return new CeilDoubleEvaluator(source, val.get(context, collectWarnings), context, collectWarnings ? new Warnings(source) : Warnings.NOOP_WARNINGS);
     }
 
     @Override

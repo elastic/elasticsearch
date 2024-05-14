@@ -112,8 +112,8 @@ public final class ToUnsignedLongFromDoubleEvaluator extends AbstractConvertFunc
     }
 
     @Override
-    public ToUnsignedLongFromDoubleEvaluator get(DriverContext context) {
-      return new ToUnsignedLongFromDoubleEvaluator(field.get(context), source, context, new Warnings(source));
+    public ToUnsignedLongFromDoubleEvaluator get(DriverContext context, boolean collectWarnings) {
+      return new ToUnsignedLongFromDoubleEvaluator(field.get(context, collectWarnings), source, context, collectWarnings ? new Warnings(source) : Warnings.NOOP_WARNINGS);
     }
 
     @Override

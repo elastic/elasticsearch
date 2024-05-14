@@ -107,8 +107,8 @@ public final class Log10DoubleEvaluator implements EvalOperator.ExpressionEvalua
     }
 
     @Override
-    public Log10DoubleEvaluator get(DriverContext context) {
-      return new Log10DoubleEvaluator(source, val.get(context), context, new Warnings(source));
+    public Log10DoubleEvaluator get(DriverContext context, boolean collectWarnings) {
+      return new Log10DoubleEvaluator(source, val.get(context, collectWarnings), context, collectWarnings ? new Warnings(source) : Warnings.NOOP_WARNINGS);
     }
 
     @Override

@@ -136,9 +136,9 @@ public final class ConcatEvaluator implements EvalOperator.ExpressionEvaluator {
     }
 
     @Override
-    public ConcatEvaluator get(DriverContext context) {
-      EvalOperator.ExpressionEvaluator[] values = Arrays.stream(this.values).map(a -> a.get(context)).toArray(EvalOperator.ExpressionEvaluator[]::new);
-      return new ConcatEvaluator(source, scratch.apply(context), values, context, new Warnings(source));
+    public ConcatEvaluator get(DriverContext context, boolean collectWarnings) {
+      EvalOperator.ExpressionEvaluator[] values = Arrays.stream(this.values).map(a -> a.get(context, collectWarnings)).toArray(EvalOperator.ExpressionEvaluator[]::new);
+      return new ConcatEvaluator(source, scratch.apply(context), values, context, collectWarnings ? new Warnings(source) : Warnings.NOOP_WARNINGS);
     }
 
     @Override

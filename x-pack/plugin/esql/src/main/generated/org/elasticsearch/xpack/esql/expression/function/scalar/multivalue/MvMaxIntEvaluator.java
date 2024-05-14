@@ -132,8 +132,8 @@ public final class MvMaxIntEvaluator extends AbstractMultivalueFunction.Abstract
     }
 
     @Override
-    public MvMaxIntEvaluator get(DriverContext context) {
-      return new MvMaxIntEvaluator(field.get(context), context);
+    public MvMaxIntEvaluator get(DriverContext context, boolean collectWarnings) {
+      return new MvMaxIntEvaluator(field.get(context, collectWarnings), context);
     }
 
     @Override

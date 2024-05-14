@@ -127,8 +127,8 @@ public final class EqualsKeywordsEvaluator implements EvalOperator.ExpressionEva
     }
 
     @Override
-    public EqualsKeywordsEvaluator get(DriverContext context) {
-      return new EqualsKeywordsEvaluator(source, lhs.get(context), rhs.get(context), context, new Warnings(source));
+    public EqualsKeywordsEvaluator get(DriverContext context, boolean collectWarnings) {
+      return new EqualsKeywordsEvaluator(source, lhs.get(context, collectWarnings), rhs.get(context, collectWarnings), context, collectWarnings ? new Warnings(source) : Warnings.NOOP_WARNINGS);
     }
 
     @Override

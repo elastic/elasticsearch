@@ -140,8 +140,9 @@ public final class SpatialIntersectsGeoSourceAndSourceEvaluator implements EvalO
     }
 
     @Override
-    public SpatialIntersectsGeoSourceAndSourceEvaluator get(DriverContext context) {
-      return new SpatialIntersectsGeoSourceAndSourceEvaluator(source, leftValue.get(context), rightValue.get(context), context, new Warnings(source));
+    public SpatialIntersectsGeoSourceAndSourceEvaluator get(DriverContext context,
+        boolean collectWarnings) {
+      return new SpatialIntersectsGeoSourceAndSourceEvaluator(source, leftValue.get(context, collectWarnings), rightValue.get(context, collectWarnings), context, collectWarnings ? new Warnings(source) : Warnings.NOOP_WARNINGS);
     }
 
     @Override

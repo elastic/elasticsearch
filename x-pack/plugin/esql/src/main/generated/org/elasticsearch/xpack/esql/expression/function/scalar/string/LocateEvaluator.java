@@ -154,8 +154,8 @@ public final class LocateEvaluator implements EvalOperator.ExpressionEvaluator {
     }
 
     @Override
-    public LocateEvaluator get(DriverContext context) {
-      return new LocateEvaluator(source, str.get(context), substr.get(context), start.get(context), context, new Warnings(source));
+    public LocateEvaluator get(DriverContext context, boolean collectWarnings) {
+      return new LocateEvaluator(source, str.get(context, collectWarnings), substr.get(context, collectWarnings), start.get(context, collectWarnings), context, collectWarnings ? new Warnings(source) : Warnings.NOOP_WARNINGS);
     }
 
     @Override

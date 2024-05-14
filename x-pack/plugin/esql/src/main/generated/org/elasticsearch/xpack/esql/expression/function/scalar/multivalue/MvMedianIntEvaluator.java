@@ -132,8 +132,8 @@ public final class MvMedianIntEvaluator extends AbstractMultivalueFunction.Abstr
     }
 
     @Override
-    public MvMedianIntEvaluator get(DriverContext context) {
-      return new MvMedianIntEvaluator(field.get(context), context);
+    public MvMedianIntEvaluator get(DriverContext context, boolean collectWarnings) {
+      return new MvMedianIntEvaluator(field.get(context, collectWarnings), context);
     }
 
     @Override

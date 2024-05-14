@@ -98,8 +98,8 @@ public final class SignumIntEvaluator implements EvalOperator.ExpressionEvaluato
     }
 
     @Override
-    public SignumIntEvaluator get(DriverContext context) {
-      return new SignumIntEvaluator(source, val.get(context), context, new Warnings(source));
+    public SignumIntEvaluator get(DriverContext context, boolean collectWarnings) {
+      return new SignumIntEvaluator(source, val.get(context, collectWarnings), context, collectWarnings ? new Warnings(source) : Warnings.NOOP_WARNINGS);
     }
 
     @Override

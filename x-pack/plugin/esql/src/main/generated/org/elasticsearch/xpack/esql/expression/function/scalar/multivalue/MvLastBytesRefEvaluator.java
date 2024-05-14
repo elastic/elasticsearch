@@ -80,8 +80,8 @@ public final class MvLastBytesRefEvaluator extends AbstractMultivalueFunction.Ab
     }
 
     @Override
-    public MvLastBytesRefEvaluator get(DriverContext context) {
-      return new MvLastBytesRefEvaluator(field.get(context), context);
+    public MvLastBytesRefEvaluator get(DriverContext context, boolean collectWarnings) {
+      return new MvLastBytesRefEvaluator(field.get(context, collectWarnings), context);
     }
 
     @Override

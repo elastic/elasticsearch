@@ -108,8 +108,8 @@ public final class Log10IntEvaluator implements EvalOperator.ExpressionEvaluator
     }
 
     @Override
-    public Log10IntEvaluator get(DriverContext context) {
-      return new Log10IntEvaluator(source, val.get(context), context, new Warnings(source));
+    public Log10IntEvaluator get(DriverContext context, boolean collectWarnings) {
+      return new Log10IntEvaluator(source, val.get(context, collectWarnings), context, collectWarnings ? new Warnings(source) : Warnings.NOOP_WARNINGS);
     }
 
     @Override

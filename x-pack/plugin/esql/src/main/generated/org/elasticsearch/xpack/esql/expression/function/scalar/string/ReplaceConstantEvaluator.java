@@ -145,8 +145,8 @@ public final class ReplaceConstantEvaluator implements EvalOperator.ExpressionEv
     }
 
     @Override
-    public ReplaceConstantEvaluator get(DriverContext context) {
-      return new ReplaceConstantEvaluator(source, str.get(context), regex, newStr.get(context), context, new Warnings(source));
+    public ReplaceConstantEvaluator get(DriverContext context, boolean collectWarnings) {
+      return new ReplaceConstantEvaluator(source, str.get(context, collectWarnings), regex, newStr.get(context, collectWarnings), context, collectWarnings ? new Warnings(source) : Warnings.NOOP_WARNINGS);
     }
 
     @Override

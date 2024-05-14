@@ -106,8 +106,8 @@ public final class ToLowerEvaluator implements EvalOperator.ExpressionEvaluator 
     }
 
     @Override
-    public ToLowerEvaluator get(DriverContext context) {
-      return new ToLowerEvaluator(source, val.get(context), locale, context, new Warnings(source));
+    public ToLowerEvaluator get(DriverContext context, boolean collectWarnings) {
+      return new ToLowerEvaluator(source, val.get(context, collectWarnings), locale, context, collectWarnings ? new Warnings(source) : Warnings.NOOP_WARNINGS);
     }
 
     @Override

@@ -142,8 +142,8 @@ public final class MvMaxBytesRefEvaluator extends AbstractMultivalueFunction.Abs
     }
 
     @Override
-    public MvMaxBytesRefEvaluator get(DriverContext context) {
-      return new MvMaxBytesRefEvaluator(field.get(context), context);
+    public MvMaxBytesRefEvaluator get(DriverContext context, boolean collectWarnings) {
+      return new MvMaxBytesRefEvaluator(field.get(context, collectWarnings), context);
     }
 
     @Override

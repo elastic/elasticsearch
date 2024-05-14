@@ -115,8 +115,8 @@ public final class AutomataMatchEvaluator implements EvalOperator.ExpressionEval
     }
 
     @Override
-    public AutomataMatchEvaluator get(DriverContext context) {
-      return new AutomataMatchEvaluator(source, input.get(context), automaton, pattern, context, new Warnings(source));
+    public AutomataMatchEvaluator get(DriverContext context, boolean collectWarnings) {
+      return new AutomataMatchEvaluator(source, input.get(context, collectWarnings), automaton, pattern, context, collectWarnings ? new Warnings(source) : Warnings.NOOP_WARNINGS);
     }
 
     @Override

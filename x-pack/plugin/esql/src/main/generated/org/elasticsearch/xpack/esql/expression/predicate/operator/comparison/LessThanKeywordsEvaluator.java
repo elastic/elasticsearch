@@ -127,8 +127,8 @@ public final class LessThanKeywordsEvaluator implements EvalOperator.ExpressionE
     }
 
     @Override
-    public LessThanKeywordsEvaluator get(DriverContext context) {
-      return new LessThanKeywordsEvaluator(source, lhs.get(context), rhs.get(context), context, new Warnings(source));
+    public LessThanKeywordsEvaluator get(DriverContext context, boolean collectWarnings) {
+      return new LessThanKeywordsEvaluator(source, lhs.get(context, collectWarnings), rhs.get(context, collectWarnings), context, collectWarnings ? new Warnings(source) : Warnings.NOOP_WARNINGS);
     }
 
     @Override

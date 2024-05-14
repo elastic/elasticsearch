@@ -87,8 +87,8 @@ public final class MvAvgDoubleEvaluator extends AbstractMultivalueFunction.Abstr
     }
 
     @Override
-    public MvAvgDoubleEvaluator get(DriverContext context) {
-      return new MvAvgDoubleEvaluator(field.get(context), context);
+    public MvAvgDoubleEvaluator get(DriverContext context, boolean collectWarnings) {
+      return new MvAvgDoubleEvaluator(field.get(context, collectWarnings), context);
     }
 
     @Override

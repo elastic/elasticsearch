@@ -113,8 +113,8 @@ public final class SplitSingleByteEvaluator implements EvalOperator.ExpressionEv
     }
 
     @Override
-    public SplitSingleByteEvaluator get(DriverContext context) {
-      return new SplitSingleByteEvaluator(source, str.get(context), delim, scratch.apply(context), context, new Warnings(source));
+    public SplitSingleByteEvaluator get(DriverContext context, boolean collectWarnings) {
+      return new SplitSingleByteEvaluator(source, str.get(context, collectWarnings), delim, scratch.apply(context), context, collectWarnings ? new Warnings(source) : Warnings.NOOP_WARNINGS);
     }
 
     @Override

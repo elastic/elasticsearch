@@ -147,8 +147,8 @@ public final class MvAvgUnsignedLongEvaluator extends AbstractMultivalueFunction
     }
 
     @Override
-    public MvAvgUnsignedLongEvaluator get(DriverContext context) {
-      return new MvAvgUnsignedLongEvaluator(field.get(context), context);
+    public MvAvgUnsignedLongEvaluator get(DriverContext context, boolean collectWarnings) {
+      return new MvAvgUnsignedLongEvaluator(field.get(context, collectWarnings), context);
     }
 
     @Override

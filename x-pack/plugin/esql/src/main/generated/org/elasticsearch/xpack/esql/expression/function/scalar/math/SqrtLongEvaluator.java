@@ -108,8 +108,8 @@ public final class SqrtLongEvaluator implements EvalOperator.ExpressionEvaluator
     }
 
     @Override
-    public SqrtLongEvaluator get(DriverContext context) {
-      return new SqrtLongEvaluator(source, val.get(context), context, new Warnings(source));
+    public SqrtLongEvaluator get(DriverContext context, boolean collectWarnings) {
+      return new SqrtLongEvaluator(source, val.get(context, collectWarnings), context, collectWarnings ? new Warnings(source) : Warnings.NOOP_WARNINGS);
     }
 
     @Override

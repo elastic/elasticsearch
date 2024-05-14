@@ -118,8 +118,8 @@ public final class DateParseConstantEvaluator implements EvalOperator.Expression
     }
 
     @Override
-    public DateParseConstantEvaluator get(DriverContext context) {
-      return new DateParseConstantEvaluator(source, val.get(context), formatter, context, new Warnings(source));
+    public DateParseConstantEvaluator get(DriverContext context, boolean collectWarnings) {
+      return new DateParseConstantEvaluator(source, val.get(context, collectWarnings), formatter, context, collectWarnings ? new Warnings(source) : Warnings.NOOP_WARNINGS);
     }
 
     @Override

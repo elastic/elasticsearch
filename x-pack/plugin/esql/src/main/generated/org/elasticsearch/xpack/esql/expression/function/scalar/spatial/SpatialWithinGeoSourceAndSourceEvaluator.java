@@ -140,8 +140,9 @@ public final class SpatialWithinGeoSourceAndSourceEvaluator implements EvalOpera
     }
 
     @Override
-    public SpatialWithinGeoSourceAndSourceEvaluator get(DriverContext context) {
-      return new SpatialWithinGeoSourceAndSourceEvaluator(source, leftValue.get(context), rightValue.get(context), context, new Warnings(source));
+    public SpatialWithinGeoSourceAndSourceEvaluator get(DriverContext context,
+        boolean collectWarnings) {
+      return new SpatialWithinGeoSourceAndSourceEvaluator(source, leftValue.get(context, collectWarnings), rightValue.get(context, collectWarnings), context, collectWarnings ? new Warnings(source) : Warnings.NOOP_WARNINGS);
     }
 
     @Override

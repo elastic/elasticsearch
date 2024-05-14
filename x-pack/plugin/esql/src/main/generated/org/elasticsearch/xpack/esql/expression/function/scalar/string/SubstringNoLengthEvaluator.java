@@ -125,8 +125,8 @@ public final class SubstringNoLengthEvaluator implements EvalOperator.Expression
     }
 
     @Override
-    public SubstringNoLengthEvaluator get(DriverContext context) {
-      return new SubstringNoLengthEvaluator(source, str.get(context), start.get(context), context, new Warnings(source));
+    public SubstringNoLengthEvaluator get(DriverContext context, boolean collectWarnings) {
+      return new SubstringNoLengthEvaluator(source, str.get(context, collectWarnings), start.get(context, collectWarnings), context, collectWarnings ? new Warnings(source) : Warnings.NOOP_WARNINGS);
     }
 
     @Override

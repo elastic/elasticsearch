@@ -131,8 +131,8 @@ public final class MulUnsignedLongsEvaluator implements EvalOperator.ExpressionE
     }
 
     @Override
-    public MulUnsignedLongsEvaluator get(DriverContext context) {
-      return new MulUnsignedLongsEvaluator(source, lhs.get(context), rhs.get(context), context, new Warnings(source));
+    public MulUnsignedLongsEvaluator get(DriverContext context, boolean collectWarnings) {
+      return new MulUnsignedLongsEvaluator(source, lhs.get(context, collectWarnings), rhs.get(context, collectWarnings), context, collectWarnings ? new Warnings(source) : Warnings.NOOP_WARNINGS);
     }
 
     @Override

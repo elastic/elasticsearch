@@ -115,8 +115,8 @@ public final class ToDatetimeFromStringEvaluator extends AbstractConvertFunction
     }
 
     @Override
-    public ToDatetimeFromStringEvaluator get(DriverContext context) {
-      return new ToDatetimeFromStringEvaluator(field.get(context), source, context, new Warnings(source));
+    public ToDatetimeFromStringEvaluator get(DriverContext context, boolean collectWarnings) {
+      return new ToDatetimeFromStringEvaluator(field.get(context, collectWarnings), source, context, collectWarnings ? new Warnings(source) : Warnings.NOOP_WARNINGS);
     }
 
     @Override

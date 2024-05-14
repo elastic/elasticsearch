@@ -127,8 +127,8 @@ public final class NotEqualsKeywordsEvaluator implements EvalOperator.Expression
     }
 
     @Override
-    public NotEqualsKeywordsEvaluator get(DriverContext context) {
-      return new NotEqualsKeywordsEvaluator(source, lhs.get(context), rhs.get(context), context, new Warnings(source));
+    public NotEqualsKeywordsEvaluator get(DriverContext context, boolean collectWarnings) {
+      return new NotEqualsKeywordsEvaluator(source, lhs.get(context, collectWarnings), rhs.get(context, collectWarnings), context, collectWarnings ? new Warnings(source) : Warnings.NOOP_WARNINGS);
     }
 
     @Override

@@ -76,8 +76,8 @@ public final class MvSumLongEvaluator extends AbstractMultivalueFunction.Abstrac
     }
 
     @Override
-    public MvSumLongEvaluator get(DriverContext context) {
-      return new MvSumLongEvaluator(source, field.get(context), context, new Warnings(source));
+    public MvSumLongEvaluator get(DriverContext context, boolean collectWarnings) {
+      return new MvSumLongEvaluator(source, field.get(context, collectWarnings), context, collectWarnings ? new Warnings(source) : Warnings.NOOP_WARNINGS);
     }
 
     @Override

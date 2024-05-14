@@ -122,8 +122,8 @@ public final class LessThanLongsEvaluator implements EvalOperator.ExpressionEval
     }
 
     @Override
-    public LessThanLongsEvaluator get(DriverContext context) {
-      return new LessThanLongsEvaluator(source, lhs.get(context), rhs.get(context), context, new Warnings(source));
+    public LessThanLongsEvaluator get(DriverContext context, boolean collectWarnings) {
+      return new LessThanLongsEvaluator(source, lhs.get(context, collectWarnings), rhs.get(context, collectWarnings), context, collectWarnings ? new Warnings(source) : Warnings.NOOP_WARNINGS);
     }
 
     @Override

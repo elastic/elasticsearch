@@ -107,8 +107,8 @@ public final class AsinEvaluator implements EvalOperator.ExpressionEvaluator {
     }
 
     @Override
-    public AsinEvaluator get(DriverContext context) {
-      return new AsinEvaluator(source, val.get(context), context, new Warnings(source));
+    public AsinEvaluator get(DriverContext context, boolean collectWarnings) {
+      return new AsinEvaluator(source, val.get(context, collectWarnings), context, collectWarnings ? new Warnings(source) : Warnings.NOOP_WARNINGS);
     }
 
     @Override

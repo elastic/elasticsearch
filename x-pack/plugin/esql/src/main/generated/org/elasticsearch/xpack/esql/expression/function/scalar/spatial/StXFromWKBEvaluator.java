@@ -116,8 +116,8 @@ public final class StXFromWKBEvaluator extends AbstractConvertFunction.AbstractE
     }
 
     @Override
-    public StXFromWKBEvaluator get(DriverContext context) {
-      return new StXFromWKBEvaluator(field.get(context), source, context, new Warnings(source));
+    public StXFromWKBEvaluator get(DriverContext context, boolean collectWarnings) {
+      return new StXFromWKBEvaluator(field.get(context, collectWarnings), source, context, collectWarnings ? new Warnings(source) : Warnings.NOOP_WARNINGS);
     }
 
     @Override

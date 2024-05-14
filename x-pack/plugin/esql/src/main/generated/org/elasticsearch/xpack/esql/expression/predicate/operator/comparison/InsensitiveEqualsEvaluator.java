@@ -127,8 +127,8 @@ public final class InsensitiveEqualsEvaluator implements EvalOperator.Expression
     }
 
     @Override
-    public InsensitiveEqualsEvaluator get(DriverContext context) {
-      return new InsensitiveEqualsEvaluator(source, lhs.get(context), rhs.get(context), context, new Warnings(source));
+    public InsensitiveEqualsEvaluator get(DriverContext context, boolean collectWarnings) {
+      return new InsensitiveEqualsEvaluator(source, lhs.get(context, collectWarnings), rhs.get(context, collectWarnings), context, collectWarnings ? new Warnings(source) : Warnings.NOOP_WARNINGS);
     }
 
     @Override

@@ -120,8 +120,9 @@ public final class SpatialDisjointCartesianSourceAndConstantEvaluator implements
     }
 
     @Override
-    public SpatialDisjointCartesianSourceAndConstantEvaluator get(DriverContext context) {
-      return new SpatialDisjointCartesianSourceAndConstantEvaluator(source, leftValue.get(context), rightValue, context, new Warnings(source));
+    public SpatialDisjointCartesianSourceAndConstantEvaluator get(DriverContext context,
+        boolean collectWarnings) {
+      return new SpatialDisjointCartesianSourceAndConstantEvaluator(source, leftValue.get(context, collectWarnings), rightValue, context, collectWarnings ? new Warnings(source) : Warnings.NOOP_WARNINGS);
     }
 
     @Override

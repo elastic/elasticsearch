@@ -104,8 +104,8 @@ public final class DateTruncEvaluator implements EvalOperator.ExpressionEvaluato
     }
 
     @Override
-    public DateTruncEvaluator get(DriverContext context) {
-      return new DateTruncEvaluator(source, fieldVal.get(context), rounding, context, new Warnings(source));
+    public DateTruncEvaluator get(DriverContext context, boolean collectWarnings) {
+      return new DateTruncEvaluator(source, fieldVal.get(context, collectWarnings), rounding, context, collectWarnings ? new Warnings(source) : Warnings.NOOP_WARNINGS);
     }
 
     @Override

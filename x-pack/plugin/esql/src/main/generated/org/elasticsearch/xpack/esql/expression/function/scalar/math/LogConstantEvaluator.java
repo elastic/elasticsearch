@@ -107,8 +107,8 @@ public final class LogConstantEvaluator implements EvalOperator.ExpressionEvalua
     }
 
     @Override
-    public LogConstantEvaluator get(DriverContext context) {
-      return new LogConstantEvaluator(source, value.get(context), context, new Warnings(source));
+    public LogConstantEvaluator get(DriverContext context, boolean collectWarnings) {
+      return new LogConstantEvaluator(source, value.get(context, collectWarnings), context, collectWarnings ? new Warnings(source) : Warnings.NOOP_WARNINGS);
     }
 
     @Override

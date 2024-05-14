@@ -120,8 +120,8 @@ public final class MulDoublesEvaluator implements EvalOperator.ExpressionEvaluat
     }
 
     @Override
-    public MulDoublesEvaluator get(DriverContext context) {
-      return new MulDoublesEvaluator(source, lhs.get(context), rhs.get(context), context, new Warnings(source));
+    public MulDoublesEvaluator get(DriverContext context, boolean collectWarnings) {
+      return new MulDoublesEvaluator(source, lhs.get(context, collectWarnings), rhs.get(context, collectWarnings), context, collectWarnings ? new Warnings(source) : Warnings.NOOP_WARNINGS);
     }
 
     @Override

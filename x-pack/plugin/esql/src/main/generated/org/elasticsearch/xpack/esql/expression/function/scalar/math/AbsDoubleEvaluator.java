@@ -96,8 +96,8 @@ public final class AbsDoubleEvaluator implements EvalOperator.ExpressionEvaluato
     }
 
     @Override
-    public AbsDoubleEvaluator get(DriverContext context) {
-      return new AbsDoubleEvaluator(source, fieldVal.get(context), context, new Warnings(source));
+    public AbsDoubleEvaluator get(DriverContext context, boolean collectWarnings) {
+      return new AbsDoubleEvaluator(source, fieldVal.get(context, collectWarnings), context, collectWarnings ? new Warnings(source) : Warnings.NOOP_WARNINGS);
     }
 
     @Override

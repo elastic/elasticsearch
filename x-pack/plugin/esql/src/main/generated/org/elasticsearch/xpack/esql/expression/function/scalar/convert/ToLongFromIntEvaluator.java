@@ -97,8 +97,8 @@ public final class ToLongFromIntEvaluator extends AbstractConvertFunction.Abstra
     }
 
     @Override
-    public ToLongFromIntEvaluator get(DriverContext context) {
-      return new ToLongFromIntEvaluator(field.get(context), source, context, new Warnings(source));
+    public ToLongFromIntEvaluator get(DriverContext context, boolean collectWarnings) {
+      return new ToLongFromIntEvaluator(field.get(context, collectWarnings), source, context, collectWarnings ? new Warnings(source) : Warnings.NOOP_WARNINGS);
     }
 
     @Override

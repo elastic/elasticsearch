@@ -115,8 +115,8 @@ public final class ToDoubleFromStringEvaluator extends AbstractConvertFunction.A
     }
 
     @Override
-    public ToDoubleFromStringEvaluator get(DriverContext context) {
-      return new ToDoubleFromStringEvaluator(field.get(context), source, context, new Warnings(source));
+    public ToDoubleFromStringEvaluator get(DriverContext context, boolean collectWarnings) {
+      return new ToDoubleFromStringEvaluator(field.get(context, collectWarnings), source, context, collectWarnings ? new Warnings(source) : Warnings.NOOP_WARNINGS);
     }
 
     @Override

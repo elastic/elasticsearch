@@ -96,8 +96,8 @@ public final class FloorDoubleEvaluator implements EvalOperator.ExpressionEvalua
     }
 
     @Override
-    public FloorDoubleEvaluator get(DriverContext context) {
-      return new FloorDoubleEvaluator(source, val.get(context), context, new Warnings(source));
+    public FloorDoubleEvaluator get(DriverContext context, boolean collectWarnings) {
+      return new FloorDoubleEvaluator(source, val.get(context, collectWarnings), context, collectWarnings ? new Warnings(source) : Warnings.NOOP_WARNINGS);
     }
 
     @Override

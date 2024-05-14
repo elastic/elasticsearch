@@ -108,8 +108,8 @@ public final class FromBase64Evaluator implements EvalOperator.ExpressionEvaluat
     }
 
     @Override
-    public FromBase64Evaluator get(DriverContext context) {
-      return new FromBase64Evaluator(source, field.get(context), oScratch.apply(context), context, new Warnings(source));
+    public FromBase64Evaluator get(DriverContext context, boolean collectWarnings) {
+      return new FromBase64Evaluator(source, field.get(context, collectWarnings), oScratch.apply(context), context, collectWarnings ? new Warnings(source) : Warnings.NOOP_WARNINGS);
     }
 
     @Override

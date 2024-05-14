@@ -97,8 +97,8 @@ public final class ToDoubleFromLongEvaluator extends AbstractConvertFunction.Abs
     }
 
     @Override
-    public ToDoubleFromLongEvaluator get(DriverContext context) {
-      return new ToDoubleFromLongEvaluator(field.get(context), source, context, new Warnings(source));
+    public ToDoubleFromLongEvaluator get(DriverContext context, boolean collectWarnings) {
+      return new ToDoubleFromLongEvaluator(field.get(context, collectWarnings), source, context, collectWarnings ? new Warnings(source) : Warnings.NOOP_WARNINGS);
     }
 
     @Override

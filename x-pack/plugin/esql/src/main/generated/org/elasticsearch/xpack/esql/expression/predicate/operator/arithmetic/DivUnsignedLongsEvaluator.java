@@ -131,8 +131,8 @@ public final class DivUnsignedLongsEvaluator implements EvalOperator.ExpressionE
     }
 
     @Override
-    public DivUnsignedLongsEvaluator get(DriverContext context) {
-      return new DivUnsignedLongsEvaluator(source, lhs.get(context), rhs.get(context), context, new Warnings(source));
+    public DivUnsignedLongsEvaluator get(DriverContext context, boolean collectWarnings) {
+      return new DivUnsignedLongsEvaluator(source, lhs.get(context, collectWarnings), rhs.get(context, collectWarnings), context, collectWarnings ? new Warnings(source) : Warnings.NOOP_WARNINGS);
     }
 
     @Override

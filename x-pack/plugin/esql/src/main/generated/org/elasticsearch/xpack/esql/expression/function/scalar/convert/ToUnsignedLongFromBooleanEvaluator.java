@@ -97,8 +97,8 @@ public final class ToUnsignedLongFromBooleanEvaluator extends AbstractConvertFun
     }
 
     @Override
-    public ToUnsignedLongFromBooleanEvaluator get(DriverContext context) {
-      return new ToUnsignedLongFromBooleanEvaluator(field.get(context), source, context, new Warnings(source));
+    public ToUnsignedLongFromBooleanEvaluator get(DriverContext context, boolean collectWarnings) {
+      return new ToUnsignedLongFromBooleanEvaluator(field.get(context, collectWarnings), source, context, collectWarnings ? new Warnings(source) : Warnings.NOOP_WARNINGS);
     }
 
     @Override

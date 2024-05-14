@@ -101,8 +101,8 @@ public final class LengthEvaluator implements EvalOperator.ExpressionEvaluator {
     }
 
     @Override
-    public LengthEvaluator get(DriverContext context) {
-      return new LengthEvaluator(source, val.get(context), context, new Warnings(source));
+    public LengthEvaluator get(DriverContext context, boolean collectWarnings) {
+      return new LengthEvaluator(source, val.get(context, collectWarnings), context, collectWarnings ? new Warnings(source) : Warnings.NOOP_WARNINGS);
     }
 
     @Override

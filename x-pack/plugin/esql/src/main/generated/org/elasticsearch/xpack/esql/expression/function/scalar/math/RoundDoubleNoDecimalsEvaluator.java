@@ -96,8 +96,8 @@ public final class RoundDoubleNoDecimalsEvaluator implements EvalOperator.Expres
     }
 
     @Override
-    public RoundDoubleNoDecimalsEvaluator get(DriverContext context) {
-      return new RoundDoubleNoDecimalsEvaluator(source, val.get(context), context, new Warnings(source));
+    public RoundDoubleNoDecimalsEvaluator get(DriverContext context, boolean collectWarnings) {
+      return new RoundDoubleNoDecimalsEvaluator(source, val.get(context, collectWarnings), context, collectWarnings ? new Warnings(source) : Warnings.NOOP_WARNINGS);
     }
 
     @Override

@@ -139,8 +139,9 @@ public final class SpatialDisjointGeoPointDocValuesAndSourceEvaluator implements
     }
 
     @Override
-    public SpatialDisjointGeoPointDocValuesAndSourceEvaluator get(DriverContext context) {
-      return new SpatialDisjointGeoPointDocValuesAndSourceEvaluator(source, leftValue.get(context), rightValue.get(context), context, new Warnings(source));
+    public SpatialDisjointGeoPointDocValuesAndSourceEvaluator get(DriverContext context,
+        boolean collectWarnings) {
+      return new SpatialDisjointGeoPointDocValuesAndSourceEvaluator(source, leftValue.get(context, collectWarnings), rightValue.get(context, collectWarnings), context, collectWarnings ? new Warnings(source) : Warnings.NOOP_WARNINGS);
     }
 
     @Override

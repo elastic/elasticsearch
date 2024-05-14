@@ -96,8 +96,8 @@ public final class TanhEvaluator implements EvalOperator.ExpressionEvaluator {
     }
 
     @Override
-    public TanhEvaluator get(DriverContext context) {
-      return new TanhEvaluator(source, val.get(context), context, new Warnings(source));
+    public TanhEvaluator get(DriverContext context, boolean collectWarnings) {
+      return new TanhEvaluator(source, val.get(context, collectWarnings), context, collectWarnings ? new Warnings(source) : Warnings.NOOP_WARNINGS);
     }
 
     @Override

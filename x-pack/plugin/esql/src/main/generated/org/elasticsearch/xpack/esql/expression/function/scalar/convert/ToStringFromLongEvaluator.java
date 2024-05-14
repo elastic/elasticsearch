@@ -98,8 +98,8 @@ public final class ToStringFromLongEvaluator extends AbstractConvertFunction.Abs
     }
 
     @Override
-    public ToStringFromLongEvaluator get(DriverContext context) {
-      return new ToStringFromLongEvaluator(field.get(context), source, context, new Warnings(source));
+    public ToStringFromLongEvaluator get(DriverContext context, boolean collectWarnings) {
+      return new ToStringFromLongEvaluator(field.get(context, collectWarnings), source, context, collectWarnings ? new Warnings(source) : Warnings.NOOP_WARNINGS);
     }
 
     @Override

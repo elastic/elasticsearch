@@ -76,8 +76,8 @@ public final class MvSumUnsignedLongEvaluator extends AbstractMultivalueFunction
     }
 
     @Override
-    public MvSumUnsignedLongEvaluator get(DriverContext context) {
-      return new MvSumUnsignedLongEvaluator(source, field.get(context), context, new Warnings(source));
+    public MvSumUnsignedLongEvaluator get(DriverContext context, boolean collectWarnings) {
+      return new MvSumUnsignedLongEvaluator(source, field.get(context, collectWarnings), context, collectWarnings ? new Warnings(source) : Warnings.NOOP_WARNINGS);
     }
 
     @Override

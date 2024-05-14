@@ -131,8 +131,8 @@ public final class PowEvaluator implements EvalOperator.ExpressionEvaluator {
     }
 
     @Override
-    public PowEvaluator get(DriverContext context) {
-      return new PowEvaluator(source, base.get(context), exponent.get(context), context, new Warnings(source));
+    public PowEvaluator get(DriverContext context, boolean collectWarnings) {
+      return new PowEvaluator(source, base.get(context, collectWarnings), exponent.get(context, collectWarnings), context, collectWarnings ? new Warnings(source) : Warnings.NOOP_WARNINGS);
     }
 
     @Override

@@ -99,8 +99,8 @@ public final class ToStringFromIPEvaluator extends AbstractConvertFunction.Abstr
     }
 
     @Override
-    public ToStringFromIPEvaluator get(DriverContext context) {
-      return new ToStringFromIPEvaluator(field.get(context), source, context, new Warnings(source));
+    public ToStringFromIPEvaluator get(DriverContext context, boolean collectWarnings) {
+      return new ToStringFromIPEvaluator(field.get(context, collectWarnings), source, context, collectWarnings ? new Warnings(source) : Warnings.NOOP_WARNINGS);
     }
 
     @Override

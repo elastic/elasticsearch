@@ -130,8 +130,9 @@ public final class SpatialIntersectsCartesianPointDocValuesAndSourceEvaluator im
     }
 
     @Override
-    public SpatialIntersectsCartesianPointDocValuesAndSourceEvaluator get(DriverContext context) {
-      return new SpatialIntersectsCartesianPointDocValuesAndSourceEvaluator(source, leftValue.get(context), rightValue.get(context), context, new Warnings(source));
+    public SpatialIntersectsCartesianPointDocValuesAndSourceEvaluator get(DriverContext context,
+        boolean collectWarnings) {
+      return new SpatialIntersectsCartesianPointDocValuesAndSourceEvaluator(source, leftValue.get(context, collectWarnings), rightValue.get(context, collectWarnings), context, collectWarnings ? new Warnings(source) : Warnings.NOOP_WARNINGS);
     }
 
     @Override

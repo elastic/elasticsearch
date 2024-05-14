@@ -116,8 +116,9 @@ public final class SpatialContainsCartesianPointDocValuesAndConstantEvaluator im
     }
 
     @Override
-    public SpatialContainsCartesianPointDocValuesAndConstantEvaluator get(DriverContext context) {
-      return new SpatialContainsCartesianPointDocValuesAndConstantEvaluator(source, leftValue.get(context), rightValue, context, new Warnings(source));
+    public SpatialContainsCartesianPointDocValuesAndConstantEvaluator get(DriverContext context,
+        boolean collectWarnings) {
+      return new SpatialContainsCartesianPointDocValuesAndConstantEvaluator(source, leftValue.get(context, collectWarnings), rightValue, context, collectWarnings ? new Warnings(source) : Warnings.NOOP_WARNINGS);
     }
 
     @Override

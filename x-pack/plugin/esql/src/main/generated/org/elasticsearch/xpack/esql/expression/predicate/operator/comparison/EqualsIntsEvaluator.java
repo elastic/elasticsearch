@@ -122,8 +122,8 @@ public final class EqualsIntsEvaluator implements EvalOperator.ExpressionEvaluat
     }
 
     @Override
-    public EqualsIntsEvaluator get(DriverContext context) {
-      return new EqualsIntsEvaluator(source, lhs.get(context), rhs.get(context), context, new Warnings(source));
+    public EqualsIntsEvaluator get(DriverContext context, boolean collectWarnings) {
+      return new EqualsIntsEvaluator(source, lhs.get(context, collectWarnings), rhs.get(context, collectWarnings), context, collectWarnings ? new Warnings(source) : Warnings.NOOP_WARNINGS);
     }
 
     @Override

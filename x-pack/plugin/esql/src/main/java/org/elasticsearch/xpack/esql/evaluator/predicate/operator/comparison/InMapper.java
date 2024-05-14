@@ -41,7 +41,10 @@ public class InMapper extends ExpressionMapper<In> {
             ExpressionEvaluator.Factory eqEvaluator = EvalMapper.toEvaluator(eq, layout);
             listEvaluators.add(eqEvaluator);
         });
-        return (dvrCtx, collectWarnings) -> new InExpressionEvaluator(dvrCtx, listEvaluators.stream().map(fac -> fac.get(dvrCtx, true)).toList());
+        return (dvrCtx, collectWarnings) -> new InExpressionEvaluator(
+            dvrCtx,
+            listEvaluators.stream().map(fac -> fac.get(dvrCtx, true)).toList()
+        );
     }
 
     record InExpressionEvaluator(DriverContext driverContext, List<EvalOperator.ExpressionEvaluator> listEvaluators)

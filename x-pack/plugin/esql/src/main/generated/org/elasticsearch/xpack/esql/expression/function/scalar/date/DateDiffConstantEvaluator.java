@@ -143,8 +143,8 @@ public final class DateDiffConstantEvaluator implements EvalOperator.ExpressionE
     }
 
     @Override
-    public DateDiffConstantEvaluator get(DriverContext context) {
-      return new DateDiffConstantEvaluator(source, datePartFieldUnit, startTimestamp.get(context), endTimestamp.get(context), context, new Warnings(source));
+    public DateDiffConstantEvaluator get(DriverContext context, boolean collectWarnings) {
+      return new DateDiffConstantEvaluator(source, datePartFieldUnit, startTimestamp.get(context, collectWarnings), endTimestamp.get(context, collectWarnings), context, collectWarnings ? new Warnings(source) : Warnings.NOOP_WARNINGS);
     }
 
     @Override

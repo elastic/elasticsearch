@@ -77,8 +77,8 @@ public final class MvLastDoubleEvaluator extends AbstractMultivalueFunction.Abst
     }
 
     @Override
-    public MvLastDoubleEvaluator get(DriverContext context) {
-      return new MvLastDoubleEvaluator(field.get(context), context);
+    public MvLastDoubleEvaluator get(DriverContext context, boolean collectWarnings) {
+      return new MvLastDoubleEvaluator(field.get(context, collectWarnings), context);
     }
 
     @Override

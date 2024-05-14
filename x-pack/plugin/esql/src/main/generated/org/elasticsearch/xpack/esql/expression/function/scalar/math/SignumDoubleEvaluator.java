@@ -96,8 +96,8 @@ public final class SignumDoubleEvaluator implements EvalOperator.ExpressionEvalu
     }
 
     @Override
-    public SignumDoubleEvaluator get(DriverContext context) {
-      return new SignumDoubleEvaluator(source, val.get(context), context, new Warnings(source));
+    public SignumDoubleEvaluator get(DriverContext context, boolean collectWarnings) {
+      return new SignumDoubleEvaluator(source, val.get(context, collectWarnings), context, collectWarnings ? new Warnings(source) : Warnings.NOOP_WARNINGS);
     }
 
     @Override

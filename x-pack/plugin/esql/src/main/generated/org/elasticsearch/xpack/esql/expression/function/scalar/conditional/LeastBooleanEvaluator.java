@@ -118,9 +118,9 @@ public final class LeastBooleanEvaluator implements EvalOperator.ExpressionEvalu
     }
 
     @Override
-    public LeastBooleanEvaluator get(DriverContext context) {
-      EvalOperator.ExpressionEvaluator[] values = Arrays.stream(this.values).map(a -> a.get(context)).toArray(EvalOperator.ExpressionEvaluator[]::new);
-      return new LeastBooleanEvaluator(source, values, context, new Warnings(source));
+    public LeastBooleanEvaluator get(DriverContext context, boolean collectWarnings) {
+      EvalOperator.ExpressionEvaluator[] values = Arrays.stream(this.values).map(a -> a.get(context, collectWarnings)).toArray(EvalOperator.ExpressionEvaluator[]::new);
+      return new LeastBooleanEvaluator(source, values, context, collectWarnings ? new Warnings(source) : Warnings.NOOP_WARNINGS);
     }
 
     @Override

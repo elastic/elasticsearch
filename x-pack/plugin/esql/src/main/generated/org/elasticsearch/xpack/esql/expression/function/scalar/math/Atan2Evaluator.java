@@ -120,8 +120,8 @@ public final class Atan2Evaluator implements EvalOperator.ExpressionEvaluator {
     }
 
     @Override
-    public Atan2Evaluator get(DriverContext context) {
-      return new Atan2Evaluator(source, y.get(context), x.get(context), context, new Warnings(source));
+    public Atan2Evaluator get(DriverContext context, boolean collectWarnings) {
+      return new Atan2Evaluator(source, y.get(context, collectWarnings), x.get(context, collectWarnings), context, collectWarnings ? new Warnings(source) : Warnings.NOOP_WARNINGS);
     }
 
     @Override

@@ -118,9 +118,9 @@ public final class LeastDoubleEvaluator implements EvalOperator.ExpressionEvalua
     }
 
     @Override
-    public LeastDoubleEvaluator get(DriverContext context) {
-      EvalOperator.ExpressionEvaluator[] values = Arrays.stream(this.values).map(a -> a.get(context)).toArray(EvalOperator.ExpressionEvaluator[]::new);
-      return new LeastDoubleEvaluator(source, values, context, new Warnings(source));
+    public LeastDoubleEvaluator get(DriverContext context, boolean collectWarnings) {
+      EvalOperator.ExpressionEvaluator[] values = Arrays.stream(this.values).map(a -> a.get(context, collectWarnings)).toArray(EvalOperator.ExpressionEvaluator[]::new);
+      return new LeastDoubleEvaluator(source, values, context, collectWarnings ? new Warnings(source) : Warnings.NOOP_WARNINGS);
     }
 
     @Override

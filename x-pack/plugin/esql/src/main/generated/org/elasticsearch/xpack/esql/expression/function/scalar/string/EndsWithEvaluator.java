@@ -128,8 +128,8 @@ public final class EndsWithEvaluator implements EvalOperator.ExpressionEvaluator
     }
 
     @Override
-    public EndsWithEvaluator get(DriverContext context) {
-      return new EndsWithEvaluator(source, str.get(context), suffix.get(context), context, new Warnings(source));
+    public EndsWithEvaluator get(DriverContext context, boolean collectWarnings) {
+      return new EndsWithEvaluator(source, str.get(context, collectWarnings), suffix.get(context, collectWarnings), context, collectWarnings ? new Warnings(source) : Warnings.NOOP_WARNINGS);
     }
 
     @Override

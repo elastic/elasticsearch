@@ -98,8 +98,8 @@ public final class CastIntToLongEvaluator implements EvalOperator.ExpressionEval
     }
 
     @Override
-    public CastIntToLongEvaluator get(DriverContext context) {
-      return new CastIntToLongEvaluator(source, v.get(context), context, new Warnings(source));
+    public CastIntToLongEvaluator get(DriverContext context, boolean collectWarnings) {
+      return new CastIntToLongEvaluator(source, v.get(context, collectWarnings), context, collectWarnings ? new Warnings(source) : Warnings.NOOP_WARNINGS);
     }
 
     @Override

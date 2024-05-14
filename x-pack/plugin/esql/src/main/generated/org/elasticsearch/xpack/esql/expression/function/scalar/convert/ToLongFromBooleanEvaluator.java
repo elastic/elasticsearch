@@ -97,8 +97,8 @@ public final class ToLongFromBooleanEvaluator extends AbstractConvertFunction.Ab
     }
 
     @Override
-    public ToLongFromBooleanEvaluator get(DriverContext context) {
-      return new ToLongFromBooleanEvaluator(field.get(context), source, context, new Warnings(source));
+    public ToLongFromBooleanEvaluator get(DriverContext context, boolean collectWarnings) {
+      return new ToLongFromBooleanEvaluator(field.get(context, collectWarnings), source, context, collectWarnings ? new Warnings(source) : Warnings.NOOP_WARNINGS);
     }
 
     @Override

@@ -131,8 +131,8 @@ public final class ModDoublesEvaluator implements EvalOperator.ExpressionEvaluat
     }
 
     @Override
-    public ModDoublesEvaluator get(DriverContext context) {
-      return new ModDoublesEvaluator(source, lhs.get(context), rhs.get(context), context, new Warnings(source));
+    public ModDoublesEvaluator get(DriverContext context, boolean collectWarnings) {
+      return new ModDoublesEvaluator(source, lhs.get(context, collectWarnings), rhs.get(context, collectWarnings), context, collectWarnings ? new Warnings(source) : Warnings.NOOP_WARNINGS);
     }
 
     @Override

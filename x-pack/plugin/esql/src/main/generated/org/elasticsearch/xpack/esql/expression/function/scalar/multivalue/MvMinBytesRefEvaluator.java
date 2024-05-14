@@ -142,8 +142,8 @@ public final class MvMinBytesRefEvaluator extends AbstractMultivalueFunction.Abs
     }
 
     @Override
-    public MvMinBytesRefEvaluator get(DriverContext context) {
-      return new MvMinBytesRefEvaluator(field.get(context), context);
+    public MvMinBytesRefEvaluator get(DriverContext context, boolean collectWarnings) {
+      return new MvMinBytesRefEvaluator(field.get(context, collectWarnings), context);
     }
 
     @Override

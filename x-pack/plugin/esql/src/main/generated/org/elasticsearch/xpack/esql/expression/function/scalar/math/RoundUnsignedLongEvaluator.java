@@ -120,8 +120,8 @@ public final class RoundUnsignedLongEvaluator implements EvalOperator.Expression
     }
 
     @Override
-    public RoundUnsignedLongEvaluator get(DriverContext context) {
-      return new RoundUnsignedLongEvaluator(source, val.get(context), decimals.get(context), context, new Warnings(source));
+    public RoundUnsignedLongEvaluator get(DriverContext context, boolean collectWarnings) {
+      return new RoundUnsignedLongEvaluator(source, val.get(context, collectWarnings), decimals.get(context, collectWarnings), context, collectWarnings ? new Warnings(source) : Warnings.NOOP_WARNINGS);
     }
 
     @Override

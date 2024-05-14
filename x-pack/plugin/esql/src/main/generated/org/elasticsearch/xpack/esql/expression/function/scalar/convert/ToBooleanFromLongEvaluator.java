@@ -97,8 +97,8 @@ public final class ToBooleanFromLongEvaluator extends AbstractConvertFunction.Ab
     }
 
     @Override
-    public ToBooleanFromLongEvaluator get(DriverContext context) {
-      return new ToBooleanFromLongEvaluator(field.get(context), source, context, new Warnings(source));
+    public ToBooleanFromLongEvaluator get(DriverContext context, boolean collectWarnings) {
+      return new ToBooleanFromLongEvaluator(field.get(context, collectWarnings), source, context, collectWarnings ? new Warnings(source) : Warnings.NOOP_WARNINGS);
     }
 
     @Override

@@ -152,8 +152,8 @@ public final class SubstringEvaluator implements EvalOperator.ExpressionEvaluato
     }
 
     @Override
-    public SubstringEvaluator get(DriverContext context) {
-      return new SubstringEvaluator(source, str.get(context), start.get(context), length.get(context), context, new Warnings(source));
+    public SubstringEvaluator get(DriverContext context, boolean collectWarnings) {
+      return new SubstringEvaluator(source, str.get(context, collectWarnings), start.get(context, collectWarnings), length.get(context, collectWarnings), context, collectWarnings ? new Warnings(source) : Warnings.NOOP_WARNINGS);
     }
 
     @Override

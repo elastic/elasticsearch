@@ -109,8 +109,8 @@ public final class InsensitiveEqualsConstantEvaluator implements EvalOperator.Ex
     }
 
     @Override
-    public InsensitiveEqualsConstantEvaluator get(DriverContext context) {
-      return new InsensitiveEqualsConstantEvaluator(source, lhs.get(context), rhs, context, new Warnings(source));
+    public InsensitiveEqualsConstantEvaluator get(DriverContext context, boolean collectWarnings) {
+      return new InsensitiveEqualsConstantEvaluator(source, lhs.get(context, collectWarnings), rhs, context, collectWarnings ? new Warnings(source) : Warnings.NOOP_WARNINGS);
     }
 
     @Override

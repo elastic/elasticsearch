@@ -118,9 +118,9 @@ public final class LeastIntEvaluator implements EvalOperator.ExpressionEvaluator
     }
 
     @Override
-    public LeastIntEvaluator get(DriverContext context) {
-      EvalOperator.ExpressionEvaluator[] values = Arrays.stream(this.values).map(a -> a.get(context)).toArray(EvalOperator.ExpressionEvaluator[]::new);
-      return new LeastIntEvaluator(source, values, context, new Warnings(source));
+    public LeastIntEvaluator get(DriverContext context, boolean collectWarnings) {
+      EvalOperator.ExpressionEvaluator[] values = Arrays.stream(this.values).map(a -> a.get(context, collectWarnings)).toArray(EvalOperator.ExpressionEvaluator[]::new);
+      return new LeastIntEvaluator(source, values, context, collectWarnings ? new Warnings(source) : Warnings.NOOP_WARNINGS);
     }
 
     @Override

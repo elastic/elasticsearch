@@ -139,8 +139,9 @@ public final class SpatialWithinGeoPointDocValuesAndSourceEvaluator implements E
     }
 
     @Override
-    public SpatialWithinGeoPointDocValuesAndSourceEvaluator get(DriverContext context) {
-      return new SpatialWithinGeoPointDocValuesAndSourceEvaluator(source, leftValue.get(context), rightValue.get(context), context, new Warnings(source));
+    public SpatialWithinGeoPointDocValuesAndSourceEvaluator get(DriverContext context,
+        boolean collectWarnings) {
+      return new SpatialWithinGeoPointDocValuesAndSourceEvaluator(source, leftValue.get(context, collectWarnings), rightValue.get(context, collectWarnings), context, collectWarnings ? new Warnings(source) : Warnings.NOOP_WARNINGS);
     }
 
     @Override

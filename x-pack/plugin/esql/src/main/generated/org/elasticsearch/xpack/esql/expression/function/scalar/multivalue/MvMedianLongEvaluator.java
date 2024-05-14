@@ -133,8 +133,8 @@ public final class MvMedianLongEvaluator extends AbstractMultivalueFunction.Abst
     }
 
     @Override
-    public MvMedianLongEvaluator get(DriverContext context) {
-      return new MvMedianLongEvaluator(field.get(context), context);
+    public MvMedianLongEvaluator get(DriverContext context, boolean collectWarnings) {
+      return new MvMedianLongEvaluator(field.get(context, collectWarnings), context);
     }
 
     @Override

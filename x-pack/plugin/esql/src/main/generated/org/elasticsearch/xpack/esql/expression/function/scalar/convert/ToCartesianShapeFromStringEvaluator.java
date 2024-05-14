@@ -114,8 +114,8 @@ public final class ToCartesianShapeFromStringEvaluator extends AbstractConvertFu
     }
 
     @Override
-    public ToCartesianShapeFromStringEvaluator get(DriverContext context) {
-      return new ToCartesianShapeFromStringEvaluator(field.get(context), source, context, new Warnings(source));
+    public ToCartesianShapeFromStringEvaluator get(DriverContext context, boolean collectWarnings) {
+      return new ToCartesianShapeFromStringEvaluator(field.get(context, collectWarnings), source, context, collectWarnings ? new Warnings(source) : Warnings.NOOP_WARNINGS);
     }
 
     @Override

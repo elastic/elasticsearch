@@ -122,8 +122,8 @@ public final class GreaterThanLongsEvaluator implements EvalOperator.ExpressionE
     }
 
     @Override
-    public GreaterThanLongsEvaluator get(DriverContext context) {
-      return new GreaterThanLongsEvaluator(source, lhs.get(context), rhs.get(context), context, new Warnings(source));
+    public GreaterThanLongsEvaluator get(DriverContext context, boolean collectWarnings) {
+      return new GreaterThanLongsEvaluator(source, lhs.get(context, collectWarnings), rhs.get(context, collectWarnings), context, collectWarnings ? new Warnings(source) : Warnings.NOOP_WARNINGS);
     }
 
     @Override

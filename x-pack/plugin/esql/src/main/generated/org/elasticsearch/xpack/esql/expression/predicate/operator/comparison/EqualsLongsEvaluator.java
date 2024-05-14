@@ -122,8 +122,8 @@ public final class EqualsLongsEvaluator implements EvalOperator.ExpressionEvalua
     }
 
     @Override
-    public EqualsLongsEvaluator get(DriverContext context) {
-      return new EqualsLongsEvaluator(source, lhs.get(context), rhs.get(context), context, new Warnings(source));
+    public EqualsLongsEvaluator get(DriverContext context, boolean collectWarnings) {
+      return new EqualsLongsEvaluator(source, lhs.get(context, collectWarnings), rhs.get(context, collectWarnings), context, collectWarnings ? new Warnings(source) : Warnings.NOOP_WARNINGS);
     }
 
     @Override

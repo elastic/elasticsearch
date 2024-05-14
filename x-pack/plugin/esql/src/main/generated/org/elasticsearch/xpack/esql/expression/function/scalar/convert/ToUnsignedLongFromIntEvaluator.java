@@ -112,8 +112,8 @@ public final class ToUnsignedLongFromIntEvaluator extends AbstractConvertFunctio
     }
 
     @Override
-    public ToUnsignedLongFromIntEvaluator get(DriverContext context) {
-      return new ToUnsignedLongFromIntEvaluator(field.get(context), source, context, new Warnings(source));
+    public ToUnsignedLongFromIntEvaluator get(DriverContext context, boolean collectWarnings) {
+      return new ToUnsignedLongFromIntEvaluator(field.get(context, collectWarnings), source, context, collectWarnings ? new Warnings(source) : Warnings.NOOP_WARNINGS);
     }
 
     @Override

@@ -140,8 +140,9 @@ public final class SpatialDisjointCartesianSourceAndSourceEvaluator implements E
     }
 
     @Override
-    public SpatialDisjointCartesianSourceAndSourceEvaluator get(DriverContext context) {
-      return new SpatialDisjointCartesianSourceAndSourceEvaluator(source, leftValue.get(context), rightValue.get(context), context, new Warnings(source));
+    public SpatialDisjointCartesianSourceAndSourceEvaluator get(DriverContext context,
+        boolean collectWarnings) {
+      return new SpatialDisjointCartesianSourceAndSourceEvaluator(source, leftValue.get(context, collectWarnings), rightValue.get(context, collectWarnings), context, collectWarnings ? new Warnings(source) : Warnings.NOOP_WARNINGS);
     }
 
     @Override

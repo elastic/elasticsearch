@@ -98,8 +98,8 @@ public final class CastUnsignedLongToDoubleEvaluator implements EvalOperator.Exp
     }
 
     @Override
-    public CastUnsignedLongToDoubleEvaluator get(DriverContext context) {
-      return new CastUnsignedLongToDoubleEvaluator(source, v.get(context), context, new Warnings(source));
+    public CastUnsignedLongToDoubleEvaluator get(DriverContext context, boolean collectWarnings) {
+      return new CastUnsignedLongToDoubleEvaluator(source, v.get(context, collectWarnings), context, collectWarnings ? new Warnings(source) : Warnings.NOOP_WARNINGS);
     }
 
     @Override

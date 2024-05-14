@@ -98,8 +98,8 @@ public final class SqrtUnsignedLongEvaluator implements EvalOperator.ExpressionE
     }
 
     @Override
-    public SqrtUnsignedLongEvaluator get(DriverContext context) {
-      return new SqrtUnsignedLongEvaluator(source, val.get(context), context, new Warnings(source));
+    public SqrtUnsignedLongEvaluator get(DriverContext context, boolean collectWarnings) {
+      return new SqrtUnsignedLongEvaluator(source, val.get(context, collectWarnings), context, collectWarnings ? new Warnings(source) : Warnings.NOOP_WARNINGS);
     }
 
     @Override

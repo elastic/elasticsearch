@@ -120,8 +120,9 @@ public final class SpatialContainsGeoSourceAndConstantEvaluator implements EvalO
     }
 
     @Override
-    public SpatialContainsGeoSourceAndConstantEvaluator get(DriverContext context) {
-      return new SpatialContainsGeoSourceAndConstantEvaluator(source, leftValue.get(context), rightValue, context, new Warnings(source));
+    public SpatialContainsGeoSourceAndConstantEvaluator get(DriverContext context,
+        boolean collectWarnings) {
+      return new SpatialContainsGeoSourceAndConstantEvaluator(source, leftValue.get(context, collectWarnings), rightValue, context, collectWarnings ? new Warnings(source) : Warnings.NOOP_WARNINGS);
     }
 
     @Override

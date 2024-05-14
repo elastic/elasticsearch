@@ -97,8 +97,8 @@ public final class ToBooleanFromIntEvaluator extends AbstractConvertFunction.Abs
     }
 
     @Override
-    public ToBooleanFromIntEvaluator get(DriverContext context) {
-      return new ToBooleanFromIntEvaluator(field.get(context), source, context, new Warnings(source));
+    public ToBooleanFromIntEvaluator get(DriverContext context, boolean collectWarnings) {
+      return new ToBooleanFromIntEvaluator(field.get(context, collectWarnings), source, context, collectWarnings ? new Warnings(source) : Warnings.NOOP_WARNINGS);
     }
 
     @Override

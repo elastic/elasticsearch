@@ -134,8 +134,8 @@ public final class DateFormatEvaluator implements EvalOperator.ExpressionEvaluat
     }
 
     @Override
-    public DateFormatEvaluator get(DriverContext context) {
-      return new DateFormatEvaluator(source, val.get(context), formatter.get(context), locale, context, new Warnings(source));
+    public DateFormatEvaluator get(DriverContext context, boolean collectWarnings) {
+      return new DateFormatEvaluator(source, val.get(context, collectWarnings), formatter.get(context, collectWarnings), locale, context, collectWarnings ? new Warnings(source) : Warnings.NOOP_WARNINGS);
     }
 
     @Override

@@ -114,8 +114,8 @@ public final class ToIPFromStringEvaluator extends AbstractConvertFunction.Abstr
     }
 
     @Override
-    public ToIPFromStringEvaluator get(DriverContext context) {
-      return new ToIPFromStringEvaluator(field.get(context), source, context, new Warnings(source));
+    public ToIPFromStringEvaluator get(DriverContext context, boolean collectWarnings) {
+      return new ToIPFromStringEvaluator(field.get(context, collectWarnings), source, context, collectWarnings ? new Warnings(source) : Warnings.NOOP_WARNINGS);
     }
 
     @Override

@@ -244,8 +244,8 @@ public class CaseTests extends AbstractFunctionTestCase {
             DriverContext driverContext = driverContext();
             Page page = new Page(driverContext.blockFactory().newConstantIntBlockWith(0, 1));
             try (
-                    EvalOperator.ExpressionEvaluator eval = caseExpr.toEvaluator(child -> evaluator(child)).get(driverContext, true);
-                    Block block = eval.eval(page)
+                EvalOperator.ExpressionEvaluator eval = caseExpr.toEvaluator(child -> evaluator(child)).get(driverContext, true);
+                Block block = eval.eval(page)
             ) {
                 return toJavaObject(block, 0);
             } finally {

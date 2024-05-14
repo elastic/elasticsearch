@@ -144,8 +144,8 @@ public final class DateExtractEvaluator implements EvalOperator.ExpressionEvalua
     }
 
     @Override
-    public DateExtractEvaluator get(DriverContext context) {
-      return new DateExtractEvaluator(source, value.get(context), chronoField.get(context), zone, context, new Warnings(source));
+    public DateExtractEvaluator get(DriverContext context, boolean collectWarnings) {
+      return new DateExtractEvaluator(source, value.get(context, collectWarnings), chronoField.get(context, collectWarnings), zone, context, collectWarnings ? new Warnings(source) : Warnings.NOOP_WARNINGS);
     }
 
     @Override

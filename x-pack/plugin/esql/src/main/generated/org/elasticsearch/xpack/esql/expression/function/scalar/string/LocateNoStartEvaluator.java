@@ -127,8 +127,8 @@ public final class LocateNoStartEvaluator implements EvalOperator.ExpressionEval
     }
 
     @Override
-    public LocateNoStartEvaluator get(DriverContext context) {
-      return new LocateNoStartEvaluator(source, str.get(context), substr.get(context), context, new Warnings(source));
+    public LocateNoStartEvaluator get(DriverContext context, boolean collectWarnings) {
+      return new LocateNoStartEvaluator(source, str.get(context, collectWarnings), substr.get(context, collectWarnings), context, collectWarnings ? new Warnings(source) : Warnings.NOOP_WARNINGS);
     }
 
     @Override

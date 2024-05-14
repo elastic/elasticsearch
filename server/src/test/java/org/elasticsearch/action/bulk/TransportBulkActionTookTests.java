@@ -254,6 +254,7 @@ public class TransportBulkActionTookTests extends ESTestCase {
                 indexNameExpressionResolver,
                 new IndexingPressure(Settings.EMPTY),
                 EmptySystemIndices.INSTANCE,
+                new BulkShardOperationService(),
                 relativeTimeProvider
             );
         }

@@ -155,7 +155,8 @@ public class TransportBulkActionIngestTests extends ESTestCase {
                 new ActionFilters(Collections.emptySet()),
                 TestIndexNameExpressionResolver.newInstance(),
                 new IndexingPressure(SETTINGS),
-                EmptySystemIndices.INSTANCE
+                EmptySystemIndices.INSTANCE,
+                new BulkShardOperationService()
             );
         }
 

@@ -131,7 +131,8 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
         ActionListener<BulkResponse> listener,
         ClusterStateObserver observer,
         FailureStoreDocumentConverter failureStoreDocumentConverter,
-        BulkShardOperationProcessor BulkShardOperationProcessor) {
+        BulkShardOperationProcessor BulkShardOperationProcessor
+    ) {
         super(listener);
         this.task = task;
         this.threadPool = threadPool;

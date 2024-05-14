@@ -14,7 +14,7 @@ import org.elasticsearch.cluster.ClusterState;
 
 public class BulkShardOperationService implements BulkShardOperationProcessor {
 
-    private final SetOnce<BulkShardOperationProcessor> bulkShardOperationProcessor =  new SetOnce<>();
+    private final SetOnce<BulkShardOperationProcessor> bulkShardOperationProcessor = new SetOnce<>();
 
     public void setBulkShardOperationProcessor(BulkShardOperationProcessor processor) {
         bulkShardOperationProcessor.set(processor);

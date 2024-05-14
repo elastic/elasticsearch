@@ -79,7 +79,8 @@ public class TransportSimulateBulkActionTests extends ESTestCase {
                 new ActionFilters(Collections.emptySet()),
                 new TransportBulkActionTookTests.Resolver(),
                 new IndexingPressure(Settings.EMPTY),
-                EmptySystemIndices.INSTANCE
+                EmptySystemIndices.INSTANCE,
+                new BulkShardOperationService()
             );
         }
 

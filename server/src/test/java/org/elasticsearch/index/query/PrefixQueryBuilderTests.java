@@ -19,6 +19,9 @@ import org.elasticsearch.core.Strings;
 import org.elasticsearch.test.AbstractQueryTestCase;
 import org.hamcrest.Matchers;
 
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.IndexSettings;
+
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
@@ -168,7 +171,7 @@ public class PrefixQueryBuilderTests extends AbstractQueryTestCase<PrefixQueryBu
 
     public void testMaxLengthExceeded() {
         StringBuilder longValue = new StringBuilder();
-        for (int i = 0; i <= PrefixQueryBuilder.MAX_VALUE_LENGTH; i++) {
+        for (int i = 0; i <= IndexSettings.MAX_REGEX_LENGTH_SETTING.get(Settings.EMPTY); i++) {
             longValue.append("a");
         }
         

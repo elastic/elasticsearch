@@ -18,7 +18,9 @@ import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.ConstantFieldType;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.support.QueryParsers;
@@ -34,7 +36,6 @@ import java.util.Objects;
  */
 public class PrefixQueryBuilder extends AbstractQueryBuilder<PrefixQueryBuilder> implements MultiTermQueryBuilder {
     public static final String NAME = "prefix";
-    public static final int MAX_VALUE_LENGTH = 100;
 
     private static final ParseField PREFIX_FIELD = new ParseField("value");
     private static final ParseField REWRITE_FIELD = new ParseField("rewrite");
@@ -62,7 +63,7 @@ public class PrefixQueryBuilder extends AbstractQueryBuilder<PrefixQueryBuilder>
         if (value == null) {
             throw new IllegalArgumentException("value cannot be null");
         }
-        if (value.length() > MAX_VALUE_LENGTH) {
+        if (value.length() > IndexSettings.MAX_REGEX_LENGTH_SETTING.get(Settings.EMPTY)) {
             throw new IllegalArgumentException("value length exceeds maximum allowed length");
         }
         this.fieldName = fieldName;

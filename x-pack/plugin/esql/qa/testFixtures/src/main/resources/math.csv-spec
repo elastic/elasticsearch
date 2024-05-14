@@ -1319,7 +1319,7 @@ d: double | c:double
 ;
 
 cbrtOfInteger
-required_capability: cbrt
+required_capability: fn_cbrt
 row i = 27 | eval c = cbrt(i);
 
 i:integer | c:double
@@ -1327,7 +1327,7 @@ i:integer | c:double
 ;
 
 cbrtOfLong
-required_capability: cbrt
+required_capability: fn_cbrt
 row l = to_long(1000000000000) | eval c = cbrt(l);
 
 l:long            | c:double
@@ -1335,7 +1335,7 @@ l:long            | c:double
 ;
 
 cbrtOfUnsignedLong
-required_capability: cbrt
+required_capability: fn_cbrt
 row l = to_ul(1000000000000000000) | eval c = cbrt(l);
 
 l:ul                  | c:double
@@ -1343,7 +1343,7 @@ l:ul                  | c:double
 ;
 
 cbrtOfNegative
-required_capability: cbrt
+required_capability: fn_cbrt
 row d = -1.0 | eval c = cbrt(d);
 
 d:double | c:double
@@ -1351,7 +1351,7 @@ d:double | c:double
 ;
 
 cbrtOfZero
-required_capability: cbrt
+required_capability: fn_cbrt
 row d = 0.0 | eval c = cbrt(d);
 
 d:double | c:double
@@ -1359,7 +1359,7 @@ d:double | c:double
 ;
 
 cbrtOfNegativeZero
-required_capability: cbrt
+required_capability: fn_cbrt
 row d = -0.0 | eval c = cbrt(d);
 
 d:double | c:double

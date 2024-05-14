@@ -101,6 +101,13 @@ public class RoleDescriptorStore implements RoleReferenceResolver {
             apiKeyRoleReference.getRoleDescriptorsBytes(),
             apiKeyRoleReference.getRoleType()
         );
+        final RolesRetrievalResult rolesRetrievalResult = new RolesRetrievalResult();
+        rolesRetrievalResult.addDescriptors(Set.copyOf(roleDescriptors));
+        assert (apiKeyRoleReference.getRoleType() == RoleReference.ApiKeyRoleType.ASSIGNED
+            && rolesRetrievalResult.getRoleDescriptors().stream().filter(RoleDescriptor::hasRestriction).count() <= 1)
+            || (apiKeyRoleReference.getRoleType() == RoleReference.ApiKeyRoleType.LIMITED_BY
+                && rolesRetrievalResult.getRoleDescriptors().stream().noneMatch(RoleDescriptor::hasRestriction))
+            : "there should be zero limited-by role descriptors with restriction and no more than one assigned";
         if (apiKeyRoleReference.checkForInvalidLegacyRoleDescriptorsForCrossClusterAccess()) {
             try {
                 CrossClusterApiKeyRoleDescriptorBuilder.checkForInvalidLegacyRoleDescriptors(roleDescriptors);
@@ -109,13 +116,6 @@ public class RoleDescriptorStore implements RoleReferenceResolver {
                 return;
             }
         }
-        final RolesRetrievalResult rolesRetrievalResult = new RolesRetrievalResult();
-        rolesRetrievalResult.addDescriptors(Set.copyOf(roleDescriptors));
-        assert (apiKeyRoleReference.getRoleType() == RoleReference.ApiKeyRoleType.ASSIGNED
-            && rolesRetrievalResult.getRoleDescriptors().stream().filter(RoleDescriptor::hasRestriction).count() <= 1)
-            || (apiKeyRoleReference.getRoleType() == RoleReference.ApiKeyRoleType.LIMITED_BY
-                && rolesRetrievalResult.getRoleDescriptors().stream().noneMatch(RoleDescriptor::hasRestriction))
-            : "there should be zero limited-by role descriptors with restriction and no more than one assigned";
         listener.onResponse(rolesRetrievalResult);
     }
 

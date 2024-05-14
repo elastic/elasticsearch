@@ -1019,8 +1019,7 @@ public class ApiKeyRestIT extends SecurityOnTrialLicenseRestTestCase {
               "access": {
                 "search": [
                   {
-                    "names": [ "metrics" ],
-                    "query": "{\\"term\\":{\\"score\\":42}}"
+                    "names": [ "metrics" ]
                   }
                 ],
                 "replication": [
@@ -1085,7 +1084,6 @@ public class ApiKeyRestIT extends SecurityOnTrialLicenseRestTestCase {
                                 RoleDescriptor.IndicesPrivileges.builder()
                                     .indices("metrics")
                                     .privileges("read", "read_cross_cluster", "view_index_metadata")
-                                    .query("{\"term\":{\"score\":42}}")
                                     .build(),
                                 RoleDescriptor.IndicesPrivileges.builder()
                                     .indices("logs")
@@ -1105,7 +1103,6 @@ public class ApiKeyRestIT extends SecurityOnTrialLicenseRestTestCase {
                     "names": [
                       "metrics"
                     ],
-                    "query": "{\\"term\\":{\\"score\\":42}}",
                     "allow_restricted_indices": false
                   }
                 ],
@@ -1447,8 +1444,7 @@ public class ApiKeyRestIT extends SecurityOnTrialLicenseRestTestCase {
               "access": {
                 "search": [
                   {
-                    "names": [ "data" ],
-                    "query": "{\\"term\\":{\\"score\\":42}}"
+                    "names": [ "data" ]
                   }
                 ],
                 "replication": [
@@ -1470,7 +1466,6 @@ public class ApiKeyRestIT extends SecurityOnTrialLicenseRestTestCase {
                 RoleDescriptor.IndicesPrivileges.builder()
                     .indices("data")
                     .privileges("read", "read_cross_cluster", "view_index_metadata")
-                    .query("{\"term\":{\"score\":42}}")
                     .build(),
                 RoleDescriptor.IndicesPrivileges.builder()
                     .indices("logs")
@@ -1490,7 +1485,6 @@ public class ApiKeyRestIT extends SecurityOnTrialLicenseRestTestCase {
               "search": [
                 {
                   "names": [ "data" ],
-                  "query": "{\\"term\\":{\\"score\\":42}}",
                   "allow_restricted_indices": false
                 }
               ],

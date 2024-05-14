@@ -88,6 +88,11 @@ setup:
                 type: text
 
   - do:
+      cluster.health:
+        index: index
+        wait_for_status: green
+
+  - do:
       headers:
         Content-Type: application/json
       simulate.ingest:

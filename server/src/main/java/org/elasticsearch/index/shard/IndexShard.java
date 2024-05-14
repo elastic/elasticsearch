@@ -998,7 +998,9 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     ) throws IOException {
         assert opPrimaryTerm <= getOperationPrimaryTerm()
             : "op term [ " + opPrimaryTerm + " ] > shard term [" + getOperationPrimaryTerm() + "]";
-        ensureWriteAllowed(origin);
+        if (isSimulated == false) {
+            ensureWriteAllowed(origin);
+        }
         Engine.Index operation;
         try {
             operation = prepareIndex(

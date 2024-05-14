@@ -206,16 +206,16 @@ public class SpawnerNoBootstrapTests extends LuceneTestCase {
 
         String stdoutLoggerName = "test_plugin-controller-stdout";
         String stderrLoggerName = "test_plugin-controller-stderr";
-        MockLogAppender appender = new MockLogAppender();
         Loggers.setLevel(LogManager.getLogger(stdoutLoggerName), Level.TRACE);
         Loggers.setLevel(LogManager.getLogger(stderrLoggerName), Level.TRACE);
         CountDownLatch messagesLoggedLatch = new CountDownLatch(2);
-        if (expectSpawn) {
-            appender.addExpectation(new ExpectedStreamMessage(stdoutLoggerName, "I am alive", messagesLoggedLatch));
-            appender.addExpectation(new ExpectedStreamMessage(stderrLoggerName, "I am an error", messagesLoggedLatch));
-        }
 
-        try (var ignore = appender.capturing(stdoutLoggerName, stderrLoggerName)) {
+        try (var appender = MockLogAppender.capture(stdoutLoggerName, stderrLoggerName)) {
+            if (expectSpawn) {
+                appender.addExpectation(new ExpectedStreamMessage(stdoutLoggerName, "I am alive", messagesLoggedLatch));
+                appender.addExpectation(new ExpectedStreamMessage(stderrLoggerName, "I am an error", messagesLoggedLatch));
+            }
+
             Spawner spawner = new Spawner();
             spawner.spawnNativeControllers(environment);
 

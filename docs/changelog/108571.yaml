@@ -1,0 +1,5 @@
+pr: 108571
+summary: Workaround G1 bug for JDK 22 and 22.0.1
+area: Infra/CLI
+type: bug
+issues: []

@@ -515,6 +515,7 @@ public class RootObjectMapperTests extends MapperServiceTestCase {
                     "outer",
                     Explicit.EXPLICIT_TRUE,
                     Explicit.EXPLICIT_TRUE,
+                    Explicit.EXPLICIT_FALSE,
                     ObjectMapper.Dynamic.FALSE,
                     Map.of(
                         "inner",
@@ -571,6 +572,7 @@ public class RootObjectMapperTests extends MapperServiceTestCase {
                     "labels",
                     "labels",
                     Explicit.EXPLICIT_TRUE,
+                    Explicit.EXPLICIT_FALSE,
                     Explicit.EXPLICIT_FALSE,
                     ObjectMapper.Dynamic.FALSE,
                     Map.of("host", new KeywordFieldMapper.Builder("host", IndexVersion.current()).build(context))

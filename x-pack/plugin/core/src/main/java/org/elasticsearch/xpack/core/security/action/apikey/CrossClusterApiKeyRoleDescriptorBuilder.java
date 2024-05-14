@@ -124,10 +124,9 @@ public class CrossClusterApiKeyRoleDescriptorBuilder {
             throw new IllegalArgumentException("remote cluster permissions must be empty");
         }
         final String[] clusterPrivileges = roleDescriptor.getClusterPrivileges();
-        final boolean hasBothCssAndCcr = Arrays.equals(clusterPrivileges, CCS_AND_CCR_CLUSTER_PRIVILEGE_NAMES);
         if (false == Arrays.equals(clusterPrivileges, CCS_CLUSTER_PRIVILEGE_NAMES)
             && false == Arrays.equals(clusterPrivileges, CCR_CLUSTER_PRIVILEGE_NAMES)
-            && false == hasBothCssAndCcr) {
+            && false == Arrays.equals(clusterPrivileges, CCS_AND_CCR_CLUSTER_PRIVILEGE_NAMES)) {
             throw new IllegalArgumentException(
                 "invalid cluster privileges: [" + Strings.arrayToCommaDelimitedString(clusterPrivileges) + "]"
             );
@@ -145,6 +144,29 @@ public class CrossClusterApiKeyRoleDescriptorBuilder {
                 }
             } else if (false == Arrays.equals(privileges, CCS_INDICES_PRIVILEGE_NAMES)) {
                 throw new IllegalArgumentException("invalid indices privileges: [" + Strings.arrayToCommaDelimitedString(privileges));
+            }
+        }
+    }
+
+    public static void checkForInvalidLegacyRoleDescriptors(List<RoleDescriptor> roleDescriptors) {
+        assert roleDescriptors.size() == 1;
+        final var roleDescriptor = roleDescriptors.get(0);
+        final String[] clusterPrivileges = roleDescriptor.getClusterPrivileges();
+        final boolean hasBoth = Arrays.equals(clusterPrivileges, CCS_AND_CCR_CLUSTER_PRIVILEGE_NAMES);
+        if (false == hasBoth) {
+            return;
+        }
+
+        final RoleDescriptor.IndicesPrivileges[] indicesPrivileges = roleDescriptor.getIndicesPrivileges();
+        assert indicesPrivileges.length != 1 : "indices privileges must not be empty";
+        for (RoleDescriptor.IndicesPrivileges indexPrivilege : indicesPrivileges) {
+            final String[] privileges = indexPrivilege.getPrivileges();
+            if (Arrays.equals(privileges, CCS_INDICES_PRIVILEGE_NAMES)) {
+                if (indexPrivilege.isUsingDocumentOrFieldLevelSecurity()) {
+                    throw new IllegalArgumentException(
+                        "search does not support document or field level security if replication is assigned"
+                    );
+                }
             }
         }
     }

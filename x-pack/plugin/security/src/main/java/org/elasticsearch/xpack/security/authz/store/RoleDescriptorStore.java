@@ -17,6 +17,7 @@ import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.xpack.core.common.IteratingActionListener;
+import org.elasticsearch.xpack.core.security.action.apikey.CrossClusterApiKeyRoleDescriptorBuilder;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.store.ReservedRolesStore;
 import org.elasticsearch.xpack.core.security.authz.store.RoleReference;
@@ -100,6 +101,14 @@ public class RoleDescriptorStore implements RoleReferenceResolver {
             apiKeyRoleReference.getRoleDescriptorsBytes(),
             apiKeyRoleReference.getRoleType()
         );
+        if (apiKeyRoleReference.validateLegacyCrossClusterRoleDescriptors()) {
+            try {
+                CrossClusterApiKeyRoleDescriptorBuilder.checkForInvalidLegacyRoleDescriptors(roleDescriptors);
+            } catch (IllegalArgumentException e) {
+                listener.onFailure(e);
+                return;
+            }
+        }
         final RolesRetrievalResult rolesRetrievalResult = new RolesRetrievalResult();
         rolesRetrievalResult.addDescriptors(Set.copyOf(roleDescriptors));
         assert (apiKeyRoleReference.getRoleType() == RoleReference.ApiKeyRoleType.ASSIGNED

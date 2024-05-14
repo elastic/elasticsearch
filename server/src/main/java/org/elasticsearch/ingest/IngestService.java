@@ -884,7 +884,9 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
         ingestDocument.resetReroute();
         final String originalIndex = indexRequest.indices()[0];
         final Consumer<Exception> exceptionHandler = (Exception e) -> {
-            FailureStoreMetrics.incrementForIndex(failureStoreMetrics.failureCounter(), originalIndex);
+            if (originalIndex != null) {
+                FailureStoreMetrics.incrementForIndex(failureStoreMetrics.failureCounter(), originalIndex);
+            }
             if (shouldStoreFailure.test(originalIndex)) {
                 FailureStoreMetrics.incrementForIndex(failureStoreMetrics.redirectCounter(), originalIndex);
                 listener.onResponse(IngestPipelinesExecutionResult.failAndStoreFor(originalIndex, e));

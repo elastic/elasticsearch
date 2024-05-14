@@ -173,7 +173,7 @@ public class TestDenseInferenceServiceExtension implements InferenceServiceExten
         private static double[] generateEmbedding(String input, int dimensions, SimilarityMeasure similarityMeasure) {
             double[] embedding = new double[dimensions];
             for (int j = 0; j < dimensions; j++) {
-                embedding[j] = input.hashCode() + (double) j;
+                embedding[j] = input.hashCode() + 1 + j;
             }
 
             return embedding;

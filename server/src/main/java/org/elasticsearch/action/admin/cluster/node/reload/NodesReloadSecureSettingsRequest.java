@@ -97,7 +97,7 @@ public class NodesReloadSecureSettingsRequest extends BaseNodesRequest<NodesRelo
         NodeRequest(StreamInput in) throws IOException {
             super(in);
 
-            if (in.getTransportVersion().before(TransportVersions.SMALLER_RELOAD_SECURE_SETTINGS_REQUEST)) {
+            if (in.getTransportVersion().before(TransportVersions.V_8_13_0)) {
                 TaskId.readFromStream(in);
                 in.readStringArray();
                 in.readOptionalArray(DiscoveryNode::new, DiscoveryNode[]::new);
@@ -131,7 +131,7 @@ public class NodesReloadSecureSettingsRequest extends BaseNodesRequest<NodesRelo
             assert hasReferences();
             super.writeTo(out);
 
-            if (out.getTransportVersion().before(TransportVersions.SMALLER_RELOAD_SECURE_SETTINGS_REQUEST)) {
+            if (out.getTransportVersion().before(TransportVersions.V_8_13_0)) {
                 TaskId.EMPTY_TASK_ID.writeTo(out);
                 out.writeStringArray(Strings.EMPTY_ARRAY);
                 out.writeOptionalArray(StreamOutput::writeWriteable, null);

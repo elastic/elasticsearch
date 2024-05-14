@@ -34,7 +34,9 @@ public class GetAutoFollowPatternAction extends ActionType<GetAutoFollowPatternA
 
         private String name;
 
-        public Request() {}
+        public Request() {
+            super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT);
+        }
 
         public Request(StreamInput in) throws IOException {
             super(in);

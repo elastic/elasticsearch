@@ -103,7 +103,7 @@ import org.elasticsearch.xpack.core.security.authc.RealmDomain;
 import org.elasticsearch.xpack.core.security.authc.support.AuthenticationContextSerializer;
 import org.elasticsearch.xpack.core.security.authc.support.Hasher;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
-import org.elasticsearch.xpack.core.security.authz.RoleDescriptorTests;
+import org.elasticsearch.xpack.core.security.authz.RoleDescriptorTestHelper;
 import org.elasticsearch.xpack.core.security.authz.RoleRestrictionTests;
 import org.elasticsearch.xpack.core.security.authz.permission.RemoteClusterPermissionGroup;
 import org.elasticsearch.xpack.core.security.authz.permission.RemoteClusterPermissions;
@@ -1158,7 +1158,9 @@ public class ApiKeyServiceTests extends ESTestCase {
             getFastStoredHashAlgoForTests().hash(new SecureString(key.toCharArray())),
             "test",
             authentication,
-            type == ApiKey.Type.CROSS_CLUSTER ? Set.of() : Collections.singleton(SUPERUSER_ROLE_DESCRIPTOR),
+            type == ApiKey.Type.CROSS_CLUSTER
+                ? Set.of()
+                : ApiKeyService.removeUserRoleDescriptorDescriptions(Set.of(SUPERUSER_ROLE_DESCRIPTOR)),
             Instant.now(),
             Instant.now().plus(expiry),
             keyRoles,
@@ -1315,22 +1317,6 @@ public class ApiKeyServiceTests extends ESTestCase {
         List<RoleDescriptor> roleDescriptors = service.parseRoleDescriptors(apiKeyId, Map.of("a role", roleARDMap), randomApiKeyRoleType());
         assertThat(roleDescriptors, hasSize(1));
         assertThat(roleDescriptors.get(0), equalTo(roleARoleDescriptor));
-
-        Map<String, Object> superUserRdMap;
-        try (XContentBuilder builder = JsonXContent.contentBuilder()) {
-            superUserRdMap = XContentHelper.convertToMap(
-                XContentType.JSON.xContent(),
-                BytesReference.bytes(SUPERUSER_ROLE_DESCRIPTOR.toXContent(builder, ToXContent.EMPTY_PARAMS, true)).streamInput(),
-                false
-            );
-        }
-        roleDescriptors = service.parseRoleDescriptors(
-            apiKeyId,
-            Map.of(SUPERUSER_ROLE_DESCRIPTOR.getName(), superUserRdMap),
-            randomApiKeyRoleType()
-        );
-        assertThat(roleDescriptors, hasSize(1));
-        assertThat(roleDescriptors.get(0), equalTo(SUPERUSER_ROLE_DESCRIPTOR));
 
         final Map<String, Object> legacySuperUserRdMap;
         try (XContentBuilder builder = JsonXContent.contentBuilder()) {
@@ -1812,7 +1798,10 @@ public class ApiKeyServiceTests extends ESTestCase {
             RoleReference.ApiKeyRoleType.LIMITED_BY
         );
         assertEquals(1, limitedByRoleDescriptors.size());
-        assertEquals(SUPERUSER_ROLE_DESCRIPTOR, limitedByRoleDescriptors.get(0));
+        RoleDescriptor superuserWithoutDescription = ApiKeyService.removeUserRoleDescriptorDescriptions(Set.of(SUPERUSER_ROLE_DESCRIPTOR))
+            .iterator()
+            .next();
+        assertEquals(superuserWithoutDescription, limitedByRoleDescriptors.get(0));
         if (metadata == null) {
             assertNull(cachedApiKeyDoc.metadataFlattened);
         } else {
@@ -1857,6 +1846,7 @@ public class ApiKeyServiceTests extends ESTestCase {
         ApiKeyCredentials apiKeyCredentials3 = getApiKeyCredentials(docId3, apiKey3, type);
         final List<RoleDescriptor> keyRoles = List.of(
             RoleDescriptor.parserBuilder()
+                .allowRestriction(true)
                 .allow2xFormat(true)
                 .build()
                 .parse("key-role", new BytesArray("{\"cluster\":[\"monitor\"]}"), XContentType.JSON)
@@ -2348,12 +2338,12 @@ public class ApiKeyServiceTests extends ESTestCase {
         final ApiKey.Type type = randomFrom(ApiKey.Type.values());
         final Set<RoleDescriptor> oldUserRoles = type == ApiKey.Type.CROSS_CLUSTER
             ? Set.of()
-            : randomSet(0, 3, RoleDescriptorTests::randomRoleDescriptor);
+            : randomSet(0, 3, () -> RoleDescriptorTestHelper.builder().allowReservedMetadata(true).build());
         final List<RoleDescriptor> oldKeyRoles;
         if (type == ApiKey.Type.CROSS_CLUSTER) {
             oldKeyRoles = List.of(CrossClusterApiKeyRoleDescriptorBuilder.parse(randomCrossClusterApiKeyAccessField()).build());
         } else {
-            oldKeyRoles = randomList(3, RoleDescriptorTests::randomRoleDescriptor);
+            oldKeyRoles = randomList(3, () -> RoleDescriptorTestHelper.builder().allowReservedMetadata(true).build());
         }
         final long now = randomMillisUpToYear9999();
         when(clock.instant()).thenReturn(Instant.ofEpochMilli(now));
@@ -2388,7 +2378,10 @@ public class ApiKeyServiceTests extends ESTestCase {
         final boolean changeExpiration = randomBoolean();
 
         final Set<RoleDescriptor> newUserRoles = changeUserRoles
-            ? randomValueOtherThan(oldUserRoles, () -> randomSet(0, 3, RoleDescriptorTests::randomRoleDescriptor))
+            ? randomValueOtherThan(
+                oldUserRoles,
+                () -> randomSet(0, 3, () -> RoleDescriptorTestHelper.builder().allowReservedMetadata(true).build())
+            )
             : oldUserRoles;
         final List<RoleDescriptor> newKeyRoles;
         if (changeKeyRoles) {
@@ -2401,7 +2394,10 @@ public class ApiKeyServiceTests extends ESTestCase {
                     }
                 });
             } else {
-                newKeyRoles = randomValueOtherThan(oldKeyRoles, () -> randomList(0, 3, RoleDescriptorTests::randomRoleDescriptor));
+                newKeyRoles = randomValueOtherThan(
+                    oldKeyRoles,
+                    () -> randomList(0, 3, () -> RoleDescriptorTestHelper.builder().allowReservedMetadata(true).build())
+                );
             }
         } else {
             newKeyRoles = randomBoolean() ? oldKeyRoles : null;
@@ -2582,7 +2578,16 @@ public class ApiKeyServiceTests extends ESTestCase {
     public void testMaybeRemoveRemoteIndicesPrivilegesWithUnsupportedVersion() {
         final String apiKeyId = randomAlphaOfLengthBetween(5, 8);
         final Set<RoleDescriptor> userRoleDescriptors = Set.copyOf(
-            randomList(2, 5, () -> RoleDescriptorTests.randomRoleDescriptor(randomBoolean(), randomBoolean(), randomBoolean(), false))
+            randomList(
+                2,
+                5,
+                () -> RoleDescriptorTestHelper.builder()
+                    .allowReservedMetadata(randomBoolean())
+                    .allowRemoteIndices(randomBoolean())
+                    .allowRestriction(randomBoolean())
+                    .allowRemoteClusters(false)
+                    .build()
+            )
         );
 
         // Selecting random unsupported version.
@@ -2615,11 +2620,7 @@ public class ApiKeyServiceTests extends ESTestCase {
     public void testMaybeRemoveRemoteClusterPrivilegesWithUnsupportedVersion() {
         final String apiKeyId = randomAlphaOfLengthBetween(5, 8);
         final Set<RoleDescriptor> userRoleDescriptors = Set.copyOf(
-            randomList(
-                2,
-                5,
-                () -> RoleDescriptorTests.randomRoleDescriptor(randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean())
-            )
+            randomList(2, 5, () -> RoleDescriptorTestHelper.builder().allowRemoteClusters(true).build())
         );
 
         // Selecting random unsupported version.
@@ -2931,7 +2932,12 @@ public class ApiKeyServiceTests extends ESTestCase {
         final List<RoleDescriptor> requestRoleDescriptors = randomList(
             0,
             1,
-            () -> RoleDescriptorTests.randomRoleDescriptor(randomBoolean(), false, randomBoolean(), false)
+            () -> RoleDescriptorTestHelper.builder()
+                .allowReservedMetadata(randomBoolean())
+                .allowRemoteIndices(false)
+                .allowRestriction(randomBoolean())
+                .allowRemoteClusters(false)
+                .build()
         );
 
         final AbstractCreateApiKeyRequest createRequest = mock(AbstractCreateApiKeyRequest.class);
@@ -2959,34 +2965,23 @@ public class ApiKeyServiceTests extends ESTestCase {
         return new RoleDescriptor(
             randomAlphaOfLengthBetween(3, 90),
             randomSubsetOf(ClusterPrivilegeResolver.names()).toArray(String[]::new),
-            RoleDescriptorTests.randomIndicesPrivileges(0, 3),
-            RoleDescriptorTests.randomApplicationPrivileges(),
-            RoleDescriptorTests.randomClusterPrivileges(),
+            RoleDescriptorTestHelper.randomIndicesPrivileges(0, 3),
+            RoleDescriptorTestHelper.randomApplicationPrivileges(),
+            RoleDescriptorTestHelper.randomClusterPrivileges(),
             generateRandomStringArray(5, randomIntBetween(2, 8), false, true),
-            RoleDescriptorTests.randomRoleDescriptorMetadata(randomBoolean()),
+            RoleDescriptorTestHelper.randomRoleDescriptorMetadata(randomBoolean()),
             Map.of(),
-            RoleDescriptorTests.randomRemoteIndicesPrivileges(1, 3),
+            RoleDescriptorTestHelper.randomRemoteIndicesPrivileges(1, 3),
             new RemoteClusterPermissions().addGroup(
                 new RemoteClusterPermissionGroup(new String[] { "monitor_enrich" }, new String[] { "*" })
             ),
-            RoleRestrictionTests.randomWorkflowsRestriction(1, 3)
+            RoleRestrictionTests.randomWorkflowsRestriction(1, 3),
+            randomAlphaOfLengthBetween(0, 10)
         );
     }
 
     private static RoleDescriptor randomRoleDescriptorWithWorkflowsRestriction() {
-        return new RoleDescriptor(
-            randomAlphaOfLengthBetween(3, 90),
-            randomSubsetOf(ClusterPrivilegeResolver.names()).toArray(String[]::new),
-            RoleDescriptorTests.randomIndicesPrivileges(0, 3),
-            RoleDescriptorTests.randomApplicationPrivileges(),
-            RoleDescriptorTests.randomClusterPrivileges(),
-            generateRandomStringArray(5, randomIntBetween(2, 8), false, true),
-            RoleDescriptorTests.randomRoleDescriptorMetadata(randomBoolean()),
-            Map.of(),
-            null,
-            null,
-            RoleRestrictionTests.randomWorkflowsRestriction(1, 3)
-        );
+        return RoleDescriptorTestHelper.builder().allowReservedMetadata(true).allowRestriction(true).allowRemoteIndices(false).build();
     }
 
     public static String randomCrossClusterApiKeyAccessField() {

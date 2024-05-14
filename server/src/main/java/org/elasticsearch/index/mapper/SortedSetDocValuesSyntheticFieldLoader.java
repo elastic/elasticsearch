@@ -70,6 +70,11 @@ public abstract class SortedSetDocValuesSyntheticFieldLoader implements SourceLo
     }
 
     @Override
+    public String fieldName() {
+        return name;
+    }
+
+    @Override
     public Stream<Map.Entry<String, StoredFieldLoader>> storedFieldLoaders() {
         if (storedValuesName == null) {
             return ignoreMalformedValues.storedFieldLoaders();

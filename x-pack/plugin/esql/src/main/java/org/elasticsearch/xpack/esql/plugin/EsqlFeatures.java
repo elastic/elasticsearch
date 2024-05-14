@@ -10,10 +10,23 @@ package org.elasticsearch.xpack.esql.plugin;
 import org.elasticsearch.Version;
 import org.elasticsearch.features.FeatureSpecification;
 import org.elasticsearch.features.NodeFeature;
+import org.elasticsearch.rest.action.admin.cluster.RestNodesCapabilitiesAction;
+import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 
 import java.util.Map;
 import java.util.Set;
 
+/**
+ * {@link NodeFeature}s declared by ESQL. These should be used for fast checks
+ * on the node. Before the introduction of the {@link RestNodesCapabilitiesAction}
+ * this was used for controlling which features are tested so many of the
+ * examples below are *just* used for that. Don't make more of those - add them
+ * to {@link EsqlCapabilities} instead.
+ * <p>
+ *     NOTE: You can't remove a feature now and probably never will be able to.
+ *     Only add more of these if you need a fast CPU level check.
+ * </p>
+ */
 public class EsqlFeatures implements FeatureSpecification {
     /**
      * Introduction of {@code MV_SORT}, {@code MV_SLICE}, and {@code MV_ZIP}.
@@ -136,6 +149,17 @@ public class EsqlFeatures implements FeatureSpecification {
      */
     public static final NodeFeature METADATA_FIELDS = new NodeFeature("esql.metadata_fields");
 
+    /**
+     * Support for loading values over enrich. This is supported by all versions of ESQL but not
+     * the unit test CsvTests.
+     */
+    public static final NodeFeature ENRICH_LOAD = new NodeFeature("esql.enrich_load");
+
+    /**
+     * Support for timespan units abbreviations
+     */
+    public static final NodeFeature TIMESPAN_ABBREVIATIONS = new NodeFeature("esql.timespan_abbreviations");
+
     @Override
     public Set<NodeFeature> getFeatures() {
         return Set.of(
@@ -157,7 +181,8 @@ public class EsqlFeatures implements FeatureSpecification {
             MV_ORDERING_SORTED_ASCENDING,
             METRICS_COUNTER_FIELDS,
             STRING_LITERAL_AUTO_CASTING_EXTENDED,
-            METADATA_FIELDS
+            METADATA_FIELDS,
+            TIMESPAN_ABBREVIATIONS
         );
     }
 
@@ -168,7 +193,8 @@ public class EsqlFeatures implements FeatureSpecification {
             Map.entry(MV_WARN, Version.V_8_12_0),
             Map.entry(SPATIAL_POINTS, Version.V_8_12_0),
             Map.entry(CONVERT_WARN, Version.V_8_12_0),
-            Map.entry(POW_DOUBLE, Version.V_8_12_0)
+            Map.entry(POW_DOUBLE, Version.V_8_12_0),
+            Map.entry(ENRICH_LOAD, Version.V_8_12_0)
         );
     }
 }

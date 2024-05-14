@@ -224,7 +224,10 @@ public final class CrossClusterAccessSubjectInfo {
 
         public static final RoleDescriptorsBytes EMPTY = new RoleDescriptorsBytes(new BytesArray("{}"));
 
-        private static final RoleDescriptor.Parser ROLE_DESCRIPTOR_PARSER = RoleDescriptor.parserBuilder().build();
+        private static final RoleDescriptor.Parser ROLE_DESCRIPTOR_PARSER = RoleDescriptor.parserBuilder()
+            .allowRestriction(true)
+            .allowDescription(true)
+            .build();
 
         private final BytesReference rawBytes;
 

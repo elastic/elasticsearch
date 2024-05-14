@@ -167,8 +167,8 @@ public class MvEvaluatorImplementer {
         builder.addParameter(EXPRESSION_EVALUATOR, "field");
         builder.addStatement("super(driverContext, field)");
         builder.addParameter(DRIVER_CONTEXT, "driverContext");
-        builder.addParameter(WARNINGS, "warnings");
         if (warnExceptions.isEmpty() == false) {
+            builder.addParameter(WARNINGS, "warnings");
             builder.addStatement("this.warnings = warnings");
         }
         return builder.build();
@@ -401,6 +401,9 @@ public class MvEvaluatorImplementer {
         }
         args.add("field.get(context)");
         args.add("context");
+        if (warnExceptions.isEmpty() == false) {
+            args.add("new Warnings(source)");
+        }
         builder.addStatement("return new $T($L)", implementation, args.stream().collect(Collectors.joining(", ")));
         return builder.build();
     }

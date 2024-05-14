@@ -22,9 +22,9 @@ public final class MvSumLongEvaluator extends AbstractMultivalueFunction.Abstrac
   private final Warnings warnings;
 
   public MvSumLongEvaluator(Source source, EvalOperator.ExpressionEvaluator field,
-      DriverContext driverContext) {
+      DriverContext driverContext, Warnings warnings) {
     super(driverContext, field);
-    this.warnings = new Warnings(source);
+    this.warnings = warnings;
   }
 
   @Override
@@ -77,7 +77,7 @@ public final class MvSumLongEvaluator extends AbstractMultivalueFunction.Abstrac
 
     @Override
     public MvSumLongEvaluator get(DriverContext context) {
-      return new MvSumLongEvaluator(source, field.get(context), context);
+      return new MvSumLongEvaluator(source, field.get(context), context, new Warnings(source));
     }
 
     @Override

@@ -22,9 +22,9 @@ public final class MvSumIntEvaluator extends AbstractMultivalueFunction.Abstract
   private final Warnings warnings;
 
   public MvSumIntEvaluator(Source source, EvalOperator.ExpressionEvaluator field,
-      DriverContext driverContext) {
+      DriverContext driverContext, Warnings warnings) {
     super(driverContext, field);
-    this.warnings = new Warnings(source);
+    this.warnings = warnings;
   }
 
   @Override
@@ -77,7 +77,7 @@ public final class MvSumIntEvaluator extends AbstractMultivalueFunction.Abstract
 
     @Override
     public MvSumIntEvaluator get(DriverContext context) {
-      return new MvSumIntEvaluator(source, field.get(context), context);
+      return new MvSumIntEvaluator(source, field.get(context), context, new Warnings(source));
     }
 
     @Override

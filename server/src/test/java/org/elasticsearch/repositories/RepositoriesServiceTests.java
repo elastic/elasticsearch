@@ -316,8 +316,8 @@ public class RepositoriesServiceTests extends ESTestCase {
 
         var resultListener = new SubscribableListener<AcknowledgedResponse>();
         repositoriesService.registerRepository(request, resultListener);
-        var resp = safeAwait(resultListener);
-        assertTrue(resp.isAcknowledged());
+        var response = safeAwait(resultListener);
+        assertTrue(response.isAcknowledged());
         assertThat(repositoriesService.repository(repoName), isA(TestRepository.class));
     }
 

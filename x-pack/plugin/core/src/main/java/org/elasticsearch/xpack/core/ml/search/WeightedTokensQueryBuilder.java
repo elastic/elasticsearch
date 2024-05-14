@@ -39,7 +39,7 @@ public class WeightedTokensQueryBuilder extends AbstractQueryBuilder<WeightedTok
     @Nullable
     private final TokenPruningConfig tokenPruningConfig;
 
-    private final Set<String> ALLOWED_FIELD_TYPES = Set.of("sparse_vector", "rank_features");
+    private static final Set<String> ALLOWED_FIELD_TYPES = Set.of("sparse_vector", "rank_features");
 
     public WeightedTokensQueryBuilder(String fieldName, List<WeightedToken> tokens) {
         this(fieldName, tokens, null);

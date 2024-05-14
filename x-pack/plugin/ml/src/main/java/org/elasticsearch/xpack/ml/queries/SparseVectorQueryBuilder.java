@@ -65,7 +65,7 @@ public class SparseVectorQueryBuilder extends AbstractQueryBuilder<SparseVectorQ
     private final String text;
     private final Boolean shouldPruneTokens;
 
-    private SetOnce<TextExpansionResults> weightedTokensSupplier;
+    private final SetOnce<TextExpansionResults> weightedTokensSupplier;
 
     @Nullable
     private final TokenPruningConfig tokenPruningConfig;
@@ -92,6 +92,7 @@ public class SparseVectorQueryBuilder extends AbstractQueryBuilder<SparseVectorQ
         this.inferenceId = inferenceId;
         this.text = text;
         this.tokenPruningConfig = tokenPruningConfig;
+        this.weightedTokensSupplier = null;
 
         if (queryVectors == null ^ inferenceId == null == false) {
             throw new IllegalArgumentException(
@@ -125,9 +126,10 @@ public class SparseVectorQueryBuilder extends AbstractQueryBuilder<SparseVectorQ
         this.inferenceId = in.readOptionalString();
         this.text = in.readOptionalString();
         this.tokenPruningConfig = in.readOptionalWriteable(TokenPruningConfig::new);
+        this.weightedTokensSupplier = null;
     }
 
-    public SparseVectorQueryBuilder(SparseVectorQueryBuilder other, SetOnce<TextExpansionResults> weightedTokensSupplier) {
+    private SparseVectorQueryBuilder(SparseVectorQueryBuilder other, SetOnce<TextExpansionResults> weightedTokensSupplier) {
         this.fieldName = other.fieldName;
         this.shouldPruneTokens = other.shouldPruneTokens;
         this.queryVectors = other.queryVectors;
@@ -155,6 +157,10 @@ public class SparseVectorQueryBuilder extends AbstractQueryBuilder<SparseVectorQ
 
     @Override
     protected void doWriteTo(StreamOutput out) throws IOException {
+        if (weightedTokensSupplier != null) {
+            throw new IllegalStateException("weighted tokens supplier must be null, can't serialize suppliers, missing a rewriteAndFetch?");
+        }
+
         out.writeString(fieldName);
         out.writeOptionalBoolean(shouldPruneTokens);
         out.writeOptionalCollection(queryVectors);
@@ -282,12 +288,15 @@ public class SparseVectorQueryBuilder extends AbstractQueryBuilder<SparseVectorQ
     protected boolean doEquals(SparseVectorQueryBuilder other) {
         return Objects.equals(fieldName, other.fieldName)
             && Objects.equals(tokenPruningConfig, other.tokenPruningConfig)
-            && Objects.equals(queryVectors, other.queryVectors);
+            && Objects.equals(queryVectors, other.queryVectors)
+            && Objects.equals(shouldPruneTokens, other.shouldPruneTokens)
+            && Objects.equals(inferenceId, other.inferenceId)
+            && Objects.equals(text, other.text);
     }
 
     @Override
     protected int doHashCode() {
-        return Objects.hash(fieldName, queryVectors, tokenPruningConfig);
+        return Objects.hash(fieldName, queryVectors, tokenPruningConfig, shouldPruneTokens, inferenceId, text);
     }
 
     @Override

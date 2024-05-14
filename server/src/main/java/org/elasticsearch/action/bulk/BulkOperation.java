@@ -14,6 +14,7 @@ import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.RoutingMissingException;
 import org.elasticsearch.action.index.IndexRequest;
@@ -346,7 +347,10 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
     }
 
     private void executeBulkShardRequest(BulkShardRequest bulkShardRequest, Releasable releaseOnFinish) {
-        client.executeLocally(TransportShardBulkAction.TYPE, bulkShardRequest, new ActionListener<>() {
+        ActionType<BulkShardResponse> bulkAction = bulkRequest instanceof SimulateBulkRequest
+            ? TransportSimulateShardBulkAction.TYPE
+            : TransportShardBulkAction.TYPE;
+        client.executeLocally(bulkAction, bulkShardRequest, new ActionListener<>() {
 
             // Lazily get the cluster state to avoid keeping it around longer than it is needed
             private ClusterState clusterState = null;

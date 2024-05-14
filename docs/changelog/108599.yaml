@@ -1,5 +1,0 @@
-pr: 108599
-summary: Fix `testDanglingIndicesCanBeListed`
-area: Engine
-type: bug
-issues: []

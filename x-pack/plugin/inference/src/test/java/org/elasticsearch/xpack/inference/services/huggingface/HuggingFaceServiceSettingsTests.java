@@ -197,7 +197,7 @@ public class HuggingFaceServiceSettingsTests extends AbstractWireSerializingTest
 
     @Override
     protected HuggingFaceServiceSettings mutateInstance(HuggingFaceServiceSettings instance) throws IOException {
-        return createRandom();
+        return randomValueOtherThan(instance, HuggingFaceServiceSettingsTests::createRandom);
     }
 
     public static Map<String, Object> getServiceSettingsMap(String url) {

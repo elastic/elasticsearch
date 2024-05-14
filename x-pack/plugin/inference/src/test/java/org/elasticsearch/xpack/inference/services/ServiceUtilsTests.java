@@ -95,6 +95,7 @@ public class ServiceUtilsTests extends ESTestCase {
             e.getMessage(),
             containsString("field [a] is not of the expected type. The value [5] cannot be converted to a [String]")
         );
+        assertNull(map.get("a"));
 
         e = expectThrows(ElasticsearchStatusException.class, () -> ServiceUtils.removeAsType(map, "b", Boolean.class));
         assertThat(
@@ -124,7 +125,7 @@ public class ServiceUtilsTests extends ESTestCase {
             e.getMessage(),
             containsString("field [e] is not of the expected type. The value [5] cannot be converted to a [Double]")
         );
-        assertNull(map.get("d"));
+        assertNull(map.get("e"));
 
         assertThat(map.entrySet(), empty());
     }
@@ -140,6 +141,7 @@ public class ServiceUtilsTests extends ESTestCase {
             validationException.validationErrors().get(0),
             containsString("field [a] is not of the expected type. The value [5] cannot be converted to a [String]")
         );
+        assertNull(map.get("a"));
 
         validationException = new ValidationException();
         ServiceUtils.removeAsType(map, "b", Boolean.class, validationException);
@@ -180,14 +182,14 @@ public class ServiceUtilsTests extends ESTestCase {
             validationException.validationErrors().get(0),
             containsString("field [e] is not of the expected type. The value [5] cannot be converted to a [Double]")
         );
-        assertNull(map.get("d"));
+        assertNull(map.get("e"));
 
         assertThat(map.entrySet(), empty());
     }
 
     public void testRemoveAsTypeMissingReturnsNull() {
         Map<String, Object> map = new HashMap<>(Map.of("a", 5, "b", "a string", "c", Boolean.TRUE));
-        assertNull(ServiceUtils.removeAsType(new HashMap<>(), "missing", Integer.class));
+        assertNull(ServiceUtils.removeAsType(map, "missing", Integer.class));
         assertThat(map.entrySet(), hasSize(3));
     }
 

@@ -64,7 +64,9 @@ public class DeleteDataStreamGlobalRetentionAction {
             out.writeBoolean(dryRun);
         }
 
-        public Request() {}
+        public Request() {
+            super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT);
+        }
 
         public boolean dryRun() {
             return dryRun;

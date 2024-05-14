@@ -10,7 +10,6 @@ package org.elasticsearch.transport.netty4;
 
 import org.apache.logging.log4j.Level;
 import org.elasticsearch.ESNetty4IntegTestCase;
-import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.MockLogAppender;
@@ -24,16 +23,14 @@ import java.io.IOException;
 public class ESLoggingHandlerIT extends ESNetty4IntegTestCase {
 
     private MockLogAppender appender;
-    private Releasable appenderRelease;
 
     public void setUp() throws Exception {
         super.setUp();
-        appender = new MockLogAppender();
-        appenderRelease = appender.capturing(ESLoggingHandler.class, TransportLogger.class, TcpTransport.class);
+        appender = MockLogAppender.capture(ESLoggingHandler.class, TransportLogger.class, TcpTransport.class);
     }
 
     public void tearDown() throws Exception {
-        appenderRelease.close();
+        appender.close();
         super.tearDown();
     }
 

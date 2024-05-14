@@ -371,7 +371,13 @@ public class ApiKeyService {
         }
     }
 
-    private Set<RoleDescriptor> removeUserRoleDescriptorDescriptions(Set<RoleDescriptor> userRoleDescriptors) {
+    /**
+     * This method removes description from the given user's (limited-by) role descriptors.
+     * The description field is not supported for API key role descriptors hence storing limited-by roles with descriptions
+     * would be inconsistent and require handling backwards compatibility.
+     * Hence why we have to remove them before create/update of API key roles.
+     */
+    static Set<RoleDescriptor> removeUserRoleDescriptorDescriptions(Set<RoleDescriptor> userRoleDescriptors) {
         return userRoleDescriptors.stream().map(roleDescriptor -> {
             if (roleDescriptor.hasDescription()) {
                 return new RoleDescriptor(

@@ -8,6 +8,8 @@ package org.elasticsearch.xpack.security.audit.logfile;
 
 import io.netty.channel.Channel;
 
+import com.carrotsearch.randomizedtesting.annotations.Repeat;
+
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.core.layout.PatternLayout;
@@ -3243,13 +3245,28 @@ public class LoggingAuditTrailTests extends ESTestCase {
                         {
                           "names": [
                             "logs*"
-                          ]
+                          ],
+                          "query": {
+                            "term": {
+                              "tag": 42
+                            }
+                          },
+                          "field_security": {
+                            "grant": [
+                              "*"
+                            ],
+                            "except": [
+                              "private"
+                            ]
+                          }
                         }
                       ]
                     }""",
                 "[{\"cluster\":[\"cross_cluster_search\",\"monitor_enrich\"],"
                     + "\"indices\":[{\"names\":[\"logs*\"],"
-                    + "\"privileges\":[\"read\",\"read_cross_cluster\",\"view_index_metadata\"]}],"
+                    + "\"privileges\":[\"read\",\"read_cross_cluster\",\"view_index_metadata\"],"
+                    + "\"field_security\":{\"grant\":[\"*\"],\"except\":[\"private\"]},"
+                    + "\"query\":\"{\\\"term\\\":{\\\"tag\\\":42}}\"}],"
                     + "\"applications\":[],\"run_as\":[]}]"
             ),
             new CrossClusterApiKeyAccessWithSerialization(
@@ -3275,20 +3292,7 @@ public class LoggingAuditTrailTests extends ESTestCase {
                           {
                             "names": [
                               "logs*"
-                            ],
-                            "query": {
-                              "term": {
-                                "tag": 42
-                              }
-                            },
-                            "field_security": {
-                              "grant": [
-                                "*"
-                              ],
-                              "except": [
-                                "private"
-                              ]
-                            }
+                            ]
                           }
                         ],
                         "replication": [
@@ -3301,8 +3305,7 @@ public class LoggingAuditTrailTests extends ESTestCase {
                         ]
                       }""",
                 "[{\"cluster\":[\"cross_cluster_search\",\"monitor_enrich\",\"cross_cluster_replication\"],"
-                    + "\"indices\":[{\"names\":[\"logs*\"],\"privileges\":[\"read\",\"read_cross_cluster\",\"view_index_metadata\"],"
-                    + "\"field_security\":{\"grant\":[\"*\"],\"except\":[\"private\"]},\"query\":\"{\\\"term\\\":{\\\"tag\\\":42}}\"},"
+                    + "\"indices\":[{\"names\":[\"logs*\"],\"privileges\":[\"read\",\"read_cross_cluster\",\"view_index_metadata\"]},"
                     + "{\"names\":[\"archive\"],\"privileges\":[\"cross_cluster_replication\",\"cross_cluster_replication_internal\"],"
                     + "\"allow_restricted_indices\":true}],\"applications\":[],\"run_as\":[]}]"
             )

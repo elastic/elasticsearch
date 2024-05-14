@@ -9,7 +9,6 @@
 package org.elasticsearch.action.bulk;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.TransportAction;
@@ -33,9 +32,6 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
-import java.util.concurrent.Executor;
-import java.util.function.BiFunction;
-
 public class TransportSimulateShardBulkAction extends TransportAction<BulkShardRequest, BulkShardResponse> {
 
     public static final String ACTION_NAME = SimulateBulkAction.NAME + "[s]";
@@ -48,7 +44,6 @@ public class TransportSimulateShardBulkAction extends TransportAction<BulkShardR
     private final ClusterService clusterService;
     private final IndicesService indicesService;
     private final PostWriteRefresh postWriteRefresh;
-    private final BiFunction<ExecutorSelector, IndexShard, Executor> executorFunction;
 
     @Inject
     public TransportSimulateShardBulkAction(
@@ -62,7 +57,6 @@ public class TransportSimulateShardBulkAction extends TransportAction<BulkShardR
         DocumentParsingProvider documentParsingProvider
     ) {
         super(ACTION_NAME, actionFilters, transportService.getTaskManager());
-        this.executorFunction = ExecutorSelector.getWriteExecutorForShard(threadPool);
         this.executorSelector = systemIndices.getExecutorSelector();
         this.threadPool = threadPool;
         this.clusterService = clusterService;
@@ -102,25 +96,20 @@ public class TransportSimulateShardBulkAction extends TransportAction<BulkShardR
                 }
             };
 
-        executorFunction.apply(executorSelector, primary).execute(new ActionRunnable<>(listener) {
-            @Override
-            protected void doRun() {
-                TransportShardBulkAction.dispatchedShardOperationOnPrimary(
-                    request,
-                    primary,
-                    primaryResultListener,
-                    clusterService,
-                    threadPool,
-                    updateHelper,
-                    null,
-                    postWriteRefresh,
-                    Runnable::run,
-                    documentParsingProvider,
-                    ExecutorSelector.getWriteExecutorForShard(threadPool),
-                    executorSelector
-                );
-            }
-        });
+        TransportShardBulkAction.dispatchedShardOperationOnPrimary(
+            request,
+            primary,
+            primaryResultListener,
+            clusterService,
+            threadPool,
+            updateHelper,
+            null,
+            postWriteRefresh,
+            Runnable::run,
+            documentParsingProvider,
+            ExecutorSelector.getWriteExecutorForShard(threadPool),
+            executorSelector
+        );
     }
 
     private IndexShard getPrimaryIndexShard(BulkShardRequest request) {

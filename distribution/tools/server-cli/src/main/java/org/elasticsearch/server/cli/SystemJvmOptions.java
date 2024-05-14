@@ -30,8 +30,8 @@ final class SystemJvmOptions {
         return Stream.concat(
             Stream.of(
                 /*
-                 * Cache ttl in seconds for positive DNS lookups noting that this overrides the JDK security property networkaddress.cache.ttl;
-                 * can be set to -1 to cache forever.
+                 * Cache ttl in seconds for positive DNS lookups noting that this overrides the JDK security property
+                 * networkaddress.cache.ttl can be set to -1 to cache forever.
                  */
                 "-Des.networkaddress.cache.ttl=60",
                 /*
@@ -70,8 +70,8 @@ final class SystemJvmOptions {
                  */
                 "-Djava.locale.providers=SPI,COMPAT",
                 /*
-                 * Temporarily suppress illegal reflective access in searchable snapshots shared cache preallocation; this is temporary while we
-                 * explore alternatives. See org.elasticsearch.xpack.searchablesnapshots.preallocate.Preallocate.
+                 * Temporarily suppress illegal reflective access in searchable snapshots shared cache preallocation; this is temporary
+                 * while we explore alternatives. See org.elasticsearch.xpack.searchablesnapshots.preallocate.Preallocate.
                  */
                 "--add-opens=java.base/java.io=org.elasticsearch.preallocate",
                 "--add-opens=org.apache.lucene.core/org.apache.lucene.store=org.elasticsearch.vec",

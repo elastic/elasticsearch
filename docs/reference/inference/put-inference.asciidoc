@@ -79,7 +79,7 @@ Cohere service.
 service.
 * `openai`: specify the `completion` or `text_embedding` task type to use the
 OpenAI service.
-* `azureopenai`: specify the `completion` or `text_embedding` task type to use the Azure OpenAI service.
+* `azureopenai`: specify the `text_embedding` task type to use the Azure OpenAI service.
 * `elasticsearch`: specify the `text_embedding` task type to use the E5
 built-in model or text embedding models uploaded by Eland.
 

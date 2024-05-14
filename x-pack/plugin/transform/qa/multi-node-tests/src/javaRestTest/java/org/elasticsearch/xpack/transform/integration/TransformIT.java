@@ -77,7 +77,7 @@ public class TransformIT extends TransformRestTestCase {
             {
               "persistent": {
                 "logger.org.elasticsearch.xpack.core.indexing.AsyncTwoPhaseIndexer": "debug",
-                "logger.org.elasticsearch.xpack.transform": "debug"
+                "logger.org.elasticsearch.xpack.transform": "trace"
               }
             }""");
         client().performRequest(settingsRequest);
@@ -245,19 +245,19 @@ public class TransformIT extends TransformRestTestCase {
                 putTransform(transformId, config, RequestOptions.DEFAULT);
                 assertThat(getTransformTasks(), is(empty()));
                 assertThat(getTransformTasksFromClusterState(transformId), is(empty()));
-                assertThat(getTotalRegisteredTransformCount(), is(equalTo(0)));
+                assertThat("Node stats were: " + entityAsMap(getNodeStats()), getTotalRegisteredTransformCount(), is(equalTo(0)));
 
                 startTransform(transformId, RequestOptions.DEFAULT);
                 // There is 1 transform task after start.
                 assertThat(getTransformTasks(), hasSize(1));
                 assertThat(getTransformTasksFromClusterState(transformId), hasSize(1));
-                assertThat(getTotalRegisteredTransformCount(), is(equalTo(1)));
+                assertThat("Node stats were: " + entityAsMap(getNodeStats()), getTotalRegisteredTransformCount(), is(equalTo(1)));
 
                 Thread.sleep(sleepAfterStartMillis);
                 // There should still be 1 transform task as the transform is continuous.
                 assertThat(getTransformTasks(), hasSize(1));
                 assertThat(getTransformTasksFromClusterState(transformId), hasSize(1));
-                assertThat(getTotalRegisteredTransformCount(), is(equalTo(1)));
+                assertThat("Node stats were: " + entityAsMap(getNodeStats()), getTotalRegisteredTransformCount(), is(equalTo(1)));
 
                 // Stop the transform with force set randomly.
                 stopTransform(transformId, true, null, false, force);
@@ -271,7 +271,7 @@ public class TransformIT extends TransformRestTestCase {
                 }
                 // After the transform is stopped, there should be no transform task left in the cluster state.
                 assertThat(getTransformTasksFromClusterState(transformId), is(empty()));
-                assertThat(getTotalRegisteredTransformCount(), is(equalTo(0)));
+                assertThat("Node stats were: " + entityAsMap(getNodeStats()), getTotalRegisteredTransformCount(), is(equalTo(0)));
 
                 // Delete the transform
                 deleteTransform(transformId);

@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.transform.integration;
 
-import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
@@ -53,12 +52,20 @@ public class TransformNodeStatsIT extends TransformRestTestCase {
         var nodesInfo = getNodesInfo(adminClient());
         assertThat("Nodes were: " + nodesInfo, nodesInfo.size(), is(equalTo(3)));
 
-        var response = entityAsMap(adminClient().performRequest(new Request("GET", "/_transform/_node_stats")));
+        var response = entityAsMap(getNodeStats());
         assertThat(response, hasKey("total"));
-        assertThat(XContentMapValues.extractValue(response, "total", "registered_transform_count"), is(equalTo(0)));
+        assertThat(
+            "Response was: " + response,
+            XContentMapValues.extractValue(response, "total", "registered_transform_count"),
+            is(equalTo(0))
+        );
         for (String nodeId : nodesInfo.keySet()) {
             assertThat(response, hasKey(nodeId));
-            assertThat(XContentMapValues.extractValue(response, nodeId, "registered_transform_count"), is(equalTo(0)));
+            assertThat(
+                "Response was: " + response,
+                XContentMapValues.extractValue(response, nodeId, "registered_transform_count"),
+                is(equalTo(0))
+            );
         }
     }
 

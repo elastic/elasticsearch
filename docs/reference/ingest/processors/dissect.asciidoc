@@ -128,7 +128,7 @@ Right padding modifier example
 |======
 | *Pattern* | `%{ts->} %{level}`
 | *Input*   |  1998-08-10T17:15:42,466{nbsp}{nbsp}{nbsp}{nbsp}{nbsp}{nbsp}{nbsp}{nbsp}{nbsp}{nbsp}WARN
-| *Result*  a|
+| *ParseResult*  a|
 * ts = 1998-08-10T17:15:42,466
 * level = WARN
 |======
@@ -141,7 +141,7 @@ Right padding modifier with empty key example
 |======
 | *Pattern* | `[%{ts}]%{->}[%{level}]`
 | *Input*   | [1998-08-10T17:15:42,466]{nbsp}{nbsp}{nbsp}{nbsp}{nbsp}{nbsp}{nbsp}{nbsp}{nbsp}{nbsp}{nbsp}{nbsp}[WARN]
-| *Result*  a|
+| *ParseResult*  a|
 * ts = 1998-08-10T17:15:42,466
 * level = WARN
 |======
@@ -159,7 +159,7 @@ Append modifier example
 |======
 | *Pattern* | `%{+name} %{+name} %{+name} %{+name}`
 | *Input*   | john jacob jingleheimer schmidt
-| *Result*  a|
+| *ParseResult*  a|
 * name = john jacob jingleheimer schmidt
 |======
 
@@ -177,7 +177,7 @@ Append with order modifier example
 |======
 | *Pattern* | `%{+name/2} %{+name/4} %{+name/3} %{+name/1}`
 | *Input*   | john jacob jingleheimer schmidt
-| *Result*  a|
+| *ParseResult*  a|
 * name = schmidt,john,jingleheimer,jacob
 |======
 
@@ -193,7 +193,7 @@ Named skip key modifier example
 |======
 | *Pattern* | `%{clientip} %{?ident} %{?auth} [%{@timestamp}]`
 | *Input*   | 1.2.3.4 - - [30/Apr/1998:22:00:52 +0000]
-| *Result*  a|
+| *ParseResult*  a|
 * clientip = 1.2.3.4
 * @timestamp = 30/Apr/1998:22:00:52 +0000
 |======
@@ -209,7 +209,7 @@ Reference key modifier example
 |======
 | *Pattern* | `[%{ts}] [%{level}] %{*p1}:%{&p1} %{*p2}:%{&p2}`
 | *Input*   | [2018-08-10T17:15:42,466] [ERR] ip:1.2.3.4 error:REFUSED
-| *Result*  a|
+| *ParseResult*  a|
 * ts = 2018-08-10T17:15:42,466
 * level = ERR
 * ip = 1.2.3.4

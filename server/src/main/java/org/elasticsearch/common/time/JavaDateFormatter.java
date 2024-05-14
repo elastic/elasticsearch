@@ -206,13 +206,15 @@ class JavaDateFormatter implements DateFormatter {
      */
     private static TemporalAccessor doParse(String input, DateTimeParser[] parsers) {
         if (parsers.length > 1) {
+            int earliestError = Integer.MAX_VALUE;
             for (DateTimeParser formatter : parsers) {
-                var result = formatter.tryParse(input);
-                if (result.isPresent()) {
-                    return result.get();
+                ParseResult result = formatter.tryParse(input);
+                if (result.result() != null) {
+                    return result.result();
                 }
+                earliestError = Math.min(earliestError, result.errorIndex());
             }
-            throw new DateTimeParseException("Failed to parse with all enclosed parsers", input, 0);
+            throw new DateTimeParseException("Failed to parse with all enclosed parsers", input, earliestError);
         }
         return parsers[0].parse(input);
     }

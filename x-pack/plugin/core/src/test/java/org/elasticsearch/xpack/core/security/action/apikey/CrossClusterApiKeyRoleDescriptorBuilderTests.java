@@ -51,6 +51,60 @@ public class CrossClusterApiKeyRoleDescriptorBuilderTests extends ESTestCase {
         );
     }
 
+    public void testBuildForSearchWithDls() throws IOException {
+        final CrossClusterApiKeyRoleDescriptorBuilder access = parseForAccess("""
+            {
+              "search": [
+                {
+                  "names": ["metrics"],
+                  "query": {"term":{"tag":42}}
+                }
+              ]
+            }""");
+
+        final RoleDescriptor roleDescriptor = access.build();
+
+        assertRoleDescriptor(
+            roleDescriptor,
+            new String[] { "cross_cluster_search", "monitor_enrich" },
+            new RoleDescriptor.IndicesPrivileges[] {
+                RoleDescriptor.IndicesPrivileges.builder()
+                    .indices("metrics")
+                    .privileges("read", "read_cross_cluster", "view_index_metadata")
+                    .query("{\"term\":{\"tag\":42}}")
+                    .build() }
+        );
+    }
+
+    public void testBuildForSearchWithFls() throws IOException {
+        final CrossClusterApiKeyRoleDescriptorBuilder access = parseForAccess("""
+            {
+              "search": [
+                {
+                  "names": ["metrics"],
+                  "field_security": {
+                    "grant": ["*"],
+                    "except": ["private"]
+                  }
+                }
+              ]
+            }""");
+
+        final RoleDescriptor roleDescriptor = access.build();
+
+        assertRoleDescriptor(
+            roleDescriptor,
+            new String[] { "cross_cluster_search", "monitor_enrich" },
+            new RoleDescriptor.IndicesPrivileges[] {
+                RoleDescriptor.IndicesPrivileges.builder()
+                    .indices("metrics")
+                    .privileges("read", "read_cross_cluster", "view_index_metadata")
+                    .grantedFields("*")
+                    .deniedFields("private")
+                    .build() }
+        );
+    }
+
     public void testBuildForReplicationOnly() throws IOException {
         final CrossClusterApiKeyRoleDescriptorBuilder access = parseForAccess("""
             {
@@ -79,15 +133,10 @@ public class CrossClusterApiKeyRoleDescriptorBuilderTests extends ESTestCase {
             {
               "search": [
                 {
-                  "names": ["metrics"],
-                  "query": {"term":{"tag":42}}
+                  "names": ["metrics"]
                 },
                 {
-                  "names": ["logs"],
-                  "field_security": {
-                    "grant": ["*"],
-                    "except": ["private"]
-                  }
+                  "names": ["logs"]
                 }
               ],
               "replication": [
@@ -107,13 +156,10 @@ public class CrossClusterApiKeyRoleDescriptorBuilderTests extends ESTestCase {
                 RoleDescriptor.IndicesPrivileges.builder()
                     .indices("metrics")
                     .privileges("read", "read_cross_cluster", "view_index_metadata")
-                    .query("{\"term\":{\"tag\":42}}")
                     .build(),
                 RoleDescriptor.IndicesPrivileges.builder()
                     .indices("logs")
                     .privileges("read", "read_cross_cluster", "view_index_metadata")
-                    .grantedFields("*")
-                    .deniedFields("private")
                     .build(),
                 RoleDescriptor.IndicesPrivileges.builder()
                     .indices("archive")
@@ -156,7 +202,7 @@ public class CrossClusterApiKeyRoleDescriptorBuilderTests extends ESTestCase {
         assertThat(e2.getMessage(), containsString("doesn't support values of type: VALUE_NULL"));
     }
 
-    public void testAPIKeyAllowsAllRemoteClusterPrivilegesForCCS() throws IOException {
+    public void testAPIKeyAllowsAllRemoteClusterPrivilegesForCCS() {
         // if users can add remote cluster permissions to a role, then the APIKey should also allow that for that permission
         // the inverse however, is not guaranteed. cross_cluster_search exists largely for internal use and is not exposed to the users role
         assertTrue(Set.of(CCS_CLUSTER_PRIVILEGE_NAMES).containsAll(RemoteClusterPermissions.getSupportedRemoteClusterPermissions()));

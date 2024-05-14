@@ -1381,6 +1381,39 @@ public class ApiKeyRestIT extends SecurityOnTrialLicenseRestTestCase {
             }""", "replication does not support document or field level security");
     }
 
+    public void testCrossClusterApiKeyDoesNotAllowDlsFlsForSearchWhenReplicationAssigned() throws IOException {
+        assertBadCreateCrossClusterApiKeyRequest("""
+            {
+              "name": "key",
+              "access": {
+                "search": [ {"names": ["logs"], "query":{"term": {"tag": 42}}} ],
+                "replication": [ {"names": ["logs"]} ]
+              }
+            }""", "search does not support document or field level security if replication is assigned");
+
+        assertBadCreateCrossClusterApiKeyRequest("""
+            {
+              "name": "key",
+              "access": {
+                "search": [ {"names": ["logs"], "field_security": {"grant": ["*"], "except": ["private"]}} ],
+                "replication": [ {"names": ["logs"]} ]
+              }
+            }""", "search does not support document or field level security if replication is assigned");
+
+        assertBadCreateCrossClusterApiKeyRequest("""
+            {
+              "name": "key",
+              "access": {
+                "search": [ {
+                  "names": ["logs"],
+                  "query": {"term": {"tag": 42}},
+                  "field_security": {"grant": ["*"], "except": ["private"]}
+                 } ],
+                 "replication": [ {"names": ["logs"]} ]
+              }
+            }""", "search does not support document or field level security if replication is assigned");
+    }
+
     public void testCrossClusterApiKeyRequiresName() throws IOException {
         assertBadCreateCrossClusterApiKeyRequest("""
             {

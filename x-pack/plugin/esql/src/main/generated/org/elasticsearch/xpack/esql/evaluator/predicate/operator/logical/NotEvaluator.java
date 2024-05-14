@@ -29,10 +29,10 @@ public final class NotEvaluator implements EvalOperator.ExpressionEvaluator {
   private final DriverContext driverContext;
 
   public NotEvaluator(Source source, EvalOperator.ExpressionEvaluator v,
-      DriverContext driverContext) {
-    this.warnings = new Warnings(source);
+      DriverContext driverContext, Warnings warnings) {
     this.v = v;
     this.driverContext = driverContext;
+    this.warnings = warnings;
   }
 
   @Override
@@ -97,7 +97,7 @@ public final class NotEvaluator implements EvalOperator.ExpressionEvaluator {
 
     @Override
     public NotEvaluator get(DriverContext context) {
-      return new NotEvaluator(source, v.get(context), context);
+      return new NotEvaluator(source, v.get(context), context, new Warnings(source));
     }
 
     @Override

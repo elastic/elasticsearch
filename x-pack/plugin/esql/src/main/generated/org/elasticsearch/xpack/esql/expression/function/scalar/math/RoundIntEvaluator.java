@@ -33,11 +33,11 @@ public final class RoundIntEvaluator implements EvalOperator.ExpressionEvaluator
   private final DriverContext driverContext;
 
   public RoundIntEvaluator(Source source, EvalOperator.ExpressionEvaluator val,
-      EvalOperator.ExpressionEvaluator decimals, DriverContext driverContext) {
-    this.warnings = new Warnings(source);
+      EvalOperator.ExpressionEvaluator decimals, DriverContext driverContext, Warnings warnings) {
     this.val = val;
     this.decimals = decimals;
     this.driverContext = driverContext;
+    this.warnings = warnings;
   }
 
   @Override
@@ -123,7 +123,7 @@ public final class RoundIntEvaluator implements EvalOperator.ExpressionEvaluator
 
     @Override
     public RoundIntEvaluator get(DriverContext context) {
-      return new RoundIntEvaluator(source, val.get(context), decimals.get(context), context);
+      return new RoundIntEvaluator(source, val.get(context), decimals.get(context), context, new Warnings(source));
     }
 
     @Override

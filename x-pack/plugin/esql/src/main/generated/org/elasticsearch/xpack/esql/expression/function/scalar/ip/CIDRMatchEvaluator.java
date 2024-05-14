@@ -36,11 +36,11 @@ public final class CIDRMatchEvaluator implements EvalOperator.ExpressionEvaluato
   private final DriverContext driverContext;
 
   public CIDRMatchEvaluator(Source source, EvalOperator.ExpressionEvaluator ip,
-      EvalOperator.ExpressionEvaluator[] cidrs, DriverContext driverContext) {
-    this.warnings = new Warnings(source);
+      EvalOperator.ExpressionEvaluator[] cidrs, DriverContext driverContext, Warnings warnings) {
     this.ip = ip;
     this.cidrs = cidrs;
     this.driverContext = driverContext;
+    this.warnings = warnings;
   }
 
   @Override
@@ -158,7 +158,7 @@ public final class CIDRMatchEvaluator implements EvalOperator.ExpressionEvaluato
     @Override
     public CIDRMatchEvaluator get(DriverContext context) {
       EvalOperator.ExpressionEvaluator[] cidrs = Arrays.stream(this.cidrs).map(a -> a.get(context)).toArray(EvalOperator.ExpressionEvaluator[]::new);
-      return new CIDRMatchEvaluator(source, ip.get(context), cidrs, context);
+      return new CIDRMatchEvaluator(source, ip.get(context), cidrs, context, new Warnings(source));
     }
 
     @Override

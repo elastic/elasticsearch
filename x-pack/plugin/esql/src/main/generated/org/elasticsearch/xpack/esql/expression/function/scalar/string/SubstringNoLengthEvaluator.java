@@ -34,11 +34,11 @@ public final class SubstringNoLengthEvaluator implements EvalOperator.Expression
   private final DriverContext driverContext;
 
   public SubstringNoLengthEvaluator(Source source, EvalOperator.ExpressionEvaluator str,
-      EvalOperator.ExpressionEvaluator start, DriverContext driverContext) {
-    this.warnings = new Warnings(source);
+      EvalOperator.ExpressionEvaluator start, DriverContext driverContext, Warnings warnings) {
     this.str = str;
     this.start = start;
     this.driverContext = driverContext;
+    this.warnings = warnings;
   }
 
   @Override
@@ -126,7 +126,7 @@ public final class SubstringNoLengthEvaluator implements EvalOperator.Expression
 
     @Override
     public SubstringNoLengthEvaluator get(DriverContext context) {
-      return new SubstringNoLengthEvaluator(source, str.get(context), start.get(context), context);
+      return new SubstringNoLengthEvaluator(source, str.get(context), start.get(context), context, new Warnings(source));
     }
 
     @Override

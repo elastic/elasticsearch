@@ -32,10 +32,10 @@ public final class GreatestBytesRefEvaluator implements EvalOperator.ExpressionE
   private final DriverContext driverContext;
 
   public GreatestBytesRefEvaluator(Source source, EvalOperator.ExpressionEvaluator[] values,
-      DriverContext driverContext) {
-    this.warnings = new Warnings(source);
+      DriverContext driverContext, Warnings warnings) {
     this.values = values;
     this.driverContext = driverContext;
+    this.warnings = warnings;
   }
 
   @Override
@@ -129,7 +129,7 @@ public final class GreatestBytesRefEvaluator implements EvalOperator.ExpressionE
     @Override
     public GreatestBytesRefEvaluator get(DriverContext context) {
       EvalOperator.ExpressionEvaluator[] values = Arrays.stream(this.values).map(a -> a.get(context)).toArray(EvalOperator.ExpressionEvaluator[]::new);
-      return new GreatestBytesRefEvaluator(source, values, context);
+      return new GreatestBytesRefEvaluator(source, values, context, new Warnings(source));
     }
 
     @Override

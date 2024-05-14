@@ -33,11 +33,11 @@ public final class EqualsDoublesEvaluator implements EvalOperator.ExpressionEval
   private final DriverContext driverContext;
 
   public EqualsDoublesEvaluator(Source source, EvalOperator.ExpressionEvaluator lhs,
-      EvalOperator.ExpressionEvaluator rhs, DriverContext driverContext) {
-    this.warnings = new Warnings(source);
+      EvalOperator.ExpressionEvaluator rhs, DriverContext driverContext, Warnings warnings) {
     this.lhs = lhs;
     this.rhs = rhs;
     this.driverContext = driverContext;
+    this.warnings = warnings;
   }
 
   @Override
@@ -123,7 +123,7 @@ public final class EqualsDoublesEvaluator implements EvalOperator.ExpressionEval
 
     @Override
     public EqualsDoublesEvaluator get(DriverContext context) {
-      return new EqualsDoublesEvaluator(source, lhs.get(context), rhs.get(context), context);
+      return new EqualsDoublesEvaluator(source, lhs.get(context), rhs.get(context), context, new Warnings(source));
     }
 
     @Override

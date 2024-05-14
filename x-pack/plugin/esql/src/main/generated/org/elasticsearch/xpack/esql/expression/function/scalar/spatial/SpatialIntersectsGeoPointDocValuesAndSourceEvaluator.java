@@ -36,11 +36,11 @@ public final class SpatialIntersectsGeoPointDocValuesAndSourceEvaluator implemen
 
   public SpatialIntersectsGeoPointDocValuesAndSourceEvaluator(Source source,
       EvalOperator.ExpressionEvaluator leftValue, EvalOperator.ExpressionEvaluator rightValue,
-      DriverContext driverContext) {
-    this.warnings = new Warnings(source);
+      DriverContext driverContext, Warnings warnings) {
     this.leftValue = leftValue;
     this.rightValue = rightValue;
     this.driverContext = driverContext;
+    this.warnings = warnings;
   }
 
   @Override
@@ -140,7 +140,7 @@ public final class SpatialIntersectsGeoPointDocValuesAndSourceEvaluator implemen
 
     @Override
     public SpatialIntersectsGeoPointDocValuesAndSourceEvaluator get(DriverContext context) {
-      return new SpatialIntersectsGeoPointDocValuesAndSourceEvaluator(source, leftValue.get(context), rightValue.get(context), context);
+      return new SpatialIntersectsGeoPointDocValuesAndSourceEvaluator(source, leftValue.get(context), rightValue.get(context), context, new Warnings(source));
     }
 
     @Override

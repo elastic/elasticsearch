@@ -36,11 +36,11 @@ public final class SpatialDisjointCartesianSourceAndConstantEvaluator implements
 
   public SpatialDisjointCartesianSourceAndConstantEvaluator(Source source,
       EvalOperator.ExpressionEvaluator leftValue, Component2D rightValue,
-      DriverContext driverContext) {
-    this.warnings = new Warnings(source);
+      DriverContext driverContext, Warnings warnings) {
     this.leftValue = leftValue;
     this.rightValue = rightValue;
     this.driverContext = driverContext;
+    this.warnings = warnings;
   }
 
   @Override
@@ -121,7 +121,7 @@ public final class SpatialDisjointCartesianSourceAndConstantEvaluator implements
 
     @Override
     public SpatialDisjointCartesianSourceAndConstantEvaluator get(DriverContext context) {
-      return new SpatialDisjointCartesianSourceAndConstantEvaluator(source, leftValue.get(context), rightValue, context);
+      return new SpatialDisjointCartesianSourceAndConstantEvaluator(source, leftValue.get(context), rightValue, context, new Warnings(source));
     }
 
     @Override

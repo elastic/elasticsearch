@@ -35,12 +35,12 @@ public final class SplitSingleByteEvaluator implements EvalOperator.ExpressionEv
   private final DriverContext driverContext;
 
   public SplitSingleByteEvaluator(Source source, EvalOperator.ExpressionEvaluator str, byte delim,
-      BytesRef scratch, DriverContext driverContext) {
-    this.warnings = new Warnings(source);
+      BytesRef scratch, DriverContext driverContext, Warnings warnings) {
     this.str = str;
     this.delim = delim;
     this.scratch = scratch;
     this.driverContext = driverContext;
+    this.warnings = warnings;
   }
 
   @Override
@@ -114,7 +114,7 @@ public final class SplitSingleByteEvaluator implements EvalOperator.ExpressionEv
 
     @Override
     public SplitSingleByteEvaluator get(DriverContext context) {
-      return new SplitSingleByteEvaluator(source, str.get(context), delim, scratch.apply(context), context);
+      return new SplitSingleByteEvaluator(source, str.get(context), delim, scratch.apply(context), context, new Warnings(source));
     }
 
     @Override

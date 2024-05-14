@@ -35,11 +35,11 @@ public final class SpatialIntersectsGeoSourceAndSourceEvaluator implements EvalO
 
   public SpatialIntersectsGeoSourceAndSourceEvaluator(Source source,
       EvalOperator.ExpressionEvaluator leftValue, EvalOperator.ExpressionEvaluator rightValue,
-      DriverContext driverContext) {
-    this.warnings = new Warnings(source);
+      DriverContext driverContext, Warnings warnings) {
     this.leftValue = leftValue;
     this.rightValue = rightValue;
     this.driverContext = driverContext;
+    this.warnings = warnings;
   }
 
   @Override
@@ -141,7 +141,7 @@ public final class SpatialIntersectsGeoSourceAndSourceEvaluator implements EvalO
 
     @Override
     public SpatialIntersectsGeoSourceAndSourceEvaluator get(DriverContext context) {
-      return new SpatialIntersectsGeoSourceAndSourceEvaluator(source, leftValue.get(context), rightValue.get(context), context);
+      return new SpatialIntersectsGeoSourceAndSourceEvaluator(source, leftValue.get(context), rightValue.get(context), context, new Warnings(source));
     }
 
     @Override

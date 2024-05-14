@@ -36,11 +36,11 @@ public final class SpatialWithinGeoPointDocValuesAndSourceEvaluator implements E
 
   public SpatialWithinGeoPointDocValuesAndSourceEvaluator(Source source,
       EvalOperator.ExpressionEvaluator leftValue, EvalOperator.ExpressionEvaluator rightValue,
-      DriverContext driverContext) {
-    this.warnings = new Warnings(source);
+      DriverContext driverContext, Warnings warnings) {
     this.leftValue = leftValue;
     this.rightValue = rightValue;
     this.driverContext = driverContext;
+    this.warnings = warnings;
   }
 
   @Override
@@ -140,7 +140,7 @@ public final class SpatialWithinGeoPointDocValuesAndSourceEvaluator implements E
 
     @Override
     public SpatialWithinGeoPointDocValuesAndSourceEvaluator get(DriverContext context) {
-      return new SpatialWithinGeoPointDocValuesAndSourceEvaluator(source, leftValue.get(context), rightValue.get(context), context);
+      return new SpatialWithinGeoPointDocValuesAndSourceEvaluator(source, leftValue.get(context), rightValue.get(context), context, new Warnings(source));
     }
 
     @Override

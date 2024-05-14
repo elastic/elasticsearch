@@ -29,10 +29,10 @@ public final class FloorDoubleEvaluator implements EvalOperator.ExpressionEvalua
   private final DriverContext driverContext;
 
   public FloorDoubleEvaluator(Source source, EvalOperator.ExpressionEvaluator val,
-      DriverContext driverContext) {
-    this.warnings = new Warnings(source);
+      DriverContext driverContext, Warnings warnings) {
     this.val = val;
     this.driverContext = driverContext;
+    this.warnings = warnings;
   }
 
   @Override
@@ -97,7 +97,7 @@ public final class FloorDoubleEvaluator implements EvalOperator.ExpressionEvalua
 
     @Override
     public FloorDoubleEvaluator get(DriverContext context) {
-      return new FloorDoubleEvaluator(source, val.get(context), context);
+      return new FloorDoubleEvaluator(source, val.get(context), context, new Warnings(source));
     }
 
     @Override

@@ -31,10 +31,10 @@ public final class SqrtLongEvaluator implements EvalOperator.ExpressionEvaluator
   private final DriverContext driverContext;
 
   public SqrtLongEvaluator(Source source, EvalOperator.ExpressionEvaluator val,
-      DriverContext driverContext) {
-    this.warnings = new Warnings(source);
+      DriverContext driverContext, Warnings warnings) {
     this.val = val;
     this.driverContext = driverContext;
+    this.warnings = warnings;
   }
 
   @Override
@@ -109,7 +109,7 @@ public final class SqrtLongEvaluator implements EvalOperator.ExpressionEvaluator
 
     @Override
     public SqrtLongEvaluator get(DriverContext context) {
-      return new SqrtLongEvaluator(source, val.get(context), context);
+      return new SqrtLongEvaluator(source, val.get(context), context, new Warnings(source));
     }
 
     @Override

@@ -32,10 +32,10 @@ public final class LeastBytesRefEvaluator implements EvalOperator.ExpressionEval
   private final DriverContext driverContext;
 
   public LeastBytesRefEvaluator(Source source, EvalOperator.ExpressionEvaluator[] values,
-      DriverContext driverContext) {
-    this.warnings = new Warnings(source);
+      DriverContext driverContext, Warnings warnings) {
     this.values = values;
     this.driverContext = driverContext;
+    this.warnings = warnings;
   }
 
   @Override
@@ -129,7 +129,7 @@ public final class LeastBytesRefEvaluator implements EvalOperator.ExpressionEval
     @Override
     public LeastBytesRefEvaluator get(DriverContext context) {
       EvalOperator.ExpressionEvaluator[] values = Arrays.stream(this.values).map(a -> a.get(context)).toArray(EvalOperator.ExpressionEvaluator[]::new);
-      return new LeastBytesRefEvaluator(source, values, context);
+      return new LeastBytesRefEvaluator(source, values, context, new Warnings(source));
     }
 
     @Override

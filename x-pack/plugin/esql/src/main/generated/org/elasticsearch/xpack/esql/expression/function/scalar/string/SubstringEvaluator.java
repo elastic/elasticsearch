@@ -37,12 +37,12 @@ public final class SubstringEvaluator implements EvalOperator.ExpressionEvaluato
 
   public SubstringEvaluator(Source source, EvalOperator.ExpressionEvaluator str,
       EvalOperator.ExpressionEvaluator start, EvalOperator.ExpressionEvaluator length,
-      DriverContext driverContext) {
-    this.warnings = new Warnings(source);
+      DriverContext driverContext, Warnings warnings) {
     this.str = str;
     this.start = start;
     this.length = length;
     this.driverContext = driverContext;
+    this.warnings = warnings;
   }
 
   @Override
@@ -153,7 +153,7 @@ public final class SubstringEvaluator implements EvalOperator.ExpressionEvaluato
 
     @Override
     public SubstringEvaluator get(DriverContext context) {
-      return new SubstringEvaluator(source, str.get(context), start.get(context), length.get(context), context);
+      return new SubstringEvaluator(source, str.get(context), start.get(context), length.get(context), context, new Warnings(source));
     }
 
     @Override

@@ -35,12 +35,12 @@ public final class MvSliceDoubleEvaluator implements EvalOperator.ExpressionEval
 
   public MvSliceDoubleEvaluator(Source source, EvalOperator.ExpressionEvaluator field,
       EvalOperator.ExpressionEvaluator start, EvalOperator.ExpressionEvaluator end,
-      DriverContext driverContext) {
-    this.warnings = new Warnings(source);
+      DriverContext driverContext, Warnings warnings) {
     this.field = field;
     this.start = start;
     this.end = end;
     this.driverContext = driverContext;
+    this.warnings = warnings;
   }
 
   @Override
@@ -129,7 +129,7 @@ public final class MvSliceDoubleEvaluator implements EvalOperator.ExpressionEval
 
     @Override
     public MvSliceDoubleEvaluator get(DriverContext context) {
-      return new MvSliceDoubleEvaluator(source, field.get(context), start.get(context), end.get(context), context);
+      return new MvSliceDoubleEvaluator(source, field.get(context), start.get(context), end.get(context), context, new Warnings(source));
     }
 
     @Override

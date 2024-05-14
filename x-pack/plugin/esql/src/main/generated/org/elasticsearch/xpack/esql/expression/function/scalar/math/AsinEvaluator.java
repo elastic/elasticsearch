@@ -30,10 +30,10 @@ public final class AsinEvaluator implements EvalOperator.ExpressionEvaluator {
   private final DriverContext driverContext;
 
   public AsinEvaluator(Source source, EvalOperator.ExpressionEvaluator val,
-      DriverContext driverContext) {
-    this.warnings = new Warnings(source);
+      DriverContext driverContext, Warnings warnings) {
     this.val = val;
     this.driverContext = driverContext;
+    this.warnings = warnings;
   }
 
   @Override
@@ -108,7 +108,7 @@ public final class AsinEvaluator implements EvalOperator.ExpressionEvaluator {
 
     @Override
     public AsinEvaluator get(DriverContext context) {
-      return new AsinEvaluator(source, val.get(context), context);
+      return new AsinEvaluator(source, val.get(context), context, new Warnings(source));
     }
 
     @Override

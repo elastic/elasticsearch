@@ -36,12 +36,13 @@ public final class DateParseEvaluator implements EvalOperator.ExpressionEvaluato
   private final DriverContext driverContext;
 
   public DateParseEvaluator(Source source, EvalOperator.ExpressionEvaluator val,
-      EvalOperator.ExpressionEvaluator formatter, ZoneId zoneId, DriverContext driverContext) {
-    this.warnings = new Warnings(source);
+      EvalOperator.ExpressionEvaluator formatter, ZoneId zoneId, DriverContext driverContext,
+      Warnings warnings) {
     this.val = val;
     this.formatter = formatter;
     this.zoneId = zoneId;
     this.driverContext = driverContext;
+    this.warnings = warnings;
   }
 
   @Override
@@ -145,7 +146,7 @@ public final class DateParseEvaluator implements EvalOperator.ExpressionEvaluato
 
     @Override
     public DateParseEvaluator get(DriverContext context) {
-      return new DateParseEvaluator(source, val.get(context), formatter.get(context), zoneId, context);
+      return new DateParseEvaluator(source, val.get(context), formatter.get(context), zoneId, context, new Warnings(source));
     }
 
     @Override

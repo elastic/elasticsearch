@@ -31,10 +31,10 @@ public final class SqrtUnsignedLongEvaluator implements EvalOperator.ExpressionE
   private final DriverContext driverContext;
 
   public SqrtUnsignedLongEvaluator(Source source, EvalOperator.ExpressionEvaluator val,
-      DriverContext driverContext) {
-    this.warnings = new Warnings(source);
+      DriverContext driverContext, Warnings warnings) {
     this.val = val;
     this.driverContext = driverContext;
+    this.warnings = warnings;
   }
 
   @Override
@@ -99,7 +99,7 @@ public final class SqrtUnsignedLongEvaluator implements EvalOperator.ExpressionE
 
     @Override
     public SqrtUnsignedLongEvaluator get(DriverContext context) {
-      return new SqrtUnsignedLongEvaluator(source, val.get(context), context);
+      return new SqrtUnsignedLongEvaluator(source, val.get(context), context, new Warnings(source));
     }
 
     @Override

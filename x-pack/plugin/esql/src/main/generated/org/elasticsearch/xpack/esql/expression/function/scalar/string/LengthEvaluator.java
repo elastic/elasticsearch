@@ -32,10 +32,10 @@ public final class LengthEvaluator implements EvalOperator.ExpressionEvaluator {
   private final DriverContext driverContext;
 
   public LengthEvaluator(Source source, EvalOperator.ExpressionEvaluator val,
-      DriverContext driverContext) {
-    this.warnings = new Warnings(source);
+      DriverContext driverContext, Warnings warnings) {
     this.val = val;
     this.driverContext = driverContext;
+    this.warnings = warnings;
   }
 
   @Override
@@ -102,7 +102,7 @@ public final class LengthEvaluator implements EvalOperator.ExpressionEvaluator {
 
     @Override
     public LengthEvaluator get(DriverContext context) {
-      return new LengthEvaluator(source, val.get(context), context);
+      return new LengthEvaluator(source, val.get(context), context, new Warnings(source));
     }
 
     @Override

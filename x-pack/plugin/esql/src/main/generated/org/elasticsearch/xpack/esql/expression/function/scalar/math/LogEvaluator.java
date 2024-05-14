@@ -32,11 +32,11 @@ public final class LogEvaluator implements EvalOperator.ExpressionEvaluator {
   private final DriverContext driverContext;
 
   public LogEvaluator(Source source, EvalOperator.ExpressionEvaluator base,
-      EvalOperator.ExpressionEvaluator value, DriverContext driverContext) {
-    this.warnings = new Warnings(source);
+      EvalOperator.ExpressionEvaluator value, DriverContext driverContext, Warnings warnings) {
     this.base = base;
     this.value = value;
     this.driverContext = driverContext;
+    this.warnings = warnings;
   }
 
   @Override
@@ -132,7 +132,7 @@ public final class LogEvaluator implements EvalOperator.ExpressionEvaluator {
 
     @Override
     public LogEvaluator get(DriverContext context) {
-      return new LogEvaluator(source, base.get(context), value.get(context), context);
+      return new LogEvaluator(source, base.get(context), value.get(context), context, new Warnings(source));
     }
 
     @Override

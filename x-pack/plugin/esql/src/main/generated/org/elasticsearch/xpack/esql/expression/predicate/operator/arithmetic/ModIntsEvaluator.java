@@ -32,11 +32,11 @@ public final class ModIntsEvaluator implements EvalOperator.ExpressionEvaluator 
   private final DriverContext driverContext;
 
   public ModIntsEvaluator(Source source, EvalOperator.ExpressionEvaluator lhs,
-      EvalOperator.ExpressionEvaluator rhs, DriverContext driverContext) {
-    this.warnings = new Warnings(source);
+      EvalOperator.ExpressionEvaluator rhs, DriverContext driverContext, Warnings warnings) {
     this.lhs = lhs;
     this.rhs = rhs;
     this.driverContext = driverContext;
+    this.warnings = warnings;
   }
 
   @Override
@@ -132,7 +132,7 @@ public final class ModIntsEvaluator implements EvalOperator.ExpressionEvaluator 
 
     @Override
     public ModIntsEvaluator get(DriverContext context) {
-      return new ModIntsEvaluator(source, lhs.get(context), rhs.get(context), context);
+      return new ModIntsEvaluator(source, lhs.get(context), rhs.get(context), context, new Warnings(source));
     }
 
     @Override

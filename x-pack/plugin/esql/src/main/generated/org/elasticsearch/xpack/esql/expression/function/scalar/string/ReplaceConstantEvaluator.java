@@ -36,12 +36,13 @@ public final class ReplaceConstantEvaluator implements EvalOperator.ExpressionEv
   private final DriverContext driverContext;
 
   public ReplaceConstantEvaluator(Source source, EvalOperator.ExpressionEvaluator str,
-      Pattern regex, EvalOperator.ExpressionEvaluator newStr, DriverContext driverContext) {
-    this.warnings = new Warnings(source);
+      Pattern regex, EvalOperator.ExpressionEvaluator newStr, DriverContext driverContext,
+      Warnings warnings) {
     this.str = str;
     this.regex = regex;
     this.newStr = newStr;
     this.driverContext = driverContext;
+    this.warnings = warnings;
   }
 
   @Override
@@ -145,7 +146,7 @@ public final class ReplaceConstantEvaluator implements EvalOperator.ExpressionEv
 
     @Override
     public ReplaceConstantEvaluator get(DriverContext context) {
-      return new ReplaceConstantEvaluator(source, str.get(context), regex, newStr.get(context), context);
+      return new ReplaceConstantEvaluator(source, str.get(context), regex, newStr.get(context), context, new Warnings(source));
     }
 
     @Override

@@ -30,10 +30,10 @@ public final class NegLongsEvaluator implements EvalOperator.ExpressionEvaluator
   private final DriverContext driverContext;
 
   public NegLongsEvaluator(Source source, EvalOperator.ExpressionEvaluator v,
-      DriverContext driverContext) {
-    this.warnings = new Warnings(source);
+      DriverContext driverContext, Warnings warnings) {
     this.v = v;
     this.driverContext = driverContext;
+    this.warnings = warnings;
   }
 
   @Override
@@ -108,7 +108,7 @@ public final class NegLongsEvaluator implements EvalOperator.ExpressionEvaluator
 
     @Override
     public NegLongsEvaluator get(DriverContext context) {
-      return new NegLongsEvaluator(source, v.get(context), context);
+      return new NegLongsEvaluator(source, v.get(context), context, new Warnings(source));
     }
 
     @Override

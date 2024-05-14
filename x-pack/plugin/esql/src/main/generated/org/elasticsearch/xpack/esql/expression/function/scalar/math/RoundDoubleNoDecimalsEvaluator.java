@@ -29,10 +29,10 @@ public final class RoundDoubleNoDecimalsEvaluator implements EvalOperator.Expres
   private final DriverContext driverContext;
 
   public RoundDoubleNoDecimalsEvaluator(Source source, EvalOperator.ExpressionEvaluator val,
-      DriverContext driverContext) {
-    this.warnings = new Warnings(source);
+      DriverContext driverContext, Warnings warnings) {
     this.val = val;
     this.driverContext = driverContext;
+    this.warnings = warnings;
   }
 
   @Override
@@ -97,7 +97,7 @@ public final class RoundDoubleNoDecimalsEvaluator implements EvalOperator.Expres
 
     @Override
     public RoundDoubleNoDecimalsEvaluator get(DriverContext context) {
-      return new RoundDoubleNoDecimalsEvaluator(source, val.get(context), context);
+      return new RoundDoubleNoDecimalsEvaluator(source, val.get(context), context, new Warnings(source));
     }
 
     @Override

@@ -34,11 +34,11 @@ public final class StartsWithEvaluator implements EvalOperator.ExpressionEvaluat
   private final DriverContext driverContext;
 
   public StartsWithEvaluator(Source source, EvalOperator.ExpressionEvaluator str,
-      EvalOperator.ExpressionEvaluator prefix, DriverContext driverContext) {
-    this.warnings = new Warnings(source);
+      EvalOperator.ExpressionEvaluator prefix, DriverContext driverContext, Warnings warnings) {
     this.str = str;
     this.prefix = prefix;
     this.driverContext = driverContext;
+    this.warnings = warnings;
   }
 
   @Override
@@ -129,7 +129,7 @@ public final class StartsWithEvaluator implements EvalOperator.ExpressionEvaluat
 
     @Override
     public StartsWithEvaluator get(DriverContext context) {
-      return new StartsWithEvaluator(source, str.get(context), prefix.get(context), context);
+      return new StartsWithEvaluator(source, str.get(context), prefix.get(context), context, new Warnings(source));
     }
 
     @Override

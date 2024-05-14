@@ -36,12 +36,12 @@ public final class ReplaceEvaluator implements EvalOperator.ExpressionEvaluator 
 
   public ReplaceEvaluator(Source source, EvalOperator.ExpressionEvaluator str,
       EvalOperator.ExpressionEvaluator regex, EvalOperator.ExpressionEvaluator newStr,
-      DriverContext driverContext) {
-    this.warnings = new Warnings(source);
+      DriverContext driverContext, Warnings warnings) {
     this.str = str;
     this.regex = regex;
     this.newStr = newStr;
     this.driverContext = driverContext;
+    this.warnings = warnings;
   }
 
   @Override
@@ -166,7 +166,7 @@ public final class ReplaceEvaluator implements EvalOperator.ExpressionEvaluator 
 
     @Override
     public ReplaceEvaluator get(DriverContext context) {
-      return new ReplaceEvaluator(source, str.get(context), regex.get(context), newStr.get(context), context);
+      return new ReplaceEvaluator(source, str.get(context), regex.get(context), newStr.get(context), context, new Warnings(source));
     }
 
     @Override

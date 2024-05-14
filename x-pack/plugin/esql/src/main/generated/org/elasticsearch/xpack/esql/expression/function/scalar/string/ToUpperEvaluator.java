@@ -33,11 +33,11 @@ public final class ToUpperEvaluator implements EvalOperator.ExpressionEvaluator 
   private final DriverContext driverContext;
 
   public ToUpperEvaluator(Source source, EvalOperator.ExpressionEvaluator val, Locale locale,
-      DriverContext driverContext) {
-    this.warnings = new Warnings(source);
+      DriverContext driverContext, Warnings warnings) {
     this.val = val;
     this.locale = locale;
     this.driverContext = driverContext;
+    this.warnings = warnings;
   }
 
   @Override
@@ -107,7 +107,7 @@ public final class ToUpperEvaluator implements EvalOperator.ExpressionEvaluator 
 
     @Override
     public ToUpperEvaluator get(DriverContext context) {
-      return new ToUpperEvaluator(source, val.get(context), locale, context);
+      return new ToUpperEvaluator(source, val.get(context), locale, context, new Warnings(source));
     }
 
     @Override

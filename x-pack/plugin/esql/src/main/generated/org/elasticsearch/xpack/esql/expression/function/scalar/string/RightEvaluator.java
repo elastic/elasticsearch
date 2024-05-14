@@ -41,13 +41,13 @@ public final class RightEvaluator implements EvalOperator.ExpressionEvaluator {
 
   public RightEvaluator(Source source, BytesRef out, UnicodeUtil.UTF8CodePoint cp,
       EvalOperator.ExpressionEvaluator str, EvalOperator.ExpressionEvaluator length,
-      DriverContext driverContext) {
-    this.warnings = new Warnings(source);
+      DriverContext driverContext, Warnings warnings) {
     this.out = out;
     this.cp = cp;
     this.str = str;
     this.length = length;
     this.driverContext = driverContext;
+    this.warnings = warnings;
   }
 
   @Override
@@ -143,7 +143,7 @@ public final class RightEvaluator implements EvalOperator.ExpressionEvaluator {
 
     @Override
     public RightEvaluator get(DriverContext context) {
-      return new RightEvaluator(source, out.apply(context), cp.apply(context), str.get(context), length.get(context), context);
+      return new RightEvaluator(source, out.apply(context), cp.apply(context), str.get(context), length.get(context), context, new Warnings(source));
     }
 
     @Override

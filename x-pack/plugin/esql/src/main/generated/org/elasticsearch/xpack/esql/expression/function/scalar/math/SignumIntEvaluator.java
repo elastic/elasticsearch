@@ -31,10 +31,10 @@ public final class SignumIntEvaluator implements EvalOperator.ExpressionEvaluato
   private final DriverContext driverContext;
 
   public SignumIntEvaluator(Source source, EvalOperator.ExpressionEvaluator val,
-      DriverContext driverContext) {
-    this.warnings = new Warnings(source);
+      DriverContext driverContext, Warnings warnings) {
     this.val = val;
     this.driverContext = driverContext;
+    this.warnings = warnings;
   }
 
   @Override
@@ -99,7 +99,7 @@ public final class SignumIntEvaluator implements EvalOperator.ExpressionEvaluato
 
     @Override
     public SignumIntEvaluator get(DriverContext context) {
-      return new SignumIntEvaluator(source, val.get(context), context);
+      return new SignumIntEvaluator(source, val.get(context), context, new Warnings(source));
     }
 
     @Override

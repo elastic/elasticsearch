@@ -37,11 +37,11 @@ public final class SpatialIntersectsCartesianPointDocValuesAndSourceEvaluator im
 
   public SpatialIntersectsCartesianPointDocValuesAndSourceEvaluator(Source source,
       EvalOperator.ExpressionEvaluator leftValue, EvalOperator.ExpressionEvaluator rightValue,
-      DriverContext driverContext) {
-    this.warnings = new Warnings(source);
+      DriverContext driverContext, Warnings warnings) {
     this.leftValue = leftValue;
     this.rightValue = rightValue;
     this.driverContext = driverContext;
+    this.warnings = warnings;
   }
 
   @Override
@@ -131,7 +131,7 @@ public final class SpatialIntersectsCartesianPointDocValuesAndSourceEvaluator im
 
     @Override
     public SpatialIntersectsCartesianPointDocValuesAndSourceEvaluator get(DriverContext context) {
-      return new SpatialIntersectsCartesianPointDocValuesAndSourceEvaluator(source, leftValue.get(context), rightValue.get(context), context);
+      return new SpatialIntersectsCartesianPointDocValuesAndSourceEvaluator(source, leftValue.get(context), rightValue.get(context), context, new Warnings(source));
     }
 
     @Override

@@ -34,11 +34,11 @@ public final class DateParseConstantEvaluator implements EvalOperator.Expression
   private final DriverContext driverContext;
 
   public DateParseConstantEvaluator(Source source, EvalOperator.ExpressionEvaluator val,
-      DateFormatter formatter, DriverContext driverContext) {
-    this.warnings = new Warnings(source);
+      DateFormatter formatter, DriverContext driverContext, Warnings warnings) {
     this.val = val;
     this.formatter = formatter;
     this.driverContext = driverContext;
+    this.warnings = warnings;
   }
 
   @Override
@@ -119,7 +119,7 @@ public final class DateParseConstantEvaluator implements EvalOperator.Expression
 
     @Override
     public DateParseConstantEvaluator get(DriverContext context) {
-      return new DateParseConstantEvaluator(source, val.get(context), formatter, context);
+      return new DateParseConstantEvaluator(source, val.get(context), formatter, context, new Warnings(source));
     }
 
     @Override

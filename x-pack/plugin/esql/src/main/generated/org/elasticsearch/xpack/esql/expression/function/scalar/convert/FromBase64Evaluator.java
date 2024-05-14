@@ -34,11 +34,11 @@ public final class FromBase64Evaluator implements EvalOperator.ExpressionEvaluat
   private final DriverContext driverContext;
 
   public FromBase64Evaluator(Source source, EvalOperator.ExpressionEvaluator field,
-      BytesRefBuilder oScratch, DriverContext driverContext) {
-    this.warnings = new Warnings(source);
+      BytesRefBuilder oScratch, DriverContext driverContext, Warnings warnings) {
     this.field = field;
     this.oScratch = oScratch;
     this.driverContext = driverContext;
+    this.warnings = warnings;
   }
 
   @Override
@@ -109,7 +109,7 @@ public final class FromBase64Evaluator implements EvalOperator.ExpressionEvaluat
 
     @Override
     public FromBase64Evaluator get(DriverContext context) {
-      return new FromBase64Evaluator(source, field.get(context), oScratch.apply(context), context);
+      return new FromBase64Evaluator(source, field.get(context), oScratch.apply(context), context, new Warnings(source));
     }
 
     @Override

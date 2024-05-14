@@ -29,10 +29,10 @@ public final class AbsDoubleEvaluator implements EvalOperator.ExpressionEvaluato
   private final DriverContext driverContext;
 
   public AbsDoubleEvaluator(Source source, EvalOperator.ExpressionEvaluator fieldVal,
-      DriverContext driverContext) {
-    this.warnings = new Warnings(source);
+      DriverContext driverContext, Warnings warnings) {
     this.fieldVal = fieldVal;
     this.driverContext = driverContext;
+    this.warnings = warnings;
   }
 
   @Override
@@ -97,7 +97,7 @@ public final class AbsDoubleEvaluator implements EvalOperator.ExpressionEvaluato
 
     @Override
     public AbsDoubleEvaluator get(DriverContext context) {
-      return new AbsDoubleEvaluator(source, fieldVal.get(context), context);
+      return new AbsDoubleEvaluator(source, fieldVal.get(context), context, new Warnings(source));
     }
 
     @Override

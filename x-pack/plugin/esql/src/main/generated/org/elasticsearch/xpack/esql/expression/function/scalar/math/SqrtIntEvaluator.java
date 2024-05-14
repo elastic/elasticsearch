@@ -31,10 +31,10 @@ public final class SqrtIntEvaluator implements EvalOperator.ExpressionEvaluator 
   private final DriverContext driverContext;
 
   public SqrtIntEvaluator(Source source, EvalOperator.ExpressionEvaluator val,
-      DriverContext driverContext) {
-    this.warnings = new Warnings(source);
+      DriverContext driverContext, Warnings warnings) {
     this.val = val;
     this.driverContext = driverContext;
+    this.warnings = warnings;
   }
 
   @Override
@@ -109,7 +109,7 @@ public final class SqrtIntEvaluator implements EvalOperator.ExpressionEvaluator 
 
     @Override
     public SqrtIntEvaluator get(DriverContext context) {
-      return new SqrtIntEvaluator(source, val.get(context), context);
+      return new SqrtIntEvaluator(source, val.get(context), context, new Warnings(source));
     }
 
     @Override

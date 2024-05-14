@@ -30,10 +30,10 @@ public final class SqrtDoubleEvaluator implements EvalOperator.ExpressionEvaluat
   private final DriverContext driverContext;
 
   public SqrtDoubleEvaluator(Source source, EvalOperator.ExpressionEvaluator val,
-      DriverContext driverContext) {
-    this.warnings = new Warnings(source);
+      DriverContext driverContext, Warnings warnings) {
     this.val = val;
     this.driverContext = driverContext;
+    this.warnings = warnings;
   }
 
   @Override
@@ -108,7 +108,7 @@ public final class SqrtDoubleEvaluator implements EvalOperator.ExpressionEvaluat
 
     @Override
     public SqrtDoubleEvaluator get(DriverContext context) {
-      return new SqrtDoubleEvaluator(source, val.get(context), context);
+      return new SqrtDoubleEvaluator(source, val.get(context), context, new Warnings(source));
     }
 
     @Override

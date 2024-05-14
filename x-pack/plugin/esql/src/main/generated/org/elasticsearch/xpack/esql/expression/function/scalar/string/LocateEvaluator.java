@@ -37,12 +37,12 @@ public final class LocateEvaluator implements EvalOperator.ExpressionEvaluator {
 
   public LocateEvaluator(Source source, EvalOperator.ExpressionEvaluator str,
       EvalOperator.ExpressionEvaluator substr, EvalOperator.ExpressionEvaluator start,
-      DriverContext driverContext) {
-    this.warnings = new Warnings(source);
+      DriverContext driverContext, Warnings warnings) {
     this.str = str;
     this.substr = substr;
     this.start = start;
     this.driverContext = driverContext;
+    this.warnings = warnings;
   }
 
   @Override
@@ -155,7 +155,7 @@ public final class LocateEvaluator implements EvalOperator.ExpressionEvaluator {
 
     @Override
     public LocateEvaluator get(DriverContext context) {
-      return new LocateEvaluator(source, str.get(context), substr.get(context), start.get(context), context);
+      return new LocateEvaluator(source, str.get(context), substr.get(context), start.get(context), context, new Warnings(source));
     }
 
     @Override

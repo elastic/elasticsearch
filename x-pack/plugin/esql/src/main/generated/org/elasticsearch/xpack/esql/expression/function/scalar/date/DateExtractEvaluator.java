@@ -37,12 +37,13 @@ public final class DateExtractEvaluator implements EvalOperator.ExpressionEvalua
   private final DriverContext driverContext;
 
   public DateExtractEvaluator(Source source, EvalOperator.ExpressionEvaluator value,
-      EvalOperator.ExpressionEvaluator chronoField, ZoneId zone, DriverContext driverContext) {
-    this.warnings = new Warnings(source);
+      EvalOperator.ExpressionEvaluator chronoField, ZoneId zone, DriverContext driverContext,
+      Warnings warnings) {
     this.value = value;
     this.chronoField = chronoField;
     this.zone = zone;
     this.driverContext = driverContext;
+    this.warnings = warnings;
   }
 
   @Override
@@ -144,7 +145,7 @@ public final class DateExtractEvaluator implements EvalOperator.ExpressionEvalua
 
     @Override
     public DateExtractEvaluator get(DriverContext context) {
-      return new DateExtractEvaluator(source, value.get(context), chronoField.get(context), zone, context);
+      return new DateExtractEvaluator(source, value.get(context), chronoField.get(context), zone, context, new Warnings(source));
     }
 
     @Override

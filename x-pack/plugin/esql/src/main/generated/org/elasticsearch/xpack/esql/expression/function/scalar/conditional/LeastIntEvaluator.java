@@ -31,10 +31,10 @@ public final class LeastIntEvaluator implements EvalOperator.ExpressionEvaluator
   private final DriverContext driverContext;
 
   public LeastIntEvaluator(Source source, EvalOperator.ExpressionEvaluator[] values,
-      DriverContext driverContext) {
-    this.warnings = new Warnings(source);
+      DriverContext driverContext, Warnings warnings) {
     this.values = values;
     this.driverContext = driverContext;
+    this.warnings = warnings;
   }
 
   @Override
@@ -120,7 +120,7 @@ public final class LeastIntEvaluator implements EvalOperator.ExpressionEvaluator
     @Override
     public LeastIntEvaluator get(DriverContext context) {
       EvalOperator.ExpressionEvaluator[] values = Arrays.stream(this.values).map(a -> a.get(context)).toArray(EvalOperator.ExpressionEvaluator[]::new);
-      return new LeastIntEvaluator(source, values, context);
+      return new LeastIntEvaluator(source, values, context, new Warnings(source));
     }
 
     @Override

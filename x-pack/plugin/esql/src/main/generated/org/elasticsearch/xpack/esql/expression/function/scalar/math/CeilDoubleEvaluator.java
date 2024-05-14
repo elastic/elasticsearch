@@ -29,10 +29,10 @@ public final class CeilDoubleEvaluator implements EvalOperator.ExpressionEvaluat
   private final DriverContext driverContext;
 
   public CeilDoubleEvaluator(Source source, EvalOperator.ExpressionEvaluator val,
-      DriverContext driverContext) {
-    this.warnings = new Warnings(source);
+      DriverContext driverContext, Warnings warnings) {
     this.val = val;
     this.driverContext = driverContext;
+    this.warnings = warnings;
   }
 
   @Override
@@ -97,7 +97,7 @@ public final class CeilDoubleEvaluator implements EvalOperator.ExpressionEvaluat
 
     @Override
     public CeilDoubleEvaluator get(DriverContext context) {
-      return new CeilDoubleEvaluator(source, val.get(context), context);
+      return new CeilDoubleEvaluator(source, val.get(context), context, new Warnings(source));
     }
 
     @Override

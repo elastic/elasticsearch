@@ -31,10 +31,10 @@ public final class CastUnsignedLongToDoubleEvaluator implements EvalOperator.Exp
   private final DriverContext driverContext;
 
   public CastUnsignedLongToDoubleEvaluator(Source source, EvalOperator.ExpressionEvaluator v,
-      DriverContext driverContext) {
-    this.warnings = new Warnings(source);
+      DriverContext driverContext, Warnings warnings) {
     this.v = v;
     this.driverContext = driverContext;
+    this.warnings = warnings;
   }
 
   @Override
@@ -99,7 +99,7 @@ public final class CastUnsignedLongToDoubleEvaluator implements EvalOperator.Exp
 
     @Override
     public CastUnsignedLongToDoubleEvaluator get(DriverContext context) {
-      return new CastUnsignedLongToDoubleEvaluator(source, v.get(context), context);
+      return new CastUnsignedLongToDoubleEvaluator(source, v.get(context), context, new Warnings(source));
     }
 
     @Override

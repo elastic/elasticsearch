@@ -31,11 +31,11 @@ public final class RoundLongEvaluator implements EvalOperator.ExpressionEvaluato
   private final DriverContext driverContext;
 
   public RoundLongEvaluator(Source source, EvalOperator.ExpressionEvaluator val,
-      EvalOperator.ExpressionEvaluator decimals, DriverContext driverContext) {
-    this.warnings = new Warnings(source);
+      EvalOperator.ExpressionEvaluator decimals, DriverContext driverContext, Warnings warnings) {
     this.val = val;
     this.decimals = decimals;
     this.driverContext = driverContext;
+    this.warnings = warnings;
   }
 
   @Override
@@ -121,7 +121,7 @@ public final class RoundLongEvaluator implements EvalOperator.ExpressionEvaluato
 
     @Override
     public RoundLongEvaluator get(DriverContext context) {
-      return new RoundLongEvaluator(source, val.get(context), decimals.get(context), context);
+      return new RoundLongEvaluator(source, val.get(context), decimals.get(context), context, new Warnings(source));
     }
 
     @Override

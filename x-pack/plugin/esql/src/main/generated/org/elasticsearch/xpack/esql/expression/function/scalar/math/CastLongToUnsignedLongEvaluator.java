@@ -29,10 +29,10 @@ public final class CastLongToUnsignedLongEvaluator implements EvalOperator.Expre
   private final DriverContext driverContext;
 
   public CastLongToUnsignedLongEvaluator(Source source, EvalOperator.ExpressionEvaluator v,
-      DriverContext driverContext) {
-    this.warnings = new Warnings(source);
+      DriverContext driverContext, Warnings warnings) {
     this.v = v;
     this.driverContext = driverContext;
+    this.warnings = warnings;
   }
 
   @Override
@@ -97,7 +97,7 @@ public final class CastLongToUnsignedLongEvaluator implements EvalOperator.Expre
 
     @Override
     public CastLongToUnsignedLongEvaluator get(DriverContext context) {
-      return new CastLongToUnsignedLongEvaluator(source, v.get(context), context);
+      return new CastLongToUnsignedLongEvaluator(source, v.get(context), context, new Warnings(source));
     }
 
     @Override

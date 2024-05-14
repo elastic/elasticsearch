@@ -35,11 +35,11 @@ public final class SpatialWithinGeoSourceAndSourceEvaluator implements EvalOpera
 
   public SpatialWithinGeoSourceAndSourceEvaluator(Source source,
       EvalOperator.ExpressionEvaluator leftValue, EvalOperator.ExpressionEvaluator rightValue,
-      DriverContext driverContext) {
-    this.warnings = new Warnings(source);
+      DriverContext driverContext, Warnings warnings) {
     this.leftValue = leftValue;
     this.rightValue = rightValue;
     this.driverContext = driverContext;
+    this.warnings = warnings;
   }
 
   @Override
@@ -141,7 +141,7 @@ public final class SpatialWithinGeoSourceAndSourceEvaluator implements EvalOpera
 
     @Override
     public SpatialWithinGeoSourceAndSourceEvaluator get(DriverContext context) {
-      return new SpatialWithinGeoSourceAndSourceEvaluator(source, leftValue.get(context), rightValue.get(context), context);
+      return new SpatialWithinGeoSourceAndSourceEvaluator(source, leftValue.get(context), rightValue.get(context), context, new Warnings(source));
     }
 
     @Override

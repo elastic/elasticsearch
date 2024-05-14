@@ -31,10 +31,10 @@ public final class SignumUnsignedLongEvaluator implements EvalOperator.Expressio
   private final DriverContext driverContext;
 
   public SignumUnsignedLongEvaluator(Source source, EvalOperator.ExpressionEvaluator val,
-      DriverContext driverContext) {
-    this.warnings = new Warnings(source);
+      DriverContext driverContext, Warnings warnings) {
     this.val = val;
     this.driverContext = driverContext;
+    this.warnings = warnings;
   }
 
   @Override
@@ -99,7 +99,7 @@ public final class SignumUnsignedLongEvaluator implements EvalOperator.Expressio
 
     @Override
     public SignumUnsignedLongEvaluator get(DriverContext context) {
-      return new SignumUnsignedLongEvaluator(source, val.get(context), context);
+      return new SignumUnsignedLongEvaluator(source, val.get(context), context, new Warnings(source));
     }
 
     @Override

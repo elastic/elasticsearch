@@ -33,11 +33,11 @@ public final class RoundDoubleEvaluator implements EvalOperator.ExpressionEvalua
   private final DriverContext driverContext;
 
   public RoundDoubleEvaluator(Source source, EvalOperator.ExpressionEvaluator val,
-      EvalOperator.ExpressionEvaluator decimals, DriverContext driverContext) {
-    this.warnings = new Warnings(source);
+      EvalOperator.ExpressionEvaluator decimals, DriverContext driverContext, Warnings warnings) {
     this.val = val;
     this.decimals = decimals;
     this.driverContext = driverContext;
+    this.warnings = warnings;
   }
 
   @Override
@@ -123,7 +123,7 @@ public final class RoundDoubleEvaluator implements EvalOperator.ExpressionEvalua
 
     @Override
     public RoundDoubleEvaluator get(DriverContext context) {
-      return new RoundDoubleEvaluator(source, val.get(context), decimals.get(context), context);
+      return new RoundDoubleEvaluator(source, val.get(context), decimals.get(context), context, new Warnings(source));
     }
 
     @Override

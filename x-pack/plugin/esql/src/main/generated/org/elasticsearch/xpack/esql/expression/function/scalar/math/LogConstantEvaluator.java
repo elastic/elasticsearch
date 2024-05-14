@@ -30,10 +30,10 @@ public final class LogConstantEvaluator implements EvalOperator.ExpressionEvalua
   private final DriverContext driverContext;
 
   public LogConstantEvaluator(Source source, EvalOperator.ExpressionEvaluator value,
-      DriverContext driverContext) {
-    this.warnings = new Warnings(source);
+      DriverContext driverContext, Warnings warnings) {
     this.value = value;
     this.driverContext = driverContext;
+    this.warnings = warnings;
   }
 
   @Override
@@ -108,7 +108,7 @@ public final class LogConstantEvaluator implements EvalOperator.ExpressionEvalua
 
     @Override
     public LogConstantEvaluator get(DriverContext context) {
-      return new LogConstantEvaluator(source, value.get(context), context);
+      return new LogConstantEvaluator(source, value.get(context), context, new Warnings(source));
     }
 
     @Override

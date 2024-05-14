@@ -25,10 +25,10 @@ public final class NowEvaluator implements EvalOperator.ExpressionEvaluator {
 
   private final DriverContext driverContext;
 
-  public NowEvaluator(Source source, long now, DriverContext driverContext) {
-    this.warnings = new Warnings(source);
+  public NowEvaluator(Source source, long now, DriverContext driverContext, Warnings warnings) {
     this.now = now;
     this.driverContext = driverContext;
+    this.warnings = warnings;
   }
 
   @Override
@@ -66,7 +66,7 @@ public final class NowEvaluator implements EvalOperator.ExpressionEvaluator {
 
     @Override
     public NowEvaluator get(DriverContext context) {
-      return new NowEvaluator(source, now, context);
+      return new NowEvaluator(source, now, context, new Warnings(source));
     }
 
     @Override

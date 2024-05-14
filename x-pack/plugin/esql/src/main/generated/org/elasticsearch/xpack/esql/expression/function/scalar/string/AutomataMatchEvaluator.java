@@ -37,12 +37,12 @@ public final class AutomataMatchEvaluator implements EvalOperator.ExpressionEval
   private final DriverContext driverContext;
 
   public AutomataMatchEvaluator(Source source, EvalOperator.ExpressionEvaluator input,
-      ByteRunAutomaton automaton, String pattern, DriverContext driverContext) {
-    this.warnings = new Warnings(source);
+      ByteRunAutomaton automaton, String pattern, DriverContext driverContext, Warnings warnings) {
     this.input = input;
     this.automaton = automaton;
     this.pattern = pattern;
     this.driverContext = driverContext;
+    this.warnings = warnings;
   }
 
   @Override
@@ -116,7 +116,7 @@ public final class AutomataMatchEvaluator implements EvalOperator.ExpressionEval
 
     @Override
     public AutomataMatchEvaluator get(DriverContext context) {
-      return new AutomataMatchEvaluator(source, input.get(context), automaton, pattern, context);
+      return new AutomataMatchEvaluator(source, input.get(context), automaton, pattern, context, new Warnings(source));
     }
 
     @Override

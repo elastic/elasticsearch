@@ -34,11 +34,11 @@ public final class SubDatetimesEvaluator implements EvalOperator.ExpressionEvalu
   private final DriverContext driverContext;
 
   public SubDatetimesEvaluator(Source source, EvalOperator.ExpressionEvaluator datetime,
-      TemporalAmount temporalAmount, DriverContext driverContext) {
-    this.warnings = new Warnings(source);
+      TemporalAmount temporalAmount, DriverContext driverContext, Warnings warnings) {
     this.datetime = datetime;
     this.temporalAmount = temporalAmount;
     this.driverContext = driverContext;
+    this.warnings = warnings;
   }
 
   @Override
@@ -117,7 +117,7 @@ public final class SubDatetimesEvaluator implements EvalOperator.ExpressionEvalu
 
     @Override
     public SubDatetimesEvaluator get(DriverContext context) {
-      return new SubDatetimesEvaluator(source, datetime.get(context), temporalAmount, context);
+      return new SubDatetimesEvaluator(source, datetime.get(context), temporalAmount, context, new Warnings(source));
     }
 
     @Override

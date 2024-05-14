@@ -36,11 +36,11 @@ public final class ConcatEvaluator implements EvalOperator.ExpressionEvaluator {
   private final DriverContext driverContext;
 
   public ConcatEvaluator(Source source, BreakingBytesRefBuilder scratch,
-      EvalOperator.ExpressionEvaluator[] values, DriverContext driverContext) {
-    this.warnings = new Warnings(source);
+      EvalOperator.ExpressionEvaluator[] values, DriverContext driverContext, Warnings warnings) {
     this.scratch = scratch;
     this.values = values;
     this.driverContext = driverContext;
+    this.warnings = warnings;
   }
 
   @Override
@@ -138,7 +138,7 @@ public final class ConcatEvaluator implements EvalOperator.ExpressionEvaluator {
     @Override
     public ConcatEvaluator get(DriverContext context) {
       EvalOperator.ExpressionEvaluator[] values = Arrays.stream(this.values).map(a -> a.get(context)).toArray(EvalOperator.ExpressionEvaluator[]::new);
-      return new ConcatEvaluator(source, scratch.apply(context), values, context);
+      return new ConcatEvaluator(source, scratch.apply(context), values, context, new Warnings(source));
     }
 
     @Override

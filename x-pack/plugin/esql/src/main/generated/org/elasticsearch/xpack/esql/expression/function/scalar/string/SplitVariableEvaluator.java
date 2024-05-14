@@ -35,12 +35,13 @@ public final class SplitVariableEvaluator implements EvalOperator.ExpressionEval
   private final DriverContext driverContext;
 
   public SplitVariableEvaluator(Source source, EvalOperator.ExpressionEvaluator str,
-      EvalOperator.ExpressionEvaluator delim, BytesRef scratch, DriverContext driverContext) {
-    this.warnings = new Warnings(source);
+      EvalOperator.ExpressionEvaluator delim, BytesRef scratch, DriverContext driverContext,
+      Warnings warnings) {
     this.str = str;
     this.delim = delim;
     this.scratch = scratch;
     this.driverContext = driverContext;
+    this.warnings = warnings;
   }
 
   @Override
@@ -134,7 +135,7 @@ public final class SplitVariableEvaluator implements EvalOperator.ExpressionEval
 
     @Override
     public SplitVariableEvaluator get(DriverContext context) {
-      return new SplitVariableEvaluator(source, str.get(context), delim.get(context), scratch.apply(context), context);
+      return new SplitVariableEvaluator(source, str.get(context), delim.get(context), scratch.apply(context), context, new Warnings(source));
     }
 
     @Override

@@ -31,10 +31,10 @@ public final class LeastDoubleEvaluator implements EvalOperator.ExpressionEvalua
   private final DriverContext driverContext;
 
   public LeastDoubleEvaluator(Source source, EvalOperator.ExpressionEvaluator[] values,
-      DriverContext driverContext) {
-    this.warnings = new Warnings(source);
+      DriverContext driverContext, Warnings warnings) {
     this.values = values;
     this.driverContext = driverContext;
+    this.warnings = warnings;
   }
 
   @Override
@@ -120,7 +120,7 @@ public final class LeastDoubleEvaluator implements EvalOperator.ExpressionEvalua
     @Override
     public LeastDoubleEvaluator get(DriverContext context) {
       EvalOperator.ExpressionEvaluator[] values = Arrays.stream(this.values).map(a -> a.get(context)).toArray(EvalOperator.ExpressionEvaluator[]::new);
-      return new LeastDoubleEvaluator(source, values, context);
+      return new LeastDoubleEvaluator(source, values, context, new Warnings(source));
     }
 
     @Override

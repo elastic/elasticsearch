@@ -31,11 +31,11 @@ public final class NotEqualsBoolsEvaluator implements EvalOperator.ExpressionEva
   private final DriverContext driverContext;
 
   public NotEqualsBoolsEvaluator(Source source, EvalOperator.ExpressionEvaluator lhs,
-      EvalOperator.ExpressionEvaluator rhs, DriverContext driverContext) {
-    this.warnings = new Warnings(source);
+      EvalOperator.ExpressionEvaluator rhs, DriverContext driverContext, Warnings warnings) {
     this.lhs = lhs;
     this.rhs = rhs;
     this.driverContext = driverContext;
+    this.warnings = warnings;
   }
 
   @Override
@@ -121,7 +121,7 @@ public final class NotEqualsBoolsEvaluator implements EvalOperator.ExpressionEva
 
     @Override
     public NotEqualsBoolsEvaluator get(DriverContext context) {
-      return new NotEqualsBoolsEvaluator(source, lhs.get(context), rhs.get(context), context);
+      return new NotEqualsBoolsEvaluator(source, lhs.get(context), rhs.get(context), context, new Warnings(source));
     }
 
     @Override

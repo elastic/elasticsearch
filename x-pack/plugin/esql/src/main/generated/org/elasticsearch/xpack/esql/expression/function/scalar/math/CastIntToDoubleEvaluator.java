@@ -31,10 +31,10 @@ public final class CastIntToDoubleEvaluator implements EvalOperator.ExpressionEv
   private final DriverContext driverContext;
 
   public CastIntToDoubleEvaluator(Source source, EvalOperator.ExpressionEvaluator v,
-      DriverContext driverContext) {
-    this.warnings = new Warnings(source);
+      DriverContext driverContext, Warnings warnings) {
     this.v = v;
     this.driverContext = driverContext;
+    this.warnings = warnings;
   }
 
   @Override
@@ -99,7 +99,7 @@ public final class CastIntToDoubleEvaluator implements EvalOperator.ExpressionEv
 
     @Override
     public CastIntToDoubleEvaluator get(DriverContext context) {
-      return new CastIntToDoubleEvaluator(source, v.get(context), context);
+      return new CastIntToDoubleEvaluator(source, v.get(context), context, new Warnings(source));
     }
 
     @Override

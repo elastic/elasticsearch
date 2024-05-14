@@ -31,10 +31,10 @@ public final class Log10IntEvaluator implements EvalOperator.ExpressionEvaluator
   private final DriverContext driverContext;
 
   public Log10IntEvaluator(Source source, EvalOperator.ExpressionEvaluator val,
-      DriverContext driverContext) {
-    this.warnings = new Warnings(source);
+      DriverContext driverContext, Warnings warnings) {
     this.val = val;
     this.driverContext = driverContext;
+    this.warnings = warnings;
   }
 
   @Override
@@ -109,7 +109,7 @@ public final class Log10IntEvaluator implements EvalOperator.ExpressionEvaluator
 
     @Override
     public Log10IntEvaluator get(DriverContext context) {
-      return new Log10IntEvaluator(source, val.get(context), context);
+      return new Log10IntEvaluator(source, val.get(context), context, new Warnings(source));
     }
 
     @Override

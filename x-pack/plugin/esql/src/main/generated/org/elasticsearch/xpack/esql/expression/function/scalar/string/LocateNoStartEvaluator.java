@@ -34,11 +34,11 @@ public final class LocateNoStartEvaluator implements EvalOperator.ExpressionEval
   private final DriverContext driverContext;
 
   public LocateNoStartEvaluator(Source source, EvalOperator.ExpressionEvaluator str,
-      EvalOperator.ExpressionEvaluator substr, DriverContext driverContext) {
-    this.warnings = new Warnings(source);
+      EvalOperator.ExpressionEvaluator substr, DriverContext driverContext, Warnings warnings) {
     this.str = str;
     this.substr = substr;
     this.driverContext = driverContext;
+    this.warnings = warnings;
   }
 
   @Override
@@ -128,7 +128,7 @@ public final class LocateNoStartEvaluator implements EvalOperator.ExpressionEval
 
     @Override
     public LocateNoStartEvaluator get(DriverContext context) {
-      return new LocateNoStartEvaluator(source, str.get(context), substr.get(context), context);
+      return new LocateNoStartEvaluator(source, str.get(context), substr.get(context), context, new Warnings(source));
     }
 
     @Override

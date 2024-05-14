@@ -29,10 +29,10 @@ public final class AbsIntEvaluator implements EvalOperator.ExpressionEvaluator {
   private final DriverContext driverContext;
 
   public AbsIntEvaluator(Source source, EvalOperator.ExpressionEvaluator fieldVal,
-      DriverContext driverContext) {
-    this.warnings = new Warnings(source);
+      DriverContext driverContext, Warnings warnings) {
     this.fieldVal = fieldVal;
     this.driverContext = driverContext;
+    this.warnings = warnings;
   }
 
   @Override
@@ -97,7 +97,7 @@ public final class AbsIntEvaluator implements EvalOperator.ExpressionEvaluator {
 
     @Override
     public AbsIntEvaluator get(DriverContext context) {
-      return new AbsIntEvaluator(source, fieldVal.get(context), context);
+      return new AbsIntEvaluator(source, fieldVal.get(context), context, new Warnings(source));
     }
 
     @Override

@@ -30,10 +30,10 @@ public final class CoshEvaluator implements EvalOperator.ExpressionEvaluator {
   private final DriverContext driverContext;
 
   public CoshEvaluator(Source source, EvalOperator.ExpressionEvaluator val,
-      DriverContext driverContext) {
-    this.warnings = new Warnings(source);
+      DriverContext driverContext, Warnings warnings) {
     this.val = val;
     this.driverContext = driverContext;
+    this.warnings = warnings;
   }
 
   @Override
@@ -108,7 +108,7 @@ public final class CoshEvaluator implements EvalOperator.ExpressionEvaluator {
 
     @Override
     public CoshEvaluator get(DriverContext context) {
-      return new CoshEvaluator(source, val.get(context), context);
+      return new CoshEvaluator(source, val.get(context), context, new Warnings(source));
     }
 
     @Override

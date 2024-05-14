@@ -37,12 +37,13 @@ public final class DateFormatEvaluator implements EvalOperator.ExpressionEvaluat
   private final DriverContext driverContext;
 
   public DateFormatEvaluator(Source source, EvalOperator.ExpressionEvaluator val,
-      EvalOperator.ExpressionEvaluator formatter, Locale locale, DriverContext driverContext) {
-    this.warnings = new Warnings(source);
+      EvalOperator.ExpressionEvaluator formatter, Locale locale, DriverContext driverContext,
+      Warnings warnings) {
     this.val = val;
     this.formatter = formatter;
     this.locale = locale;
     this.driverContext = driverContext;
+    this.warnings = warnings;
   }
 
   @Override
@@ -134,7 +135,7 @@ public final class DateFormatEvaluator implements EvalOperator.ExpressionEvaluat
 
     @Override
     public DateFormatEvaluator get(DriverContext context) {
-      return new DateFormatEvaluator(source, val.get(context), formatter.get(context), locale, context);
+      return new DateFormatEvaluator(source, val.get(context), formatter.get(context), locale, context, new Warnings(source));
     }
 
     @Override

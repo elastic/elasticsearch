@@ -35,11 +35,11 @@ public final class InsensitiveEqualsConstantEvaluator implements EvalOperator.Ex
   private final DriverContext driverContext;
 
   public InsensitiveEqualsConstantEvaluator(Source source, EvalOperator.ExpressionEvaluator lhs,
-      ByteRunAutomaton rhs, DriverContext driverContext) {
-    this.warnings = new Warnings(source);
+      ByteRunAutomaton rhs, DriverContext driverContext, Warnings warnings) {
     this.lhs = lhs;
     this.rhs = rhs;
     this.driverContext = driverContext;
+    this.warnings = warnings;
   }
 
   @Override
@@ -110,7 +110,7 @@ public final class InsensitiveEqualsConstantEvaluator implements EvalOperator.Ex
 
     @Override
     public InsensitiveEqualsConstantEvaluator get(DriverContext context) {
-      return new InsensitiveEqualsConstantEvaluator(source, lhs.get(context), rhs, context);
+      return new InsensitiveEqualsConstantEvaluator(source, lhs.get(context), rhs, context, new Warnings(source));
     }
 
     @Override

@@ -36,11 +36,11 @@ public final class SpatialDisjointGeoPointDocValuesAndSourceEvaluator implements
 
   public SpatialDisjointGeoPointDocValuesAndSourceEvaluator(Source source,
       EvalOperator.ExpressionEvaluator leftValue, EvalOperator.ExpressionEvaluator rightValue,
-      DriverContext driverContext) {
-    this.warnings = new Warnings(source);
+      DriverContext driverContext, Warnings warnings) {
     this.leftValue = leftValue;
     this.rightValue = rightValue;
     this.driverContext = driverContext;
+    this.warnings = warnings;
   }
 
   @Override
@@ -140,7 +140,7 @@ public final class SpatialDisjointGeoPointDocValuesAndSourceEvaluator implements
 
     @Override
     public SpatialDisjointGeoPointDocValuesAndSourceEvaluator get(DriverContext context) {
-      return new SpatialDisjointGeoPointDocValuesAndSourceEvaluator(source, leftValue.get(context), rightValue.get(context), context);
+      return new SpatialDisjointGeoPointDocValuesAndSourceEvaluator(source, leftValue.get(context), rightValue.get(context), context, new Warnings(source));
     }
 
     @Override

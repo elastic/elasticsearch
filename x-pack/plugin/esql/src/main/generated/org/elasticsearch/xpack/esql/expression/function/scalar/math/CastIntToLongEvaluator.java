@@ -31,10 +31,10 @@ public final class CastIntToLongEvaluator implements EvalOperator.ExpressionEval
   private final DriverContext driverContext;
 
   public CastIntToLongEvaluator(Source source, EvalOperator.ExpressionEvaluator v,
-      DriverContext driverContext) {
-    this.warnings = new Warnings(source);
+      DriverContext driverContext, Warnings warnings) {
     this.v = v;
     this.driverContext = driverContext;
+    this.warnings = warnings;
   }
 
   @Override
@@ -99,7 +99,7 @@ public final class CastIntToLongEvaluator implements EvalOperator.ExpressionEval
 
     @Override
     public CastIntToLongEvaluator get(DriverContext context) {
-      return new CastIntToLongEvaluator(source, v.get(context), context);
+      return new CastIntToLongEvaluator(source, v.get(context), context, new Warnings(source));
     }
 
     @Override

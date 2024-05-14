@@ -15,6 +15,7 @@ import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.evaluator.mapper.ExpressionMapper;
+import org.elasticsearch.xpack.esql.expression.function.Warnings;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Cast;
 import org.elasticsearch.xpack.esql.planner.Layout;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
@@ -44,7 +45,8 @@ public class InsensitiveEqualsMapper extends ExpressionMapper<InsensitiveEquals>
                     bc.source(),
                     leftEval.get(dvrCtx),
                     new ByteRunAutomaton(automaton),
-                    dvrCtx
+                    dvrCtx,
+                    new Warnings(bc.source())
                 );
             }
             return keywords.apply(bc.source(), leftEval, rightEval);

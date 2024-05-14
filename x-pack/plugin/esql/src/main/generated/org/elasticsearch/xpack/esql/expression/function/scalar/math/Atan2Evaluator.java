@@ -31,11 +31,11 @@ public final class Atan2Evaluator implements EvalOperator.ExpressionEvaluator {
   private final DriverContext driverContext;
 
   public Atan2Evaluator(Source source, EvalOperator.ExpressionEvaluator y,
-      EvalOperator.ExpressionEvaluator x, DriverContext driverContext) {
-    this.warnings = new Warnings(source);
+      EvalOperator.ExpressionEvaluator x, DriverContext driverContext, Warnings warnings) {
     this.y = y;
     this.x = x;
     this.driverContext = driverContext;
+    this.warnings = warnings;
   }
 
   @Override
@@ -121,7 +121,7 @@ public final class Atan2Evaluator implements EvalOperator.ExpressionEvaluator {
 
     @Override
     public Atan2Evaluator get(DriverContext context) {
-      return new Atan2Evaluator(source, y.get(context), x.get(context), context);
+      return new Atan2Evaluator(source, y.get(context), x.get(context), context, new Warnings(source));
     }
 
     @Override

@@ -34,11 +34,11 @@ public final class SpatialContainsCartesianPointDocValuesAndConstantEvaluator im
 
   public SpatialContainsCartesianPointDocValuesAndConstantEvaluator(Source source,
       EvalOperator.ExpressionEvaluator leftValue, Component2D[] rightValue,
-      DriverContext driverContext) {
-    this.warnings = new Warnings(source);
+      DriverContext driverContext, Warnings warnings) {
     this.leftValue = leftValue;
     this.rightValue = rightValue;
     this.driverContext = driverContext;
+    this.warnings = warnings;
   }
 
   @Override
@@ -117,7 +117,7 @@ public final class SpatialContainsCartesianPointDocValuesAndConstantEvaluator im
 
     @Override
     public SpatialContainsCartesianPointDocValuesAndConstantEvaluator get(DriverContext context) {
-      return new SpatialContainsCartesianPointDocValuesAndConstantEvaluator(source, leftValue.get(context), rightValue, context);
+      return new SpatialContainsCartesianPointDocValuesAndConstantEvaluator(source, leftValue.get(context), rightValue, context, new Warnings(source));
     }
 
     @Override

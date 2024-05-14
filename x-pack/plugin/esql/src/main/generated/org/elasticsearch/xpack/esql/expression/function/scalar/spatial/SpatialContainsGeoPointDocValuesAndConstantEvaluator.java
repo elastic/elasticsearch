@@ -34,11 +34,11 @@ public final class SpatialContainsGeoPointDocValuesAndConstantEvaluator implemen
 
   public SpatialContainsGeoPointDocValuesAndConstantEvaluator(Source source,
       EvalOperator.ExpressionEvaluator leftValue, Component2D[] rightValue,
-      DriverContext driverContext) {
-    this.warnings = new Warnings(source);
+      DriverContext driverContext, Warnings warnings) {
     this.leftValue = leftValue;
     this.rightValue = rightValue;
     this.driverContext = driverContext;
+    this.warnings = warnings;
   }
 
   @Override
@@ -117,7 +117,7 @@ public final class SpatialContainsGeoPointDocValuesAndConstantEvaluator implemen
 
     @Override
     public SpatialContainsGeoPointDocValuesAndConstantEvaluator get(DriverContext context) {
-      return new SpatialContainsGeoPointDocValuesAndConstantEvaluator(source, leftValue.get(context), rightValue, context);
+      return new SpatialContainsGeoPointDocValuesAndConstantEvaluator(source, leftValue.get(context), rightValue, context, new Warnings(source));
     }
 
     @Override

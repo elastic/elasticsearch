@@ -29,10 +29,10 @@ public final class NegDoublesEvaluator implements EvalOperator.ExpressionEvaluat
   private final DriverContext driverContext;
 
   public NegDoublesEvaluator(Source source, EvalOperator.ExpressionEvaluator v,
-      DriverContext driverContext) {
-    this.warnings = new Warnings(source);
+      DriverContext driverContext, Warnings warnings) {
     this.v = v;
     this.driverContext = driverContext;
+    this.warnings = warnings;
   }
 
   @Override
@@ -97,7 +97,7 @@ public final class NegDoublesEvaluator implements EvalOperator.ExpressionEvaluat
 
     @Override
     public NegDoublesEvaluator get(DriverContext context) {
-      return new NegDoublesEvaluator(source, v.get(context), context);
+      return new NegDoublesEvaluator(source, v.get(context), context, new Warnings(source));
     }
 
     @Override

@@ -30,10 +30,10 @@ public final class Log10DoubleEvaluator implements EvalOperator.ExpressionEvalua
   private final DriverContext driverContext;
 
   public Log10DoubleEvaluator(Source source, EvalOperator.ExpressionEvaluator val,
-      DriverContext driverContext) {
-    this.warnings = new Warnings(source);
+      DriverContext driverContext, Warnings warnings) {
     this.val = val;
     this.driverContext = driverContext;
+    this.warnings = warnings;
   }
 
   @Override
@@ -108,7 +108,7 @@ public final class Log10DoubleEvaluator implements EvalOperator.ExpressionEvalua
 
     @Override
     public Log10DoubleEvaluator get(DriverContext context) {
-      return new Log10DoubleEvaluator(source, val.get(context), context);
+      return new Log10DoubleEvaluator(source, val.get(context), context, new Warnings(source));
     }
 
     @Override

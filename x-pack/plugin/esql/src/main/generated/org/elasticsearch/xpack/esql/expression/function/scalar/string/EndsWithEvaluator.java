@@ -34,11 +34,11 @@ public final class EndsWithEvaluator implements EvalOperator.ExpressionEvaluator
   private final DriverContext driverContext;
 
   public EndsWithEvaluator(Source source, EvalOperator.ExpressionEvaluator str,
-      EvalOperator.ExpressionEvaluator suffix, DriverContext driverContext) {
-    this.warnings = new Warnings(source);
+      EvalOperator.ExpressionEvaluator suffix, DriverContext driverContext, Warnings warnings) {
     this.str = str;
     this.suffix = suffix;
     this.driverContext = driverContext;
+    this.warnings = warnings;
   }
 
   @Override
@@ -129,7 +129,7 @@ public final class EndsWithEvaluator implements EvalOperator.ExpressionEvaluator
 
     @Override
     public EndsWithEvaluator get(DriverContext context) {
-      return new EndsWithEvaluator(source, str.get(context), suffix.get(context), context);
+      return new EndsWithEvaluator(source, str.get(context), suffix.get(context), context, new Warnings(source));
     }
 
     @Override

@@ -32,11 +32,11 @@ public final class SubUnsignedLongsEvaluator implements EvalOperator.ExpressionE
   private final DriverContext driverContext;
 
   public SubUnsignedLongsEvaluator(Source source, EvalOperator.ExpressionEvaluator lhs,
-      EvalOperator.ExpressionEvaluator rhs, DriverContext driverContext) {
-    this.warnings = new Warnings(source);
+      EvalOperator.ExpressionEvaluator rhs, DriverContext driverContext, Warnings warnings) {
     this.lhs = lhs;
     this.rhs = rhs;
     this.driverContext = driverContext;
+    this.warnings = warnings;
   }
 
   @Override
@@ -132,7 +132,7 @@ public final class SubUnsignedLongsEvaluator implements EvalOperator.ExpressionE
 
     @Override
     public SubUnsignedLongsEvaluator get(DriverContext context) {
-      return new SubUnsignedLongsEvaluator(source, lhs.get(context), rhs.get(context), context);
+      return new SubUnsignedLongsEvaluator(source, lhs.get(context), rhs.get(context), context, new Warnings(source));
     }
 
     @Override

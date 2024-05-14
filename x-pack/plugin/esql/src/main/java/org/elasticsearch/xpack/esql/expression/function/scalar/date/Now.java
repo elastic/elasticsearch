@@ -12,6 +12,7 @@ import org.elasticsearch.compute.ann.Fixed;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
+import org.elasticsearch.xpack.esql.expression.function.Warnings;
 import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlConfigurationFunction;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.session.Configuration;
@@ -80,6 +81,6 @@ public class Now extends EsqlConfigurationFunction {
 
     @Override
     public ExpressionEvaluator.Factory toEvaluator(Function<Expression, ExpressionEvaluator.Factory> toEvaluator) {
-        return dvrCtx -> new NowEvaluator(source(), now, dvrCtx);
+        return dvrCtx -> new NowEvaluator(source(), now, dvrCtx, new Warnings(source()));
     }
 }

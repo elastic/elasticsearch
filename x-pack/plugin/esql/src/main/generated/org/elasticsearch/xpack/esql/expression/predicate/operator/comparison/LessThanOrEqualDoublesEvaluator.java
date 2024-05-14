@@ -33,11 +33,11 @@ public final class LessThanOrEqualDoublesEvaluator implements EvalOperator.Expre
   private final DriverContext driverContext;
 
   public LessThanOrEqualDoublesEvaluator(Source source, EvalOperator.ExpressionEvaluator lhs,
-      EvalOperator.ExpressionEvaluator rhs, DriverContext driverContext) {
-    this.warnings = new Warnings(source);
+      EvalOperator.ExpressionEvaluator rhs, DriverContext driverContext, Warnings warnings) {
     this.lhs = lhs;
     this.rhs = rhs;
     this.driverContext = driverContext;
+    this.warnings = warnings;
   }
 
   @Override
@@ -123,7 +123,7 @@ public final class LessThanOrEqualDoublesEvaluator implements EvalOperator.Expre
 
     @Override
     public LessThanOrEqualDoublesEvaluator get(DriverContext context) {
-      return new LessThanOrEqualDoublesEvaluator(source, lhs.get(context), rhs.get(context), context);
+      return new LessThanOrEqualDoublesEvaluator(source, lhs.get(context), rhs.get(context), context, new Warnings(source));
     }
 
     @Override

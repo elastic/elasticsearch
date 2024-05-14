@@ -33,11 +33,11 @@ public final class LessThanIntsEvaluator implements EvalOperator.ExpressionEvalu
   private final DriverContext driverContext;
 
   public LessThanIntsEvaluator(Source source, EvalOperator.ExpressionEvaluator lhs,
-      EvalOperator.ExpressionEvaluator rhs, DriverContext driverContext) {
-    this.warnings = new Warnings(source);
+      EvalOperator.ExpressionEvaluator rhs, DriverContext driverContext, Warnings warnings) {
     this.lhs = lhs;
     this.rhs = rhs;
     this.driverContext = driverContext;
+    this.warnings = warnings;
   }
 
   @Override
@@ -123,7 +123,7 @@ public final class LessThanIntsEvaluator implements EvalOperator.ExpressionEvalu
 
     @Override
     public LessThanIntsEvaluator get(DriverContext context) {
-      return new LessThanIntsEvaluator(source, lhs.get(context), rhs.get(context), context);
+      return new LessThanIntsEvaluator(source, lhs.get(context), rhs.get(context), context, new Warnings(source));
     }
 
     @Override

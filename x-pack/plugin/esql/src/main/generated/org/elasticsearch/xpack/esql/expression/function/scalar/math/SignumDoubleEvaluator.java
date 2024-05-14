@@ -29,10 +29,10 @@ public final class SignumDoubleEvaluator implements EvalOperator.ExpressionEvalu
   private final DriverContext driverContext;
 
   public SignumDoubleEvaluator(Source source, EvalOperator.ExpressionEvaluator val,
-      DriverContext driverContext) {
-    this.warnings = new Warnings(source);
+      DriverContext driverContext, Warnings warnings) {
     this.val = val;
     this.driverContext = driverContext;
+    this.warnings = warnings;
   }
 
   @Override
@@ -97,7 +97,7 @@ public final class SignumDoubleEvaluator implements EvalOperator.ExpressionEvalu
 
     @Override
     public SignumDoubleEvaluator get(DriverContext context) {
-      return new SignumDoubleEvaluator(source, val.get(context), context);
+      return new SignumDoubleEvaluator(source, val.get(context), context, new Warnings(source));
     }
 
     @Override

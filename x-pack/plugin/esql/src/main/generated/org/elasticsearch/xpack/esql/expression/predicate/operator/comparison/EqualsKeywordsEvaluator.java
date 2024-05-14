@@ -34,11 +34,11 @@ public final class EqualsKeywordsEvaluator implements EvalOperator.ExpressionEva
   private final DriverContext driverContext;
 
   public EqualsKeywordsEvaluator(Source source, EvalOperator.ExpressionEvaluator lhs,
-      EvalOperator.ExpressionEvaluator rhs, DriverContext driverContext) {
-    this.warnings = new Warnings(source);
+      EvalOperator.ExpressionEvaluator rhs, DriverContext driverContext, Warnings warnings) {
     this.lhs = lhs;
     this.rhs = rhs;
     this.driverContext = driverContext;
+    this.warnings = warnings;
   }
 
   @Override
@@ -128,7 +128,7 @@ public final class EqualsKeywordsEvaluator implements EvalOperator.ExpressionEva
 
     @Override
     public EqualsKeywordsEvaluator get(DriverContext context) {
-      return new EqualsKeywordsEvaluator(source, lhs.get(context), rhs.get(context), context);
+      return new EqualsKeywordsEvaluator(source, lhs.get(context), rhs.get(context), context, new Warnings(source));
     }
 
     @Override

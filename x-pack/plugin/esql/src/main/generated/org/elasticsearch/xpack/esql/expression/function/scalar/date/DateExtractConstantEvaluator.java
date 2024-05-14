@@ -35,12 +35,12 @@ public final class DateExtractConstantEvaluator implements EvalOperator.Expressi
   private final DriverContext driverContext;
 
   public DateExtractConstantEvaluator(Source source, EvalOperator.ExpressionEvaluator value,
-      ChronoField chronoField, ZoneId zone, DriverContext driverContext) {
-    this.warnings = new Warnings(source);
+      ChronoField chronoField, ZoneId zone, DriverContext driverContext, Warnings warnings) {
     this.value = value;
     this.chronoField = chronoField;
     this.zone = zone;
     this.driverContext = driverContext;
+    this.warnings = warnings;
   }
 
   @Override
@@ -112,7 +112,7 @@ public final class DateExtractConstantEvaluator implements EvalOperator.Expressi
 
     @Override
     public DateExtractConstantEvaluator get(DriverContext context) {
-      return new DateExtractConstantEvaluator(source, value.get(context), chronoField, zone, context);
+      return new DateExtractConstantEvaluator(source, value.get(context), chronoField, zone, context, new Warnings(source));
     }
 
     @Override

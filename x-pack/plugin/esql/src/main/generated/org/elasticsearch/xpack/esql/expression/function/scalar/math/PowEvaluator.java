@@ -32,11 +32,11 @@ public final class PowEvaluator implements EvalOperator.ExpressionEvaluator {
   private final DriverContext driverContext;
 
   public PowEvaluator(Source source, EvalOperator.ExpressionEvaluator base,
-      EvalOperator.ExpressionEvaluator exponent, DriverContext driverContext) {
-    this.warnings = new Warnings(source);
+      EvalOperator.ExpressionEvaluator exponent, DriverContext driverContext, Warnings warnings) {
     this.base = base;
     this.exponent = exponent;
     this.driverContext = driverContext;
+    this.warnings = warnings;
   }
 
   @Override
@@ -132,7 +132,7 @@ public final class PowEvaluator implements EvalOperator.ExpressionEvaluator {
 
     @Override
     public PowEvaluator get(DriverContext context) {
-      return new PowEvaluator(source, base.get(context), exponent.get(context), context);
+      return new PowEvaluator(source, base.get(context), exponent.get(context), context, new Warnings(source));
     }
 
     @Override

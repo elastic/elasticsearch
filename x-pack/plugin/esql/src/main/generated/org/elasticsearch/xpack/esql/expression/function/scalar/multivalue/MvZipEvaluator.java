@@ -34,12 +34,12 @@ public final class MvZipEvaluator implements EvalOperator.ExpressionEvaluator {
 
   public MvZipEvaluator(Source source, EvalOperator.ExpressionEvaluator leftField,
       EvalOperator.ExpressionEvaluator rightField, EvalOperator.ExpressionEvaluator delim,
-      DriverContext driverContext) {
-    this.warnings = new Warnings(source);
+      DriverContext driverContext, Warnings warnings) {
     this.leftField = leftField;
     this.rightField = rightField;
     this.delim = delim;
     this.driverContext = driverContext;
+    this.warnings = warnings;
   }
 
   @Override
@@ -116,7 +116,7 @@ public final class MvZipEvaluator implements EvalOperator.ExpressionEvaluator {
 
     @Override
     public MvZipEvaluator get(DriverContext context) {
-      return new MvZipEvaluator(source, leftField.get(context), rightField.get(context), delim.get(context), context);
+      return new MvZipEvaluator(source, leftField.get(context), rightField.get(context), delim.get(context), context, new Warnings(source));
     }
 
     @Override

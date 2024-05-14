@@ -27,6 +27,7 @@ import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xpack.core.security.action.apikey.ApiKey;
 import org.elasticsearch.xpack.core.security.action.apikey.CrossClusterApiKeyRoleDescriptorBuilder;
 import org.elasticsearch.xpack.core.security.action.apikey.GetApiKeyResponse;
 import org.junit.ClassRule;
@@ -287,11 +288,9 @@ public class RemoteClusterSecurityLegacyCrossClusterApiKeysWithDlsFlsIT extends 
     }
 
     private void addDlsQueryToApiKeyDoc(String crossClusterAccessApiKeyId) throws IOException {
-        var getCrossClusterApiKeysResponse = getCrossClusterApiKeys(crossClusterAccessApiKeyId);
-        assertThat(getCrossClusterApiKeysResponse.getApiKeyInfoList().size(), equalTo(1));
-        var apiKey = getCrossClusterApiKeysResponse.getApiKeyInfoList().get(0);
-        assertThat(apiKey.apiKeyInfo().getRoleDescriptors().size(), equalTo(1));
-        var rd = apiKey.apiKeyInfo().getRoleDescriptors().get(0);
+        var apiKey = getCrossClusterApiKeys(crossClusterAccessApiKeyId);
+        assertThat(apiKey.getRoleDescriptors().size(), equalTo(1));
+        var rd = apiKey.getRoleDescriptors().get(0);
         for (var ip : rd.getIndicesPrivileges()) {
             if (Arrays.equals(ip.getPrivileges(), CrossClusterApiKeyRoleDescriptorBuilder.CCS_INDICES_PRIVILEGE_NAMES)) {
                 ip.setQuery(new BytesArray("{\"match_all\": {}}"));
@@ -304,12 +303,14 @@ public class RemoteClusterSecurityLegacyCrossClusterApiKeysWithDlsFlsIT extends 
         updateApiKey(crossClusterAccessApiKeyId, org.elasticsearch.common.Strings.toString(builder));
     }
 
-    private GetApiKeyResponse getCrossClusterApiKeys(String id) throws IOException {
-        // TODO also test that Query works (we need to make sure that invalid API keys are still returned in Get and Query so that
-        // users can view them in the UI
+    // TODO also test that Query API key API works (we need to make sure that invalid API keys are still returned in Get and Query so that
+    // users can view them in the UI
+    private ApiKey getCrossClusterApiKeys(String id) throws IOException {
         final var request = new Request(HttpGet.METHOD_NAME, "/_security/api_key");
         request.addParameters(Map.of("id", id));
-        return GetApiKeyResponse.fromXContent(getParser(performRequestAgainstFulfillingCluster(request)));
+        var getCrossClusterApiKeysResponse = GetApiKeyResponse.fromXContent(getParser(performRequestAgainstFulfillingCluster(request)));
+        assertThat(getCrossClusterApiKeysResponse.getApiKeyInfoList().size(), equalTo(1));
+        return getCrossClusterApiKeysResponse.getApiKeyInfoList().get(0).apiKeyInfo();
     }
 
     private static XContentParser getParser(Response response) throws IOException {

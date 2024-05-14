@@ -27,6 +27,16 @@ public class FilterPathBasedFilter extends TokenFilter {
         public String toString() {
             return "MATCHING";
         }
+
+        @Override
+        public boolean includeEmptyArray(boolean contentsFiltered) {
+            return true;
+        }
+
+        @Override
+        public boolean includeEmptyObject(boolean contentsFiltered) {
+            return true;
+        }
     };
 
     /**
@@ -93,6 +103,16 @@ public class FilterPathBasedFilter extends TokenFilter {
             return inclusive ? null : TokenFilter.INCLUDE_ALL;
         }
         return filter;
+    }
+
+    @Override
+    public boolean includeEmptyArray(boolean contentsFiltered) {
+        return _includeScalar() == false;
+    }
+
+    @Override
+    public boolean includeEmptyObject(boolean contentsFiltered) {
+        return _includeScalar() == false;
     }
 
     @Override

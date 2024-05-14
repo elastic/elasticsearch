@@ -307,8 +307,6 @@ public class XContentSourceFilterTests extends AbstractFilteringTestCase {
         testFilter(actual, actual, emptySet(), singleton("nonExistingField"));
     }
 
-    // wait for PR https://github.com/FasterXML/jackson-core/pull/729 to be introduced
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/pull/80160")
     public void testNotOmittingObjectsWithExcludedProperties() throws IOException {
         String actual = """
             {

@@ -8,7 +8,6 @@
 
 package org.elasticsearch.cluster.routing.allocation;
 
-import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -22,7 +21,6 @@ import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.index.Index;
-import org.elasticsearch.index.shard.IndexLongFieldRange;
 import org.elasticsearch.index.shard.ShardId;
 
 import java.util.Comparator;
@@ -43,7 +41,6 @@ import java.util.stream.Collectors;
  * Allocation ids are added for shards that become active and removed for shards that stop being active.
  */
 public class IndexMetadataUpdater implements RoutingChangesObserver {
-    private static final Logger logger = LogManager.getLogger(IndexMetadataUpdater.class);
     private final Map<ShardId, Updates> shardChanges = new HashMap<>();
 
     @Override
@@ -171,20 +168,11 @@ public class IndexMetadataUpdater implements RoutingChangesObserver {
             } else {
                 final String allocationId;
 
-                // MP TODO start ---
-                logger.warn(
-                    "MPXX 123: IndexMetadataUpdater CALLING removeShard on evIng and num shards: " + oldIndexMetadata.getNumberOfShards()
-                );
-                IndexLongFieldRange evIngRemoved = updatedIndexMetadata.getEventIngestedRange()
-                    .removeShard(shardId.id(), oldIndexMetadata.getNumberOfShards());
-                logger.warn("MPXX 123: IndexMetadataUpdater CALLED/FINISHED removeShard on evIng and num shards: " + evIngRemoved);
-                // MP TODO END
-
                 if (recoverySource == RecoverySource.ExistingStoreRecoverySource.FORCE_STALE_PRIMARY_INSTANCE) {
                     allocationId = RecoverySource.ExistingStoreRecoverySource.FORCED_ALLOCATION_ID;
                     updatedIndexMetadata = updatedIndexMetadata.withTimestampRanges(
                         updatedIndexMetadata.getTimestampRange().removeShard(shardId.id(), oldIndexMetadata.getNumberOfShards()),
-                        evIngRemoved
+                        updatedIndexMetadata.getEventIngestedRange().removeShard(shardId.id(), oldIndexMetadata.getNumberOfShards())
                     );
                 } else {
                     assert recoverySource instanceof RecoverySource.SnapshotRecoverySource

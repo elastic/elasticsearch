@@ -65,7 +65,6 @@ public class CoordinatorRewriteContextProvider {
 
         /// MP TODO: should we also check eventIngestedRange.containsAllShardRanges() == false ??
         if (timestampRange.containsAllShardRanges() == false && eventIngestedRange.containsAllShardRanges() == false) {
-            /// MP TODO: why are we reassigning the timestampRange here?
             timestampRange = indexMetadata.getTimeSeriesTimestampRange(timestampFieldType);
             if (timestampRange == null) {
                 return null;

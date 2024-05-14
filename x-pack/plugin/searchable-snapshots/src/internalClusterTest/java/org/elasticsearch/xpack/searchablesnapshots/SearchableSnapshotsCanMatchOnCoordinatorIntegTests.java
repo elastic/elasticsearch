@@ -413,8 +413,7 @@ public class SearchableSnapshotsCanMatchOnCoordinatorIntegTests extends BaseFroz
     }
 
     /**
-     * MP TODO: explain what this test does
-     * IDEA: only index with event.ingested, not @timestamp and ensure that it behaves as expected
+     * Test shard skipping when only 'event.ingested' is in the index and cluster state.
      */
     public void testEventIngestedRangeInSearchAgainstSearchableSnapshotShards() throws Exception {
         internalCluster().startMasterOnlyNode();
@@ -761,8 +760,6 @@ public class SearchableSnapshotsCanMatchOnCoordinatorIntegTests extends BaseFroz
         internalCluster().stopNode(dataNodeHoldingSearchableSnapshot);
         waitUntilAllShardsAreUnassigned(updatedIndexMetadata.getIndex());
 
-        // MP TODO: I don't understand what is happening here - why do we do a busy assert and why do we do this after stopping the SSs?
-
         // busy assert since computing the timestamp field from the cluster state happens off of the CS applier thread and thus can be
         // slightly delayed
         assertBusy(() -> {
@@ -841,8 +838,7 @@ public class SearchableSnapshotsCanMatchOnCoordinatorIntegTests extends BaseFroz
         createRepository(repositoryName, "mock");
 
         final SnapshotId snapshotId = createSnapshot(repositoryName, "snapshot-1", List.of(indexWithinSearchRange)).snapshotId();
-        assertAcked(indicesAdmin().prepareDelete(indexWithinSearchRange));  // MP TODO: why do we delete this index? test passes without
-                                                                            // this
+        assertAcked(indicesAdmin().prepareDelete(indexWithinSearchRange));
 
         final String searchableSnapshotIndexWithinSearchRange = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
 

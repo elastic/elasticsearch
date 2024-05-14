@@ -8,6 +8,7 @@
 
 package org.elasticsearch.cluster.action.shard;
 
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.cluster.ClusterState;
@@ -393,7 +394,7 @@ public class ShardStartedClusterStateTaskExecutorTests extends ESAllocationTestC
 
         final ShardLongFieldRange shardEventIngestedRange = randomBoolean() ? ShardLongFieldRange.UNKNOWN
             : randomBoolean() ? ShardLongFieldRange.EMPTY
-            : ShardLongFieldRange.of(1606408888888L, 1606409999999L);
+            : ShardLongFieldRange.of(1606407943000L, 1606407944000L);
 
         final var task = new StartedShardUpdateTask(
             new StartedShardEntry(shardId, primaryAllocationId, primaryTerm, "test", shardTimestampRange, shardEventIngestedRange),
@@ -422,20 +423,19 @@ public class ShardStartedClusterStateTaskExecutorTests extends ESAllocationTestC
         }
 
         final var eventIngestedRange = resultingState.metadata().index(indexName).getEventIngestedRange();
-        assertThat(eventIngestedRange, sameInstance(IndexLongFieldRange.UNKNOWN));
-        // this test always results in UNKNOWN for event.ingested range because the version guard
-        // if (minTransportVersion.onOrAfter(TransportVersions.EVENT_INGESTED_RANGE_IN_CLUSTER_STATE)) {
-        // in ShardStateAction.ShardStartedClusterStateTaskExecutor.execute never returns true - the min version
-        // is 7170099 in the runs I did
-        // if (shardEventIngestedRange == ShardLongFieldRange.UNKNOWN) {
-        // assertThat(eventIngestedRange, sameInstance(IndexLongFieldRange.UNKNOWN));
-        // } else if (shardEventIngestedRange == ShardLongFieldRange.EMPTY) {
-        // assertThat(eventIngestedRange, sameInstance(IndexLongFieldRange.EMPTY));
-        // } else {
-        // assertTrue(eventIngestedRange.isComplete());
-        // assertThat(eventIngestedRange.getMin(), equalTo(shardEventIngestedRange.getMin()));
-        // assertThat(eventIngestedRange.getMax(), equalTo(shardEventIngestedRange.getMax()));
-        // }
+        if (clusterState.getMinTransportVersion().before(TransportVersions.EVENT_INGESTED_RANGE_IN_CLUSTER_STATE)) {
+            assertThat(eventIngestedRange, sameInstance(IndexLongFieldRange.UNKNOWN));
+        } else {
+            if (shardEventIngestedRange == ShardLongFieldRange.UNKNOWN) {
+                assertThat(eventIngestedRange, sameInstance(IndexLongFieldRange.UNKNOWN));
+            } else if (shardEventIngestedRange == ShardLongFieldRange.EMPTY) {
+                assertThat(eventIngestedRange, sameInstance(IndexLongFieldRange.EMPTY));
+            } else {
+                assertTrue(eventIngestedRange.isComplete());
+                assertThat(eventIngestedRange.getMin(), equalTo(shardEventIngestedRange.getMin()));
+                assertThat(eventIngestedRange.getMax(), equalTo(shardEventIngestedRange.getMax()));
+            }
+        }
     }
 
     public void testExpandsTimestampRangeForReplica() throws Exception {

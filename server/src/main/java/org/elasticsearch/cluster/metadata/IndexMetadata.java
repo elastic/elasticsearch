@@ -1637,7 +1637,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             if (in.getTransportVersion().onOrAfter(TransportVersions.EVENT_INGESTED_RANGE_IN_CLUSTER_STATE)) {
                 eventIngestedRange = IndexLongFieldRange.readFrom(in);
             } else {
-                eventIngestedRange = IndexLongFieldRange.UNKNOWN; // MP TODO: is this the right choice?
+                eventIngestedRange = IndexLongFieldRange.UNKNOWN;
             }
         }
 
@@ -1710,11 +1710,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             builder.rolloverInfos.putAllFromMap(rolloverInfos.apply(part.rolloverInfos));
             builder.system(isSystem);
             builder.timestampRange(timestampRange);
-            if (timestampRange != IndexLongFieldRange.NO_SHARDS && eventIngestedRange == IndexLongFieldRange.NO_SHARDS) {
-                builder.eventIngestedRange(IndexLongFieldRange.UNKNOWN);  // set to UNKNOWN for older/mixed versions
-            } else {
-                builder.eventIngestedRange(eventIngestedRange);
-            }
+            builder.eventIngestedRange(eventIngestedRange);
             builder.stats(stats);
             builder.indexWriteLoadForecast(indexWriteLoadForecast);
             builder.shardSizeInBytesForecast(shardSizeInBytesForecast);

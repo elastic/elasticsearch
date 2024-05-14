@@ -1128,14 +1128,14 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
          * @return the range of the {@code @timestamp} field for this shard, or {@link ShardLongFieldRange#EMPTY} if this field is not
          * found, or {@link ShardLongFieldRange#UNKNOWN} if its range is not fixed.
          */
-        @Nullable  // MP TODO: is this wrong - should this be removed?
+        @Nullable
         ShardLongFieldRange getTimestampRange();
 
         /**
          * @return the range of the {@code @event.ingested} field for this shard, or {@link ShardLongFieldRange#EMPTY} if this field is not
          * found, or {@link ShardLongFieldRange#UNKNOWN} if its range is not fixed.
          */
-        @Nullable // MP TODO: is this wrong - should this be removed?
+        @Nullable
         ShardLongFieldRange getEventIngestedRange();
 
         /**

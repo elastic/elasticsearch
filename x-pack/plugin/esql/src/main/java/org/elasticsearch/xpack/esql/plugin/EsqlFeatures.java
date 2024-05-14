@@ -160,13 +160,6 @@ public class EsqlFeatures implements FeatureSpecification {
      */
     public static final NodeFeature TIMESPAN_ABBREVIATIONS = new NodeFeature("esql.timespan_abbreviations");
 
-    /**
-     * Cast string literals to a desired data type for IN predicate and more types for BinaryComparison.
-     */
-    public static final NodeFeature STRING_LITERAL_AUTO_CASTING_ARITHMETIC_OPERATIONS_DATETIME = new NodeFeature(
-        "esql.string_literal_auto_casting_arithmetic_operations_datetime"
-    );
-
     @Override
     public Set<NodeFeature> getFeatures() {
         return Set.of(
@@ -189,8 +182,7 @@ public class EsqlFeatures implements FeatureSpecification {
             METRICS_COUNTER_FIELDS,
             STRING_LITERAL_AUTO_CASTING_EXTENDED,
             METADATA_FIELDS,
-            TIMESPAN_ABBREVIATIONS,
-            STRING_LITERAL_AUTO_CASTING_ARITHMETIC_OPERATIONS_DATETIME
+            TIMESPAN_ABBREVIATIONS
         );
     }
 

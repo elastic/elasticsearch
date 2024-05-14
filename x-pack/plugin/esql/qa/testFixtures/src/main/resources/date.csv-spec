@@ -1107,7 +1107,7 @@ emp_no:integer | birth_date:datetime
 ;
 
 implicitCastingArithmeticOperation
-required_feature: esql.string_literal_auto_casting_arithmetic_operations_datetime
+required_capability: string_literal_auto_casting_to_datetime_add_sub
 from employees
 | eval x =  1 day + "2024-01-01", y = 1 year + "2024-04-01" + 1 month, z = "2024-01-01" + 3600 seconds
 | keep x, y, z

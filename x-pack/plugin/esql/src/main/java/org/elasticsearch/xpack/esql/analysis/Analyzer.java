@@ -17,6 +17,7 @@ import org.elasticsearch.xpack.esql.expression.UnresolvedNamePattern;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.expression.function.UnsupportedAttribute;
 import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunction;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.DateTimeArithmeticOperation;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.EsqlArithmeticOperation;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.In;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
@@ -855,7 +856,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 if (supportsImplicitCasting(right.dataType())) {
                     targetDataType = right.dataType();
                     from = left;
-                } else if (isTemporalAmount(right.dataType())) {
+                } else if (isTemporalAmount(right.dataType()) && (o instanceof DateTimeArithmeticOperation)) {
                     targetDataType = DATETIME;
                     from = left;
                 }
@@ -864,7 +865,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 if (supportsImplicitCasting(left.dataType())) {
                     targetDataType = left.dataType();
                     from = right;
-                } else if (isTemporalAmount(left.dataType())) {
+                } else if (isTemporalAmount(left.dataType()) && (o instanceof DateTimeArithmeticOperation)) {
                     targetDataType = DATETIME;
                     from = right;
                 }

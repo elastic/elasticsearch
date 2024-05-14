@@ -132,22 +132,29 @@ public final class SearchHits implements Writeable, ChunkedToXContent, RefCounte
         final float maxScore = in.readFloat();
         int size = in.readVInt();
         final SearchHit[] hits;
+        boolean isPooled = false;
         if (size == 0) {
             hits = EMPTY;
         } else {
             hits = new SearchHit[size];
             for (int i = 0; i < hits.length; i++) {
-                hits[i] = SearchHit.readFrom(in, pooled);
+                var hit = SearchHit.readFrom(in, pooled);
+                hits[i] = hit;
+                isPooled = isPooled || hit.isPooled();
             }
         }
         var sortFields = in.readOptionalArray(Lucene::readSortField, SortField[]::new);
         var collapseField = in.readOptionalString();
         var collapseValues = in.readOptionalArray(Lucene::readSortValue, Object[]::new);
-        if (pooled) {
+        if (isPooled) {
             return new SearchHits(hits, totalHits, maxScore, sortFields, collapseField, collapseValues);
         } else {
             return unpooled(hits, totalHits, maxScore, sortFields, collapseField, collapseValues);
         }
+    }
+
+    public boolean isPooled() {
+        return refCounted != ALWAYS_REFERENCED;
     }
 
     @Override

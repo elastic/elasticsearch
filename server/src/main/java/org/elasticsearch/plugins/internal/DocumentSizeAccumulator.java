@@ -20,7 +20,7 @@ public interface DocumentSizeAccumulator {
         public void add(long size) {}
 
         @Override
-        public Map<String, String> enrichMapAndReset(Map<String, String> map) {
+        public Map<String, String> totalDocSizeMap(Map<String, String> map) {
             return map;
         }
     };
@@ -37,5 +37,5 @@ public interface DocumentSizeAccumulator {
      * @param map a map to enrich with a field
      * @return an enriched map
      */
-    Map<String, String> enrichMapAndReset(Map<String, String> map);
+    Map<String, String> totalDocSizeMap(Map<String, String> map);
 }

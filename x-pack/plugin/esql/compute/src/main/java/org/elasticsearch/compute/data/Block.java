@@ -72,7 +72,9 @@ public interface Block extends Accountable, BlockLoader.Block, NamedWriteable, R
     /** Gets the index of the first value for the given position. */
     int getFirstValueIndex(int position);
 
-    /** Gets the number of values for the given position, possibly 0. */
+    /** Gets the number of values for the given position.
+     *  The returned count will be 0 if and only if the block has a null value at that position.
+     */
     int getValueCount(int position);
 
     /**

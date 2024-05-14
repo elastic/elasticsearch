@@ -242,6 +242,10 @@ public final class BlockUtils {
     /**
      * Read all values from a positions into a java object. This is not fast
      * but fine to call in the "fold" path.
+     *
+     * @return - if the block has no values at this position, return null
+     *         - if the block has exactly one value at the position, return it as an object
+     *         - if the block has multiple values at the position, return them as a list
      */
     public static Object toJavaObject(Block block, int position) {
         if (block.isNull(position)) {

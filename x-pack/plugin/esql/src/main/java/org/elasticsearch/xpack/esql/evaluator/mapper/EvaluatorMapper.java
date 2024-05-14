@@ -63,15 +63,18 @@ public interface EvaluatorMapper {
      * good enough.
      */
     default Object fold() {
-        return toJavaObject(toEvaluator(e -> driverContext -> new ExpressionEvaluator() {
+        ExpressionEvaluator.Factory evaluatorFactory = toEvaluator(e -> driverContext -> new ExpressionEvaluator() {
             @Override
             public Block eval(Page page) {
+                // Tell our children to also fold
                 return fromArrayRow(driverContext.blockFactory(), e.fold())[0];
             }
 
             @Override
-            public void close() {}
-        }).get(
+            public void close() {
+            }
+        });
+        return toJavaObject(evaluatorFactory.get(
             new DriverContext(
                 BigArrays.NON_RECYCLING_INSTANCE,
                 // TODO maybe this should have a small fixed limit?

@@ -164,7 +164,8 @@ public class TransportVersions {
     public static final TransportVersion ML_INFERENCE_AZURE_OPENAI_COMPLETIONS = def(8_655_00_0);
     public static final TransportVersion JOIN_STATUS_AGE_SERIALIZATION = def(8_656_00_0);
     public static final TransportVersion ML_RERANK_DOC_OPTIONAL = def(8_657_00_0);
-    public static final TransportVersion SEMANTIC_QUERY = def(8_658_00_0);
+    public static final TransportVersion FAILURE_STORE_FIELD_PARITY = def(8_658_00_0);
+    public static final TransportVersion SEMANTIC_QUERY = def(8_659_00_0);
 
     /*
      * STOP! READ THIS FIRST! No, really,

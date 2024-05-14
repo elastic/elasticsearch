@@ -210,8 +210,8 @@ setup:
 ---
 "Create data stream with failure store":
   - requires:
-      cluster_features: ["gte_v8.11.0"]
-      reason: "data stream failure stores only creatable in 8.11+"
+      cluster_features: ["gte_v8.15.0"]
+      reason: "data stream failure stores REST structure changed in 8.15+"
 
   - do:
       allowed_warnings:
@@ -248,9 +248,9 @@ setup:
   - match: { data_streams.0.status: 'GREEN' }
   - match: { data_streams.0.template: 'my-template4' }
   - match: { data_streams.0.hidden: false }
-  - match: { data_streams.0.failure_store: true }
-  - length: { data_streams.0.failure_indices: 1 }
-  - match: { data_streams.0.failure_indices.0.index_name: '/\.fs-failure-data-stream1-(\d{4}\.\d{2}\.\d{2}-)?000001/'}
+  - match: { data_streams.0.failure_store.enabled: true }
+  - length: { data_streams.0.failure_store.indices: 1 }
+  - match: { data_streams.0.failure_store.indices.0.index_name: '/\.fs-failure-data-stream1-(\d{4}\.\d{2}\.\d{2}-)?000001/'}
 
   - match: { data_streams.1.name: failure-data-stream2 }
   - match: { data_streams.1.timestamp_field.name: '@timestamp' }
@@ -259,15 +259,15 @@ setup:
   - match: { data_streams.1.indices.0.index_name: '/\.ds-failure-data-stream2-(\d{4}\.\d{2}\.\d{2}-)?000001/' }
   - match: { data_streams.1.template: 'my-template4' }
   - match: { data_streams.1.hidden: false }
-  - match: { data_streams.1.failure_store: true }
-  - length: { data_streams.1.failure_indices: 1 }
-  - match: { data_streams.1.failure_indices.0.index_name: '/\.fs-failure-data-stream2-(\d{4}\.\d{2}\.\d{2}-)?000001/' }
+  - match: { data_streams.1.failure_store.enabled: true }
+  - length: { data_streams.1.failure_store.indices: 1 }
+  - match: { data_streams.1.failure_store.indices.0.index_name: '/\.fs-failure-data-stream2-(\d{4}\.\d{2}\.\d{2}-)?000001/' }
 
   # save the backing index names for later use
   - set: { data_streams.0.indices.0.index_name: idx0name }
-  - set: { data_streams.0.failure_indices.0.index_name: fsidx0name }
+  - set: { data_streams.0.failure_store.indices.0.index_name: fsidx0name }
   - set: { data_streams.1.indices.0.index_name: idx1name }
-  - set: { data_streams.1.failure_indices.0.index_name: fsidx1name }
+  - set: { data_streams.1.failure_store.indices.0.index_name: fsidx1name }
 
   - do:
       indices.get_mapping:
@@ -538,8 +538,8 @@ setup:
 ---
 "Delete data stream with failure stores":
   - requires:
-      cluster_features: ["gte_v8.12.0"]
-      reason: "data stream failure stores only supported in 8.12+"
+      cluster_features: ["gte_v8.15.0"]
+      reason: "data stream failure stores REST structure changed in 8.15+"
 
   - do:
       allowed_warnings:
@@ -570,7 +570,7 @@ setup:
         name: failure-data-stream1
 
   - set: { data_streams.0.indices.0.index_name: idx0name }
-  - set: { data_streams.0.failure_indices.0.index_name: fs0name }
+  - set: { data_streams.0.failure_store.indices.0.index_name: fs0name }
 
   - do:
       indices.get:
@@ -586,8 +586,8 @@ setup:
   - match: { data_streams.0.generation: 1 }
   - length: { data_streams.0.indices: 1 }
   - match: { data_streams.0.indices.0.index_name: '/\.ds-failure-data-stream1-(\d{4}\.\d{2}\.\d{2}-)?000001/' }
-  - length: { data_streams.0.failure_indices: 1 }
-  - match: { data_streams.0.failure_indices.0.index_name: '/\.fs-failure-data-stream1-(\d{4}\.\d{2}\.\d{2}-)?000001/' }
+  - length: { data_streams.0.failure_store.indices: 1 }
+  - match: { data_streams.0.failure_store.indices.0.index_name: '/\.fs-failure-data-stream1-(\d{4}\.\d{2}\.\d{2}-)?000001/' }
 
   - do:
       indices.delete_data_stream:

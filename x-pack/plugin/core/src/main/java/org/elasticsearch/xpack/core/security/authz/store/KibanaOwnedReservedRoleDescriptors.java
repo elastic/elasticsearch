@@ -49,7 +49,11 @@ class KibanaOwnedReservedRoleDescriptors {
             null,
             null,
             metadata,
-            null
+            null,
+            null,
+            null,
+            null,
+            "Grants access to all features in Kibana."
         );
     }
 
@@ -408,7 +412,13 @@ class KibanaOwnedReservedRoleDescriptors {
                 getRemoteIndicesReadPrivileges("traces-apm-*") },
             null,
             null,
-            null
+            "Grants access necessary for the Kibana system user to read from and write to the Kibana indices, "
+                + "manage index templates and tokens, and check the availability of the Elasticsearch cluster. "
+                + "It also permits activating, searching, and retrieving user profiles, "
+                + "as well as updating user profile data for the kibana-* namespace. "
+                + "Additionally, this role grants read access to the .monitoring-* indices "
+                + "and read and write access to the .reporting-* indices. "
+                + "Note: This role should not be assigned to users as the granted permissions may change between releases."
         );
     }
 }

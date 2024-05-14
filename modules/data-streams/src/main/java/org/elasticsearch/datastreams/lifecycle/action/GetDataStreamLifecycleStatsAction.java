@@ -43,7 +43,9 @@ public class GetDataStreamLifecycleStatsAction extends ActionType<GetDataStreamL
             super(in);
         }
 
-        public Request() {}
+        public Request() {
+            super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT);
+        }
 
         @Override
         public ActionRequestValidationException validate() {

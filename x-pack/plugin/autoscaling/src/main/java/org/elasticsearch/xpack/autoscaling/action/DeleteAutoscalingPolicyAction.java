@@ -34,6 +34,7 @@ public class DeleteAutoscalingPolicyAction extends ActionType<AcknowledgedRespon
         }
 
         public Request(final String name) {
+            super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT, DEFAULT_ACK_TIMEOUT);
             this.name = Objects.requireNonNull(name);
         }
 

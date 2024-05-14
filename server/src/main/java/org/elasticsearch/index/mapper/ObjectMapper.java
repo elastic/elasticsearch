@@ -751,19 +751,17 @@ public class ObjectMapper extends Mapper {
 
     }
 
-    public SourceLoader.SyntheticFieldLoader syntheticFieldLoader(Stream<Mapper> extra) {
-        return new SyntheticSourceFieldLoader(
-            Stream.concat(extra, mappers.values().stream())
-                .sorted(Comparator.comparing(Mapper::name))
-                .map(Mapper::syntheticFieldLoader)
-                .filter(l -> l != null)
-                .toList()
-        );
+    public SourceLoader.SyntheticFieldLoader syntheticFieldLoader(Stream<Mapper> mappers) {
+        var fields = mappers.sorted(Comparator.comparing(Mapper::name))
+            .map(Mapper::syntheticFieldLoader)
+            .filter(l -> l != SourceLoader.SyntheticFieldLoader.NOTHING)
+            .toList();
+        return new SyntheticSourceFieldLoader(fields);
     }
 
     @Override
     public SourceLoader.SyntheticFieldLoader syntheticFieldLoader() {
-        return syntheticFieldLoader(Stream.empty());
+        return syntheticFieldLoader(mappers.values().stream());
     }
 
     private class SyntheticSourceFieldLoader implements SourceLoader.SyntheticFieldLoader {

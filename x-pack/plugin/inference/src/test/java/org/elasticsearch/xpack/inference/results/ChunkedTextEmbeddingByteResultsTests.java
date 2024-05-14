@@ -131,6 +131,6 @@ public class ChunkedTextEmbeddingByteResultsTests extends AbstractWireSerializin
 
     @Override
     protected ChunkedTextEmbeddingByteResults mutateInstance(ChunkedTextEmbeddingByteResults instance) throws IOException {
-        return randomValueOtherThan(instance, this::createTestInstance);
+        return randomValueOtherThan(instance, ChunkedTextEmbeddingByteResultsTests::createRandomResults);
     }
 }

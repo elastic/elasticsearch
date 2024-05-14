@@ -32,6 +32,7 @@ import org.elasticsearch.indices.AutoscalingMissedIndicesUpdateException;
 import org.elasticsearch.indices.FailureIndexNotSupportedException;
 import org.elasticsearch.indices.recovery.RecoveryCommitTooNewException;
 import org.elasticsearch.ingest.GraphStructureException;
+import org.elasticsearch.ingest.InvalidPipelineNameException;
 import org.elasticsearch.persistent.NotPersistentTaskNodeException;
 import org.elasticsearch.persistent.PersistentTaskNodeNotAssignedException;
 import org.elasticsearch.rest.ApiNotAvailableException;
@@ -1927,6 +1928,12 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
             ResourceAlreadyUploadedException::new,
             181,
             TransportVersions.ADD_RESOURCE_ALREADY_UPLOADED_EXCEPTION
+        ),
+        INVALID_PIPELINE_NAME_EXCEPTION(
+            InvalidPipelineNameException.class,
+            InvalidPipelineNameException::new,
+            182,
+            TransportVersions.ADD_INVALID_PIPELINE_NAME_EXCEPTION
         );
 
         final Class<? extends ElasticsearchException> exceptionClass;

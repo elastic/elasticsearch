@@ -17,6 +17,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
@@ -166,6 +167,21 @@ public class PipelineFactoryTests extends ESTestCase {
         CompoundProcessor processor = (CompoundProcessor) pipeline.getProcessors().get(0);
         assertThat(processor.isIgnoreFailure(), is(true));
         assertThat(processor.getProcessors().get(0).getType(), equalTo("test-processor"));
+    }
+
+    public void testCreateInvalidPipelineName() throws Exception {
+        for (Character badChar : List.of('\\', '/', '*', '?', '"', '<', '>', '|', ' ', ',')) {
+            Map<String, Object> pipelineConfig = new HashMap<>();
+            pipelineConfig.put(Pipeline.PROCESSORS_KEY, List.of(Map.of("test", new HashMap<>())));
+            Map<String, Processor.Factory> processorRegistry = Map.of("test", new TestProcessor.Factory());
+
+            final String name = randomAlphaOfLength(5) + badChar + randomAlphaOfLength(5);
+            Exception e = expectThrows(
+                InvalidPipelineNameException.class,
+                () -> Pipeline.create(name, pipelineConfig, processorRegistry, scriptService)
+            );
+            assertThat(e.getMessage(), containsString("Invalid pipeline name [" + name + "], must not contain the following characters"));
+        }
     }
 
     public void testCreateUnusedProcessorOptions() throws Exception {

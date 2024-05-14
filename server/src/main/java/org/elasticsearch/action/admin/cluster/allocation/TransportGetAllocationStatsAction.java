@@ -103,6 +103,7 @@ public class TransportGetAllocationStatsAction extends TransportMasterNodeReadAc
     public static class Request extends MasterNodeReadRequest<Request> {
 
         public Request(TaskId parentTaskId) {
+            super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT);
             setParentTask(parentTaskId);
         }
 

@@ -8,8 +8,6 @@
 package org.elasticsearch.cluster.routing.allocation;
 
 import org.apache.logging.log4j.Level;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterInfo;
 import org.elasticsearch.cluster.ClusterName;
@@ -31,7 +29,6 @@ import org.elasticsearch.cluster.routing.RoutingNodesHelper;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.common.Priority;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -1367,24 +1364,30 @@ public class DiskThresholdMonitorTests extends ESAllocationTestCase {
 
     private void assertNoLogging(DiskThresholdMonitor monitor, Map<String, DiskUsage> diskUsages) throws IllegalAccessException {
         MockLogAppender mockAppender = new MockLogAppender();
-        mockAppender.start();
-        mockAppender.addExpectation(
-            new MockLogAppender.UnseenEventExpectation("any INFO message", DiskThresholdMonitor.class.getCanonicalName(), Level.INFO, "*")
-        );
-        mockAppender.addExpectation(
-            new MockLogAppender.UnseenEventExpectation("any WARN message", DiskThresholdMonitor.class.getCanonicalName(), Level.WARN, "*")
-        );
+        try (var ignored = mockAppender.capturing(DiskThresholdMonitor.class)) {
+            mockAppender.addExpectation(
+                new MockLogAppender.UnseenEventExpectation(
+                    "any INFO message",
+                    DiskThresholdMonitor.class.getCanonicalName(),
+                    Level.INFO,
+                    "*"
+                )
+            );
+            mockAppender.addExpectation(
+                new MockLogAppender.UnseenEventExpectation(
+                    "any WARN message",
+                    DiskThresholdMonitor.class.getCanonicalName(),
+                    Level.WARN,
+                    "*"
+                )
+            );
 
-        Logger diskThresholdMonitorLogger = LogManager.getLogger(DiskThresholdMonitor.class);
-        Loggers.addAppender(diskThresholdMonitorLogger, mockAppender);
+            for (int i = between(1, 3); i >= 0; i--) {
+                monitor.onNewInfo(clusterInfo(diskUsages));
+            }
 
-        for (int i = between(1, 3); i >= 0; i--) {
-            monitor.onNewInfo(clusterInfo(diskUsages));
+            mockAppender.assertAllExpectationsMatched();
         }
-
-        mockAppender.assertAllExpectationsMatched();
-        Loggers.removeAppender(diskThresholdMonitorLogger, mockAppender);
-        mockAppender.stop();
     }
 
     private void assertRepeatedWarningMessages(DiskThresholdMonitor monitor, Map<String, DiskUsage> diskUsages, String message)
@@ -1406,30 +1409,24 @@ public class DiskThresholdMonitorTests extends ESAllocationTestCase {
         assertNoLogging(monitor, diskUsages);
     }
 
-    private void assertLogging(DiskThresholdMonitor monitor, Map<String, DiskUsage> diskUsages, Level level, String message)
-        throws IllegalAccessException {
+    private void assertLogging(DiskThresholdMonitor monitor, Map<String, DiskUsage> diskUsages, Level level, String message) {
         MockLogAppender mockAppender = new MockLogAppender();
-        mockAppender.start();
-        mockAppender.addExpectation(
-            new MockLogAppender.SeenEventExpectation("expected message", DiskThresholdMonitor.class.getCanonicalName(), level, message)
-        );
-        mockAppender.addExpectation(
-            new MockLogAppender.UnseenEventExpectation(
-                "any message of another level",
-                DiskThresholdMonitor.class.getCanonicalName(),
-                level == Level.INFO ? Level.WARN : Level.INFO,
-                "*"
-            )
-        );
+        try (var ignored = mockAppender.capturing(DiskThresholdMonitor.class)) {
+            mockAppender.addExpectation(
+                new MockLogAppender.SeenEventExpectation("expected message", DiskThresholdMonitor.class.getCanonicalName(), level, message)
+            );
+            mockAppender.addExpectation(
+                new MockLogAppender.UnseenEventExpectation(
+                    "any message of another level",
+                    DiskThresholdMonitor.class.getCanonicalName(),
+                    level == Level.INFO ? Level.WARN : Level.INFO,
+                    "*"
+                )
+            );
 
-        Logger diskThresholdMonitorLogger = LogManager.getLogger(DiskThresholdMonitor.class);
-        Loggers.addAppender(diskThresholdMonitorLogger, mockAppender);
-
-        monitor.onNewInfo(clusterInfo(diskUsages));
-
-        mockAppender.assertAllExpectationsMatched();
-        Loggers.removeAppender(diskThresholdMonitorLogger, mockAppender);
-        mockAppender.stop();
+            monitor.onNewInfo(clusterInfo(diskUsages));
+            mockAppender.assertAllExpectationsMatched();
+        }
     }
 
     private static long betweenGb(int min, int max) {

@@ -80,6 +80,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
 import static java.util.Collections.emptySet;
+import static org.elasticsearch.action.support.ActionTestUtils.assertNoSuccessListener;
 import static org.elasticsearch.cluster.service.MasterService.MAX_TASK_DESCRIPTION_CHARS;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.contains;
@@ -1041,30 +1042,22 @@ public class MasterServiceTests extends ESTestCase {
                     threadContext.putHeader(testContextHeaderName, testContextHeaderValue);
                     final var expectFailure = randomBoolean();
                     final var taskComplete = new AtomicBoolean();
-                    final var task = new Task(expectFailure, testResponseHeaderValue, new ActionListener<>() {
-                        @Override
-                        public void onResponse(ClusterState clusterState) {
-                            throw new AssertionError("should not succeed");
+                    final var task = new Task(expectFailure, testResponseHeaderValue, assertNoSuccessListener(e -> {
+                        assertEquals(testContextHeaderValue, threadContext.getHeader(testContextHeaderName));
+                        assertEquals(List.of(testResponseHeaderValue), threadContext.getResponseHeaders().get(testResponseHeaderName));
+                        assertThat(e, instanceOf(FailedToCommitClusterStateException.class));
+                        assertThat(e.getMessage(), equalTo(publicationFailedExceptionMessage));
+                        if (expectFailure) {
+                            assertThat(e.getSuppressed().length, greaterThan(0));
+                            var suppressed = e.getSuppressed()[0];
+                            assertThat(suppressed, instanceOf(ElasticsearchException.class));
+                            assertThat(suppressed.getMessage(), equalTo(taskFailedExceptionMessage));
                         }
-
-                        @Override
-                        public void onFailure(Exception e) {
-                            assertEquals(testContextHeaderValue, threadContext.getHeader(testContextHeaderName));
-                            assertEquals(List.of(testResponseHeaderValue), threadContext.getResponseHeaders().get(testResponseHeaderName));
-                            assertThat(e, instanceOf(FailedToCommitClusterStateException.class));
-                            assertThat(e.getMessage(), equalTo(publicationFailedExceptionMessage));
-                            if (expectFailure) {
-                                assertThat(e.getSuppressed().length, greaterThan(0));
-                                var suppressed = e.getSuppressed()[0];
-                                assertThat(suppressed, instanceOf(ElasticsearchException.class));
-                                assertThat(suppressed.getMessage(), equalTo(taskFailedExceptionMessage));
-                            }
-                            assertNotNull(publishedState.get());
-                            assertNotSame(stateBeforeFailure, publishedState.get());
-                            assertTrue(taskComplete.compareAndSet(false, true));
-                            publishFailureCountdown.countDown();
-                        }
-                    });
+                        assertNotNull(publishedState.get());
+                        assertNotSame(stateBeforeFailure, publishedState.get());
+                        assertTrue(taskComplete.compareAndSet(false, true));
+                        publishFailureCountdown.countDown();
+                    }));
 
                     queue.submitTask("test", task, null);
                 }
@@ -1661,6 +1654,57 @@ public class MasterServiceTests extends ESTestCase {
                 );
 
                 deterministicTaskQueue.runAllTasksInTimeOrder();
+                safeAwait(latch);
+            }
+
+            // check that -1 means an infinite ack timeout
+            {
+                final CountDownLatch latch = new CountDownLatch(2);
+
+                publisherRef.set((clusterChangedEvent, publishListener, ackListener) -> {
+                    publishListener.onResponse(null);
+                    ackListener.onCommit(TimeValue.timeValueMillis(randomLongBetween(0, TimeValue.timeValueDays(1).millis())));
+                    for (final var node : new DiscoveryNode[] { node1, node2, node3 }) {
+                        deterministicTaskQueue.scheduleAt(
+                            deterministicTaskQueue.getCurrentTimeMillis() + randomLongBetween(0, TimeValue.timeValueDays(1).millis()),
+                            () -> ackListener.onNodeAck(node, null)
+                        );
+                    }
+                });
+
+                masterService.submitUnbatchedStateUpdateTask(
+                    "test2",
+                    new AckedClusterStateUpdateTask(ackedRequest(TimeValue.MINUS_ONE, null), null) {
+                        @Override
+                        public ClusterState execute(ClusterState currentState) {
+                            return ClusterState.builder(currentState).build();
+                        }
+
+                        @Override
+                        public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
+                            latch.countDown();
+                        }
+
+                        @Override
+                        protected AcknowledgedResponse newResponse(boolean acknowledged) {
+                            assertTrue(acknowledged);
+                            latch.countDown();
+                            return AcknowledgedResponse.TRUE;
+                        }
+
+                        @Override
+                        public void onFailure(Exception e) {
+                            fail();
+                        }
+
+                        @Override
+                        public void onAckTimeout() {
+                            fail();
+                        }
+                    }
+                );
+
+                deterministicTaskQueue.runAllTasks(); // NB not in time order, there's no timeout to avoid
                 safeAwait(latch);
             }
         }

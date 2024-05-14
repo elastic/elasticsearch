@@ -169,6 +169,7 @@ public class JwtRealmSingleNodeTests extends SecuritySingleNodeTestCase {
             """;
     }
 
+    @Override
     protected boolean addMockHttpTransport() {
         return false;
     }
@@ -486,7 +487,9 @@ public class JwtRealmSingleNodeTests extends SecuritySingleNodeTestCase {
             .expirationTime(Date.from(Instant.now().plusSeconds(600)));
         assertEquals(
             200,
-            client.performRequest(getRequest(getSignedJWT(jwt0Claims.build()), jwt0SharedSecret)).getStatusLine().getStatusCode()
+            client.performRequest(getAuthenticateRequest(getSignedJWT(jwt0Claims.build()), jwt0SharedSecret))
+                .getStatusLine()
+                .getStatusCode()
         );
         // valid jwt for realm1
         JWTClaimsSet.Builder jwt1Claims = new JWTClaimsSet.Builder();
@@ -499,7 +502,9 @@ public class JwtRealmSingleNodeTests extends SecuritySingleNodeTestCase {
             .expirationTime(Date.from(Instant.now().plusSeconds(300)));
         assertEquals(
             200,
-            client.performRequest(getRequest(getSignedJWT(jwt1Claims.build()), jwt1SharedSecret)).getStatusLine().getStatusCode()
+            client.performRequest(getAuthenticateRequest(getSignedJWT(jwt1Claims.build()), jwt1SharedSecret))
+                .getStatusLine()
+                .getStatusCode()
         );
         // valid jwt for realm2
         JWTClaimsSet.Builder jwt2Claims = new JWTClaimsSet.Builder();
@@ -512,7 +517,9 @@ public class JwtRealmSingleNodeTests extends SecuritySingleNodeTestCase {
             .expirationTime(Date.from(Instant.now().plusSeconds(300)));
         assertEquals(
             200,
-            client.performRequest(getRequest(getSignedJWT(jwt2Claims.build()), jwt2SharedSecret)).getStatusLine().getStatusCode()
+            client.performRequest(getAuthenticateRequest(getSignedJWT(jwt2Claims.build()), jwt2SharedSecret))
+                .getStatusLine()
+                .getStatusCode()
         );
         final PluginsService plugins = getInstanceFromNode(PluginsService.class);
         final LocalStateSecurity localStateSecurity = plugins.filterPlugins(LocalStateSecurity.class).findFirst().get();
@@ -541,30 +548,42 @@ public class JwtRealmSingleNodeTests extends SecuritySingleNodeTestCase {
             // ensure the old value still works for realm 0 (default grace period)
             assertEquals(
                 200,
-                client.performRequest(getRequest(getSignedJWT(jwt0Claims.build()), jwt0SharedSecret)).getStatusLine().getStatusCode()
+                client.performRequest(getAuthenticateRequest(getSignedJWT(jwt0Claims.build()), jwt0SharedSecret))
+                    .getStatusLine()
+                    .getStatusCode()
             );
             assertEquals(
                 200,
-                client.performRequest(getRequest(getSignedJWT(jwt0Claims.build()), "realm0updatedSecret")).getStatusLine().getStatusCode()
+                client.performRequest(getAuthenticateRequest(getSignedJWT(jwt0Claims.build()), "realm0updatedSecret"))
+                    .getStatusLine()
+                    .getStatusCode()
             );
             // ensure the old value still works for realm 1 (explicit grace period)
             assertEquals(
                 200,
-                client.performRequest(getRequest(getSignedJWT(jwt1Claims.build()), jwt1SharedSecret)).getStatusLine().getStatusCode()
+                client.performRequest(getAuthenticateRequest(getSignedJWT(jwt1Claims.build()), jwt1SharedSecret))
+                    .getStatusLine()
+                    .getStatusCode()
             );
             assertEquals(
                 200,
-                client.performRequest(getRequest(getSignedJWT(jwt1Claims.build()), "realm1updatedSecret")).getStatusLine().getStatusCode()
+                client.performRequest(getAuthenticateRequest(getSignedJWT(jwt1Claims.build()), "realm1updatedSecret"))
+                    .getStatusLine()
+                    .getStatusCode()
             );
             // ensure the old value does not work for realm 2 (no grace period)
             ResponseException exception = expectThrows(
                 ResponseException.class,
-                () -> client.performRequest(getRequest(getSignedJWT(jwt2Claims.build()), jwt2SharedSecret)).getStatusLine().getStatusCode()
+                () -> client.performRequest(getAuthenticateRequest(getSignedJWT(jwt2Claims.build()), jwt2SharedSecret))
+                    .getStatusLine()
+                    .getStatusCode()
             );
             assertEquals(401, exception.getResponse().getStatusLine().getStatusCode());
             assertEquals(
                 200,
-                client.performRequest(getRequest(getSignedJWT(jwt2Claims.build()), "realm2updatedSecret")).getStatusLine().getStatusCode()
+                client.performRequest(getAuthenticateRequest(getSignedJWT(jwt2Claims.build()), "realm2updatedSecret"))
+                    .getStatusLine()
+                    .getStatusCode()
             );
         } finally {
             // update them back to their original values
@@ -688,7 +707,7 @@ public class JwtRealmSingleNodeTests extends SecuritySingleNodeTestCase {
         }
     }
 
-    private SignedJWT getSignedJWT(JWTClaimsSet claimsSet, byte[] hmacKeyBytes) throws Exception {
+    static SignedJWT getSignedJWT(JWTClaimsSet claimsSet, byte[] hmacKeyBytes) throws Exception {
         JWSHeader jwtHeader = new JWSHeader.Builder(JWSAlgorithm.HS256).build();
         OctetSequenceKey.Builder jwt0signer = new OctetSequenceKey.Builder(hmacKeyBytes);
         jwt0signer.algorithm(JWSAlgorithm.HS256);
@@ -701,7 +720,7 @@ public class JwtRealmSingleNodeTests extends SecuritySingleNodeTestCase {
         return getSignedJWT(claimsSet, jwtHmacKey.getBytes(StandardCharsets.UTF_8));
     }
 
-    private Request getRequest(SignedJWT jwt, String sharedSecret) {
+    static Request getAuthenticateRequest(SignedJWT jwt, String sharedSecret) {
         Request request = new Request("GET", "/_security/_authenticate");
         RequestOptions.Builder options = RequestOptions.DEFAULT.toBuilder();
         options.addHeader("Authorization", "Bearer  " + jwt.serialize());
@@ -768,7 +787,7 @@ public class JwtRealmSingleNodeTests extends SecuritySingleNodeTestCase {
         return threadContext;
     }
 
-    private static GrantApiKeyRequest getGrantApiKeyForJWT(SignedJWT signedJWT, String sharedSecret) {
+    static GrantApiKeyRequest getGrantApiKeyForJWT(SignedJWT signedJWT, String sharedSecret) {
         GrantApiKeyRequest grantApiKeyRequest = new GrantApiKeyRequest();
         grantApiKeyRequest.getGrant().setType("access_token");
         grantApiKeyRequest.getGrant().setAccessToken(new SecureString(signedJWT.serialize().toCharArray()));

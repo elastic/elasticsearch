@@ -12,7 +12,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.TransportSearchAction;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsException;
@@ -194,15 +193,10 @@ public class LoadAuthorizedIndicesTimeCheckerTests extends ESTestCase {
             thresholds
         );
         final MockLogAppender mockAppender = new MockLogAppender();
-        mockAppender.start();
-        try {
-            Loggers.addAppender(timerLogger, mockAppender);
+        try (var ignored = mockAppender.capturing(timerLogger.getName())) {
             mockAppender.addExpectation(expectation);
             checker.accept(List.of());
             mockAppender.assertAllExpectationsMatched();
-        } finally {
-            Loggers.removeAppender(timerLogger, mockAppender);
-            mockAppender.stop();
         }
     }
 

@@ -65,12 +65,12 @@ public class OpenAiServiceUpgradeIT extends InferenceUpgradeTestCase {
             openAiEmbeddingsServer.enqueue(new MockResponse().setResponseCode(200).setBody(embeddingResponse()));
             put(oldClusterId, inferenceConfig, TaskType.TEXT_EMBEDDING);
 
-            var configs = (List<Map<String, Object>>) get(TaskType.TEXT_EMBEDDING, oldClusterId).get("models");
+            var configs = (List<Map<String, Object>>) get(TaskType.TEXT_EMBEDDING, oldClusterId).get("endpoints");
             assertThat(configs, hasSize(1));
 
             assertEmbeddingInference(oldClusterId);
         } else if (isMixedCluster()) {
-            var configs = (List<Map<String, Object>>) get(TaskType.TEXT_EMBEDDING, oldClusterId).get("models");
+            var configs = (List<Map<String, Object>>) get(TaskType.TEXT_EMBEDDING, oldClusterId).get("endpoints");
             assertEquals("openai", configs.get(0).get("service"));
             var serviceSettings = (Map<String, Object>) configs.get(0).get("service_settings");
             var taskSettings = (Map<String, Object>) configs.get(0).get("task_settings");
@@ -80,7 +80,7 @@ public class OpenAiServiceUpgradeIT extends InferenceUpgradeTestCase {
             assertEmbeddingInference(oldClusterId);
         } else if (isUpgradedCluster()) {
             // check old cluster model
-            var configs = (List<Map<String, Object>>) get(TaskType.TEXT_EMBEDDING, oldClusterId).get("models");
+            var configs = (List<Map<String, Object>>) get(TaskType.TEXT_EMBEDDING, oldClusterId).get("endpoints");
             var serviceSettings = (Map<String, Object>) configs.get(0).get("service_settings");
             // model id is moved to service settings
             assertThat(serviceSettings, hasEntry("model_id", "text-embedding-ada-002"));
@@ -94,7 +94,7 @@ public class OpenAiServiceUpgradeIT extends InferenceUpgradeTestCase {
             openAiEmbeddingsServer.enqueue(new MockResponse().setResponseCode(200).setBody(embeddingResponse()));
             put(upgradedClusterId, inferenceConfig, TaskType.TEXT_EMBEDDING);
 
-            configs = (List<Map<String, Object>>) get(TaskType.TEXT_EMBEDDING, upgradedClusterId).get("models");
+            configs = (List<Map<String, Object>>) get(TaskType.TEXT_EMBEDDING, upgradedClusterId).get("endpoints");
             assertThat(configs, hasSize(1));
 
             assertEmbeddingInference(upgradedClusterId);
@@ -122,12 +122,12 @@ public class OpenAiServiceUpgradeIT extends InferenceUpgradeTestCase {
         if (isOldCluster()) {
             put(oldClusterId, chatCompletionsConfig(getUrl(openAiChatCompletionsServer)), TaskType.COMPLETION);
 
-            var configs = (List<Map<String, Object>>) get(TaskType.COMPLETION, oldClusterId).get("models");
+            var configs = (List<Map<String, Object>>) get(TaskType.COMPLETION, oldClusterId).get("endpoints");
             assertThat(configs, hasSize(1));
 
             assertCompletionInference(oldClusterId);
         } else if (isMixedCluster()) {
-            var configs = (List<Map<String, Object>>) get(TaskType.COMPLETION, oldClusterId).get("models");
+            var configs = (List<Map<String, Object>>) get(TaskType.COMPLETION, oldClusterId).get("endpoints");
             assertEquals("openai", configs.get(0).get("service"));
             var serviceSettings = (Map<String, Object>) configs.get(0).get("service_settings");
             assertThat(serviceSettings, hasEntry("model_id", "gpt-4"));
@@ -137,7 +137,7 @@ public class OpenAiServiceUpgradeIT extends InferenceUpgradeTestCase {
             assertCompletionInference(oldClusterId);
         } else if (isUpgradedCluster()) {
             // check old cluster model
-            var configs = (List<Map<String, Object>>) get(TaskType.COMPLETION, oldClusterId).get("models");
+            var configs = (List<Map<String, Object>>) get(TaskType.COMPLETION, oldClusterId).get("endpoints");
             var serviceSettings = (Map<String, Object>) configs.get(0).get("service_settings");
             assertThat(serviceSettings, hasEntry("model_id", "gpt-4"));
             var taskSettings = (Map<String, Object>) configs.get(0).get("task_settings");
@@ -146,7 +146,7 @@ public class OpenAiServiceUpgradeIT extends InferenceUpgradeTestCase {
             assertCompletionInference(oldClusterId);
 
             put(upgradedClusterId, chatCompletionsConfig(getUrl(openAiChatCompletionsServer)), TaskType.COMPLETION);
-            configs = (List<Map<String, Object>>) get(TaskType.COMPLETION, upgradedClusterId).get("models");
+            configs = (List<Map<String, Object>>) get(TaskType.COMPLETION, upgradedClusterId).get("endpoints");
             assertThat(configs, hasSize(1));
 
             // Inference on the new config

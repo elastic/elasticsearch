@@ -994,7 +994,7 @@ public class BulkOperationTests extends ESTestCase {
             listener,
             observer,
             failureStoreDocumentConverter,
-            null
+            new BulkShardOperationService()
         );
     }
 

@@ -1,7 +1,7 @@
 // tag::elser[]
 
 Hybrid search between a semantic and lexical query can be achieved by using an
-<<rrf-retriever, `rrf` retriever> as part of your search request. Provide a
+<<rrf-retriever, `rrf` retriever>> as part of your search request. Provide a
 `text_expansion` query and a full-text query as
 <<standard-retriever, `standard` retrievers>> for the `rrf` retriever. The `rrf`
 retriever uses <<rrf, reciprocal rank fusion>> to rank the top documents.

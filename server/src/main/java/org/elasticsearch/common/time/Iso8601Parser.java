@@ -17,6 +17,7 @@ import java.time.temporal.ChronoField;
 import java.util.EnumMap;
 import java.util.EnumSet;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 
 /**
@@ -73,6 +74,7 @@ class Iso8601Parser {
 
     private final Set<ChronoField> mandatoryFields;
     private final boolean optionalTime;
+    @Nullable
     private final ChronoField maxAllowedField;
     private final TimezonePresence timezonePresence;
     private final Map<ChronoField, Integer> defaults;
@@ -98,7 +100,7 @@ class Iso8601Parser {
     Iso8601Parser(
         Set<ChronoField> mandatoryFields,
         boolean optionalTime,
-        ChronoField maxAllowedField,
+        @Nullable ChronoField maxAllowedField,
         TimezonePresence timezonePresence,
         Map<ChronoField, Integer> defaults
     ) {
@@ -112,7 +114,7 @@ class Iso8601Parser {
         this.mandatoryFields.addAll(mandatoryFields);
         this.optionalTime = optionalTime;
         this.maxAllowedField = maxAllowedField;
-        this.timezonePresence = timezonePresence;
+        this.timezonePresence = Objects.requireNonNull(timezonePresence);
         this.defaults = defaults.isEmpty() ? Map.of() : new EnumMap<>(defaults);
     }
 

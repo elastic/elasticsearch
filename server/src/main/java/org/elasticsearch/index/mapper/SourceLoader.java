@@ -215,6 +215,11 @@ public interface SourceLoader {
 
             @Override
             public void write(XContentBuilder b) {}
+
+            @Override
+            public String fieldName() {
+                return "";
+            }
         };
 
         /**
@@ -242,9 +247,19 @@ public interface SourceLoader {
          */
         void write(XContentBuilder b) throws IOException;
 
+        /**
+         * Allows for identifying and tracking additional field values to include in the field source.
+         * @param objectsWithIgnoredFields maps object names to lists of fields they contain with special source handling
+         * @return true if any matching fields are identified
+         */
         default boolean setIgnoredValues(Map<String, List<IgnoredSourceFieldMapper.NameValue>> objectsWithIgnoredFields) {
             return false;
         }
+
+        /**
+         * Returns the canonical field name for this loader.
+         */
+        String fieldName();
 
         /**
          * Sync for stored field values.

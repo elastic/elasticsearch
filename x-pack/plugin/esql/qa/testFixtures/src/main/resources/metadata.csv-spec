@@ -1,5 +1,5 @@
 simpleKeep
-required_feature: esql.metadata_fields
+required_capability: metadata_fields
 from employees metadata _index, _version | sort emp_no | limit 2 | keep emp_no, _index, _version;
 
 emp_no:integer |_index:keyword |_version:long
@@ -8,7 +8,7 @@ emp_no:integer |_index:keyword |_version:long
 ;
 
 aliasWithSameName
-required_feature: esql.metadata_fields
+required_capability: metadata_fields
 from employees metadata _index, _version | sort emp_no | limit 2 | eval _index = _index, _version = _version | keep emp_no, _index, _version;
 
 emp_no:integer |_index:keyword |_version:long
@@ -17,7 +17,7 @@ emp_no:integer |_index:keyword |_version:long
 ;
 
 inComparison
-required_feature: esql.metadata_fields
+required_capability: metadata_fields
 from employees metadata _index, _version | sort emp_no | where _index == "employees" | where _version == 1 | keep emp_no | limit 2;
 
 emp_no:integer
@@ -26,7 +26,7 @@ emp_no:integer
 ;
 
 metaIndexInAggs
-required_feature: esql.metadata_fields
+required_capability: metadata_fields
 // tag::metaIndexInAggs[]
 FROM employees METADATA _index, _id
 | STATS max = MAX(emp_no) BY _index
@@ -40,7 +40,7 @@ max:integer |_index:keyword
 ;
 
 metaIndexAliasedInAggs
-required_feature: esql.metadata_fields
+required_capability: metadata_fields
 from employees metadata _index | eval _i = _index | stats max = max(emp_no) by _i;
 
 
@@ -49,7 +49,7 @@ max:integer |_i:keyword
 ;
 
 metaVersionInAggs
-required_feature: esql.metadata_fields
+required_capability: metadata_fields
 from employees metadata _version | stats min = min(emp_no) by _version;
 
 min:integer |_version:long
@@ -57,7 +57,7 @@ min:integer |_version:long
 ;
 
 metaVersionAliasedInAggs
-required_feature: esql.metadata_fields
+required_capability: metadata_fields
 from employees metadata _version | eval _v = _version | stats min = min(emp_no) by _v;
 
 min:integer |_v:long
@@ -65,7 +65,7 @@ min:integer |_v:long
 ;
 
 inAggsAndAsGroups
-required_feature: esql.metadata_fields
+required_capability: metadata_fields
 from employees metadata _index, _version | stats max = max(_version) by _index;
 
 max:long |_index:keyword
@@ -73,7 +73,7 @@ max:long |_index:keyword
 ;
 
 inAggsAndAsGroupsAliased
-required_feature: esql.metadata_fields
+required_capability: metadata_fields
 from employees metadata _index, _version | eval _i = _index, _v = _version | stats max = max(_v) by _i;
 
 max:long |_i:keyword
@@ -81,7 +81,7 @@ max:long |_i:keyword
 ;
 
 inFunction
-required_feature: esql.metadata_fields
+required_capability: metadata_fields
 from employees metadata _index, _version | sort emp_no | where length(_index) == length("employees") | where abs(_version) == 1 | keep emp_no | limit 2;
 
 emp_no:integer
@@ -90,7 +90,7 @@ emp_no:integer
 ;
 
 inArithmetics
-required_feature: esql.metadata_fields
+required_capability: metadata_fields
 from employees metadata _index, _version | eval i = _version + 2 | stats min = min(emp_no) by i;
 
 min:integer |i:long
@@ -98,7 +98,7 @@ min:integer |i:long
 ;
 
 inSort
-required_feature: esql.metadata_fields
+required_capability: metadata_fields
 from employees metadata _index, _version | sort _version, _index, emp_no | keep emp_no, _version, _index | limit 2;
 
 emp_no:integer |_version:long |_index:keyword
@@ -107,7 +107,7 @@ emp_no:integer |_version:long |_index:keyword
 ;
 
 withMvFunction
-required_feature: esql.metadata_fields
+required_capability: metadata_fields
 from employees metadata _version | eval i = mv_avg(_version) + 2 | stats min = min(emp_no) by i;
 
 min:integer |i:double
@@ -115,7 +115,7 @@ min:integer |i:double
 ;
 
 overwritten
-required_feature: esql.metadata_fields
+required_capability: metadata_fields
 from employees metadata _index, _version | sort emp_no | eval _index = 3, _version = "version" | keep emp_no, _index, _version | limit 3;
 
 emp_no:integer |_index:integer |_version:keyword
@@ -125,7 +125,7 @@ emp_no:integer |_index:integer |_version:keyword
 ;
 
 multipleIndices
-required_feature: esql.metadata_fields
+required_capability: metadata_fields
 // tag::multipleIndices[]
 FROM ul_logs, apps METADATA _index, _version
 | WHERE id IN (13, 14) AND _version == 1

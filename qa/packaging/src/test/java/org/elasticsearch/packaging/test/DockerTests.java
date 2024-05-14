@@ -1219,6 +1219,7 @@ public class DockerTests extends PackagingTestCase {
             builder().envVar("readiness.port", "9399").envVar("xpack.security.enabled", "false").envVar("discovery.type", "single-node")
         );
         waitForElasticsearch(installation);
+        dumpDebug();
         assertTrue(readinessProbe(9399));
     }
 

@@ -1,0 +1,50 @@
+[[esql-implicit-casting]]
+=== {esql} implicit casting
+
+++++
+<titleabbrev>Implicit casting</titleabbrev>
+++++
+
+Very often, users provide a string representation of datetime, ip, version or a geo spatial object in a query as input to a predicate, function or expression, and ES|QL also provides to_X functions to convert a string to a desired data type explicitly.
+
+Without implicit casting, users need to code the to_X functions in the queries to do data type conversions explicitly if the string literals do not match the target data type that they are assigned to or compared with. Here is an example of calling to_datetime to do the data type conversion explicitly.
+
+[source.merge.styled,esql]
+----
+from employees
+| eval dd_ns1=date_diff("day", to_datetime("2023-12-02T11:00:00.00Z"), birth_date)
+| sort emp_no
+| keep dd_ns1
+| limit 1
+;
+----
+
+Implicit casting is to improve the usability, the string literals will be converted to the target data type automatically. This is mostly useful when the target data type is datetime, ip, version or a geo spatial, as it is natural to specify them as a string in queries. The query above can be coded like below without calling the to_datetime function to do conversions manually.
+
+[source.merge.styled,esql]
+----
+from employees
+| eval dd_ns1=date_diff("day", "2023-12-02T11:00:00.00Z", birth_date)
+| sort emp_no
+| keep dd_ns1
+| limit 1
+;
+----
+
+In the table below, are the scenarios that implicit casting is supported.
+
+[%header.monospaced.styled,format=dsv,separator=|]
+|===
+||ScalarFunction|BinaryComparison|ArithmeticOperation|InListPredicate|AggregateFunction
+|DATETIME|Y|Y|Y|Y|N
+|DOUBLE|Y|N|N|N|N
+|LONG|Y|N|N|N|N
+|INTEGER|Y|N|N|N|N
+|IP|Y|Y|Y|Y|N
+|VERSION|Y|Y|Y|Y|N
+|GEO_POINT|Y|N|N|N|N
+|GEO_SHAPE|Y|N|N|N|N
+|CARTESIAN_POINT|Y|N|N|N|N
+|CARTESIAN_SHAPE|Y|N|N|N|N
+|BOOLEAN|Y|Y|Y|Y|N
+|===

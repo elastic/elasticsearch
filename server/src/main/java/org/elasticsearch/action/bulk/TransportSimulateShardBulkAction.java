@@ -132,7 +132,20 @@ public class TransportSimulateShardBulkAction extends TransportReplicationAction
         executorFunction.apply(executorSelector, primary).execute(new ActionRunnable<>(listener) {
             @Override
             protected void doRun() {
-                dispatchedShardOperationOnPrimary(request, primary, listener);
+                TransportShardBulkAction.dispatchedShardOperationOnPrimary(
+                    request,
+                    primary,
+                    listener,
+                    clusterService,
+                    threadPool,
+                    updateHelper,
+                    null,
+                    postWriteRefresh,
+                    Runnable::run,
+                    documentParsingProvider,
+                    ExecutorSelector.getWriteExecutorForShard(threadPool),
+                    executorSelector
+                );
             }
 
             @Override
@@ -155,26 +168,5 @@ public class TransportSimulateShardBulkAction extends TransportReplicationAction
                 return true;
             }
         });
-    }
-
-    protected void dispatchedShardOperationOnPrimary(
-        BulkShardRequest request,
-        IndexShard primary,
-        ActionListener<PrimaryResult<BulkShardRequest, BulkShardResponse>> listener
-    ) {
-        TransportShardBulkAction.dispatchedShardOperationOnPrimary(
-            request,
-            primary,
-            listener,
-            clusterService,
-            threadPool,
-            updateHelper,
-            null,
-            postWriteRefresh,
-            Runnable::run,
-            documentParsingProvider,
-            ExecutorSelector.getWriteExecutorForShard(threadPool),
-            executorSelector
-        );
     }
 }

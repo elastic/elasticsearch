@@ -842,12 +842,13 @@ public class ObjectMapper extends Mapper {
             }
 
             if (ignoredValues != null && ignoredValues.isEmpty() == false) {
-                Set<String> arrays = new HashSet<>(ignoredValues.size());
+                Set<String> storedFields = new HashSet<>(ignoredValues.size());
                 for (var value : ignoredValues) {
-                    arrays.add(value.name());
+                    storedFields.add(value.name());
                 }
                 for (SourceLoader.SyntheticFieldLoader field : fields) {
-                    if (field.hasValue() && arrays.contains(field.fieldName()) == false) {
+                    // Check if the field source is stored separately, to avoid double-printing.
+                    if (field.hasValue() && storedFields.contains(field.fieldName()) == false) {
                         field.write(b);
                     }
                 }

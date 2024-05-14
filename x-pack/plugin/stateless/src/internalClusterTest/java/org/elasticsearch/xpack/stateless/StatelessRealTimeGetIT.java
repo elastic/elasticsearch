@@ -434,6 +434,8 @@ public class StatelessRealTimeGetIT extends AbstractStatelessIntegTestCase {
         for (Thread thread : threads) {
             thread.join();
         }
+        // TODO: Actively deleting the index until ES-8407 is resolved
+        assertAcked(client().admin().indices().prepareDelete(indexName).get(TimeValue.timeValueSeconds(10)));
     }
 
     public void testStress() throws Exception {
@@ -548,6 +550,8 @@ public class StatelessRealTimeGetIT extends AbstractStatelessIntegTestCase {
         for (Thread thread : threads) {
             thread.join();
         }
+        // TODO: Actively deleting the index until ES-8407 is resolved
+        assertAcked(client().admin().indices().prepareDelete(indexName).get(TimeValue.timeValueSeconds(10)));
     }
 
     public void testLiveVersionMapMemoryBytesUsed() throws Exception {

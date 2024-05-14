@@ -514,6 +514,7 @@ public class VirtualBatchedCompoundCommitsIT extends AbstractStatelessIntegTestC
         testGetVirtualBatchedCompoundCommitChunkFailureDuringPrimaryRelocation(FailureType.INDEX_NOT_FOUND_WHEN_INDEX_DELETED);
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch-serverless/issues/1999")
     public void testGetVirtualBatchedCompoundCommitChunkFailureWhenIndexClosesDuringPrimaryRelocation() throws Exception {
         testGetVirtualBatchedCompoundCommitChunkFailureDuringPrimaryRelocation(FailureType.INDEX_CLOSED);
     }
@@ -628,6 +629,7 @@ public class VirtualBatchedCompoundCommitsIT extends AbstractStatelessIntegTestC
     // Simply ensure the search works by counting the correct number of docs, which means it calls correctly
     // the get chunk action from the indexing node. Also remove the
     // `VirtualBatchedCompoundCommitsIT.TestStatelessCommitService.getVirtualBatchedCompoundCommit` function.
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch-serverless/issues/2000")
     public void testGetVirtualBatchedCompoundCommitChunkOnLastVbcc() throws Exception {
         startMasterOnlyNode();
         var indexNode = startIndexNode();

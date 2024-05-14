@@ -81,6 +81,9 @@ public class CrossClusterApiKeyRoleDescriptorBuilder {
             clusterPrivileges = CCS_CLUSTER_PRIVILEGE_NAMES;
         } else {
             clusterPrivileges = CCS_AND_CCR_CLUSTER_PRIVILEGE_NAMES;
+            if (search.stream().anyMatch(RoleDescriptor.IndicesPrivileges::isUsingDocumentOrFieldLevelSecurity)) {
+                throw new IllegalArgumentException("search does not support document or field level security if replication is assigned");
+            }
         }
 
         if (replication.stream().anyMatch(RoleDescriptor.IndicesPrivileges::isUsingDocumentOrFieldLevelSecurity)) {
@@ -121,9 +124,10 @@ public class CrossClusterApiKeyRoleDescriptorBuilder {
             throw new IllegalArgumentException("remote cluster permissions must be empty");
         }
         final String[] clusterPrivileges = roleDescriptor.getClusterPrivileges();
+        final boolean hasBothCssAndCcr = Arrays.equals(clusterPrivileges, CCS_AND_CCR_CLUSTER_PRIVILEGE_NAMES);
         if (false == Arrays.equals(clusterPrivileges, CCS_CLUSTER_PRIVILEGE_NAMES)
             && false == Arrays.equals(clusterPrivileges, CCR_CLUSTER_PRIVILEGE_NAMES)
-            && false == Arrays.equals(clusterPrivileges, CCS_AND_CCR_CLUSTER_PRIVILEGE_NAMES)) {
+            && false == hasBothCssAndCcr) {
             throw new IllegalArgumentException(
                 "invalid cluster privileges: [" + Strings.arrayToCommaDelimitedString(clusterPrivileges) + "]"
             );

@@ -71,15 +71,17 @@ public interface EvaluatorMapper {
             }
 
             @Override
-            public void close() {
-            }
+            public void close() {}
         });
-        return toJavaObject(evaluatorFactory.get(
-            new DriverContext(
-                BigArrays.NON_RECYCLING_INSTANCE,
-                // TODO maybe this should have a small fixed limit?
-                new BlockFactory(new NoopCircuitBreaker(CircuitBreaker.REQUEST), BigArrays.NON_RECYCLING_INSTANCE)
-            )
-        ).eval(new Page(1)), 0);
+        return toJavaObject(
+            evaluatorFactory.get(
+                new DriverContext(
+                    BigArrays.NON_RECYCLING_INSTANCE,
+                    // TODO maybe this should have a small fixed limit?
+                    new BlockFactory(new NoopCircuitBreaker(CircuitBreaker.REQUEST), BigArrays.NON_RECYCLING_INSTANCE)
+                )
+            ).eval(new Page(1)),
+            0
+        );
     }
 }

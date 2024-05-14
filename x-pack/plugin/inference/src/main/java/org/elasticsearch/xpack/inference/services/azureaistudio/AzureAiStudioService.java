@@ -36,6 +36,7 @@ import org.elasticsearch.xpack.inference.services.SenderService;
 import org.elasticsearch.xpack.inference.services.ServiceComponents;
 import org.elasticsearch.xpack.inference.services.ServiceUtils;
 import org.elasticsearch.xpack.inference.services.azureaistudio.completion.AzureAiStudioChatCompletionModel;
+import org.elasticsearch.xpack.inference.services.azureaistudio.completion.AzureAiStudioChatCompletionTaskSettings;
 import org.elasticsearch.xpack.inference.services.azureaistudio.embeddings.AzureAiStudioEmbeddingsModel;
 import org.elasticsearch.xpack.inference.services.azureaistudio.embeddings.AzureAiStudioEmbeddingsServiceSettings;
 
@@ -51,6 +52,7 @@ import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeFrom
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.throwIfNotEmptyMap;
 import static org.elasticsearch.xpack.inference.services.azureaistudio.AzureAiStudioProviderCapabilities.providerAllowsEndpointTypeForTask;
 import static org.elasticsearch.xpack.inference.services.azureaistudio.AzureAiStudioProviderCapabilities.providerAllowsTaskType;
+import static org.elasticsearch.xpack.inference.services.azureaistudio.completion.AzureAiStudioChatCompletionTaskSettings.DEFAULT_MAX_NEW_TOKENS;
 
 public class AzureAiStudioService extends SenderService {
 
@@ -277,6 +279,8 @@ public class AzureAiStudioService extends SenderService {
                 this,
                 listener.delegateFailureAndWrap((l, size) -> l.onResponse(updateEmbeddingModelConfig(embeddingsModel, size)))
             );
+        } else if (model instanceof AzureAiStudioChatCompletionModel chatCompletionModel) {
+            listener.onResponse(updateChatCompletionModelConfig(chatCompletionModel));
         } else {
             listener.onResponse(model);
         }
@@ -313,6 +317,18 @@ public class AzureAiStudioService extends SenderService {
         );
 
         return new AzureAiStudioEmbeddingsModel(embeddingsModel, serviceSettings);
+    }
+
+    private AzureAiStudioChatCompletionModel updateChatCompletionModelConfig(AzureAiStudioChatCompletionModel chatCompletionModel) {
+        var modelMaxNewTokens = chatCompletionModel.getTaskSettings().maxNewTokens();
+        var maxNewTokensToUse = modelMaxNewTokens == null ? DEFAULT_MAX_NEW_TOKENS : modelMaxNewTokens;
+        var updatedTaskSettings = new AzureAiStudioChatCompletionTaskSettings(
+            chatCompletionModel.getTaskSettings().temperature(),
+            chatCompletionModel.getTaskSettings().topP(),
+            chatCompletionModel.getTaskSettings().doSample(),
+            maxNewTokensToUse
+        );
+        return new AzureAiStudioChatCompletionModel(chatCompletionModel, updatedTaskSettings);
     }
 
     private static void checkProviderAndEndpointTypeForTask(

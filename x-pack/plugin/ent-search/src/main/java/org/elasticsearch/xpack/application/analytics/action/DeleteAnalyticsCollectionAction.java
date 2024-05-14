@@ -44,6 +44,7 @@ public class DeleteAnalyticsCollectionAction {
         }
 
         public Request(String collectionName) {
+            super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT);
             this.collectionName = collectionName;
         }
 

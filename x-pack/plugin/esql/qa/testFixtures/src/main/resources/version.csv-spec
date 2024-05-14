@@ -312,7 +312,7 @@ null       | null      | null            | 11    | 0     | 1.3.0  | 0.1     | no
 ;
 
 values
-required_feature: esql.agg_values
+required_capability: agg_values
 
   FROM apps
 | STATS version=MV_SORT(VALUES(version))
@@ -323,7 +323,7 @@ required_feature: esql.agg_values
 ;
 
 valuesGrouped
-required_feature: esql.agg_values
+required_capability: agg_values
 
   FROM apps
 | EVAL name=SUBSTRING(name, 0, 1)
@@ -348,7 +348,7 @@ version:version | name:keyword
 ;
 
 valuesGroupedByOrdinals
-required_feature: esql.agg_values
+required_capability: agg_values
 
   FROM apps
 | STATS version=MV_SORT(VALUES(version)) BY name
@@ -372,7 +372,7 @@ version:version | name:keyword
 ;
 
 implictCastingEqual
-required_feature: esql.string_literal_auto_casting_extended
+required_capability: string_literal_auto_casting_extended
 from apps | where version == "1.2.3.4" | sort name | keep name, version;
 
 name:keyword | version:version
@@ -381,7 +381,7 @@ hhhhh        | 1.2.3.4
 ;
 
 implictCastingNotEqual
-required_feature: esql.string_literal_auto_casting_extended
+required_capability: string_literal_auto_casting_extended
 from apps | where version != "1.2.3.4" | sort name, version | keep name, version | limit 2;
 
 name:keyword | version:version
@@ -390,7 +390,7 @@ bbbbb        | 2.1
 ;
 
 implictCastingGreaterThan
-required_feature: esql.string_literal_auto_casting_extended
+required_capability: string_literal_auto_casting_extended
 from apps | where version > "1.2.3.4" | sort name, version | keep name, version | limit 2;
 
 name:keyword | version:version
@@ -399,7 +399,7 @@ ccccc        | 2.3.4
 ;
 
 implictCastingLessThanOrEqual
-required_feature: esql.string_literal_auto_casting_extended
+required_capability: string_literal_auto_casting_extended
 from apps | where version <= "1.2.3.4" | sort name, version | keep name, version | limit 2;
 
 name:keyword | version:version
@@ -408,7 +408,7 @@ aaaaa        | 1.2.3.4
 ;
 
 implictCastingIn
-required_feature: esql.string_literal_auto_casting_extended
+required_capability: string_literal_auto_casting_extended
 from apps | where version in ( "1.2.3.4", "bad" ) | sort name | keep name, version;
 
 name:keyword | version:version

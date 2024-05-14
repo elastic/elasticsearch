@@ -43,6 +43,7 @@ public class PutAnalyticsCollectionAction {
         }
 
         public Request(String name) {
+            super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT);
             this.name = name;
         }
 

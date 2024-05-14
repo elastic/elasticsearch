@@ -101,6 +101,7 @@ public class MountSearchableSnapshotRequest extends MasterNodeRequest<MountSearc
         boolean waitForCompletion,
         Storage storage
     ) {
+        super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT);
         this.mountedIndexName = Objects.requireNonNull(mountedIndexName);
         this.repositoryName = Objects.requireNonNull(repositoryName);
         this.snapshotName = Objects.requireNonNull(snapshotName);

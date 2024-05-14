@@ -18,7 +18,9 @@ import java.util.Map;
 
 public class XPackUsageRequest extends MasterNodeRequest<XPackUsageRequest> {
 
-    public XPackUsageRequest() {}
+    public XPackUsageRequest() {
+        super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT);
+    }
 
     public XPackUsageRequest(StreamInput in) throws IOException {
         super(in);

@@ -1319,8 +1319,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
                 .build()
         );
 
-        MockLogAppender appender = new MockLogAppender();
-        try (var ignored = appender.capturing("org.elasticsearch.transport.TransportService.tracer")) {
+        try (var appender = MockLogAppender.capture("org.elasticsearch.transport.TransportService.tracer")) {
 
             ////////////////////////////////////////////////////////////////////////
             // tests for included action type "internal:test"

@@ -1235,9 +1235,10 @@ end::timeoutparms[]
 tag::timeout-nodes-request[]
 `timeout`::
 (Optional, <<time-units, time units>>)
-Period to wait for a response from relevant nodes in the cluster. When specified,
-only information from nodes that responded in time will be returned. When
-unspecified, downstream requests will never timeout.
+Period to wait for each node to respond. If a node does not respond before its
+timeout expires, the response does not include its information. However, timed out
+nodes are included in the response's `_nodes.failed` property. Defaults to no
+timeout.
 end::timeout-nodes-request[]
 
 tag::transform-id[]

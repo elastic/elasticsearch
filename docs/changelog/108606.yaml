@@ -1,0 +1,6 @@
+pr: 108606
+summary: "Extends ISO8601 parser to specify forbidden fields, allowing it to be used\
+  \ on more formats"
+area: Infra/Core
+type: enhancement
+issues: []

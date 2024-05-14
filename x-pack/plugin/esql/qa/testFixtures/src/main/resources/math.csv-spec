@@ -201,7 +201,7 @@ height:double | s:double
 ;
 
 powSalarySquared
-required_feature: esql.pow_double
+required_capability: pow_double
 
 from employees | eval s = pow(to_long(salary) - 75000, 2) + 10000 | keep salary, s | sort salary desc | limit 4;
 
@@ -618,7 +618,7 @@ base:double | exponent:integer | result:double
 ;
 
 powIntInt
-required_feature: esql.pow_double
+required_capability: pow_double
 
 ROW base = 2, exponent = 2
 | EVAL s = POW(base, exponent)
@@ -629,7 +629,7 @@ base:integer | exponent:integer | s:double
 ;
 
 powIntIntPlusInt
-required_feature: esql.pow_double
+required_capability: pow_double
 
 row s = 1 + pow(2, 2);
 
@@ -645,7 +645,7 @@ s:double
 ;
 
 powIntUL
-required_feature: esql.pow_double
+required_capability: pow_double
 
 row x = pow(1, 9223372036854775808);
 
@@ -654,7 +654,7 @@ x:double
 ;
 
 powLongUL
-required_feature: esql.pow_double
+required_capability: pow_double
 
 row x = to_long(1) | eval x = pow(x, 9223372036854775808);
 
@@ -663,7 +663,7 @@ x:double
 ;
 
 powUnsignedLongUL
-required_feature: esql.pow_double
+required_capability: pow_double
 
 row x = to_ul(1) | eval x = pow(x, 9223372036854775808);
 
@@ -688,7 +688,7 @@ null
 ;
 
 powULInt
-required_feature: esql.pow_double
+required_capability: pow_double
 
 row x = pow(to_unsigned_long(9223372036854775807), 1);
 
@@ -697,7 +697,7 @@ x:double
 ;
 
 powULIntOverrun
-required_feature: esql.pow_double
+required_capability: pow_double
 
 ROW x = POW(9223372036854775808, 2)
 ;
@@ -719,7 +719,7 @@ x:double
 ;
 
 powULLong
-required_feature: esql.pow_double
+required_capability: pow_double
 
 row x = to_long(10) | eval x = pow(to_unsigned_long(10), x);
 
@@ -728,7 +728,7 @@ x:double
 ;
 
 powULLongOverrun
-required_feature: esql.pow_double
+required_capability: pow_double
 
 row x = to_long(100) | eval x = pow(to_unsigned_long(10), x);
 
@@ -1414,7 +1414,7 @@ Anneke         |Preusig        |1.56           |1.56
 ;
 
 evalAbsString
-required_feature: esql.string_literal_auto_casting
+required_capability: string_literal_auto_casting
 
 ROW number = -1.0
 | EVAL abs_number = ABS("10.0")
@@ -1425,7 +1425,7 @@ number:double  | abs_number:double
 ;
 
 functionUnderArithmeticOperationAggString
-required_feature: esql.string_literal_auto_casting
+required_capability: string_literal_auto_casting
 
 ROW a = 1
 | eval x = date_trunc(1 month, "2024-11-22") + 2 days, y = x + 3 days
@@ -1437,7 +1437,7 @@ count():long | y:date
 ;
 
 functionUnderArithmeticOperationString
-required_feature: esql.string_literal_auto_casting
+required_capability: string_literal_auto_casting
 
 from employees
 | eval x = date_trunc(1 month, "2024-11-22") + 2 days, y = x + 3 days

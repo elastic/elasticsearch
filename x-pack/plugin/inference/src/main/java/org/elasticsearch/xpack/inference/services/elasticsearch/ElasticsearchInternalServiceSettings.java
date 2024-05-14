@@ -8,12 +8,11 @@
 package org.elasticsearch.xpack.inference.services.elasticsearch;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.xpack.inference.services.settings.InternalServiceSettings;
 
 import java.io.IOException;
-
-import static org.elasticsearch.TransportVersions.ML_TEXT_EMBEDDING_INFERENCE_SERVICE_ADDED;
 
 public class ElasticsearchInternalServiceSettings extends InternalServiceSettings {
 
@@ -34,7 +33,7 @@ public class ElasticsearchInternalServiceSettings extends InternalServiceSetting
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return ML_TEXT_EMBEDDING_INFERENCE_SERVICE_ADDED;
+        return TransportVersions.V_8_13_0;
     }
 
 }

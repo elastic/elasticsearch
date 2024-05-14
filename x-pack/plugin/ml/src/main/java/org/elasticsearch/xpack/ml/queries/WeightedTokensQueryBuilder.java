@@ -221,7 +221,7 @@ public class WeightedTokensQueryBuilder extends AbstractQueryBuilder<WeightedTok
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.TEXT_EXPANSION_TOKEN_PRUNING_CONFIG_ADDED;
+        return TransportVersions.V_8_13_0;
     }
 
     private static float parseWeight(String token, Object weight) throws IOException {

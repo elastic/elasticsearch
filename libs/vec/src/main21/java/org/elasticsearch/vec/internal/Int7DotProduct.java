@@ -34,8 +34,8 @@ public final class Int7DotProduct extends AbstractInt7ScalarQuantizedVectorScore
         checkOrdinal(secondOrd);
 
         final int length = dims;
-        int firstByteOffset = firstOrd * (length + Float.BYTES);
-        int secondByteOffset = secondOrd * (length + Float.BYTES);
+        long firstByteOffset = (long) firstOrd * (length + Float.BYTES);
+        long secondByteOffset = (long) secondOrd * (length + Float.BYTES);
 
         MemorySegment firstSeg = segmentSlice(firstByteOffset, length);
         input.seek(firstByteOffset + length);
@@ -47,10 +47,11 @@ public final class Int7DotProduct extends AbstractInt7ScalarQuantizedVectorScore
 
         if (firstSeg != null && secondSeg != null) {
             int dotProduct = dotProduct7u(firstSeg, secondSeg, length);
+            assert dotProduct >= 0;
             float adjustedDistance = dotProduct * scoreCorrectionConstant + firstOffset + secondOffset;
-            return (1 + adjustedDistance) / 2;
+            return Math.max((1 + adjustedDistance) / 2, 0f);
         } else {
-            return fallbackScore(firstByteOffset, secondByteOffset);
+            return Math.max(fallbackScore(firstByteOffset, secondByteOffset), 0f);
         }
     }
 }

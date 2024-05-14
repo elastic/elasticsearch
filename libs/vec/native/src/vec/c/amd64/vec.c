@@ -67,9 +67,19 @@ EXPORT int vec_caps() {
     if (functionIds >= 7) {
         cpuid(cpuInfo, 7);
         int ebx = cpuInfo[1];
+        int ecx = cpuInfo[2];
         // AVX2 flag is the 5th bit
         // We assume that all processors that have AVX2 also have FMA3
-        return (ebx & (1 << 5)) != 0;
+        int avx2 = (ebx & 0x00000020) != 0;
+        int avx512 = (ebx & 0x00010000) != 0;
+        // int avx512_vnni = (ecx & 0x00000800) != 0;
+        // if (avx512 && avx512_vnni) {
+        if (avx512) {
+            return 2;
+        }
+        if (avx2) {
+            return 1;
+        }
     }
     return 0;
 }
@@ -111,6 +121,34 @@ EXPORT int32_t dot7u(int8_t* a, int8_t* b, size_t dims) {
     return res;
 }
 
+static inline int32_t dot7u_inner_avx512(int8_t* a, int8_t* b, size_t dims) {
+    const __m256i ones = _mm256_set1_epi16(1);
+
+    // Init accumulator(s) with 0
+    __m512i acc1 = _mm512_setzero_si512();
+
+#pragma GCC unroll 4
+    for(int i = 0; i < dims; i += sizeof(__m512i)) {
+        // Load 32 packed 8-bit integers
+        __m512i va1 = _mm512_loadu_si512(a + i);
+        __m512i vb1 = _mm512_loadu_si512(b + i);
+
+        // Perform multiplication and create 16-bit values
+        // Vertically multiply each unsigned 8-bit integer from va with the corresponding
+        // signed 8-bit integer from vb, producing intermediate signed 16-bit integers.
+        // These values will be at max 32385, at min −32640,
+        // Horizontally add adjacent pairs of intermediate signed 16-bit integers, and pack the results.
+
+        // VNNI
+        //acc1 = _mm512_dpbusd_epi32(acc1, va1, vb1);
+        const __m512i vab = _mm512_maddubs_epi16(va, vb);
+        acc1 = _mm512_add_epi32(_mm512_madd_epi16(ones, vab), acc1);
+    }
+
+    // reduce (accumulate all)
+    return _mm512_reduce_add_epi32(acc1);
+}
+
 static inline int32_t sqr7u_inner(int8_t *a, int8_t *b, size_t dims) {
     // Init accumulator(s) with 0
     __m256i acc1 = _mm256_setzero_si256();
@@ -126,7 +164,6 @@ static inline int32_t sqr7u_inner(int8_t *a, int8_t *b, size_t dims) {
         const __m256i dist1 = _mm256_sub_epi8(va1, vb1);
         const __m256i abs_dist1 = _mm256_sign_epi8(dist1, dist1);
         const __m256i sqr1 = _mm256_maddubs_epi16(abs_dist1, abs_dist1);
-
         acc1 = _mm256_add_epi32(_mm256_madd_epi16(ones, sqr1), acc1);
     }
 
@@ -146,5 +183,30 @@ EXPORT int32_t sqr7u(int8_t* a, int8_t* b, size_t dims) {
         res += dist * dist;
     }
     return res;
+}
+
+static inline int32_t sqr7u_avx512(int8_t *a, int8_t *b, size_t dims) {
+    // Init accumulator(s) with 0
+    __m512i acc1 = _mm512_setzero_si512();
+
+    const __m512i ones = _mm512_set1_epi16(1);
+
+#pragma GCC unroll 4
+    for(int i = 0; i < dims; i += sizeof(__m512i)) {
+        // Load packed 8-bit integers
+        __m512i va = _mm512_loadu_si512(a + i);
+        __m512i vb = _mm512_loadu_si512(b + i);
+
+        const __m512i dist = _mm512_sub_epi8(va, vb);
+        const __m512i abs_dist = _mm512_sign_epi8(dist, dist);
+
+        // VNNI
+        //acc1 = _mm512_dpbusd_epi32(acc1, abs_dist, abs_dist);
+        const __m512i sqr = _mm512_maddubs_epi16(abs_dist, abs_dist);
+        acc1 = _mm512_add_epi32(_mm512_madd_epi16(ones, sqr), acc1);
+    }
+
+    // reduce (accumulate all)
+    return _mm512_reduce_add_epi32(acc1);
 }
 

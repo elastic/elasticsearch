@@ -32,5 +32,8 @@ public class AzureAiStudioConstants {
     public static final String MAX_TOKENS_FIELD = "max_tokens";
     public static final String MAX_NEW_TOKENS_FIELD = "max_new_tokens";
 
+    public static final Double MIN_TEMPERATURE_TOP_P = 0.0;
+    public static final Double MAX_TEMPERATURE_TOP_P = 2.0;
+
     private AzureAiStudioConstants() {}
 }

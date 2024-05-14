@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.inference.services.azureaistudio.completion;
 
-import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.core.Nullable;
@@ -38,33 +37,31 @@ public class AzureAiStudioChatCompletionTaskSettingsTests extends ESTestCase {
         );
     }
 
-    public void testFromMap_TemperatureIsInvalidValue_ThrowsStatusException() {
+    public void testFromMap_TemperatureIsInvalidValue_ThrowsValidationException() {
         var taskMap = getTaskSettingsMap(null, 2.0, true, 512);
         taskMap.put(TEMPERATURE_FIELD, "invalid");
 
-        var thrownException = expectThrows(
-            ElasticsearchStatusException.class,
-            () -> AzureAiStudioChatCompletionTaskSettings.fromMap(taskMap)
-        );
+        var thrownException = expectThrows(ValidationException.class, () -> AzureAiStudioChatCompletionTaskSettings.fromMap(taskMap));
 
         MatcherAssert.assertThat(
             thrownException.getMessage(),
-            is(Strings.format("field [temperature] is not of the expected type. The value [invalid] cannot be converted to a [Double]"))
+            containsString(
+                Strings.format("field [temperature] is not of the expected type. The value [invalid] cannot be converted to a [Double]")
+            )
         );
     }
 
-    public void testFromMap_TopPIsInvalidValue_ThrowsStatusException() {
+    public void testFromMap_TopPIsInvalidValue_ThrowsValidationException() {
         var taskMap = getTaskSettingsMap(null, 2.0, true, 512);
         taskMap.put(TOP_P_FIELD, "invalid");
 
-        var thrownException = expectThrows(
-            ElasticsearchStatusException.class,
-            () -> AzureAiStudioChatCompletionTaskSettings.fromMap(taskMap)
-        );
+        var thrownException = expectThrows(ValidationException.class, () -> AzureAiStudioChatCompletionTaskSettings.fromMap(taskMap));
 
         MatcherAssert.assertThat(
             thrownException.getMessage(),
-            is(Strings.format("field [top_p] is not of the expected type. The value [invalid] cannot be converted to a [Double]"))
+            containsString(
+                Strings.format("field [top_p] is not of the expected type. The value [invalid] cannot be converted to a [Double]")
+            )
         );
     }
 
@@ -113,9 +110,9 @@ public class AzureAiStudioChatCompletionTaskSettingsTests extends ESTestCase {
 
     public void testOverrideWith_UsesTemperatureOverride() {
         var settings = AzureAiStudioChatCompletionTaskSettings.fromMap(getTaskSettingsMap(1.0, 2.0, true, 512));
-        var overrideSettings = AzureAiStudioChatCompletionRequestTaskSettings.fromMap(getTaskSettingsMap(5.3, null, null, null));
+        var overrideSettings = AzureAiStudioChatCompletionRequestTaskSettings.fromMap(getTaskSettingsMap(1.5, null, null, null));
         var overriddenTaskSettings = AzureAiStudioChatCompletionTaskSettings.of(settings, overrideSettings);
-        MatcherAssert.assertThat(overriddenTaskSettings, is(new AzureAiStudioChatCompletionTaskSettings(5.3, 2.0, true, 512)));
+        MatcherAssert.assertThat(overriddenTaskSettings, is(new AzureAiStudioChatCompletionTaskSettings(1.5, 2.0, true, 512)));
     }
 
     public void testOverrideWith_UsesTopPOverride() {

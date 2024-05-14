@@ -10,11 +10,12 @@ package org.elasticsearch.xpack.inference.services.azureaistudio.completion;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.ModelConfigurations;
+import org.elasticsearch.xpack.inference.services.azureaistudio.AzureAiStudioConstants;
 
 import java.util.Map;
 
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalBoolean;
-import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalDouble;
+import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalDoubleInRange;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalPositiveInteger;
 import static org.elasticsearch.xpack.inference.services.azureaistudio.AzureAiStudioConstants.DO_SAMPLE_FIELD;
 import static org.elasticsearch.xpack.inference.services.azureaistudio.AzureAiStudioConstants.MAX_NEW_TOKENS_FIELD;
@@ -49,8 +50,22 @@ public record AzureAiStudioChatCompletionRequestTaskSettings(
 
         ValidationException validationException = new ValidationException();
 
-        Double temperature = extractOptionalDouble(map, TEMPERATURE_FIELD);
-        Double topP = extractOptionalDouble(map, TOP_P_FIELD);
+        var temperature = extractOptionalDoubleInRange(
+            map,
+            TEMPERATURE_FIELD,
+            AzureAiStudioConstants.MIN_TEMPERATURE_TOP_P,
+            AzureAiStudioConstants.MAX_TEMPERATURE_TOP_P,
+            ModelConfigurations.TASK_SETTINGS,
+            validationException
+        );
+        var topP = extractOptionalDoubleInRange(
+            map,
+            TOP_P_FIELD,
+            AzureAiStudioConstants.MIN_TEMPERATURE_TOP_P,
+            AzureAiStudioConstants.MAX_TEMPERATURE_TOP_P,
+            ModelConfigurations.TASK_SETTINGS,
+            validationException
+        );
         Boolean doSample = extractOptionalBoolean(map, DO_SAMPLE_FIELD, validationException);
         Integer maxNewTokens = extractOptionalPositiveInteger(
             map,

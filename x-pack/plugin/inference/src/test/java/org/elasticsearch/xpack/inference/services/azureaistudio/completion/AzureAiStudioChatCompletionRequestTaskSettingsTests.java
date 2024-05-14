@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.inference.services.azureaistudio.completion;
 
-import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.test.ESTestCase;
@@ -54,27 +53,31 @@ public class AzureAiStudioChatCompletionRequestTaskSettingsTests extends ESTestC
         assertThat(settings.maxNewTokens(), is(512));
     }
 
-    public void testFromMap_TemperatureIsInvalidValue_ThrowsStatusException() {
+    public void testFromMap_TemperatureIsInvalidValue_ThrowsValidationException() {
         var thrownException = expectThrows(
-            ElasticsearchStatusException.class,
+            ValidationException.class,
             () -> AzureAiStudioChatCompletionRequestTaskSettings.fromMap(new HashMap<>(Map.of(TEMPERATURE_FIELD, "invalid")))
         );
 
         MatcherAssert.assertThat(
             thrownException.getMessage(),
-            is(Strings.format("field [temperature] is not of the expected type. The value [invalid] cannot be converted to a [Double]"))
+            containsString(
+                Strings.format("field [temperature] is not of the expected type. The value [invalid] cannot be converted to a [Double]")
+            )
         );
     }
 
-    public void testFromMap_TopPIsInvalidValue_ThrowsStatusException() {
+    public void testFromMap_TopPIsInvalidValue_ThrowsValidationException() {
         var thrownException = expectThrows(
-            ElasticsearchStatusException.class,
+            ValidationException.class,
             () -> AzureAiStudioChatCompletionRequestTaskSettings.fromMap(new HashMap<>(Map.of(TOP_P_FIELD, "invalid")))
         );
 
         MatcherAssert.assertThat(
             thrownException.getMessage(),
-            is(Strings.format("field [top_p] is not of the expected type. The value [invalid] cannot be converted to a [Double]"))
+            containsString(
+                Strings.format("field [top_p] is not of the expected type. The value [invalid] cannot be converted to a [Double]")
+            )
         );
     }
 

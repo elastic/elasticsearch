@@ -14,6 +14,7 @@ import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xpack.core.transform.TransformField;
+import org.elasticsearch.xpack.core.transform.action.GetTransformNodeStatsAction;
 import org.elasticsearch.xpack.core.transform.transforms.persistence.TransformInternalIndexConstants;
 
 import java.io.IOException;
@@ -77,8 +78,12 @@ public abstract class TransformCommonRestTestCase extends ESRestTestCase {
         return tasks.stream().map(t -> (String) t.get("id")).filter(transformId::equals).toList();
     }
 
+    protected Response getNodeStats() throws IOException {
+        return adminClient().performRequest(new Request("GET", "/_transform/_node_stats"));
+    }
+
     protected int getTotalRegisteredTransformCount() throws IOException {
-        Response response = adminClient().performRequest(new Request("GET", "/_transform/_node_stats"));
+        Response response = getNodeStats();
         return (int) XContentMapValues.extractValue(entityAsMap(response), "total", "registered_transform_count");
     }
 

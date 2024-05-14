@@ -36,6 +36,7 @@ import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
@@ -45,6 +46,8 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.XPackPlugin;
@@ -56,12 +59,18 @@ import org.elasticsearch.xpack.core.rollup.job.RollupJobConfig;
 import java.io.IOException;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 
 import static org.elasticsearch.xpack.core.ClientHelper.assertNoAuthorizationHeader;
 
 public class TransportPutRollupJobAction extends AcknowledgedTransportMasterNodeAction<PutRollupJobAction.Request> {
 
     private static final Logger LOGGER = LogManager.getLogger(TransportPutRollupJobAction.class);
+    private static final XContentParserConfiguration PARSER_CONFIGURATION = XContentParserConfiguration.EMPTY.withFiltering(
+        Set.of("_doc._meta._rollup"),
+        null,
+        false
+    );
 
     private final PersistentTasksService persistentTasksService;
     private final Client client;
@@ -101,6 +110,21 @@ public class TransportPutRollupJobAction extends AcknowledgedTransportMasterNode
     ) {
         XPackPlugin.checkReadyForXPackCustomMetadata(clusterState);
         checkForDeprecatedTZ(request);
+
+        int numberOfCurrentRollupJobs = RollupUsageTransportAction.findNumberOfRollupJobs(clusterState);
+        if (numberOfCurrentRollupJobs == 0) {
+            try {
+                boolean hasRollupIndices = hasRollupIndices(clusterState);
+                if (hasRollupIndices == false) {
+                    listener.onFailure(new IllegalArgumentException("rollup has been deprecated and will be removed, therefor starting " +
+                        "from 8.15.0, creating new rollup jobs is no longer allowed in clusters that don't have any rollup usage."));
+                    return;
+                }
+            } catch (IOException e) {
+                listener.onFailure(e);
+                return;
+            }
+        }
 
         FieldCapabilitiesRequest fieldCapsRequest = new FieldCapabilitiesRequest().indices(request.indices())
             .fields(request.getConfig().getAllFields().toArray(new String[0]));
@@ -337,6 +361,32 @@ public class TransportPutRollupJobAction extends AcknowledgedTransportMasterNode
                 }
             }
         );
+    }
+
+    private static boolean hasRollupIndices(ClusterState state) throws IOException {
+        // Sniffing logic instead of invoking sourceAsMap(), which would materialize the entire mapping as map of maps.
+        for (var imd : state.metadata()) {
+            if (imd.mapping() == null) {
+                continue;
+            }
+
+            try (var parser = XContentHelper.createParser(PARSER_CONFIGURATION, imd.mapping().source().compressedReference())) {
+                if (parser.nextToken() == XContentParser.Token.START_OBJECT) {
+                    if ("_doc".equals(parser.nextFieldName())) {
+                        if (parser.nextToken() == XContentParser.Token.START_OBJECT) {
+                            if ("_meta".equals(parser.nextFieldName())) {
+                                if (parser.nextToken() == XContentParser.Token.START_OBJECT) {
+                                    if ("_rollup".equals(parser.nextFieldName())) {
+                                        return true;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        return false;
     }
 
     @Override

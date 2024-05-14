@@ -29,6 +29,8 @@ import org.apache.lucene.search.MultiPhraseQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.SynonymQuery;
 import org.apache.lucene.search.TermQuery;
+import org.apache.lucene.store.Directory;
+import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.elasticsearch.common.lucene.search.MultiPhrasePrefixQuery;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.AnalyzerScope;
@@ -826,7 +828,9 @@ public class SearchAsYouTypeFieldMapperTests extends MapperTestCase {
     protected SyntheticSourceSupport syntheticSourceSupport(boolean syntheticSource) {
         return new SyntheticSourceSupport() {
             public SyntheticSourceExample example(int maxValues) {
-                String value = rarely() ? null : randomAlphaOfLengthBetween(0, 50);
+                String value = rarely()
+                    ? null
+                    : randomList(0, 10, () -> randomAlphaOfLengthBetween(0, 10)).stream().collect(Collectors.joining(" "));
 
                 return new SyntheticSourceExample(value, value, this::mapping);
             }
@@ -846,6 +850,13 @@ public class SearchAsYouTypeFieldMapperTests extends MapperTestCase {
                 return List.of();
             }
         };
+    }
+
+    @Override
+    protected RandomIndexWriter indexWriterForSyntheticSource(Directory directory) throws IOException {
+        // MockAnalyzer is "too good" and produces random payloads every time
+        // which then leads to failures during assertReaderEquals.
+        return new RandomIndexWriter(random(), directory, new StandardAnalyzer());
     }
 
     @Override

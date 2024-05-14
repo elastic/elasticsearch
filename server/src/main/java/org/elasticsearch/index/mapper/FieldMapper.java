@@ -446,6 +446,7 @@ public abstract class FieldMapper extends Mapper {
      * {@link NATIVE} - mapper natively supports synthetic source, f.e. by constructing it from doc values.
      *
      * {@link FALLBACK} - mapper does not have native support but uses fallback implementation.
+     * This is a temporary variant that exists in order to roll out fallback implementation on a per field basis.
      *
      * {@link NOT_SUPPORTED} - synthetic source is not supported.
      * </pre>

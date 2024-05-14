@@ -687,9 +687,13 @@ public abstract class MapperServiceTestCase extends FieldTypeTestCase {
             .build(new IndexFieldDataCache.None(), new NoneCircuitBreakerService());
     }
 
+    protected RandomIndexWriter indexWriterForSyntheticSource(Directory directory) throws IOException {
+        return new RandomIndexWriter(random(), directory);
+    }
+
     protected final String syntheticSource(DocumentMapper mapper, CheckedConsumer<XContentBuilder, IOException> build) throws IOException {
         try (Directory directory = newDirectory()) {
-            RandomIndexWriter iw = new RandomIndexWriter(random(), directory);
+            RandomIndexWriter iw = indexWriterForSyntheticSource(directory);
             LuceneDocument doc = mapper.parse(source(build)).rootDoc();
             iw.addDocument(doc);
             iw.close();
@@ -711,9 +715,10 @@ public abstract class MapperServiceTestCase extends FieldTypeTestCase {
      * That's the point, really. It'll just be "close enough" for
      * round tripping.
      */
-    private void roundTripSyntheticSource(DocumentMapper mapper, String syntheticSource, DirectoryReader reader) throws IOException {
+    private void roundTripSyntheticSource(DocumentMapper mapper, String syntheticSource, DirectoryReader reader)
+        throws IOException {
         try (Directory roundTripDirectory = newDirectory()) {
-            RandomIndexWriter roundTripIw = new RandomIndexWriter(random(), roundTripDirectory);
+            RandomIndexWriter roundTripIw = indexWriterForSyntheticSource(roundTripDirectory);
             roundTripIw.addDocument(mapper.parse(new SourceToParse("1", new BytesArray(syntheticSource), XContentType.JSON)).rootDoc());
             roundTripIw.close();
             try (DirectoryReader roundTripReader = DirectoryReader.open(roundTripDirectory)) {

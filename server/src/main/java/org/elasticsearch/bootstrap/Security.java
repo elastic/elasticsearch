@@ -34,16 +34,20 @@ import java.nio.file.FileAlreadyExistsException;
 import java.nio.file.Files;
 import java.nio.file.NotDirectoryException;
 import java.nio.file.Path;
+import java.security.Permission;
 import java.security.Permissions;
 import java.security.Policy;
+import java.security.UnresolvedPermission;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.function.Consumer;
+import java.util.stream.Stream;
 
 import static java.lang.invoke.MethodType.methodType;
 import static org.elasticsearch.bootstrap.ESPolicy.POLICY_RESOURCE;
@@ -211,18 +215,28 @@ final class Security {
         for (URL url : mainCodebases) {
             PolicyUtil.getPolicyPermissions(url, template, environment.tmpFile())
                 .stream()
-                .filter(p -> p instanceof ExclusiveFileAccessPermission)
-                .forEach(p -> exclusiveFiles.computeIfAbsent(p.getName(), k -> new HashSet<>()).add(url));
+                .flatMap(Security::extractExclusiveFileName)
+                .forEach(f -> exclusiveFiles.computeIfAbsent(f, k -> new HashSet<>()).add(url));
         }
 
         for (var pp : pluginPolicies.entrySet()) {
             PolicyUtil.getPolicyPermissions(pp.getKey(), pp.getValue(), environment.tmpFile())
                 .stream()
-                .filter(p -> p instanceof ExclusiveFileAccessPermission)
-                .forEach(p -> exclusiveFiles.computeIfAbsent(p.getName(), k -> new HashSet<>()).add(pp.getKey()));
+                .flatMap(Security::extractExclusiveFileName)
+                .forEach(f -> exclusiveFiles.computeIfAbsent(f, k -> new HashSet<>()).add(pp.getKey()));
         }
 
         return exclusiveFiles;
+    }
+
+    private static Stream<String> extractExclusiveFileName(Permission p) {
+        if (p instanceof ExclusiveFileAccessPermission) {
+            return Stream.of(p.getName());
+        }
+        if (p instanceof UnresolvedPermission up && up.getUnresolvedType().equals(ExclusiveFileAccessPermission.class.getCanonicalName())) {
+            return Stream.of(up.getUnresolvedName());
+        }
+        return Stream.empty();
     }
 
     /** Adds access to classpath jars/classes for jar hell scan, etc */

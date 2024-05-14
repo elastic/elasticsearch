@@ -201,7 +201,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
         }), listener, executor(primary, executorFunction, executorSelector), postWriteRefresh, postWriteAction, documentParsingProvider);
     }
 
-    protected static Executor executor(
+    private static Executor executor(
         IndexShard shard,
         BiFunction<ExecutorSelector, IndexShard, Executor> executorFunction,
         ExecutorSelector executorSelector

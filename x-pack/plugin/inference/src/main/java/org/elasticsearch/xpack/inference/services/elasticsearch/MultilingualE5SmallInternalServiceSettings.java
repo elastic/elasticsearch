@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.inference.services.elasticsearch;
 
-import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -20,8 +19,6 @@ import org.elasticsearch.xpack.inference.services.settings.InternalServiceSettin
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Map;
-
-import static org.elasticsearch.TransportVersions.ML_TEXT_EMBEDDING_INFERENCE_SERVICE_ADDED;
 
 public class MultilingualE5SmallInternalServiceSettings extends ElasticsearchInternalServiceSettings {
 
@@ -102,11 +99,6 @@ public class MultilingualE5SmallInternalServiceSettings extends ElasticsearchInt
     @Override
     public String getWriteableName() {
         return MultilingualE5SmallInternalServiceSettings.NAME;
-    }
-
-    @Override
-    public TransportVersion getMinimalSupportedVersion() {
-        return ML_TEXT_EMBEDDING_INFERENCE_SERVICE_ADDED;
     }
 
     @Override

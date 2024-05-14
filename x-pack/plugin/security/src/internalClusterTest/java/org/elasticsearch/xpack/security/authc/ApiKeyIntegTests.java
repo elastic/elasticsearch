@@ -2673,7 +2673,9 @@ public class ApiKeyIntegTests extends SecurityIntegTestCase {
         // raw document has the legacy superuser role descriptor
         expectRoleDescriptorsForApiKey("limited_by_role_descriptors", legacySuperuserRoleDescriptor, getApiKeyDocument(apiKeyId));
 
-        final Set<RoleDescriptor> currentSuperuserRoleDescriptors = Set.of(ReservedRolesStore.SUPERUSER_ROLE_DESCRIPTOR);
+        final Set<RoleDescriptor> currentSuperuserRoleDescriptors = ApiKeyService.removeUserRoleDescriptorDescriptions(
+            Set.of(ReservedRolesStore.SUPERUSER_ROLE_DESCRIPTOR)
+        );
         // The first request is not a noop because we are auto-updating the legacy role descriptors to 8.x role descriptors
         assertSingleUpdate(
             apiKeyId,

@@ -348,8 +348,12 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
         }, listener::onFailure);
 
         var deducedDestIndexMappings = new SetOnce<Map<String, String>>();
-        var shouldMaybeCreateDestIndexForUnattended = context.getCheckpoint() == 0
-            && TransformEffectiveSettings.isUnattended(transformConfig.getSettings());
+
+        // if the unattended transform had not created the destination index yet, or if the destination index was deleted for any
+        // type of transform during the last run, then we try to create the destination index.
+        // This is important to create the destination index explicitly before indexing documents. Otherwise, the destination
+        // index aliases may be missing.
+        var shouldMaybeCreateDestIndex = isFirstUnattendedRun() || context.shouldRecreateDestinationIndex();
 
         ActionListener<Map<String, String>> fieldMappingsListener = ActionListener.wrap(destIndexMappings -> {
             if (destIndexMappings.isEmpty() == false) {
@@ -359,11 +363,12 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
                 // ... otherwise we fall back to index mappings deduced based on source indices
                 this.fieldMappings = deducedDestIndexMappings.get();
             }
-            // Since the unattended transform could not have created the destination index yet, we do it here.
-            // This is important to create the destination index explicitly before indexing first documents. Otherwise, the destination
-            // index aliases may be missing.
-            if (destIndexMappings.isEmpty() && shouldMaybeCreateDestIndexForUnattended) {
-                doMaybeCreateDestIndex(deducedDestIndexMappings.get(), configurationReadyListener);
+
+            if (destIndexMappings.isEmpty() && shouldMaybeCreateDestIndex) {
+                doMaybeCreateDestIndex(deducedDestIndexMappings.get(), configurationReadyListener.delegateFailure((delegate, response) -> {
+                    context.setShouldRecreateDestinationIndex(false);
+                    delegate.onResponse(response);
+                }));
             } else {
                 configurationReadyListener.onResponse(null);
             }
@@ -380,7 +385,7 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
             deducedDestIndexMappings.set(validationResponse.getDestIndexMappings());
             if (isContinuous()) {
                 transformsConfigManager.getTransformConfiguration(getJobId(), ActionListener.wrap(config -> {
-                    if (transformConfig.equals(config) && fieldMappings != null && shouldMaybeCreateDestIndexForUnattended == false) {
+                    if (transformConfig.equals(config) && fieldMappings != null && shouldMaybeCreateDestIndex == false) {
                         logger.trace("[{}] transform config has not changed.", getJobId());
                         configurationReadyListener.onResponse(null);
                     } else {
@@ -415,7 +420,7 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
         }, listener::onFailure);
 
         Instant instantOfTrigger = Instant.ofEpochMilli(now);
-        // If we are not on the initial batch checkpoint and its the first pass of whatever continuous checkpoint we are on,
+        // If we are not on the initial batch checkpoint and it's the first pass of whatever continuous checkpoint we are on,
         // we should verify if there are local changes based on the sync config. If not, do not proceed further and exit.
         if (context.getCheckpoint() > 0 && initialRun()) {
             checkpointProvider.sourceHasChanged(getLastCheckpoint(), ActionListener.wrap(hasChanged -> {
@@ -436,8 +441,7 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
                 hasSourceChanged = true;
                 listener.onFailure(failure);
             }));
-        } else if (context.getCheckpoint() == 0 && TransformEffectiveSettings.isUnattended(transformConfig.getSettings())) {
-            // this transform runs in unattended mode and has never run, to go on
+        } else if (shouldMaybeCreateDestIndex) {
             validate(changedSourceListener);
         } else {
             hasSourceChanged = true;
@@ -445,6 +449,13 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
             context.setChangesLastDetectedAt(instantOfTrigger);
             changedSourceListener.onResponse(new ValidateTransformAction.Response(emptyMap()));
         }
+    }
+
+    /**
+     * Returns true if this transform runs in unattended mode and has never run.
+     */
+    private boolean isFirstUnattendedRun() {
+        return context.getCheckpoint() == 0 && TransformEffectiveSettings.isUnattended(transformConfig.getSettings());
     }
 
     protected void initializeFunction() {

@@ -33,10 +33,12 @@ public class DeleteShutdownNodeAction extends ActionType<AcknowledgedResponse> {
         private final String nodeId;
 
         public Request(String nodeId) {
+            super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT, DEFAULT_ACK_TIMEOUT);
             this.nodeId = nodeId;
         }
 
         public Request(StreamInput in) throws IOException {
+            super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT, DEFAULT_ACK_TIMEOUT);
             if (in.getTransportVersion().isPatchFrom(TransportVersions.V_8_13_4)
                 || in.getTransportVersion().isPatchFrom(TransportVersions.SHUTDOWN_REQUEST_TIMEOUTS_FIX_8_14)
                 || in.getTransportVersion().onOrAfter(TransportVersions.SHUTDOWN_REQUEST_TIMEOUTS_FIX)) {

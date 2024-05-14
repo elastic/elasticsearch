@@ -41,6 +41,7 @@ public class GetAnalyticsCollectionAction {
         public static ParseField NAMES_FIELD = new ParseField("names");
 
         public Request(String[] names) {
+            super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT);
             this.names = Objects.requireNonNull(names, "Collection names cannot be null");
         }
 

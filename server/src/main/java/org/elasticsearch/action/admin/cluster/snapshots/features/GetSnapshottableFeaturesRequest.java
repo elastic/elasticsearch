@@ -19,6 +19,7 @@ public class GetSnapshottableFeaturesRequest extends MasterNodeRequest<GetSnapsh
 
     public GetSnapshottableFeaturesRequest() {
 
+        super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT);
     }
 
     public GetSnapshottableFeaturesRequest(StreamInput in) throws IOException {

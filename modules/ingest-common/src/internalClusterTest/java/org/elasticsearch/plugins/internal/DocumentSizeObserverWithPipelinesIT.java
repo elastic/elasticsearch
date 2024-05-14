@@ -99,7 +99,7 @@ public class DocumentSizeObserverWithPipelinesIT extends ESIntegTestCase {
                 }
 
                 @Override
-                public DocumentSizeReporter getDocumentParsingReporter(String indexName, DocumentSizeAccumulator documentSizeAccumulator) {
+                public DocumentSizeReporter getDocumentParsingReporter(String indexName) {
                     return DocumentSizeReporter.EMPTY_INSTANCE;
                 }
             };

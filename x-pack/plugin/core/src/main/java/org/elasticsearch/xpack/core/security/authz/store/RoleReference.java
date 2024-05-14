@@ -81,7 +81,7 @@ public interface RoleReference {
         private final BytesReference roleDescriptorsBytes;
         private final ApiKeyRoleType roleType;
         private RoleKey id = null;
-        private final boolean validateLegacyCrossClusterRoleDescriptors;
+        private final boolean checkForInvalidLegacyRoleDescriptorsForCrossClusterAccess;
 
         public ApiKeyRoleReference(String apiKeyId, BytesReference roleDescriptorsBytes, ApiKeyRoleType roleType) {
             this(apiKeyId, roleDescriptorsBytes, roleType, false);
@@ -91,12 +91,12 @@ public interface RoleReference {
             String apiKeyId,
             BytesReference roleDescriptorsBytes,
             ApiKeyRoleType roleType,
-            boolean validateLegacyCrossClusterRoleDescriptors
+            boolean checkForInvalidLegacyRoleDescriptorsForCrossClusterAccess
         ) {
             this.apiKeyId = apiKeyId;
             this.roleDescriptorsBytes = roleDescriptorsBytes;
             this.roleType = roleType;
-            this.validateLegacyCrossClusterRoleDescriptors = validateLegacyCrossClusterRoleDescriptors;
+            this.checkForInvalidLegacyRoleDescriptorsForCrossClusterAccess = checkForInvalidLegacyRoleDescriptorsForCrossClusterAccess;
         }
 
         @Override
@@ -128,8 +128,8 @@ public interface RoleReference {
             return roleType;
         }
 
-        public boolean validateLegacyCrossClusterRoleDescriptors() {
-            return validateLegacyCrossClusterRoleDescriptors;
+        public boolean checkForInvalidLegacyRoleDescriptorsForCrossClusterAccess() {
+            return checkForInvalidLegacyRoleDescriptorsForCrossClusterAccess;
         }
     }
 

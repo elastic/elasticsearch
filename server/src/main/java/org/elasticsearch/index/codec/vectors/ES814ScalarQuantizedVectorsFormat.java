@@ -96,98 +96,103 @@ public class ES814ScalarQuantizedVectorsFormat extends FlatVectorsFormat {
         );
     }
 
-    static class ES814ScalarQuantizedVectorsWriter extends FlatVectorsWriter {
+    static final class ES814ScalarQuantizedVectorsWriter extends FlatVectorsWriter {
 
-        final FlatVectorsWriter writer;
+        final Lucene99ScalarQuantizedVectorsWriter delegate;
 
-        ES814ScalarQuantizedVectorsWriter(FlatVectorsWriter writer) {
-            super(writer.getFlatVectorScorer());
-            this.writer = writer;
+        ES814ScalarQuantizedVectorsWriter(Lucene99ScalarQuantizedVectorsWriter delegate) {
+            super(delegate.getFlatVectorScorer());
+            this.delegate = delegate;
         }
 
         @Override
         public FlatFieldVectorsWriter<?> addField(FieldInfo fieldInfo, KnnFieldVectorsWriter<?> knnFieldVectorsWriter) throws IOException {
-            return writer.addField(fieldInfo, knnFieldVectorsWriter);
+            return delegate.addField(fieldInfo, knnFieldVectorsWriter);
+        }
+
+        @Override
+        public void mergeOneField(FieldInfo fieldInfo, MergeState mergeState) throws IOException {
+            delegate.mergeOneField(fieldInfo, mergeState);
         }
 
         @Override
         public CloseableRandomVectorScorerSupplier mergeOneFieldToIndex(FieldInfo fieldInfo, MergeState mergeState) throws IOException {
-            return writer.mergeOneFieldToIndex(fieldInfo, mergeState);
+            return delegate.mergeOneFieldToIndex(fieldInfo, mergeState);
         }
 
         @Override
         public void finish() throws IOException {
-            writer.finish();
+            delegate.finish();
         }
 
         @Override
         public void flush(int i, Sorter.DocMap docMap) throws IOException {
-            writer.flush(i, docMap);
+            delegate.flush(i, docMap);
         }
 
         @Override
         public void close() throws IOException {
-            writer.close();
+            delegate.close();
         }
 
         @Override
         public long ramBytesUsed() {
-            return writer.ramBytesUsed();
+            return delegate.ramBytesUsed();
         }
     }
 
-    static class ES814ScalarQuantizedVectorsReader extends FlatVectorsReader implements QuantizedVectorsReader {
+    static final class ES814ScalarQuantizedVectorsReader extends FlatVectorsReader implements QuantizedVectorsReader {
 
-        final Lucene99ScalarQuantizedVectorsReader reader;
+        final Lucene99ScalarQuantizedVectorsReader delegate;
 
-        ES814ScalarQuantizedVectorsReader(Lucene99ScalarQuantizedVectorsReader reader) {
-            super(reader.getFlatVectorScorer());
-            this.reader = reader;
+        ES814ScalarQuantizedVectorsReader(Lucene99ScalarQuantizedVectorsReader delegate) {
+            super(delegate.getFlatVectorScorer());
+            this.delegate = delegate;
         }
 
         @Override
         public RandomVectorScorer getRandomVectorScorer(String field, float[] target) throws IOException {
-            return reader.getRandomVectorScorer(field, target);
+            return delegate.getRandomVectorScorer(field, target);
         }
 
         @Override
         public RandomVectorScorer getRandomVectorScorer(String field, byte[] target) throws IOException {
-            return reader.getRandomVectorScorer(field, target);
+            return delegate.getRandomVectorScorer(field, target);
         }
 
         @Override
         public void checkIntegrity() throws IOException {
-            reader.checkIntegrity();
+            delegate.checkIntegrity();
         }
 
         @Override
         public FloatVectorValues getFloatVectorValues(String field) throws IOException {
-            return reader.getFloatVectorValues(field);
+            return delegate.getFloatVectorValues(field);
         }
 
         @Override
         public ByteVectorValues getByteVectorValues(String field) throws IOException {
-            return reader.getByteVectorValues(field);
-        }
-
-        @Override
-        public void close() throws IOException {
-            reader.close();
-        }
-
-        @Override
-        public long ramBytesUsed() {
-            return reader.ramBytesUsed();
+            return delegate.getByteVectorValues(field);
         }
 
         @Override
         public QuantizedByteVectorValues getQuantizedVectorValues(String fieldName) throws IOException {
-            return reader.getQuantizedVectorValues(fieldName);
+            return delegate.getQuantizedVectorValues(fieldName);
         }
 
         @Override
         public ScalarQuantizer getQuantizationState(String fieldName) {
-            return reader.getQuantizationState(fieldName);
+            return delegate.getQuantizationState(fieldName);
+        }
+
+        @Override
+        public void close() throws IOException {
+            delegate.close();
+        }
+
+        @Override
+        public long ramBytesUsed() {
+            return delegate.ramBytesUsed();
         }
     }
 

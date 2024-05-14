@@ -249,39 +249,23 @@ class StatelessIndexEventListener implements IndexEventListener {
 
                     var compoundCommit = response.getCompoundCommit();
                     if (compoundCommit == null) {
-                        // The indexing shard provided no compound commit to recover from: it might be on a node with an old version, or it
-                        // might be closing its engine.
-                        if (PrimaryTermAndGeneration.ZERO.equals(lastUploaded)) {
-                            // If there are no compound commit nor last uploaded term/generation to use, recover from an empty commit
-                            if (batchedCompoundCommit == null) {
-                                logBootstrapping(indexShard, null);
-                                return null;
-                            }
+                        // If the indexing shard provided no compound commit to recover from, then the last uploaded BCC term/gen returned
+                        // should be equal to zero indicated the indexing shard's engine is null or is a NoOpEngine
+                        assert PrimaryTermAndGeneration.ZERO.equals(lastUploaded) : lastUploaded;
 
-                            // Otherwise recover from the compound commit found in the object store
-                            logBootstrapping(indexShard, batchedCompoundCommit);
-                            // TODO Should we revisit this? the indexing shard does not know about the commits used by this search shard
-                            // until the next new commit notification.
-                            compoundCommit = batchedCompoundCommit.last();
-                            lastUploaded = batchedCompoundCommit.primaryTermAndGeneration();
-
-                            // TODO removes this branch once indexing shards are upgraded to a version that provides a real or EMPTY commit
-                        } else {
-                            // If the indexing shard is on an old version: the shard still uploads single compound commits so use the last
-                            // uploaded one, which should contain a single compound commit, and for which the indexing shard registered
-                            // this search shard.
-                            if (batchedCompoundCommit == null || batchedCompoundCommit.primaryTermAndGeneration().before(lastUploaded)) {
-                                var latestBatchedCompoundCommit = ObjectStoreService.readBatchedCompoundCommit(
-                                    searchDirectory.getBlobContainer(lastUploaded.primaryTerm()),
-                                    lastUploaded.generation()
-                                );
-                                logBootstrapping(indexShard, latestBatchedCompoundCommit);
-                                compoundCommit = latestBatchedCompoundCommit.last();
-                            } else {
-                                logBootstrapping(indexShard, batchedCompoundCommit);
-                                compoundCommit = batchedCompoundCommit.last();
-                            }
+                        // If there is no batched compound commit found in the object store, then recover from an empty commit
+                        if (batchedCompoundCommit == null) {
+                            logBootstrapping(indexShard, null);
+                            return null;
                         }
+
+                        // Otherwise recover from the compound commit found in the object store
+                        logBootstrapping(indexShard, batchedCompoundCommit);
+                        // TODO Should we revisit this? the indexing shard does not know about the commits used by this search shard
+                        // until the next new commit notification.
+                        compoundCommit = batchedCompoundCommit.last();
+                        lastUploaded = batchedCompoundCommit.primaryTermAndGeneration();
+
                     } else {
                         logBootstrapping(indexShard, compoundCommit, lastUploaded);
                     }

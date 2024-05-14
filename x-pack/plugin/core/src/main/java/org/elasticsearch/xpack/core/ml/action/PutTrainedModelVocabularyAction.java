@@ -70,6 +70,7 @@ public class PutTrainedModelVocabularyAction extends ActionType<AcknowledgedResp
             @Nullable List<Double> scores,
             boolean allowOverwriting
         ) {
+            super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT, DEFAULT_ACK_TIMEOUT);
             this.modelId = ExceptionsHelper.requireNonNull(modelId, TrainedModelConfig.MODEL_ID);
             this.vocabulary = ExceptionsHelper.requireNonNull(vocabulary, VOCABULARY);
             this.merges = Optional.ofNullable(merges).orElse(List.of());

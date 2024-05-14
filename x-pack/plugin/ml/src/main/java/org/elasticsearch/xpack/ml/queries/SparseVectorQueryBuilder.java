@@ -35,7 +35,6 @@ import org.elasticsearch.xpack.core.ml.inference.results.WarningInferenceResults
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextExpansionConfigUpdate;
 import org.elasticsearch.xpack.core.ml.search.TokenPruningConfig;
 import org.elasticsearch.xpack.core.ml.search.WeightedToken;
-import org.elasticsearch.xpack.core.ml.search.WeightedTokensQueryBuilder;
 import org.elasticsearch.xpack.core.ml.search.WeightedTokensUtils;
 
 import java.io.IOException;
@@ -219,21 +218,20 @@ public class SparseVectorQueryBuilder extends AbstractQueryBuilder<SparseVectorQ
             : shouldPruneTokens ? new TokenPruningConfig()
             : null);
         if (queryVectors != null) {
-            // TODO return `this` and remove call to weighted tokens builder
-            return new WeightedTokensQueryBuilder(fieldName, queryVectors, weightedTokensPruningConfig, List.of(ALLOWED_FIELD_TYPE));
+            return this;
         } else if (weightedTokensSupplier != null) {
             TextExpansionResults textExpansionResults = weightedTokensSupplier.get();
             if (textExpansionResults == null) {
                 return this; // No results yet
             }
 
-            // TODO - Replace this with a new instance of SparseVectorQueryBuilder that uses `textExpansionResults.getWeightedTokens()`
-            // as the input query vectors and remove call to weighted tokens builder
-            return new WeightedTokensQueryBuilder(
+            return new SparseVectorQueryBuilder(
                 fieldName,
                 textExpansionResults.getWeightedTokens(),
-                weightedTokensPruningConfig,
-                List.of(ALLOWED_FIELD_TYPE)
+                null,
+                null,
+                shouldPruneTokens,
+                tokenPruningConfig
             );
         }
 

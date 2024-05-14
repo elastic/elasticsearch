@@ -169,17 +169,16 @@ setup:
         index: index-with-sparse-vector
         body:
           query:
-            text_expansion:
-              sparse_vector:
-                field: ml.tokens
-                inference_id: text_expansion_model
-                text: "octopus comforter smells"
-                prune: true
-                pruning_config:
-                  tokens_freq_ratio_threshold: 4
-                  tokens_weight_threshold: 0.4
-                _name: i-like-naming-my-queries
-                boost: 100.0
+            sparse_vector:
+              field: ml.tokens
+              inference_id: text_expansion_model
+              text: "octopus comforter smells"
+              prune: true
+              pruning_config:
+                tokens_freq_ratio_threshold: 4
+                tokens_weight_threshold: 0.4
+              _name: i-like-naming-my-queries
+              boost: 100.0
   - match: { hits.total.value: 4 }
   - match: { hits.hits.0._source.source_text: "the octopus comforter smells" }
   - match: { hits.hits.0.matched_queries: [ "i-like-naming-my-queries" ] }
@@ -192,13 +191,12 @@ setup:
         index: index-with-sparse-vector
         body:
           query:
-            text_expansion:
-              sparse_vector:
-                field: ml.tokens
-                inference_id: text_expansion_model
-                text: "octopus comforter smells"
-                prune: true
-                pruning_config: { }
+            sparse_vector:
+              field: ml.tokens
+              inference_id: text_expansion_model
+              text: "octopus comforter smells"
+              prune: true
+              pruning_config: { }
   - match: { hits.total.value: 4 }
   - match: { hits.hits.0._source.source_text: "the octopus comforter smells" }
 

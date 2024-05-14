@@ -20,7 +20,7 @@ import org.elasticsearch.index.query.SearchExecutionContext;
 import java.io.IOException;
 import java.util.List;
 
-public class WeightedTokensUtils {
+public final class WeightedTokensUtils {
 
     public static Query queryBuilderWithAllTokens(List<WeightedToken> tokens, MappedFieldType ft, SearchExecutionContext context) {
         var qb = new BooleanQuery.Builder();

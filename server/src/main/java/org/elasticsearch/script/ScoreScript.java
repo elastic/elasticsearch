@@ -7,8 +7,11 @@
  */
 package org.elasticsearch.script;
 
+import org.apache.lucene.index.PostingsEnum;
+import org.apache.lucene.index.Term;
 import org.apache.lucene.search.Explanation;
 import org.apache.lucene.search.Scorable;
+import org.apache.lucene.search.TermStatistics;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.search.lookup.SearchLookup;
@@ -188,6 +191,16 @@ public abstract class ScoreScript extends DocBasedScript {
     public void _setIndexName(String indexName) {
         this.indexName = indexName;
     }
+
+
+    public Map<Term, TermStatistics> _termStatistics() {
+        return  this.docReader.termStatistics();
+    }
+
+    public Map<Term, PostingsEnum> _postings(int flags) {
+        return  this.docReader.postings(flags);
+    }
+
 
     /** A factory to construct {@link ScoreScript} instances. */
     public interface LeafFactory {

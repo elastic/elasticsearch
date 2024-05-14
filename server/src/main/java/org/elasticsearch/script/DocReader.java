@@ -8,6 +8,9 @@
 
 package org.elasticsearch.script;
 
+import org.apache.lucene.index.PostingsEnum;
+import org.apache.lucene.index.Term;
+import org.apache.lucene.search.TermStatistics;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.script.field.Field;
 import org.elasticsearch.search.lookup.Source;
@@ -41,4 +44,8 @@ public interface DocReader {
 
     /** Helper for source access */
     Supplier<Source> source();
+
+    Map<Term, TermStatistics> termStatistics();
+
+    Map<Term, PostingsEnum> postings(int flags);
 }

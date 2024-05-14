@@ -9,6 +9,8 @@
 package org.elasticsearch.common.lucene.search.function;
 
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.Term;
+import org.apache.lucene.index.TermStates;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BulkScorer;
 import org.apache.lucene.search.DocIdSetIterator;
@@ -29,10 +31,15 @@ import org.elasticsearch.script.DocValuesDocReader;
 import org.elasticsearch.script.ScoreScript;
 import org.elasticsearch.script.ScoreScript.ExplanationHolder;
 import org.elasticsearch.script.Script;
+import org.elasticsearch.script.TermStatsReader;
 import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.io.IOException;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 
 /**
  * A query that uses a script to compute documents' scores.
@@ -88,6 +95,8 @@ public class ScriptScoreQuery extends Query {
         boolean needsScore = scriptBuilder.needs_score();
         ScoreMode subQueryScoreMode = needsScore ? ScoreMode.COMPLETE : ScoreMode.COMPLETE_NO_SCORES;
         Weight subQueryWeight = subQuery.createWeight(searcher, subQueryScoreMode, 1.0f);
+
+        TermStatsReader termStatsReader = createTermStatsReader(searcher);
 
         return new Weight(this) {
             @Override
@@ -164,7 +173,7 @@ public class ScriptScoreQuery extends Query {
             }
 
             private ScoreScript makeScoreScript(LeafReaderContext context) throws IOException {
-                final ScoreScript scoreScript = scriptBuilder.newInstance(new DocValuesDocReader(lookup, context));
+                final ScoreScript scoreScript = scriptBuilder.newInstance(new DocValuesDocReader(lookup, context, termStatsReader));
                 scoreScript._setIndexName(indexName);
                 scoreScript._setShard(shardId);
                 return scoreScript;
@@ -176,6 +185,25 @@ public class ScriptScoreQuery extends Query {
                 return false;
             }
         };
+    }
+
+    private TermStatsReader createTermStatsReader(IndexSearcher searcher) throws IOException {
+        // We collect the different terms used in the child query.
+        final Set<Term> terms = new HashSet<>();
+        this.visit(QueryVisitor.termCollector(terms));
+
+        // For each terms build the term states.
+        final Map<Term, TermStates> termContexts = new HashMap<>();
+
+        for (Term term: terms) {
+            TermStates termStates = TermStates.build(searcher, term, true);
+            if (termStates != null && termStates.docFreq() > 0) {
+                termContexts.put(term, termStates);
+                searcher.termStatistics(term, termStates.docFreq(), termStates.totalTermFreq());
+            }
+        }
+
+        return new TermStatsReader(searcher, terms, termContexts);
     }
 
     @Override

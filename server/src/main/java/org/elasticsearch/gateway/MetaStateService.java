@@ -10,6 +10,7 @@ package org.elasticsearch.gateway;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexGraveyard;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -172,20 +173,32 @@ public class MetaStateService {
         for (String indexFolderName : nodeEnv.availableIndexFolders(excludeIndexPathIdsPredicate)) {
             assert excludeIndexPathIdsPredicate.test(indexFolderName) == false
                 : "unexpected folder " + indexFolderName + " which should have been excluded";
-            IndexMetadata indexMetadata = IndexMetadata.FORMAT.loadLatestState(
-                logger,
-                namedXContentRegistry,
-                nodeEnv.resolveIndexFolder(indexFolderName)
-            );
-            if (indexMetadata != null) {
-                final String indexPathId = indexMetadata.getIndex().getUUID();
-                if (indexFolderName.equals(indexPathId)) {
-                    indexMetadataList.add(indexMetadata);
+            try {
+                IndexMetadata indexMetadata = IndexMetadata.FORMAT.loadLatestState(
+                    logger,
+                    namedXContentRegistry,
+                    nodeEnv.resolveIndexFolder(indexFolderName)
+                );
+                if (indexMetadata != null) {
+                    final String indexPathId = indexMetadata.getIndex().getUUID();
+                    if (indexFolderName.equals(indexPathId)) {
+                        indexMetadataList.add(indexMetadata);
+                    } else {
+                        throw new IllegalStateException(
+                            "[" + indexFolderName + "] invalid index folder name, rename to [" + indexPathId + "]"
+                        );
+                    }
                 } else {
-                    throw new IllegalStateException("[" + indexFolderName + "] invalid index folder name, rename to [" + indexPathId + "]");
+                    logger.debug("[{}] failed to find metadata for existing index location", indexFolderName);
                 }
-            } else {
-                logger.debug("[{}] failed to find metadata for existing index location", indexFolderName);
+            } catch (IOException e) {
+                // index directory was deleted concurrently, ignoring
+            } catch (ElasticsearchException e) {
+                if ((e.getCause() instanceof IOException) == false) {
+                    throw e;
+                }
+            } catch (IllegalStateException e) {
+                // partially deleted index, ignoring
             }
         }
         return indexMetadataList;

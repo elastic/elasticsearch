@@ -72,7 +72,7 @@ public class DanglingIndicesRestIT extends HttpSmokeTestCase {
         internalCluster().startNodes(3, buildSettings(0));
 
         final DanglingIndexDetails danglingIndexDetails = createDanglingIndices(INDEX_NAME);
-        final String stoppedNodeId = mapNodeNameToId(danglingIndexDetails.stoppedNodeName);
+        final String stoppedNodeId = getNodeId(danglingIndexDetails.stoppedNodeName);
 
         final RestClient restClient = getRestClient();
 
@@ -185,23 +185,6 @@ public class DanglingIndicesRestIT extends HttpSmokeTestCase {
         }
 
         return danglingIndexIds;
-    }
-
-    /**
-     * Given a node name, finds the corresponding node ID.
-     */
-    private String mapNodeNameToId(String nodeName) throws IOException {
-        final Response catResponse = getRestClient().performRequest(new Request("GET", "/_cat/nodes?full_id&h=id,name"));
-        assertOK(catResponse);
-
-        for (String nodeLine : Streams.readAllLines(catResponse.getEntity().getContent())) {
-            String[] elements = nodeLine.split(" ");
-            if (elements[1].equals(nodeName)) {
-                return elements[0];
-            }
-        }
-
-        throw new AssertionError("Failed to map node name [" + nodeName + "] to node ID");
     }
 
     /**

@@ -36,6 +36,7 @@ public class CohereCompletionServiceSettings extends FilteredXContentObject impl
     public static final String NAME = "cohere_completion_service_settings";
 
     // Production key rate limits for all endpoints: https://docs.cohere.com/docs/going-live#production-key-specifications
+    // 10K requests per minute
     private static final RateLimitSettings DEFAULT_RATE_LIMIT_SETTINGS = new RateLimitSettings(10_000);
 
     public static CohereCompletionServiceSettings fromMap(Map<String, Object> map) {

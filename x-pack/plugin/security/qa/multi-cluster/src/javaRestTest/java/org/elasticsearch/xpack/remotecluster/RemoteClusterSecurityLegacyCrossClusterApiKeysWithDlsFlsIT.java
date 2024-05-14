@@ -15,6 +15,7 @@ import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchResponseUtils;
@@ -49,15 +50,19 @@ import static org.hamcrest.Matchers.equalTo;
 public class RemoteClusterSecurityLegacyCrossClusterApiKeysWithDlsFlsIT extends AbstractRemoteClusterSecurityTestCase {
 
     private static final AtomicReference<Map<String, Object>> API_KEY_MAP_REF = new AtomicReference<>();
+    private static final AtomicReference<Map<String, Object>> CCR_API_KEY_MAP_REF = new AtomicReference<>();
     private static final AtomicBoolean SSL_ENABLED_REF = new AtomicBoolean();
     private static final AtomicBoolean NODE1_RCS_SERVER_ENABLED = new AtomicBoolean();
     private static final AtomicBoolean NODE2_RCS_SERVER_ENABLED = new AtomicBoolean();
+
+    private static final String CCR_USER = "ccr_user";
 
     static {
         fulfillingCluster = ElasticsearchCluster.local()
             .distribution(DistributionType.DEFAULT)
             .name("fulfilling-cluster")
             .nodes(3)
+            .module("x-pack-ccr")
             .apply(commonClusterConfig)
             .setting("remote_cluster.port", "0")
             .setting("xpack.security.remote_cluster_server.ssl.enabled", () -> String.valueOf(SSL_ENABLED_REF.get()))
@@ -73,6 +78,7 @@ public class RemoteClusterSecurityLegacyCrossClusterApiKeysWithDlsFlsIT extends 
         queryCluster = ElasticsearchCluster.local()
             .name("query-cluster")
             .apply(commonClusterConfig)
+            .module("x-pack-ccr")
             .setting("xpack.security.remote_cluster_client.ssl.enabled", () -> String.valueOf(SSL_ENABLED_REF.get()))
             .setting("xpack.security.remote_cluster_client.ssl.certificate_authorities", "remote-cluster-ca.crt")
             .setting("xpack.security.authc.token.enabled", "true")
@@ -95,8 +101,28 @@ public class RemoteClusterSecurityLegacyCrossClusterApiKeysWithDlsFlsIT extends 
                 }
                 return (String) API_KEY_MAP_REF.get().get("encoded");
             })
+            .keystore("cluster.remote.my_ccr_cluster.credentials", () -> {
+                if (CCR_API_KEY_MAP_REF.get() == null) {
+                    final Map<String, Object> apiKeyMap = createCrossClusterAccessApiKey("""
+                        {
+                          "search": [
+                            {
+                                "names": ["leader-index", "shared-*", "metrics-*"]
+                            }
+                          ],
+                          "replication": [
+                            {
+                                "names": ["leader-index", "shared-*", "metrics-*"]
+                            }
+                          ]
+                        }""");
+                    CCR_API_KEY_MAP_REF.set(apiKeyMap);
+                }
+                return (String) CCR_API_KEY_MAP_REF.get().get("encoded");
+            })
             .rolesFile(Resource.fromClasspath("roles.yml"))
             .user(REMOTE_METRIC_USER, PASS.toString(), "read_remote_shared_metrics", false)
+            .user(CCR_USER, PASS.toString(), "ccr_user_role", false)
             .build();
     }
 
@@ -149,7 +175,7 @@ public class RemoteClusterSecurityLegacyCrossClusterApiKeysWithDlsFlsIT extends 
                 String.format(
                     Locale.ROOT,
                     "/%s:%s/_search?ccs_minimize_roundtrips=%s",
-                    randomFrom("my_remote_cluster", "*", "my_remote_*"),
+                    randomFrom("my_remote_cluster", "my_remote_*"),
                     randomFrom("shared-metrics", "*"),
                     randomBoolean()
                 )
@@ -188,8 +214,70 @@ public class RemoteClusterSecurityLegacyCrossClusterApiKeysWithDlsFlsIT extends 
                     randomBoolean()
                 )
             );
-            // TODO test skip_unavailable set and not set
+            updateClusterSettings(
+                Settings.builder().put("cluster.remote.my_remote_cluster.skip_unavailable", Boolean.toString(true)).build()
+            );
+            final var response = performRequestWithRemoteMetricUser(searchRequest);
+            assertThat(response.getStatusLine().getStatusCode(), equalTo(200));
+            String responseJson = EntityUtils.toString(response.getEntity());
+            assertThat(responseJson, containsString("\"status\":\"skipped\""));
+            assertThat(responseJson, containsString("search does not support document or field level security if replication is assigned"));
+
+            updateClusterSettings(
+                Settings.builder().put("cluster.remote.my_remote_cluster.skip_unavailable", Boolean.toString(false)).build()
+            );
             final ResponseException ex = expectThrows(ResponseException.class, () -> performRequestWithRemoteMetricUser(searchRequest));
+            assertThat(ex.getResponse().getStatusLine().getStatusCode(), equalTo(400));
+            assertThat(
+                ex.getMessage(),
+                containsString("search does not support document or field level security if replication is assigned")
+            );
+        }
+    }
+
+    public void testCrossClusterReplicationBlockedIfApiKeyInvalid() throws Exception {
+        // TODO improve coverage to test:
+        // * auto-follow
+        // * follow successfully, then break key
+        configureRemoteCluster("my_ccr_cluster");
+        final String crossClusterAccessApiKeyId = (String) CCR_API_KEY_MAP_REF.get().get("id");
+
+        // fulfilling cluster
+        {
+            final Request bulkRequest = new Request("POST", "/_bulk?refresh=true");
+            bulkRequest.setJsonEntity(Strings.format("""
+                { "index": { "_index": "leader-index" } }
+                { "name": "doc-1" }
+                { "index": { "_index": "leader-index" } }
+                { "name": "doc-2" }
+                { "index": { "_index": "leader-index" } }
+                { "name": "doc-3" }
+                { "index": { "_index": "leader-index" } }
+                { "name": "doc-4" }
+                { "index": { "_index": "private-index" } }
+                { "name": "doc-5" }
+                """));
+            assertOK(performRequestAgainstFulfillingCluster(bulkRequest));
+        }
+
+        // make API key invalid
+        addDlsQueryToApiKeyDoc(crossClusterAccessApiKeyId);
+        // since we updated the API key doc directly, caches need to be clearer manually -- this would also happen during a rolling restart
+        // to the FC, during an upgrade
+        assertOK(performRequestAgainstFulfillingCluster(new Request("POST", "/_security/role/*/_clear_cache")));
+        assertOK(performRequestAgainstFulfillingCluster(new Request("POST", "/_security/api_key/*/_clear_cache")));
+
+        // query cluster
+        {
+            final String followIndexName = "follower-index";
+            final Request putCcrRequest = new Request("PUT", "/" + followIndexName + "/_ccr/follow?wait_for_active_shards=1");
+            putCcrRequest.setJsonEntity("""
+                {
+                  "remote_cluster": "my_ccr_cluster",
+                  "leader_index": "leader-index"
+                }""");
+
+            final ResponseException ex = expectThrows(ResponseException.class, () -> performRequestWithCcrUser(putCcrRequest));
             assertThat(
                 ex.getMessage(),
                 containsString("search does not support document or field level security if replication is assigned")
@@ -197,9 +285,6 @@ public class RemoteClusterSecurityLegacyCrossClusterApiKeysWithDlsFlsIT extends 
             assertThat(ex.getResponse().getStatusLine().getStatusCode(), equalTo(400));
         }
     }
-
-    // TODO a test for CCR follow (and ideally auto-follow) -- however, this is less critical since CCR will simply ignore DLS/FLS so the
-    // it's less important to test that it's blocked
 
     private void addDlsQueryToApiKeyDoc(String crossClusterAccessApiKeyId) throws IOException {
         var getCrossClusterApiKeysResponse = getCrossClusterApiKeys(crossClusterAccessApiKeyId);
@@ -265,5 +350,10 @@ public class RemoteClusterSecurityLegacyCrossClusterApiKeysWithDlsFlsIT extends 
             return actual.equals(expected) == false;
         }).build();
         request.setOptions(options);
+    }
+
+    private Response performRequestWithCcrUser(final Request request) throws IOException {
+        request.setOptions(RequestOptions.DEFAULT.toBuilder().addHeader("Authorization", basicAuthHeaderValue(CCR_USER, PASS)));
+        return client().performRequest(request);
     }
 }

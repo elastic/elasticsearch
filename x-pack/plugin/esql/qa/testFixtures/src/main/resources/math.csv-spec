@@ -1305,7 +1305,7 @@ d:double | s:double
 ;
 
 cbrt
-required_capability: cbrt
+required_capability: fn_cbrt
 // tag::cbrt[]
 ROW d = 1000.0
 | EVAL c = cbrt(d)

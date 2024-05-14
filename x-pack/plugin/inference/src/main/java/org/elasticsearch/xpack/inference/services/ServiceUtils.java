@@ -99,7 +99,7 @@ public class ServiceUtils {
      *
      * @param sourceMap Map containing fields
      * @param key The key of the object to remove
-     * @param types One of the expected types of the removed object
+     * @param types The expected types of the removed object
      * @param validationException If the value is not of type {@code type}
      * @return {@code null} if not present else the object cast to the first assignable type in the {@types} list
      */

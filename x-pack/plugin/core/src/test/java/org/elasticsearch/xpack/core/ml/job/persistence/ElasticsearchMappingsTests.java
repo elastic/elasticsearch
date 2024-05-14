@@ -11,7 +11,6 @@ import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.action.admin.indices.mapping.put.TransportPutMappingAction;
 import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
-import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
@@ -21,6 +20,7 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.get.GetResult;
 import org.elasticsearch.indices.SystemIndexDescriptor;
@@ -297,7 +297,7 @@ public class ElasticsearchMappingsTests extends ESTestCase {
                 {"_doc":{"properties":{"some-field":{"type":"long"}}}}""",
             client,
             clusterState,
-            MasterNodeRequest.DEFAULT_MASTER_NODE_TIMEOUT,
+            TimeValue.THIRTY_SECONDS,
             ActionTestUtils.assertNoFailureListener(Assert::assertTrue),
             1
         );

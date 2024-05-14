@@ -133,8 +133,8 @@ public class TransportNewCommitNotificationAction extends TransportBroadcastUnpr
                 // TODO: ES-8275 reconsider when to update global check point
                 if (request.isUploaded()) {
                     shard.updateGlobalCheckpointOnReplica(searchEngine.getLastSyncedGlobalCheckpoint(), "new commit notification");
-                    shardSizeCollector.collectShardSize(shard.shardId());
                 }
+                shardSizeCollector.collectShardSize(shard.shardId());
                 l.onResponse(new NewCommitNotificationResponse(searchEngine.getAcquiredPrimaryTermAndGenerations()));
             })
 

@@ -885,9 +885,14 @@ public class MetadataIndexStateService {
                 blocks.removeIndexBlockWithId(index.getName(), INDEX_CLOSED_BLOCK_ID);
                 blocks.addIndexBlock(index.getName(), INDEX_CLOSED_BLOCK);
                 final IndexMetadata.Builder updatedMetadata = IndexMetadata.builder(indexMetadata).state(IndexMetadata.State.CLOSE);
+                IndexLongFieldRange eventIngestedDefault = IndexLongFieldRange.NO_SHARDS;
+                if (currentState.getMinTransportVersion().before(TransportVersions.EVENT_INGESTED_RANGE_IN_CLUSTER_STATE)) {
+                    // promote to UNKNOWN for older versions since they don't know how to handle event.ingested in cluster state
+                    eventIngestedDefault = IndexLongFieldRange.UNKNOWN;
+                }
                 metadata.put(
                     updatedMetadata.timestampRange(IndexLongFieldRange.NO_SHARDS)
-                        .eventIngestedRange(IndexLongFieldRange.NO_SHARDS)
+                        .eventIngestedRange(eventIngestedDefault)
                         .settingsVersion(indexMetadata.getSettingsVersion() + 1)
                         .settings(Settings.builder().put(indexMetadata.getSettings()).put(VERIFIED_BEFORE_CLOSE_SETTING.getKey(), true))
                 );

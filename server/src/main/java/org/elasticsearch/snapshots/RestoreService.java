@@ -1712,6 +1712,7 @@ public final class RestoreService implements ClusterStateApplier {
             .settingsVersion(Math.max(snapshotIndexMetadata.getSettingsVersion(), 1 + currentIndexMetadata.getSettingsVersion()))
             .aliasesVersion(Math.max(snapshotIndexMetadata.getAliasesVersion(), 1 + currentIndexMetadata.getAliasesVersion()))
             .timestampRange(IndexLongFieldRange.NO_SHARDS)
+            // TODO: we don't have access to cluster state here, so we can't check min transport version - will that be a problem?
             .eventIngestedRange(IndexLongFieldRange.NO_SHARDS)
             .index(currentIndexMetadata.getIndex().getName())
             .settings(

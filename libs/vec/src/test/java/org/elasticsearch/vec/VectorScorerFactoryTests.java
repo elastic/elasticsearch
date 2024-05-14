@@ -28,6 +28,7 @@ import static org.elasticsearch.vec.VectorSimilarityType.DOT_PRODUCT;
 import static org.elasticsearch.vec.VectorSimilarityType.EUCLIDEAN;
 import static org.elasticsearch.vec.VectorSimilarityType.MAXIMUM_INNER_PRODUCT;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
 // @com.carrotsearch.randomizedtesting.annotations.Repeat(iterations = 100)
 public class VectorScorerFactoryTests extends AbstractVectorTestCase {
@@ -92,6 +93,51 @@ public class VectorScorerFactoryTests extends AbstractVectorTestCase {
                     assertThat(scorer.score(0, 1), equalTo(expected));
                     assertThat((new VectorScorerSupplierAdapter(scorer)).scorer(0).score(1), equalTo(expected));
                 }
+            }
+        }
+    }
+
+    public void testNonNegativeDotProduct() throws IOException {
+        assumeTrue(notSupportedMsg(), supported());
+        var factory = AbstractVectorTestCase.factory.get();
+
+        try (Directory dir = new MMapDirectory(createTempDir(getTestName()), MMapDirectory.DEFAULT_MAX_CHUNK_SIZE)) {
+            // keep vecs `0` so dot product is `0`
+            byte[] vec1 = new byte[32];
+            byte[] vec2 = new byte[32];
+            String fileName = getTestName() + "-32";
+            try (IndexOutput out = dir.createOutput(fileName, IOContext.DEFAULT)) {
+                var negativeOffset = floatToByteArray(-5f);
+                byte[] bytes = concat(vec1, negativeOffset, vec2, negativeOffset);
+                out.writeBytes(bytes, 0, bytes.length);
+            }
+            try (IndexInput in = dir.openInput(fileName, IOContext.DEFAULT)) {
+                // dot product
+                float expected = 0f; // TODO fix in Lucene: https://github.com/apache/lucene/pull/13356 luceneScore(DOT_PRODUCT, vec1, vec2,
+                                     // 1, -5, -5);
+                var scorer = factory.getInt7ScalarQuantizedVectorScorer(32, 2, 1, DOT_PRODUCT, in).get();
+                assertThat(scorer.score(0, 1), equalTo(expected));
+                assertThat(scorer.score(0, 1), greaterThanOrEqualTo(0f));
+                assertThat((new VectorScorerSupplierAdapter(scorer)).scorer(0).score(1), equalTo(expected));
+                // max inner product
+                expected = luceneScore(MAXIMUM_INNER_PRODUCT, vec1, vec2, 1, -5, -5);
+                scorer = factory.getInt7ScalarQuantizedVectorScorer(32, 2, 1, MAXIMUM_INNER_PRODUCT, in).get();
+                assertThat(scorer.score(0, 1), greaterThanOrEqualTo(0f));
+                assertThat(scorer.score(0, 1), equalTo(expected));
+                assertThat((new VectorScorerSupplierAdapter(scorer)).scorer(0).score(1), equalTo(expected));
+                // cosine
+                expected = 0f; // TODO fix in Lucene: https://github.com/apache/lucene/pull/13356 luceneScore(COSINE, vec1, vec2, 1, -5,
+                               // -5);
+                scorer = factory.getInt7ScalarQuantizedVectorScorer(32, 2, 1, COSINE, in).get();
+                assertThat(scorer.score(0, 1), equalTo(expected));
+                assertThat(scorer.score(0, 1), greaterThanOrEqualTo(0f));
+                assertThat((new VectorScorerSupplierAdapter(scorer)).scorer(0).score(1), equalTo(expected));
+                // euclidean
+                expected = luceneScore(EUCLIDEAN, vec1, vec2, 1, -5, -5);
+                scorer = factory.getInt7ScalarQuantizedVectorScorer(32, 2, 1, EUCLIDEAN, in).get();
+                assertThat(scorer.score(0, 1), equalTo(expected));
+                assertThat(scorer.score(0, 1), greaterThanOrEqualTo(0f));
+                assertThat((new VectorScorerSupplierAdapter(scorer)).scorer(0).score(1), equalTo(expected));
             }
         }
     }

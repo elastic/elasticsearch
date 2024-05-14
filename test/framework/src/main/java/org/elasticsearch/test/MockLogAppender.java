@@ -31,12 +31,34 @@ import static org.hamcrest.Matchers.is;
 /**
  * Test appender that can be used to verify that certain events were logged correctly
  */
-public class MockLogAppender {
+public class MockLogAppender implements Releasable {
 
     private static final Map<String, List<MockLogAppender>> mockAppenders = new ConcurrentHashMap<>();
     private static final RealMockAppender parent = new RealMockAppender();
+    // TODO: this can become final once the ctor is made private
+    private List<String> loggers = List.of();
     private final List<WrappedLoggingExpectation> expectations;
     private volatile boolean isAlive = true;
+
+    @Override
+    public void close() {
+        isAlive = false;
+        for (String logger : loggers) {
+            mockAppenders.compute(logger, (k, v) -> {
+                assert v != null;
+                v.remove(this);
+                return v.isEmpty() ? null : v;
+            });
+        }
+        // check that all expectations have been evaluated before this is released
+        for (WrappedLoggingExpectation expectation : expectations) {
+            assertThat(
+                "Method assertMatched() not called on LoggingExpectation instance before release: " + expectation,
+                expectation.assertMatchedCalled,
+                is(true)
+            );
+        }
+    }
 
     private static class RealMockAppender extends AbstractAppender {
 
@@ -69,6 +91,11 @@ public class MockLogAppender {
          * modification from #addExpectation.
          */
         expectations = new CopyOnWriteArrayList<>();
+    }
+
+    private MockLogAppender(List<String> loggers) {
+        this();
+        this.loggers = loggers;
     }
 
     /**
@@ -267,58 +294,57 @@ public class MockLogAppender {
         }
     }
 
+    public Releasable capturing(Class<?>... classes) {
+        this.loggers = Arrays.stream(classes).map(Class::getCanonicalName).toList();
+        addToMockAppenders(this, loggers);
+        return this;
+    }
+
+    public Releasable capturing(String... names) {
+        this.loggers = Arrays.asList(names);
+        addToMockAppenders(this, loggers);
+        return this;
+    }
+
     /**
      * Adds the list of class loggers to this {@link MockLogAppender}.
      *
      * Stops and runs some checks on the {@link MockLogAppender} once the returned object is released.
      */
-    public Releasable capturing(Class<?>... classes) {
-        return appendToLoggers(Arrays.stream(classes).map(Class::getCanonicalName).toList());
+    public static MockLogAppender capture(Class<?>... classes) {
+        return create(Arrays.stream(classes).map(Class::getCanonicalName).toList());
     }
 
     /**
      * Same as above except takes string class names of each logger.
      */
-    public Releasable capturing(String... names) {
-        return appendToLoggers(Arrays.asList(names));
+    public static MockLogAppender capture(String... names) {
+        return create(Arrays.asList(names));
     }
 
-    private Releasable appendToLoggers(List<String> loggers) {
+    private static MockLogAppender create(List<String> loggers) {
+        MockLogAppender appender = new MockLogAppender(loggers);
+        addToMockAppenders(appender, loggers);
+        return appender;
+    }
+
+    private static void addToMockAppenders(MockLogAppender appender, List<String> loggers) {
         for (String logger : loggers) {
             mockAppenders.compute(logger, (k, v) -> {
                 if (v == null) {
                     v = new CopyOnWriteArrayList<>();
                 }
-                v.add(this);
+                v.add(appender);
                 return v;
             });
         }
-        return () -> {
-            isAlive = false;
-            for (String logger : loggers) {
-                mockAppenders.compute(logger, (k, v) -> {
-                    assert v != null;
-                    v.remove(this);
-                    return v.isEmpty() ? null : v;
-                });
-            }
-            // check that all expectations have been evaluated before this is released
-            for (WrappedLoggingExpectation expectation : expectations) {
-                assertThat(
-                    "Method assertMatched() not called on LoggingExpectation instance before release: " + expectation,
-                    expectation.assertMatchedCalled,
-                    is(true)
-                );
-            }
-        };
     }
 
     /**
      * Executes an action and verifies expectations against the provided logger
      */
     public static void assertThatLogger(Runnable action, Class<?> loggerOwner, MockLogAppender.LoggingExpectation expectation) {
-        MockLogAppender mockAppender = new MockLogAppender();
-        try (var ignored = mockAppender.capturing(loggerOwner)) {
+        try (var mockAppender = MockLogAppender.capture(loggerOwner)) {
             mockAppender.addExpectation(expectation);
             action.run();
             mockAppender.assertAllExpectationsMatched();

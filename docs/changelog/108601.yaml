@@ -1,0 +1,5 @@
+pr: 108601
+summary: Remove unused `?master_node_timeout` compat shims
+area: Distributed
+type: tech debt
+issues: []

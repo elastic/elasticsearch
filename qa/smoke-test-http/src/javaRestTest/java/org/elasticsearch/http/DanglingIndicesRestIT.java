@@ -176,15 +176,11 @@ public class DanglingIndicesRestIT extends HttpSmokeTestCase {
         assertOK(response);
 
         final XContentTestUtils.JsonMapView mapView = createJsonMapView(response.getEntity().getContent());
+        logger.warn("dangling API response: {}", mapView);
 
-        try {
-            assertThat(mapView.get("_nodes.total"), equalTo(3));
-            assertThat(mapView.get("_nodes.successful"), equalTo(3));
-            assertThat(mapView.get("_nodes.failed"), equalTo(0));
-        } catch (AssertionError e) {
-            logger.warn("Received the unexpected API response {}", mapView);
-            throw e;
-        }
+        assertThat(mapView.get("_nodes.total"), equalTo(3));
+        assertThat(mapView.get("_nodes.successful"), equalTo(3));
+        assertThat(mapView.get("_nodes.failed"), equalTo(0));
 
         List<Object> indices = mapView.get("dangling_indices");
         List<String> danglingIndexIds = new ArrayList<>();

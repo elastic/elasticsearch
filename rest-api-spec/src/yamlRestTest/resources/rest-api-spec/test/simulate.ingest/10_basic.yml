@@ -79,6 +79,11 @@ setup:
             final_pipeline: "my-final-pipeline"
 
   - do:
+      cluster.health:
+        index: index
+        wait_for_status: green
+
+  - do:
       headers:
         Content-Type: application/json
       simulate.ingest:

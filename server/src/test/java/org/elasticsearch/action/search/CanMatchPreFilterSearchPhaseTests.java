@@ -72,6 +72,7 @@ import java.util.stream.IntStream;
 import static org.elasticsearch.action.search.SearchAsyncActionTests.getShardsIter;
 import static org.elasticsearch.core.Types.forciblyCast;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.mockito.Mockito.mock;
 
@@ -540,11 +541,6 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
         );
     }
 
-    // MP TODO: create a test case that has both event.ingested and @timestamp in the schema _and_ query (filter on both)
-    // TODO: test cases: 1) both ts and evIng range outside docs range -> skip; 2) only @ts outside of range -> don't skip
-    // TODO: 3) only evIng outside of range -> don't skip ; 4) neither out of range -> don't skip
-
-    // MP TODO: walk through this with a debugger and ensure it works as expected
     public void testCoordinatorCanMatchFilteringThatCanBeSkippedUsingBothTimestamps() throws Exception {
         Index dataStreamIndex1 = new Index(".ds-twoTimestamps0001", UUIDs.base64UUID());
         Index dataStreamIndex2 = new Index(".ds-twoTimestamps0002", UUIDs.base64UUID());
@@ -556,11 +552,6 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
         long indexMaxTimestamp = randomLongBetween(indexMinTimestamp, 5000 * 2);
         StaticCoordinatorRewriteContextProviderBuilder contextProviderBuilder = new StaticCoordinatorRewriteContextProviderBuilder();
         for (Index dataStreamIndex : dataStream.getIndices()) {
-            /*
-            private void addIndexMinMaxForTimestampAndEventIngested(Index index, long minTimestampForTs, long maxTimestampForTs,
-                                                                long minTimestampForEventIngested, long maxTimestampForEventIngested) {
-             */
-            /// MP TODO: do other tests where the ranges differ !
             // use same range for both @timestamp and event.ingested
             contextProviderBuilder.addIndexMinMaxForTimestampAndEventIngested(
                 dataStreamIndex,
@@ -628,43 +619,54 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
     }
 
     /**
-     * TODO: DOCUMENT THIS BETTER
-     * one of the min/max ranges is in scope but the other is not
-     * @throws Exception
+     * For this test one of the min/max ranges ('event.ingested' or @timestamp) is in scope but the other is not.
+     * Since one is in range, no shards should be skipped.
      */
-    public void testCoordinatorCanMatchFilteringThatCannotBeSkippedUsingBothTimestamps() throws Exception {
+    public void testCoordinatorCanMatchFilteringThatCannotBeSkippedSinceOneTimestampFieldIsInRange() throws Exception {
         Index dataStreamIndex1 = new Index(".ds-twoTimestamps0001", UUIDs.base64UUID());
         Index dataStreamIndex2 = new Index(".ds-twoTimestamps0002", UUIDs.base64UUID());
         DataStream dataStream = DataStreamTestHelper.newInstance("mydata", List.of(dataStreamIndex1, dataStreamIndex2));
 
         List<Index> regularIndices = randomList(0, 2, () -> new Index(randomAlphaOfLength(10), UUIDs.base64UUID()));
 
-        long indexMinTimestamp = randomLongBetween(0, 5000);
-        long indexMaxTimestamp = randomLongBetween(indexMinTimestamp, 5000 * 2);
+        // out-of-range or in-range refers to the range query defined later
+        long indexMinTimestampOutOfRange = randomLongBetween(0, 5000);
+        long indexMaxTimestampOutOfRange = randomLongBetween(indexMinTimestampOutOfRange, 5000 * 2);
+        long indexMinTimestampInRange = indexMaxTimestampOutOfRange + 1;
+        long indexMaxTimestampInRange = indexMinTimestampInRange + randomLongBetween(10, 5000);
+
+        boolean eventIngestedInRange = randomBoolean();
+
         StaticCoordinatorRewriteContextProviderBuilder contextProviderBuilder = new StaticCoordinatorRewriteContextProviderBuilder();
         for (Index dataStreamIndex : dataStream.getIndices()) {
-            /*
-            private void addIndexMinMaxForTimestampAndEventIngested(Index index, long minTimestampForTs, long maxTimestampForTs,
-                                                                long minTimestampForEventIngested, long maxTimestampForEventIngested) {
-             */
-            /// MP TODO: do other tests where the ranges differ !
-            // use same range for both @timestamp and event.ingested
-            contextProviderBuilder.addIndexMinMaxForTimestampAndEventIngested(
-                dataStreamIndex,
-                indexMinTimestamp,
-                indexMaxTimestamp,
-                indexMinTimestamp,
-                indexMaxTimestamp
-            );
+            if (eventIngestedInRange) {
+                contextProviderBuilder.addIndexMinMaxForTimestampAndEventIngested(
+                    dataStreamIndex,
+                    indexMinTimestampOutOfRange,
+                    indexMaxTimestampOutOfRange,
+                    indexMinTimestampInRange,
+                    indexMaxTimestampInRange
+                );
+            } else {
+                contextProviderBuilder.addIndexMinMaxForTimestampAndEventIngested(
+                    dataStreamIndex,
+                    indexMinTimestampInRange,
+                    indexMaxTimestampInRange,
+                    indexMinTimestampOutOfRange,
+                    indexMaxTimestampOutOfRange
+                );
+            }
         }
 
         RangeQueryBuilder tsRangeQueryBuilder = new RangeQueryBuilder(DataStream.TIMESTAMP_FIELD_NAME);
-        // We query a range outside of the timestamp range covered by both datastream indices
-        tsRangeQueryBuilder.from(indexMaxTimestamp + 1).to(indexMaxTimestamp + 2);
-
         RangeQueryBuilder eventIngestedRangeQueryBuilder = new RangeQueryBuilder(IndexMetadata.EVENT_INGESTED_FIELD_NAME);
-        // We query a range outside of the timestamp range covered by both datastream indices
-        eventIngestedRangeQueryBuilder.from(indexMaxTimestamp + 1).to(indexMaxTimestamp + 2);
+        if (eventIngestedInRange) {
+            tsRangeQueryBuilder.from(indexMinTimestampOutOfRange + 1).to(indexMinTimestampOutOfRange + 2);
+            eventIngestedRangeQueryBuilder.from(indexMinTimestampInRange + 1).to(indexMinTimestampInRange + 2);
+        } else {
+            eventIngestedRangeQueryBuilder.from(indexMinTimestampOutOfRange + 1).to(indexMinTimestampOutOfRange + 2);
+            tsRangeQueryBuilder.from(indexMinTimestampInRange + 1).to(indexMinTimestampInRange + 2);
+        }
 
         BoolQueryBuilder queryBuilder = new BoolQueryBuilder().filter(tsRangeQueryBuilder).filter(eventIngestedRangeQueryBuilder);
 
@@ -683,33 +685,26 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
             null,
             (updatedSearchShardIterators, requests) -> {
                 List<SearchShardIterator> skippedShards = updatedSearchShardIterators.stream().filter(SearchShardIterator::skip).toList();
+                // no shards should be skipped
+                assertThat(skippedShards.size(), equalTo(0));
 
                 List<SearchShardIterator> nonSkippedShards = updatedSearchShardIterators.stream()
                     .filter(searchShardIterator -> searchShardIterator.skip() == false)
                     .toList();
+                assertThat(nonSkippedShards.size(), greaterThan(0));
 
                 int regularIndexShardCount = (int) updatedSearchShardIterators.stream()
                     .filter(s -> regularIndices.contains(s.shardId().getIndex()))
                     .count();
+                int dataStreamIndexShardCount = (int) updatedSearchShardIterators.stream()
+                    .filter(s -> regularIndices.contains(s.shardId().getIndex()) == false)
+                    .count();
 
-                // When all the shards can be skipped we should query at least 1
-                // in order to get a valid search response.
-                if (regularIndexShardCount == 0) {
-                    assertThat(nonSkippedShards.size(), equalTo(1));
-                } else {
-                    boolean allNonSkippedShardsAreFromRegularIndices = nonSkippedShards.stream()
-                        .allMatch(shardIterator -> regularIndices.contains(shardIterator.shardId().getIndex()));
-
-                    assertThat(allNonSkippedShardsAreFromRegularIndices, equalTo(true));
-                }
-
-                boolean allSkippedShardAreFromDataStream = skippedShards.stream()
-                    .allMatch(shardIterator -> dataStream.getIndices().contains(shardIterator.shardId().getIndex()));
-                assertThat(allSkippedShardAreFromDataStream, equalTo(true));
+                assertThat(nonSkippedShards.size(), equalTo(regularIndexShardCount + dataStreamIndexShardCount));
 
                 boolean allRequestsWereTriggeredAgainstRegularIndices = requests.stream()
                     .allMatch(request -> regularIndices.contains(request.shardId().getIndex()));
-                assertThat(allRequestsWereTriggeredAgainstRegularIndices, equalTo(true));
+                assertThat(allRequestsWereTriggeredAgainstRegularIndices, equalTo(false));
             }
         );
     }

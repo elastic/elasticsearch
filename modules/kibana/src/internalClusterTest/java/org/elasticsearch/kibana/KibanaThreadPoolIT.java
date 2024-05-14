@@ -38,12 +38,9 @@ import static org.hamcrest.Matchers.startsWith;
 /**
  * Tests to verify that system indices are bypassing user-space thread pools
  *
- * <p>We can block thread pools by setting them to one thread and no queue, then submitting
- * threads that wait on a countdown latch. This lets us verify that operations on system indices
+ * <p>We can block thread pools by setting them to one thread and 1 element queue, then submitting
+ * threads that wait on a phaser. This lets us verify that operations on system indices
  * are being directed to other thread pools.</p>
- *
- * <p>When implementing this class, don't forget to override {@link ESIntegTestCase#nodePlugins()} if
- * the relevant system index is defined in a plugin.</p>
  */
 public class KibanaThreadPoolIT extends ESIntegTestCase {
 
@@ -62,12 +59,9 @@ public class KibanaThreadPoolIT extends ESIntegTestCase {
     }
 
     private static final String USER_INDEX = "user_index";
-
     // For system indices that use ExecutorNames.CRITICAL_SYSTEM_INDEX_THREAD_POOLS, we'll want to
     // block normal system index thread pools as well.
-    protected Set<String> threadPoolsToBlock() {
-        return Set.of(ThreadPool.Names.GET, ThreadPool.Names.WRITE, ThreadPool.Names.SEARCH);
-    }
+    private static final Set<String> THREAD_POOLS_TO_BLOCK = Set.of(ThreadPool.Names.GET, ThreadPool.Names.WRITE, ThreadPool.Names.SEARCH);
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
@@ -155,7 +149,7 @@ public class KibanaThreadPoolIT extends ESIntegTestCase {
     private void blockThreadPool(Phaser phaser) {
         for (String nodeName : internalCluster().getNodeNames()) {
             ThreadPool threadPool = internalCluster().getInstance(ThreadPool.class, nodeName);
-            for (String threadPoolName : threadPoolsToBlock()) {
+            for (String threadPoolName : THREAD_POOLS_TO_BLOCK) {
                 blockThreadPool(threadPoolName, threadPool, phaser);
             }
         }
@@ -164,7 +158,7 @@ public class KibanaThreadPoolIT extends ESIntegTestCase {
     private void fillQueues() {
         for (String nodeName : internalCluster().getNodeNames()) {
             ThreadPool threadPool = internalCluster().getInstance(ThreadPool.class, nodeName);
-            for (String threadPoolName : threadPoolsToBlock()) {
+            for (String threadPoolName : THREAD_POOLS_TO_BLOCK) {
                 fillThreadPoolQueues(threadPoolName, threadPool);
             }
         }

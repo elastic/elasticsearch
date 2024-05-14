@@ -81,6 +81,8 @@ setup:
           settings:
             default_pipeline: "my-pipeline"
             final_pipeline: "my-final-pipeline"
+            number_of_shards: 2
+            number_of_replicas: 0
           mappings:
             dynamic: strict
             properties:

@@ -715,8 +715,7 @@ public abstract class MapperServiceTestCase extends FieldTypeTestCase {
      * That's the point, really. It'll just be "close enough" for
      * round tripping.
      */
-    private void roundTripSyntheticSource(DocumentMapper mapper, String syntheticSource, DirectoryReader reader)
-        throws IOException {
+    private void roundTripSyntheticSource(DocumentMapper mapper, String syntheticSource, DirectoryReader reader) throws IOException {
         try (Directory roundTripDirectory = newDirectory()) {
             RandomIndexWriter roundTripIw = indexWriterForSyntheticSource(roundTripDirectory);
             roundTripIw.addDocument(mapper.parse(new SourceToParse("1", new BytesArray(syntheticSource), XContentType.JSON)).rootDoc());

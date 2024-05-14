@@ -27,16 +27,6 @@ public class FilterPathBasedFilter extends TokenFilter {
         public String toString() {
             return "MATCHING";
         }
-
-        @Override
-        public boolean includeEmptyArray(boolean contentsFiltered) {
-            return true;
-        }
-
-        @Override
-        public boolean includeEmptyObject(boolean contentsFiltered) {
-            return true;
-        }
     };
 
     /**
@@ -107,12 +97,12 @@ public class FilterPathBasedFilter extends TokenFilter {
 
     @Override
     public boolean includeEmptyArray(boolean contentsFiltered) {
-        return _includeScalar() == false;
+        return true;
     }
 
     @Override
     public boolean includeEmptyObject(boolean contentsFiltered) {
-        return _includeScalar() == false;
+        return true;
     }
 
     @Override

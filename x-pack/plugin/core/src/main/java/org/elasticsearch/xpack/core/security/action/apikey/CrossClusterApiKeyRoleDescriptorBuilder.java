@@ -150,7 +150,7 @@ public class CrossClusterApiKeyRoleDescriptorBuilder {
         // for instance as part of the Get and Query APIs, which need to continue to handle legacy role descriptors.
     }
 
-    public static void checkForInvalidLegacyRoleDescriptors(List<RoleDescriptor> roleDescriptors) {
+    public static void checkForInvalidLegacyRoleDescriptors(String apiKeyId, List<RoleDescriptor> roleDescriptors) {
         assert roleDescriptors.size() == 1;
         final var roleDescriptor = roleDescriptors.get(0);
         final String[] clusterPrivileges = roleDescriptor.getClusterPrivileges();
@@ -165,10 +165,11 @@ public class CrossClusterApiKeyRoleDescriptorBuilder {
             final String[] privileges = indexPrivilege.getPrivileges();
             if (Arrays.equals(privileges, CCS_INDICES_PRIVILEGE_NAMES)) {
                 if (indexPrivilege.isUsingDocumentOrFieldLevelSecurity()) {
-                    // TODO we need a more informative message here, ideally with the API key ID (could just pass it as an argument to the
-                    // method)
+                    // TODO we need a more informative message here on how to mitigate
                     throw new IllegalArgumentException(
-                        "search does not support document or field level security if replication is assigned"
+                        "Cross cluster API key ["
+                            + apiKeyId
+                            + "] is invalid: search does not support document or field level security if replication is assigned"
                     );
                 }
             }

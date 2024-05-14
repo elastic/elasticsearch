@@ -112,7 +112,10 @@ public class RoleDescriptorStore implements RoleReferenceResolver {
         // role descriptors
         if (apiKeyRoleReference.checkForInvalidLegacyRoleDescriptorsForCrossClusterAccess()) {
             try {
-                CrossClusterApiKeyRoleDescriptorBuilder.checkForInvalidLegacyRoleDescriptors(roleDescriptors);
+                CrossClusterApiKeyRoleDescriptorBuilder.checkForInvalidLegacyRoleDescriptors(
+                    apiKeyRoleReference.getApiKeyId(),
+                    roleDescriptors
+                );
             } catch (IllegalArgumentException e) {
                 listener.onFailure(e);
                 return;

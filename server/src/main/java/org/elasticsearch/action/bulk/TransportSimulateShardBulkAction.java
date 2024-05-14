@@ -32,6 +32,10 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
+/*
+ * This is the simulate ingest equivalent to TransportShardBulkAction. It only simulates indexing -- no writes are made to shards, and no
+ * refresh is performed.
+ */
 public class TransportSimulateShardBulkAction extends TransportAction<BulkShardRequest, BulkShardResponse> {
 
     public static final String ACTION_NAME = SimulateBulkAction.NAME + "[s]";
@@ -69,7 +73,7 @@ public class TransportSimulateShardBulkAction extends TransportAction<BulkShardR
                 ActionListener<Boolean> listener,
                 @Nullable TimeValue postWriteRefreshTimeout
             ) {
-                // no op
+                // no op because there is no need to refresh since we are not actually writing during a simulation
             }
         };
         this.updateHelper = updateHelper;

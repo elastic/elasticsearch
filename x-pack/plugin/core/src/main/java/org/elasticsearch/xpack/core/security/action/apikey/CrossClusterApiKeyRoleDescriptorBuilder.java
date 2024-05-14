@@ -150,22 +150,31 @@ public class CrossClusterApiKeyRoleDescriptorBuilder {
         // for instance as part of the Get and Query APIs, which need to continue to handle legacy role descriptors.
     }
 
+    /**
+     * Pre-GA versions of RCS 2.0 (8.13-) allowed users to use DLS/FLS for "search" when both "search" and "replication" are both defined.
+     * Post-GA versions of RCS 2.0 (8.14+) allow users to use DLS/FLS only when "search" is defined. Defining DLS/FLS when both "search"
+     * and "replication" are defined in not allowed. Legacy here is in reference to pre-GA CCx API keys. This method should only be
+     * called to check the fulfilling cluster's API key role descriptor.
+     */
     public static void checkForInvalidLegacyRoleDescriptors(String apiKeyId, List<RoleDescriptor> roleDescriptors) {
         assert roleDescriptors.size() == 1;
         final var roleDescriptor = roleDescriptors.get(0);
         final String[] clusterPrivileges = roleDescriptor.getClusterPrivileges();
-        final boolean hasBoth = Arrays.equals(clusterPrivileges, CCS_AND_CCR_CLUSTER_PRIVILEGE_NAMES);
+        // only need to check if both "search" and "replication" are defined
+        // no need to check for DLS if set of cluster privileges are not the set used pre 8.14
+        final String[] pre8_14ClusterPrivileges = { "cross_cluster_search", "cross_cluster_replication" };
+        final boolean hasBoth = Arrays.equals(clusterPrivileges, pre8_14ClusterPrivileges);
         if (false == hasBoth) {
             return;
         }
 
         final RoleDescriptor.IndicesPrivileges[] indicesPrivileges = roleDescriptor.getIndicesPrivileges();
-        assert indicesPrivileges.length != 1 : "indices privileges must not be empty";
         for (RoleDescriptor.IndicesPrivileges indexPrivilege : indicesPrivileges) {
             final String[] privileges = indexPrivilege.getPrivileges();
-            if (Arrays.equals(privileges, CCS_INDICES_PRIVILEGE_NAMES)) {
+            final String[] pre8_14IndicesPrivileges = { "read", "read_cross_cluster", "view_index_metadata" };
+            // find the "search" privilege, no need to check for DLS if set of index privileges are not the set used pre 8.14
+            if (Arrays.equals(privileges, pre8_14IndicesPrivileges)) {
                 if (indexPrivilege.isUsingDocumentOrFieldLevelSecurity()) {
-                    // TODO we need a more informative message here on how to mitigate
                     throw new IllegalArgumentException(
                         "Cross cluster API key ["
                             + apiKeyId

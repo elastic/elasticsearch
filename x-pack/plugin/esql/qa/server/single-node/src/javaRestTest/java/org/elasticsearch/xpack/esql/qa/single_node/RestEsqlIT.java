@@ -118,15 +118,16 @@ public class RestEsqlIT extends RestEsqlTestCase {
             Map<String, String> colA = Map.of("name", "DO_NOT_LOG_ME", "type", "integer");
             assertEquals(List.of(colA), result.get("columns"));
             assertEquals(List.of(List.of(1)), result.get("values"));
-            try (InputStream log = cluster.getNodeLog(0, LogType.SERVER)) {
-                Streams.readAllLines(log, line -> { assertThat(line, not(containsString("DO_NOT_LOG_ME"))); });
+            for (int i = 0; i < cluster.getNumNodes(); i++) {
+                try (InputStream log = cluster.getNodeLog(i, LogType.SERVER)) {
+                    Streams.readAllLines(log, line -> assertThat(line, not(containsString("DO_NOT_LOG_ME"))));
+                }
             }
         } finally {
             setLoggingLevel(null);
         }
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/108367")
     public void testDoLogWithDebug() throws IOException {
         try {
             setLoggingLevel("DEBUG");
@@ -136,15 +137,17 @@ public class RestEsqlIT extends RestEsqlTestCase {
             Map<String, String> colA = Map.of("name", "DO_LOG_ME", "type", "integer");
             assertEquals(List.of(colA), result.get("columns"));
             assertEquals(List.of(List.of(1)), result.get("values"));
-            try (InputStream log = cluster.getNodeLog(0, LogType.SERVER)) {
-                boolean[] found = new boolean[] { false };
-                Streams.readAllLines(log, line -> {
-                    if (line.contains("DO_LOG_ME")) {
-                        found[0] = true;
-                    }
-                });
-                assertThat(found[0], equalTo(true));
+            boolean[] found = new boolean[] { false };
+            for (int i = 0; i < cluster.getNumNodes(); i++) {
+                try (InputStream log = cluster.getNodeLog(i, LogType.SERVER)) {
+                    Streams.readAllLines(log, line -> {
+                        if (line.contains("DO_LOG_ME")) {
+                            found[0] = true;
+                        }
+                    });
+                }
             }
+            assertThat(found[0], equalTo(true));
         } finally {
             setLoggingLevel(null);
         }

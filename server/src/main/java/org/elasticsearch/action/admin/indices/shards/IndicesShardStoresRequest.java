@@ -40,10 +40,13 @@ public class IndicesShardStoresRequest extends MasterNodeReadRequest<IndicesShar
      * Create a request for shard stores info for <code>indices</code>
      */
     public IndicesShardStoresRequest(String... indices) {
+        super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT);
         this.indices = indices;
     }
 
-    public IndicesShardStoresRequest() {}
+    public IndicesShardStoresRequest() {
+        super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT);
+    }
 
     public IndicesShardStoresRequest(StreamInput in) throws IOException {
         super(in);

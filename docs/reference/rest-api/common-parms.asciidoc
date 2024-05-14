@@ -1232,6 +1232,14 @@ indicate that it was not completely acknowledged. Defaults to `30s`.
 Can also be set to `-1` to indicate that the request should never timeout.
 end::timeoutparms[]
 
+tag::timeout-nodes-request[]
+`timeout`::
+(Optional, <<time-units, time units>>)
+Period to wait for a response from relevant nodes in the cluster. When specified,
+only information from nodes that responded in time will be returned. When
+unspecified, downstream requests will never timeout.
+end::timeout-nodes-request[]
+
 tag::transform-id[]
 Identifier for the {transform}.
 end::transform-id[]

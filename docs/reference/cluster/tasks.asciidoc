@@ -48,7 +48,7 @@ include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=nodes]
 
 include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=parent-task-id]
 
-include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=timeout-nodes-request]
 
 `wait_for_completion`::
 (Optional, Boolean) If `true`, the request blocks until all found tasks are complete.

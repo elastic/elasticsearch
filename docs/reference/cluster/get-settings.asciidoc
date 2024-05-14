@@ -25,8 +25,8 @@ GET /_cluster/settings
 [[cluster-get-settings-api-desc]]
 ==== {api-description-title}
 
-By default, this API call only returns settings that have been explicitly 
-defined, but can also include the default settings by calling the 
+By default, this API call only returns settings that have been explicitly
+defined, but can also include the default settings by calling the
 `include_defaults` parameter.
 
 
@@ -37,7 +37,7 @@ defined, but can also include the default settings by calling the
 include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=flat-settings]
 
 `include_defaults`::
-    (Optional, Boolean) If `true`, returns default cluster settings from the local node. 
+    (Optional, Boolean) If `true`, returns default cluster settings from the local node.
     Defaults to `false`.
 
-include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=master-timeout]

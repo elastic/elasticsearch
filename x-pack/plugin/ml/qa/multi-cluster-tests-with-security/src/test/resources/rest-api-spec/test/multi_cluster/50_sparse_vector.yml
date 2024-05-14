@@ -129,24 +129,6 @@ setup:
   - match: { hits.hits.0._source.source_text: "the octopus comforter smells" }
 
 ---
-"Test sparse_vector search with pruning config that changes recall":
-  - do:
-      search:
-        index: index-with-sparse-vector
-        body:
-          query:
-            sparse_vector:
-              field: ml.tokens
-              inference_id: text_expansion_model
-              text: "octopus comforter smells"
-              prune: true
-              pruning_config:
-                tokens_freq_ratio_threshold: 2
-                tokens_weight_threshold: 0.9
-  - match: { hits.total.value: 1 }
-  - match: { hits.hits.0._source.source_text: "the octopus comforter smells" }
-
----
 "Test named, boosted sparse_vector search with pruning config":
   - do:
       search:

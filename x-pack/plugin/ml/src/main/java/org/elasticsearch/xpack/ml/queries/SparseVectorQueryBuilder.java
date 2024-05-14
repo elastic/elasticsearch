@@ -203,20 +203,13 @@ public class SparseVectorQueryBuilder extends AbstractQueryBuilder<SparseVectorQ
             );
         }
 
-        return (this.tokenPruningConfig == null)
-            ? WeightedTokensUtils.queryBuilderWithAllTokens(queryVectors, ft, context)
-            : WeightedTokensUtils.queryBuilderWithPrunedTokens(fieldName, tokenPruningConfig, queryVectors, ft, context);
+        return (shouldPruneTokens)
+            ? WeightedTokensUtils.queryBuilderWithPrunedTokens(fieldName, tokenPruningConfig, queryVectors, ft, context)
+            : WeightedTokensUtils.queryBuilderWithAllTokens(queryVectors, ft, context);
     }
 
     @Override
     protected QueryBuilder doRewrite(QueryRewriteContext queryRewriteContext) {
-
-        // Note: We return a WeightedTokensQueryBuilder here instead of a SparseVectorQueryBuilder, so that this
-        // query will work when search.check_ccs_compatibility is set to true. This will eventually be removed
-        // when it is no longer needed for compatibility.
-        TokenPruningConfig weightedTokensPruningConfig = (tokenPruningConfig != null ? tokenPruningConfig
-            : shouldPruneTokens ? new TokenPruningConfig()
-            : null);
         if (queryVectors != null) {
             return this;
         } else if (weightedTokensSupplier != null) {

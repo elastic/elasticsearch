@@ -21,14 +21,20 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Objects;
 import java.util.function.UnaryOperator;
+
+import static java.util.Map.entry;
 
 class JavaDateFormatter implements DateFormatter {
     @SuppressWarnings("unchecked")
     private static <T extends DateTimeParser> T defaultRoundUp(T parser) {
         if (parser instanceof JavaTimeDateTimeParser jtp) {
             return (T) defaultRoundUp(jtp);
+        }
+        if (parser instanceof Iso8601DateTimeParser iso) {
+            return (T) defaultRoundUp(iso);
         }
         throw new IllegalArgumentException("Unknown parser implementation " + parser.getClass());
     }
@@ -76,6 +82,19 @@ class JavaDateFormatter implements DateFormatter {
         builder.parseDefaulting(ChronoField.NANO_OF_SECOND, 999_999_999L);
 
         return new JavaTimeDateTimeParser(builder.toFormatter(parser.getLocale()));
+    }
+
+    private static Iso8601DateTimeParser defaultRoundUp(Iso8601DateTimeParser parser) {
+        return parser.withDefaults(
+            Map.ofEntries(
+                entry(ChronoField.MONTH_OF_YEAR, 1),
+                entry(ChronoField.DAY_OF_MONTH, 1),
+                entry(ChronoField.HOUR_OF_DAY, 23),
+                entry(ChronoField.MINUTE_OF_HOUR, 59),
+                entry(ChronoField.SECOND_OF_MINUTE, 59),
+                entry(ChronoField.NANO_OF_SECOND, 999_999_999)
+            )
+        );
     }
 
     private final String format;

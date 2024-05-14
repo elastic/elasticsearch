@@ -93,15 +93,15 @@ public class ServiceUtils {
     }
 
     /**
-     * Remove the object from the map and cast to one of the expected types.
+     * Remove the object from the map and cast to first assignable type in the expected types list.
      * If the object cannot be cast to one of the types an error is added to the
      * {@code validationException} parameter
      *
      * @param sourceMap Map containing fields
      * @param key The key of the object to remove
-     * @param types One of the expected types of the removed object
+     * @param types The expected types of the removed object
      * @param validationException If the value is not of type {@code type}
-     * @return {@code null} if not present else value as Object
+     * @return {@code null} if not present else the object cast to the first assignable type in the types list
      */
     public static Object removeAsOneOfTypes(
         Map<String, Object> sourceMap,

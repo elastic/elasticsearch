@@ -93,7 +93,7 @@ public class ServiceUtils {
     }
 
     /**
-     * Remove the object from the map and cast to one of the expected types.
+     * Remove the object from the map and cast to first assignable type in the expected types list.
      * If the object cannot be cast to one of the types an error is added to the
      * {@code validationException} parameter
      *

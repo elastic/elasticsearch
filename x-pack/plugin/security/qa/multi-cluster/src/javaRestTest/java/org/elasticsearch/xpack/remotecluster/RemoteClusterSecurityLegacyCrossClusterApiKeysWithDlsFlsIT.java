@@ -23,6 +23,7 @@ import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 import org.elasticsearch.test.cluster.util.resource.Resource;
 import org.elasticsearch.test.junit.RunnableTestRuleAdapter;
+import org.elasticsearch.xcontent.ObjectPath;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
@@ -204,6 +205,9 @@ public class RemoteClusterSecurityLegacyCrossClusterApiKeysWithDlsFlsIT extends 
 
         // check that GET still works
         getCrossClusterApiKeys(crossClusterAccessApiKeyId);
+        // check that query still works
+        validateQueryCrossClusterApiKeys(crossClusterAccessApiKeyId);
+
         {
             final var searchRequest = new Request(
                 "GET",
@@ -303,7 +307,6 @@ public class RemoteClusterSecurityLegacyCrossClusterApiKeysWithDlsFlsIT extends 
         updateApiKey(crossClusterAccessApiKeyId, org.elasticsearch.common.Strings.toString(builder));
     }
 
-    // TODO also test that Query API key API works (we need to make sure that invalid API keys are still returned in Get and Query so that
     // users can view them in the UI
     private ApiKey getCrossClusterApiKeys(String id) throws IOException {
         final var request = new Request(HttpGet.METHOD_NAME, "/_security/api_key");
@@ -311,6 +314,31 @@ public class RemoteClusterSecurityLegacyCrossClusterApiKeysWithDlsFlsIT extends 
         var getCrossClusterApiKeysResponse = GetApiKeyResponse.fromXContent(getParser(performRequestAgainstFulfillingCluster(request)));
         assertThat(getCrossClusterApiKeysResponse.getApiKeyInfoList().size(), equalTo(1));
         return getCrossClusterApiKeysResponse.getApiKeyInfoList().get(0).apiKeyInfo();
+    }
+
+    @SuppressWarnings("unchecked")
+    private void validateQueryCrossClusterApiKeys(String id) throws IOException {
+        final var request = new Request(HttpGet.METHOD_NAME, "/_security/_query/api_key");
+        request.setJsonEntity(Strings.format("""
+            {
+              "query": {
+                "ids": {
+                  "values": [
+                    "%s"
+                  ]
+                }
+              }
+            }
+            """, id));
+
+        Response response = performRequestAgainstFulfillingCluster(request);
+        Map<String, Object> responseMap = entityAsMap(response);
+        assertThat(responseMap.get("total"), equalTo(1));
+        assertThat(responseMap.get("count"), equalTo(1));
+        List<Map<String, Object>> apiKeys = (List<Map<String, Object>>) responseMap.get("api_keys");
+        assertThat(apiKeys.size(), equalTo(1));
+        String query = ObjectPath.eval("role_descriptors.cross_cluster.indices.0.query", apiKeys.get(0));
+        assertThat(query, equalTo("{\"match_all\": {}}"));
     }
 
     private static XContentParser getParser(Response response) throws IOException {

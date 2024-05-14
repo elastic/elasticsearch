@@ -15,6 +15,8 @@ import java.security.BasicPermission;
  * <p>
  * By granting this permission, all code that does not have the same permission on the same file
  * will be denied all read/write access to that file.
+ * Note that you also need to wrap any access to the exclusive files in an {@code AccessController.doPrivileged()} block
+ * as Elasticsearch itself is denied access to plugin exclusive files.
  */
 public class ExclusiveFileAccessPermission extends BasicPermission {
     public ExclusiveFileAccessPermission(String path) {

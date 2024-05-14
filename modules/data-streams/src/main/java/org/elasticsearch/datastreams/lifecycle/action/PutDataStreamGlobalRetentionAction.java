@@ -108,6 +108,7 @@ public class PutDataStreamGlobalRetentionAction {
         }
 
         public Request(@Nullable TimeValue defaultRetention, @Nullable TimeValue maxRetention) {
+            super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT);
             this.globalRetention = new DataStreamGlobalRetention(defaultRetention, maxRetention);
         }
 

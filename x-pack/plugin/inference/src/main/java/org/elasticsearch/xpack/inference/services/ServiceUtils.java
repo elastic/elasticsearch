@@ -60,14 +60,40 @@ public class ServiceUtils {
         if (type.isAssignableFrom(o.getClass())) {
             return (T) o;
         } else {
-            throw new ElasticsearchStatusException(
-                "field [{}] is not of the expected type." + " The value [{}] cannot be converted to a [{}]",
-                RestStatus.BAD_REQUEST,
-                key,
-                o,
-                type.getSimpleName()
-            );
+            throw new ElasticsearchStatusException(invalidTypeErrorMsg(key, o, type.getSimpleName()), RestStatus.BAD_REQUEST);
         }
+    }
+
+    /**
+     * Remove the object from the map and cast to the expected type.
+     * If the object cannot be cast to type and error is added to the
+     * {@code validationException} parameter
+     *
+     * @param sourceMap Map containing fields
+     * @param key The key of the object to remove
+     * @param type The expected type of the removed object
+     * @param validationException If the value is not of type {@code type}
+     * @return {@code null} if not present else the object cast to type T
+     * @param <T> The expected type
+     */
+    @SuppressWarnings("unchecked")
+    public static <T> T removeAsType(Map<String, Object> sourceMap, String key, Class<T> type, ValidationException validationException) {
+        Object o = sourceMap.remove(key);
+        if (o == null) {
+            return null;
+        }
+
+        if (type.isAssignableFrom(o.getClass())) {
+            return (T) o;
+        } else {
+            validationException.addValidationError(invalidTypeErrorMsg(key, o, type.getSimpleName()));
+            return null;
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    public static Map<String, Object> removeFromMap(Map<String, Object> sourceMap, String fieldName) {
+        return (Map<String, Object>) sourceMap.remove(fieldName);
     }
 
     @SuppressWarnings("unchecked")
@@ -114,6 +140,15 @@ public class ServiceUtils {
 
     public static String missingSettingErrorMsg(String settingName, String scope) {
         return Strings.format("[%s] does not contain the required setting [%s]", scope, settingName);
+    }
+
+    public static String invalidTypeErrorMsg(String settingName, Object foundObject, String expectedType) {
+        return Strings.format(
+            "field [%s] is not of the expected type. The value [%s] cannot be converted to a [%s]",
+            settingName,
+            foundObject,
+            expectedType
+        );
     }
 
     public static String invalidUrlErrorMsg(String url, String settingName, String settingScope) {
@@ -230,7 +265,13 @@ public class ServiceUtils {
         String scope,
         ValidationException validationException
     ) {
-        String requiredField = ServiceUtils.removeAsType(map, settingName, String.class);
+        int initialValidationErrorCount = validationException.validationErrors().size();
+        String requiredField = ServiceUtils.removeAsType(map, settingName, String.class, validationException);
+
+        if (validationException.validationErrors().size() > initialValidationErrorCount) {
+            // new validation error occurred
+            return null;
+        }
 
         if (requiredField == null) {
             validationException.addValidationError(ServiceUtils.missingSettingErrorMsg(settingName, scope));
@@ -238,7 +279,7 @@ public class ServiceUtils {
             validationException.addValidationError(ServiceUtils.mustBeNonEmptyString(settingName, scope));
         }
 
-        if (validationException.validationErrors().isEmpty() == false) {
+        if (validationException.validationErrors().size() > initialValidationErrorCount) {
             return null;
         }
 
@@ -251,13 +292,19 @@ public class ServiceUtils {
         String scope,
         ValidationException validationException
     ) {
-        String optionalField = ServiceUtils.removeAsType(map, settingName, String.class);
+        int initialValidationErrorCount = validationException.validationErrors().size();
+        String optionalField = ServiceUtils.removeAsType(map, settingName, String.class, validationException);
+
+        if (validationException.validationErrors().size() > initialValidationErrorCount) {
+            // new validation error occurred
+            return null;
+        }
 
         if (optionalField != null && optionalField.isEmpty()) {
             validationException.addValidationError(ServiceUtils.mustBeNonEmptyString(settingName, scope));
         }
 
-        if (validationException.validationErrors().isEmpty() == false) {
+        if (validationException.validationErrors().size() > initialValidationErrorCount) {
             return null;
         }
 
@@ -270,13 +317,18 @@ public class ServiceUtils {
         String scope,
         ValidationException validationException
     ) {
-        Integer optionalField = ServiceUtils.removeAsType(map, settingName, Integer.class);
+        int initialValidationErrorCount = validationException.validationErrors().size();
+        Integer optionalField = ServiceUtils.removeAsType(map, settingName, Integer.class, validationException);
+
+        if (validationException.validationErrors().size() > initialValidationErrorCount) {
+            return null;
+        }
 
         if (optionalField != null && optionalField <= 0) {
             validationException.addValidationError(ServiceUtils.mustBeAPositiveNumberErrorMessage(settingName, scope, optionalField));
         }
 
-        if (validationException.validationErrors().isEmpty() == false) {
+        if (validationException.validationErrors().size() > initialValidationErrorCount) {
             return null;
         }
 
@@ -309,19 +361,8 @@ public class ServiceUtils {
         return null;
     }
 
-    public static Boolean extractOptionalBoolean(
-        Map<String, Object> map,
-        String settingName,
-        String scope,
-        ValidationException validationException
-    ) {
-        Boolean optionalField = ServiceUtils.removeAsType(map, settingName, Boolean.class);
-
-        if (validationException.validationErrors().isEmpty() == false) {
-            return null;
-        }
-
-        return optionalField;
+    public static Boolean extractOptionalBoolean(Map<String, Object> map, String settingName, ValidationException validationException) {
+        return ServiceUtils.removeAsType(map, settingName, Boolean.class, validationException);
     }
 
     public static TimeValue extractOptionalTimeValue(

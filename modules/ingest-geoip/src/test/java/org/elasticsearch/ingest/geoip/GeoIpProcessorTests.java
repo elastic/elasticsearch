@@ -373,12 +373,12 @@ public class GeoIpProcessorTests extends ESTestCase {
         location.put("lon", -1.25);
         assertThat(geoData.get("location"), equalTo(location));
         assertThat(geoData.get("network"), equalTo("2.125.160.216/29"));
-        assertThat(geoData.get("is_hosting_provider"), equalTo(false));
-        assertThat(geoData.get("is_tor_exit_node"), equalTo(false));
-        assertThat(geoData.get("is_anonymous_vpn"), equalTo(false));
-        assertThat(geoData.get("is_anonymous"), equalTo(false));
-        assertThat(geoData.get("is_public_proxy"), equalTo(false));
-        assertThat(geoData.get("is_residential_proxy"), equalTo(false));
+        assertThat(geoData.get("hosting_provider"), equalTo(false));
+        assertThat(geoData.get("tor_exit_node"), equalTo(false));
+        assertThat(geoData.get("anonymous_vpn"), equalTo(false));
+        assertThat(geoData.get("anonymous"), equalTo(false));
+        assertThat(geoData.get("public_proxy"), equalTo(false));
+        assertThat(geoData.get("residential_proxy"), equalTo(false));
     }
 
     public void testAddressIsNotInTheDatabase() throws Exception {

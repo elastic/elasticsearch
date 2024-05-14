@@ -4011,8 +4011,8 @@ public class TranslogTests extends ESTestCase {
         return false;
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/108321")
     public void testDisabledFsync() throws IOException {
+        var translogDir = createTempDir();
         var config = new TranslogConfig(
             shardId,
             translogDir,

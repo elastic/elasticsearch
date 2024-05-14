@@ -23,6 +23,7 @@ sourceCommand
     : explainCommand
     | fromCommand
     | rowCommand
+    | metricsCommand
     | showCommand
     | metaCommand
     ;
@@ -104,12 +105,11 @@ field
     ;
 
 fromCommand
-    : FROM fromIdentifier (COMMA fromIdentifier)* metadata? fromOptions?
+    : FROM indexIdentifier (COMMA indexIdentifier)* metadata? fromOptions?
     ;
 
-fromIdentifier
-    : FROM_UNQUOTED_IDENTIFIER
-    | QUOTED_IDENTIFIER
+indexIdentifier
+    : INDEX_UNQUOTED_IDENTIFIER
     ;
 
 fromOptions
@@ -126,11 +126,15 @@ metadata
     ;
 
 metadataOption
-    : METADATA fromIdentifier (COMMA fromIdentifier)*
+    : METADATA indexIdentifier (COMMA indexIdentifier)*
     ;
 
 deprecated_metadata
     : OPENING_BRACKET metadataOption CLOSING_BRACKET
+    ;
+
+metricsCommand
+    : METRICS indexIdentifier (COMMA indexIdentifier)* aggregates=fields? (BY grouping=fields)?
     ;
 
 evalCommand

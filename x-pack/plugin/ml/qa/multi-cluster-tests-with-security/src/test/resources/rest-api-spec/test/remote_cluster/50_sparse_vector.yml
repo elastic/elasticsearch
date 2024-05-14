@@ -298,7 +298,7 @@ setup:
 ---
 "Test sparse_vector displays error for invalid queried field type":
   - do:
-      catch: /\[keyword\] is not an appropriate field type for this query. Allowed field types are \[sparse_vector\]./
+      catch: /\[source_text\] must be type \[sparse_vector\] but is type \[keyword\]/
       search:
         index: index-with-sparse-vector
         body:

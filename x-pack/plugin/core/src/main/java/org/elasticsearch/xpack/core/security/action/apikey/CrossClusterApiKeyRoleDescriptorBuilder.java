@@ -146,6 +146,8 @@ public class CrossClusterApiKeyRoleDescriptorBuilder {
                 throw new IllegalArgumentException("invalid indices privileges: [" + Strings.arrayToCommaDelimitedString(privileges));
             }
         }
+        // Note: we are skipping the check for document or field level security on search (with replication) here, since validate is called
+        // for instance as part of the Get and Query APIs, which need to continue to handle legacy role descriptors.
     }
 
     public static void checkForInvalidLegacyRoleDescriptors(List<RoleDescriptor> roleDescriptors) {

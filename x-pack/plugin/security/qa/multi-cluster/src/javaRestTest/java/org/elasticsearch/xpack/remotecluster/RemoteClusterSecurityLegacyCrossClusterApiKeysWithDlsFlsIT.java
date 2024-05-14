@@ -50,7 +50,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
 @TestCaseOrdering(AnnotationTestOrdering.class)
-public class RemoteClusterSecurityLegacyDlsFlsIT extends AbstractRemoteClusterSecurityTestCase {
+public class RemoteClusterSecurityLegacyCrossClusterApiKeysWithDlsFlsIT extends AbstractRemoteClusterSecurityTestCase {
 
     private static final AtomicReference<Map<String, Object>> API_KEY_MAP_REF = new AtomicReference<>();
     private static final AtomicBoolean SSL_ENABLED_REF = new AtomicBoolean();
@@ -224,6 +224,8 @@ public class RemoteClusterSecurityLegacyDlsFlsIT extends AbstractRemoteClusterSe
     }
 
     private GetApiKeyResponse getCrossClusterApiKeys(String id) throws IOException {
+        // TODO also test that Query works (we need to make sure that invalid API keys are still returned in Get and Query so that
+        // users can view them in the UI
         final var request = new Request(HttpGet.METHOD_NAME, "/_security/api_key");
         request.addParameters(Map.of("id", id));
         return GetApiKeyResponse.fromXContent(getParser(performRequestAgainstFulfillingCluster(request)));

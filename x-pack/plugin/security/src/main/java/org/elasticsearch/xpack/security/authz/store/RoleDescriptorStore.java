@@ -108,6 +108,8 @@ public class RoleDescriptorStore implements RoleReferenceResolver {
             || (apiKeyRoleReference.getRoleType() == RoleReference.ApiKeyRoleType.LIMITED_BY
                 && rolesRetrievalResult.getRoleDescriptors().stream().noneMatch(RoleDescriptor::hasRestriction))
             : "there should be zero limited-by role descriptors with restriction and no more than one assigned";
+        // TODO we need unit tests for edge-cases here, for instance, we need to test the REST API keys are never checked for invalid legacy
+        // role descriptors
         if (apiKeyRoleReference.checkForInvalidLegacyRoleDescriptorsForCrossClusterAccess()) {
             try {
                 CrossClusterApiKeyRoleDescriptorBuilder.checkForInvalidLegacyRoleDescriptors(roleDescriptors);

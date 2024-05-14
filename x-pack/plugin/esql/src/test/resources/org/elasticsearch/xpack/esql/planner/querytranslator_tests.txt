@@ -34,9 +34,9 @@ FROM test | WHERE 10 < integer;
 "esql_single_value":{"field":"integer","next":{"range":{"integer":{"gt":10,
 ;
 
-greaterEqualFloat
-FROM test | WHERE 10.0 <= float;
-esql_single_value":{"field":"float","next":{"range":{"float":{"gte":10.0,
+greaterEqualDouble
+FROM test | WHERE 10.0 <= double;
+esql_single_value":{"field":"double","next":{"range":{"double":{"gte":10.0,
 ;
 
 lessDatetime
@@ -79,12 +79,28 @@ FROM test | WHERE ip != "127.0.0.1";
 // Note: Currently binary comparisons are not combined into range queries, so we get bool queries with multiple one
 // sided ranges for now.
 
-andRangeInt
-FROM test | WHERE 10 < integer AND integer < 12;
-REGEX .*must.*"range":\{"integer":\{"gt":10,.*"range":\{"integer":\{"lt":12
-;
-
 orRangeInt
 FROM test | WHERE 10 < integer OR integer < 12;
-REGEX .*should.*"range":\{"integer":\{"gt":10,.*"range":\{"integer":\{"lt":12
+// Once we combine binary comparisons, this query should be trivial.
+REGEX .*should.*"esql_single_value":\{"field":"integer".*"range":\{"integer":\{"gt":10,.*"esql_single_value":\{"field":"integer".*"range":\{"integer":\{"lt":12
+;
+
+andRangeInt
+FROM test | WHERE 10 < integer AND integer < 12;
+REGEX .*must.*"esql_single_value":\{"field":"integer".*"range":\{"integer":\{"gt":10,.*"range":\{"integer":\{"lt":12
+;
+
+andRangeDouble
+FROM test | WHERE 10.9 < double AND double < 12.1;
+REGEX .*must.*"esql_single_value":\{"field":"double".*"range":\{"double":\{"gt":10.9,.*"range":\{"double":\{"lt":12.1
+;
+
+andRangeDatetime
+FROM test | WHERE "2007-12-03T10:15:30+01:00" < date AND date < "2024-01-01T10:15:30+01:00";
+REGEX .*must.*"esql_single_value":\{"field":"date".*"range":\{"date":\{"gt":1196673330000,.*"range":\{"date":\{"lt":1704100530000,
+;
+
+andRangeUnsignedLong
+FROM test | WHERE 2147483648::unsigned_long < unsigned_long AND unsigned_long < 2147483650::unsigned_long;
+REGEX .*must.*"esql_single_value":\{"field":"unsigned_long".*"range":\{"unsigned_long":\{"gt":2147483648,.*"range":\{"unsigned_long":\{"lt":2147483650,
 ;

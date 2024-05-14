@@ -7,8 +7,6 @@
 
 package org.elasticsearch.xpack.remotecluster;
 
-import com.carrotsearch.randomizedtesting.annotations.TestCaseOrdering;
-
 import org.apache.http.client.methods.HttpGet;
 import org.apache.http.util.EntityUtils;
 import org.elasticsearch.action.search.SearchResponse;
@@ -20,7 +18,6 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchResponseUtils;
-import org.elasticsearch.test.AnnotationTestOrdering;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 import org.elasticsearch.test.cluster.util.resource.Resource;
@@ -49,7 +46,6 @@ import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
-@TestCaseOrdering(AnnotationTestOrdering.class)
 public class RemoteClusterSecurityLegacyCrossClusterApiKeysWithDlsFlsIT extends AbstractRemoteClusterSecurityTestCase {
 
     private static final AtomicReference<Map<String, Object>> API_KEY_MAP_REF = new AtomicReference<>();

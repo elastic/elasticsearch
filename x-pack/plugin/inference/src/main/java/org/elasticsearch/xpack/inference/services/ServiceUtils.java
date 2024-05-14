@@ -66,7 +66,7 @@ public class ServiceUtils {
     }
 
     /**
-     * Remove the object from the map and cast to one of the expected type.
+     * Remove the object from the map and cast to the expected type.
      * If the object cannot be cast to type and error is added to the
      * {@code validationException} parameter
      *

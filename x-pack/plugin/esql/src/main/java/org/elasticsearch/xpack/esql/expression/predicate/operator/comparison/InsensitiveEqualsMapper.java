@@ -41,9 +41,9 @@ public class InsensitiveEqualsMapper extends ExpressionMapper<InsensitiveEquals>
             if (bc.right().foldable() && EsqlDataTypes.isString(rightType)) {
                 BytesRef rightVal = BytesRefs.toBytesRef(bc.right().fold());
                 Automaton automaton = InsensitiveEquals.automaton(rightVal);
-                return dvrCtx -> new InsensitiveEqualsConstantEvaluator(
+                return (dvrCtx, collectWarnings) -> new InsensitiveEqualsConstantEvaluator(
                     bc.source(),
-                    leftEval.get(dvrCtx),
+                    leftEval.get(dvrCtx, true),
                     new ByteRunAutomaton(automaton),
                     dvrCtx,
                     new Warnings(bc.source())

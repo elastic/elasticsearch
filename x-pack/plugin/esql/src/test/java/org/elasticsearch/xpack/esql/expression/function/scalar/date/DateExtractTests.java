@@ -123,7 +123,7 @@ public class DateExtractTests extends AbstractConfigurationFunctionTestCase {
                     field("str", DataTypes.DATETIME),
                     null
                 )
-            ).get(driverContext)
+            ).get(driverContext, true)
         );
         assertThat(e.getMessage(), equalTo("invalid date field for []: " + chrono));
     }

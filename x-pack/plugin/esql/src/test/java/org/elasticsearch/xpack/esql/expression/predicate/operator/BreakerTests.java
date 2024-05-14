@@ -63,7 +63,7 @@ public class BreakerTests extends ESTestCase {
     public void testBreaker() {
         DriverContext unlimited = driverContext(ByteSizeValue.ofGb(1));
         DriverContext context = driverContext(limit);
-        EvalOperator.ExpressionEvaluator eval = AbstractFunctionTestCase.evaluator(expression).get(context);
+        EvalOperator.ExpressionEvaluator eval = AbstractFunctionTestCase.evaluator(expression).get(context, true);
         try (Block b = unlimited.blockFactory().newConstantNullBlock(1)) {
             Exception e = expectThrows(CircuitBreakingException.class, () -> eval.eval(new Page(b)));
             assertThat(e.getMessage(), equalTo("over test limit"));

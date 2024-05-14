@@ -179,8 +179,8 @@ public class ConcatTests extends AbstractFunctionTestCase {
         }
 
         try (
-            EvalOperator.ExpressionEvaluator eval = evaluator(expression).get(driverContext());
-            Block block = eval.eval(row(fieldValues))
+                EvalOperator.ExpressionEvaluator eval = evaluator(expression).get(driverContext(), true);
+                Block block = eval.eval(row(fieldValues))
         ) {
             assertThat(toJavaObject(block, 0), testCase.getMatcher());
         }
@@ -194,8 +194,8 @@ public class ConcatTests extends AbstractFunctionTestCase {
         Expression expression = build(testCase.getSource(), mix);
         Exception e = expectThrows(EsqlClientException.class, () -> {
             try (
-                EvalOperator.ExpressionEvaluator eval = evaluator(expression).get(driverContext());
-                Block block = eval.eval(row(fieldValues));
+                    EvalOperator.ExpressionEvaluator eval = evaluator(expression).get(driverContext(), true);
+                    Block block = eval.eval(row(fieldValues));
             ) {}
         });
         assertThat(e.getMessage(), is("concatenating more than [1048576] bytes is not supported"));

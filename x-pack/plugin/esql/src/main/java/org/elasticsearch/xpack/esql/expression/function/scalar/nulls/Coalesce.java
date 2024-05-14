@@ -133,11 +133,11 @@ public class Coalesce extends EsqlScalarFunction implements OptionalArgument {
         List<ExpressionEvaluator.Factory> childEvaluators = children().stream().map(toEvaluator).toList();
         return new ExpressionEvaluator.Factory() {
             @Override
-            public ExpressionEvaluator get(DriverContext context) {
+            public ExpressionEvaluator get(DriverContext context, boolean collectWarnings) {
                 return new CoalesceEvaluator(
                     context,
                     PlannerUtils.toElementType(dataType()),
-                    childEvaluators.stream().map(x -> x.get(context)).toList()
+                    childEvaluators.stream().map(x -> x.get(context, true)).toList()
                 );
             }
 

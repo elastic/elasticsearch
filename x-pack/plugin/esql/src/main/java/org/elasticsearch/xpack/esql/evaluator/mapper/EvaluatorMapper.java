@@ -63,7 +63,7 @@ public interface EvaluatorMapper {
      * good enough.
      */
     default Object fold() {
-        ExpressionEvaluator.Factory evaluatorFactory = toEvaluator(e -> driverContext -> new ExpressionEvaluator() {
+        ExpressionEvaluator.Factory evaluatorFactory = toEvaluator(e -> (driverContext, collectWarnings) -> new ExpressionEvaluator() {
             @Override
             public Block eval(Page page) {
                 // Tell our children to also fold
@@ -79,8 +79,8 @@ public interface EvaluatorMapper {
                     BigArrays.NON_RECYCLING_INSTANCE,
                     // TODO maybe this should have a small fixed limit?
                     new BlockFactory(new NoopCircuitBreaker(CircuitBreaker.REQUEST), BigArrays.NON_RECYCLING_INSTANCE)
-                )
-            ).eval(new Page(1)),
+                ),
+                    true).eval(new Page(1)),
             0
         );
     }

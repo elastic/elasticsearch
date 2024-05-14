@@ -201,10 +201,10 @@ public class RightTests extends AbstractFunctionTestCase {
 
     private String process(String str, int length) {
         try (
-            EvalOperator.ExpressionEvaluator eval = evaluator(
+                EvalOperator.ExpressionEvaluator eval = evaluator(
                 new Right(Source.EMPTY, field("str", DataTypes.KEYWORD), new Literal(Source.EMPTY, length, DataTypes.INTEGER))
-            ).get(driverContext());
-            Block block = eval.eval(row(List.of(new BytesRef(str))))
+            ).get(driverContext(), true);
+                Block block = eval.eval(row(List.of(new BytesRef(str))))
         ) {
             if (block.isNull(0)) {
                 return null;

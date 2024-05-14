@@ -51,7 +51,7 @@ public class ColumnExtractOperatorTests extends OperatorTestCase {
         Supplier<ColumnExtractOperator.Evaluator> expEval = () -> new FirstWord(0);
         return new ColumnExtractOperator.Factory(
             new ElementType[] { ElementType.BYTES_REF },
-            dvrCtx -> new EvalOperator.ExpressionEvaluator() {
+            (dvrCtx, collectWarnings) -> new EvalOperator.ExpressionEvaluator() {
                 @Override
                 public Block eval(Page page) {
                     BytesRefBlock input = page.getBlock(0);

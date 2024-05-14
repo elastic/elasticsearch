@@ -147,7 +147,7 @@ public class DateParseTests extends AbstractFunctionTestCase {
                     new Literal(Source.EMPTY, new BytesRef(pattern), DataTypes.KEYWORD),
                     field("str", DataTypes.KEYWORD)
                 )
-            ).get(driverContext)
+            ).get(driverContext, true)
         );
         assertThat(e.getMessage(), startsWith("invalid date pattern for []: Invalid format: [" + pattern + "]"));
     }

@@ -81,6 +81,6 @@ public class Now extends EsqlConfigurationFunction {
 
     @Override
     public ExpressionEvaluator.Factory toEvaluator(Function<Expression, ExpressionEvaluator.Factory> toEvaluator) {
-        return dvrCtx -> new NowEvaluator(source(), now, dvrCtx, new Warnings(source()));
+        return (dvrCtx, collectWarnings) -> new NowEvaluator(source(), now, dvrCtx, new Warnings(source()));
     }
 }

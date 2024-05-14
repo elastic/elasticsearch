@@ -93,7 +93,7 @@ public abstract class AbstractBinaryOperatorTestCase extends AbstractFunctionTes
                 Source src = new Source(Location.EMPTY, lhsType.typeName() + " " + rhsType.typeName());
                 if (isRepresentable(lhsType) && isRepresentable(rhsType)) {
                     op = build(src, field("lhs", lhsType), field("rhs", rhsType));
-                    try (Block block = evaluator(op).get(driverContext()).eval(row(Arrays.asList(lhs.value(), rhs.value())))) {
+                    try (Block block = evaluator(op).get(driverContext(), true).eval(row(Arrays.asList(lhs.value(), rhs.value())))) {
                         result = toJavaObject(block, 0);
                     }
                 } else {

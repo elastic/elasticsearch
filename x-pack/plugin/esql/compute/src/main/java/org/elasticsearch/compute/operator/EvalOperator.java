@@ -23,7 +23,7 @@ public class EvalOperator extends AbstractPageMappingOperator {
 
         @Override
         public Operator get(DriverContext driverContext) {
-            return new EvalOperator(driverContext.blockFactory(), evaluator.get(driverContext));
+            return new EvalOperator(driverContext.blockFactory(), evaluator.get(driverContext, true));
         }
 
         @Override
@@ -62,7 +62,7 @@ public class EvalOperator extends AbstractPageMappingOperator {
     public interface ExpressionEvaluator extends Releasable {
         /** A Factory for creating ExpressionEvaluators. */
         interface Factory {
-            ExpressionEvaluator get(DriverContext context);
+            ExpressionEvaluator get(DriverContext context, boolean collectWarnings);
         }
 
         /**
@@ -74,7 +74,7 @@ public class EvalOperator extends AbstractPageMappingOperator {
 
     public static final ExpressionEvaluator.Factory CONSTANT_NULL_FACTORY = new ExpressionEvaluator.Factory() {
         @Override
-        public ExpressionEvaluator get(DriverContext driverContext) {
+        public ExpressionEvaluator get(DriverContext driverContext, boolean collectWarnings) {
             return new ExpressionEvaluator() {
                 @Override
                 public Block eval(Page page) {

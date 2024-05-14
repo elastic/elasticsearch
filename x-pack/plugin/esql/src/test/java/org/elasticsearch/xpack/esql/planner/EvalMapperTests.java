@@ -145,8 +145,8 @@ public class EvalMapperTests extends ESTestCase {
         Layout layout = lb.build();
 
         var supplier = EvalMapper.toEvaluator(expression, layout);
-        EvalOperator.ExpressionEvaluator evaluator1 = supplier.get(driverContext());
-        EvalOperator.ExpressionEvaluator evaluator2 = supplier.get(driverContext());
+        EvalOperator.ExpressionEvaluator evaluator1 = supplier.get(driverContext(), true);
+        EvalOperator.ExpressionEvaluator evaluator2 = supplier.get(driverContext(), true);
         assertNotNull(evaluator1);
         assertNotNull(evaluator2);
         assertTrue(evaluator1 != evaluator2);

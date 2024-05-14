@@ -23,12 +23,12 @@ public class FilterOperator extends AbstractPageMappingOperator {
 
         @Override
         public Operator get(DriverContext driverContext) {
-            return new FilterOperator(evaluatorSupplier.get(driverContext));
+            return new FilterOperator(evaluatorSupplier.get(driverContext, true));
         }
 
         @Override
         public String describe() {
-            return "FilterOperator[evaluator=" + evaluatorSupplier.get(new ThrowingDriverContext()) + "]";
+            return "FilterOperator[evaluator=" + evaluatorSupplier.get(new ThrowingDriverContext(), true) + "]";
         }
     }
 

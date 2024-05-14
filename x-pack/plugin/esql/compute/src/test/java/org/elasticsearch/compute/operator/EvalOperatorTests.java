@@ -69,7 +69,7 @@ public class EvalOperatorTests extends OperatorTestCase {
     protected Operator.OperatorFactory simple() {
         return new EvalOperator.EvalOperatorFactory(new EvalOperator.ExpressionEvaluator.Factory() {
             @Override
-            public EvalOperator.ExpressionEvaluator get(DriverContext context) {
+            public EvalOperator.ExpressionEvaluator get(DriverContext context, boolean collectWarnings) {
                 return new Addition(context, 0, 1);
             }
 

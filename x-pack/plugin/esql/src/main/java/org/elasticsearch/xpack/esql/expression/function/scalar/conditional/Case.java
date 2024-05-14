@@ -265,12 +265,12 @@ public final class Case extends EsqlScalarFunction {
         ExpressionEvaluator.Factory elseValueFactory = toEvaluator.apply(elseValue);
         return new ExpressionEvaluator.Factory() {
             @Override
-            public ExpressionEvaluator get(DriverContext context) {
+            public ExpressionEvaluator get(DriverContext context, boolean collectWarnings) {
                 return new CaseEvaluator(
                     context,
                     resultType,
                     conditionsFactories.stream().map(x -> x.apply(context)).toList(),
-                    elseValueFactory.get(context)
+                    elseValueFactory.get(context, true)
                 );
             }
 
@@ -292,7 +292,7 @@ public final class Case extends EsqlScalarFunction {
             Function<DriverContext, ConditionEvaluator> {
         @Override
         public ConditionEvaluator apply(DriverContext driverContext) {
-            return new ConditionEvaluator(condition.get(driverContext), value.get(driverContext));
+            return new ConditionEvaluator(condition.get(driverContext, true), value.get(driverContext, true));
         }
 
         @Override

@@ -97,14 +97,14 @@ public class EvalBenchmark {
         return switch (operation) {
             case "abs" -> {
                 FieldAttribute longField = longField();
-                yield EvalMapper.toEvaluator(new Abs(Source.EMPTY, longField), layout(longField)).get(driverContext);
+                yield EvalMapper.toEvaluator(new Abs(Source.EMPTY, longField), layout(longField)).get(driverContext, true);
             }
             case "add" -> {
                 FieldAttribute longField = longField();
                 yield EvalMapper.toEvaluator(
                     new Add(Source.EMPTY, longField, new Literal(Source.EMPTY, 1L, DataTypes.LONG)),
                     layout(longField)
-                ).get(driverContext);
+                ).get(driverContext, true);
             }
             case "date_trunc" -> {
                 FieldAttribute timestamp = new FieldAttribute(
@@ -115,33 +115,33 @@ public class EvalBenchmark {
                 yield EvalMapper.toEvaluator(
                     new DateTrunc(Source.EMPTY, new Literal(Source.EMPTY, Duration.ofHours(24), EsqlDataTypes.TIME_DURATION), timestamp),
                     layout(timestamp)
-                ).get(driverContext);
+                ).get(driverContext, true);
             }
             case "equal_to_const" -> {
                 FieldAttribute longField = longField();
                 yield EvalMapper.toEvaluator(
                     new Equals(Source.EMPTY, longField, new Literal(Source.EMPTY, 100_000L, DataTypes.LONG)),
                     layout(longField)
-                ).get(driverContext);
+                ).get(driverContext, true);
             }
             case "long_equal_to_long" -> {
                 FieldAttribute lhs = longField();
                 FieldAttribute rhs = longField();
-                yield EvalMapper.toEvaluator(new Equals(Source.EMPTY, lhs, rhs), layout(lhs, rhs)).get(driverContext);
+                yield EvalMapper.toEvaluator(new Equals(Source.EMPTY, lhs, rhs), layout(lhs, rhs)).get(driverContext, true);
             }
             case "long_equal_to_int" -> {
                 FieldAttribute lhs = longField();
                 FieldAttribute rhs = intField();
-                yield EvalMapper.toEvaluator(new Equals(Source.EMPTY, lhs, rhs), layout(lhs, rhs)).get(driverContext);
+                yield EvalMapper.toEvaluator(new Equals(Source.EMPTY, lhs, rhs), layout(lhs, rhs)).get(driverContext, true);
             }
             case "mv_min", "mv_min_ascending" -> {
                 FieldAttribute longField = longField();
-                yield EvalMapper.toEvaluator(new MvMin(Source.EMPTY, longField), layout(longField)).get(driverContext);
+                yield EvalMapper.toEvaluator(new MvMin(Source.EMPTY, longField), layout(longField)).get(driverContext, true);
             }
             case "rlike" -> {
                 FieldAttribute keywordField = keywordField();
                 RLike rlike = new RLike(Source.EMPTY, keywordField, new RLikePattern(".ar"));
-                yield EvalMapper.toEvaluator(rlike, layout(keywordField)).get(driverContext);
+                yield EvalMapper.toEvaluator(rlike, layout(keywordField)).get(driverContext, true);
             }
             default -> throw new UnsupportedOperationException();
         };

@@ -97,8 +97,8 @@ public class MvConcat extends BinaryScalarFunction implements EvaluatorMapper {
         implements
             ExpressionEvaluator.Factory {
         @Override
-        public ExpressionEvaluator get(DriverContext context) {
-            return new Evaluator(context, field.get(context), delim.get(context));
+        public ExpressionEvaluator get(DriverContext context, boolean collectWarnings) {
+            return new Evaluator(context, field.get(context, true), delim.get(context, true));
         }
 
         @Override

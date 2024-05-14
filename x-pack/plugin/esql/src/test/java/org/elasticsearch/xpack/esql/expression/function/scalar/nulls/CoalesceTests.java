@@ -87,7 +87,7 @@ public class CoalesceTests extends AbstractFunctionTestCase {
         Layout layout = builder.build();
         Function<Expression, EvalOperator.ExpressionEvaluator.Factory> map = child -> {
             if (child == evil) {
-                return dvrCtx -> new EvalOperator.ExpressionEvaluator() {
+                return (dvrCtx, collectWarnings) -> new EvalOperator.ExpressionEvaluator() {
                     @Override
                     public Block eval(Page page) {
                         throw new AssertionError("shouldn't be called");
@@ -100,8 +100,8 @@ public class CoalesceTests extends AbstractFunctionTestCase {
             return EvalMapper.toEvaluator(child, layout);
         };
         try (
-            EvalOperator.ExpressionEvaluator eval = exp.toEvaluator(map).get(driverContext());
-            Block block = eval.eval(row(testCase.getDataValues()))
+                EvalOperator.ExpressionEvaluator eval = exp.toEvaluator(map).get(driverContext(), true);
+                Block block = eval.eval(row(testCase.getDataValues()))
         ) {
             assertThat(toJavaObject(block, 0), testCase.getMatcher());
         }

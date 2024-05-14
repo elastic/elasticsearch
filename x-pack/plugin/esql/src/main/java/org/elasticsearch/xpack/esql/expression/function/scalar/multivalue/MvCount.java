@@ -86,8 +86,8 @@ public class MvCount extends AbstractMultivalueFunction {
 
     private record EvaluatorFactory(ExpressionEvaluator.Factory field) implements ExpressionEvaluator.Factory {
         @Override
-        public ExpressionEvaluator get(DriverContext context) {
-            return new Evaluator(context, field.get(context));
+        public ExpressionEvaluator get(DriverContext context, boolean collectWarnings) {
+            return new Evaluator(context, field.get(context, true));
         }
 
         @Override

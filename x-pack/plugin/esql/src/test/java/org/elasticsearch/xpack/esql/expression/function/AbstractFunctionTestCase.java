@@ -272,7 +272,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
         logger.info("Result type: " + expression.dataType());
 
         Object result;
-        try (ExpressionEvaluator evaluator = evaluator(expression).get(driverContext())) {
+        try (ExpressionEvaluator evaluator = evaluator(expression).get(driverContext(), true)) {
             try (Block block = evaluator.eval(row(testCase.getDataValues()))) {
                 result = toJavaObjectUnsignedLongAware(block, 0);
             }
@@ -404,8 +404,8 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
                 b++;
             }
             try (
-                ExpressionEvaluator eval = evaluator(expression).get(context);
-                Block block = eval.eval(new Page(positions, manyPositionsBlocks))
+                    ExpressionEvaluator eval = evaluator(expression).get(context, true);
+                    Block block = eval.eval(new Page(positions, manyPositionsBlocks))
             ) {
                 for (int p = 0; p < positions; p++) {
                     if (nullPositions.contains(p)) {
@@ -436,7 +436,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
         }
         assumeTrue("Can't build evaluator", testCase.canBuildEvaluator());
         List<Object> simpleData = testCase.getDataValues();
-        try (EvalOperator.ExpressionEvaluator eval = evaluator(expression).get(driverContext())) {
+        try (EvalOperator.ExpressionEvaluator eval = evaluator(expression).get(driverContext(), true)) {
             BlockFactory blockFactory = TestBlockFactory.getNonBreakingInstance();
             Block[] orig = BlockUtils.fromListRow(blockFactory, simpleData);
             for (int i = 0; i < orig.length; i++) {
@@ -493,7 +493,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
                 Page page = row(simpleData);
 
                 futures.add(exec.submit(() -> {
-                    try (EvalOperator.ExpressionEvaluator eval = evalSupplier.get(driverContext())) {
+                    try (EvalOperator.ExpressionEvaluator eval = evalSupplier.get(driverContext(), true)) {
                         for (int c = 0; c < count; c++) {
                             try (Block block = eval.eval(page)) {
                                 assertThat(toJavaObjectUnsignedLongAware(block, 0), testCase.getMatcher());
@@ -518,7 +518,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
         }
         assumeTrue("Can't build evaluator", testCase.canBuildEvaluator());
         var factory = evaluator(expression);
-        try (ExpressionEvaluator ev = factory.get(driverContext())) {
+        try (ExpressionEvaluator ev = factory.get(driverContext(), true)) {
             assertThat(ev.toString(), testCase.evaluatorToString());
         }
     }

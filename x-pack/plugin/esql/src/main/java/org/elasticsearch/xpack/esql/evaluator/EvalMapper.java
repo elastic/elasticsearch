@@ -139,7 +139,7 @@ public final class EvalMapper {
                     Releasables.closeExpectNoException(leftEval, rightEval);
                 }
             }
-            return driverContext -> new BooleanLogicExpressionEvaluator(bc, leftEval.get(driverContext), rightEval.get(driverContext));
+            return (driverContext, collectWarnings) -> new BooleanLogicExpressionEvaluator(bc, leftEval.get(driverContext, true), rightEval.get(driverContext, true));
         }
     }
 
@@ -147,9 +147,9 @@ public final class EvalMapper {
         @Override
         public ExpressionEvaluator.Factory map(Not not, Layout layout) {
             var expEval = toEvaluator(not.field(), layout);
-            return dvrCtx -> new org.elasticsearch.xpack.esql.evaluator.predicate.operator.logical.NotEvaluator(
+            return (dvrCtx, collectWarnings) -> new org.elasticsearch.xpack.esql.evaluator.predicate.operator.logical.NotEvaluator(
                 not.source(),
-                expEval.get(dvrCtx),
+                expEval.get(dvrCtx, true),
                 dvrCtx,
                 new Warnings(not.source())
             );
@@ -172,7 +172,7 @@ public final class EvalMapper {
             }
             record AttributeFactory(int channel) implements ExpressionEvaluator.Factory {
                 @Override
-                public ExpressionEvaluator get(DriverContext driverContext) {
+                public ExpressionEvaluator get(DriverContext driverContext, boolean collectWarnings) {
                     return new Attribute(channel);
                 }
 
@@ -205,7 +205,7 @@ public final class EvalMapper {
             }
             record LiteralsEvaluatorFactory(Literal lit) implements ExpressionEvaluator.Factory {
                 @Override
-                public ExpressionEvaluator get(DriverContext driverContext) {
+                public ExpressionEvaluator get(DriverContext driverContext, boolean collectWarnings) {
                     return new LiteralsEvaluator(driverContext, lit);
                 }
 
@@ -247,8 +247,8 @@ public final class EvalMapper {
 
         record IsNullEvaluatorFactory(EvalOperator.ExpressionEvaluator.Factory field) implements ExpressionEvaluator.Factory {
             @Override
-            public ExpressionEvaluator get(DriverContext context) {
-                return new IsNullEvaluator(context, field.get(context));
+            public ExpressionEvaluator get(DriverContext context, boolean collectWarnings) {
+                return new IsNullEvaluator(context, field.get(context, true));
             }
 
             @Override
@@ -294,8 +294,8 @@ public final class EvalMapper {
 
         record IsNotNullEvaluatorFactory(EvalOperator.ExpressionEvaluator.Factory field) implements ExpressionEvaluator.Factory {
             @Override
-            public ExpressionEvaluator get(DriverContext context) {
-                return new IsNotNullEvaluator(context, field.get(context));
+            public ExpressionEvaluator get(DriverContext context, boolean collectWarnings) {
+                return new IsNotNullEvaluator(context, field.get(context, true));
             }
 
             @Override

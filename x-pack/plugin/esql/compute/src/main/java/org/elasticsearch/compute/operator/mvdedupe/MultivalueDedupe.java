@@ -153,8 +153,8 @@ public final class MultivalueDedupe {
         implements
             ExpressionEvaluator.Factory {
         @Override
-        public ExpressionEvaluator get(DriverContext context) {
-            return new Evaluator(context.blockFactory(), field.get(context), dedupe);
+        public ExpressionEvaluator get(DriverContext context, boolean collectWarnings) {
+            return new Evaluator(context.blockFactory(), field.get(context, true), dedupe);
         }
 
         @Override

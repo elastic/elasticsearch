@@ -187,8 +187,8 @@ public class MvSort extends EsqlScalarFunction implements OptionalArgument, Vali
         ElementType dataType
     ) implements EvalOperator.ExpressionEvaluator.Factory {
         @Override
-        public EvalOperator.ExpressionEvaluator get(DriverContext context) {
-            return new MvSort.Evaluator(context.blockFactory(), field.get(context), order, sort, dataType);
+        public EvalOperator.ExpressionEvaluator get(DriverContext context, boolean collectWarnings) {
+            return new MvSort.Evaluator(context.blockFactory(), field.get(context, true), order, sort, dataType);
         }
 
         @Override

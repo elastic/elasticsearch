@@ -157,7 +157,7 @@ public class NegTests extends AbstractFunctionTestCase {
     private Object process(Object val) {
         if (testCase.canBuildEvaluator()) {
             Neg neg = new Neg(Source.EMPTY, field("val", typeOf(val)));
-            try (Block block = evaluator(neg).get(driverContext()).eval(row(List.of(val)))) {
+            try (Block block = evaluator(neg).get(driverContext(), true).eval(row(List.of(val)))) {
                 return toJavaObject(block, 0);
             }
         } else { // just fold if type is not representable

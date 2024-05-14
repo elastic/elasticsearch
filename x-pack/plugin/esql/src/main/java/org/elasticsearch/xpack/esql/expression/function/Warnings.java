@@ -44,4 +44,11 @@ public class Warnings {
             addedWarnings++;
         }
     }
+
+    public static final Warnings NOOP_WARNINGS = new Warnings(Source.EMPTY) {
+        @Override
+        public void registerException(Exception exception) {
+            // this space intentionally left blank
+        }
+    };
 }

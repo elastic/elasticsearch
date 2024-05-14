@@ -244,8 +244,8 @@ public class CaseTests extends AbstractFunctionTestCase {
             DriverContext driverContext = driverContext();
             Page page = new Page(driverContext.blockFactory().newConstantIntBlockWith(0, 1));
             try (
-                EvalOperator.ExpressionEvaluator eval = caseExpr.toEvaluator(child -> evaluator(child)).get(driverContext);
-                Block block = eval.eval(page)
+                    EvalOperator.ExpressionEvaluator eval = caseExpr.toEvaluator(child -> evaluator(child)).get(driverContext, true);
+                    Block block = eval.eval(page)
             ) {
                 return toJavaObject(block, 0);
             } finally {
@@ -309,7 +309,7 @@ public class CaseTests extends AbstractFunctionTestCase {
         EvalOperator.ExpressionEvaluator evaluator = caseExpr.toEvaluator(child -> {
             Object value = child.fold();
             if (value != null && value.equals(2)) {
-                return dvrCtx -> new EvalOperator.ExpressionEvaluator() {
+                return (dvrCtx, collectWarnings) -> new EvalOperator.ExpressionEvaluator() {
                     @Override
                     public Block eval(Page page) {
                         fail("Unexpected evaluation of 4th argument");
@@ -321,7 +321,7 @@ public class CaseTests extends AbstractFunctionTestCase {
                 };
             }
             return evaluator(child);
-        }).get(driveContext);
+        }).get(driveContext, true);
         Page page = new Page(driveContext.blockFactory().newConstantIntBlockWith(0, 1));
         try (Block block = evaluator.eval(page)) {
             assertEquals(1, toJavaObject(block, 0));

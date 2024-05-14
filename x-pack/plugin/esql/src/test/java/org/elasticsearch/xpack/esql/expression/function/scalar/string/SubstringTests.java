@@ -95,8 +95,8 @@ public class SubstringTests extends AbstractFunctionTestCase {
     public void testNoLengthToString() {
         assertThat(
             evaluator(new Substring(Source.EMPTY, field("str", DataTypes.KEYWORD), field("start", DataTypes.INTEGER), null)).get(
-                driverContext()
-            ).toString(),
+                driverContext(),
+                    true).toString(),
             equalTo("SubstringNoLengthEvaluator[str=Attribute[channel=0], start=Attribute[channel=1]]")
         );
     }
@@ -166,15 +166,15 @@ public class SubstringTests extends AbstractFunctionTestCase {
 
     private String process(String str, int start, Integer length) {
         try (
-            EvalOperator.ExpressionEvaluator eval = evaluator(
+                EvalOperator.ExpressionEvaluator eval = evaluator(
                 new Substring(
                     Source.EMPTY,
                     field("str", DataTypes.KEYWORD),
                     new Literal(Source.EMPTY, start, DataTypes.INTEGER),
                     length == null ? null : new Literal(Source.EMPTY, length, DataTypes.INTEGER)
                 )
-            ).get(driverContext());
-            Block block = eval.eval(row(List.of(new BytesRef(str))))
+            ).get(driverContext(), true);
+                Block block = eval.eval(row(List.of(new BytesRef(str))))
         ) {
             return block.isNull(0) ? null : ((BytesRef) toJavaObject(block, 0)).utf8ToString();
         }

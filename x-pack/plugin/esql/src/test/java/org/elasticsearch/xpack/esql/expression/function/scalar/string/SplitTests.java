@@ -78,7 +78,7 @@ public class SplitTests extends AbstractFunctionTestCase {
         try (
             EvalOperator.ExpressionEvaluator eval = evaluator(
                 new Split(Source.EMPTY, field("str", DataTypes.KEYWORD), new Literal(Source.EMPTY, new BytesRef(":"), DataTypes.KEYWORD))
-            ).get(driverContext)
+            ).get(driverContext, true)
         ) {
             /*
              * 58 is ascii for : and appears in the toString below. We don't convert the delimiter to a
@@ -108,7 +108,7 @@ public class SplitTests extends AbstractFunctionTestCase {
                     field("str", DataTypes.KEYWORD),
                     new Literal(Source.EMPTY, new BytesRef(delimiter), DataTypes.KEYWORD)
                 )
-            ).get(driverContext)
+            ).get(driverContext, true)
         );
         assertThat(e.getMessage(), equalTo("delimiter must be single byte for now"));
     }

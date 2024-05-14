@@ -133,7 +133,7 @@ public class KibanaThreadPoolIT extends ESIntegTestCase {
         phaser.register();
 
         blockThreadPool(phaser);
-        phaser.arriveAndAwaitAdvance();
+        phaser.arriveAndAwaitAdvance();// wait until all waitAction are executing
 
         fillQueues();
 
@@ -142,7 +142,7 @@ public class KibanaThreadPoolIT extends ESIntegTestCase {
         try {
             runnable.run();
         } finally {
-            phaser.arriveAndAwaitAdvance();
+            phaser.arriveAndAwaitAdvance(); // release all waitAction
         }
     }
 
@@ -168,8 +168,8 @@ public class KibanaThreadPoolIT extends ESIntegTestCase {
         ThreadPool.Info info = threadPool.info(threadPoolName);
 
         Runnable waitAction = () -> {
-            phaser.arriveAndAwaitAdvance();
-            phaser.arriveAndAwaitAdvance();
+            phaser.arriveAndAwaitAdvance();// block until all are executed on a threadpool
+            phaser.arriveAndAwaitAdvance();// block until main thread has not finished
         };
 
         phaser.bulkRegister(info.getMax());

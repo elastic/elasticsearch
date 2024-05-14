@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.security.authz.store;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DelegatingActionListener;
 import org.elasticsearch.action.DocWriteResponse;
@@ -98,7 +99,10 @@ public class NativeRolesStore implements BiConsumer<Set<String>, ActionListener<
 
     private static final Logger logger = LogManager.getLogger(NativeRolesStore.class);
 
-    private static final RoleDescriptor.Parser ROLE_DESCRIPTOR_PARSER = RoleDescriptor.parserBuilder().allow2xFormat(true).build();
+    private static final RoleDescriptor.Parser ROLE_DESCRIPTOR_PARSER = RoleDescriptor.parserBuilder()
+        .allow2xFormat(true)
+        .allowDescription(true)
+        .build();
 
     private final Settings settings;
     private final Client client;
@@ -272,9 +276,18 @@ public class NativeRolesStore implements BiConsumer<Set<String>, ActionListener<
                             "all nodes must have version [" + ROLE_REMOTE_CLUSTER_PRIVS + "] or higher to support remote cluster privileges"
                         )
                     );
-                } else {
-                    innerPutRole(request, role, listener);
-                }
+                } else if (role.hasDescription()
+                    && clusterService.state().getMinTransportVersion().before(TransportVersions.SECURITY_ROLE_DESCRIPTION)) {
+                        listener.onFailure(
+                            new IllegalStateException(
+                                "all nodes must have version ["
+                                    + TransportVersions.SECURITY_ROLE_DESCRIPTION.toReleaseVersion()
+                                    + "] or higher to support specifying role description"
+                            )
+                        );
+                    } else {
+                        innerPutRole(request, role, listener);
+                    }
     }
 
     // pkg-private for testing
@@ -535,7 +548,8 @@ public class NativeRolesStore implements BiConsumer<Set<String>, ActionListener<
                     transientMap,
                     roleDescriptor.getRemoteIndicesPrivileges(),
                     roleDescriptor.getRemoteClusterPermissions(),
-                    roleDescriptor.getRestriction()
+                    roleDescriptor.getRestriction(),
+                    roleDescriptor.getDescription()
                 );
             } else {
                 return roleDescriptor;

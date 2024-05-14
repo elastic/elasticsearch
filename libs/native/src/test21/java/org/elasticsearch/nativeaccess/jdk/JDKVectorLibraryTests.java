@@ -22,6 +22,10 @@ import static org.hamcrest.Matchers.containsString;
 
 public class JDKVectorLibraryTests extends VectorSimilarityFunctionsTests {
 
+    // bounds of the range of values that can be seen by int7 scalar quantized vectors
+    static final byte MIN_INT7_VALUE = 0;
+    static final byte MAX_INT7_VALUE = 127;
+
     static final Class<IllegalArgumentException> IAE = IllegalArgumentException.class;
 
     static final int[] VECTOR_DIMS = { 1, 4, 6, 8, 13, 16, 25, 31, 32, 33, 64, 100, 128, 207, 256, 300, 512, 702, 1023, 1024, 1025 };
@@ -49,14 +53,14 @@ public class JDKVectorLibraryTests extends VectorSimilarityFunctionsTests {
         return () -> IntStream.of(VECTOR_DIMS).boxed().map(i -> new Object[] { i }).iterator();
     }
 
-    public void testBinaryVectors() {
+    public void testInt7BinaryVectors() {
         assumeTrue(notSupportedMsg(), supported());
         final int dims = size;
         final int numVecs = randomIntBetween(2, 101);
         var values = new byte[numVecs][dims];
         var segment = arena.allocate((long) dims * numVecs);
         for (int i = 0; i < numVecs; i++) {
-            random().nextBytes(values[i]);
+            randomBytesBetween(values[i], MIN_INT7_VALUE, MAX_INT7_VALUE);
             MemorySegment.copy(MemorySegment.ofArray(values[i]), 0L, segment, (long) i * dims, dims);
         }
 
@@ -65,29 +69,29 @@ public class JDKVectorLibraryTests extends VectorSimilarityFunctionsTests {
             int first = randomInt(numVecs - 1);
             int second = randomInt(numVecs - 1);
             // dot product
-            int implDot = dotProduct(segment.asSlice((long) first * dims, dims), segment.asSlice((long) second * dims, dims), dims);
+            int implDot = dotProduct7u(segment.asSlice((long) first * dims, dims), segment.asSlice((long) second * dims, dims), dims);
             int otherDot = dotProductScalar(values[first], values[second]);
             assertEquals(otherDot, implDot);
 
-            int squareDist = squareDistance(segment.asSlice((long) first * dims, dims), segment.asSlice((long) second * dims, dims), dims);
-            int otherSq = squareDistanceScalar(values[first], values[second]);
-            assertEquals(otherSq, squareDist);
+            int implSqr = squareDistance7u(segment.asSlice((long) first * dims, dims), segment.asSlice((long) second * dims, dims), dims);
+            int otherSqr = squareDistanceScalar(values[first], values[second]);
+            assertEquals(otherSqr, implSqr);
         }
     }
 
     public void testIllegalDims() {
         assumeTrue(notSupportedMsg(), supported());
         var segment = arena.allocate((long) size * 3);
-        var e = expectThrows(IAE, () -> dotProduct(segment.asSlice(0L, size), segment.asSlice(size, size + 1), size));
+        var e = expectThrows(IAE, () -> dotProduct7u(segment.asSlice(0L, size), segment.asSlice(size, size + 1), size));
         assertThat(e.getMessage(), containsString("dimensions differ"));
 
-        e = expectThrows(IAE, () -> dotProduct(segment.asSlice(0L, size), segment.asSlice(size, size), size + 1));
+        e = expectThrows(IAE, () -> dotProduct7u(segment.asSlice(0L, size), segment.asSlice(size, size), size + 1));
         assertThat(e.getMessage(), containsString("greater than vector dimensions"));
     }
 
-    int dotProduct(MemorySegment a, MemorySegment b, int length) {
+    int dotProduct7u(MemorySegment a, MemorySegment b, int length) {
         try {
-            return (int) getVectorDistance().dotProductHandle().invokeExact(a, b, length);
+            return (int) getVectorDistance().dotProductHandle7u().invokeExact(a, b, length);
         } catch (Throwable e) {
             if (e instanceof Error err) {
                 throw err;
@@ -99,9 +103,9 @@ public class JDKVectorLibraryTests extends VectorSimilarityFunctionsTests {
         }
     }
 
-    int squareDistance(MemorySegment a, MemorySegment b, int length) {
+    int squareDistance7u(MemorySegment a, MemorySegment b, int length) {
         try {
-            return (int) getVectorDistance().squareDistanceHandle().invokeExact(a, b, length);
+            return (int) getVectorDistance().squareDistanceHandle7u().invokeExact(a, b, length);
         } catch (Throwable e) {
             if (e instanceof Error err) {
                 throw err;

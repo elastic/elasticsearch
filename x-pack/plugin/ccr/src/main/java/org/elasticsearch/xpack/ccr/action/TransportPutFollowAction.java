@@ -330,11 +330,12 @@ public final class TransportPutFollowAction extends TransportMasterNodeAction<Pu
             // just copying the data stream is in this case safe.
             return remoteDataStream.copy()
                 .setName(localDataStreamName)
-                .setIndices(List.of(backingIndexToFollow))
+                .setBackingIndices(
+                    // Replicated data streams can't be rolled over, so having the `rolloverOnWrite` flag set to `true` wouldn't make sense
+                    // (and potentially even break things).
+                    remoteDataStream.getBackingIndices().copy().setIndices(List.of(backingIndexToFollow)).setRolloverOnWrite(false).build()
+                )
                 .setReplicated(true)
-                // Replicated data streams can't be rolled over, so having the `rolloverOnWrite` flag set to `true` wouldn't make sense
-                // (and potentially even break things).
-                .setRolloverOnWrite(false)
                 .build();
         } else {
             if (localDataStream.isReplicated() == false) {
@@ -376,7 +377,7 @@ public final class TransportPutFollowAction extends TransportMasterNodeAction<Pu
             }
 
             return localDataStream.copy()
-                .setIndices(backingIndices)
+                .setBackingIndices(localDataStream.getBackingIndices().copy().setIndices(backingIndices).build())
                 .setGeneration(remoteDataStream.getGeneration())
                 .setMetadata(remoteDataStream.getMetadata())
                 .build();

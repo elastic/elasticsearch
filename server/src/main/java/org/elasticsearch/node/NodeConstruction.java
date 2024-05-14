@@ -258,7 +258,7 @@ class NodeConstruction {
             ThreadPool threadPool = constructor.createThreadPool(settings, telemetryProvider.getMeterRegistry());
             SettingsModule settingsModule = constructor.validateSettings(initialEnvironment.settings(), settings, threadPool);
 
-            SearchModule searchModule = constructor.createSearchModule(settingsModule.getSettings(), threadPool);
+            SearchModule searchModule = constructor.createSearchModule(settingsModule.getSettings(), threadPool, telemetryProvider);
             constructor.createClientAndRegistries(settingsModule.getSettings(), threadPool, searchModule);
             DocumentParsingProvider documentParsingProvider = constructor.getDocumentParsingProvider();
 
@@ -526,9 +526,9 @@ class NodeConstruction {
         return settingsModule;
     }
 
-    private SearchModule createSearchModule(Settings settings, ThreadPool threadPool) {
+    private SearchModule createSearchModule(Settings settings, ThreadPool threadPool, TelemetryProvider telemetryProvider) {
         IndexSearcher.setMaxClauseCount(SearchUtils.calculateMaxClauseValue(threadPool));
-        return new SearchModule(settings, pluginsService.filterPlugins(SearchPlugin.class).toList());
+        return new SearchModule(settings, pluginsService.filterPlugins(SearchPlugin.class).toList(), telemetryProvider);
     }
 
     /**

@@ -33,11 +33,13 @@ public class DeleteShutdownNodeAction extends ActionType<AcknowledgedResponse> {
         private final String nodeId;
 
         public Request(String nodeId) {
+            super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT, DEFAULT_ACK_TIMEOUT);
             this.nodeId = nodeId;
         }
 
         public Request(StreamInput in) throws IOException {
-            if (in.getTransportVersion().isPatchFrom(TransportVersions.SHUTDOWN_REQUEST_TIMEOUTS_FIX_8_13)
+            super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT, DEFAULT_ACK_TIMEOUT);
+            if (in.getTransportVersion().isPatchFrom(TransportVersions.V_8_13_4)
                 || in.getTransportVersion().isPatchFrom(TransportVersions.SHUTDOWN_REQUEST_TIMEOUTS_FIX_8_14)
                 || in.getTransportVersion().onOrAfter(TransportVersions.SHUTDOWN_REQUEST_TIMEOUTS_FIX)) {
                 // effectively super(in):
@@ -50,7 +52,7 @@ public class DeleteShutdownNodeAction extends ActionType<AcknowledgedResponse> {
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            if (out.getTransportVersion().isPatchFrom(TransportVersions.SHUTDOWN_REQUEST_TIMEOUTS_FIX_8_13)
+            if (out.getTransportVersion().isPatchFrom(TransportVersions.V_8_13_4)
                 || out.getTransportVersion().isPatchFrom(TransportVersions.SHUTDOWN_REQUEST_TIMEOUTS_FIX_8_14)
                 || out.getTransportVersion().onOrAfter(TransportVersions.SHUTDOWN_REQUEST_TIMEOUTS_FIX)) {
                 super.writeTo(out);

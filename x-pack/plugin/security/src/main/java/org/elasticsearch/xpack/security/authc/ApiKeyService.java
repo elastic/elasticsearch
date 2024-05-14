@@ -360,14 +360,43 @@ public class ApiKeyService {
                 return;
             }
 
+            final Set<RoleDescriptor> userRolesWithoutDescription = removeUserRoleDescriptorDescriptions(userRoleDescriptors);
             final Set<RoleDescriptor> filteredUserRoleDescriptors = maybeRemoveRemotePrivileges(
-                userRoleDescriptors,
+                userRolesWithoutDescription,
                 transportVersion,
                 request.getId()
             );
 
             createApiKeyAndIndexIt(authentication, request, filteredUserRoleDescriptors, listener);
         }
+    }
+
+    /**
+     * This method removes description from the given user's (limited-by) role descriptors.
+     * The description field is not supported for API key role descriptors hence storing limited-by roles with descriptions
+     * would be inconsistent and require handling backwards compatibility.
+     * Hence why we have to remove them before create/update of API key roles.
+     */
+    static Set<RoleDescriptor> removeUserRoleDescriptorDescriptions(Set<RoleDescriptor> userRoleDescriptors) {
+        return userRoleDescriptors.stream().map(roleDescriptor -> {
+            if (roleDescriptor.hasDescription()) {
+                return new RoleDescriptor(
+                    roleDescriptor.getName(),
+                    roleDescriptor.getClusterPrivileges(),
+                    roleDescriptor.getIndicesPrivileges(),
+                    roleDescriptor.getApplicationPrivileges(),
+                    roleDescriptor.getConditionalClusterPrivileges(),
+                    roleDescriptor.getRunAs(),
+                    roleDescriptor.getMetadata(),
+                    roleDescriptor.getTransientMetadata(),
+                    roleDescriptor.getRemoteIndicesPrivileges(),
+                    roleDescriptor.getRemoteClusterPermissions(),
+                    roleDescriptor.getRestriction(),
+                    null
+                );
+            }
+            return roleDescriptor;
+        }).collect(Collectors.toSet());
     }
 
     private TransportVersion getMinTransportVersion() {
@@ -534,8 +563,9 @@ public class ApiKeyService {
         }
 
         final String[] apiKeyIds = request.getIds().toArray(String[]::new);
+        final Set<RoleDescriptor> userRolesWithoutDescription = removeUserRoleDescriptorDescriptions(userRoleDescriptors);
         final Set<RoleDescriptor> filteredUserRoleDescriptors = maybeRemoveRemotePrivileges(
-            userRoleDescriptors,
+            userRolesWithoutDescription,
             transportVersion,
             apiKeyIds
         );
@@ -673,7 +703,8 @@ public class ApiKeyService {
                         roleDescriptor.hasRemoteClusterPermissions() && transportVersion.before(ROLE_REMOTE_CLUSTER_PRIVS)
                             ? null
                             : roleDescriptor.getRemoteClusterPermissions(),
-                        roleDescriptor.getRestriction()
+                        roleDescriptor.getRestriction(),
+                        roleDescriptor.getDescription()
                     );
                 }
                 return roleDescriptor;

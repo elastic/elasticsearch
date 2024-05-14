@@ -48,6 +48,7 @@ public class DeleteDataStreamLifecycleAction {
         }
 
         public Request(String[] names) {
+            super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT, DEFAULT_ACK_TIMEOUT);
             this.names = names;
         }
 

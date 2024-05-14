@@ -13,6 +13,7 @@ import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Vector;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.xpack.esql.expression.function.Warnings;
 import org.elasticsearch.xpack.ql.tree.Source;
 
 /**
@@ -21,8 +22,8 @@ import org.elasticsearch.xpack.ql.tree.Source;
  */
 public final class ToBooleanFromLongEvaluator extends AbstractConvertFunction.AbstractEvaluator {
   public ToBooleanFromLongEvaluator(EvalOperator.ExpressionEvaluator field, Source source,
-      DriverContext driverContext) {
-    super(driverContext, field, source);
+      DriverContext driverContext, Warnings warnings) {
+    super(driverContext, field, source, warnings);
   }
 
   @Override
@@ -97,7 +98,7 @@ public final class ToBooleanFromLongEvaluator extends AbstractConvertFunction.Ab
 
     @Override
     public ToBooleanFromLongEvaluator get(DriverContext context) {
-      return new ToBooleanFromLongEvaluator(field.get(context), source, context);
+      return new ToBooleanFromLongEvaluator(field.get(context), source, context, new Warnings(source));
     }
 
     @Override

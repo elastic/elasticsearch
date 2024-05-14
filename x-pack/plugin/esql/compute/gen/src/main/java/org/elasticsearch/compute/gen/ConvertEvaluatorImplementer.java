@@ -34,6 +34,7 @@ import static org.elasticsearch.compute.gen.Types.EXPRESSION_EVALUATOR;
 import static org.elasticsearch.compute.gen.Types.EXPRESSION_EVALUATOR_FACTORY;
 import static org.elasticsearch.compute.gen.Types.SOURCE;
 import static org.elasticsearch.compute.gen.Types.VECTOR;
+import static org.elasticsearch.compute.gen.Types.WARNINGS;
 import static org.elasticsearch.compute.gen.Types.blockType;
 import static org.elasticsearch.compute.gen.Types.builderType;
 import static org.elasticsearch.compute.gen.Types.vectorType;
@@ -102,7 +103,8 @@ public class ConvertEvaluatorImplementer {
         builder.addParameter(EXPRESSION_EVALUATOR, "field");
         builder.addParameter(SOURCE, "source");
         builder.addParameter(DRIVER_CONTEXT, "driverContext");
-        builder.addStatement("super(driverContext, field, source)");
+        builder.addParameter(WARNINGS, "warnings");
+        builder.addStatement("super(driverContext, field, source, warnings)");
         return builder.build();
     }
 
@@ -307,6 +309,7 @@ public class ConvertEvaluatorImplementer {
         args.add("field.get(context)");
         args.add("source");
         args.add("context");
+        args.add("new Warnings(source)");
         builder.addStatement("return new $T($L)", implementation, args.stream().collect(Collectors.joining(", ")));
         return builder.build();
     }

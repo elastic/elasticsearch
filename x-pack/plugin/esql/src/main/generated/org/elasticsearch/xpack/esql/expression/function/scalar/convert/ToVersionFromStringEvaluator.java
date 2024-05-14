@@ -13,6 +13,7 @@ import org.elasticsearch.compute.data.BytesRefVector;
 import org.elasticsearch.compute.data.Vector;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.xpack.esql.expression.function.Warnings;
 import org.elasticsearch.xpack.ql.tree.Source;
 
 /**
@@ -21,8 +22,8 @@ import org.elasticsearch.xpack.ql.tree.Source;
  */
 public final class ToVersionFromStringEvaluator extends AbstractConvertFunction.AbstractEvaluator {
   public ToVersionFromStringEvaluator(EvalOperator.ExpressionEvaluator field, Source source,
-      DriverContext driverContext) {
-    super(driverContext, field, source);
+      DriverContext driverContext, Warnings warnings) {
+    super(driverContext, field, source, warnings);
   }
 
   @Override
@@ -99,7 +100,7 @@ public final class ToVersionFromStringEvaluator extends AbstractConvertFunction.
 
     @Override
     public ToVersionFromStringEvaluator get(DriverContext context) {
-      return new ToVersionFromStringEvaluator(field.get(context), source, context);
+      return new ToVersionFromStringEvaluator(field.get(context), source, context, new Warnings(source));
     }
 
     @Override

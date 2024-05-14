@@ -113,10 +113,10 @@ public abstract class AbstractConvertFunction extends UnaryScalarFunction {
         private final EvalOperator.ExpressionEvaluator fieldEvaluator;
         private final Warnings warnings;
 
-        protected AbstractEvaluator(DriverContext driverContext, EvalOperator.ExpressionEvaluator field, Source source) {
+        protected AbstractEvaluator(DriverContext driverContext, EvalOperator.ExpressionEvaluator field, Source source, Warnings warnings) {
             this.driverContext = driverContext;
             this.fieldEvaluator = field;
-            this.warnings = new Warnings(source);
+            this.warnings = warnings;
         }
 
         protected abstract String name();

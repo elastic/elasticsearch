@@ -14,6 +14,7 @@ import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Vector;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.xpack.esql.expression.function.Warnings;
 import org.elasticsearch.xpack.ql.tree.Source;
 
 /**
@@ -22,8 +23,8 @@ import org.elasticsearch.xpack.ql.tree.Source;
  */
 public final class ToStringFromUnsignedLongEvaluator extends AbstractConvertFunction.AbstractEvaluator {
   public ToStringFromUnsignedLongEvaluator(EvalOperator.ExpressionEvaluator field, Source source,
-      DriverContext driverContext) {
-    super(driverContext, field, source);
+      DriverContext driverContext, Warnings warnings) {
+    super(driverContext, field, source, warnings);
   }
 
   @Override
@@ -98,7 +99,7 @@ public final class ToStringFromUnsignedLongEvaluator extends AbstractConvertFunc
 
     @Override
     public ToStringFromUnsignedLongEvaluator get(DriverContext context) {
-      return new ToStringFromUnsignedLongEvaluator(field.get(context), source, context);
+      return new ToStringFromUnsignedLongEvaluator(field.get(context), source, context, new Warnings(source));
     }
 
     @Override

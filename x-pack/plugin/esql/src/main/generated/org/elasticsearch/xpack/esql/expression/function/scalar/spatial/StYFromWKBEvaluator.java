@@ -15,6 +15,7 @@ import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.Vector;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.xpack.esql.expression.function.Warnings;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.AbstractConvertFunction;
 import org.elasticsearch.xpack.ql.tree.Source;
 
@@ -24,8 +25,8 @@ import org.elasticsearch.xpack.ql.tree.Source;
  */
 public final class StYFromWKBEvaluator extends AbstractConvertFunction.AbstractEvaluator {
   public StYFromWKBEvaluator(EvalOperator.ExpressionEvaluator field, Source source,
-      DriverContext driverContext) {
-    super(driverContext, field, source);
+      DriverContext driverContext, Warnings warnings) {
+    super(driverContext, field, source, warnings);
   }
 
   @Override
@@ -116,7 +117,7 @@ public final class StYFromWKBEvaluator extends AbstractConvertFunction.AbstractE
 
     @Override
     public StYFromWKBEvaluator get(DriverContext context) {
-      return new StYFromWKBEvaluator(field.get(context), source, context);
+      return new StYFromWKBEvaluator(field.get(context), source, context, new Warnings(source));
     }
 
     @Override

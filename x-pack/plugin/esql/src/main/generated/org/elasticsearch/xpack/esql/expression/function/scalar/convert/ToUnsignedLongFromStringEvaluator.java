@@ -15,6 +15,7 @@ import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Vector;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.xpack.esql.expression.function.Warnings;
 import org.elasticsearch.xpack.ql.InvalidArgumentException;
 import org.elasticsearch.xpack.ql.tree.Source;
 
@@ -24,8 +25,8 @@ import org.elasticsearch.xpack.ql.tree.Source;
  */
 public final class ToUnsignedLongFromStringEvaluator extends AbstractConvertFunction.AbstractEvaluator {
   public ToUnsignedLongFromStringEvaluator(EvalOperator.ExpressionEvaluator field, Source source,
-      DriverContext driverContext) {
-    super(driverContext, field, source);
+      DriverContext driverContext, Warnings warnings) {
+    super(driverContext, field, source, warnings);
   }
 
   @Override
@@ -116,7 +117,7 @@ public final class ToUnsignedLongFromStringEvaluator extends AbstractConvertFunc
 
     @Override
     public ToUnsignedLongFromStringEvaluator get(DriverContext context) {
-      return new ToUnsignedLongFromStringEvaluator(field.get(context), source, context);
+      return new ToUnsignedLongFromStringEvaluator(field.get(context), source, context, new Warnings(source));
     }
 
     @Override

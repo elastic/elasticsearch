@@ -85,7 +85,7 @@ public class BulkShardOperationInferenceProcessor implements BulkShardOperationP
     @Override
     public void apply(BulkShardRequest request, ClusterState clusterState, ActionListener<BulkShardRequest> listener) {
 
-        var indexMetadata = clusterState.getMetadata().index(request.shardId().getIndexName());
+        var indexMetadata = clusterState.metadata().index(request.shardId().getIndexName());
         if (indexMetadata != null) {
             var fieldInferenceMetadata = indexMetadata.getInferenceFields();
             if (fieldInferenceMetadata.isEmpty() == false) {

@@ -77,6 +77,7 @@ final class SystemJvmOptions {
             maybeEnableNativeAccess(),
             maybeOverrideDockerCgroup(distroType),
             maybeSetActiveProcessorCount(nodeSettings),
+            maybeWorkaroundG1Bug(),
             setReplayFile(distroType, isHotspot),
             "-Djava.library.path=" + libraryPath,
             "-Djna.library.path=" + libraryPath,
@@ -133,6 +134,17 @@ final class SystemJvmOptions {
     private static String maybeEnableNativeAccess() {
         if (Runtime.version().feature() >= 21) {
             return "--enable-native-access=org.elasticsearch.nativeaccess";
+        }
+        return "";
+    }
+
+    /*
+     * Only affects 22 and 22.0.1, see https://bugs.openjdk.org/browse/JDK-8329528
+     */
+    private static String maybeWorkaroundG1Bug() {
+        Runtime.Version v = Runtime.version();
+        if (v.feature() == 22 && v.update() <= 1) {
+            return "-XX:+UnlockDiagnosticVMOptions -XX:G1NumCollectionsKeepPinned=10000000";
         }
         return "";
     }

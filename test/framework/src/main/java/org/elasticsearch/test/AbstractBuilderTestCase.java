@@ -449,7 +449,6 @@ public abstract class AbstractBuilderTestCase extends ESTestCase {
             List<NamedWriteableRegistry.Entry> entries = new ArrayList<>();
             entries.addAll(IndicesModule.getNamedWriteables());
             entries.addAll(searchModule.getNamedWriteables());
-            pluginsService.forEach(plugin -> entries.addAll(plugin.getNamedWriteables()));
             namedWriteableRegistry = new NamedWriteableRegistry(entries);
             parserConfiguration = XContentParserConfiguration.EMPTY.withRegistry(
                 new NamedXContentRegistry(

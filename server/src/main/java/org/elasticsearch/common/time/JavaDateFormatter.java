@@ -207,8 +207,8 @@ class JavaDateFormatter implements DateFormatter {
     private static TemporalAccessor doParse(String input, DateTimeParser[] parsers) {
         if (parsers.length > 1) {
             int earliestError = Integer.MAX_VALUE;
-            for (DateTimeParser formatter : parsers) {
-                ParseResult result = formatter.tryParse(input);
+            for (DateTimeParser parser : parsers) {
+                ParseResult result = parser.tryParse(input);
                 if (result.result() != null) {
                     return result.result();
                 }

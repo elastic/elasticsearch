@@ -65,7 +65,7 @@ class JavaTimeDateTimeParser implements DateTimeParser {
 
     @Override
     public ParseResult tryParse(CharSequence str) {
-        ParsePosition pos = new ParsePosition(-1);
+        ParsePosition pos = new ParsePosition(0);
         var result = (TemporalAccessor) formatter.toFormat().parseObject(str.toString(), pos);
         return pos.getIndex() == str.length() ? new ParseResult(result) : ParseResult.error(Math.max(pos.getErrorIndex(), pos.getIndex()));
     }

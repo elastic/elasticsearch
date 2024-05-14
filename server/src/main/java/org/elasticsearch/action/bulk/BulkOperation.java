@@ -347,7 +347,7 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
     }
 
     private void executeBulkShardRequest(BulkShardRequest bulkShardRequest, Releasable releaseOnFinish) {
-        ActionType<BulkShardResponse> bulkAction = bulkRequest instanceof SimulateBulkRequest
+        ActionType<BulkShardResponse> bulkAction = bulkShardRequest.isSimulated()
             ? TransportSimulateShardBulkAction.TYPE
             : TransportShardBulkAction.TYPE;
         client.executeLocally(bulkAction, bulkShardRequest, new ActionListener<>() {

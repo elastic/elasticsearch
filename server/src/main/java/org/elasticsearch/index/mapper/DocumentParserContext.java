@@ -117,7 +117,7 @@ public abstract class DocumentParserContext {
     private final SeqNoFieldMapper.SequenceIDFields seqID;
     private final Set<String> fieldsAppliedFromTemplates;
     private final Set<String> copyToFields;
-    private boolean sourceTracked = false;
+    private boolean sourceStored = false;
 
     private DocumentParserContext(
         MappingLookup mappingLookup,
@@ -261,7 +261,7 @@ public abstract class DocumentParserContext {
      * Add the given ignored values to the corresponding list.
      */
     public final void addIgnoredField(IgnoredSourceFieldMapper.NameValue values) {
-        if (sourceTracked == false) {
+        if (sourceStored == false) {
             ignoredFieldValues.add(values);
         }
     }
@@ -308,6 +308,14 @@ public abstract class DocumentParserContext {
 
     public final SeqNoFieldMapper.SequenceIDFields seqID() {
         return this.seqID;
+    }
+
+    final void setSourceStored() {
+        this.sourceStored = true;
+    }
+
+    final boolean getSourceStored() {
+        return sourceStored;
     }
 
     /**
@@ -617,13 +625,10 @@ public abstract class DocumentParserContext {
     }
 
     /**
-     *  @deprecated we are actively deprecating and removing the ability to pass
-     *              complex objects to multifields, so try and avoid using this method
-     * Replace the XContentParser used by this context
+     * Clone this context, replacing the XContentParser with the passed one
      * @param parser    the replacement parser
      * @return  a new context with a replaced parser
      */
-    @Deprecated
     public final DocumentParserContext switchParser(XContentParser parser) {
         return new Wrapper(this.parent, this) {
             @Override
@@ -737,13 +742,5 @@ public abstract class DocumentParserContext {
         public String currentName() throws IOException {
             return field;
         }
-    }
-
-    void setSourceTracked(boolean sourceTracked) {
-        this.sourceTracked = sourceTracked;
-    }
-
-    boolean getSourceTracked() {
-        return sourceTracked;
     }
 }

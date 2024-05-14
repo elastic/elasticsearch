@@ -85,8 +85,8 @@ final class XContentDataHelper {
     }
 
     /**
-     * Stores the current parser structure (subtree) to an XContentBuilder and returns it, along with a DocumentParserContext
-     * wrapping it that can be used to reparse the subtree.
+     * Stores the current parser structure (subtree) to an {@link XContentBuilder} and returns it, along with a
+     * {@link DocumentParserContext} wrapping it that can be used to reparse the subtree.
      * The parser of the original context is also advanced to the end of the current structure (subtree) as a side effect.
      */
     static Tuple<DocumentParserContext, XContentBuilder> cloneSubContext(DocumentParserContext context) throws IOException {
@@ -95,8 +95,8 @@ final class XContentDataHelper {
     }
 
     /**
-     * Initializes a XContentParser with the current parser structure (subtree) and returns it, along with a DocumentParserContext
-     * wrapping the subtree that can be used to reparse it.
+     * Initializes a {@link XContentParser} with the current parser structure (subtree) and returns it, along with a
+     * {@link DocumentParserContext} wrapping the subtree that can be used to reparse it.
      * The parser of the original context is also advanced to the end of the current structure (subtree) as a side effect.
      */
     static Tuple<DocumentParserContext, XContentParser> cloneSubContextWithParser(DocumentParserContext context) throws IOException {
@@ -131,7 +131,7 @@ final class XContentDataHelper {
         DocumentParserContext subcontext = context.switchParser(
             XContentHelper.createParserNotCompressed(configuration, BytesReference.bytes(builder), context.parser().contentType())
         );
-        subcontext.setSourceTracked(true);  // Avoids double-tracking source for parser subtree.
+        subcontext.setSourceStored();  // Avoids double-storing parts of the source for the same parser subtree.
         subcontext.parser().nextToken();
         return subcontext;
     }

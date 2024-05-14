@@ -356,18 +356,79 @@ object array:
             _source:
               mode: synthetic
             properties:
-              span:
+              id:
+                type: integer
+              regular:
                 properties:
-                  links:
+                  span:
+                    properties:
+                      id:
+                        type: keyword
+                  trace:
+                    properties:
+                      id:
+                        type: keyword
+              stored:
+                store_array_source: true
+                properties:
+                  span:
+                    properties:
+                      id:
+                        type: keyword
+                  trace:
+                    properties:
+                      id:
+                        type: keyword
+
+  - do:
+      bulk:
+        index: test
+        refresh: true
+        body:
+          - '{ "create": { } }'
+          - '{  "id": 1, "regular": [ { "trace": { "id": "a" }, "span": { "id": "1" } }, { "trace": { "id": "b" }, "span": { "id": "1" } } ] }'
+          - '{ "create": { } }'
+          - '{  "id": 2, "stored": [ { "trace": { "id": "a" }, "span": { "id": "1" } }, { "trace": { "id": "b" }, "span": { "id": "1" } } ] }'
+
+  - do:
+      search:
+        index: test
+        sort: id
+
+  - length: { hits.hits.0._source.regular: 2 }
+  - match: { hits.hits.0._source.regular.span.id: "1" }
+  - match: { hits.hits.0._source.regular.trace.id: [ "a", "b" ] }
+
+  - length: { hits.hits.1._source.stored: 2 }
+  - match: { hits.hits.1._source.stored.0.trace.id: a  }
+  - match: { hits.hits.1._source.stored.0.span.id: "1"  }
+  - match: { hits.hits.1._source.stored.1.trace.id: b }
+  - match: { hits.hits.1._source.stored.1.span.id: "1" }
+
+
+---
+object array within array:
+  - requires:
+      cluster_features: ["mapper.track_ignored_source"]
+      reason: requires tracking ignored source
+
+  - do:
+      indices.create:
+        index: test
+        body:
+          mappings:
+            _source:
+              mode: synthetic
+            properties:
+              stored:
+                store_array_source: true
+                properties:
+                  path:
                     store_array_source: true
                     properties:
-                      span:
+                      to:
                         properties:
-                          id:
-                            type: keyword
-                      trace:
-                        properties:
-                          id:
+                          trace:
                             type: keyword
 
   - do:
@@ -376,14 +437,55 @@ object array:
         refresh: true
         body:
           - '{ "create": { } }'
-          - '{ "span": { "links": [ { "trace": { "id": "a" }, "span": { "id": "1" } }, { "trace": { "id": "b" }, "span": { "id": "1" } } ] } }'
+          - '{ "stored": [ { "path": [{ "to": { "trace": "A" } }, { "to": { "trace": "B" } } ] }, { "path": { "to": { "trace": "C" } } } ] }'
 
   - do:
       search:
         index: test
 
-  - length: { hits.hits.0._source.span.links: 2 }
-  - match: { hits.hits.0._source.span.links.0.trace.id: a  }
-  - match: { hits.hits.0._source.span.links.0.span.id: "1"  }
-  - match: { hits.hits.0._source.span.links.1.trace.id: b }
-  - match: { hits.hits.0._source.span.links.1.span.id: "1" }
+  - length: { hits.hits.0._source.stored: 2 }
+  - match: { hits.hits.0._source.stored.0.path.0.to.trace: A }
+  - match: { hits.hits.0._source.stored.0.path.1.to.trace: B }
+  - match: { hits.hits.0._source.stored.1.path.to.trace: C }
+
+
+---
+no object array:
+  - requires:
+      cluster_features: ["mapper.track_ignored_source"]
+      reason: requires tracking ignored source
+
+  - do:
+      indices.create:
+        index: test
+        body:
+          mappings:
+            _source:
+              mode: synthetic
+            properties:
+              stored:
+                store_array_source: true
+                properties:
+                  span:
+                    properties:
+                      id:
+                        type: keyword
+                  trace:
+                    properties:
+                      id:
+                        type: keyword
+
+  - do:
+      bulk:
+        index: test
+        refresh: true
+        body:
+          - '{ "create": { } }'
+          - '{ "stored": { "trace": { "id": "a" }, "span": { "id": "b" } } }'
+
+  - do:
+      search:
+        index: test
+
+  - match: { hits.hits.0._source.stored.trace.id: a  }
+  - match: { hits.hits.0._source.stored.span.id: b  }

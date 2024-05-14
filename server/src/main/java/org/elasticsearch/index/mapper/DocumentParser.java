@@ -592,9 +592,11 @@ public final class DocumentParser {
         final String lastFieldName,
         String arrayFieldName
     ) throws IOException {
+        // Check if we need to record the array source. This only applies to synthetic source.
         if (context.mappingLookup().isSourceSynthetic()
             && (mapper instanceof ObjectMapper objectMapper && objectMapper.storeArraySource())
-            && context.getSourceTracked() == false) {
+            && context.getSourceStored() == false) {
+            // Clone the DocumentParserContext to parse its subtree twice.
             var tuple = XContentDataHelper.cloneSubContext(context);
             boolean isRoot = context.parent() instanceof RootObjectMapper;
             context.addIgnoredField(

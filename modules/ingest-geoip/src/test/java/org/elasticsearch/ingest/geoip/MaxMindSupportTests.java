@@ -201,6 +201,9 @@ public class MaxMindSupportTests extends ESTestCase {
         "traits.userType"
     );
 
+    private static final Set<String> DOMAIN_SUPPORTED_FIELDS = Set.of("domain");
+    private static final Set<String> DOMAIN_UNSUPPORTED_FIELDS = Set.of("ipAddress", "network");
+
     private static final Set<String> ENTERPRISE_SUPPORTED_FIELDS = Set.of(
         "city.name",
         "continent.name",
@@ -215,6 +218,7 @@ public class MaxMindSupportTests extends ESTestCase {
         "traits.anonymousVpn",
         "traits.autonomousSystemNumber",
         "traits.autonomousSystemOrganization",
+        "traits.domain",
         "traits.hostingProvider",
         "traits.network",
         "traits.publicProxy",
@@ -268,7 +272,6 @@ public class MaxMindSupportTests extends ESTestCase {
         "traits.anonymousProxy",
         "traits.anycast",
         "traits.connectionType",
-        "traits.domain",
         "traits.ipAddress",
         "traits.isp",
         "traits.legitimateProxy",
@@ -302,6 +305,8 @@ public class MaxMindSupportTests extends ESTestCase {
         CITY_SUPPORTED_FIELDS,
         Database.Country,
         COUNTRY_SUPPORTED_FIELDS,
+        Database.Domain,
+        DOMAIN_SUPPORTED_FIELDS,
         Database.Enterprise,
         ENTERPRISE_SUPPORTED_FIELDS,
         Database.ISP,
@@ -316,6 +321,8 @@ public class MaxMindSupportTests extends ESTestCase {
         CITY_UNSUPPORTED_FIELDS,
         Database.Country,
         COUNTRY_UNSUPPORTED_FIELDS,
+        Database.Domain,
+        DOMAIN_UNSUPPORTED_FIELDS,
         Database.Enterprise,
         ENTERPRISE_UNSUPPORTED_FIELDS,
         Database.ISP,
@@ -330,6 +337,8 @@ public class MaxMindSupportTests extends ESTestCase {
         CityResponse.class,
         Database.Country,
         CountryResponse.class,
+        Database.Domain,
+        DomainResponse.class,
         Database.Enterprise,
         EnterpriseResponse.class,
         Database.ISP,
@@ -338,7 +347,6 @@ public class MaxMindSupportTests extends ESTestCase {
 
     private static final Set<Class<? extends AbstractResponse>> KNOWN_UNSUPPORTED_RESPONSE_CLASSES = Set.of(
         ConnectionTypeResponse.class,
-        DomainResponse.class,
         IpRiskResponse.class
     );
 

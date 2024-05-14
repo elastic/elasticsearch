@@ -75,6 +75,7 @@ enum Database {
             Property.RESIDENTIAL_PROXY
         )
     ),
+    Domain(Set.of(Property.IP, Property.DOMAIN), Set.of(Property.DOMAIN)),
     Enterprise(
         Set.of(
             Property.IP,
@@ -95,6 +96,7 @@ enum Database {
             Property.ANONYMOUS,
             Property.PUBLIC_PROXY,
             Property.RESIDENTIAL_PROXY,
+            Property.DOMAIN,
             Property.ISP,
             Property.ISP_ORGANIZATION_NAME,
             Property.MOBILE_COUNTRY_CODE,
@@ -137,6 +139,7 @@ enum Database {
     private static final String COUNTRY_DB_SUFFIX = "-Country";
     private static final String ASN_DB_SUFFIX = "-ASN";
     private static final String ANONYMOUS_IP_DB_SUFFIX = "-Anonymous-IP";
+    private static final String DOMAIN_DB_SUFFIX = "-Domain";
     private static final String ENTERPRISE_DB_SUFFIX = "-Enterprise";
     private static final String ISP_DB_SUFFIX = "-ISP";
 
@@ -160,6 +163,8 @@ enum Database {
                 database = Database.Asn;
             } else if (databaseType.endsWith(Database.ANONYMOUS_IP_DB_SUFFIX)) {
                 database = Database.AnonymousIp;
+            } else if (databaseType.endsWith(Database.DOMAIN_DB_SUFFIX)) {
+                database = Database.Domain;
             } else if (databaseType.endsWith(Database.ENTERPRISE_DB_SUFFIX)) {
                 database = Database.Enterprise;
             } else if (databaseType.endsWith(Database.ISP_DB_SUFFIX)) {
@@ -239,6 +244,7 @@ enum Database {
         ANONYMOUS,
         PUBLIC_PROXY,
         RESIDENTIAL_PROXY,
+        DOMAIN,
         ISP,
         ISP_ORGANIZATION_NAME,
         MOBILE_COUNTRY_CODE,

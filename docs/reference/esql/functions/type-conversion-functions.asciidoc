@@ -5,6 +5,11 @@
 <titleabbrev>Type conversion functions</titleabbrev>
 ++++
 
+[TIP]
+====
+{esql} supports implicit casting from string literals into the desired data types <<esql-implicit-casting>>.
+====
+
 {esql} supports these type conversion functions:
 
 // tag::type_list[]

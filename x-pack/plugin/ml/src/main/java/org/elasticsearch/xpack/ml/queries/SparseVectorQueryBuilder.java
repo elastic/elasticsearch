@@ -23,6 +23,7 @@ import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.inference.InferenceResults;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -59,6 +60,7 @@ public class SparseVectorQueryBuilder extends AbstractQueryBuilder<SparseVectorQ
     public static final ParseField PRUNING_CONFIG_FIELD = new ParseField("pruning_config");
 
     private static final boolean DEFAULT_PRUNE = false;
+
     private final String fieldName;
     private final List<WeightedToken> queryVectors;
     private final String inferenceId;
@@ -91,7 +93,9 @@ public class SparseVectorQueryBuilder extends AbstractQueryBuilder<SparseVectorQ
         this.queryVectors = queryVectors;
         this.inferenceId = inferenceId;
         this.text = text;
-        this.tokenPruningConfig = tokenPruningConfig;
+        this.tokenPruningConfig = (tokenPruningConfig != null
+            ? tokenPruningConfig
+            : (this.shouldPruneTokens ? new TokenPruningConfig() : null));
         this.weightedTokensSupplier = null;
 
         if (queryVectors == null ^ inferenceId == null == false) {
@@ -254,12 +258,17 @@ public class SparseVectorQueryBuilder extends AbstractQueryBuilder<SparseVectorQ
                 inferRequest,
                 ActionListener.wrap(inferenceResponse -> {
 
-                    if (inferenceResponse.getInferenceResults().isEmpty()) {
+                    List<InferenceResults> inferenceResults = inferenceResponse.getInferenceResults();
+                    if (inferenceResults.isEmpty()) {
                         listener.onFailure(new IllegalStateException("inference response contain no results"));
                         return;
                     }
+                    if (inferenceResults.size() > 1) {
+                        listener.onFailure(new IllegalStateException("inference response should contain only one result"));
+                        return;
+                    }
 
-                    if (inferenceResponse.getInferenceResults().get(0) instanceof TextExpansionResults textExpansionResults) {
+                    if (inferenceResults.get(0) instanceof TextExpansionResults textExpansionResults) {
                         textExpansionResultsSupplier.set(textExpansionResults);
                         listener.onResponse(null);
                     } else if (inferenceResponse.getInferenceResults().get(0) instanceof WarningInferenceResults warning) {
@@ -327,14 +336,11 @@ public class SparseVectorQueryBuilder extends AbstractQueryBuilder<SparseVectorQ
             for (Map.Entry<String, Object> entry : weightedTokenMap.entrySet()) {
                 String token = entry.getKey();
                 Object weight = entry.getValue();
-                if (weight instanceof Float) {
-                    WeightedToken weightedToken = new WeightedToken(token, (Float) entry.getValue());
-                    weightedTokens.add(weightedToken);
-                } else if (weight instanceof Double) {
-                    WeightedToken weightedToken = new WeightedToken(token, ((Double) entry.getValue()).floatValue());
+                if (weight instanceof Number number) {
+                    WeightedToken weightedToken = new WeightedToken(token, number.floatValue());
                     weightedTokens.add(weightedToken);
                 } else {
-                    throw new IllegalArgumentException("Weight must be a float or double");
+                    throw new IllegalArgumentException("Weight must be a number");
                 }
             }
         }

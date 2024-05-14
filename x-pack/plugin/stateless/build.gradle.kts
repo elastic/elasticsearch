@@ -87,32 +87,16 @@ tasks {
         systemProperty("es.test.stateless.upload.delayed", "true")
         systemProperty("es.test.stateless.upload.max_commits", uploadMaxCommits)
 
-        if (uploadMaxCommits > 1) {
-            // A work-in-progress exclusion list of failed tests when BCC has more than one CC
-            filter {
-                // To mute a test, adds a line here following to the below example
-                // excludeTestsMatching("*.TestClassIT.testMethod")
-                excludeTestsMatching("*.AutoscalingSearchMetricsIT.testIndicesWithUpdatedReplicasAreTakenIntoAccount")
-                excludeTestsMatching("*.AutoscalingSearchMetricsIT.testSearchTierMetricsAfterChangingBoostWindow")
-                excludeTestsMatching("*.AutoscalingSearchMetricsIT.testSearchTierMetricsInteractiveMetrics")
-                excludeTestsMatching("*.AutoscalingSearchMetricsIT.testSearchTierMetricsNonInteractiveMetrics")
-                excludeTestsMatching("*.StatelessRealTimeGetIT.testDataVisibility")
-                excludeTestsMatching("*.StatelessRealTimeGetIT.testStress")
-                excludeTestsMatching("*.StatelessRecoveryIT.testRecoveryMetricPublicationOnIndexingShardRelocation")
-                excludeTestsMatching("*.StatelessRecoveryIT.testTranslogRecoveryWithHeavyIndexing")
-                excludeTestsMatching("*.S3ObjectStoreTests.testShouldNotRetryForNoSuchFileException")
-                excludeTestsMatching("*.S3ObjectStoreTests.testShouldRetryMoreThanMaxRetriesForIndicesData")
-                excludeTestsMatching("*.VirtualBatchedCompoundCommitsIT.testGetVirtualBatchedCompoundCommitChunkOnLastVbcc")
-                excludeTestsMatching("*.VirtualBatchedCompoundCommitsIT.testGetVirtualBatchedCompoundCommitChunkFailureWhenIndexClosesDuringPrimaryRelocation")
-            }
-        } else {
-            filter {
-                // To mute a test, adds a line here following to the below example
-                // excludeTestsMatching("*.TestClassIT.testMethod")
-                // this test started failing during #1896, but the premise for it changed (no longer hangs on the client
-                // in the observer) and we should likely remove it or rewrite it.
-                excludeTestsMatching("*.VirtualBatchedCompoundCommitsIT.testGetVirtualBatchedCompoundCommitChunkFailureWhenIndexClosesDuringPrimaryRelocation")
-            }
+        // A work-in-progress exclusion list of failed tests when BCC has more than one CC
+        filter {
+            // To mute a test, adds a line here following to the below example
+            // excludeTestsMatching("*.TestClassIT.testMethod")
+            excludeTestsMatching("*.AutoscalingSearchMetricsIT.testIndicesWithUpdatedReplicasAreTakenIntoAccount")
+            excludeTestsMatching("*.AutoscalingSearchMetricsIT.testSearchTierMetricsAfterChangingBoostWindow")
+            excludeTestsMatching("*.AutoscalingSearchMetricsIT.testSearchTierMetricsInteractiveMetrics")
+            excludeTestsMatching("*.AutoscalingSearchMetricsIT.testSearchTierMetricsNonInteractiveMetrics")
+            excludeTestsMatching("*.S3ObjectStoreTests.testShouldNotRetryForNoSuchFileException")
+            excludeTestsMatching("*.S3ObjectStoreTests.testShouldRetryMoreThanMaxRetriesForIndicesData")
         }
     }
 

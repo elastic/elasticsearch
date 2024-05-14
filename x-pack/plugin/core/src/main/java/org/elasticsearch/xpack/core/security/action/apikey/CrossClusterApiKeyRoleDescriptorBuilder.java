@@ -165,6 +165,8 @@ public class CrossClusterApiKeyRoleDescriptorBuilder {
             final String[] privileges = indexPrivilege.getPrivileges();
             if (Arrays.equals(privileges, CCS_INDICES_PRIVILEGE_NAMES)) {
                 if (indexPrivilege.isUsingDocumentOrFieldLevelSecurity()) {
+                    // TODO we need a more informative message here, ideally with the API key ID (could just pass it as an argument to the
+                    // method)
                     throw new IllegalArgumentException(
                         "search does not support document or field level security if replication is assigned"
                     );

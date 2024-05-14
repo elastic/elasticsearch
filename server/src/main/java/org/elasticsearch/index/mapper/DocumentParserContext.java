@@ -262,6 +262,7 @@ public abstract class DocumentParserContext {
      */
     public final void addIgnoredField(IgnoredSourceFieldMapper.NameValue values) {
         if (sourceStored == false) {
+            // Skip tracking the source for this field twice, it's already tracked for the entire parsing subcontext.
             ignoredFieldValues.add(values);
         }
     }

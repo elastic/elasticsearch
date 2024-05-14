@@ -27,12 +27,12 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Comparator;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
-import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 public class ObjectMapper extends Mapper {
@@ -842,7 +842,10 @@ public class ObjectMapper extends Mapper {
             }
 
             if (ignoredValues != null && ignoredValues.isEmpty() == false) {
-                Set<String> arrays = ignoredValues.stream().map(IgnoredSourceFieldMapper.NameValue::name).collect(Collectors.toSet());
+                Set<String> arrays = new HashSet<>(ignoredValues.size());
+                for (var value : ignoredValues) {
+                    arrays.add(value.name());
+                }
                 for (SourceLoader.SyntheticFieldLoader field : fields) {
                     if (field.hasValue() && arrays.contains(field.fieldName()) == false) {
                         field.write(b);

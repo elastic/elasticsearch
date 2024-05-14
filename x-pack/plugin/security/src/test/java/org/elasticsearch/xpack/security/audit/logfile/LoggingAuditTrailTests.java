@@ -8,8 +8,6 @@ package org.elasticsearch.xpack.security.audit.logfile;
 
 import io.netty.channel.Channel;
 
-import com.carrotsearch.randomizedtesting.annotations.Repeat;
-
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.core.layout.PatternLayout;

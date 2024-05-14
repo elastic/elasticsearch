@@ -1,11 +1,11 @@
 pr: 108600
-summary: Prevent DLS/FLS if `replication` is assigned
+summary: "Prevent DLS/FLS if `replication` is assigned"
 area: Security
 type: breaking
 issues: []
 breaking:
-  title: Prevent DLS/FLS if `replication` is assigned
-  area: Security
+  title: "Prevent DLS/FLS if `replication` is assigned"
+  area: REST API
   details: Please describe the details of this change for the release notes. You can
     use asciidoc.
   impact: Please describe the impact of this change to users

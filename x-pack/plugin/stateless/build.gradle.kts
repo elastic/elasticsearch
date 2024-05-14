@@ -91,10 +91,6 @@ tasks {
         filter {
             // To mute a test, adds a line here following to the below example
             // excludeTestsMatching("*.TestClassIT.testMethod")
-            excludeTestsMatching("*.AutoscalingSearchMetricsIT.testIndicesWithUpdatedReplicasAreTakenIntoAccount")
-            excludeTestsMatching("*.AutoscalingSearchMetricsIT.testSearchTierMetricsAfterChangingBoostWindow")
-            excludeTestsMatching("*.AutoscalingSearchMetricsIT.testSearchTierMetricsInteractiveMetrics")
-            excludeTestsMatching("*.AutoscalingSearchMetricsIT.testSearchTierMetricsNonInteractiveMetrics")
             excludeTestsMatching("*.S3ObjectStoreTests.testShouldNotRetryForNoSuchFileException")
             excludeTestsMatching("*.S3ObjectStoreTests.testShouldRetryMoreThanMaxRetriesForIndicesData")
         }

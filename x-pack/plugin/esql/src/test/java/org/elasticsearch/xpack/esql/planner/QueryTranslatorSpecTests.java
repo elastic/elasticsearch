@@ -51,7 +51,7 @@ public class QueryTranslatorSpecTests extends ESTestCase {
 
     @BeforeClass
     public static void init() {
-        plannerOptimizer = new TestPlannerOptimizer(EsqlTestUtils.TEST_CFG, makeAnalyzer("mapping-multi-field-variation.json"));
+        plannerOptimizer = new TestPlannerOptimizer(EsqlTestUtils.TEST_CFG, makeAnalyzer("mapping-all-types.json"));
     }
 
     private final String filename;
@@ -78,9 +78,8 @@ public class QueryTranslatorSpecTests extends ESTestCase {
     public void test() {
         assumeFalse("Test is ignored", name.endsWith("-Ignore"));
 
-        PhysicalPlan p = plannerOptimizer.plan(query).collectLeaves().get(0);
-        assertEquals(EsQueryExec.class, p.getClass());
-        EsQueryExec eqe = (EsQueryExec) p;
+        PhysicalPlan optimized = plannerOptimizer.plan(query);
+        EsQueryExec eqe = (EsQueryExec) optimized.collectLeaves().get(0);
         final String query = eqe.query().toString().replaceAll("\\s+", "");
         matchers.forEach(m -> assertThat(query, m));
     }

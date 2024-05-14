@@ -52,13 +52,14 @@ class Iso8601Parser {
         }
     }
 
-    private static final Set<ChronoField> VALID_MANDATORY_FIELDS = EnumSet.of(
+    private static final Set<ChronoField> VALID_SPECIFIED_FIELDS = EnumSet.of(
         ChronoField.YEAR,
         ChronoField.MONTH_OF_YEAR,
         ChronoField.DAY_OF_MONTH,
         ChronoField.HOUR_OF_DAY,
         ChronoField.MINUTE_OF_HOUR,
-        ChronoField.SECOND_OF_MINUTE
+        ChronoField.SECOND_OF_MINUTE,
+        ChronoField.NANO_OF_SECOND
     );
 
     private static final Set<ChronoField> VALID_DEFAULT_FIELDS = EnumSet.of(
@@ -72,31 +73,46 @@ class Iso8601Parser {
 
     private final Set<ChronoField> mandatoryFields;
     private final boolean optionalTime;
+    private final ChronoField maxAllowedField;
+    private final TimezonePresence timezonePresence;
     private final Map<ChronoField, Integer> defaults;
 
     /**
      * Constructs a new {@code Iso8601Parser} object
      *
-     * @param mandatoryFields
-     *          The set of fields that must be present for a valid parse. These should be specified in field order
-     *          (eg if {@link ChronoField#DAY_OF_MONTH} is specified, {@link ChronoField#MONTH_OF_YEAR} should also be specified).
-     *          {@link ChronoField#YEAR} is always mandatory.
-     * @param optionalTime
-     *          {@code false} if the presence of time fields follows {@code mandatoryFields},
-     *          {@code true} if a time component is always optional, despite the presence of time fields in {@code mandatoryFields}.
-     *          This makes it possible to specify 'time is optional, but if it is present, it must have these fields'
-     *          by settings {@code optionalTime = true} and putting time fields such as {@link ChronoField#HOUR_OF_DAY}
-     *          and {@link ChronoField#MINUTE_OF_HOUR} in {@code mandatoryFields}.
-     * @param defaults
-     *          Map of default field values, if they are not present in the parsed string.
+     * @param mandatoryFields   The set of fields that must be present for a valid parse. These should be specified in field order
+     *                          (eg if {@link ChronoField#DAY_OF_MONTH} is specified,
+     *                          {@link ChronoField#MONTH_OF_YEAR} should also be specified).
+     *                          {@link ChronoField#YEAR} is always mandatory.
+     * @param optionalTime      {@code false} if the presence of time fields follows {@code mandatoryFields},
+     *                          {@code true} if a time component is always optional,
+     *                          despite the presence of time fields in {@code mandatoryFields}.
+     *                          This makes it possible to specify 'time is optional, but if it is present, it must have these fields'
+     *                          by settings {@code optionalTime = true} and putting time fields such as {@link ChronoField#HOUR_OF_DAY}
+     *                          and {@link ChronoField#MINUTE_OF_HOUR} in {@code mandatoryFields}.
+     * @param maxAllowedField   The most-specific field allowed in the parsed string,
+     *                          or {@code null} if everything up to nanoseconds is allowed.
+     * @param timezonePresence  Specifies if the timezone is optional, mandatory, or forbidden.
+     * @param defaults          Map of default field values, if they are not present in the parsed string.
      */
-    Iso8601Parser(Set<ChronoField> mandatoryFields, boolean optionalTime, Map<ChronoField, Integer> defaults) {
-        checkChronoFields(mandatoryFields, VALID_MANDATORY_FIELDS);
+    Iso8601Parser(
+        Set<ChronoField> mandatoryFields,
+        boolean optionalTime,
+        ChronoField maxAllowedField,
+        TimezonePresence timezonePresence,
+        Map<ChronoField, Integer> defaults
+    ) {
+        checkChronoFields(mandatoryFields, VALID_SPECIFIED_FIELDS);
+        if (maxAllowedField != null && VALID_SPECIFIED_FIELDS.contains(maxAllowedField) == false) {
+            throw new IllegalArgumentException("Invalid chrono field specified " + maxAllowedField);
+        }
         checkChronoFields(defaults.keySet(), VALID_DEFAULT_FIELDS);
 
         this.mandatoryFields = EnumSet.of(ChronoField.YEAR); // year is always mandatory
         this.mandatoryFields.addAll(mandatoryFields);
         this.optionalTime = optionalTime;
+        this.maxAllowedField = maxAllowedField;
+        this.timezonePresence = timezonePresence;
         this.defaults = defaults.isEmpty() ? Map.of() : new EnumMap<>(defaults);
     }
 
@@ -116,6 +132,14 @@ class Iso8601Parser {
 
     Set<ChronoField> mandatoryFields() {
         return mandatoryFields;
+    }
+
+    ChronoField maxAllowedField() {
+        return maxAllowedField;
+    }
+
+    TimezonePresence timezonePresence() {
+        return timezonePresence;
     }
 
     private boolean isOptional(ChronoField field) {
@@ -201,7 +225,7 @@ class Iso8601Parser {
                 : Result.error(4);
         }
 
-        if (str.charAt(4) != '-') return Result.error(4);
+        if (str.charAt(4) != '-' || maxAllowedField == ChronoField.YEAR) return Result.error(4);
 
         // MONTHS
         Integer months = parseInt(str, 5, 7);
@@ -223,7 +247,7 @@ class Iso8601Parser {
                 : Result.error(7);
         }
 
-        if (str.charAt(7) != '-') return Result.error(7);
+        if (str.charAt(7) != '-' || maxAllowedField == ChronoField.MONTH_OF_YEAR) return Result.error(7);
 
         // DAYS
         Integer days = parseInt(str, 8, 10);
@@ -245,7 +269,7 @@ class Iso8601Parser {
                 : Result.error(10);
         }
 
-        if (str.charAt(10) != 'T') return Result.error(10);
+        if (str.charAt(10) != 'T' || maxAllowedField == ChronoField.DAY_OF_MONTH) return Result.error(10);
         if (len == 11) {
             return isOptional(ChronoField.HOUR_OF_DAY)
                 ? new Result(
@@ -267,7 +291,7 @@ class Iso8601Parser {
         Integer hours = parseInt(str, 11, 13);
         if (hours == null || hours > 23) return Result.error(11);
         if (len == 13) {
-            return isOptional(ChronoField.MINUTE_OF_HOUR)
+            return isOptional(ChronoField.MINUTE_OF_HOUR) && timezonePresence != TimezonePresence.MANDATORY
                 ? new Result(
                     withZoneOffset(
                         years,
@@ -300,13 +324,13 @@ class Iso8601Parser {
                 : Result.error(13);
         }
 
-        if (str.charAt(13) != ':') return Result.error(13);
+        if (str.charAt(13) != ':' || maxAllowedField == ChronoField.HOUR_OF_DAY) return Result.error(13);
 
         // MINUTES + timezone
         Integer minutes = parseInt(str, 14, 16);
         if (minutes == null || minutes > 59) return Result.error(14);
         if (len == 16) {
-            return isOptional(ChronoField.SECOND_OF_MINUTE)
+            return isOptional(ChronoField.SECOND_OF_MINUTE) && timezonePresence != TimezonePresence.MANDATORY
                 ? new Result(
                     withZoneOffset(
                         years,
@@ -339,15 +363,17 @@ class Iso8601Parser {
                 : Result.error(16);
         }
 
-        if (str.charAt(16) != ':') return Result.error(16);
+        if (str.charAt(16) != ':' || maxAllowedField == ChronoField.MINUTE_OF_HOUR) return Result.error(16);
 
         // SECONDS + timezone
         Integer seconds = parseInt(str, 17, 19);
         if (seconds == null || seconds > 59) return Result.error(17);
         if (len == 19) {
-            return new Result(
-                withZoneOffset(years, months, days, hours, minutes, seconds, defaultZero(ChronoField.NANO_OF_SECOND), defaultTimezone)
-            );
+            return isOptional(ChronoField.NANO_OF_SECOND) && timezonePresence != TimezonePresence.MANDATORY
+                ? new Result(
+                    withZoneOffset(years, months, days, hours, minutes, seconds, defaultZero(ChronoField.NANO_OF_SECOND), defaultTimezone)
+                )
+                : Result.error(19);
         }
         if (isZoneId(str, 19)) {
             ZoneId timezone = parseZoneId(str, 19);
@@ -359,10 +385,9 @@ class Iso8601Parser {
         }
 
         char decSeparator = str.charAt(19);
-        if (decSeparator != '.' && decSeparator != ',') return Result.error(19);
+        if ((decSeparator != '.' && decSeparator != ',') || maxAllowedField == ChronoField.SECOND_OF_MINUTE) return Result.error(19);
 
         // NANOS + timezone
-        // nanos are always optional
         // the last number could be millis or nanos, or any combination in the middle
         // so we keep parsing numbers until we get to not a number
         int nanos = 0;
@@ -379,7 +404,9 @@ class Iso8601Parser {
         nanos *= NANO_MULTIPLICANDS[29 - pos];
 
         if (len == pos) {
-            return new Result(withZoneOffset(years, months, days, hours, minutes, seconds, nanos, defaultTimezone));
+            return timezonePresence != TimezonePresence.MANDATORY
+                ? new Result(withZoneOffset(years, months, days, hours, minutes, seconds, nanos, defaultTimezone))
+                : Result.error(pos);
         }
         if (isZoneId(str, pos)) {
             ZoneId timezone = parseZoneId(str, pos);
@@ -404,6 +431,10 @@ class Iso8601Parser {
      * It has fast paths for numerical offsets, but falls back on {@code ZoneId.of} for non-trivial zone ids.
      */
     private ZoneId parseZoneId(CharSequence str, int pos) {
+        if (timezonePresence == TimezonePresence.FORBIDDEN) {
+            return null;
+        }
+
         int len = str.length();
         char first = str.charAt(pos);
 

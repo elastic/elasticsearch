@@ -25,8 +25,13 @@ class Iso8601DateTimeParser implements DateTimeParser {
     // and we already account for . or , in decimals
     private final Locale locale;
 
-    Iso8601DateTimeParser(Set<ChronoField> mandatoryFields, boolean optionalTime) {
-        parser = new Iso8601Parser(mandatoryFields, optionalTime, Map.of());
+    Iso8601DateTimeParser(
+        Set<ChronoField> mandatoryFields,
+        boolean optionalTime,
+        ChronoField maxAllowedField,
+        TimezonePresence timezonePresence
+    ) {
+        parser = new Iso8601Parser(mandatoryFields, optionalTime, maxAllowedField, timezonePresence, Map.of());
         timezone = null;
         locale = null;
     }
@@ -58,7 +63,17 @@ class Iso8601DateTimeParser implements DateTimeParser {
     }
 
     Iso8601DateTimeParser withDefaults(Map<ChronoField, Integer> defaults) {
-        return new Iso8601DateTimeParser(new Iso8601Parser(parser.mandatoryFields(), parser.optionalTime(), defaults), timezone, locale);
+        return new Iso8601DateTimeParser(
+            new Iso8601Parser(
+                parser.mandatoryFields(),
+                parser.optionalTime(),
+                parser.maxAllowedField(),
+                parser.timezonePresence(),
+                defaults
+            ),
+            timezone,
+            locale
+        );
     }
 
     @Override

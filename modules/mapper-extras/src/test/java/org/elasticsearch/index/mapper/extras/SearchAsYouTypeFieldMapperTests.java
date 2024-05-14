@@ -860,14 +860,6 @@ public class SearchAsYouTypeFieldMapperTests extends MapperTestCase {
     }
 
     @Override
-    protected boolean supportsCopyTo() {
-        // TODO this is so that `testSyntheticSourceInvalid` does not complain.
-        // This field does support copy_to
-        // should we fail to construct synthetic source in `FieldMapper` if there is copy_to ?
-        return false;
-    }
-
-    @Override
     protected IngestScriptSupport ingestScriptSupport() {
         throw new AssumptionViolatedException("not supported");
     }

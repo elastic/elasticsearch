@@ -475,9 +475,18 @@ public abstract class FieldMapper extends Mapper {
      */
     @Override
     public SourceLoader.SyntheticFieldLoader syntheticFieldLoader() {
-        return syntheticSourceMode() != SyntheticSourceMode.NOT_SUPPORTED
-            ? SourceLoader.SyntheticFieldLoader.NOTHING
-            : super.syntheticFieldLoader();
+        // If there is native synthetic source support
+        // this method, so we won't see those here.
+        if (syntheticSourceMode() == SyntheticSourceMode.FALLBACK) {
+            if (copyTo.copyToFields().isEmpty() != true) {
+                throw new IllegalArgumentException(
+                    "field [" + name() + "] of type [" + typeName() + "] doesn't support synthetic source because it declares copy_to"
+                );
+            }
+            return SourceLoader.SyntheticFieldLoader.NOTHING;
+        }
+
+        return super.syntheticFieldLoader();
     }
 
     public static final class MultiFields implements Iterable<FieldMapper>, ToXContent {

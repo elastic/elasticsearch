@@ -241,7 +241,7 @@ public class ClusterFormationFailureHelper {
                 new VotingConfiguration(in),
                 in.readCollectionAsImmutableList(TransportAddress::new),
                 in.readCollectionAsImmutableList(DiscoveryNode::new),
-                in.getTransportVersion().onOrAfter(TransportVersions.PEERFINDER_REPORTS_PEERS_MASTERS)
+                in.getTransportVersion().onOrAfter(TransportVersions.V_8_13_0)
                     ? in.readCollectionAsImmutableSet(DiscoveryNode::new)
                     : Set.of(),
                 in.readLong(),
@@ -423,7 +423,7 @@ public class ClusterFormationFailureHelper {
             lastCommittedConfiguration.writeTo(out);
             out.writeCollection(resolvedAddresses);
             out.writeCollection(foundPeers);
-            if (out.getTransportVersion().onOrAfter(TransportVersions.PEERFINDER_REPORTS_PEERS_MASTERS)) {
+            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_13_0)) {
                 out.writeCollection(mastersOfPeers);
             }
             out.writeLong(currentTerm);

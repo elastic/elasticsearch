@@ -100,8 +100,9 @@ final class ExpandSearchPhase extends SearchPhase {
                     if (hit.getInnerHits() == null) {
                         hit.setInnerHits(Maps.newMapWithExpectedSize(innerHitBuilders.size()));
                     }
-                    // TODO: this should not be copied to unpooled
-                    hit.getInnerHits().put(innerHitBuilder.getName(), innerHits.asUnpooled());
+                    hit.getInnerHits().put(innerHitBuilder.getName(), innerHits);
+                    assert innerHits.isPooled() == false || hit.isPooled() : "pooled inner hits can only be added to a pooled hit";
+                    innerHits.mustIncRef();
                 }
             }
             onPhaseDone();

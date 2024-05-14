@@ -16,7 +16,9 @@ import java.io.IOException;
 
 public class PendingClusterTasksRequest extends MasterNodeReadRequest<PendingClusterTasksRequest> {
 
-    public PendingClusterTasksRequest() {}
+    public PendingClusterTasksRequest() {
+        super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT);
+    }
 
     public PendingClusterTasksRequest(StreamInput in) throws IOException {
         super(in);

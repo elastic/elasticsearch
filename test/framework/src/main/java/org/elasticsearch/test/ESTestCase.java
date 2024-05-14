@@ -2101,9 +2101,24 @@ public abstract class ESTestCase extends LuceneTestCase {
         return secureRandomFips;
     }
 
+    /**
+     * The timeout used for the various "safe" wait methods such as {@link #safeAwait} and {@link #safeAcquire}. In tests we generally want
+     * these things to complete almost immediately, but sometimes the CI runner executes things rather slowly so we use {@code 10s} as a
+     * fairly relaxed definition of "immediately".
+     * <p>
+     * A well-designed test should not need to wait for anything close to this duration when run in isolation. If you think you need to do
+     * so, instead seek a better way to write the test such that it does not need to wait for so long. Tests that take multiple seconds to
+     * complete are a big drag on CI times which slows everyone down.
+     * <p>
+     * For instance, tests which verify things that require the passage of time ought to simulate this (e.g. using a {@link
+     * org.elasticsearch.common.util.concurrent.DeterministicTaskQueue}). Excessive busy-waits ought to be replaced by blocking waits (e.g.
+     * using a {@link CountDownLatch}) which release as soon as the condition is satisfied.
+     */
+    public static final TimeValue SAFE_AWAIT_TIMEOUT = TimeValue.timeValueSeconds(10);
+
     public static void safeAwait(CyclicBarrier barrier) {
         try {
-            barrier.await(10, TimeUnit.SECONDS);
+            barrier.await(SAFE_AWAIT_TIMEOUT.millis(), TimeUnit.MILLISECONDS);
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
             fail(e, "safeAwait: interrupted waiting for CyclicBarrier release");
@@ -2114,7 +2129,10 @@ public abstract class ESTestCase extends LuceneTestCase {
 
     public static void safeAwait(CountDownLatch countDownLatch) {
         try {
-            assertTrue("safeAwait: CountDownLatch did not reach zero within the timeout", countDownLatch.await(10, TimeUnit.SECONDS));
+            assertTrue(
+                "safeAwait: CountDownLatch did not reach zero within the timeout",
+                countDownLatch.await(SAFE_AWAIT_TIMEOUT.millis(), TimeUnit.MILLISECONDS)
+            );
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
             fail(e, "safeAwait: interrupted waiting for CountDownLatch to reach zero");
@@ -2123,7 +2141,10 @@ public abstract class ESTestCase extends LuceneTestCase {
 
     public static void safeAcquire(Semaphore semaphore) {
         try {
-            assertTrue("safeAcquire: Semaphore did not acquire permit within the timeout", semaphore.tryAcquire(10, TimeUnit.SECONDS));
+            assertTrue(
+                "safeAcquire: Semaphore did not acquire permit within the timeout",
+                semaphore.tryAcquire(SAFE_AWAIT_TIMEOUT.millis(), TimeUnit.MILLISECONDS)
+            );
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
             fail(e, "safeAcquire: interrupted waiting for Semaphore to acquire permit");
@@ -2134,7 +2155,7 @@ public abstract class ESTestCase extends LuceneTestCase {
         final var future = new PlainActionFuture<T>();
         listener.addListener(future);
         try {
-            return future.get(10, TimeUnit.SECONDS);
+            return future.get(SAFE_AWAIT_TIMEOUT.millis(), TimeUnit.MILLISECONDS);
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
             throw new AssertionError("safeAwait: interrupted waiting for SubscribableListener", e);

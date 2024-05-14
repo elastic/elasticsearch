@@ -21,7 +21,6 @@ import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.ShardSearchFailure;
-import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.ParentTaskAssigningClient;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -39,7 +38,6 @@ import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.profile.SearchProfileResults;
 import org.elasticsearch.search.suggest.Suggest;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.client.NoOpClient;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.common.notifications.Level;
 import org.elasticsearch.xpack.core.indexing.IndexerState;
@@ -105,7 +103,6 @@ import static org.mockito.Mockito.mock;
  */
 public class TransformIndexerFailureHandlingTests extends ESTestCase {
 
-    private Client client;
     private ThreadPool threadPool;
     private static final Function<BulkRequest, BulkResponse> EMPTY_BULK_RESPONSE = bulkRequest -> new BulkResponse(
         new BulkItemResponse[0],
@@ -127,7 +124,6 @@ public class TransformIndexerFailureHandlingTests extends ESTestCase {
             ClusterService clusterService,
             IndexNameExpressionResolver indexNameExpressionResolver,
             TransformExtension transformExtension,
-            String executorName,
             IndexBasedTransformConfigManager transformsConfigManager,
             CheckpointProvider checkpointProvider,
             TransformConfig transformConfig,
@@ -195,12 +191,7 @@ public class TransformIndexerFailureHandlingTests extends ESTestCase {
                 throw new IllegalStateException(e);
             }
 
-            try {
-                SearchResponse response = searchFunction.apply(buildSearchRequest().v2());
-                nextPhase.onResponse(response);
-            } catch (Exception e) {
-                nextPhase.onFailure(e);
-            }
+            ActionListener.run(nextPhase, l -> ActionListener.respondAndRelease(l, searchFunction.apply(buildSearchRequest().v2())));
         }
 
         @Override
@@ -307,7 +298,6 @@ public class TransformIndexerFailureHandlingTests extends ESTestCase {
     @Before
     public void setUpMocks() {
         threadPool = createThreadPool();
-        client = new NoOpClient(threadPool);
     }
 
     @After
@@ -349,17 +339,7 @@ public class TransformIndexerFailureHandlingTests extends ESTestCase {
         TransformAuditor auditor = MockTransformAuditor.createMockAuditor();
         TransformContext context = new TransformContext(TransformTaskState.STARTED, "", 0, mock(TransformContext.Listener.class));
 
-        MockedTransformIndexer indexer = createMockIndexer(
-            config,
-            state,
-            searchFunction,
-            bulkFunction,
-            null,
-            threadPool,
-            ThreadPool.Names.GENERIC,
-            auditor,
-            context
-        );
+        MockedTransformIndexer indexer = createMockIndexer(config, state, searchFunction, bulkFunction, null, threadPool, auditor, context);
         final CountDownLatch latch = indexer.newLatch(1);
         indexer.start();
         assertThat(indexer.getState(), equalTo(IndexerState.STARTED));
@@ -439,7 +419,6 @@ public class TransformIndexerFailureHandlingTests extends ESTestCase {
                 bulkFunction,
                 null,
                 threadPool,
-                ThreadPool.Names.GENERIC,
                 auditor,
                 context
             );
@@ -500,17 +479,7 @@ public class TransformIndexerFailureHandlingTests extends ESTestCase {
         TransformContext.Listener contextListener = createContextListener(failIndexerCalled, failureMessage);
         TransformContext context = new TransformContext(TransformTaskState.STARTED, "", 0, contextListener);
 
-        MockedTransformIndexer indexer = createMockIndexer(
-            config,
-            state,
-            searchFunction,
-            bulkFunction,
-            null,
-            threadPool,
-            ThreadPool.Names.GENERIC,
-            auditor,
-            context
-        );
+        MockedTransformIndexer indexer = createMockIndexer(config, state, searchFunction, bulkFunction, null, threadPool, auditor, context);
 
         final CountDownLatch latch = indexer.newLatch(1);
 
@@ -566,7 +535,10 @@ public class TransformIndexerFailureHandlingTests extends ESTestCase {
         );
         try {
             AtomicReference<IndexerState> state = new AtomicReference<>(IndexerState.STOPPED);
-            Function<SearchRequest, SearchResponse> searchFunction = searchRequest -> searchResponse;
+            Function<SearchRequest, SearchResponse> searchFunction = searchRequest -> {
+                searchResponse.mustIncRef();
+                return searchResponse;
+            };
 
             Function<BulkRequest, BulkResponse> bulkFunction = bulkRequest -> new BulkResponse(new BulkItemResponse[0], 100);
 
@@ -595,7 +567,6 @@ public class TransformIndexerFailureHandlingTests extends ESTestCase {
                 bulkFunction,
                 deleteByQueryFunction,
                 threadPool,
-                ThreadPool.Names.GENERIC,
                 auditor,
                 context
             );
@@ -659,7 +630,10 @@ public class TransformIndexerFailureHandlingTests extends ESTestCase {
         );
         try {
             AtomicReference<IndexerState> state = new AtomicReference<>(IndexerState.STOPPED);
-            Function<SearchRequest, SearchResponse> searchFunction = searchRequest -> searchResponse;
+            Function<SearchRequest, SearchResponse> searchFunction = searchRequest -> {
+                searchResponse.mustIncRef();
+                return searchResponse;
+            };
 
             Function<BulkRequest, BulkResponse> bulkFunction = bulkRequest -> new BulkResponse(new BulkItemResponse[0], 100);
 
@@ -694,7 +668,6 @@ public class TransformIndexerFailureHandlingTests extends ESTestCase {
                 bulkFunction,
                 deleteByQueryFunction,
                 threadPool,
-                ThreadPool.Names.GENERIC,
                 auditor,
                 context
             );
@@ -768,6 +741,7 @@ public class TransformIndexerFailureHandlingTests extends ESTestCase {
                             new ShardSearchFailure[] { new ShardSearchFailure(new Exception()) }
                         );
                     }
+                    searchResponse.mustIncRef();
                     return searchResponse;
                 }
             };
@@ -788,7 +762,6 @@ public class TransformIndexerFailureHandlingTests extends ESTestCase {
                 bulkFunction,
                 null,
                 threadPool,
-                ThreadPool.Names.GENERIC,
                 auditor,
                 context
             );
@@ -889,17 +862,7 @@ public class TransformIndexerFailureHandlingTests extends ESTestCase {
             )
         );
 
-        MockedTransformIndexer indexer = createMockIndexer(
-            config,
-            state,
-            searchFunction,
-            bulkFunction,
-            null,
-            threadPool,
-            ThreadPool.Names.GENERIC,
-            auditor,
-            context
-        );
+        MockedTransformIndexer indexer = createMockIndexer(config, state, searchFunction, bulkFunction, null, threadPool, auditor, context);
 
         indexer.handleFailure(
             new SearchPhaseExecutionException(
@@ -1056,7 +1019,6 @@ public class TransformIndexerFailureHandlingTests extends ESTestCase {
             bulkFunction,
             null,
             threadPool,
-            ThreadPool.Names.GENERIC,
             mock(TransformAuditor.class),
             new TransformContext(TransformTaskState.STARTED, "", 0, listener),
             1
@@ -1166,17 +1128,7 @@ public class TransformIndexerFailureHandlingTests extends ESTestCase {
             )
         );
 
-        MockedTransformIndexer indexer = createMockIndexer(
-            config,
-            state,
-            searchFunction,
-            bulkFunction,
-            null,
-            threadPool,
-            ThreadPool.Names.GENERIC,
-            auditor,
-            context
-        );
+        MockedTransformIndexer indexer = createMockIndexer(config, state, searchFunction, bulkFunction, null, threadPool, auditor, context);
 
         for (int i = 0; i < expectedEffectiveNumFailureRetries; ++i) {
             indexer.handleFailure(new Exception("exception no. " + (i + 1)));
@@ -1209,22 +1161,10 @@ public class TransformIndexerFailureHandlingTests extends ESTestCase {
         Function<BulkRequest, BulkResponse> bulkFunction,
         Function<DeleteByQueryRequest, BulkByScrollResponse> deleteByQueryFunction,
         ThreadPool threadPool,
-        String executorName,
         TransformAuditor auditor,
         TransformContext context
     ) {
-        return createMockIndexer(
-            config,
-            state,
-            searchFunction,
-            bulkFunction,
-            deleteByQueryFunction,
-            threadPool,
-            executorName,
-            auditor,
-            context,
-            0
-        );
+        return createMockIndexer(config, state, searchFunction, bulkFunction, deleteByQueryFunction, threadPool, auditor, context, 0);
     }
 
     private MockedTransformIndexer createMockIndexer(
@@ -1234,7 +1174,6 @@ public class TransformIndexerFailureHandlingTests extends ESTestCase {
         Function<BulkRequest, BulkResponse> bulkFunction,
         Function<DeleteByQueryRequest, BulkByScrollResponse> deleteByQueryFunction,
         ThreadPool threadPool,
-        String executorName,
         TransformAuditor auditor,
         TransformContext context,
         int doProcessCount
@@ -1250,7 +1189,6 @@ public class TransformIndexerFailureHandlingTests extends ESTestCase {
             mock(ClusterService.class),
             mock(IndexNameExpressionResolver.class),
             mock(TransformExtension.class),
-            executorName,
             transformConfigManager,
             mock(CheckpointProvider.class),
             config,

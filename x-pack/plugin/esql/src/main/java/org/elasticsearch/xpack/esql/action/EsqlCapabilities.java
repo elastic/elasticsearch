@@ -12,10 +12,8 @@ import org.elasticsearch.rest.action.admin.cluster.RestNodesCapabilitiesAction;
 import org.elasticsearch.xpack.esql.plugin.EsqlFeatures;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 import java.util.Set;
-import java.util.stream.Stream;
 
 /**
  * A {@link Set} of "capabilities" supported by the {@link RestEsqlQueryAction}
@@ -31,9 +29,7 @@ public class EsqlCapabilities {
     static final Set<String> CAPABILITIES = capabilities();
 
     private static Set<String> capabilities() {
-        List<String> caps = new ArrayList<>(List.of(
-            FN_CBRT
-        ));
+        List<String> caps = new ArrayList<>(List.of(FN_CBRT));
 
         /*
          * Add all of our cluster features without the leading "esql."

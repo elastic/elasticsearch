@@ -58,7 +58,7 @@ public class FailureStoreQueryParamIT extends DisabledSecurityDataStreamTestCase
         assertThat(dataStreams.size(), is(1));
         Map<String, Object> dataStream = (Map<String, Object>) dataStreams.get(0);
         assertThat(dataStream.get("name"), equalTo(DATA_STREAM_NAME));
-        List<String> backingIndices = getBackingIndices(dataStream);
+        List<String> backingIndices = getIndices(dataStream);
         assertThat(backingIndices.size(), is(1));
         List<String> failureStore = getFailureStore(dataStream);
         assertThat(failureStore.size(), is(1));
@@ -199,18 +199,16 @@ public class FailureStoreQueryParamIT extends DisabledSecurityDataStreamTestCase
         }
     }
 
-    private List<String> getBackingIndices(Map<String, Object> response) {
-        return getIndices(response, "indices");
-    }
-
+    @SuppressWarnings("unchecked")
     private List<String> getFailureStore(Map<String, Object> response) {
-        return getIndices(response, "failure_indices");
+        var failureStore = (Map<String, Object>) response.get("failure_store");
+        return getIndices(failureStore);
 
     }
 
     @SuppressWarnings("unchecked")
-    private List<String> getIndices(Map<String, Object> response, String fieldName) {
-        List<Map<String, String>> indices = (List<Map<String, String>>) response.get(fieldName);
+    private List<String> getIndices(Map<String, Object> response) {
+        List<Map<String, String>> indices = (List<Map<String, String>>) response.get("indices");
         return indices.stream().map(index -> index.get("index_name")).toList();
     }
 }

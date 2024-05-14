@@ -232,4 +232,9 @@ public abstract class SortedNumericDocValuesSyntheticFieldLoader implements Sour
         }
         return null;
     }
+
+    @Override
+    public String fieldName() {
+        return name;
+    }
 }

@@ -1209,33 +1209,6 @@ public class StatementParserTests extends ESTestCase {
         assertThat(f.children().get(0), instanceOf(EsqlUnresolvedRelation.class));
     }
 
-    public void testParamInGorkDissect() {
-        LogicalPlan plan = statement(
-            "from test | where x < ? | eval y = ? + ? |  stats count(?) by z",
-            new Params(
-                List.of(
-                    new Param(null, "integer", 5),
-                    new Param(null, "integer", -1),
-                    new Param(null, "integer", 100),
-                    new Param(null, "keyword", "*")
-                )
-            )
-        );
-        assertThat(plan, instanceOf(EsqlAggregate.class));
-        EsqlAggregate agg = (EsqlAggregate) plan;
-        assertThat(((Literal) agg.aggregates().get(0).children().get(0).children().get(0)).value(), equalTo("*"));
-        assertThat(agg.child(), instanceOf(Eval.class));
-        assertThat(agg.children().size(), equalTo(1));
-        assertThat(agg.children().get(0), instanceOf(Eval.class));
-        Eval eval = (Eval) agg.children().get(0);
-        assertThat(((Literal) ((Add) eval.fields().get(0).child()).left()).value(), equalTo(-1));
-        assertThat(((Literal) ((Add) eval.fields().get(0).child()).right()).value(), equalTo(100));
-        Filter f = (Filter) eval.children().get(0);
-        assertThat(((Literal) f.condition().children().get(1)).value(), equalTo(5));
-        assertThat(f.children().size(), equalTo(1));
-        assertThat(f.children().get(0), instanceOf(EsqlUnresolvedRelation.class));
-    }
-
     public void testParamMixed() {
         expectError(
             "from test | where x < ? | eval y = ?n2 + ?n3 |  limit ?n4",

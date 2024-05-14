@@ -101,7 +101,7 @@ public class ServiceUtils {
      * @param key The key of the object to remove
      * @param types One of the expected types of the removed object
      * @param validationException If the value is not of type {@code type}
-     * @return {@code null} if not present else the object cast to type T
+     * @return {@code null} if not present else value as Object
      */
     public static Object removeAsOneOfTypes(
         Map<String, Object> sourceMap,

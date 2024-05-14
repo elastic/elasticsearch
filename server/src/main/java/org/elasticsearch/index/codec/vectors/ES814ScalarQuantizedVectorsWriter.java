@@ -780,7 +780,7 @@ public final class ES814ScalarQuantizedVectorsWriter extends FlatVectorsWriter {
         }
 
         @Override
-        public VectorScorer vectorScorer(float[] floats) throws IOException {
+        public VectorScorer scorer(float[] floats) throws IOException {
             throw new UnsupportedOperationException();
         }
     }
@@ -850,7 +850,7 @@ public final class ES814ScalarQuantizedVectorsWriter extends FlatVectorsWriter {
         }
 
         @Override
-        public VectorScorer vectorScorer(float[] floats) throws IOException {
+        public VectorScorer scorer(float[] floats) throws IOException {
             throw new UnsupportedOperationException();
         }
 
@@ -952,7 +952,7 @@ public final class ES814ScalarQuantizedVectorsWriter extends FlatVectorsWriter {
         }
 
         @Override
-        public VectorScorer vectorScorer(float[] floats) throws IOException {
+        public VectorScorer scorer(float[] floats) throws IOException {
             throw new UnsupportedOperationException();
         }
     }

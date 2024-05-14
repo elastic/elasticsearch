@@ -33,12 +33,12 @@ public final class SubGroupCollector {
         String[] aggregationFields,
         boolean legacyAggregationField
     ) {
-        SubGroupCollector c = new SubGroupCollector(parentAggregation, aggregationFields, legacyAggregationField);
+        SubGroupCollector c = new SubGroupCollector(aggregationFields, legacyAggregationField);
         c.addAggregations(parentAggregation);
         return c;
     }
 
-    private SubGroupCollector(AbstractAggregationBuilder<?> parentAggregation, String[] aggregationFields, boolean legacyAggregationField) {
+    private SubGroupCollector(String[] aggregationFields, boolean legacyAggregationField) {
         this.aggregationFields = aggregationFields;
         this.legacyAggregationField = legacyAggregationField;
     }

@@ -676,8 +676,6 @@ public class DesiredBalanceComputerTests extends ESAllocationTestCase {
             .routingTable(routingTableBuilder)
             .build();
 
-        logger.info("Initial table {}", clusterState.getRoutingNodes().toString());
-
         var iteration = new AtomicInteger(0);
 
         long diskSize = Math.max(totalShardsSize / nodes, usedDiskSpace.values().stream().max(Long::compare).get()) * 120 / 100;
@@ -709,9 +707,6 @@ public class DesiredBalanceComputerTests extends ESAllocationTestCase {
                 desiredDiskUsage.compute(nodeId, (key, value) -> (value != null ? value : 0) + shardSize);
             }
         }
-
-        logger.warn("Assignments {}", desiredBalance.assignments());
-        logger.warn("Shard sizes {}", clusterInfo);
 
         assertThat(
             "Balance should converge, but exited by the iteration limit",

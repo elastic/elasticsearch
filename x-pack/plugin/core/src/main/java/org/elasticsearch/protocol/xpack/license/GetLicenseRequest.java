@@ -14,7 +14,9 @@ import java.io.IOException;
 
 public class GetLicenseRequest extends MasterNodeReadRequest<GetLicenseRequest> {
 
-    public GetLicenseRequest() {}
+    public GetLicenseRequest() {
+        super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT);
+    }
 
     public GetLicenseRequest(StreamInput in) throws IOException {
         super(in);

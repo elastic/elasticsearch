@@ -103,7 +103,11 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
             )
         ),
         null,
-        null
+        "Grants full access to cluster management and data indices. "
+            + "This role also grants direct read-only access to restricted indices like .security. "
+            + "A user with this role can impersonate any other user in the system, "
+            + "manage security and create roles with unlimited privileges. "
+            + "Take extra care when assigning it to a user."
     );
 
     private static final Map<String, RoleDescriptor> ALL_RESERVED_ROLES = initializeReservedRoles();
@@ -203,7 +207,12 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                         getRemoteIndicesReadPrivileges("metricbeat-*") },
                     null,
                     null,
-                    null
+                    "Grants the minimum privileges required for any user of X-Pack monitoring other than those required to use Kibana. "
+                        + "This role grants access to the monitoring indices and grants privileges necessary "
+                        + "for reading basic cluster information. "
+                        + "This role also includes all Kibana privileges for the Elastic Stack monitoring features. "
+                        + "Monitoring users should also be assigned the kibana_admin role, "
+                        + "or another role with access to the Kibana instance."
                 )
             ),
             entry(
@@ -232,7 +241,16 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                             )
                             .build() },
                     null,
-                    MetadataUtils.DEFAULT_RESERVED_METADATA
+                    null,
+                    null,
+                    MetadataUtils.DEFAULT_RESERVED_METADATA,
+                    null,
+                    null,
+                    null,
+                    null,
+                    "Grants the minimum privileges required to write data into the monitoring indices (.monitoring-*). "
+                        + "This role also has the privileges necessary to create Metricbeat indices (metricbeat-*) "
+                        + "and write data into them."
                 )
             ),
             entry(
@@ -251,7 +269,11 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                     null,
                     null,
                     MetadataUtils.DEFAULT_RESERVED_METADATA,
-                    null
+                    null,
+                    null,
+                    null,
+                    null,
+                    "Grants the minimum privileges required to collect monitoring data for the Elastic Stack."
                 )
             ),
             entry(
@@ -261,7 +283,14 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                     new String[] { "manage_index_templates", "manage_pipeline" },
                     null,
                     null,
-                    MetadataUtils.DEFAULT_RESERVED_METADATA
+                    null,
+                    null,
+                    MetadataUtils.DEFAULT_RESERVED_METADATA,
+                    null,
+                    null,
+                    null,
+                    null,
+                    "Grants access to manage all index templates and all ingest pipeline configurations."
                 )
             ),
             // reporting_user doesn't have any privileges in Elasticsearch, and Kibana authorizes privileges based on this role
@@ -275,7 +304,14 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                     null,
                     null,
                     MetadataUtils.getDeprecatedReservedMetadata("Please use Kibana feature privileges instead"),
-                    null
+                    null,
+                    null,
+                    null,
+                    null,
+                    "Grants the specific privileges required for users of X-Pack reporting other than those required to use Kibana. "
+                        + "This role grants access to the reporting indices; each user has access to only their own reports. "
+                        + "Reporting users should also be assigned additional roles that grant access to Kibana as well as read access "
+                        + "to the indices that will be used to generate reports."
                 )
             ),
             entry(KibanaSystemUser.ROLE_NAME, kibanaSystemRoleDescriptor(KibanaSystemUser.ROLE_NAME)),
@@ -286,7 +322,15 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                     new String[] { "monitor", MonitoringBulkAction.NAME },
                     null,
                     null,
-                    MetadataUtils.DEFAULT_RESERVED_METADATA
+                    null,
+                    null,
+                    MetadataUtils.DEFAULT_RESERVED_METADATA,
+                    null,
+                    null,
+                    null,
+                    null,
+                    "Grants access necessary for the Logstash system user to send system-level data (such as monitoring) to Elasticsearch. "
+                        + "This role should not be assigned to users as the granted permissions may change between releases."
                 )
             ),
             entry(
@@ -297,7 +341,14 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                     new RoleDescriptor.IndicesPrivileges[] {
                         RoleDescriptor.IndicesPrivileges.builder().indices(".management-beats").privileges("all").build() },
                     null,
-                    MetadataUtils.DEFAULT_RESERVED_METADATA
+                    null,
+                    null,
+                    MetadataUtils.DEFAULT_RESERVED_METADATA,
+                    null,
+                    null,
+                    null,
+                    null,
+                    "Grants access to the .management-beats index, which contains configuration information for the Beats."
                 )
             ),
             entry(
@@ -311,7 +362,15 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                             .privileges("create_index", "create")
                             .build() },
                     null,
-                    MetadataUtils.DEFAULT_RESERVED_METADATA
+                    null,
+                    null,
+                    MetadataUtils.DEFAULT_RESERVED_METADATA,
+                    null,
+                    null,
+                    null,
+                    null,
+                    "Grants access necessary for the Beats system user to send system-level data (such as monitoring) to Elasticsearch. "
+                        + "This role should not be assigned to users as the granted permissions may change between releases."
                 )
             ),
             entry(
@@ -325,7 +384,14 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                             .privileges("create_index", "create_doc")
                             .build() },
                     null,
-                    MetadataUtils.DEFAULT_RESERVED_METADATA
+                    null,
+                    null,
+                    MetadataUtils.DEFAULT_RESERVED_METADATA,
+                    null,
+                    null,
+                    null,
+                    null,
+                    "Grants access necessary for the APM system user to send system-level data (such as monitoring) to Elasticsearch.\n"
                 )
             ),
             entry(
@@ -381,7 +447,12 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                     MetadataUtils.getDeprecatedReservedMetadata(
                         "This role will be removed in a future major release. Please use editor and viewer roles instead"
                     ),
-                    null
+                    null,
+                    null,
+                    null,
+                    null,
+                    "Grants the privileges required for APM users (such as read and view_index_metadata privileges "
+                        + "on the apm-* and .ml-anomalies* indices)."
                 )
             ),
             entry(
@@ -394,7 +465,11 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                     null,
                     null,
                     MetadataUtils.DEFAULT_RESERVED_METADATA,
-                    null
+                    null,
+                    null,
+                    null,
+                    null,
+                    "Grants access necessary to manage inference models and performing inference."
                 )
             ),
             entry(
@@ -407,7 +482,11 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                     null,
                     null,
                     MetadataUtils.DEFAULT_RESERVED_METADATA,
-                    null
+                    null,
+                    null,
+                    null,
+                    null,
+                    "Grants access necessary to perform inference."
                 )
             ),
             entry(
@@ -440,7 +519,15 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                     null,
                     null,
                     MetadataUtils.DEFAULT_RESERVED_METADATA,
-                    null
+                    null,
+                    null,
+                    null,
+                    null,
+                    "Grants the minimum privileges required to view machine learning configuration, status, and work with results. "
+                        + "This role grants monitor_ml cluster privileges, read access to the .ml-notifications and .ml-anomalies* indices "
+                        + "(which store machine learning results), and write access to .ml-annotations* indices. "
+                        + "Machine learning users also need index privileges for source and destination indices "
+                        + "and roles that grant access to Kibana. "
                 )
             ),
             entry(
@@ -474,7 +561,15 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                     null,
                     null,
                     MetadataUtils.DEFAULT_RESERVED_METADATA,
-                    null
+                    null,
+                    null,
+                    null,
+                    null,
+                    "Provides all of the privileges of the machine_learning_user role plus the full use of the machine learning APIs. "
+                        + "Grants manage_ml cluster privileges, read access to .ml-anomalies*, .ml-notifications*, .ml-state*, "
+                        + ".ml-meta* indices and write access to .ml-annotations* indices. "
+                        + "Machine learning administrators also need index privileges for source and destination indices "
+                        + "and roles that grant access to Kibana."
                 )
             ),
             // DEPRECATED: to be removed in 9.0.0
@@ -501,7 +596,12 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                     null,
                     null,
                     MetadataUtils.getDeprecatedReservedMetadata("Please use the [transform_admin] role instead"),
-                    null
+                    null,
+                    null,
+                    null,
+                    null,
+                    "Grants manage_data_frame_transforms cluster privileges, which enable you to manage transforms. "
+                        + "This role also includes all Kibana privileges for the machine learning features."
                 )
             ),
             // DEPRECATED: to be removed in 9.0.0
@@ -528,7 +628,12 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                     null,
                     null,
                     MetadataUtils.getDeprecatedReservedMetadata("Please use the [transform_user] role instead"),
-                    null
+                    null,
+                    null,
+                    null,
+                    null,
+                    "Grants monitor_data_frame_transforms cluster privileges, which enable you to use transforms. "
+                        + "This role also includes all Kibana privileges for the machine learning features. "
                 )
             ),
             entry(
@@ -549,7 +654,12 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                     null,
                     null,
                     MetadataUtils.DEFAULT_RESERVED_METADATA,
-                    null
+                    null,
+                    null,
+                    null,
+                    null,
+                    "Grants manage_transform cluster privileges, which enable you to manage transforms. "
+                        + "This role also includes all Kibana privileges for the machine learning features."
                 )
             ),
             entry(
@@ -570,7 +680,12 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                     null,
                     null,
                     MetadataUtils.DEFAULT_RESERVED_METADATA,
-                    null
+                    null,
+                    null,
+                    null,
+                    null,
+                    "Grants monitor_transform cluster privileges, which enable you to perform read-only operations related to "
+                        + "transforms. This role also includes all Kibana privileges for the machine learning features."
                 )
             ),
             entry(
@@ -585,7 +700,16 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                             .allowRestrictedIndices(true)
                             .build() },
                     null,
-                    MetadataUtils.DEFAULT_RESERVED_METADATA
+                    null,
+                    null,
+                    MetadataUtils.DEFAULT_RESERVED_METADATA,
+                    null,
+                    null,
+                    null,
+                    null,
+                    "Allows users to create and execute all Watcher actions. "
+                        + "Grants read access to the .watches index. Also grants read access "
+                        + "to the watch history and the triggered watches index."
                 )
             ),
             entry(
@@ -604,7 +728,14 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                             .privileges("read")
                             .build() },
                     null,
-                    MetadataUtils.DEFAULT_RESERVED_METADATA
+                    null,
+                    null,
+                    MetadataUtils.DEFAULT_RESERVED_METADATA,
+                    null,
+                    null,
+                    null,
+                    null,
+                    "Grants read access to the .watches index, the get watch action and the watcher stats."
                 )
             ),
             entry(
@@ -619,16 +750,50 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                             .allowRestrictedIndices(true)
                             .build() },
                     null,
-                    MetadataUtils.DEFAULT_RESERVED_METADATA
+                    null,
+                    null,
+                    MetadataUtils.DEFAULT_RESERVED_METADATA,
+                    null,
+                    null,
+                    null,
+                    null,
+                    "Grants access to the .logstash* indices for managing configurations, "
+                        + "and grants necessary access for logstash-specific APIs exposed by the logstash x-pack plugin."
                 )
             ),
             entry(
                 "rollup_user",
-                new RoleDescriptor("rollup_user", new String[] { "monitor_rollup" }, null, null, MetadataUtils.DEFAULT_RESERVED_METADATA)
+                new RoleDescriptor(
+                    "rollup_user",
+                    new String[] { "monitor_rollup" },
+                    null,
+                    null,
+                    null,
+                    null,
+                    MetadataUtils.DEFAULT_RESERVED_METADATA,
+                    null,
+                    null,
+                    null,
+                    null,
+                    "Grants monitor_rollup cluster privileges, which enable you to perform read-only operations related to rollups."
+                )
             ),
             entry(
                 "rollup_admin",
-                new RoleDescriptor("rollup_admin", new String[] { "manage_rollup" }, null, null, MetadataUtils.DEFAULT_RESERVED_METADATA)
+                new RoleDescriptor(
+                    "rollup_admin",
+                    new String[] { "manage_rollup" },
+                    null,
+                    null,
+                    null,
+                    null,
+                    MetadataUtils.DEFAULT_RESERVED_METADATA,
+                    null,
+                    null,
+                    null,
+                    null,
+                    "Grants manage_rollup cluster privileges, which enable you to manage and execute all rollup actions."
+                )
             ),
             entry(
                 "snapshot_user",
@@ -645,7 +810,14 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                     null,
                     null,
                     MetadataUtils.DEFAULT_RESERVED_METADATA,
-                    null
+                    null,
+                    null,
+                    null,
+                    null,
+                    "Grants the necessary privileges to create snapshots of all the indices and to view their metadata. "
+                        + "This role enables users to view the configuration of existing snapshot repositories and snapshot details. "
+                        + "It does not grant authority to remove or add repositories or to restore snapshots. "
+                        + "It also does not enable to change index settings or to read or update data stream or index data."
                 )
             ),
             entry(
@@ -661,7 +833,14 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                             .build(),
                         RoleDescriptor.IndicesPrivileges.builder().indices(".enrich-*").privileges("manage", "write").build() },
                     null,
-                    MetadataUtils.DEFAULT_RESERVED_METADATA
+                    null,
+                    null,
+                    MetadataUtils.DEFAULT_RESERVED_METADATA,
+                    null,
+                    null,
+                    null,
+                    null,
+                    "Grants access to manage all enrich indices (.enrich-*) and all operations on ingest pipelines."
                 )
             ),
             entry("viewer", buildViewerRoleDescriptor()),
@@ -703,7 +882,11 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
             null,
             null,
             MetadataUtils.DEFAULT_RESERVED_METADATA,
-            null
+            null,
+            null,
+            null,
+            null,
+            "Grants read-only access to all features in Kibana (including Solutions) and to data indices."
         );
     }
 
@@ -750,7 +933,11 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
             null,
             null,
             MetadataUtils.DEFAULT_RESERVED_METADATA,
-            null
+            null,
+            null,
+            null,
+            null,
+            "Grants full access to all features in Kibana (including Solutions) and read-only access to data indices."
         );
     }
 

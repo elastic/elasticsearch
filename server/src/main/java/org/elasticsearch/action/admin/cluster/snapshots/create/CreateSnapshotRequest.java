@@ -81,7 +81,9 @@ public class CreateSnapshotRequest extends MasterNodeRequest<CreateSnapshotReque
     @Nullable
     private Map<String, Object> userMetadata;
 
-    public CreateSnapshotRequest() {}
+    public CreateSnapshotRequest() {
+        super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT);
+    }
 
     /**
      * Constructs a new put repository request with the provided snapshot and repository names
@@ -90,6 +92,7 @@ public class CreateSnapshotRequest extends MasterNodeRequest<CreateSnapshotReque
      * @param snapshot   snapshot name
      */
     public CreateSnapshotRequest(String repository, String snapshot) {
+        super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT);
         this.snapshot = snapshot;
         this.repository = repository;
     }

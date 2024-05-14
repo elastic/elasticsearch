@@ -372,6 +372,11 @@ public class ConstantKeywordFieldMapper extends FieldMapper {
                     b.field(simpleName(), fieldType().value);
                 }
             }
+
+            @Override
+            public String fieldName() {
+                return name();
+            }
         };
     }
 }

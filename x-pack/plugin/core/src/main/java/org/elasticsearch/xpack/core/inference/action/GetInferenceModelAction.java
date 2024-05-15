@@ -38,6 +38,7 @@ public class GetInferenceModelAction extends ActionType<GetInferenceModelAction.
         private final TaskType taskType;
 
         public Request(String inferenceEntityId, TaskType taskType) {
+            super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT, DEFAULT_ACK_TIMEOUT);
             this.inferenceEntityId = Objects.requireNonNull(inferenceEntityId);
             this.taskType = Objects.requireNonNull(taskType);
         }

@@ -88,6 +88,7 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettingProviders;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.mapper.MapperMetrics;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.shard.IndexEventListener;
 import org.elasticsearch.index.shard.ShardLongFieldRange;
@@ -245,7 +246,8 @@ public class ClusterStateChanges {
             xContentRegistry,
             null,
             null,
-            null
+            null,
+            MapperMetrics.NOOP
         ) {
             // metadata upgrader should do nothing
             @Override

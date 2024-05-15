@@ -43,8 +43,8 @@ public final class CsvSpecReader {
                 if (line.startsWith(SCHEMA_PREFIX)) {
                     assertThat("Early schema already declared " + earlySchema, earlySchema.length(), is(0));
                     earlySchema.append(line.substring(SCHEMA_PREFIX.length()).trim());
-                } else if (line.toLowerCase(Locale.ROOT).startsWith("required_feature:")) {
-                    requiredCapabilities.add(line.substring("required_feature:".length()).trim().replace("esql.", ""));
+                } else if (line.toLowerCase(Locale.ROOT).startsWith("required_capability:")) {
+                    requiredCapabilities.add(line.substring("required_capability:".length()).trim());
                 } else {
                     if (line.endsWith(";")) {
                         // pick up the query

@@ -58,7 +58,7 @@ public final class WeightedTokensUtils {
                 averageTokenFreqRatio,
                 bestWeight
             );
-            keep ^= tokenPruningConfig.isOnlyScorePrunedTokens();
+            keep ^= tokenPruningConfig != null && tokenPruningConfig.isOnlyScorePrunedTokens();
             if (keep) {
                 qb.add(new BoostQuery(ft.termQuery(token.token(), context), token.weight()), BooleanClause.Occur.SHOULD);
             }

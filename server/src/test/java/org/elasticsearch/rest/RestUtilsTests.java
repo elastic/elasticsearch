@@ -216,10 +216,7 @@ public class RestUtilsTests extends ESTestCase {
     }
 
     public void testGetAckTimeout() {
-        assertEquals(
-            TimeValue.timeValueSeconds(30),
-            RestUtils.getAckTimeout(new FakeRestRequest.Builder(xContentRegistry()).build())
-        );
+        assertEquals(TimeValue.timeValueSeconds(30), RestUtils.getAckTimeout(new FakeRestRequest.Builder(xContentRegistry()).build()));
 
         final var timeout = randomTimeValue();
         assertEquals(

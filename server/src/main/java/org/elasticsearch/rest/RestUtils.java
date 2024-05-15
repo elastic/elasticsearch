@@ -293,8 +293,8 @@ public class RestUtils {
      * missing.
      *
      * @param restRequest The request from which to extract the {@code ?timeout} parameter
-     * @return the timeout from the request, with a default of {@link AcknowledgedRequest#DEFAULT_ACK_TIMEOUT} ({@code 30s}) if the request does not
-     *         specify the parameter
+     * @return the timeout from the request, with a default of {@link AcknowledgedRequest#DEFAULT_ACK_TIMEOUT} ({@code 30s}) if the request
+     *         does not specify the parameter
      */
     public static TimeValue getAckTimeout(RestRequest restRequest) {
         assert restRequest != null;

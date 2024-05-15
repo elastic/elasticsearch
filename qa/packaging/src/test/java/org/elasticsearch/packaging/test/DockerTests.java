@@ -126,6 +126,13 @@ public class DockerTests extends PackagingTestCase {
         rm(tempDir);
     }
 
+    @Override
+    protected void dumpDebug() {
+        final Result containerLogs = getContainerLogs();
+        logger.warn("Elasticsearch log stdout:\n" + containerLogs.stdout());
+        logger.warn("Elasticsearch log stderr:\n" + containerLogs.stderr());
+    }
+
     /**
      * Checks that the Docker image can be run, and that it passes various checks.
      */

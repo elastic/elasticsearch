@@ -847,12 +847,12 @@ public class ObjectMapper extends Mapper {
             if (ignoredValues != null && ignoredValues.isEmpty() == false) {
                 // Use an ordered map between field names and writer functions, to order writing by field name.
                 Map<String, CheckedConsumer<XContentBuilder, IOException>> orderedFields = new TreeMap<>();
-                for (var value : ignoredValues) {
+                for (IgnoredSourceFieldMapper.NameValue value : ignoredValues) {
                     orderedFields.put(value.name(), value::write);
                 }
                 for (SourceLoader.SyntheticFieldLoader field : fields) {
-                    // Check if the field source is stored separately, to avoid double-printing.
                     if (field.hasValue()) {
+                        // Skip if the field source is stored separately, to avoid double-printing.
                         orderedFields.putIfAbsent(field.fieldName(), field::write);
                     }
                 }

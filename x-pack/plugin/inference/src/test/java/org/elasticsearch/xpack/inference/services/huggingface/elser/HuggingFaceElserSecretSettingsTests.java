@@ -77,6 +77,6 @@ public class HuggingFaceElserSecretSettingsTests extends AbstractWireSerializing
 
     @Override
     protected HuggingFaceElserSecretSettings mutateInstance(HuggingFaceElserSecretSettings instance) throws IOException {
-        return createRandom();
+        return randomValueOtherThan(instance, HuggingFaceElserSecretSettingsTests::createRandom);
     }
 }

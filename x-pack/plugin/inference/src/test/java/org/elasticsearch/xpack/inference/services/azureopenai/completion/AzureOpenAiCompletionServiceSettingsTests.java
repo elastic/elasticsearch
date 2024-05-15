@@ -87,6 +87,6 @@ public class AzureOpenAiCompletionServiceSettingsTests extends AbstractWireSeria
 
     @Override
     protected AzureOpenAiCompletionServiceSettings mutateInstance(AzureOpenAiCompletionServiceSettings instance) throws IOException {
-        return createRandom();
+        return randomValueOtherThan(instance, AzureOpenAiCompletionServiceSettingsTests::createRandom);
     }
 }

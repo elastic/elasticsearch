@@ -1884,20 +1884,18 @@ public class DatafeedJobsRestIT extends ESRestTestCase {
 
     private static void createDummyRollupIndex() throws IOException {
         // create dummy rollup index to circumvent the check that prohibits rollup usage in empty clusters:
-        {
-            Request req = new Request("PUT", "dummy-rollup-index");
-            req.setJsonEntity("""
-                {
-                    "mappings":{
-                        "_meta": {
-                            "_rollup":{
-                                "my-id": {}
-                            }
+        Request req = new Request("PUT", "dummy-rollup-index");
+        req.setJsonEntity("""
+            {
+                "mappings":{
+                    "_meta": {
+                        "_rollup":{
+                            "my-id": {}
                         }
                     }
                 }
-                """);
-            client().performRequest(req);
-        }
+            }
+            """);
+        client().performRequest(req);
     }
 }

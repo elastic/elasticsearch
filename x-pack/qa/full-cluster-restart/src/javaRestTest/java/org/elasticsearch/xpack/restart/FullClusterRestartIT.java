@@ -437,16 +437,16 @@ public class FullClusterRestartIT extends AbstractXpackFullClusterRestartTestCas
             {
                 Request req = new Request("PUT", "dummy-rollup-index");
                 req.setJsonEntity("""
-                {
-                    "mappings":{
-                        "_meta": {
-                            "_rollup":{
-                                "my-id": {}
+                    {
+                        "mappings":{
+                            "_meta": {
+                                "_rollup":{
+                                    "my-id": {}
+                                }
                             }
                         }
                     }
-                }
-                """);
+                    """);
                 client().performRequest(req);
             }
 

@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.io.stream;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.TriFunction;
 import org.elasticsearch.common.io.stream.NamedWriteable;
@@ -792,7 +793,14 @@ public final class PlanNamedTypes {
     }
 
     static EsRelation readEsRelation(PlanStreamInput in) throws IOException {
-        return new EsRelation(in.readSource(), readEsIndex(in), readAttributes(in), in.readBoolean());
+        Source source = in.readSource();
+        EsIndex esIndex = readEsIndex(in);
+        List<Attribute> attributes = readAttributes(in);
+        if (supportingEsSourceOptions(in.getTransportVersion())) {
+            readEsSourceOptions(in); // consume optional strings sent by remote
+        }
+        boolean frozen = in.readBoolean();
+        return new EsRelation(source, esIndex, attributes, frozen);
     }
 
     static void writeEsRelation(PlanStreamOutput out, EsRelation relation) throws IOException {
@@ -800,7 +808,33 @@ public final class PlanNamedTypes {
         out.writeNoSource();
         writeEsIndex(out, relation.index());
         writeAttributes(out, relation.output());
+        if (supportingEsSourceOptions(out.getTransportVersion())) {
+            writeEsSourceOptions(out); // write (null) string fillers expected by remote
+        }
         out.writeBoolean(relation.frozen());
+    }
+
+    private static boolean supportingEsSourceOptions(TransportVersion version) {
+        return version.onOrAfter(TransportVersions.ESQL_ES_SOURCE_OPTIONS)
+            && version.before(TransportVersions.ESQL_ES_REMOVE_SOURCE_OPTIONS);
+    }
+
+    private static void readEsSourceOptions(PlanStreamInput in) throws IOException {
+        // allowNoIndices
+        in.readOptionalString();
+        // ignoreUnavailable
+        in.readOptionalString();
+        // preference
+        in.readOptionalString();
+    }
+
+    private static void writeEsSourceOptions(PlanStreamOutput out) throws IOException {
+        // allowNoIndices
+        out.writeOptionalString(null);
+        // ignoreUnavailable
+        out.writeOptionalString(null);
+        // preference
+        out.writeOptionalString(null);
     }
 
     static Eval readEval(PlanStreamInput in) throws IOException {

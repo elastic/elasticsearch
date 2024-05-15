@@ -194,7 +194,7 @@ public class RepositoriesServiceTests extends ESTestCase {
         assertThrows(RepositoryMissingException.class, () -> { repositoriesService.repository(repoName); });
     }
 
-    public void testAcceptUnverifiedRepositoryWithVerifyFalse() {
+    public void testRegisterAcceptUnverifiedRepositoryWithVerifyFalse() {
         var repoName = randomAlphaOfLengthBetween(10, 25);
         var request = new PutRepositoryRequest().name(repoName).type(VerificationFailRepository.TYPE).verify(false);
         var resultListener = new SubscribableListener<AcknowledgedResponse>();
@@ -525,7 +525,7 @@ public class RepositoriesServiceTests extends ESTestCase {
     }
 
     private static class VerificationFailRepository extends TestRepository {
-        public static final String TYPE = "invalid";
+        public static final String TYPE = "verify-fail";
 
         private VerificationFailRepository(RepositoryMetadata metadata) {
             super(metadata);

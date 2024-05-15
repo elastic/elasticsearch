@@ -148,9 +148,9 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
      * and if it was successful it adds new repository to cluster metadata.
      *
      * @param request  register repository request
-     * @param listener register repository listener
+     * @param responseListener register repository listener
      */
-    public void registerRepository(final PutRepositoryRequest request, final ActionListener<AcknowledgedResponse> listener) {
+    public void registerRepository(final PutRepositoryRequest request, final ActionListener<AcknowledgedResponse> responseListener) {
         assert lifecycle.started() : "Trying to register new repository but service is in state [" + lifecycle.state() + "]";
         validateRepositoryName(request.name());
 
@@ -158,7 +158,7 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
         try {
             validateRepositoryCanBeCreated(request);
         } catch (Exception e) {
-            listener.onFailure(e);
+            responseListener.onFailure(e);
             return;
         }
 
@@ -172,7 +172,7 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
             // to wait for the publication to be complete too)
             final ListenableFuture<List<DiscoveryNode>> doVerifyStep = new ListenableFuture<>();
             publicationStep.addListener(
-                listener.delegateFailureAndWrap(
+                responseListener.delegateFailureAndWrap(
                     (delegate, changed) -> acknowledgementStep.addListener(
                         delegate.delegateFailureAndWrap((l, clusterStateUpdateResponse) -> {
                             if (clusterStateUpdateResponse.isAcknowledged() && changed) {
@@ -202,13 +202,13 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
                     unregisterRepository(unregisterRequest, new ActionListener<>() {
                         @Override
                         public void onResponse(AcknowledgedResponse acknowledgedResponse) {
-                            listener.onFailure(verificationException);
+                            responseListener.onFailure(verificationException);
                         }
 
                         @Override
                         public void onFailure(Exception e) {
                             logger.warn("failed to unregister repository after unsuccessful validation, {}", request, e);
-                            listener.onFailure(verificationException);
+                            responseListener.onFailure(verificationException);
                         }
                     });
                 }
@@ -217,7 +217,7 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
             // When verification has completed, get the repository data for the first time
             final ListenableFuture<RepositoryData> getRepositoryDataStep = new ListenableFuture<>();
             verifiedStep.addListener(
-                listener.delegateFailureAndWrap(
+                responseListener.delegateFailureAndWrap(
                     (l, ignored) -> threadPool.generic()
                         .execute(
                             ActionRunnable.wrap(
@@ -234,7 +234,7 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
             // When the repository metadata is ready, update the repository UUID stored in the cluster state, if available
             final ListenableFuture<Void> updateRepoUuidStep = new ListenableFuture<>();
             getRepositoryDataStep.addListener(
-                listener.delegateFailureAndWrap(
+                responseListener.delegateFailureAndWrap(
                     (l, repositoryData) -> updateRepositoryUuidInMetadata(
                         clusterService,
                         request.name(),
@@ -245,10 +245,10 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
             );
 
             // Finally respond to the outer listener with the response from the original cluster state update
-            updateRepoUuidStep.addListener(listener.delegateFailureAndWrap((l, ignored) -> acknowledgementStep.addListener(l)));
+            updateRepoUuidStep.addListener(responseListener.delegateFailureAndWrap((l, ignored) -> acknowledgementStep.addListener(l)));
 
         } else {
-            acknowledgementStep.addListener(listener);
+            acknowledgementStep.addListener(responseListener);
         }
 
         submitUnbatchedTask("put_repository [" + request.name() + "]", new RegisterRepositoryTask(this, request, acknowledgementStep) {

@@ -65,9 +65,8 @@ public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuil
 
     private final String fieldName;
     private final String query;
-
-    private transient SetOnce<InferenceServiceResults> inferenceResultsSupplier;
-    private InferenceServiceResults inferenceResults;
+    private final SetOnce<InferenceServiceResults> inferenceResultsSupplier;
+    private final InferenceServiceResults inferenceResults;
 
     public SemanticQueryBuilder(String fieldName, String query) {
         if (fieldName == null) {
@@ -78,6 +77,8 @@ public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuil
         }
         this.fieldName = fieldName;
         this.query = query;
+        this.inferenceResults = null;
+        this.inferenceResultsSupplier = null;
     }
 
     public SemanticQueryBuilder(StreamInput in) throws IOException {
@@ -85,6 +86,7 @@ public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuil
         this.fieldName = in.readString();
         this.query = in.readString();
         this.inferenceResults = in.readOptionalNamedWriteable(InferenceServiceResults.class);
+        this.inferenceResultsSupplier = null;
     }
 
     @Override

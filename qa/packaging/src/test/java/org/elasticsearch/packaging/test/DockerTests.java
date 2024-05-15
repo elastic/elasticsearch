@@ -1211,7 +1211,6 @@ public class DockerTests extends PackagingTestCase {
     /**
      * Check that readiness listener works
      */
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/108523")
     public void test500Readiness() throws Exception {
         assertFalse(readinessProbe(9399));
         // Disabling security so we wait for green
@@ -1221,7 +1220,8 @@ public class DockerTests extends PackagingTestCase {
         );
         waitForElasticsearch(installation);
         dumpDebug();
-        assertTrue(readinessProbe(9399));
+        // readiness may still take time as file settings are applied into cluster state (even non-existent file settings)
+        assertBusy(() -> assertTrue(readinessProbe(9399)));
     }
 
     @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/99508")

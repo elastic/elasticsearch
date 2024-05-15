@@ -324,7 +324,7 @@ public final class GeoIpProcessor extends AbstractProcessor {
             return Map.of();
         }
         Long asn = response.getAutonomousSystemNumber();
-        String organization_name = response.getAutonomousSystemOrganization();
+        String organizationName = response.getAutonomousSystemOrganization();
         Network network = response.getNetwork();
 
         Map<String, Object> geoData = new HashMap<>();
@@ -337,8 +337,8 @@ public final class GeoIpProcessor extends AbstractProcessor {
                     }
                 }
                 case ORGANIZATION_NAME -> {
-                    if (organization_name != null) {
-                        geoData.put("organization_name", organization_name);
+                    if (organizationName != null) {
+                        geoData.put("organization_name", organizationName);
                     }
                 }
                 case NETWORK -> {
@@ -448,7 +448,7 @@ public final class GeoIpProcessor extends AbstractProcessor {
         Subdivision subdivision = response.getMostSpecificSubdivision();
 
         Long asn = response.getTraits().getAutonomousSystemNumber();
-        String organization_name = response.getTraits().getAutonomousSystemOrganization();
+        String organizationName = response.getTraits().getAutonomousSystemOrganization();
         Network network = response.getTraits().getNetwork();
 
         String isp = response.getTraits().getIsp();
@@ -533,8 +533,8 @@ public final class GeoIpProcessor extends AbstractProcessor {
                     }
                 }
                 case ORGANIZATION_NAME -> {
-                    if (organization_name != null) {
-                        geoData.put("organization_name", organization_name);
+                    if (organizationName != null) {
+                        geoData.put("organization_name", organizationName);
                     }
                 }
                 case NETWORK -> {
@@ -606,7 +606,7 @@ public final class GeoIpProcessor extends AbstractProcessor {
         String mobileNetworkCode = response.getMobileNetworkCode();
         String mobileCountryCode = response.getMobileCountryCode();
         Long asn = response.getAutonomousSystemNumber();
-        String organization_name = response.getAutonomousSystemOrganization();
+        String organizationName = response.getAutonomousSystemOrganization();
         Network network = response.getNetwork();
 
         Map<String, Object> geoData = new HashMap<>();
@@ -619,8 +619,8 @@ public final class GeoIpProcessor extends AbstractProcessor {
                     }
                 }
                 case ORGANIZATION_NAME -> {
-                    if (organization_name != null) {
-                        geoData.put("organization_name", organization_name);
+                    if (organizationName != null) {
+                        geoData.put("organization_name", organizationName);
                     }
                 }
                 case NETWORK -> {

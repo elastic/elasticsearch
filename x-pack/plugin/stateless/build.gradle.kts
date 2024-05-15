@@ -91,8 +91,6 @@ tasks {
         filter {
             // To mute a test, adds a line here following to the below example
             // excludeTestsMatching("*.TestClassIT.testMethod")
-            excludeTestsMatching("*.S3ObjectStoreTests.testShouldNotRetryForNoSuchFileException")
-            excludeTestsMatching("*.S3ObjectStoreTests.testShouldRetryMoreThanMaxRetriesForIndicesData")
         }
     }
 

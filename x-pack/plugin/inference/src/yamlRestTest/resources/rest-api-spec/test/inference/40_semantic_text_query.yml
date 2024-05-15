@@ -317,6 +317,48 @@ setup:
   - match: { error.type: "illegal_argument_exception" }
   - match: { error.reason: "Field [inference_field] has multiple inference IDs associated with it" }
 
+  # Test querying multiple indices that use the same inference ID - this should work
+  - do:
+      indices.create:
+        index: test-sparse-index-2
+        body:
+          mappings:
+            properties:
+              inference_field:
+                type: semantic_text
+                inference_id: sparse-inference-id
+              non_inference_field:
+                type: text
+
+  - do:
+      index:
+        index: test-sparse-index
+        id: doc_1
+        body:
+          inference_field: "inference test"
+        refresh: true
+
+  - do:
+      index:
+        index: test-sparse-index-2
+        id: doc_2
+        body:
+          inference_field: "another inference test"
+        refresh: true
+
+  - do:
+      search:
+        index: test-sparse-index*
+        body:
+          query:
+            semantic:
+              field: "inference_field"
+              query: "inference test"
+
+  - match: { hits.total.value: 2 }
+  - match: { hits.hits.0._id: "doc_2" }
+  - match: { hits.hits.1._id: "doc_1" }
+
 ---
 "Query a field that has no indexed inference results":
   - skip:

@@ -458,16 +458,16 @@ public class CoordinatorVotingConfigurationTests extends AbstractCoordinatorTest
         value = "org.elasticsearch.cluster.coordination.ClusterBootstrapService:INFO"
     )
     public void testClusterUUIDLogging() {
-        final var mockAppender = new MockLogAppender();
-        mockAppender.addExpectation(
-            new MockLogAppender.SeenEventExpectation(
-                "fresh node message",
-                ClusterBootstrapService.class.getCanonicalName(),
-                Level.INFO,
-                "this node has not joined a bootstrapped cluster yet; [cluster.initial_master_nodes] is set to []"
-            )
-        );
-        try (var ignored = mockAppender.capturing(ClusterBootstrapService.class); var cluster = new Cluster(randomIntBetween(1, 3))) {
+        try (var mockAppender = MockLogAppender.capture(ClusterBootstrapService.class); var cluster = new Cluster(randomIntBetween(1, 3))) {
+            mockAppender.addExpectation(
+                new MockLogAppender.SeenEventExpectation(
+                    "fresh node message",
+                    ClusterBootstrapService.class.getCanonicalName(),
+                    Level.INFO,
+                    "this node has not joined a bootstrapped cluster yet; [cluster.initial_master_nodes] is set to []"
+                )
+            );
+
             cluster.runRandomly();
             cluster.stabilise();
             mockAppender.assertAllExpectationsMatched();

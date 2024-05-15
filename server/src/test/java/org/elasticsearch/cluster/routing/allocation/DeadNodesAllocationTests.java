@@ -97,8 +97,7 @@ public class DeadNodesAllocationTests extends ESAllocationTestCase {
 
         assertTrue(initialState.toString(), initialState.getRoutingNodes().unassigned().isEmpty());
 
-        final MockLogAppender appender = new MockLogAppender();
-        try (var ignored = appender.capturing(AllocationService.class)) {
+        try (var appender = MockLogAppender.capture(AllocationService.class)) {
             final String dissociationReason = "node left " + randomAlphaOfLength(10);
 
             appender.addExpectation(

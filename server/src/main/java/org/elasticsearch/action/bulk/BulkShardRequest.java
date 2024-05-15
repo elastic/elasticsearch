@@ -168,6 +168,9 @@ public final class BulkShardRequest extends ReplicatedWriteRequest<BulkShardRequ
             case NONE:
                 break;
         }
+        if (isSimulated) {
+            b.append(", simulated");
+        }
         return b.toString();
     }
 

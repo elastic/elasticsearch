@@ -179,7 +179,7 @@ public final class GeoIpProcessor extends AbstractProcessor {
             case AnonymousIp -> retrieveAnonymousIpGeoData(geoIpDatabase, ipAddress);
             case Domain -> retrieveDomainGeoData(geoIpDatabase, ipAddress);
             case Enterprise -> retrieveEnterpriseGeoData(geoIpDatabase, ipAddress);
-            case ISP -> retrieveISPGeoData(geoIpDatabase, ipAddress);
+            case Isp -> retrieveIspGeoData(geoIpDatabase, ipAddress);
         };
     }
 
@@ -563,8 +563,8 @@ public final class GeoIpProcessor extends AbstractProcessor {
         return geoData;
     }
 
-    private Map<String, Object> retrieveISPGeoData(GeoIpDatabase geoIpDatabase, InetAddress ipAddress) {
-        IspResponse response = geoIpDatabase.getISP(ipAddress);
+    private Map<String, Object> retrieveIspGeoData(GeoIpDatabase geoIpDatabase, InetAddress ipAddress) {
+        IspResponse response = geoIpDatabase.getIsp(ipAddress);
         if (response == null) {
             return Map.of();
         }

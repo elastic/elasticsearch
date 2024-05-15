@@ -414,7 +414,7 @@ public class GeoIpProcessorTests extends ESTestCase {
         assertThat(geoData.get("domain"), equalTo("frpt.net"));
     }
 
-    public void testISP() throws Exception {
+    public void testIsp() throws Exception {
         // String ip = "38.105.0.64";
         String ip = "149.101.100.1";
         GeoIpProcessor processor = new GeoIpProcessor(

@@ -67,7 +67,7 @@ public interface GeoIpDatabase {
     EnterpriseResponse getEnterprise(InetAddress ipAddress);
 
     @Nullable
-    IspResponse getISP(InetAddress ipAddress);
+    IspResponse getIsp(InetAddress ipAddress);
 
     /**
      * Releases the current database object. Called after processing a single document. Databases should be closed or returned to a

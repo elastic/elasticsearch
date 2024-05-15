@@ -309,7 +309,7 @@ public class MaxMindSupportTests extends ESTestCase {
         DOMAIN_SUPPORTED_FIELDS,
         Database.Enterprise,
         ENTERPRISE_SUPPORTED_FIELDS,
-        Database.ISP,
+        Database.Isp,
         ISP_SUPPORTED_FIELDS
     );
     private static final Map<Database, Set<String>> TYPE_TO_UNSUPPORTED_FIELDS_MAP = Map.of(
@@ -325,7 +325,7 @@ public class MaxMindSupportTests extends ESTestCase {
         DOMAIN_UNSUPPORTED_FIELDS,
         Database.Enterprise,
         ENTERPRISE_UNSUPPORTED_FIELDS,
-        Database.ISP,
+        Database.Isp,
         ISP_UNSUPPORTED_FIELDS
     );
     private static final Map<Database, Class<? extends AbstractResponse>> TYPE_TO_MAX_MIND_CLASS = Map.of(
@@ -341,7 +341,7 @@ public class MaxMindSupportTests extends ESTestCase {
         DomainResponse.class,
         Database.Enterprise,
         EnterpriseResponse.class,
-        Database.ISP,
+        Database.Isp,
         IspResponse.class
     );
 

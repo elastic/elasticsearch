@@ -112,7 +112,7 @@ enum Database {
             Property.LOCATION
         )
     ),
-    ISP(
+    Isp(
         Set.of(
             Property.IP,
             Property.ASN,
@@ -168,7 +168,7 @@ enum Database {
             } else if (databaseType.endsWith(Database.ENTERPRISE_DB_SUFFIX)) {
                 database = Database.Enterprise;
             } else if (databaseType.endsWith(Database.ISP_DB_SUFFIX)) {
-                database = Database.ISP;
+                database = Database.Isp;
             }
         }
 

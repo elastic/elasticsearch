@@ -193,7 +193,7 @@ class DatabaseReaderLazyLoader implements GeoIpDatabase, Closeable {
 
     @Nullable
     @Override
-    public IspResponse getISP(InetAddress ipAddress) {
+    public IspResponse getIsp(InetAddress ipAddress) {
         return getResponse(ipAddress, DatabaseReader::tryIsp);
     }
 

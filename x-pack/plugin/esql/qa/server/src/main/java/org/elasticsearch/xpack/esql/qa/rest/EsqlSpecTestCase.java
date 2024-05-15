@@ -186,7 +186,7 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
                 throw e;
             }
         }
-        
+
         var features = Stream.concat(
             new EsqlFeatures().getFeatures().stream(),
                 new EsqlFeatures().getHistoricalFeatures().keySet().stream()

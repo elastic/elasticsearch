@@ -121,7 +121,7 @@ teardown:
   - do:
       index:
         refresh: true
-        index: logs-nginx-default
+        index: logs-router-default
         id: "example-log"
         pipeline: "logs-nginx"
         op_type: create

@@ -26,13 +26,13 @@ import com.sun.net.httpserver.HttpHandler;
 
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.core.LogEvent;
-import org.elasticsearch.action.support.DefaultShardOperationFailedException;
-import org.elasticsearch.action.support.broadcast.BroadcastResponse;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.repositories.RepositoryStats;
 import org.elasticsearch.repositories.blobstore.ESMockAPIBasedRepositoryIntegTestCase;
@@ -40,26 +40,31 @@ import org.elasticsearch.repositories.s3.S3RepositoryPlugin;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.MockLogAppender;
 import org.elasticsearch.test.transport.MockTransportService;
+import org.elasticsearch.transport.TransportChannel;
+import org.elasticsearch.transport.TransportResponse;
 
 import java.io.IOException;
-import java.util.Arrays;
+import java.nio.file.NoSuchFileException;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.hamcrest.Matchers.anEmptyMap;
 import static org.hamcrest.Matchers.everyItem;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
-import static org.hamcrest.Matchers.oneOf;
+import static org.hamcrest.Matchers.notNullValue;
 
 public class S3ObjectStoreTests extends AbstractMockObjectStoreIntegTestCase {
 
@@ -195,8 +200,6 @@ public class S3ObjectStoreTests extends AbstractMockObjectStoreIntegTestCase {
         final String masterAndIndexNode = startMasterAndIndexNode();
         final String searchNode = startSearchNode();
 
-        dropNewCommitNotificationForNonUploadedCommits(searchNode);
-
         final var mockLogAppender = new MockLogAppender();
         final String loggerName = "org.elasticsearch.repositories.s3.S3RetryingInputStream";
 
@@ -287,9 +290,41 @@ public class S3ObjectStoreTests extends AbstractMockObjectStoreIntegTestCase {
             createIndex(indexName, indexSettings(1, 1).build());
             ensureGreen(indexName);
 
-            for (int i = 0; i < randomIntBetween(3, 8); i++) {
-                indexDocs(indexName, randomIntBetween(1, 10));
-                refresh(indexName);
+            final CyclicBarrier uploadedCommitNotificationBarrier = new CyclicBarrier(2);
+            MockTransportService.getInstance(searchNode)
+                .addRequestHandlingBehavior(TransportNewCommitNotificationAction.NAME + "[u]", (handler, request, channel, task) -> {
+                    if (((NewCommitNotificationRequest) request).isUploaded()) {
+                        handler.messageReceived(request, new TransportChannel() {
+                            @Override
+                            public String getProfileName() {
+                                return channel.getProfileName();
+                            }
+
+                            @Override
+                            public void sendResponse(TransportResponse response) {
+                                safeAwait(uploadedCommitNotificationBarrier);
+                                channel.sendResponse(response);
+                            }
+
+                            @Override
+                            public void sendResponse(Exception exception) {
+                                fail("new uploaded commit notification should not fail");
+                            }
+                        }, task);
+                    } else {
+                        // Drop the notification for non-uploaded commits to force the search node reading from the object store
+                        channel.sendResponse(new RuntimeException("dropping notification for non-uploaded commit"));
+                    }
+                });
+            int totalNumDocs = 0;
+            final int iterations = between(3, 5);
+            for (int i = 0; i < iterations; i++) {
+                final int numDocs = between(1, 10);
+                totalNumDocs += numDocs;
+                indexDocs(indexName, numDocs);
+                indicesAdmin().prepareFlush(indexName).get(TimeValue.timeValueSeconds(10));
+                safeAwait(uploadedCommitNotificationBarrier); // wait till uploaded commit notification is processed
+                assertHitCount(client().prepareSearch(indexName), totalNumDocs); // ensure search works
             }
 
             mockLogAppender.assertAllExpectationsMatched();
@@ -303,8 +338,6 @@ public class S3ObjectStoreTests extends AbstractMockObjectStoreIntegTestCase {
     public void testShouldNotRetryForNoSuchFileException() throws Exception {
         final String masterAndIndexNode = startMasterAndIndexNode();
         final String searchNode = startSearchNode();
-
-        dropNewCommitNotificationForNonUploadedCommits(searchNode);
 
         final var mockLogAppender = new MockLogAppender();
         final String loggerName = "org.elasticsearch.repositories.s3.S3RetryingInputStream";
@@ -344,14 +377,37 @@ public class S3ObjectStoreTests extends AbstractMockObjectStoreIntegTestCase {
                 }
             });
 
-            indexDocs(indexName, randomIntBetween(1, 10));
+            indexDocs(indexName, between(1, 10));
+            final CountDownLatch newUploadedCommitNotificationFailureLatch = new CountDownLatch(1);
+            MockTransportService.getInstance(searchNode)
+                .addRequestHandlingBehavior(TransportNewCommitNotificationAction.NAME + "[u]", (handler, request, channel, task) -> {
+                    if (((NewCommitNotificationRequest) request).isUploaded()) {
+                        handler.messageReceived(request, new TransportChannel() {
+                            @Override
+                            public String getProfileName() {
+                                return channel.getProfileName();
+                            }
 
-            final BroadcastResponse broadcastResponse = indicesAdmin().prepareRefresh(indexName).get();
-            assertThat(broadcastResponse.getFailedShards(), greaterThan(0));
-            assertThat(
-                Arrays.stream(broadcastResponse.getShardFailures()).map(DefaultShardOperationFailedException::status).toList(),
-                everyItem(oneOf(RestStatus.NOT_FOUND, RestStatus.INTERNAL_SERVER_ERROR))
-            );
+                            @Override
+                            public void sendResponse(TransportResponse response) {
+                                fail("new uploaded commit notification should have failed");
+                            }
+
+                            @Override
+                            public void sendResponse(Exception exception) {
+                                assertThat(ExceptionsHelper.unwrap(exception, NoSuchFileException.class), notNullValue());
+                                newUploadedCommitNotificationFailureLatch.countDown();
+                                channel.sendResponse(exception);
+                            }
+                        }, task);
+                    } else {
+                        // Drop the notification for non-uploaded commits to force the search node reading from the object store
+                        channel.sendResponse(new RuntimeException("dropping notification for non-uploaded commit"));
+                    }
+                });
+            indicesAdmin().prepareFlush(indexName).get(TimeValue.timeValueSeconds(10));
+            // Search shard should fail because it encounters 404 while reading from the object store
+            safeAwait(newUploadedCommitNotificationFailureLatch);
             mockLogAppender.assertAllExpectationsMatched();
 
         } finally {
@@ -359,18 +415,6 @@ public class S3ObjectStoreTests extends AbstractMockObjectStoreIntegTestCase {
             internalCluster().stopNode(searchNode);
             internalCluster().stopNode(masterAndIndexNode);
         }
-    }
-
-    private static void dropNewCommitNotificationForNonUploadedCommits(String searchNode) {
-        MockTransportService.getInstance(searchNode)
-            .addRequestHandlingBehavior(TransportNewCommitNotificationAction.NAME + "[u]", (handler, request, channel, task) -> {
-                if (((NewCommitNotificationRequest) request).isUploaded()) {
-                    handler.messageReceived(request, channel, task);
-                } else {
-                    // Drop the notification for non-uploaded commits to force the search node reading from the object store
-                    channel.sendResponse(new RuntimeException("fail"));
-                }
-            });
     }
 
     @SuppressForbidden(reason = "this test uses a HttpServer to emulate an S3 endpoint")

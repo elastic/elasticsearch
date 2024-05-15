@@ -166,6 +166,7 @@ public class TransportVersions {
     public static final TransportVersion ML_RERANK_DOC_OPTIONAL = def(8_657_00_0);
     public static final TransportVersion FAILURE_STORE_FIELD_PARITY = def(8_658_00_0);
     public static final TransportVersion ML_INFERENCE_AZURE_AI_STUDIO = def(8_659_00_0);
+    public static final TransportVersion ML_INFERENCE_COHERE_COMPLETION_ADDED = def(8_660_00_0);
 
     /*
      * STOP! READ THIS FIRST! No, really,

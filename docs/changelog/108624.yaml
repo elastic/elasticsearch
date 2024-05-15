@@ -7,7 +7,6 @@ issues:
 breaking:
   title: Disallow new rollup jobs in clusters with no rollup usage
   area: Rollup
-  details: Please describe the details of this change for the release notes. You can
-    use asciidoc.
-  impact: Please describe the impact of this change to users
-  notable: false
+  details: The put rollup API will fail with an error when a rollup job is created in a cluster with no rollup usage
+  impact: Clusters with no rollup usage (either no rollup job or index) can not create new rollup jobs
+  notable: true

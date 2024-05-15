@@ -24,11 +24,13 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.TreeSet;
 
 /**
  * Context used when parsing incoming documents. Holds everything that is needed to parse a document as well as
@@ -104,7 +106,7 @@ public abstract class DocumentParserContext {
     private final MappingParserContext mappingParserContext;
     private final SourceToParse sourceToParse;
     private final Set<String> ignoredFields;
-    private final List<IgnoredSourceFieldMapper.NameValue> ignoredFieldValues;
+    private final Set<IgnoredSourceFieldMapper.NameValue> ignoredFieldValues;
     private final Map<String, List<Mapper>> dynamicMappers;
     private final DynamicMapperSize dynamicMappersSize;
     private final Map<String, ObjectMapper> dynamicObjectMappers;
@@ -117,6 +119,8 @@ public abstract class DocumentParserContext {
     private final SeqNoFieldMapper.SequenceIDFields seqID;
     private final Set<String> fieldsAppliedFromTemplates;
     private final Set<String> copyToFields;
+
+    // Indicates if the source for the current parsing position has been stored in IgnoredSourceFieldMapper.
     private boolean sourceStored = false;
 
     private DocumentParserContext(
@@ -124,7 +128,7 @@ public abstract class DocumentParserContext {
         MappingParserContext mappingParserContext,
         SourceToParse sourceToParse,
         Set<String> ignoreFields,
-        List<IgnoredSourceFieldMapper.NameValue> ignoredFieldValues,
+        Set<IgnoredSourceFieldMapper.NameValue> ignoredFieldValues,
         Map<String, List<Mapper>> dynamicMappers,
         Map<String, ObjectMapper> dynamicObjectMappers,
         Map<String, List<RuntimeField>> dynamicRuntimeFields,
@@ -191,7 +195,7 @@ public abstract class DocumentParserContext {
             mappingParserContext,
             source,
             new HashSet<>(),
-            new ArrayList<>(),
+            new TreeSet<>(Comparator.comparing(IgnoredSourceFieldMapper.NameValue::name)),
             new HashMap<>(),
             new HashMap<>(),
             new HashMap<>(),

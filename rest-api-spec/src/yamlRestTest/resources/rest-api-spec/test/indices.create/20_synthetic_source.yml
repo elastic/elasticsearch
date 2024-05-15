@@ -489,3 +489,52 @@ no object array:
 
   - match: { hits.hits.0._source.stored.trace.id: a  }
   - match: { hits.hits.0._source.stored.span.id: b  }
+
+
+---
+field ordering:
+  - requires:
+      cluster_features: ["mapper.track_ignored_source"]
+      reason: requires tracking ignored source
+
+  - do:
+      indices.create:
+        index: test
+        body:
+          mappings:
+            _source:
+              mode: synthetic
+            properties:
+              a:
+                type: keyword
+              b:
+                store_array_source: true
+                properties:
+                  aa:
+                    type: keyword
+                  bb:
+                    type: keyword
+              c:
+                type: keyword
+              d:
+                store_array_source: true
+                properties:
+                  aa:
+                    type: keyword
+                  bb:
+                    type: keyword
+
+  - do:
+      bulk:
+        index: test
+        refresh: true
+        body:
+          - '{ "create": { } }'
+          - '{ "c": 1, "d": [ { "bb": 10, "aa": 20 }, { "aa": 30, "bb": 40 } ], "a": 2, "b": [ { "bb": 100, "aa": 200 }, { "aa": 300, "bb": 400 } ] }'
+
+  - do:
+      search:
+        index: test
+
+  - length: { hits.hits.0._source: 4 }
+  - match: { hits.hits.0._source: { "a": "2", "b": [ { "bb": 100, "aa": 200 }, { "aa": 300, "bb": 400 } ], "c": "1", "d": [ { "bb": 10, "aa": 20 }, { "aa": 30, "bb": 40 } ] } }

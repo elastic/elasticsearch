@@ -14,6 +14,7 @@ import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
+import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
@@ -27,12 +28,11 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Comparator;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Set;
+import java.util.TreeMap;
 import java.util.stream.Stream;
 
 public class ObjectMapper extends Mapper {
@@ -845,19 +845,19 @@ public class ObjectMapper extends Mapper {
             }
 
             if (ignoredValues != null && ignoredValues.isEmpty() == false) {
-                Set<String> storedFields = new HashSet<>(ignoredValues.size());
+                // Use an ordered map between field names and writer functions, to order writing by field name.
+                Map<String, CheckedConsumer<XContentBuilder, IOException>> orderedFields = new TreeMap<>();
                 for (var value : ignoredValues) {
-                    storedFields.add(value.name());
+                    orderedFields.put(value.name(), value::write);
                 }
                 for (SourceLoader.SyntheticFieldLoader field : fields) {
                     // Check if the field source is stored separately, to avoid double-printing.
-                    if (field.hasValue() && storedFields.contains(field.fieldName()) == false) {
-                        field.write(b);
+                    if (field.hasValue()) {
+                        orderedFields.putIfAbsent(field.fieldName(), field::write);
                     }
                 }
-                for (IgnoredSourceFieldMapper.NameValue ignored : ignoredValues) {
-                    b.field(ignored.getFieldName());
-                    XContentDataHelper.decodeAndWrite(b, ignored.value());
+                for (var writer : orderedFields.values()) {
+                    writer.accept(b);
                 }
                 ignoredValues = null;
             } else {

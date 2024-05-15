@@ -87,8 +87,8 @@ public class IgnoredSourceFieldMapperTests extends MapperServiceTestCase {
         String stringValue = randomAlphaOfLength(20);
         String syntheticSource = getSyntheticSourceWithFieldLimit(b -> {
             b.field("boolean_value", booleanValue);
-            b.field("int_value", intValue);
             b.field("string_value", stringValue);
+            b.field("int_value", intValue);
         });
         assertEquals(String.format(Locale.ROOT, """
             {"boolean_value":%s,"int_value":%s,"string_value":"%s"}""", booleanValue, intValue, stringValue), syntheticSource);
@@ -102,8 +102,8 @@ public class IgnoredSourceFieldMapperTests extends MapperServiceTestCase {
             b.startObject("bar");
             {
                 b.field("boolean_value", booleanValue);
-                b.field("int_value", intValue);
                 b.field("string_value", stringValue);
+                b.field("int_value", intValue);
             }
             b.endObject();
         });
@@ -516,5 +516,53 @@ public class IgnoredSourceFieldMapperTests extends MapperServiceTestCase {
         });
         assertEquals(String.format(Locale.ROOT, """
             {"path":[{"to":[{"name":"A"},{"name":"B"}]},{"to":[{"name":"C"},{"name":"D"}]}]}""", booleanValue), syntheticSource);
+    }
+
+    public void testFieldOrdering() throws IOException {
+        DocumentMapper documentMapper = createMapperService(syntheticSourceMapping(b -> {
+            b.startObject("A").field("type", "integer").endObject();
+            b.startObject("B").field("type", "object").field("store_array_source", true);
+            {
+                b.startObject("properties");
+                {
+                    b.startObject("X").field("type", "keyword").endObject();
+                    b.startObject("Y").field("type", "keyword").endObject();
+                }
+                b.endObject();
+            }
+            b.endObject();
+            b.startObject("C").field("type", "integer").endObject();
+            b.startObject("D").field("type", "object").field("store_array_source", true);
+            {
+                b.startObject("properties");
+                {
+                    b.startObject("X").field("type", "keyword").endObject();
+                    b.startObject("Y").field("type", "keyword").endObject();
+                }
+                b.endObject();
+            }
+            b.endObject();
+            b.startObject("E").field("type", "integer").endObject();
+        })).documentMapper();
+
+        var syntheticSource = syntheticSource(documentMapper, b -> {
+            b.field("C", 10);
+            b.startArray("D");
+            {
+                b.startObject().field("Y", 100).endObject();
+                b.startObject().field("X", 200).endObject();
+            }
+            b.endArray();
+            b.field("E", 20);
+            b.startArray("B");
+            {
+                b.startObject().field("Y", 300).endObject();
+                b.startObject().field("X", 400).endObject();
+            }
+            b.endArray();
+            b.field("A", 30);
+        });
+        assertEquals("""
+            {"A":30,"B":[{"Y":300},{"X":400}],"C":10,"D":[{"Y":100},{"X":200}],"E":20}""", syntheticSource);
     }
 }

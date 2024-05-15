@@ -10,6 +10,7 @@ package org.elasticsearch.rest;
 
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.Booleans;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 
 import java.nio.charset.Charset;
@@ -268,6 +269,16 @@ public class RestUtils {
     public static final TimeValue REST_MASTER_TIMEOUT_DEFAULT = TimeValue.timeValueSeconds(30);
 
     /**
+     * The name of the common {@code ?timeout} query parameter.
+     */
+    public static final String REST_TIMEOUT_PARAM = "timeout";
+
+    /**
+     * The default value for the common {@code ?timeout} query parameter.
+     */
+    public static final TimeValue REST_ACK_TIMEOUT_DEFAULT = TimeValue.timeValueSeconds(30);
+
+    /**
      * Extract the {@code ?master_timeout} parameter from the request, imposing the common default of {@code 30s} in case the parameter is
      * missing.
      *
@@ -280,4 +291,28 @@ public class RestUtils {
         return restRequest.paramAsTime(REST_MASTER_TIMEOUT_PARAM, REST_MASTER_TIMEOUT_DEFAULT);
     }
 
+    /**
+     * Extract the {@code ?master_timeout} parameter from the request, imposing the common default of {@code 30s} in case the parameter is
+     * missing.
+     *
+     * @param restRequest The request from which to extract the {@code ?timeout} parameter
+     * @return the timeout from the request, with a default of {@link #REST_ACK_TIMEOUT_DEFAULT} ({@code 30s}) if the request does not
+     *         specify the parameter
+     */
+    public static TimeValue getAckTimeout(RestRequest restRequest) {
+        assert restRequest != null;
+        return restRequest.paramAsTime(REST_TIMEOUT_PARAM, REST_ACK_TIMEOUT_DEFAULT);
+    }
+
+    /**
+     * Extract the {@code ?timeout} parameter from the request, returning null in case the parameter is missing.
+     *
+     * @param restRequest The request from which to extract the {@code ?timeout} parameter
+     * @return the timeout from the request, with a default of {@code null} if the request does not specify the parameter
+     */
+    @Nullable
+    public static TimeValue getTimeout(RestRequest restRequest) {
+        assert restRequest != null;
+        return restRequest.paramAsTime(REST_TIMEOUT_PARAM, null);
+    }
 }

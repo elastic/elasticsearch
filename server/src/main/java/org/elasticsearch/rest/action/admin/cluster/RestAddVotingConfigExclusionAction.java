@@ -13,7 +13,6 @@ import org.elasticsearch.action.admin.cluster.configuration.TransportAddVotingCo
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.RestApiVersion;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
@@ -22,11 +21,10 @@ import java.io.IOException;
 import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.POST;
+import static org.elasticsearch.rest.RestUtils.getAckTimeout;
 import static org.elasticsearch.rest.RestUtils.getMasterNodeTimeout;
 
 public class RestAddVotingConfigExclusionAction extends BaseRestHandler {
-    private static final TimeValue DEFAULT_TIMEOUT = TimeValue.timeValueSeconds(30L);
-
     private static final String DEPRECATION_MESSAGE = "POST /_cluster/voting_config_exclusions/{node_name} "
         + "has been removed. You must use POST /_cluster/voting_config_exclusions?node_ids=... "
         + "or POST /_cluster/voting_config_exclusions?node_names=... instead.";
@@ -80,7 +78,7 @@ public class RestAddVotingConfigExclusionAction extends BaseRestHandler {
         final var resolvedRequest = new AddVotingConfigExclusionsRequest(
             Strings.splitStringByCommaToArray(nodeIds),
             Strings.splitStringByCommaToArray(nodeNames),
-            request.paramAsTime("timeout", DEFAULT_TIMEOUT)
+            getAckTimeout(request)
         );
 
         return resolvedRequest.masterNodeTimeout(getMasterNodeTimeout(request));

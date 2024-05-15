@@ -69,7 +69,7 @@ setup:
         index: test-sparse-index
         id: doc_1
         body:
-          inference_field: "inference test"
+          inference_field: ["inference test", "another inference test"]
           non_inference_field: "non inference test"
         refresh: true
 
@@ -87,7 +87,8 @@ setup:
 
   - match: { hits.total.value: 1 }
   - match: { hits.hits.0._id: "doc_1" }
-  - close_to: { hits.hits.0._score: { value: 1.1888081e16, error: 1e9 } }
+  - close_to: { hits.hits.0._score: { value: 3.7837332e17, error: 1e10 } }
+  - length: { hits.hits.0._source.inference_field.inference.chunks: 2 }
 
 ---
 "Query using a dense embedding model":
@@ -99,7 +100,7 @@ setup:
         index: test-dense-index
         id: doc_1
         body:
-          inference_field: "inference test"
+          inference_field: ["inference test", "another inference test"]
           non_inference_field: "non inference test"
         refresh: true
 
@@ -118,6 +119,7 @@ setup:
   - match: { hits.total.value: 1 }
   - match: { hits.hits.0._id: "doc_1" }
   - close_to: { hits.hits.0._score: { value: 1.0, error: 0.0001 } }
+  - length: { hits.hits.0._source.inference_field.inference.chunks: 2 }
 
 ---
 "Apply boost and query name":
@@ -129,7 +131,7 @@ setup:
         index: test-sparse-index
         id: doc_1
         body:
-          inference_field: "inference test"
+          inference_field: ["inference test", "another inference test"]
           non_inference_field: "non inference test"
         refresh: true
 
@@ -149,7 +151,8 @@ setup:
 
   - match: { hits.total.value: 1 }
   - match: { hits.hits.0._id: "doc_1" }
-  - close_to: { hits.hits.0._score: { value: 1.1888081e18, error: 1e11 } }
+  - close_to: { hits.hits.0._score: { value: 3.783733e19, error: 1e13 } }
+  - length: { hits.hits.0._source.inference_field.inference.chunks: 2 }
   - match: { hits.hits.0.matched_queries: ["i-like-naming-my-queries"] }
 
 ---
@@ -162,7 +165,7 @@ setup:
         index: test-sparse-index
         id: doc_1
         body:
-          inference_field: "inference test"
+          inference_field: ["inference test", "another inference test"]
           non_inference_field: "non inference test"
         refresh: true
 
@@ -185,7 +188,8 @@ setup:
 
   - match: { hits.total.value: 1 }
   - match: { hits.hits.0._id: "doc_1" }
-  - close_to: { hits.hits.0._score: { value: 1.1888081e16, error: 1e9 } }
+  - close_to: { hits.hits.0._score: { value: 3.7837332e17, error: 1e10 } }
+  - length: { hits.hits.0._source.inference_field.inference.chunks: 2 }
 
 ---
 "Query the wrong field type":

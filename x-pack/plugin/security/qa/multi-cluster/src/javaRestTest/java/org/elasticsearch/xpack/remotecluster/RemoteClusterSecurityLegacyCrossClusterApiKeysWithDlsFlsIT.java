@@ -14,7 +14,6 @@ import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
-import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.search.SearchHit;
@@ -24,13 +23,12 @@ import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 import org.elasticsearch.test.cluster.util.resource.Resource;
 import org.elasticsearch.test.junit.RunnableTestRuleAdapter;
 import org.elasticsearch.xcontent.ObjectPath;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.xpack.core.security.action.apikey.ApiKey;
 import org.elasticsearch.xpack.core.security.action.apikey.CrossClusterApiKeyRoleDescriptorBuilder;
-import org.elasticsearch.xpack.core.security.action.apikey.GetApiKeyResponse;
 import org.junit.ClassRule;
 import org.junit.rules.RuleChain;
 import org.junit.rules.TestRule;
@@ -291,29 +289,38 @@ public class RemoteClusterSecurityLegacyCrossClusterApiKeysWithDlsFlsIT extends 
         }
     }
 
+    @SuppressWarnings("unchecked")
     private void addDlsQueryToApiKeyDoc(String crossClusterAccessApiKeyId) throws IOException {
-        var apiKey = getCrossClusterApiKeys(crossClusterAccessApiKeyId);
-        assertThat(apiKey.getRoleDescriptors().size(), equalTo(1));
-        var rd = apiKey.getRoleDescriptors().get(0);
-        for (var ip : rd.getIndicesPrivileges()) {
-            if (Arrays.equals(ip.getPrivileges(), CrossClusterApiKeyRoleDescriptorBuilder.CCS_INDICES_PRIVILEGE_NAMES)) {
-                ip.setQuery(new BytesArray("{\"match_all\": {}}"));
+        Map<String, Object> apiKeyAsMap = getCrossClusterApiKeys(crossClusterAccessApiKeyId);
+        Map<String, Object> roleDescriptors = (Map<String, Object>) apiKeyAsMap.get("role_descriptors");
+        Map<String, Object> crossCluster = (Map<String, Object>) roleDescriptors.get("cross_cluster");
+        List<Map<String, Object>> indices = (List<Map<String, Object>>) crossCluster.get("indices");
+        indices.forEach(index -> {
+            List<String> privileges = (List<String>) index.get("privileges");
+            if (Arrays.equals(privileges.toArray(String[]::new), CrossClusterApiKeyRoleDescriptorBuilder.CCS_INDICES_PRIVILEGE_NAMES)) {
+                index.put("query", "{\"match_all\": {}}");
+                index.put("privileges", List.of("read", "read_cross_cluster", "view_index_metadata")); // ensure privs emulate pre 8.14
             }
-        }
-        var builder = XContentFactory.jsonBuilder();
+        });
+        crossCluster.put("cluster", List.of("cross_cluster_search", "cross_cluster_replication")); // ensure privs emulate pre 8.14
+        XContentBuilder builder = XContentFactory.jsonBuilder();
         builder.startObject();
-        builder.field(rd.getName(), (contentBuilder, params) -> rd.toXContent(contentBuilder, params, true));
+        builder.field("cross_cluster", crossCluster);
         builder.endObject();
         updateApiKey(crossClusterAccessApiKeyId, org.elasticsearch.common.Strings.toString(builder));
     }
 
-    // users can view them in the UI
-    private ApiKey getCrossClusterApiKeys(String id) throws IOException {
+    @SuppressWarnings("unchecked")
+    private Map<String, Object> getCrossClusterApiKeys(String id) throws IOException {
         final var request = new Request(HttpGet.METHOD_NAME, "/_security/api_key");
         request.addParameters(Map.of("id", id));
-        var getCrossClusterApiKeysResponse = GetApiKeyResponse.fromXContent(getParser(performRequestAgainstFulfillingCluster(request)));
-        assertThat(getCrossClusterApiKeysResponse.getApiKeyInfoList().size(), equalTo(1));
-        return getCrossClusterApiKeysResponse.getApiKeyInfoList().get(0).apiKeyInfo();
+
+        Response response = performRequestAgainstFulfillingCluster(request);
+        Map<String, Object> responseMap = entityAsMap(response);
+        List<Map<String, Object>> apiKeys = (List<Map<String, Object>>) responseMap.get("api_keys");
+        assertThat(apiKeys.size(), equalTo(1));
+        assertNotNull(ObjectPath.eval("role_descriptors.cross_cluster", apiKeys.get(0)));
+        return apiKeys.get(0);
     }
 
     @SuppressWarnings("unchecked")
@@ -337,8 +344,15 @@ public class RemoteClusterSecurityLegacyCrossClusterApiKeysWithDlsFlsIT extends 
         assertThat(responseMap.get("count"), equalTo(1));
         List<Map<String, Object>> apiKeys = (List<Map<String, Object>>) responseMap.get("api_keys");
         assertThat(apiKeys.size(), equalTo(1));
+        // assumes this method is only called after we manually update the API key doc with the DLS query
         String query = ObjectPath.eval("role_descriptors.cross_cluster.indices.0.query", apiKeys.get(0));
-        assertThat(query, equalTo("{\"match_all\": {}}"));
+        try {
+            assertThat(query, equalTo("{\"match_all\": {}}"));
+        } catch (AssertionError e) {
+            // it's ugly, but the query could be in the 0 or 1 position.
+            query = ObjectPath.eval("role_descriptors.cross_cluster.indices.1.query", apiKeys.get(0));
+            assertThat(query, equalTo("{\"match_all\": {}}"));
+        }
     }
 
     private static XContentParser getParser(Response response) throws IOException {

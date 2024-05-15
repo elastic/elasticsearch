@@ -1356,11 +1356,6 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
             return this.deniedFields;
         }
 
-        // TODO avoid this setter
-        public void setQuery(@Nullable BytesReference query) {
-            this.query = query;
-        }
-
         @Nullable
         public BytesReference getQuery() {
             return this.query;

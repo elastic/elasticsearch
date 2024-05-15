@@ -124,9 +124,9 @@ public class CrossClusterApiKeyRoleDescriptorBuilder {
             throw new IllegalArgumentException("remote cluster permissions must be empty");
         }
         final String[] clusterPrivileges = roleDescriptor.getClusterPrivileges();
-        if (false == Arrays.equals(clusterPrivileges, CCS_CLUSTER_PRIVILEGE_NAMES)
-            && false == Arrays.equals(clusterPrivileges, CCR_CLUSTER_PRIVILEGE_NAMES)
-            && false == Arrays.equals(clusterPrivileges, CCS_AND_CCR_CLUSTER_PRIVILEGE_NAMES)) {
+        // must contain either "cross_cluster_search" or "cross_cluster_replication" or both
+        if ((Arrays.asList(clusterPrivileges).contains("cross_cluster_search")
+            || Arrays.asList(clusterPrivileges).contains("cross_cluster_replication")) == false) {
             throw new IllegalArgumentException(
                 "invalid cluster privileges: [" + Strings.arrayToCommaDelimitedString(clusterPrivileges) + "]"
             );

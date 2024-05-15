@@ -143,9 +143,6 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 import static org.elasticsearch.xpack.core.ClientHelper.SECURITY_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
-import static org.elasticsearch.xpack.core.security.action.apikey.CrossClusterApiKeyRoleDescriptorBuilder.CCR_CLUSTER_PRIVILEGE_NAMES;
-import static org.elasticsearch.xpack.core.security.action.apikey.CrossClusterApiKeyRoleDescriptorBuilder.CCS_AND_CCR_CLUSTER_PRIVILEGE_NAMES;
-import static org.elasticsearch.xpack.core.security.action.apikey.CrossClusterApiKeyRoleDescriptorBuilder.CCS_CLUSTER_PRIVILEGE_NAMES;
 import static org.elasticsearch.xpack.core.security.authz.RoleDescriptor.WORKFLOWS_RESTRICTION_VERSION;
 import static org.elasticsearch.xpack.security.Security.SECURITY_CRYPTO_THREAD_POOL_NAME;
 import static org.elasticsearch.xpack.security.support.SecurityIndexManager.Availability.PRIMARY_SHARDS;
@@ -1418,21 +1415,23 @@ public class ApiKeyService {
                     assert apiKeyInfo.getType() == ApiKey.Type.CROSS_CLUSTER;
                     assert apiKeyInfo.getRoleDescriptors().size() == 1;
                     final String[] clusterPrivileges = apiKeyInfo.getRoleDescriptors().iterator().next().getClusterPrivileges();
-                    if (Arrays.equals(clusterPrivileges, CCS_CLUSTER_PRIVILEGE_NAMES)) {
+
+                    if (Arrays.asList(clusterPrivileges).contains("cross_cluster_search")) {
                         ccsKeys += 1;
-                    } else if (Arrays.equals(clusterPrivileges, CCR_CLUSTER_PRIVILEGE_NAMES)) {
+                    } else if (Arrays.asList(clusterPrivileges).contains("cross_cluster_replication")) {
                         ccrKeys += 1;
-                    } else if (Arrays.equals(clusterPrivileges, CCS_AND_CCR_CLUSTER_PRIVILEGE_NAMES)) {
-                        ccsCcrKeys += 1;
-                    } else {
-                        final String message = "invalid cluster privileges ["
-                            + Strings.arrayToCommaDelimitedString(clusterPrivileges)
-                            + "] for cross-cluster API key ["
-                            + apiKeyInfo.getId()
-                            + "]";
-                        assert false : message;
-                        listener.onFailure(new IllegalStateException(message));
-                    }
+                    } else if (Arrays.asList(clusterPrivileges).contains("cross_cluster_search")
+                        && Arrays.asList(clusterPrivileges).contains("cross_cluster_replication")) {
+                            ccsCcrKeys += 1;
+                        } else {
+                            final String message = "invalid cluster privileges ["
+                                + Strings.arrayToCommaDelimitedString(clusterPrivileges)
+                                + "] for cross-cluster API key ["
+                                + apiKeyInfo.getId()
+                                + "]";
+                            assert false : message;
+                            listener.onFailure(new IllegalStateException(message));
+                        }
                 }
                 listener.onResponse(Map.of("total", apiKeyInfos.size(), "ccs", ccsKeys, "ccr", ccrKeys, "ccs_ccr", ccsCcrKeys));
             }, listener::onFailure));

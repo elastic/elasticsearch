@@ -26,7 +26,7 @@ public class EsqlCapabilities {
      */
     private static final String FN_CBRT = "fn_cbrt";
 
-    static final Set<String> CAPABILITIES = capabilities();
+    public static final Set<String> CAPABILITIES = capabilities();
 
     private static Set<String> capabilities() {
         List<String> caps = new ArrayList<>(List.of(FN_CBRT));

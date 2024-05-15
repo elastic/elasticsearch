@@ -53,7 +53,7 @@ public class FilterOperatorTests extends OperatorTestCase {
 
     @Override
     protected Operator.OperatorFactory simple() {
-        return new FilterOperator.FilterOperatorFactory(dvrCtx -> new SameLastDigit(dvrCtx, 0, 1));
+        return new FilterOperator.FilterOperatorFactory((dvrCtx, collectWarnings) -> new SameLastDigit(dvrCtx, 0, 1));
     }
 
     @Override
@@ -100,7 +100,7 @@ public class FilterOperatorTests extends OperatorTestCase {
             new SequenceBooleanBlockSourceOperator(context.blockFactory(), List.of(true, false, true, false))
         );
         List<Page> results = drive(
-            new FilterOperator.FilterOperatorFactory(dvrCtx -> new EvalOperatorTests.LoadFromPage(0)).get(context),
+            new FilterOperator.FilterOperatorFactory((dvrCtx, collectWarnings) -> new EvalOperatorTests.LoadFromPage(0)).get(context),
             input.iterator(),
             context
         );

@@ -44,7 +44,7 @@ public class StringExtractOperatorTests extends OperatorTestCase {
         Supplier<Function<String, Map<String, String>>> expEval = () -> new FirstWord("test");
         return new StringExtractOperator.StringExtractOperatorFactory(
             new String[] { "test" },
-            dvrCtx -> new EvalOperator.ExpressionEvaluator() {
+            (dvrCtx, collectWarnings) -> new EvalOperator.ExpressionEvaluator() {
                 @Override
                 public Block eval(Page page) {
                     Block block = page.getBlock(0);

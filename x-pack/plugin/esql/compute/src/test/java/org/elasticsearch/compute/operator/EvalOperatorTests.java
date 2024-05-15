@@ -104,7 +104,11 @@ public class EvalOperatorTests extends OperatorTestCase {
     public void testReadFromBlock() {
         DriverContext context = driverContext();
         List<Page> input = CannedSourceOperator.collectPages(simpleInput(context.blockFactory(), 10));
-        List<Page> results = drive(new EvalOperatorFactory(dvrCtx -> new LoadFromPage(0)).get(context), input.iterator(), context);
+        List<Page> results = drive(
+            new EvalOperatorFactory((dvrCtx, collectWarnings) -> new LoadFromPage(0)).get(context),
+            input.iterator(),
+            context
+        );
         Set<Long> found = new TreeSet<>();
         for (var page : results) {
             LongBlock lb = page.getBlock(2);

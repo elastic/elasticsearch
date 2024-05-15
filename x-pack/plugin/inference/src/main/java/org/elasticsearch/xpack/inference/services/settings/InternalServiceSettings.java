@@ -41,7 +41,7 @@ public abstract class InternalServiceSettings implements ServiceSettings {
             );
         } else if (numAllocations < 1) {
             validationException.addValidationError(
-                ServiceUtils.mustBeAPositiveNumberErrorMessage(NUM_ALLOCATIONS, ModelConfigurations.SERVICE_SETTINGS, numAllocations)
+                ServiceUtils.mustBeAPositiveIntegerErrorMessage(NUM_ALLOCATIONS, ModelConfigurations.SERVICE_SETTINGS, numAllocations)
             );
         }
 
@@ -49,7 +49,7 @@ public abstract class InternalServiceSettings implements ServiceSettings {
             validationException.addValidationError(ServiceUtils.missingSettingErrorMsg(NUM_THREADS, ModelConfigurations.SERVICE_SETTINGS));
         } else if (numThreads < 1) {
             validationException.addValidationError(
-                ServiceUtils.mustBeAPositiveNumberErrorMessage(NUM_THREADS, ModelConfigurations.SERVICE_SETTINGS, numThreads)
+                ServiceUtils.mustBeAPositiveIntegerErrorMessage(NUM_THREADS, ModelConfigurations.SERVICE_SETTINGS, numThreads)
             );
         }
     }

@@ -29,7 +29,6 @@ import org.elasticsearch.xpack.ql.expression.Expressions;
 import org.elasticsearch.xpack.ql.expression.FieldAttribute;
 import org.elasticsearch.xpack.ql.expression.TypedAttribute;
 import org.elasticsearch.xpack.ql.expression.function.scalar.ScalarFunction;
-import org.elasticsearch.xpack.ql.expression.predicate.Range;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.BinaryComparison;
 import org.elasticsearch.xpack.ql.planner.ExpressionTranslator;
 import org.elasticsearch.xpack.ql.planner.ExpressionTranslators;
@@ -51,7 +50,6 @@ import java.math.BigInteger;
 import java.time.OffsetTime;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
-import java.time.temporal.TemporalAccessor;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
@@ -76,7 +74,7 @@ public final class EsqlExpressionTranslators {
         new SpatialRelatesTranslator(),
         // Ranges is redundant until we start combining binary comparisons (see CombineBinaryComparisons in ql's OptimizerRules)
         // or introduce a BETWEEN keyword.
-        new Ranges(),
+        new ExpressionTranslators.Ranges(),
         new ExpressionTranslators.BinaryLogic(),
         new ExpressionTranslators.IsNulls(),
         new ExpressionTranslators.IsNotNulls(),
@@ -419,55 +417,6 @@ public final class EsqlExpressionTranslators {
             } catch (IllegalArgumentException e) {
                 throw new QlIllegalArgumentException(e.getMessage(), e);
             }
-        }
-    }
-
-    public static class Ranges extends ExpressionTranslator<Range> {
-
-        @Override
-        protected Query asQuery(Range r, TranslatorHandler handler) {
-            return doTranslate(r, handler);
-        }
-
-        public static Query doTranslate(Range r, TranslatorHandler handler) {
-            return handler.wrapFunctionQuery(r, r.value(), () -> translate(r, handler));
-        }
-
-        private static RangeQuery translate(Range r, TranslatorHandler handler) {
-            Object lower = valueOf(r.lower());
-            Object upper = valueOf(r.upper());
-            String format = null;
-
-            // for a date constant comparison, we need to use a format for the date, to make sure that the format is the same
-            // no matter the timezone provided by the user
-            DateFormatter formatter = null;
-            if (lower instanceof ZonedDateTime || upper instanceof ZonedDateTime) {
-                formatter = DateFormatter.forPattern(DATE_FORMAT);
-            } else if (lower instanceof OffsetTime || upper instanceof OffsetTime) {
-                formatter = DateFormatter.forPattern(TIME_FORMAT);
-            }
-            if (formatter != null) {
-                // RangeQueryBuilder accepts an Object as its parameter, but it will call .toString() on the ZonedDateTime
-                // instance which can have a slightly different format depending on the ZoneId used to create the ZonedDateTime
-                // Since RangeQueryBuilder can handle date as String as well, we'll format it as String and provide the format.
-                if (lower instanceof ZonedDateTime || lower instanceof OffsetTime) {
-                    lower = formatter.format((TemporalAccessor) lower);
-                }
-                if (upper instanceof ZonedDateTime || upper instanceof OffsetTime) {
-                    upper = formatter.format((TemporalAccessor) upper);
-                }
-                format = formatter.pattern();
-            }
-            return new RangeQuery(
-                r.source(),
-                handler.nameOf(r.value()),
-                lower,
-                r.includeLower(),
-                upper,
-                r.includeUpper(),
-                format,
-                r.zoneId()
-            );
         }
     }
 

@@ -102,6 +102,7 @@ enum Database {
             Property.ISP_ORGANIZATION_NAME,
             Property.MOBILE_COUNTRY_CODE,
             Property.MOBILE_NETWORK_CODE,
+            Property.USER_TYPE,
             Property.CONNECTION_TYPE
         ),
         Set.of(
@@ -254,7 +255,8 @@ enum Database {
         ISP_ORGANIZATION_NAME,
         MOBILE_COUNTRY_CODE,
         MOBILE_NETWORK_CODE,
-        CONNECTION_TYPE;
+        CONNECTION_TYPE,
+        USER_TYPE;
 
         /**
          * Parses a string representation of a property into an actual Property instance. Not all properties that exist are

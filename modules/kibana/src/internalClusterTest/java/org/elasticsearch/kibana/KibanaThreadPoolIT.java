@@ -47,7 +47,10 @@ import static org.hamcrest.Matchers.startsWith;
  * threads that wait on a phaser. This lets us verify that operations on system indices
  * are being directed to other thread pools.</p>
  */
-@TestLogging(reason = "investigate", value = "org.elasticsearch.kibana.KibanaThreadPoolIT:DEBUG")
+@TestLogging(
+    reason = "investigate",
+    value = "org.elasticsearch.kibana.KibanaThreadPoolIT:DEBUG,org.elasticsearch.common.util.concurrent.EsThreadPoolExecutor:TRACE"
+)
 public class KibanaThreadPoolIT extends ESIntegTestCase {
     private static final Logger logger = LogManager.getLogger(KibanaThreadPoolIT.class);
 

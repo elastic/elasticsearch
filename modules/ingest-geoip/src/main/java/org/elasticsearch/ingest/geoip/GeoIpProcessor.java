@@ -463,6 +463,8 @@ public final class GeoIpProcessor extends AbstractProcessor {
         boolean isPublicProxy = response.getTraits().isPublicProxy();
         boolean isResidentialProxy = response.getTraits().isResidentialProxy();
 
+        String userType = response.getTraits().getUserType();
+
         String domain = response.getTraits().getDomain();
 
         ConnectionType connectionType = response.getTraits().getConnectionType();
@@ -583,6 +585,11 @@ public final class GeoIpProcessor extends AbstractProcessor {
                 case MOBILE_NETWORK_CODE -> {
                     if (mobileNetworkCode != null) {
                         geoData.put("mobile_network_code", mobileNetworkCode);
+                    }
+                }
+                case USER_TYPE -> {
+                    if (userType != null) {
+                        geoData.put("user_type", userType);
                     }
                 }
                 case CONNECTION_TYPE -> {

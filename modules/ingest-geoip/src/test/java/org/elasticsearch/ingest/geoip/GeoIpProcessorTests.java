@@ -387,7 +387,7 @@ public class GeoIpProcessorTests extends ESTestCase {
         assertThat(ingestDocument.getSourceAndMetadata().get("source_field"), equalTo(ip));
         @SuppressWarnings("unchecked")
         Map<String, Object> geoData = (Map<String, Object>) ingestDocument.getSourceAndMetadata().get("target_field");
-        assertThat(geoData.size(), equalTo(19));
+        assertThat(geoData.size(), equalTo(21));
         assertThat(geoData.get("ip"), equalTo(ip));
         assertThat(geoData.get("country_iso_code"), equalTo("US"));
         assertThat(geoData.get("country_name"), equalTo("United States"));
@@ -410,6 +410,42 @@ public class GeoIpProcessorTests extends ESTestCase {
         assertThat(geoData.get("public_proxy"), equalTo(false));
         assertThat(geoData.get("residential_proxy"), equalTo(false));
         assertThat(geoData.get("domain"), equalTo("frpt.net"));
+        assertThat(geoData.get("isp"), equalTo("Fairpoint Communications"));
+        assertThat(geoData.get("isp_organization"), equalTo("Fairpoint Communications"));
+    }
+
+    public void testIsp() throws Exception {
+        String ip = "149.101.100.1";
+        GeoIpProcessor processor = new GeoIpProcessor(
+            randomAlphaOfLength(10),
+            null,
+            "source_field",
+            loader("/GeoIP2-ISP-Test.mmdb"),
+            () -> true,
+            "target_field",
+            ALL_PROPERTIES,
+            false,
+            false,
+            "filename"
+        );
+
+        Map<String, Object> document = new HashMap<>();
+        document.put("source_field", ip);
+        IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), document);
+        processor.execute(ingestDocument);
+
+        assertThat(ingestDocument.getSourceAndMetadata().get("source_field"), equalTo(ip));
+        @SuppressWarnings("unchecked")
+        Map<String, Object> geoData = (Map<String, Object>) ingestDocument.getSourceAndMetadata().get("target_field");
+        assertThat(geoData.size(), equalTo(8));
+        assertThat(geoData.get("ip"), equalTo(ip));
+        assertThat(geoData.get("asn"), equalTo(6167L));
+        assertThat(geoData.get("organization_name"), equalTo("CELLCO-PART"));
+        assertThat(geoData.get("network"), equalTo("149.101.100.0/28"));
+        assertThat(geoData.get("isp"), equalTo("Verizon Wireless"));
+        assertThat(geoData.get("isp_organization"), equalTo("Verizon Wireless"));
+        assertThat(geoData.get("mobile_network_code"), equalTo("004"));
+        assertThat(geoData.get("mobile_country_code"), equalTo("310"));
     }
 
     public void testAddressIsNotInTheDatabase() throws Exception {

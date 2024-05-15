@@ -7,16 +7,15 @@
 
 Often users will input `datetime`, `ip`, `version`, or geospatial objects as simple strings in their queries for use in predicates, functions, or expressions. {esql} provides <<esql-type-conversion-functions, type conversion functions>> to explicitly convert these strings into the desired data types.
 
-Without implicit casting, users must explicitly code these `to_X` functions in their queries when string literals do not match the target data types to which they are assigned or compared. Here is an example of using `to_datetime` to explicitly perform a data type conversion.
+Without implicit casting users must explicitly code these `to_X` functions in their queries, when string literals don't match the target data types they are assigned or compared to. Here is an example of using `to_datetime` to explicitly perform a data type conversion.
 
 [source.merge.styled,esql]
 ----
-from employees
-| eval dd_ns1=date_diff("day", to_datetime("2023-12-02T11:00:00.00Z"), birth_date)
-| sort emp_no
-| keep dd_ns1
-| limit 1
-;
+FROM employees
+| EVAL dd_ns1=date_diff("day", to_datetime("2023-12-02T11:00:00.00Z"), birth_date)
+| SORT emp_no
+| KEEP dd_ns1
+| LIMIT 1
 ----
 
 Implicit casting improves usability, by automatically converting string literals to the target data type. This is most useful when the target data type is `datetime`, `ip`, `version` or a geo spatial. It is natural to specify these as a string in queries.
@@ -25,12 +24,11 @@ The first query can be coded without calling the `to_datetime` function, as foll
 
 [source.merge.styled,esql]
 ----
-from employees
-| eval dd_ns1=date_diff("day", "2023-12-02T11:00:00.00Z", birth_date)
-| sort emp_no
-| keep dd_ns1
-| limit 1
-;
+FROM employees
+| EVAL dd_ns1=date_diff("day", "2023-12-02T11:00:00.00Z", birth_date)
+| SORT emp_no
+| KEEP dd_ns1
+| LIMIT 1
 ----
 
 [float]

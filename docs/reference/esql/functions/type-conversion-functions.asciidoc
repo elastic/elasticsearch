@@ -7,7 +7,7 @@
 
 [TIP]
 ====
-{esql} supports implicit casting from string literals into the desired data types <<esql-implicit-casting>>.
+{esql} supports implicit casting from string literals to certain data types. Refer to <<esql-implicit-casting,implicit casting>> for details.
 ====
 
 {esql} supports these type conversion functions:

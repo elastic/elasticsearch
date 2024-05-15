@@ -1,0 +1,6 @@
+pr: 108648
+summary: Disallow non-file characters in pipeline names
+area: Ingest Node
+type: bug
+issues:
+ - 104411

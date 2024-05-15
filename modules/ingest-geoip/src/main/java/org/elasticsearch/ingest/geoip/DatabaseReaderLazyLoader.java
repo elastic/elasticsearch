@@ -16,6 +16,7 @@ import com.maxmind.geoip2.model.AnonymousIpResponse;
 import com.maxmind.geoip2.model.AsnResponse;
 import com.maxmind.geoip2.model.CityResponse;
 import com.maxmind.geoip2.model.CountryResponse;
+import com.maxmind.geoip2.model.DomainResponse;
 import com.maxmind.geoip2.model.EnterpriseResponse;
 
 import org.apache.logging.log4j.LogManager;
@@ -175,6 +176,12 @@ class DatabaseReaderLazyLoader implements GeoIpDatabase, Closeable {
     @Override
     public AnonymousIpResponse getAnonymousIp(InetAddress ipAddress) {
         return getResponse(ipAddress, DatabaseReader::tryAnonymousIp);
+    }
+
+    @Nullable
+    @Override
+    public DomainResponse getDomain(InetAddress ipAddress) {
+        return getResponse(ipAddress, DatabaseReader::tryDomain);
     }
 
     @Nullable

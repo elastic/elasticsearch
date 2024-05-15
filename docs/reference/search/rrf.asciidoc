@@ -586,7 +586,7 @@ This however is not available for retrievers yet, so it is only supported for RR
 and for top-level `query` and `knn` elements for now. Using named queries allows for easier and more intuitive understanding of the RRF score computation,
 especially when dealing with multiple queries. So, for the equivalent of the above example, we would now have:
 
-[source,console]
+[source,js]
 ----
 GET example-index/_search
 {

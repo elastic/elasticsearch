@@ -77,6 +77,17 @@ public class InferenceProcessorInfoExtractorTests extends ESTestCase {
         assertThat(actualModelIds, equalTo(expectedModelIds));
     }
 
+    public void testGetModelIdsFromInferenceProcessorsWhenNull() throws IOException {
+
+        Set<String> expectedModelIds = new HashSet<>(Arrays.asList());
+
+        ClusterState clusterState = buildClusterStateWithModelReferences(0);
+        IngestMetadata ingestMetadata = clusterState.metadata().custom(IngestMetadata.TYPE);
+        Set<String> actualModelIds = InferenceProcessorInfoExtractor.getModelIdsFromInferenceProcessors(ingestMetadata);
+
+        assertThat(actualModelIds, equalTo(expectedModelIds));
+    }
+
     public void testNumInferenceProcessors() throws IOException {
         assertThat(InferenceProcessorInfoExtractor.countInferenceProcessors(buildClusterState(null)), equalTo(0));
         assertThat(InferenceProcessorInfoExtractor.countInferenceProcessors(buildClusterState(Metadata.EMPTY_METADATA)), equalTo(0));

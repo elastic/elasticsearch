@@ -11,32 +11,33 @@ package org.elasticsearch.action.bulk;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.support.replication.PostWriteRefresh;
 import org.elasticsearch.action.support.replication.TransportReplicationAction;
 import org.elasticsearch.action.update.UpdateHelper;
+import org.elasticsearch.cluster.action.shard.ShardStateAction;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.shard.IndexShard;
-import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.indices.ExecutorSelector;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.plugins.internal.DocumentParsingProvider;
-import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
+
+import java.io.IOException;
 
 /*
  * This is the simulate ingest equivalent to TransportShardBulkAction. It only simulates indexing -- no writes are made to shards, and no
  * refresh is performed.
  */
-public class TransportSimulateShardBulkAction extends TransportAction<BulkShardRequest, BulkShardResponse> {
+public class TransportSimulateShardBulkAction extends TransportReplicationAction<BulkShardRequest, BulkShardRequest, BulkShardResponse> {
 
     public static final String ACTION_NAME = SimulateBulkAction.NAME + "[s]";
     public static final ActionType<BulkShardResponse> TYPE = new ActionType<>(ACTION_NAME);
@@ -44,9 +45,6 @@ public class TransportSimulateShardBulkAction extends TransportAction<BulkShardR
     private final UpdateHelper updateHelper;
     private final DocumentParsingProvider documentParsingProvider;
     private final ExecutorSelector executorSelector;
-    private final ThreadPool threadPool;
-    private final ClusterService clusterService;
-    private final IndicesService indicesService;
     private final PostWriteRefresh postWriteRefresh;
 
     @Inject
@@ -55,16 +53,28 @@ public class TransportSimulateShardBulkAction extends TransportAction<BulkShardR
         ClusterService clusterService,
         IndicesService indicesService,
         ThreadPool threadPool,
+        ShardStateAction shardStateAction,
         UpdateHelper updateHelper,
         ActionFilters actionFilters,
         SystemIndices systemIndices,
         DocumentParsingProvider documentParsingProvider
     ) {
-        super(ACTION_NAME, actionFilters, transportService.getTaskManager());
+        super(
+            clusterService.getSettings(),
+            ACTION_NAME,
+            transportService,
+            clusterService,
+            indicesService,
+            threadPool,
+            shardStateAction,
+            actionFilters,
+            BulkShardRequest::new,
+            BulkShardRequest::new,
+            EsExecutors.DIRECT_EXECUTOR_SERVICE,
+            false,
+            true
+        );
         this.executorSelector = systemIndices.getExecutorSelector();
-        this.threadPool = threadPool;
-        this.clusterService = clusterService;
-        this.indicesService = indicesService;
         this.postWriteRefresh = new PostWriteRefresh(transportService) {
             public void refreshShard(
                 WriteRequest.RefreshPolicy policy,
@@ -81,29 +91,20 @@ public class TransportSimulateShardBulkAction extends TransportAction<BulkShardR
     }
 
     @Override
-    protected void doExecute(Task task, BulkShardRequest request, ActionListener<BulkShardResponse> listener) {
-        IndexShard primary = getPrimaryIndexShard(request);
-        ActionListener<TransportReplicationAction.PrimaryResult<BulkShardRequest, BulkShardResponse>> primaryResultListener =
-            new ActionListener<>() {
-                @Override
-                public void onResponse(
-                    TransportReplicationAction.PrimaryResult<
-                        BulkShardRequest,
-                        BulkShardResponse> bulkShardRequestBulkShardResponsePrimaryResult
-                ) {
-                    listener.onResponse(bulkShardRequestBulkShardResponsePrimaryResult.replicationResponse);
-                }
+    protected BulkShardResponse newResponseInstance(StreamInput in) throws IOException {
+        return new BulkShardResponse(in);
+    }
 
-                @Override
-                public void onFailure(Exception e) {
-                    listener.onFailure(e);
-                }
-            };
-
+    @Override
+    protected void shardOperationOnPrimary(
+        BulkShardRequest request,
+        IndexShard primary,
+        ActionListener<PrimaryResult<BulkShardRequest, BulkShardResponse>> listener
+    ) {
         TransportShardBulkAction.dispatchedShardOperationOnPrimary(
             request,
             primary,
-            primaryResultListener,
+            listener,
             clusterService,
             threadPool,
             updateHelper,
@@ -116,9 +117,8 @@ public class TransportSimulateShardBulkAction extends TransportAction<BulkShardR
         );
     }
 
-    private IndexShard getPrimaryIndexShard(BulkShardRequest request) {
-        ShardId shardId = clusterService.state().getRoutingTable().shardRoutingTable(request.shardId()).primaryShard().shardId();
-        IndexService indexService = indicesService.indexServiceSafe(shardId.getIndex());
-        return indexService.getShard(shardId.id());
+    @Override
+    protected void shardOperationOnReplica(BulkShardRequest request, IndexShard replica, ActionListener<ReplicaResult> listener) {
+        // We don't need to do anything on replicas since this is just a simulation
     }
 }

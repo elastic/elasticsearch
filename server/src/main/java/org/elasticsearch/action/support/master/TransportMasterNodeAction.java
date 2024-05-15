@@ -27,6 +27,7 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.MasterService;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.TimeValue;
@@ -38,12 +39,17 @@ import org.elasticsearch.reservedstate.ActionWithReservedState;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskCancelledException;
+import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.ConnectTransportException;
 import org.elasticsearch.transport.RemoteTransportException;
 import org.elasticsearch.transport.TransportException;
+import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportService;
 
+import java.io.IOException;
+import java.net.InetSocketAddress;
+import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.Executor;
 import java.util.function.Predicate;
@@ -240,13 +246,20 @@ public abstract class TransportMasterNodeAction<Request extends MasterNodeReques
                     if (nodes.getMasterNode() == null) {
                         logger.debug("no known master node, scheduling a retry");
                         retryOnNextState(currentStateVersion, null);
+                    } else if (clusterState.term() < request.masterTerm()) {
+                        logger.debug(
+                            "request routed to master in term [{}] but local term is [{}], waiting for local term bump",
+                            request.masterTerm(),
+                            clusterState.term()
+                        );
+                        retry(currentStateVersion, null, cs -> request.masterTerm() <= cs.term());
                     } else {
                         DiscoveryNode masterNode = nodes.getMasterNode();
                         logger.trace("forwarding request [{}] to master [{}]", actionName, masterNode);
                         transportService.sendRequest(
                             masterNode,
                             actionName,
-                            request,
+                            new TermOverridingMasterNodeRequest(request, clusterState.term()),
                             new ActionListenerResponseHandler<>(listener, responseReader, executor) {
                                 @Override
                                 public void handleException(final TransportException exp) {
@@ -342,6 +355,104 @@ public abstract class TransportMasterNodeAction<Request extends MasterNodeReques
         @Override
         public String toString() {
             return Strings.format("execution of [%s]", task);
+        }
+
+        /**
+         * Wrapper around a {@link MasterNodeRequest} for use when sending the request to another node, overriding the {@link
+         * MasterNodeRequest#masterTerm()} sent out over the wire.
+         */
+        private static class TermOverridingMasterNodeRequest extends TransportRequest {
+
+            private final MasterNodeRequest<?> request;
+            private final long newMasterTerm;
+
+            TermOverridingMasterNodeRequest(MasterNodeRequest<?> request, long newMasterTerm) {
+                assert request.masterTerm() <= newMasterTerm;
+                this.request = request;
+                this.newMasterTerm = newMasterTerm;
+            }
+
+            @Override
+            public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
+                return unsupported();
+            }
+
+            @Override
+            public String getDescription() {
+                return request.getDescription();
+            }
+
+            @Override
+            public void remoteAddress(InetSocketAddress remoteAddress) {
+                unsupported();
+            }
+
+            @Override
+            public InetSocketAddress remoteAddress() {
+                return unsupported();
+            }
+
+            @Override
+            public void incRef() {
+                request.incRef();
+            }
+
+            @Override
+            public boolean tryIncRef() {
+                return request.tryIncRef();
+            }
+
+            @Override
+            public boolean decRef() {
+                return request.decRef();
+            }
+
+            @Override
+            public boolean hasReferences() {
+                return request.hasReferences();
+            }
+
+            @Override
+            public void setParentTask(String parentTaskNode, long parentTaskId) {
+                unsupported();
+            }
+
+            @Override
+            public void setParentTask(TaskId taskId) {
+                unsupported();
+            }
+
+            @Override
+            public TaskId getParentTask() {
+                return request.getParentTask();
+            }
+
+            @Override
+            public void setRequestId(long requestId) {
+                request.setRequestId(requestId);
+            }
+
+            @Override
+            public long getRequestId() {
+                return request.getRequestId();
+            }
+
+            @Override
+            public void writeTo(StreamOutput out) throws IOException {
+                request.writeTo(out, newMasterTerm);
+            }
+
+            @Override
+            public String toString() {
+                return Strings.format("TermOverridingMasterNodeRequest[newMasterTerm={} in {}]", newMasterTerm, request);
+            }
+
+            private static <T> T unsupported() {
+                final var exception = new UnsupportedOperationException("TermOverridingMasterNodeRequest is only for outbound requests");
+                logger.error("TermOverridingMasterNodeRequest is only for outbound requests", exception);
+                assert false : exception;
+                throw exception;
+            }
         }
     }
 }

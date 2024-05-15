@@ -8,10 +8,13 @@
 
 package org.elasticsearch.action.support.master;
 
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -20,6 +23,8 @@ import java.util.Objects;
  * A based request for master based operation.
  */
 public abstract class MasterNodeRequest<Request extends MasterNodeRequest<Request>> extends ActionRequest {
+
+    private static final Logger logger = LogManager.getLogger(MasterNodeRequest.class);
 
     /**
      * The default timeout for master-node requests. It's super-trappy to have such a default, because it makes it all too easy to forget
@@ -42,6 +47,13 @@ public abstract class MasterNodeRequest<Request extends MasterNodeRequest<Reques
     private TimeValue masterNodeTimeout;
 
     /**
+     * The term of the cluster state version used to route this request to a different node, so that if two nodes disagree about which of
+     * them is the master then they don't just send these requests in a loop. {@code 0L} means this is the original request that hasn't been
+     * rerouted yet, or else it's a request received from an older version which doesn't have the routing loop protection.
+     */
+    private final long masterTerm;
+
+    /**
      * @param masterNodeTimeout Specifies how long to wait when the master has not been discovered yet, or is disconnected, or is busy
      *                          processing other tasks. The value {@link TimeValue#MINUS_ONE} means to wait forever in 8.15.0 onwards.
      *                          <p>
@@ -54,18 +66,35 @@ public abstract class MasterNodeRequest<Request extends MasterNodeRequest<Reques
      */
     protected MasterNodeRequest(TimeValue masterNodeTimeout) {
         this.masterNodeTimeout = Objects.requireNonNull(masterNodeTimeout);
+        this.masterTerm = 0L;
     }
 
     protected MasterNodeRequest(StreamInput in) throws IOException {
         super(in);
         masterNodeTimeout = in.readTimeValue();
+        if (in.getTransportVersion().onOrAfter(TransportVersions.VERSIONED_MASTER_NODE_REQUESTS)) {
+            masterTerm = in.readVLong();
+        } else {
+            masterTerm = 0L;
+        }
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
+        writeTo(out, masterTerm);
+    }
+
+    /**
+     * Serialize this request, but advance the {@code masterTerm} field on the wire.
+     */
+    void writeTo(StreamOutput out, long newMasterTerm) throws IOException {
         assert hasReferences();
+        assert masterTerm <= newMasterTerm : masterTerm + " vs " + newMasterTerm;
+        super.writeTo(out);
         out.writeTimeValue(masterNodeTimeout);
+        if (out.getTransportVersion().onOrAfter(TransportVersions.VERSIONED_MASTER_NODE_REQUESTS)) {
+            out.writeVLong(newMasterTerm);
+        } // else no protection against routing loops in older versions
     }
 
     /**
@@ -91,5 +120,13 @@ public abstract class MasterNodeRequest<Request extends MasterNodeRequest<Reques
      */
     public final TimeValue masterNodeTimeout() {
         return this.masterNodeTimeout;
+    }
+
+    /**
+     * @return the master term of the cluster state used to route this request, for protection against routing loops. May be {@code 0L} if
+     * this is the original request or it came from an older node that lacks routing loop protection
+     */
+    public final long masterTerm() {
+        return masterTerm;
     }
 }

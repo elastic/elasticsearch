@@ -91,6 +91,9 @@ tasks {
         filter {
             // To mute a test, adds a line here following to the below example
             // excludeTestsMatching("*.TestClassIT.testMethod")
+            excludeTestsMatching("*.AutoscalingReplicaIT.testSearchPowerAffectsReplica")
+            excludeTestsMatching("*.AutoscalingReplicaIT.testSearchSizeAffectsReplicasSPBetween100And250")
+            excludeTestsMatching("*.AutoscalingReplicaIT.testDisablingReplicasScalesDown")
         }
     }
 

@@ -36,6 +36,7 @@ import co.elastic.elasticsearch.stateless.autoscaling.memory.IndicesMappingSizeC
 import co.elastic.elasticsearch.stateless.autoscaling.memory.IndicesMappingSizePublisher;
 import co.elastic.elasticsearch.stateless.autoscaling.memory.MemoryMetricsService;
 import co.elastic.elasticsearch.stateless.autoscaling.memory.TransportPublishHeapMemoryMetrics;
+import co.elastic.elasticsearch.stateless.autoscaling.search.ReplicasUpdaterService;
 import co.elastic.elasticsearch.stateless.autoscaling.search.SearchMetricsService;
 import co.elastic.elasticsearch.stateless.autoscaling.search.SearchShardSizeCollector;
 import co.elastic.elasticsearch.stateless.autoscaling.search.ShardSizeCollector;
@@ -107,6 +108,7 @@ import org.elasticsearch.action.ActionType;
 import org.elasticsearch.blobcache.BlobCacheMetrics;
 import org.elasticsearch.blobcache.shared.SharedBlobCacheService;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.coordination.ElectionStrategy;
 import org.elasticsearch.cluster.coordination.LeaderHeartbeatService;
 import org.elasticsearch.cluster.coordination.PreVoteCollector;
@@ -527,6 +529,8 @@ public class Stateless extends Plugin
             memoryMetricsService
         );
         components.add(searchMetricsService);
+        var replicationUpdaterService = new ReplicasUpdaterService(threadPool, clusterService, (NodeClient) client, searchMetricsService);
+        components.add(replicationUpdaterService);
 
         recoveryCommitRegistrationHandler.set(new RecoveryCommitRegistrationHandler(client, clusterService));
 
@@ -771,6 +775,8 @@ public class Stateless extends Plugin
             AverageSearchLoadSampler.SEARCH_LOAD_SAMPLER_EWMA_ALPHA_SETTING,
             SearchMetricsService.ACCURATE_METRICS_WINDOW_SETTING,
             SearchMetricsService.STALE_METRICS_CHECK_INTERVAL_SETTING,
+            ReplicasUpdaterService.REPLICA_UPDATER_INTERVAL,
+            ReplicasUpdaterService.REPLICA_UPDATER_SCALEDOWN_REPETITIONS,
             SearchLoadProbe.MAX_TIME_TO_CLEAR_QUEUE,
             SearchLoadProbe.MAX_QUEUE_CONTRIBUTION_FACTOR,
             StatelessCommitService.SHARD_INACTIVITY_DURATION_TIME_SETTING,

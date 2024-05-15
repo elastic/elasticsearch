@@ -35,15 +35,15 @@ import static co.elastic.elasticsearch.stateless.autoscaling.search.IndexReplica
 public class IndexReplicationRankerTests extends ESTestCase {
 
     IndexRankingProperties createSystemIndex(long interactiveSize, long recency) {
-        return new IndexRankingProperties(new IndexProperties(randomAlphaOfLength(8), 1, 0, true, false, recency), interactiveSize);
+        return new IndexRankingProperties(new IndexProperties(randomAlphaOfLength(8), 1, 0, true, false, false, recency), interactiveSize);
     }
 
     IndexRankingProperties createRegularIndex(long interactiveSize, long recency) {
-        return new IndexRankingProperties(new IndexProperties(randomAlphaOfLength(8), 1, 0, false, false, recency), interactiveSize);
+        return new IndexRankingProperties(new IndexProperties(randomAlphaOfLength(8), 1, 0, false, false, false, recency), interactiveSize);
     }
 
     IndexRankingProperties createDataStream(long interactiveSize, long recency) {
-        return new IndexRankingProperties(new IndexProperties(randomAlphaOfLength(8), 1, 0, false, true, recency), interactiveSize);
+        return new IndexRankingProperties(new IndexProperties(randomAlphaOfLength(8), 1, 0, false, false, true, recency), interactiveSize);
     }
 
     public void testRankedIndexComparator() {

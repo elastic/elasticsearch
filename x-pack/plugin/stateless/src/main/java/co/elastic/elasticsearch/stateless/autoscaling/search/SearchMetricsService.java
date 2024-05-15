@@ -179,6 +179,7 @@ public class SearchMetricsService implements ClusterStateListener {
                             metadata.getNumberOfShards(),
                             shardCopies,
                             metadata.isSystem(),
+                            metadata.getAutoExpandReplicas().enabled(),
                             indexAbstraction.getParentDataStream() != null,
                             indexRecency
                         )
@@ -328,7 +329,7 @@ public class SearchMetricsService implements ClusterStateListener {
         }
     }
 
-    class ShardMetrics {
+    static class ShardMetrics {
         private NodeTimingForShardMetrics sourceNode = null;
         ShardSize shardSize = ZERO_SHARD_SIZE;
 
@@ -389,7 +390,15 @@ public class SearchMetricsService implements ClusterStateListener {
         return relativeTimeInNanosSupplier.getAsLong();
     }
 
-    record IndexProperties(String name, int shards, int replicas, boolean isSystem, boolean isDataStream, long recency) {}
+    record IndexProperties(
+        String name,
+        int shards,
+        int replicas,
+        boolean isSystem,
+        boolean isAutoExpandReplicas,
+        boolean isDataStream,
+        long recency
+    ) {}
 
     private static boolean hasZeroReplicas(Index index, ClusterState state) {
         return getNumberOfReplicas(state.metadata().index(index)) == 0;

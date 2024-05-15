@@ -20,6 +20,7 @@ import org.elasticsearch.cluster.metadata.MetadataDataStreamsService;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
@@ -62,7 +63,8 @@ public final class LazyRolloverAction extends ActionType<RolloverResponse> {
             AllocationService allocationService,
             MetadataDataStreamsService metadataDataStreamsService,
             DataStreamAutoShardingService dataStreamAutoShardingService,
-            Client client
+            Client client,
+            FeatureService featureService
         ) {
             super(
                 LazyRolloverAction.INSTANCE,
@@ -75,7 +77,8 @@ public final class LazyRolloverAction extends ActionType<RolloverResponse> {
                 client,
                 allocationService,
                 metadataDataStreamsService,
-                dataStreamAutoShardingService
+                dataStreamAutoShardingService,
+                featureService
             );
         }
 

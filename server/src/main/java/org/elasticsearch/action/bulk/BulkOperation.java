@@ -40,6 +40,7 @@ import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.shard.ShardId;
@@ -89,6 +90,7 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
     private final IndexNameExpressionResolver indexNameExpressionResolver;
     private final NodeClient client;
     private final OriginSettingClient rolloverClient;
+    private final FeatureService featureService;
     private final Set<String> failureStoresToBeRolledOver = ConcurrentCollections.newConcurrentSet();
     private final Set<Integer> failedRolloverRequests = ConcurrentCollections.newConcurrentSet();
 
@@ -104,7 +106,8 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
         IndexNameExpressionResolver indexNameExpressionResolver,
         LongSupplier relativeTimeProvider,
         long startTimeNanos,
-        ActionListener<BulkResponse> listener
+        ActionListener<BulkResponse> listener,
+        FeatureService featureService
     ) {
         this(
             task,
@@ -120,7 +123,8 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
             startTimeNanos,
             listener,
             new ClusterStateObserver(clusterService, bulkRequest.timeout(), logger, threadPool.getThreadContext()),
-            new FailureStoreDocumentConverter()
+            new FailureStoreDocumentConverter(),
+            featureService
         );
     }
 
@@ -138,7 +142,8 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
         long startTimeNanos,
         ActionListener<BulkResponse> listener,
         ClusterStateObserver observer,
-        FailureStoreDocumentConverter failureStoreDocumentConverter
+        FailureStoreDocumentConverter failureStoreDocumentConverter,
+        FeatureService featureService
     ) {
         super(listener);
         this.task = task;
@@ -156,6 +161,7 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
         this.observer = observer;
         this.failureStoreDocumentConverter = failureStoreDocumentConverter;
         this.rolloverClient = new OriginSettingClient(client, LAZY_ROLLOVER_ORIGIN);
+        this.featureService = featureService;
     }
 
     @Override
@@ -180,13 +186,13 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
         )) {
             return;
         }
-        Runnable runnable = () -> {
+        Runnable executeRedirectRequests = () -> {
             // Get new cluster state that includes any potential failure store rollovers.
             var rolledOverState = observer.setAndGetObservedState();
             Map<ShardId, List<BulkItemRequest>> requestsByShard = drainAndGroupRedirectsByShards(rolledOverState);
             executeBulkRequestsByShard(requestsByShard, rolledOverState, this::completeBulkOperation);
         };
-        rollOverFailureStores(runnable);
+        rollOverFailureStores(clusterState, executeRedirectRequests);
     }
 
     /**
@@ -194,15 +200,16 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
      * Any failures while rolling over will be added to the {@link BulkItemResponse} entries of the index requests that were redirected to
      * the failure store that failed to roll over.
      */
-    private void rollOverFailureStores(Runnable runnable) {
+    private void rollOverFailureStores(ClusterState clusterState, Runnable runnable) {
         // Skip allocation of some objects if we don't need to roll over anything.
-        if (failureStoresToBeRolledOver.isEmpty()) {
+        if (failureStoresToBeRolledOver.isEmpty()
+            || featureService.clusterHasFeature(clusterState, LazyRolloverAction.FAILURE_STORE_LAZY_ROLLOVER)) {
             runnable.run();
             return;
         }
         try (RefCountingRunnable refs = new RefCountingRunnable(runnable)) {
-            for (String failureStore : failureStoresToBeRolledOver) {
-                RolloverRequest rolloverRequest = new RolloverRequest(failureStore, null);
+            for (String dataStream : failureStoresToBeRolledOver) {
+                RolloverRequest rolloverRequest = new RolloverRequest(dataStream, null);
                 rolloverRequest.setIndicesOptions(
                     IndicesOptions.builder(rolloverRequest.indicesOptions())
                         .failureStoreOptions(new IndicesOptions.FailureStoreOptions(false, true))
@@ -226,7 +233,7 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
                     public void onFailure(Exception e) {
                         for (BulkItemRequest failureStoreRedirect : failureStoreRedirects) {
                             // Both these values are the name of the _data stream_ that the failure store belongs to.
-                            if (failureStoreRedirect.index().equals(failureStore) == false) {
+                            if (failureStoreRedirect.index().equals(dataStream) == false) {
                                 continue;
                             }
                             addFailure(failureStoreRedirect.request(), failureStoreRedirect.id(), failureStoreRedirect.index(), e);
@@ -443,7 +450,7 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
 
                         DataStream failureStoreReference = getRedirectTarget(bulkItemRequest.request(), getClusterState().metadata());
                         if (failureStoreReference != null) {
-                            checkFailureStoreLazyRollover(failureStoreReference);
+                            maybeMarkFailureStoreForRollover(failureStoreReference);
                             var cause = bulkItemResponse.getFailure().getCause();
                             addDocumentToRedirectRequests(bulkItemRequest, cause, failureStoreReference.getName());
                         }
@@ -465,7 +472,7 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
 
                     DataStream failureStoreReference = getRedirectTarget(docWriteRequest, getClusterState().metadata());
                     if (failureStoreReference != null) {
-                        checkFailureStoreLazyRollover(failureStoreReference);
+                        maybeMarkFailureStoreForRollover(failureStoreReference);
                         addDocumentToRedirectRequests(request, e, failureStoreReference.getName());
                     }
                     addFailure(docWriteRequest, request.id(), indexName, e);
@@ -564,7 +571,7 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
      * Check whether the failure store of the given data stream is marked for lazy rollover.
      * If so, we'll need to roll it over before we index the failed documents into the failure store.
      */
-    private void checkFailureStoreLazyRollover(DataStream dataStream) {
+    private void maybeMarkFailureStoreForRollover(DataStream dataStream) {
         if (dataStream.getFailureIndices().isRolloverOnWrite() == false) {
             return;
         }

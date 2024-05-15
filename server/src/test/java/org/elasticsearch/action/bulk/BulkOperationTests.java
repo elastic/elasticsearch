@@ -41,6 +41,9 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.features.FeatureService;
+import org.elasticsearch.features.FeatureSpecification;
+import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.MapperException;
@@ -60,6 +63,7 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
@@ -1150,6 +1154,13 @@ public class BulkOperationTests extends ESTestCase {
         when(clusterService.state()).thenReturn(state);
         when(clusterService.localNode()).thenReturn(mockNode);
 
+        var featureService = new FeatureService(List.of(new FeatureSpecification() {
+            @Override
+            public Set<NodeFeature> getFeatures() {
+                return Set.of(LazyRolloverAction.FAILURE_STORE_LAZY_ROLLOVER);
+            }
+        }));
+
         return new BulkOperation(
             null,
             threadPool,
@@ -1164,7 +1175,8 @@ public class BulkOperationTests extends ESTestCase {
             timeZero,
             listener,
             observer,
-            failureStoreDocumentConverter
+            failureStoreDocumentConverter,
+            featureService
         );
     }
 

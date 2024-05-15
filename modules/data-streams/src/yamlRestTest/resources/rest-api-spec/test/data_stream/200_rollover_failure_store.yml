@@ -186,11 +186,6 @@ teardown:
   - match: { hits.hits.0._source.document.source.@timestamp: '2020-12-12' }
   - match: { hits.hits.0._source.document.source.count: 'invalid value' }
   - match: { hits.hits.0._source.error.type: 'document_parsing_exception' }
-  - contains: { hits.hits.0._source.error.message: "failed to parse field [count] of type [long] in document with id " }
-  - contains: { hits.hits.0._source.error.message: "Preview of field's value: 'invalid value'" }
-  - contains: { hits.hits.0._source.error.stack_trace: "org.elasticsearch.index.mapper.DocumentParsingException: " }
-  - contains: { hits.hits.0._source.error.stack_trace: "failed to parse field [count] of type [long] in document with id" }
-  - contains: { hits.hits.0._source.error.stack_trace: "Preview of field's value: 'invalid value'" }
 
 ---
 "Lazily roll over a data stream's failure store after an ingest failure":

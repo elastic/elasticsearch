@@ -352,7 +352,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
         Map<String, Boolean> indicesToAutoCreate = new HashMap<>();
         Set<String> dataStreamsToBeRolledOver = new HashSet<>();
         Set<String> failureStoresToBeRolledOver = new HashSet<>();
-        determineMissingTargets(bulkRequest, indicesToAutoCreate, dataStreamsToBeRolledOver, failureStoresToBeRolledOver);
+        populateMissingTargets(bulkRequest, indicesToAutoCreate, dataStreamsToBeRolledOver, failureStoresToBeRolledOver);
 
         createMissingIndicesAndIndexData(
             task,
@@ -366,7 +366,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
         );
     }
 
-    private void determineMissingTargets(
+    private void populateMissingTargets(
         BulkRequest bulkRequest,
         Map<String, Boolean> indicesToAutoCreate,
         Set<String> dataStreamsToBeRolledOver,
@@ -375,6 +375,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
         Map<String, Boolean> indexExistence = new HashMap<>();
         ClusterState state = clusterService.state();
         boolean lazyRolloverFeature = featureService.clusterHasFeature(state, LazyRolloverAction.DATA_STREAM_LAZY_ROLLOVER);
+        boolean lazyRolloverFailureStoreFeature = featureService.clusterHasFeature(state, LazyRolloverAction.FAILURE_STORE_LAZY_ROLLOVER);
 
         for (DocWriteRequest<?> request : bulkRequest.requests) {
             if (request.opType() == OpType.DELETE
@@ -400,9 +401,11 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                     var writeToFailureStore = request instanceof IndexRequest indexRequest && indexRequest.isWriteToFailureStore();
                     if (writeToFailureStore == false && dataStream.getBackingIndices().isRolloverOnWrite()) {
                         dataStreamsToBeRolledOver.add(request.index());
-                    } else if (writeToFailureStore && dataStream.getFailureIndices().isRolloverOnWrite()) {
-                        failureStoresToBeRolledOver.add(request.index());
-                    }
+                    } else if (lazyRolloverFailureStoreFeature
+                        && writeToFailureStore
+                        && dataStream.getFailureIndices().isRolloverOnWrite()) {
+                            failureStoresToBeRolledOver.add(request.index());
+                        }
                 }
             }
         }
@@ -481,7 +484,6 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
         for (String dataStream : dataStreamsToBeRolledOver) {
             RolloverRequest rolloverRequest = new RolloverRequest(dataStream, null);
             rolloverRequest.masterNodeTimeout(bulkRequest.timeout);
-            logger.info("hoi " + dataStream + " " + targetFailureStore);
             if (targetFailureStore) {
                 rolloverRequest.setIndicesOptions(
                     IndicesOptions.builder(rolloverRequest.indicesOptions())
@@ -667,7 +669,8 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
             indexNameExpressionResolver,
             relativeTimeProvider,
             startTimeNanos,
-            listener
+            listener,
+            featureService
         ).run();
     }
 

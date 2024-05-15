@@ -19,11 +19,10 @@ import org.elasticsearch.search.RescoreDocIds;
 import org.elasticsearch.search.dfs.AggregatedDfs;
 import org.elasticsearch.search.internal.ShardSearchContextId;
 import org.elasticsearch.search.internal.ShardSearchRequest;
-import org.elasticsearch.search.rank.RankDoc;
+import org.elasticsearch.search.rank.RankDocShardInfo;
 
 import java.io.IOException;
 import java.util.List;
-import java.util.Map;
 
 /**
  * Shard level fetch request used with search. Holds indices taken from the original search request
@@ -35,14 +34,14 @@ public class ShardFetchSearchRequest extends ShardFetchRequest implements Indice
     private final ShardSearchRequest shardSearchRequest;
     private final RescoreDocIds rescoreDocIds;
     private final AggregatedDfs aggregatedDfs;
-    private final Map<Integer, RankDoc> rankDocs;
+    private final RankDocShardInfo rankDocs;
 
     public ShardFetchSearchRequest(
         OriginalIndices originalIndices,
         ShardSearchContextId id,
         ShardSearchRequest shardSearchRequest,
         List<Integer> docIds,
-        Map<Integer, RankDoc> rankDocs,
+        RankDocShardInfo rankDocs,
         ScoreDoc lastEmittedDoc,
         RescoreDocIds rescoreDocIds,
         AggregatedDfs aggregatedDfs
@@ -62,14 +61,9 @@ public class ShardFetchSearchRequest extends ShardFetchRequest implements Indice
         rescoreDocIds = new RescoreDocIds(in);
         aggregatedDfs = in.readOptionalWriteable(AggregatedDfs::new);
         if (in.getTransportVersion().onOrAfter(TransportVersions.RANK_DOC_IN_SHARD_FETCH_REQUEST)) {
-            boolean hasShardDocs = in.readBoolean();
-            if (hasShardDocs) {
-                this.rankDocs = in.readMap(StreamInput::readVInt, v -> in.readNamedWriteable(RankDoc.class));
-            } else {
-                this.rankDocs = null;
-            }
+            this.rankDocs = in.readOptionalWriteable(RankDocShardInfo::new);
         } else {
-            rankDocs = null;
+            this.rankDocs = null;
         }
     }
 
@@ -81,12 +75,7 @@ public class ShardFetchSearchRequest extends ShardFetchRequest implements Indice
         rescoreDocIds.writeTo(out);
         out.writeOptionalWriteable(aggregatedDfs);
         if (out.getTransportVersion().onOrAfter(TransportVersions.RANK_DOC_IN_SHARD_FETCH_REQUEST)) {
-            if (rankDocs != null) {
-                out.writeBoolean(true);
-                out.writeMap(rankDocs, StreamOutput::writeVInt, StreamOutput::writeNamedWriteable);
-            } else {
-                out.writeBoolean(false);
-            }
+            out.writeOptionalWriteable(rankDocs);
         }
     }
 
@@ -122,7 +111,7 @@ public class ShardFetchSearchRequest extends ShardFetchRequest implements Indice
     }
 
     @Override
-    public Map<Integer, RankDoc> getRankDocks() {
+    public RankDocShardInfo getRankDocks() {
         return this.rankDocs;
     }
 }

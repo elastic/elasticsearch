@@ -19,6 +19,7 @@ import org.elasticsearch.search.fetch.ShardFetchSearchRequest;
 import org.elasticsearch.search.internal.ShardSearchContextId;
 import org.elasticsearch.search.query.QuerySearchResult;
 import org.elasticsearch.search.rank.RankDoc;
+import org.elasticsearch.search.rank.RankDocShardInfo;
 import org.elasticsearch.transport.Transport;
 
 import java.util.ArrayList;
@@ -138,9 +139,9 @@ final class FetchSearchPhase extends SearchPhase {
                 );
                 for (int i = 0; i < docIdsToLoad.length; i++) {
                     List<Integer> entry = docIdsToLoad[i];
-                    Map<Integer, RankDoc> rankDocs = rankDocsPerShard == null || rankDocsPerShard.get(i).isEmpty()
+                    RankDocShardInfo rankDocs = rankDocsPerShard == null || rankDocsPerShard.get(i).isEmpty()
                         ? null
-                        : rankDocsPerShard.get(i);
+                        : new RankDocShardInfo(rankDocsPerShard.get(i));
                     SearchPhaseResult queryResult = queryResults.get(i);
                     if (entry == null) { // no results for this shard ID
                         if (queryResult != null) {
@@ -192,7 +193,7 @@ final class FetchSearchPhase extends SearchPhase {
         SearchPhaseResult queryResult,
         final CountedCollector<FetchSearchResult> counter,
         final List<Integer> entry,
-        final Map<Integer, RankDoc> rankDocs,
+        final RankDocShardInfo rankDocs,
         ScoreDoc lastEmittedDocForShard
     ) {
         final SearchShardTarget shardTarget = queryResult.getSearchShardTarget();

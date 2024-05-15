@@ -113,6 +113,8 @@ public class RepositoriesServiceTests extends ESTestCase {
             TestRepository::new,
             UnstableRepository.TYPE,
             UnstableRepository::new,
+            VerificationFailRepository.TYPE,
+            VerificationFailRepository::new,
             MeteredRepositoryTypeA.TYPE,
             metadata -> new MeteredRepositoryTypeA(metadata, clusterService),
             MeteredRepositoryTypeB.TYPE,
@@ -179,6 +181,26 @@ public class RepositoriesServiceTests extends ESTestCase {
         for (char c : Arrays.asList('\\', '/', '*', '?', '"', '<', '>', '|', ' ', ',')) {
             assertThrowsOnRegister("contains" + c + "InvalidCharacters");
         }
+    }
+
+    public void testRegisterRejectsUnverifiedRepositoryWithVerifyTrue() {
+        var repoName = randomAlphaOfLengthBetween(10, 25);
+        var request = new PutRepositoryRequest().name(repoName).type(VerificationFailRepository.TYPE).verify(true);
+        var resultListener = new SubscribableListener<AcknowledgedResponse>();
+        repositoriesService.registerRepository(request, resultListener);
+        var failure = safeAwaitFailure(resultListener);
+        assertThat(failure, isA(RepositoryVerificationException.class));
+        // also make sure that cluster state does not include failed repo
+        assertThrows(RepositoryMissingException.class, () -> { repositoriesService.repository(repoName); });
+    }
+
+    public void testAcceptUnverifiedRepositoryWithVerifyFalse() {
+        var repoName = randomAlphaOfLengthBetween(10, 25);
+        var request = new PutRepositoryRequest().name(repoName).type(VerificationFailRepository.TYPE).verify(false);
+        var resultListener = new SubscribableListener<AcknowledgedResponse>();
+        repositoriesService.registerRepository(request, resultListener);
+        var ackResponse = safeAwait(resultListener);
+        assertTrue(ackResponse.isAcknowledged());
     }
 
     public void testRepositoriesStatsCanHaveTheSameNameAndDifferentTypeOverTime() {
@@ -499,6 +521,19 @@ public class RepositoriesServiceTests extends ESTestCase {
         private UnstableRepository(RepositoryMetadata metadata) {
             super(metadata);
             throw new RepositoryException(TYPE, "failed to create unstable repository");
+        }
+    }
+
+    private static class VerificationFailRepository extends TestRepository {
+        public static final String TYPE = "invalid";
+
+        private VerificationFailRepository(RepositoryMetadata metadata) {
+            super(metadata);
+        }
+
+        @Override
+        public String startVerification() {
+            throw new RepositoryVerificationException(TYPE, "failed to validate repository");
         }
     }
 

@@ -170,25 +170,53 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
             // When publication has completed (and all acks received or timed out) then verify the repository.
             // (if acks timed out then acknowledgementStep completes before the master processes this cluster state, hence why we have
             // to wait for the publication to be complete too)
-            final ListenableFuture<List<DiscoveryNode>> verifyStep = new ListenableFuture<>();
+            final ListenableFuture<List<DiscoveryNode>> doVerifyStep = new ListenableFuture<>();
             publicationStep.addListener(
                 listener.delegateFailureAndWrap(
                     (delegate, changed) -> acknowledgementStep.addListener(
                         delegate.delegateFailureAndWrap((l, clusterStateUpdateResponse) -> {
                             if (clusterStateUpdateResponse.isAcknowledged() && changed) {
                                 // The response was acknowledged - all nodes should know about the new repository, let's verify them
-                                verifyRepository(request.name(), verifyStep);
+                                verifyRepository(request.name(), doVerifyStep);
                             } else {
-                                verifyStep.onResponse(null);
+                                doVerifyStep.onResponse(null);
                             }
                         })
                     )
                 )
             );
 
+            // Verification starts when repository commited to cluster state.
+            // When verification fails, we need to remove the repository.
+            // Here we issue a cluster state roll-back - unregister repository.
+            final ListenableFuture<Boolean> verifiedStep = new ListenableFuture<>();
+            doVerifyStep.addListener(new ActionListener<>() {
+                @Override
+                public void onResponse(List<DiscoveryNode> ignored) {
+                    verifiedStep.onResponse(true);
+                }
+
+                @Override
+                public void onFailure(Exception verificationException) {
+                    final var unregisterRequest = new DeleteRepositoryRequest().name(request.name());
+                    unregisterRepository(unregisterRequest, new ActionListener<>() {
+                        @Override
+                        public void onResponse(AcknowledgedResponse acknowledgedResponse) {
+                            listener.onFailure(verificationException);
+                        }
+
+                        @Override
+                        public void onFailure(Exception e) {
+                            logger.warn("failed to unregister repository after unsuccessful validation, {}", request, e);
+                            listener.onFailure(verificationException);
+                        }
+                    });
+                }
+            });
+
             // When verification has completed, get the repository data for the first time
             final ListenableFuture<RepositoryData> getRepositoryDataStep = new ListenableFuture<>();
-            verifyStep.addListener(
+            verifiedStep.addListener(
                 listener.delegateFailureAndWrap(
                     (l, ignored) -> threadPool.generic()
                         .execute(

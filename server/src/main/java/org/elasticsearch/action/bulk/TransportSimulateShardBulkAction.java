@@ -120,5 +120,6 @@ public class TransportSimulateShardBulkAction extends TransportReplicationAction
     @Override
     protected void shardOperationOnReplica(BulkShardRequest request, IndexShard replica, ActionListener<ReplicaResult> listener) {
         // We don't need to do anything on replicas since this is just a simulation
+        listener.onResponse(new ReplicaResult());
     }
 }

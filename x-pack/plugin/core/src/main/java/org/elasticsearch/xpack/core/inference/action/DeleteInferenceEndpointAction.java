@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.core.inference.action;
 
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
@@ -30,17 +31,28 @@ public class DeleteInferenceEndpointAction extends ActionType<AcknowledgedRespon
 
         private final String inferenceEndpointId;
         private final TaskType taskType;
+        private final boolean forceDelete;
+        private final boolean dryRun;
 
-        public Request(String inferenceEndpointId, TaskType taskType) {
+        public Request(String inferenceEndpointId, TaskType taskType, boolean forceDelete, boolean dryRun) {
             super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT, DEFAULT_ACK_TIMEOUT);
             this.inferenceEndpointId = inferenceEndpointId;
             this.taskType = taskType;
+            this.forceDelete = forceDelete;
+            this.dryRun = dryRun;
         }
 
         public Request(StreamInput in) throws IOException {
             super(in);
             this.inferenceEndpointId = in.readString();
             this.taskType = TaskType.fromStream(in);
+            if (in.getTransportVersion().onOrAfter(TransportVersions.ML_INFERENCE_ENHANCE_DELETE_ENDPOINT)) {
+                this.forceDelete = Boolean.TRUE.equals(in.readOptionalBoolean());
+                this.dryRun = Boolean.TRUE.equals(in.readOptionalBoolean());
+            } else {
+                this.forceDelete = false;
+                this.dryRun = false;
+            }
         }
 
         public String getInferenceEndpointId() {
@@ -51,11 +63,23 @@ public class DeleteInferenceEndpointAction extends ActionType<AcknowledgedRespon
             return taskType;
         }
 
+        public boolean isForceDelete() {
+            return forceDelete;
+        }
+
+        public boolean isDryRun() {
+            return dryRun;
+        }
+
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             out.writeString(inferenceEndpointId);
             taskType.writeTo(out);
+            if (out.getTransportVersion().onOrAfter(TransportVersions.ML_INFERENCE_ENHANCE_DELETE_ENDPOINT)) {
+                out.writeOptionalBoolean(forceDelete);
+                out.writeOptionalBoolean(dryRun);
+            }
         }
 
         @Override
@@ -63,12 +87,15 @@ public class DeleteInferenceEndpointAction extends ActionType<AcknowledgedRespon
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             DeleteInferenceEndpointAction.Request request = (DeleteInferenceEndpointAction.Request) o;
-            return Objects.equals(inferenceEndpointId, request.inferenceEndpointId) && taskType == request.taskType;
+            return Objects.equals(inferenceEndpointId, request.inferenceEndpointId)
+                && taskType == request.taskType
+                && forceDelete == request.forceDelete
+                && dryRun == request.dryRun;
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(inferenceEndpointId, taskType);
+            return Objects.hash(inferenceEndpointId, taskType, forceDelete, dryRun);
         }
     }
 }

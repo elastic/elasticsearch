@@ -27,6 +27,9 @@ import static org.elasticsearch.xpack.inference.rest.Paths.TASK_TYPE_OR_INFERENC
 @ServerlessScope(Scope.PUBLIC)
 public class RestDeleteInferenceModelAction extends BaseRestHandler {
 
+    private String FORCE_DELETE_NAME = "force";
+    private String DRY_RUN_NAME = "dry_run";
+
     @Override
     public String getName() {
         return "delete_inference_model_action";
@@ -41,6 +44,9 @@ public class RestDeleteInferenceModelAction extends BaseRestHandler {
     protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) {
         String inferenceEntityId;
         TaskType taskType;
+        boolean forceDelete = false;
+        boolean dryRun = false;
+
         if (restRequest.hasParam(INFERENCE_ID)) {
             inferenceEntityId = restRequest.param(INFERENCE_ID);
             taskType = TaskType.fromStringOrStatusException(restRequest.param(TASK_TYPE_OR_INFERENCE_ID));
@@ -49,7 +55,15 @@ public class RestDeleteInferenceModelAction extends BaseRestHandler {
             taskType = TaskType.ANY;
         }
 
-        var request = new DeleteInferenceEndpointAction.Request(inferenceEntityId, taskType);
+        if (restRequest.hasParam(FORCE_DELETE_NAME)) {
+            forceDelete = restRequest.paramAsBoolean(FORCE_DELETE_NAME, false);
+        }
+
+        if (restRequest.hasParam(DRY_RUN_NAME)) {
+            dryRun = restRequest.paramAsBoolean(DRY_RUN_NAME, false);
+        }
+
+        var request = new DeleteInferenceEndpointAction.Request(inferenceEntityId, taskType, forceDelete, dryRun);
         return channel -> client.execute(DeleteInferenceEndpointAction.INSTANCE, request, new RestToXContentListener<>(channel));
     }
 }

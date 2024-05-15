@@ -207,7 +207,7 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
 
                         @Override
                         public void onFailure(Exception e) {
-                            logger.warn("failed to unregister repository after unsuccessful validation, {}", request, e);
+                            logger.warn(() -> "failed to unregister repository after unsuccessful validation [" + request.name() + "]", e);
                             responseListener.onFailure(verificationException);
                         }
                     });

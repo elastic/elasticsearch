@@ -40,6 +40,7 @@ import org.elasticsearch.test.disruption.NetworkDisruption;
 import org.elasticsearch.test.disruption.NetworkDisruption.Bridge;
 import org.elasticsearch.test.disruption.NetworkDisruption.TwoPartitions;
 import org.elasticsearch.test.disruption.ServiceDisruptionScheme;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.xcontent.XContentType;
 
@@ -98,6 +99,13 @@ public class ClusterDisruptionIT extends AbstractDisruptionTestCase {
      * <p>
      * This test is a superset of tests run in the Jepsen test suite, with the exception of versioned updates.
      */
+    @TestLogging(
+        value = "_root:DEBUG,org.elasticsearch.action.bulk:TRACE,org.elasticsearch.action.get:TRACE,"
+            + "org.elasticsearch.discovery:TRACE,org.elasticsearch.action.support.replication:TRACE,"
+            + "org.elasticsearch.cluster.service:TRACE,org.elasticsearch.indices.recovery:TRACE,"
+            + "org.elasticsearch.indices.cluster:TRACE,org.elasticsearch.index.shard:TRACE",
+        reason = "Past failures have required a lot of additional logging to debug"
+    )
     public void testAckedIndexing() throws Exception {
 
         final int seconds = (TEST_NIGHTLY && rarely()) == false ? 1 : 5;

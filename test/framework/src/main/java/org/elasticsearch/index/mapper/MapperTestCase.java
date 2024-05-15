@@ -1188,7 +1188,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
             }
             try (DirectoryReader reader = DirectoryReader.open(directory)) {
                 int i = 0;
-                SourceLoader loader = mapper.sourceMapper().newSourceLoader(mapper.mapping());
+                SourceLoader loader = mapper.sourceMapper().newSourceLoader(mapper.mapping(), SourceFieldMetrics.NOOP);
                 StoredFieldLoader storedFieldLoader = loader.requiredStoredFields().isEmpty()
                     ? StoredFieldLoader.empty()
                     : StoredFieldLoader.create(false, loader.requiredStoredFields());

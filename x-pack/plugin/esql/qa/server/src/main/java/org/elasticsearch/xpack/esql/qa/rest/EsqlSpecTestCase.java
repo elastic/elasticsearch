@@ -189,10 +189,8 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
 
         var features = Stream.concat(
             new EsqlFeatures().getFeatures().stream(),
-                new EsqlFeatures().getHistoricalFeatures().keySet().stream()
-            )
-            .map(NodeFeature::id)
-            .collect(Collectors.toSet());
+            new EsqlFeatures().getHistoricalFeatures().keySet().stream()
+        ).map(NodeFeature::id).collect(Collectors.toSet());
         assumeTrue(
             "All capabilities must be features for this cluster to work with them",
             features.containsAll(testCase.requiredCapabilities)

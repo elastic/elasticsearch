@@ -203,7 +203,7 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
     private void rollOverFailureStores(ClusterState clusterState, Runnable runnable) {
         // Skip allocation of some objects if we don't need to roll over anything.
         if (failureStoresToBeRolledOver.isEmpty()
-            || featureService.clusterHasFeature(clusterState, LazyRolloverAction.FAILURE_STORE_LAZY_ROLLOVER)) {
+            || featureService.clusterHasFeature(clusterState, LazyRolloverAction.FAILURE_STORE_LAZY_ROLLOVER) == false) {
             runnable.run();
             return;
         }

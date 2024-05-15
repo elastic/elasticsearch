@@ -70,6 +70,9 @@ public class Iso8601ParserTests extends ESTestCase {
         assertThat(defaultParser().tryParse("2023-12-31T23:60", null), hasError(14));
         assertThat(defaultParser().tryParse("2023-12-31T23:59:60", null), hasError(17));
         assertThat(defaultParser().tryParse("2023-12-31T23:59:59+18:30", null), hasError(19));
+        assertThat(defaultParser().tryParse("2023-12-31T23:59:59+24", null), hasError(19));
+        assertThat(defaultParser().tryParse("2023-12-31T23:59:59+1060", null), hasError(19));
+        assertThat(defaultParser().tryParse("2023-12-31T23:59:59+105960", null), hasError(19));
     }
 
     public void testMandatoryFields() {

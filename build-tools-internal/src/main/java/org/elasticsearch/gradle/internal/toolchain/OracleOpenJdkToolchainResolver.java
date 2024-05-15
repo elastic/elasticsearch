@@ -33,6 +33,22 @@ public abstract class OracleOpenJdkToolchainResolver extends AbstractCustomJavaT
     String bundledJdkVersion = VersionProperties.getBundledJdkVersion();
     JavaLanguageVersion bundledJdkMajorVersion = JavaLanguageVersion.of(VersionProperties.getBundledJdkMajorVersion());
 
+    // package private so it can be replaced by tests
+    List<JdkBuild> builds = List.of(getBundledJdkBuild());
+
+    private JdkBuild getBundledJdkBuild() {
+        String bundledJdkVersion = VersionProperties.getBundledJdkVersion();
+        JavaLanguageVersion bundledJdkMajorVersion = JavaLanguageVersion.of(VersionProperties.getBundledJdkMajorVersion());
+        Matcher jdkVersionMatcher = VERSION_PATTERN.matcher(bundledJdkVersion);
+        if (jdkVersionMatcher.matches() == false) {
+            throw new IllegalStateException("Unable to parse bundled JDK version " + bundledJdkVersion);
+        }
+        String baseVersion = jdkVersionMatcher.group(1) + (jdkVersionMatcher.group(2) != null ? (jdkVersionMatcher.group(2)) : "");
+        String build = jdkVersionMatcher.group(3);
+        String hash = jdkVersionMatcher.group(5);
+        return new JdkBuild(bundledJdkMajorVersion, baseVersion, build, hash);
+    }
+
     /**
      * We need some place to map JavaLanguageVersion to build, minor version etc.
      * */
@@ -41,13 +57,6 @@ public abstract class OracleOpenJdkToolchainResolver extends AbstractCustomJavaT
         if (requestIsSupported(request) == false) {
             return Optional.empty();
         }
-        Matcher jdkVersionMatcher = VERSION_PATTERN.matcher(bundledJdkVersion);
-        if (jdkVersionMatcher.matches() == false) {
-            throw new IllegalStateException("Unable to parse bundled JDK version " + bundledJdkVersion);
-        }
-        String baseVersion = jdkVersionMatcher.group(1) + (jdkVersionMatcher.group(2) != null ? (jdkVersionMatcher.group(2)) : "");
-        String build = jdkVersionMatcher.group(3);
-        String hash = jdkVersionMatcher.group(5);
 
         OperatingSystem operatingSystem = request.getBuildPlatform().getOperatingSystem();
         String extension = operatingSystem.equals(OperatingSystem.WINDOWS) ? "zip" : "tar.gz";

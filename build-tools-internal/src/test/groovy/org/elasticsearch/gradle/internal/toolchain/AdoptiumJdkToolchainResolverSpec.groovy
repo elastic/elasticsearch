@@ -37,12 +37,7 @@ class AdoptiumJdkToolchainResolverSpec extends AbstractToolchainResolverSpec {
                     toOsString(it[2], it[1]),
                     toArchString(it[3]),
                     languageVersion);
-            resolver.CACHED_SEMVERS.put(request, Optional.of(new AdoptiumJdkToolchainResolver.AdoptiumVersionInfo(languageVersion.asInt(),
-                    1,
-                    1,
-                    "" + languageVersion.asInt() + ".1.1.1+37",
-                    0, "" + languageVersion.asInt() + ".1.1.1"
-            )))
+            resolver.CACHED_RELEASES.put(request, Optional.of('jdk-' + languageVersion.asInt() + '.1.1.1+37.1'))
 
         }
         return resolver

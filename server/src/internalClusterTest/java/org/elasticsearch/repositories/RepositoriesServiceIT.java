@@ -12,6 +12,7 @@ import org.elasticsearch.action.admin.cluster.repositories.get.GetRepositoriesRe
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.repositories.fs.FsRepository;
@@ -19,6 +20,7 @@ import org.elasticsearch.snapshots.mockstore.MockRepository;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalTestCluster;
 
+import java.io.File;
 import java.util.Collection;
 import java.util.Collections;
 
@@ -34,6 +36,37 @@ public class RepositoriesServiceIT extends ESIntegTestCase {
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         return Collections.singletonList(MockRepository.Plugin.class);
+    }
+
+    public void testPutRepositoryVerifyFail() {
+        final InternalTestCluster cluster = internalCluster();
+        final var repoName = randomAlphaOfLengthBetween(10, 25);
+
+        final Client client = client();
+
+        final var repoPath = randomRepoPath();
+        final var repoDir = new File(repoPath.toUri());
+        assertTrue(repoDir.mkdirs() && repoDir.setWritable(false));
+
+        try {
+            final Settings.Builder repoSettings = Settings.builder().put("location", repoPath);
+            assertThrows(RepositoryVerificationException.class, () -> {
+                client.admin()
+                    .cluster()
+                    .preparePutRepository(repoName)
+                    .setType(FsRepository.TYPE)
+                    .setSettings(repoSettings)
+                    .get(TimeValue.timeValueSeconds(10));
+            });
+            assertThrows(RepositoryMissingException.class, () -> {
+               client.admin()
+                   .cluster()
+                   .prepareGetRepositories(repoName)
+                   .get(TimeValue.timeValueSeconds(10));
+            });
+        } finally {
+            assertTrue(repoDir.setWritable(true));
+        }
     }
 
     public void testUpdateRepository() {

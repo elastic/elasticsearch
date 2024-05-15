@@ -202,12 +202,19 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
                     unregisterRepository(unregisterRequest, new ActionListener<>() {
                         @Override
                         public void onResponse(AcknowledgedResponse acknowledgedResponse) {
+                            logger.warn(
+                                () -> "registerRepository ["
+                                    + request.name()
+                                    + "]: verification failed: unregister repository returned not-acknowledged"
+                            );
                             responseListener.onFailure(verificationException);
                         }
 
                         @Override
                         public void onFailure(Exception e) {
-                            logger.warn(() -> "failed to unregister repository after unsuccessful validation [" + request.name() + "]", e);
+                            logger.warn(
+                                () -> "registerRepository [" + request.name() + "]: verification failed: unregister repository failed"
+                            );
                             responseListener.onFailure(verificationException);
                         }
                     });

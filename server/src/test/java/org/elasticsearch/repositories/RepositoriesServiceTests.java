@@ -48,8 +48,6 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
-import org.junit.AfterClass;
-import org.junit.BeforeClass;
 
 import java.util.Arrays;
 import java.util.Collection;
@@ -65,27 +63,15 @@ import static org.mockito.Mockito.mock;
 
 public class RepositoriesServiceTests extends ESTestCase {
 
-    private static ThreadPool threadPool;
-
     private ClusterService clusterService;
     private RepositoriesService repositoriesService;
-
-    @BeforeClass
-    public static void createThreadPool() {
-        threadPool = new TestThreadPool(RepositoriesService.class.getName());
-    }
-
-    @AfterClass
-    public static void terminateThreadPool() {
-        if (threadPool != null) {
-            threadPool.shutdownNow();
-            threadPool = null;
-        }
-    }
+    private ThreadPool threadPool;
 
     @Override
     public void setUp() throws Exception {
         super.setUp();
+
+        threadPool = new TestThreadPool(RepositoriesService.class.getName());
 
         final TransportService transportService = new TransportService(
             Settings.EMPTY,
@@ -137,6 +123,10 @@ public class RepositoriesServiceTests extends ESTestCase {
     @Override
     public void tearDown() throws Exception {
         super.tearDown();
+        if (threadPool != null) {
+            threadPool.shutdownNow();
+            threadPool = null;
+        }
         clusterService.stop();
         repositoriesService.stop();
     }

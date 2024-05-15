@@ -101,7 +101,7 @@ public class TextExpansionQueryBuilder extends AbstractQueryBuilder<TextExpansio
         this.fieldName = in.readString();
         this.modelText = in.readString();
         this.modelId = in.readString();
-        if (in.getTransportVersion().onOrAfter(TransportVersions.TEXT_EXPANSION_TOKEN_PRUNING_CONFIG_ADDED)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_13_0)) {
             this.tokenPruningConfig = in.readOptionalWriteable(TokenPruningConfig::new);
         } else {
             this.tokenPruningConfig = null;
@@ -144,7 +144,7 @@ public class TextExpansionQueryBuilder extends AbstractQueryBuilder<TextExpansio
         out.writeString(fieldName);
         out.writeString(modelText);
         out.writeString(modelId);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.TEXT_EXPANSION_TOKEN_PRUNING_CONFIG_ADDED)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_13_0)) {
             out.writeOptionalWriteable(tokenPruningConfig);
         }
     }

@@ -52,7 +52,6 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 
-import static org.elasticsearch.TransportVersions.INDEX_REQUEST_NORMALIZED_BYTES_PARSED;
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_PRIMARY_TERM;
 import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
@@ -189,7 +188,7 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
             dynamicTemplates = in.readMap(StreamInput::readString);
         }
         if (in.getTransportVersion().onOrAfter(PIPELINES_HAVE_RUN_FIELD_ADDED)
-            && in.getTransportVersion().before(INDEX_REQUEST_NORMALIZED_BYTES_PARSED)) {
+            && in.getTransportVersion().before(TransportVersions.V_8_13_0)) {
             in.readBoolean();
         }
         if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
@@ -201,13 +200,11 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
                     : new ArrayList<>(possiblyImmutableExecutedPipelines);
             }
         }
-        if (in.getTransportVersion().onOrAfter(TransportVersions.REQUIRE_DATA_STREAM_ADDED)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_13_0)) {
             requireDataStream = in.readBoolean();
+            normalisedBytesParsed = in.readZLong();
         } else {
             requireDataStream = false;
-        }
-        if (in.getTransportVersion().onOrAfter(INDEX_REQUEST_NORMALIZED_BYTES_PARSED)) {
-            normalisedBytesParsed = in.readZLong();
         }
     }
 
@@ -772,7 +769,7 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
             }
         }
         if (out.getTransportVersion().onOrAfter(PIPELINES_HAVE_RUN_FIELD_ADDED)
-            && out.getTransportVersion().before(INDEX_REQUEST_NORMALIZED_BYTES_PARSED)) {
+            && out.getTransportVersion().before(TransportVersions.V_8_13_0)) {
             out.writeBoolean(normalisedBytesParsed != -1L);
         }
         if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
@@ -782,10 +779,8 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
             }
         }
 
-        if (out.getTransportVersion().onOrAfter(TransportVersions.REQUIRE_DATA_STREAM_ADDED)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_13_0)) {
             out.writeBoolean(requireDataStream);
-        }
-        if (out.getTransportVersion().onOrAfter(INDEX_REQUEST_NORMALIZED_BYTES_PARSED)) {
             out.writeZLong(normalisedBytesParsed);
         }
     }
@@ -867,12 +862,12 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
             // Resolve write index and get parent data stream to handle the case of dealing with an alias
             String defaultWriteIndexName = ia.getWriteIndex().getName();
             DataStream dataStream = metadata.getIndicesLookup().get(defaultWriteIndexName).getParentDataStream();
-            if (dataStream.getFailureIndices().size() < 1) {
+            if (dataStream.getFailureIndices().getIndices().size() < 1) {
                 throw new ElasticsearchException(
                     "Attempting to write a document to a failure store but the target data stream does not have one enabled"
                 );
             }
-            return dataStream.getFailureIndices().get(dataStream.getFailureIndices().size() - 1);
+            return dataStream.getFailureIndices().getIndices().get(dataStream.getFailureIndices().getIndices().size() - 1);
         } else {
             // Resolve as normal
             return ia.getWriteIndex(this, metadata);

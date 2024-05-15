@@ -1752,6 +1752,7 @@ setups['setup-snapshots'] = setups['setup-repository'] + '''
         name: "my_admin_role"
         body: >
           {
+            "description": "Grants full access to all management features within the cluster.",
             "cluster": ["all"],
             "indices": [
               {"names": ["index1", "index2" ], "privileges": ["all"], "field_security" : {"grant" : [ "title", "body" ]}}

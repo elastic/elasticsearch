@@ -65,15 +65,15 @@ setup:
         refresh: true
         body: |
           {"index": {}}
-          {"source_text": "my words comforter", "ml.tokens":{"my":1.0, "words":1.0,"comforter":1.0}}
+          {"source_text": "my words comforter", "ml.tokens":{"my":0.5, "words":1.0,"comforter":2.0}}
           {"index": {}}
-          {"source_text": "the machine is leaking", "ml.tokens":{"the":1.0,"machine":1.0,"is":1.0,"leaking":1.0}}
+          {"source_text": "the machine is leaking", "ml.tokens":{"the":0.5,"machine":1.0,"is":0.5,"leaking":1.0}}
           {"index": {}}
-          {"source_text": "these are my words", "ml.tokens":{"these":1.0,"are":1.0,"my":1.0,"words":1.0}}
+          {"source_text": "these are my words", "ml.tokens":{"these":0.5,"are":0.5,"my":0.5,"words":1.0}}
           {"index": {}}
-          {"source_text": "the octopus comforter smells", "ml.tokens":{"the":1.0,"octopus":1.0,"comforter":1.0,"smells":1.0}}
+          {"source_text": "the octopus comforter smells", "ml.tokens":{"the":0.5,"octopus":2.0,"comforter":2.0,"smells":1.0}}
           {"index": {}}
-          {"source_text": "the octopus comforter is leaking", "ml.tokens":{"the":1.0,"octopus":1.0,"comforter":1.0,"is":1.0,"leaking":1.0}}
+          {"source_text": "the octopus comforter is leaking", "ml.tokens":{"the":0.5,"octopus":2.0,"comforter":2.0,"is":0.5"leaking":1.0}}
           {"index": {}}
           {"source_text": "washing machine smells", "ml.tokens":{"washing":1.0,"machine":1.0,"smells":1.0}}
 
@@ -100,7 +100,7 @@ setup:
   - match: { hits.hits.0._source.source_text: "the octopus comforter smells" }
 
 ---
-"Test sparse_vector search with pruning config":
+"Test sparse_vector search with pruning config - note this will not change scores due to model":
   - do:
       search:
         index: index-with-sparse-vector
@@ -112,8 +112,6 @@ setup:
               text: "octopus comforter smells"
               prune: true
               pruning_config:
-                tokens_freq_ratio_threshold: 4
-                tokens_weight_threshold: 0.4
   - match: { hits.total.value: 4 }
   - match: { hits.hits.0._source.source_text: "the octopus comforter smells" }
 
@@ -128,9 +126,7 @@ setup:
               field: ml.tokens
               inference_id: text_expansion_model
               text: "octopus comforter smells"
-              pruning_config:
-                tokens_freq_ratio_threshold: 4
-                tokens_weight_threshold: 0.4
+              prune: true
   - match: { hits.total.value: 4 }
   - match: { hits.hits.0._source.source_text: "the octopus comforter smells" }
   - match: { hits.hits.0._score: 3.0 }
@@ -145,9 +141,6 @@ setup:
               inference_id: text_expansion_model
               text: "octopus comforter smells"
               prune: true
-              pruning_config:
-                tokens_freq_ratio_threshold: 4
-                tokens_weight_threshold: 0.4
               _name: i-like-naming-my-queries
               boost: 100.0
   - match: { hits.total.value: 4 }
@@ -156,7 +149,7 @@ setup:
   - match: { hits.hits.0._score: 300.0 }
 
 ---
-"Test sparse_vector search with default pruning config":
+"Test sparse_vector search with specified pruning config":
   - do:
       search:
         index: index-with-sparse-vector
@@ -167,6 +160,10 @@ setup:
               inference_id: text_expansion_model
               text: "octopus comforter smells"
               prune: true
+              pruning_config:
+                tokens_freq_ratio_threshold: 5
+                tokens_weight_threshold: 0.4
+                only_score_pruned_tokens: false
   - match: { hits.total.value: 4 }
   - match: { hits.hits.0._source.source_text: "the octopus comforter smells" }
 
@@ -214,12 +211,13 @@ setup:
             sparse_vector:
               field: ml.tokens
               query_vector:
-                the: 1.0
-                comforter: 1.0
+                the: 0.5
+                comforter: 2.0
                 smells: 1.0
                 bad: 1.0
   - match: { hits.total.value: 5 }
   - match: { hits.hits.0._source.source_text: "the octopus comforter smells" }
+  - match: { hit.hits.0._score: 5.25 }
 
 ---
 "Test sparse_vector search with query vector and pruning config":
@@ -231,18 +229,19 @@ setup:
             sparse_vector:
               field: ml.tokens
               query_vector:
-                the: 1.0
-                comforter: 1.0
+                the: 0.5
+                comforter: 2.0
                 smells: 1.0
                 bad: 1.0
               prune: true
               pruning_config:
                 tokens_freq_ratio_threshold: 1
-                tokens_weight_threshold: 0.4
+                tokens_weight_threshold: 0.9
                 only_score_pruned_tokens: false
 
-  - match: { hits.total.value: 5 }
+  - match: { hits.total.value: 3 }
   - match: { hits.hits.0._source.source_text: "the octopus comforter smells" }
+  - match: { hit.hits.0._score: 4 }
 
 ---
 "Test sparse_vector search with query vector and pruning config with only score pruned tokens":
@@ -254,15 +253,28 @@ setup:
             sparse_vector:
               field: ml.tokens
               query_vector:
-                the: 1.0
-                comforter: 1.0
+                the: 0.5
+                comforter: 2.0
                 smells: 1.0
                 bad: 1.0
               pruning_config:
                 tokens_freq_ratio_threshold: 1
                 tokens_weight_threshold: 0.4
                 only_score_pruned_tokens: true
-  - match: { hits.total.value: 0 }
+  - match: { hits.total.value: 3 }
+  - match: { hits.hits.0._source.source_text: "the machine is leaking" }
+  - match: { hit.hits.0._score: 0.25 }
+
+---
+"Test sparse_vector requires one of inference_id or query_vector":
+  - do:
+      catch: /\[sparse_vector\] requires one of \[query_vector\] or \[inference_id\]/
+      search:
+        index: index-with-sparse-vector
+        body:
+          query:
+            sparse_vector:
+              field: text
 
 ---
 "Test sparse_vector only allows one of inference_id or query_vector":

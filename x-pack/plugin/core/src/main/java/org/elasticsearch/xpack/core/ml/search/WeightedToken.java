@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.core.ml.search;
 
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -31,5 +32,10 @@ public record WeightedToken(String token, float weight) implements Writeable, To
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.field(token, weight);
         return builder;
+    }
+
+    @Override
+    public String toString() {
+        return Strings.toString(this);
     }
 }

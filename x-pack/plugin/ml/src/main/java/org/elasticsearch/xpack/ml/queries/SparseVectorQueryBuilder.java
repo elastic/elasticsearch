@@ -340,7 +340,7 @@ public class SparseVectorQueryBuilder extends AbstractQueryBuilder<SparseVectorQ
                     WeightedToken weightedToken = new WeightedToken(token, number.floatValue());
                     weightedTokens.add(weightedToken);
                 } else {
-                    throw new IllegalArgumentException("Weight must be a number");
+                    throw new IllegalArgumentException("weight must be a number, was [" + weight + "]");
                 }
             }
         }

@@ -2034,7 +2034,7 @@ public class IngestServiceTests extends ESTestCase {
         Map<String, Processor.Factory> map = Maps.newMapWithExpectedSize(2);
         map.put("mock", (factories, tag, description, config) -> processor);
         map.put("failure-mock", (factories, tag, description, config) -> processorFailure);
-        map.put("drop-mock", new DropProcessor.Factory());
+        map.put("drop", new DropProcessor.Factory());
         IngestService ingestService = createWithProcessors(map);
 
         final IngestStats initialStats = ingestService.stats();
@@ -2182,7 +2182,7 @@ public class IngestServiceTests extends ESTestCase {
         assertProcessorStats(0, afterForthRequestStats, "_id2", 1, 0, 0);
 
         // test with drop processor
-        putRequest = new PutPipelineRequest("_id3", new BytesArray("{\"processors\": [{\"drop-mock\" : {}}]}"), XContentType.JSON);
+        putRequest = new PutPipelineRequest("_id3", new BytesArray("{\"processors\": [{\"drop\" : {}}]}"), XContentType.JSON);
         previousClusterState = clusterState;
         clusterState = executePut(putRequest, clusterState);
         ingestService.applyClusterState(new ClusterChangedEvent("", clusterState, previousClusterState));
@@ -2210,7 +2210,6 @@ public class IngestServiceTests extends ESTestCase {
         assertProcessorStats(0, afterFifthRequestStats, "_id1", 1, 1, 0);
         assertProcessorStats(1, afterFifthRequestStats, "_id1", 2, 0, 0);
         assertProcessorStats(0, afterFifthRequestStats, "_id2", 1, 0, 0);
-
     }
 
     public void testStatName() {

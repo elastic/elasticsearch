@@ -113,3 +113,19 @@ text and embeddings.
 
 Refer to <<semantic-search-semantic-text,this tutorial>> to learn more about
 semantic search using `semantic_text` and `semantic_query`.
+
+
+[discrete]
+[[custom-indexing]]
+==== Customizing `semantic_text` indexing
+
+`semantic_text` uses defaults for indexing data based on the {infer} service
+specified. It enables you to quickstart your semantic search by providing
+automatic {infer} and a dedicated query so you don't need to provide further
+details.
+
+In case you want to customize data indexing, use the
+<<sparse-vector,`sparse_vector`>> or <<dense-vector,`dense_vector`>> field
+types and create an ingest pipeline with an
+<<inference-processor, {infer} processor>> to generate the embeddings.
+<<semantic-search-inference,This tutorial>> walks you through the process.

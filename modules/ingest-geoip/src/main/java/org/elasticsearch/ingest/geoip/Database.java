@@ -75,6 +75,7 @@ enum Database {
             Property.RESIDENTIAL_PROXY
         )
     ),
+    Domain(Set.of(Property.IP, Property.DOMAIN), Set.of(Property.DOMAIN)),
     Enterprise(
         Set.of(
             Property.IP,
@@ -94,7 +95,8 @@ enum Database {
             Property.ANONYMOUS_VPN,
             Property.ANONYMOUS,
             Property.PUBLIC_PROXY,
-            Property.RESIDENTIAL_PROXY
+            Property.RESIDENTIAL_PROXY,
+            Property.DOMAIN
         ),
         Set.of(
             Property.COUNTRY_ISO_CODE,
@@ -111,6 +113,7 @@ enum Database {
     private static final String COUNTRY_DB_SUFFIX = "-Country";
     private static final String ASN_DB_SUFFIX = "-ASN";
     private static final String ANONYMOUS_IP_DB_SUFFIX = "-Anonymous-IP";
+    private static final String DOMAIN_DB_SUFFIX = "-Domain";
     private static final String ENTERPRISE_DB_SUFFIX = "-Enterprise";
 
     /**
@@ -133,6 +136,8 @@ enum Database {
                 database = Database.Asn;
             } else if (databaseType.endsWith(Database.ANONYMOUS_IP_DB_SUFFIX)) {
                 database = Database.AnonymousIp;
+            } else if (databaseType.endsWith(Database.DOMAIN_DB_SUFFIX)) {
+                database = Database.Domain;
             } else if (databaseType.endsWith(Database.ENTERPRISE_DB_SUFFIX)) {
                 database = Database.Enterprise;
             }
@@ -209,7 +214,8 @@ enum Database {
         ANONYMOUS_VPN,
         ANONYMOUS,
         PUBLIC_PROXY,
-        RESIDENTIAL_PROXY;
+        RESIDENTIAL_PROXY,
+        DOMAIN;
 
         /**
          * Parses a string representation of a property into an actual Property instance. Not all properties that exist are

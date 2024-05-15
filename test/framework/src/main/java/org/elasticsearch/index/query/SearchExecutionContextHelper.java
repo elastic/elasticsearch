@@ -10,6 +10,7 @@ package org.elasticsearch.index.query;
 
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.mapper.MapperMetrics;
 import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 
@@ -43,7 +44,8 @@ public class SearchExecutionContextHelper {
             null,
             () -> true,
             null,
-            Collections.emptyMap()
+            Collections.emptyMap(),
+            MapperMetrics.NOOP
         );
     }
 

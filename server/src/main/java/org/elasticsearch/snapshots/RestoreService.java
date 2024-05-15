@@ -401,7 +401,7 @@ public final class RestoreService implements ClusterStateApplier {
             if (DataStream.isFailureStoreFeatureFlagEnabled()) {
                 failureIndices = dataStreamsToRestore.values()
                     .stream()
-                    .flatMap(ds -> ds.getFailureIndices().stream().map(idx -> new Tuple<>(ds.isSystem(), idx.getName())))
+                    .flatMap(ds -> ds.getFailureIndices().getIndices().stream().map(idx -> new Tuple<>(ds.isSystem(), idx.getName())))
                     .collect(Collectors.partitioningBy(Tuple::v1, Collectors.mapping(Tuple::v2, Collectors.toSet())));
             }
             systemDataStreamIndices = Sets.union(backingIndices.get(true), failureIndices.get(true));
@@ -717,11 +717,16 @@ public final class RestoreService implements ClusterStateApplier {
             .toList();
         List<Index> updatedFailureIndices = DataStream.isFailureStoreFeatureFlagEnabled()
             ? dataStream.getFailureIndices()
+                .getIndices()
                 .stream()
                 .map(i -> metadata.get(renameIndex(i.getName(), request, false, true)).getIndex())
                 .toList()
             : List.of();
-        return dataStream.copy().setName(dataStreamName).setIndices(updatedIndices).setFailureIndices(updatedFailureIndices).build();
+        return dataStream.copy()
+            .setName(dataStreamName)
+            .setBackingIndices(dataStream.getBackingIndices().copy().setIndices(updatedIndices).build())
+            .setFailureIndices(dataStream.getFailureIndices().copy().setIndices(updatedFailureIndices).build())
+            .build();
     }
 
     public static RestoreInProgress updateRestoreStateWithDeletedIndices(RestoreInProgress oldRestore, Set<Index> deletedIndices) {

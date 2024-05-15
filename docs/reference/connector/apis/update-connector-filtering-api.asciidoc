@@ -21,7 +21,7 @@ The filtering property is used to configure sync rules (both basic and advanced)
 * To sync data using self-managed connectors, you need to deploy the {enterprise-search-ref}/build-connector.html[Elastic connector service] on your own infrastructure. This service runs automatically on Elastic Cloud for native connectors.
 * The `connector_id` parameter should reference an existing connector.
 * Filtering draft is activated once validated by the running Elastic connector service, the `draft.validation.state` must be `valid`.
-* If after validation attempt, the `draft.validation.state` does not equal to `valid`, inspect `draft.validation.errors` and fix any issues.
+* If, after a validation attempt, the `draft.validation.state` equals to `invalid`, inspect `draft.validation.errors` and fix any issues.
 
 [[update-connector-filtering-api-path-params]]
 ==== {api-path-parms-title}

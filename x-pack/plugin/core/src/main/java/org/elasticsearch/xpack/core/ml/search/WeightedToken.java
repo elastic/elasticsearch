@@ -14,7 +14,6 @@ import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
-import java.util.Map;
 
 public record WeightedToken(String token, float weight) implements Writeable, ToXContentFragment {
 
@@ -32,9 +31,5 @@ public record WeightedToken(String token, float weight) implements Writeable, To
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.field(token, weight);
         return builder;
-    }
-
-    public Map<String, Object> asMap() {
-        return Map.of(token, weight);
     }
 }

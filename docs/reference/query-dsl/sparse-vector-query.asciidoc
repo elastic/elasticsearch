@@ -280,3 +280,5 @@ GET my-index/_search
 }
 ----
 //TEST[skip: Requires inference]
+
+NOTE: When performing <<modules-cross-cluster-search, cross-cluster search>>, inference is performed on the local cluster.

@@ -248,7 +248,7 @@ public class SparseVectorQueryBuilderTests extends AbstractQueryTestCase<SparseV
                 NullPointerException.class,
                 () -> new SparseVectorQueryBuilder(null, "model text", "model id")
             );
-            assertEquals("[sparse_vector] requires a field", e.getMessage());
+            assertEquals("[sparse_vector] requires a [field]", e.getMessage());
         }
         {
             IllegalArgumentException e = expectThrows(

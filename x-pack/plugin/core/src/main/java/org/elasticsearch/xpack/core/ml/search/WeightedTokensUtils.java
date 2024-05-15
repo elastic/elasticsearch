@@ -22,6 +22,8 @@ import java.util.List;
 
 public final class WeightedTokensUtils {
 
+    private WeightedTokensUtils() {}
+
     public static Query queryBuilderWithAllTokens(List<WeightedToken> tokens, MappedFieldType ft, SearchExecutionContext context) {
         var qb = new BooleanQuery.Builder();
 

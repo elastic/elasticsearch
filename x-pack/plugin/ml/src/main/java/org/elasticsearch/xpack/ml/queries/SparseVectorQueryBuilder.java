@@ -65,7 +65,7 @@ public class SparseVectorQueryBuilder extends AbstractQueryBuilder<SparseVectorQ
     private final List<WeightedToken> queryVectors;
     private final String inferenceId;
     private final String text;
-    private final Boolean shouldPruneTokens;
+    private final boolean shouldPruneTokens;
 
     private final SetOnce<TextExpansionResults> weightedTokensSupplier;
 
@@ -88,7 +88,7 @@ public class SparseVectorQueryBuilder extends AbstractQueryBuilder<SparseVectorQ
         @Nullable Boolean shouldPruneTokens,
         @Nullable TokenPruningConfig tokenPruningConfig
     ) {
-        this.fieldName = Objects.requireNonNull(fieldName, "[" + NAME + "] requires a field");
+        this.fieldName = Objects.requireNonNull(fieldName, "[" + NAME + "] requires a [" + FIELD_FIELD.getPreferredName() + "]");
         this.shouldPruneTokens = (shouldPruneTokens != null ? shouldPruneTokens : DEFAULT_PRUNE);
         this.queryVectors = queryVectors;
         this.inferenceId = inferenceId;
@@ -125,7 +125,7 @@ public class SparseVectorQueryBuilder extends AbstractQueryBuilder<SparseVectorQ
     public SparseVectorQueryBuilder(StreamInput in) throws IOException {
         super(in);
         this.fieldName = in.readString();
-        this.shouldPruneTokens = in.readOptionalBoolean();
+        this.shouldPruneTokens = in.readBoolean();
         this.queryVectors = in.readOptionalCollectionAsList(WeightedToken::new);
         this.inferenceId = in.readOptionalString();
         this.text = in.readOptionalString();
@@ -166,7 +166,7 @@ public class SparseVectorQueryBuilder extends AbstractQueryBuilder<SparseVectorQ
         }
 
         out.writeString(fieldName);
-        out.writeOptionalBoolean(shouldPruneTokens);
+        out.writeBoolean(shouldPruneTokens);
         out.writeOptionalCollection(queryVectors);
         out.writeOptionalString(inferenceId);
         out.writeOptionalString(text);

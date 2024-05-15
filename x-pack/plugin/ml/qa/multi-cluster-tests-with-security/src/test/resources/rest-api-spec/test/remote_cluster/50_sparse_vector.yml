@@ -21,17 +21,6 @@ setup:
   - do:
       headers:
         Authorization: "Basic dGVzdF91c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" #test_user credentials
-      indices.create:
-        index: unrelated
-        body:
-          mappings:
-            properties:
-              source_text:
-                type: keyword
-
-  - do:
-      headers:
-        Authorization: "Basic dGVzdF91c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" #test_user credentials
       ml.put_trained_model:
         model_id: "text_expansion_model"
         body: >
@@ -263,7 +252,7 @@ setup:
 ---
 "Test sparse_vector only allows one of inference_id or query_vector":
   - do:
-      catch: /Failed to build \[sparse_vector\] after last required field arrived/
+      catch: /\[sparse_vector\] requires one of \[query_vector\] or \[inference_id\]/
       search:
         index: index-with-sparse-vector
         body:

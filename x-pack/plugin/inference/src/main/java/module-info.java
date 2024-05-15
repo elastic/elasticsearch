@@ -19,6 +19,7 @@ module org.elasticsearch.inference {
     requires org.apache.lucene.core;
     requires org.apache.lucene.join;
     requires com.ibm.icu;
+    requires org.elasticsearch.ml;
 
     exports org.elasticsearch.xpack.inference.action;
     exports org.elasticsearch.xpack.inference.registry;

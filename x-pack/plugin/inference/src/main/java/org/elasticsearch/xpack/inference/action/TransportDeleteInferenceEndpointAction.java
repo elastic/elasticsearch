@@ -17,10 +17,12 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.inference.InferenceServiceRegistry;
+import org.elasticsearch.ingest.IngestMetadata;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -28,8 +30,8 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.inference.action.DeleteInferenceEndpointAction;
 import org.elasticsearch.xpack.inference.common.InferenceExceptions;
 import org.elasticsearch.xpack.inference.registry.ModelRegistry;
+import org.elasticsearch.xpack.ml.utils.InferenceProcessorInfoExtractor;
 
-import java.util.LinkedHashSet;
 import java.util.Set;
 
 public class TransportDeleteInferenceEndpointAction extends AcknowledgedTransportMasterNodeAction<DeleteInferenceEndpointAction.Request> {
@@ -81,10 +83,9 @@ public class TransportDeleteInferenceEndpointAction extends AcknowledgedTranspor
                 return;
             }
 
-            // TODO check if the endpoint is referenced by pipelines here
-                Set<String> modelIdsRererencedByPipelines = InferenceProcessorInfoExtractor.pipelineIdsByResource(
-
-
+            if (endpointIsReferencedInPipelines(state, request.getInferenceEndpointId(), listener)) {
+                return;
+            }
 
             var service = serviceRegistry.getService(unparsedModel.service());
             if (service.isPresent()) {
@@ -109,6 +110,41 @@ public class TransportDeleteInferenceEndpointAction extends AcknowledgedTranspor
             .addListener(
                 masterListener.delegateFailure((l3, didDeleteModel) -> masterListener.onResponse(AcknowledgedResponse.of(didDeleteModel)))
             );
+    }
+
+    private static boolean endpointIsReferencedInPipelines(
+        final ClusterState state,
+        final String inferenceEndpointId,
+        ActionListener<Boolean> listener
+    ) {
+        Metadata metadata = state.getMetadata();
+        if (metadata == null) {
+            listener.onFailure(
+                new ElasticsearchStatusException("Cluster State metadata was unexpectedly null", RestStatus.INTERNAL_SERVER_ERROR)
+            );
+            return true;
+        }
+        IngestMetadata ingestMetadata = metadata.custom(IngestMetadata.TYPE);
+        if (ingestMetadata == null) {
+            listener.onFailure(
+                new ElasticsearchStatusException("Cluster State IngestMetadata was unexpectedly null", RestStatus.INTERNAL_SERVER_ERROR)
+            );
+            return true;
+        }
+        Set<String> modelIdsReferencedByPipelines = InferenceProcessorInfoExtractor.getModelIdsFromInferenceProcessors(ingestMetadata);
+        if (modelIdsReferencedByPipelines.contains(inferenceEndpointId)) {
+            listener.onFailure(
+                new ElasticsearchStatusException(
+                    "Model "
+                        + inferenceEndpointId
+                        + " is referenced by pipelines and cannot be deleted. "
+                        + "Use `force` to delete it anyway, or use `dry_run` to list the pipelines that reference it.",
+                    RestStatus.FORBIDDEN
+                )
+            );
+            return true;
+        }
+        return false;
     }
 
     @Override

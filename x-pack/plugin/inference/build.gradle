@@ -29,7 +29,8 @@ base {
 
 dependencies {
   implementation project(path: ':libs:elasticsearch-logging')
-  compileOnly project(":server")
+    implementation project(path: ':x-pack:plugin:ml')
+    compileOnly project(":server")
   compileOnly project(path: xpackModule('core'))
   testImplementation(testArtifact(project(xpackModule('core'))))
   testImplementation(testArtifact(project(':server')))

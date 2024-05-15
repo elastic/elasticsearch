@@ -192,7 +192,7 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
             new EsqlFeatures().getHistoricalFeatures().keySet().stream()
         ).map(NodeFeature::id).collect(Collectors.toSet());
         assumeTrue(
-            "All capabilities must be features for this cluster to work with them",
+            "Requested capabilities are ESQL cluster features",
             features.containsAll(testCase.requiredCapabilities)
         );
 

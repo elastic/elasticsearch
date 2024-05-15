@@ -41,7 +41,7 @@ query::
 The query text to be searched for on the field.
 
 
-Refer to <<emantic-search-semantic-text,this tutorial>> to learn more about
+Refer to <<semantic-search-semantic-text,this tutorial>> to learn more about
 semantic search using `semantic_text` and `semantic` query.
 
 [discrete]

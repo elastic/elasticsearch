@@ -103,9 +103,6 @@ public final class Pipeline {
             scriptService,
             processorFactories
         );
-        if (Strings.validFileName(id) == false) {
-            throw new InvalidPipelineNameException(id, "must not contain the following characters " + Strings.INVALID_FILENAME_CHARS);
-        }
         if (config.isEmpty() == false) {
             throw new ElasticsearchParseException(
                 "pipeline ["

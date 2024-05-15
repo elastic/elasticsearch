@@ -644,10 +644,12 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
 
     void validatePipeline(Map<DiscoveryNode, IngestInfo> ingestInfos, String pipelineId, Map<String, Object> pipelineConfig)
         throws Exception {
+        if (org.elasticsearch.common.Strings.validFileName(pipelineId) == false) {
+            throw new InvalidPipelineNameException(pipelineId, "must not contain the following characters " + org.elasticsearch.common.Strings.INVALID_FILENAME_CHARS);
+        }
         if (ingestInfos.isEmpty()) {
             throw new IllegalStateException("Ingest info is empty");
         }
-
         Pipeline pipeline = Pipeline.create(pipelineId, pipelineConfig, processorFactories, scriptService);
         List<Exception> exceptions = new ArrayList<>();
         for (Processor processor : pipeline.flattenAllProcessors()) {

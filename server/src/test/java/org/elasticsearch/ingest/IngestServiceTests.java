@@ -1060,6 +1060,25 @@ public class IngestServiceTests extends ESTestCase {
         assertEquals("fail_extra_validation", e.getMetadata("es.processor_type").get(0));
     }
 
+    public void testValidatePipelineName() throws Exception {
+        IngestService ingestService = createWithProcessors();
+        PutPipelineRequest putRequest = new PutPipelineRequest("_id", new BytesArray("""
+            {"processors": [{"set" : {"field": "_field", "value": "_value"}}]}"""), XContentType.JSON);
+        var pipelineConfig = XContentHelper.convertToMap(putRequest.getSource(), false, putRequest.getXContentType()).v2();
+        DiscoveryNode node1 = DiscoveryNodeUtils.create("_node_id1", buildNewFakeTransportAddress(), Map.of(), Set.of());
+        Map<DiscoveryNode, IngestInfo> ingestInfos = new HashMap<>();
+        ingestInfos.put(node1, new IngestInfo(List.of()));
+
+        for (Character badChar : List.of('\\', '/', '*', '?', '"', '<', '>', '|', ' ', ',')) {
+            final String name = randomAlphaOfLength(5) + badChar + randomAlphaOfLength(5);
+            Exception e = expectThrows(
+                InvalidPipelineNameException.class,
+                () -> ingestService.validatePipeline(ingestInfos, name, pipelineConfig)
+            );
+            assertThat(e.getMessage(), containsString("Invalid pipeline name [" + name + "], must not contain the following characters"));
+        }
+    }
+
     public void testExecuteIndexPipelineExistsButFailedParsing() {
         IngestService ingestService = createWithProcessors(
             Map.of("mock", (factories, tag, description, config) -> new AbstractProcessor("mock", "description") {

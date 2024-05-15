@@ -19,7 +19,6 @@ import java.lang.invoke.VarHandle;
 import java.nio.ByteOrder;
 import java.util.Arrays;
 
-import static org.elasticsearch.common.util.BigLongArray.readPages;
 import static org.elasticsearch.common.util.BigLongArray.writePages;
 import static org.elasticsearch.common.util.PageCacheRecycler.INT_PAGE_SIZE;
 
@@ -53,7 +52,7 @@ final class BigIntArray extends AbstractBigByteArray implements IntArray {
     public int set(long index, int value) {
         final int pageIndex = pageIndex(index);
         final int indexInPage = indexInPage(index);
-        final byte[] page = pages[pageIndex];
+        final byte[] page = getPageForWriting(pageIndex);
         final int ret = (int) VH_PLATFORM_NATIVE_INT.get(page, indexInPage << 2);
         VH_PLATFORM_NATIVE_INT.set(page, indexInPage << 2, value);
         return ret;
@@ -63,7 +62,7 @@ final class BigIntArray extends AbstractBigByteArray implements IntArray {
     public int increment(long index, int inc) {
         final int pageIndex = pageIndex(index);
         final int indexInPage = indexInPage(index);
-        final byte[] page = pages[pageIndex];
+        final byte[] page = getPageForWriting(pageIndex);
         final int newVal = (int) VH_PLATFORM_NATIVE_INT.get(page, indexInPage << 2) + inc;
         VH_PLATFORM_NATIVE_INT.set(page, indexInPage << 2, newVal);
         return newVal;
@@ -77,19 +76,19 @@ final class BigIntArray extends AbstractBigByteArray implements IntArray {
         final int fromPage = pageIndex(fromIndex);
         final int toPage = pageIndex(toIndex - 1);
         if (fromPage == toPage) {
-            fill(pages[fromPage], indexInPage(fromIndex), indexInPage(toIndex - 1) + 1, value);
+            fill(getPageForWriting(fromPage), indexInPage(fromIndex), indexInPage(toIndex - 1) + 1, value);
         } else {
-            fill(pages[fromPage], indexInPage(fromIndex), pageSize(), value);
+            fill(getPageForWriting(fromPage), indexInPage(fromIndex), pageSize(), value);
             for (int i = fromPage + 1; i < toPage; ++i) {
-                fill(pages[i], 0, pageSize(), value);
+                fill(getPageForWriting(i), 0, pageSize(), value);
             }
-            fill(pages[toPage], 0, indexInPage(toIndex - 1) + 1, value);
+            fill(getPageForWriting(toPage), 0, indexInPage(toIndex - 1) + 1, value);
         }
     }
 
     @Override
     public void fillWith(StreamInput in) throws IOException {
-        readPages(in, pages);
+        readPages(in);
     }
 
     public static void fill(byte[] page, int from, int to, int value) {
@@ -112,7 +111,7 @@ final class BigIntArray extends AbstractBigByteArray implements IntArray {
             pages = Arrays.copyOf(pages, ArrayUtil.oversize(numPages, RamUsageEstimator.NUM_BYTES_OBJECT_REF));
         }
         for (int i = numPages - 1; i >= 0 && pages[i] == null; --i) {
-            pages[i] = newBytePage(i);
+            pages[i] = ZERO_PAGE;
         }
         for (int i = numPages; i < pages.length && pages[i] != null; ++i) {
             pages[i] = null;
@@ -128,6 +127,6 @@ final class BigIntArray extends AbstractBigByteArray implements IntArray {
 
     @Override
     public void set(long index, byte[] buf, int offset, int len) {
-        set(index, buf, offset, len, pages, 2);
+        set(index, buf, offset, len, 2);
     }
 }

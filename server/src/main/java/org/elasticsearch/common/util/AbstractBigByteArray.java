@@ -8,9 +8,15 @@
 
 package org.elasticsearch.common.util;
 
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.recycler.Recycler;
 
+import java.io.IOException;
+import java.util.Arrays;
+
 abstract class AbstractBigByteArray extends AbstractBigArray {
+
+    protected static final byte[] ZERO_PAGE = new byte[PageCacheRecycler.BYTE_PAGE_SIZE];
 
     protected byte[][] pages;
 
@@ -18,9 +24,7 @@ abstract class AbstractBigByteArray extends AbstractBigArray {
         super(pageSize, bigArrays, clearOnResize);
         this.size = size;
         pages = new byte[numPages(size)][];
-        for (int i = 0; i < pages.length; ++i) {
-            pages[i] = newBytePage(i);
-        }
+        Arrays.fill(pages, ZERO_PAGE);
     }
 
     protected final byte[] newBytePage(int page) {
@@ -47,22 +51,40 @@ abstract class AbstractBigByteArray extends AbstractBigArray {
     /**
      * Bulk copies array to paged array
      */
-    protected void set(long index, byte[] buf, int offset, int len, byte[][] pages, int shift) {
+    protected void set(long index, byte[] buf, int offset, int len, int shift) {
         assert index + len <= size();
         int pageIndex = pageIndex(index);
         final int indexInPage = indexInPage(index);
         if (indexInPage + len <= pageSize()) {
-            System.arraycopy(buf, offset << shift, pages[pageIndex], indexInPage << shift, len << shift);
+            System.arraycopy(buf, offset << shift, getPageForWriting(pageIndex), indexInPage << shift, len << shift);
         } else {
             int copyLen = pageSize() - indexInPage;
-            System.arraycopy(buf, offset << shift, pages[pageIndex], indexInPage, copyLen << shift);
+            System.arraycopy(buf, offset << shift, getPageForWriting(pageIndex), indexInPage, copyLen << shift);
             do {
                 ++pageIndex;
                 offset += copyLen;
                 len -= copyLen;
                 copyLen = Math.min(len, pageSize());
-                System.arraycopy(buf, offset << shift, pages[pageIndex], 0, copyLen << shift);
+                System.arraycopy(buf, offset << shift, getPageForWriting(pageIndex), 0, copyLen << shift);
             } while (len > copyLen);
+        }
+    }
+
+    protected byte[] getPageForWriting(int pageIndex) {
+        byte[] foundPage = pages[pageIndex];
+        if (foundPage == ZERO_PAGE) {
+            foundPage = newBytePage(pageIndex);
+            pages[pageIndex] = foundPage;
+        }
+        return foundPage;
+    }
+
+    protected void readPages(StreamInput in) throws IOException {
+        int remainedBytes = in.readVInt();
+        for (int i = 0; i < pages.length && remainedBytes > 0; i++) {
+            int len = Math.min(remainedBytes, pages[0].length);
+            in.readBytes(getPageForWriting(i), 0, len);
+            remainedBytes -= len;
         }
     }
 }

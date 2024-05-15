@@ -718,7 +718,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             Releasable scope = tracer.withScope(context.getTask());
             SearchOperationListenerExecutor executor = new SearchOperationListenerExecutor(context, true, afterQueryTime)
         ) {
-            fetchPhase.execute(context, shortcutDocIdsToLoad(context));
+            fetchPhase.execute(context, shortcutDocIdsToLoad(context), null);
             if (reader.singleSession()) {
                 freeReaderContext(reader.id());
             }
@@ -871,7 +871,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 try (
                     SearchOperationListenerExecutor executor = new SearchOperationListenerExecutor(searchContext, true, System.nanoTime())
                 ) {
-                    fetchPhase.execute(searchContext, request.docIds());
+                    fetchPhase.execute(searchContext, request.docIds(), request.getRankDocks());
                     if (readerContext.singleSession()) {
                         freeReaderContext(request.contextId());
                     }

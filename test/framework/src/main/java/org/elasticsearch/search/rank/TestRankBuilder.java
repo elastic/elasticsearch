@@ -8,6 +8,7 @@
 
 package org.elasticsearch.search.rank;
 
+import org.apache.lucene.search.Explanation;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
@@ -82,6 +83,11 @@ public class TestRankBuilder extends RankBuilder {
     @Override
     public QueryPhaseRankCoordinatorContext buildQueryPhaseCoordinatorContext(int size, int from) {
         throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public Explanation explainHit(Explanation baseExplanation, RankDoc rankDoc, List<String> queryNames) {
+        return baseExplanation;
     }
 
     @Override

@@ -225,7 +225,7 @@ class TopHitsAggregator extends MetricsAggregator {
                 return searchExecutionContext;
             }
         };
-        fetchSubSearchContext.fetchPhase().execute(fetchSubSearchContext, docIdsToLoad);
+        fetchSubSearchContext.fetchPhase().execute(fetchSubSearchContext, docIdsToLoad, null);
         return fetchSubSearchContext.fetchResult();
     }
 

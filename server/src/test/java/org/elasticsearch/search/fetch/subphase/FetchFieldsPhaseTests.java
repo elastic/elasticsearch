@@ -88,7 +88,7 @@ public class FetchFieldsPhaseTests extends ESTestCase {
             processor.setNextReader(context);
             for (int doc = 0; doc < context.reader().maxDoc(); doc++) {
                 SearchHit searchHit = SearchHit.unpooled(doc + context.docBase);
-                processor.process(new FetchSubPhase.HitContext(searchHit, context, doc, Map.of(), Source.empty(null)));
+                processor.process(new FetchSubPhase.HitContext(searchHit, context, doc, Map.of(), Source.empty(null), null));
                 assertNotNull(searchHit.getFields().get("field"));
             }
         }

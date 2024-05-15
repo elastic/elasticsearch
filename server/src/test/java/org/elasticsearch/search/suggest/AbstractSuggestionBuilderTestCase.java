@@ -21,6 +21,7 @@ import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.MapperMetrics;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.Mapping;
 import org.elasticsearch.index.mapper.MappingLookup;
@@ -187,7 +188,8 @@ public abstract class AbstractSuggestionBuilderTestCase<SB extends SuggestionBui
                 null,
                 () -> true,
                 null,
-                emptyMap()
+                emptyMap(),
+                MapperMetrics.NOOP
             );
 
             SuggestionContext suggestionContext = suggestionBuilder.build(mockContext);
@@ -243,7 +245,8 @@ public abstract class AbstractSuggestionBuilderTestCase<SB extends SuggestionBui
             null,
             () -> true,
             null,
-            emptyMap()
+            emptyMap(),
+            MapperMetrics.NOOP
         );
         if (randomBoolean()) {
             mockContext.setAllowUnmappedFields(randomBoolean());

@@ -395,7 +395,7 @@ public class ServiceUtils {
         int initialValidationErrorCount = validationException.validationErrors().size();
         var doubleReturn = ServiceUtils.removeAsType(map, settingName, Double.class, validationException);
 
-        if (validationException.validationErrors().isEmpty() == false) {
+        if (validationException.validationErrors().size() > initialValidationErrorCount) {
             return null;
         }
 
@@ -426,8 +426,10 @@ public class ServiceUtils {
         EnumSet<E> validValues,
         ValidationException validationException
     ) {
+        int initialValidationErrorCount = validationException.validationErrors().size();
         var enumReturn = extractOptionalEnum(map, settingName, scope, constructor, validValues, validationException);
-        if (validationException.validationErrors().isEmpty() == false) {
+
+        if (validationException.validationErrors().size() > initialValidationErrorCount) {
             return null;
         }
 
@@ -437,7 +439,7 @@ public class ServiceUtils {
 
         return enumReturn;
     }
-  
+
     public static Long extractOptionalPositiveLong(
         Map<String, Object> map,
         String settingName,
@@ -495,25 +497,6 @@ public class ServiceUtils {
         }
 
         return null;
-    }
-
-    public static Boolean extractRequiredBoolean(
-        Map<String, Object> map,
-        String settingName,
-        String scope,
-        ValidationException validationException
-    ) {
-        Boolean requiredField = ServiceUtils.removeAsType(map, settingName, Boolean.class);
-
-        if (requiredField == null) {
-            validationException.addValidationError(ServiceUtils.missingSettingErrorMsg(settingName, scope));
-        }
-
-        if (validationException.validationErrors().isEmpty() == false) {
-            return false;
-        }
-
-        return requiredField;
     }
 
     public static Boolean extractOptionalBoolean(Map<String, Object> map, String settingName, ValidationException validationException) {

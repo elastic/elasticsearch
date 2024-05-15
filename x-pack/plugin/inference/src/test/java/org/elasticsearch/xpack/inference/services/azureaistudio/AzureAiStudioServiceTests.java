@@ -383,7 +383,7 @@ public class AzureAiStudioServiceTests extends ESTestCase {
 
     public void testParseRequestConfig_ThrowsWhenProviderIsNotValidForEmbeddings() throws IOException {
         try (var service = createService()) {
-            var serviceSettings = getEmbeddingsServiceSettingsMap("http://target.local", "snowflake", "token", null, null, null, null);
+            var serviceSettings = getEmbeddingsServiceSettingsMap("http://target.local", "databricks", "token", null, null, null, null);
 
             var config = getRequestConfigMap(serviceSettings, getEmbeddingsTaskSettingsMap("user"), getSecretSettingsMap("secret"));
 
@@ -391,7 +391,7 @@ public class AzureAiStudioServiceTests extends ESTestCase {
                 model -> fail("Expected exception, but got model: " + model),
                 exception -> {
                     assertThat(exception, instanceOf(ElasticsearchStatusException.class));
-                    assertThat(exception.getMessage(), is("The [text_embedding] task type for provider [snowflake] is not available"));
+                    assertThat(exception.getMessage(), is("The [text_embedding] task type for provider [databricks] is not available"));
                 }
             );
 

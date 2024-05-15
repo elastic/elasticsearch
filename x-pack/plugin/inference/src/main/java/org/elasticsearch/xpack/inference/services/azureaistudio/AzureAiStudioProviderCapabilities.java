@@ -43,7 +43,6 @@ public final class AzureAiStudioProviderCapabilities {
         AzureAiStudioProvider.MISTRAL,
         AzureAiStudioProvider.META,
         AzureAiStudioProvider.MICROSOFT_PHI,
-        AzureAiStudioProvider.SNOWFLAKE,
         AzureAiStudioProvider.DATABRICKS
     );
 

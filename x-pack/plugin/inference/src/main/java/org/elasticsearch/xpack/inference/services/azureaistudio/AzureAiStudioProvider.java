@@ -15,7 +15,6 @@ public enum AzureAiStudioProvider {
     META,
     MICROSOFT_PHI,
     COHERE,
-    SNOWFLAKE,
     DATABRICKS;
 
     public static String NAME = "azure_ai_studio_provider";

@@ -1227,7 +1227,8 @@ public class DockerTests extends PackagingTestCase {
         );
         waitForElasticsearch(installation);
         dumpDebug();
-        assertTrue(readinessProbe(9399));
+        // readiness may still take time as file settings are applied into cluster state (even non-existent file settings)
+        assertBusy(() -> assertTrue(readinessProbe(9399)));
     }
 
     @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/99508")

@@ -1717,8 +1717,7 @@ public class MasterServiceTests extends ESTestCase {
         final long startTimeMillis = relativeTimeInMillis;
         final long taskDurationMillis = TimeValue.timeValueSeconds(1).millis();
 
-        try (MasterService masterService = createMasterService(true);
-             var mockAppender = MockLogAppender.capture(MasterService.class)) {
+        try (MasterService masterService = createMasterService(true); var mockAppender = MockLogAppender.capture(MasterService.class)) {
             final AtomicBoolean keepRunning = new AtomicBoolean(true);
             final CyclicBarrier cyclicBarrier = new CyclicBarrier(2);
             final Runnable awaitNextTask = () -> {

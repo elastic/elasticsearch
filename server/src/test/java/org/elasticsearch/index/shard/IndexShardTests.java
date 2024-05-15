@@ -3526,7 +3526,7 @@ public class IndexShardTests extends IndexShardTestCase {
             indexShard.getRetentionLeaseSyncer(),
             EMPTY_EVENT_LISTENER
         );
-        
+
         try (var appender = MockLogAppender.capture(IndexShard.class)) {
             appender.addExpectation(
                 new MockLogAppender.SeenEventExpectation(

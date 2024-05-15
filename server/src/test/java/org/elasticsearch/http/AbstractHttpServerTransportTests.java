@@ -28,7 +28,6 @@ import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.MockPageCacheRecycler;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.plugins.ActionPlugin;

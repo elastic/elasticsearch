@@ -94,18 +94,11 @@ public class ClusterDisruptionIT extends AbstractDisruptionTestCase {
     }
 
     /**
-     * Test that we do not loose document whose indexing request was successful, under a randomly selected disruption scheme
+     * Test that we do not lose documents, indexed via requests that return success, under randomly selected disruption schemes.
      * We also collect &amp; report the type of indexing failures that occur.
      * <p>
-     * This test is a superset of tests run in the Jepsen test suite, with the exception of versioned updates
+     * This test is a superset of tests run in the Jepsen test suite, with the exception of versioned updates.
      */
-    @TestIssueLogging(
-        value = "_root:DEBUG,org.elasticsearch.action.bulk:TRACE,org.elasticsearch.action.get:TRACE,"
-            + "org.elasticsearch.discovery:TRACE,org.elasticsearch.action.support.replication:TRACE,"
-            + "org.elasticsearch.cluster.service:TRACE,org.elasticsearch.indices.recovery:TRACE,"
-            + "org.elasticsearch.indices.cluster:TRACE,org.elasticsearch.index.shard:TRACE",
-        issueUrl = "https://github.com/elastic/elasticsearch/issues/41068"
-    )
     public void testAckedIndexing() throws Exception {
 
         final int seconds = (TEST_NIGHTLY && rarely()) == false ? 1 : 5;

@@ -57,7 +57,7 @@ public class DataStreamFailureStoreDefinition {
              *       "error": {
              *         "properties": {
              *           "message": {
-             *              "type": "wildcard"
+             *              "type": "match_only_text"
              *           },
              *           "stack_trace": {
              *              "type": "text"
@@ -109,7 +109,7 @@ public class DataStreamFailureStoreDefinition {
                     .startObject("error")
                     .startObject("properties")
                     .startObject("message")
-                    .field("type", "wildcard")
+                    .field("type", "match_only_text")
                     .endObject()
                     .startObject("stack_trace")
                     .field("type", "text")

@@ -13,6 +13,7 @@
 * <<esql-asin>>
 * <<esql-atan>>
 * <<esql-atan2>>
+* <<esql-cbrt>>
 * <<esql-ceil>>
 * <<esql-cos>>
 * <<esql-cosh>>
@@ -37,6 +38,7 @@ include::layout/acos.asciidoc[]
 include::layout/asin.asciidoc[]
 include::layout/atan.asciidoc[]
 include::layout/atan2.asciidoc[]
+include::layout/cbrt.asciidoc[]
 include::layout/ceil.asciidoc[]
 include::layout/cos.asciidoc[]
 include::layout/cosh.asciidoc[]

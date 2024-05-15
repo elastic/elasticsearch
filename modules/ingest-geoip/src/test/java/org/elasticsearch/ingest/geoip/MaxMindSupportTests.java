@@ -220,7 +220,11 @@ public class MaxMindSupportTests extends ESTestCase {
         "traits.autonomousSystemOrganization",
         "traits.domain",
         "traits.hostingProvider",
+        "traits.isp",
+        "traits.mobileCountryCode",
+        "traits.mobileNetworkCode",
         "traits.network",
+        "traits.organization",
         "traits.publicProxy",
         "traits.residentialProxy",
         "traits.torExitNode"
@@ -273,16 +277,24 @@ public class MaxMindSupportTests extends ESTestCase {
         "traits.anycast",
         "traits.connectionType",
         "traits.ipAddress",
-        "traits.isp",
         "traits.legitimateProxy",
-        "traits.mobileCountryCode",
-        "traits.mobileNetworkCode",
-        "traits.organization",
         "traits.satelliteProvider",
         "traits.staticIpScore",
         "traits.userCount",
         "traits.userType"
     );
+
+    private static final Set<String> ISP_SUPPORTED_FIELDS = Set.of(
+        "autonomousSystemNumber",
+        "autonomousSystemOrganization",
+        "network",
+        "isp",
+        "mobileCountryCode",
+        "mobileNetworkCode",
+        "organization"
+    );
+
+    private static final Set<String> ISP_UNSUPPORTED_FIELDS = Set.of("ipAddress");
 
     private static final Map<Database, Set<String>> TYPE_TO_SUPPORTED_FIELDS_MAP = Map.of(
         Database.AnonymousIp,
@@ -296,7 +308,9 @@ public class MaxMindSupportTests extends ESTestCase {
         Database.Domain,
         DOMAIN_SUPPORTED_FIELDS,
         Database.Enterprise,
-        ENTERPRISE_SUPPORTED_FIELDS
+        ENTERPRISE_SUPPORTED_FIELDS,
+        Database.Isp,
+        ISP_SUPPORTED_FIELDS
     );
     private static final Map<Database, Set<String>> TYPE_TO_UNSUPPORTED_FIELDS_MAP = Map.of(
         Database.AnonymousIp,
@@ -310,7 +324,9 @@ public class MaxMindSupportTests extends ESTestCase {
         Database.Domain,
         DOMAIN_UNSUPPORTED_FIELDS,
         Database.Enterprise,
-        ENTERPRISE_UNSUPPORTED_FIELDS
+        ENTERPRISE_UNSUPPORTED_FIELDS,
+        Database.Isp,
+        ISP_UNSUPPORTED_FIELDS
     );
     private static final Map<Database, Class<? extends AbstractResponse>> TYPE_TO_MAX_MIND_CLASS = Map.of(
         Database.AnonymousIp,
@@ -324,12 +340,13 @@ public class MaxMindSupportTests extends ESTestCase {
         Database.Domain,
         DomainResponse.class,
         Database.Enterprise,
-        EnterpriseResponse.class
+        EnterpriseResponse.class,
+        Database.Isp,
+        IspResponse.class
     );
 
     private static final Set<Class<? extends AbstractResponse>> KNOWN_UNSUPPORTED_RESPONSE_CLASSES = Set.of(
         ConnectionTypeResponse.class,
-        IspResponse.class,
         IpRiskResponse.class
     );
 

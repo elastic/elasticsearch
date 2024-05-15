@@ -415,7 +415,6 @@ public class GeoIpProcessorTests extends ESTestCase {
     }
 
     public void testIsp() throws Exception {
-        // String ip = "38.105.0.64";
         String ip = "149.101.100.1";
         GeoIpProcessor processor = new GeoIpProcessor(
             randomAlphaOfLength(10),

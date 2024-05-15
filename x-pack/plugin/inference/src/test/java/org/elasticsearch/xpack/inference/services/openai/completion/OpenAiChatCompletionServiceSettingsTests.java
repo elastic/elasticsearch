@@ -236,7 +236,7 @@ public class OpenAiChatCompletionServiceSettingsTests extends AbstractWireSerial
 
     @Override
     protected OpenAiChatCompletionServiceSettings mutateInstance(OpenAiChatCompletionServiceSettings instance) throws IOException {
-        return createRandomWithNonNullUrl();
+        return randomValueOtherThan(instance, OpenAiChatCompletionServiceSettingsTests::createRandomWithNonNullUrl);
     }
 
     private static OpenAiChatCompletionServiceSettings createRandomWithNonNullUrl() {

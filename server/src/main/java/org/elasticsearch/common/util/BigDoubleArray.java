@@ -27,22 +27,15 @@ import static org.elasticsearch.common.util.PageCacheRecycler.DOUBLE_PAGE_SIZE;
  * Double array abstraction able to support more than 2B values. This implementation slices data into fixed-sized blocks of
  * configurable length.
  */
-final class BigDoubleArray extends AbstractBigArray implements DoubleArray {
+final class BigDoubleArray extends AbstractBigByteArray implements DoubleArray {
 
     private static final BigDoubleArray ESTIMATOR = new BigDoubleArray(0, BigArrays.NON_RECYCLING_INSTANCE, false);
 
     static final VarHandle VH_PLATFORM_NATIVE_DOUBLE = MethodHandles.byteArrayViewVarHandle(double[].class, ByteOrder.nativeOrder());
 
-    private byte[][] pages;
-
     /** Constructor. */
     BigDoubleArray(long size, BigArrays bigArrays, boolean clearOnResize) {
-        super(DOUBLE_PAGE_SIZE, bigArrays, clearOnResize);
-        this.size = size;
-        pages = new byte[numPages(size)][];
-        for (int i = 0; i < pages.length; ++i) {
-            pages[i] = newBytePage(i);
-        }
+        super(DOUBLE_PAGE_SIZE, bigArrays, clearOnResize, size);
     }
 
     @Override

@@ -77,6 +77,7 @@ tasks.named("yamlRestTestV7CompatTest").configure {
     'ml/evaluate_data_frame/Test outlier_detection auc_roc include curve',
     'ml/evaluate_data_frame/Test classification auc_roc',
     'ml/evaluate_data_frame/Test classification auc_roc with default top_classes_field',
+    'rollup/*' // The rollup yaml tests in the 7.x branch don't know how to fake a cluster with rollup usage.
   ].join(',')
 }
 

@@ -19,19 +19,24 @@ import org.gradle.platform.BuildPlatform;
 import org.gradle.platform.OperatingSystem;
 
 import java.net.URI;
+import java.util.List;
 import java.util.Optional;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 public abstract class OracleOpenJdkToolchainResolver extends AbstractCustomJavaToolchainResolver {
 
+    record JdkBuild(JavaLanguageVersion languageVersion, String version, String buildNumber, String hash) {}
+
     private static final Pattern VERSION_PATTERN = Pattern.compile(
         "(\\d+)(\\.\\d+\\.\\d+(?:\\.\\d+)?)?\\+(\\d+(?:\\.\\d+)?)(@([a-f0-9]{32}))?"
     );
 
-    // for testing reasons we keep that a package private field
-    String bundledJdkVersion = VersionProperties.getBundledJdkVersion();
-    JavaLanguageVersion bundledJdkMajorVersion = JavaLanguageVersion.of(VersionProperties.getBundledJdkMajorVersion());
+    private static final List<OperatingSystem> supportedOperatingSystems = List.of(
+        OperatingSystem.MAC_OS,
+        OperatingSystem.LINUX,
+        OperatingSystem.WINDOWS
+    );
 
     // package private so it can be replaced by tests
     List<JdkBuild> builds = List.of(getBundledJdkBuild());
@@ -54,7 +59,8 @@ public abstract class OracleOpenJdkToolchainResolver extends AbstractCustomJavaT
      * */
     @Override
     public Optional<JavaToolchainDownload> resolve(JavaToolchainRequest request) {
-        if (requestIsSupported(request) == false) {
+        JdkBuild build = findSupportedBuild(request);
+        if (build == null) {
             return Optional.empty();
         }
 
@@ -65,13 +71,13 @@ public abstract class OracleOpenJdkToolchainResolver extends AbstractCustomJavaT
         return Optional.of(
             () -> URI.create(
                 "https://download.oracle.com/java/GA/jdk"
-                    + baseVersion
+                    + build.version
                     + "/"
-                    + hash
+                    + build.hash
                     + "/"
-                    + build
+                    + build.buildNumber
                     + "/GPL/openjdk-"
-                    + baseVersion
+                    + build.version
                     + "_"
                     + os
                     + "-"
@@ -89,20 +95,28 @@ public abstract class OracleOpenJdkToolchainResolver extends AbstractCustomJavaT
      * 3. vendor must be any or oracle
      * 4. Aarch64 windows images are not supported
      */
-    private boolean requestIsSupported(JavaToolchainRequest request) {
+    private JdkBuild findSupportedBuild(JavaToolchainRequest request) {
         if (VersionProperties.getBundledJdkVendor().toLowerCase().equals("openjdk") == false) {
-            return false;
+            return null;
         }
         JavaToolchainSpec javaToolchainSpec = request.getJavaToolchainSpec();
-        if (javaToolchainSpec.getLanguageVersion().get().equals(bundledJdkMajorVersion) == false) {
-            return false;
-        }
         if (anyVendorOr(javaToolchainSpec.getVendor().get(), JvmVendorSpec.ORACLE) == false) {
-            return false;
+            return null;
         }
         BuildPlatform buildPlatform = request.getBuildPlatform();
         Architecture architecture = buildPlatform.getArchitecture();
         OperatingSystem operatingSystem = buildPlatform.getOperatingSystem();
-        return Architecture.AARCH64 != architecture || OperatingSystem.WINDOWS != operatingSystem;
+        if (supportedOperatingSystems.contains(operatingSystem) == false
+            || Architecture.AARCH64 == architecture && OperatingSystem.WINDOWS == operatingSystem) {
+            return null;
+        }
+
+        JavaLanguageVersion languageVersion = javaToolchainSpec.getLanguageVersion().get();
+        for (JdkBuild build : builds) {
+            if (build.languageVersion.equals(languageVersion)) {
+                return build;
+            }
+        }
+        return null;
     }
 }

@@ -22,22 +22,15 @@ import static org.elasticsearch.common.util.PageCacheRecycler.FLOAT_PAGE_SIZE;
  * Float array abstraction able to support more than 2B values. This implementation slices data into fixed-sized blocks of
  * configurable length.
  */
-final class BigFloatArray extends AbstractBigArray implements FloatArray {
+final class BigFloatArray extends AbstractBigByteArray implements FloatArray {
 
     private static final BigFloatArray ESTIMATOR = new BigFloatArray(0, BigArrays.NON_RECYCLING_INSTANCE, false);
 
     static final VarHandle VH_PLATFORM_NATIVE_FLOAT = MethodHandles.byteArrayViewVarHandle(float[].class, ByteOrder.nativeOrder());
 
-    private byte[][] pages;
-
     /** Constructor. */
     BigFloatArray(long size, BigArrays bigArrays, boolean clearOnResize) {
-        super(FLOAT_PAGE_SIZE, bigArrays, clearOnResize);
-        this.size = size;
-        pages = new byte[numPages(size)][];
-        for (int i = 0; i < pages.length; ++i) {
-            pages[i] = newBytePage(i);
-        }
+        super(FLOAT_PAGE_SIZE, bigArrays, clearOnResize, size);
     }
 
     @Override

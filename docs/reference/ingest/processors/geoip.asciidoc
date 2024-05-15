@@ -59,6 +59,7 @@ in `properties`.
 * If the GeoIP2 Anonymous IP database is used, then the following fields may be added under the `target_field`: `ip`,
 `hosting_provider`, `tor_exit_node`, `anonymous_vpn`, `anonymous`, `public_proxy`, and `residential_proxy`. The fields actually added
 depend on what has been found and which properties were configured in `properties`.
+* If the GeoIP2 Domain database is used, then the following fields may be added under the `target_field`: `ip`, and `domain`.
 * If the GeoIP2 Enterprise database is used, then the following fields may be added under the `target_field`: `ip`,
 `country_iso_code`, `country_name`, `continent_name`, `region_iso_code`, `region_name`, `city_name`, `timezone`, `location`, `asn`,
 `organization_name`, `network`, `hosting_provider`, `tor_exit_node`, `anonymous_vpn`, `anonymous`, `public_proxy`, and `residential_proxy`.

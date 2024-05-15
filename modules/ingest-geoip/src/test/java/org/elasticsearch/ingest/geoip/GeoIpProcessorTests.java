@@ -403,8 +403,6 @@ public class GeoIpProcessorTests extends ESTestCase {
         assertThat(geoData.get("asn"), equalTo(14671L));
         assertThat(geoData.get("organization_name"), equalTo("FairPoint Communications"));
         assertThat(geoData.get("network"), equalTo("74.209.16.0/20"));
-        assertThat(geoData.get("isp"), equalTo("Fairpoint Communications"));
-        assertThat(geoData.get("isp_organization"), equalTo("Fairpoint Communications"));
         assertThat(geoData.get("hosting_provider"), equalTo(false));
         assertThat(geoData.get("tor_exit_node"), equalTo(false));
         assertThat(geoData.get("anonymous_vpn"), equalTo(false));
@@ -412,6 +410,8 @@ public class GeoIpProcessorTests extends ESTestCase {
         assertThat(geoData.get("public_proxy"), equalTo(false));
         assertThat(geoData.get("residential_proxy"), equalTo(false));
         assertThat(geoData.get("domain"), equalTo("frpt.net"));
+        assertThat(geoData.get("isp"), equalTo("Fairpoint Communications"));
+        assertThat(geoData.get("isp_organization"), equalTo("Fairpoint Communications"));
     }
 
     public void testIsp() throws Exception {

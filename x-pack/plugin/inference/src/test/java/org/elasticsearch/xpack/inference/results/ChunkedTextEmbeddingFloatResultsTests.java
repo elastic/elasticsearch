@@ -51,6 +51,6 @@ public class ChunkedTextEmbeddingFloatResultsTests extends AbstractWireSerializi
 
     @Override
     protected ChunkedTextEmbeddingFloatResults mutateInstance(ChunkedTextEmbeddingFloatResults instance) throws IOException {
-        return null;
+        return randomValueOtherThan(instance, this::createTestInstance);
     }
 }

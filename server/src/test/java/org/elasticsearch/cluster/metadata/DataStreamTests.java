@@ -145,7 +145,7 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
                 if (randomBoolean() || autoShardingEvent == null) {
                     // If we're mutating the auto sharding event of the failure store, we need to ensure there's at least one failure index.
                     if (failureIndices.isEmpty()) {
-                        failureIndices = DataStreamTestHelper.randomIndexInstances();
+                        failureIndices = DataStreamTestHelper.randomNonEmptyIndexInstances();
                         failureStore = true;
                     }
                     autoShardingEvent = new DataStreamAutoShardingEvent(

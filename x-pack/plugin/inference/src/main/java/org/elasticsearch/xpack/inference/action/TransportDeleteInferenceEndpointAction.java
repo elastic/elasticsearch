@@ -25,17 +25,20 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.xpack.core.inference.action.DeleteInferenceModelAction;
+import org.elasticsearch.xpack.core.inference.action.DeleteInferenceEndpointAction;
 import org.elasticsearch.xpack.inference.common.InferenceExceptions;
 import org.elasticsearch.xpack.inference.registry.ModelRegistry;
 
-public class TransportDeleteInferenceModelAction extends AcknowledgedTransportMasterNodeAction<DeleteInferenceModelAction.Request> {
+import java.util.LinkedHashSet;
+import java.util.Set;
+
+public class TransportDeleteInferenceEndpointAction extends AcknowledgedTransportMasterNodeAction<DeleteInferenceEndpointAction.Request> {
 
     private final ModelRegistry modelRegistry;
     private final InferenceServiceRegistry serviceRegistry;
 
     @Inject
-    public TransportDeleteInferenceModelAction(
+    public TransportDeleteInferenceEndpointAction(
         TransportService transportService,
         ClusterService clusterService,
         ThreadPool threadPool,
@@ -45,12 +48,12 @@ public class TransportDeleteInferenceModelAction extends AcknowledgedTransportMa
         InferenceServiceRegistry serviceRegistry
     ) {
         super(
-            DeleteInferenceModelAction.NAME,
+            DeleteInferenceEndpointAction.NAME,
             transportService,
             clusterService,
             threadPool,
             actionFilters,
-            DeleteInferenceModelAction.Request::new,
+            DeleteInferenceEndpointAction.Request::new,
             indexNameExpressionResolver,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
@@ -61,43 +64,55 @@ public class TransportDeleteInferenceModelAction extends AcknowledgedTransportMa
     @Override
     protected void masterOperation(
         Task task,
-        DeleteInferenceModelAction.Request request,
+        DeleteInferenceEndpointAction.Request request,
         ClusterState state,
-        ActionListener<AcknowledgedResponse> listener
+        ActionListener<AcknowledgedResponse> masterListener
     ) {
         SubscribableListener.<ModelRegistry.UnparsedModel>newForked(modelConfigListener -> {
-            modelRegistry.getModel(request.getInferenceEntityId(), modelConfigListener);
-        }).<Boolean>andThen((l1, unparsedModel) -> {
+            // Get the model from the registry
+
+            modelRegistry.getModel(request.getInferenceEndpointId(), modelConfigListener);
+        }).<Boolean>andThen((listener, unparsedModel) -> {
+            // Validate the request & issue the stop request to the service
 
             if (request.getTaskType().isAnyOrSame(unparsedModel.taskType()) == false) {
                 // specific task type in request does not match the models
-                l1.onFailure(InferenceExceptions.mismatchedTaskTypeException(request.getTaskType(), unparsedModel.taskType()));
+                listener.onFailure(InferenceExceptions.mismatchedTaskTypeException(request.getTaskType(), unparsedModel.taskType()));
                 return;
             }
+
+            // TODO check if the endpoint is referenced by pipelines here
+                Set<String> modelIdsRererencedByPipelines = InferenceProcessorInfoExtractor.pipelineIdsByResource(
+
+
+
             var service = serviceRegistry.getService(unparsedModel.service());
             if (service.isPresent()) {
-                service.get().stop(request.getInferenceEntityId(), l1);
+                service.get().stop(request.getInferenceEndpointId(), listener);
             } else {
-                l1.onFailure(
-                    new ElasticsearchStatusException("No service found for model " + request.getInferenceEntityId(), RestStatus.NOT_FOUND)
+                listener.onFailure(
+                    new ElasticsearchStatusException("No service found for model " + request.getInferenceEndpointId(), RestStatus.NOT_FOUND)
                 );
             }
-        }).<Boolean>andThen((l2, didStop) -> {
+        }).<Boolean>andThen((listener, didStop) -> {
             if (didStop) {
-                modelRegistry.deleteModel(request.getInferenceEntityId(), l2);
+                modelRegistry.deleteModel(request.getInferenceEndpointId(), listener);
             } else {
-                l2.onFailure(
+                listener.onFailure(
                     new ElasticsearchStatusException(
-                        "Failed to stop model " + request.getInferenceEntityId(),
+                        "Failed to stop model " + request.getInferenceEndpointId(),
                         RestStatus.INTERNAL_SERVER_ERROR
                     )
                 );
             }
-        }).addListener(listener.delegateFailure((l3, didDeleteModel) -> listener.onResponse(AcknowledgedResponse.of(didDeleteModel))));
+        })
+            .addListener(
+                masterListener.delegateFailure((l3, didDeleteModel) -> masterListener.onResponse(AcknowledgedResponse.of(didDeleteModel)))
+            );
     }
 
     @Override
-    protected ClusterBlockException checkBlock(DeleteInferenceModelAction.Request request, ClusterState state) {
+    protected ClusterBlockException checkBlock(DeleteInferenceEndpointAction.Request request, ClusterState state) {
         return state.blocks().globalBlockedException(ClusterBlockLevel.WRITE);
     }
 

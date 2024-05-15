@@ -17,34 +17,34 @@ import org.elasticsearch.inference.TaskType;
 import java.io.IOException;
 import java.util.Objects;
 
-public class DeleteInferenceModelAction extends ActionType<AcknowledgedResponse> {
+public class DeleteInferenceEndpointAction extends ActionType<AcknowledgedResponse> {
 
-    public static final DeleteInferenceModelAction INSTANCE = new DeleteInferenceModelAction();
+    public static final DeleteInferenceEndpointAction INSTANCE = new DeleteInferenceEndpointAction();
     public static final String NAME = "cluster:admin/xpack/inference/delete";
 
-    public DeleteInferenceModelAction() {
+    public DeleteInferenceEndpointAction() {
         super(NAME);
     }
 
-    public static class Request extends AcknowledgedRequest<DeleteInferenceModelAction.Request> {
+    public static class Request extends AcknowledgedRequest<DeleteInferenceEndpointAction.Request> {
 
-        private final String inferenceEntityId;
+        private final String inferenceEndpointId;
         private final TaskType taskType;
 
-        public Request(String inferenceEntityId, TaskType taskType) {
+        public Request(String inferenceEndpointId, TaskType taskType) {
             super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT, DEFAULT_ACK_TIMEOUT);
-            this.inferenceEntityId = inferenceEntityId;
+            this.inferenceEndpointId = inferenceEndpointId;
             this.taskType = taskType;
         }
 
         public Request(StreamInput in) throws IOException {
             super(in);
-            this.inferenceEntityId = in.readString();
+            this.inferenceEndpointId = in.readString();
             this.taskType = TaskType.fromStream(in);
         }
 
-        public String getInferenceEntityId() {
-            return inferenceEntityId;
+        public String getInferenceEndpointId() {
+            return inferenceEndpointId;
         }
 
         public TaskType getTaskType() {
@@ -54,7 +54,7 @@ public class DeleteInferenceModelAction extends ActionType<AcknowledgedResponse>
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
-            out.writeString(inferenceEntityId);
+            out.writeString(inferenceEndpointId);
             taskType.writeTo(out);
         }
 
@@ -62,13 +62,13 @@ public class DeleteInferenceModelAction extends ActionType<AcknowledgedResponse>
         public boolean equals(Object o) {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
-            DeleteInferenceModelAction.Request request = (DeleteInferenceModelAction.Request) o;
-            return Objects.equals(inferenceEntityId, request.inferenceEntityId) && taskType == request.taskType;
+            DeleteInferenceEndpointAction.Request request = (DeleteInferenceEndpointAction.Request) o;
+            return Objects.equals(inferenceEndpointId, request.inferenceEndpointId) && taskType == request.taskType;
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(inferenceEntityId, taskType);
+            return Objects.hash(inferenceEndpointId, taskType);
         }
     }
 }

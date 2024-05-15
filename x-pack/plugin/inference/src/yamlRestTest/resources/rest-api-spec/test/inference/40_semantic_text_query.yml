@@ -349,3 +349,28 @@ setup:
               query: "inference test"
 
   - match: { hits.total.value: 0 }
+
+---
+"Query a field with an invalid inference ID":
+  - do:
+      indices.create:
+        index: test-index-with-invalid-inference-id
+        body:
+          mappings:
+            properties:
+              inference_field:
+                type: semantic_text
+                inference_id: invalid-inference-id
+
+  - do:
+      catch: missing
+      search:
+        index: test-index-with-invalid-inference-id
+        body:
+          query:
+            semantic:
+              field: "inference_field"
+              query: "inference test"
+
+  - match: { error.type: "resource_not_found_exception" }
+  - match: { error.reason: "Inference endpoint not found [invalid-inference-id]" }

@@ -101,7 +101,8 @@ enum Database {
             Property.ISP,
             Property.ISP_ORGANIZATION_NAME,
             Property.MOBILE_COUNTRY_CODE,
-            Property.MOBILE_NETWORK_CODE
+            Property.MOBILE_NETWORK_CODE,
+            Property.CONNECTION_TYPE
         ),
         Set.of(
             Property.COUNTRY_ISO_CODE,

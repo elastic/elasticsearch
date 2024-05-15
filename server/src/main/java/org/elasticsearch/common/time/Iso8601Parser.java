@@ -427,7 +427,7 @@ class Iso8601Parser {
         pos++;  // read the + or -
 
         Integer hours = parseInt(str, pos, pos += 2);
-        if (hours == null) return null;
+        if (hours == null || hours > 23) return null;
         if (len == pos) return ofHoursMinutesSeconds(hours, 0, 0, positive);
 
         boolean hasColon = false;
@@ -437,7 +437,7 @@ class Iso8601Parser {
         }
 
         Integer minutes = parseInt(str, pos, pos += 2);
-        if (minutes == null) return null;
+        if (minutes == null || minutes > 59) return null;
         if (len == pos) return ofHoursMinutesSeconds(hours, minutes, 0, positive);
 
         // either both dividers have a colon, or neither do
@@ -447,7 +447,7 @@ class Iso8601Parser {
         }
 
         Integer seconds = parseInt(str, pos, pos += 2);
-        if (seconds == null) return null;
+        if (seconds == null || seconds > 59) return null;
         if (len == pos) return ofHoursMinutesSeconds(hours, minutes, seconds, positive);
 
         // there's some text left over...

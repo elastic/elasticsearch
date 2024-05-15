@@ -213,6 +213,7 @@ public class ExplainDataStreamLifecycleIT extends ESIntegTestCase {
         client().execute(
             PutDataStreamGlobalRetentionAction.INSTANCE,
             new PutDataStreamGlobalRetentionAction.Request(
+                TimeValue.THIRTY_SECONDS,
                 TimeValue.timeValueSeconds(globalRetentionSeconds),
                 TimeValue.timeValueSeconds(globalRetentionSeconds)
             )
@@ -260,7 +261,10 @@ public class ExplainDataStreamLifecycleIT extends ESIntegTestCase {
                 );
             }
         } finally {
-            client().execute(DeleteDataStreamGlobalRetentionAction.INSTANCE, new DeleteDataStreamGlobalRetentionAction.Request());
+            client().execute(
+                DeleteDataStreamGlobalRetentionAction.INSTANCE,
+                new DeleteDataStreamGlobalRetentionAction.Request(TimeValue.THIRTY_SECONDS)
+            );
         }
     }
 

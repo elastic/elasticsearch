@@ -62,7 +62,7 @@ public class CohereCompletionRequestTests extends ESTestCase {
         var request = new CohereCompletionRequest(List.of("abc"), CohereCompletionModelTests.createModel("url", "secret", "model"));
         var truncatedRequest = request.truncate();
 
-        assertThat(truncatedRequest, is(request));
+        assertThat(truncatedRequest, sameInstance(request));
     }
 
     public void testTruncationInfo_ReturnsNull() {

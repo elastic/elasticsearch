@@ -96,7 +96,11 @@ enum Database {
             Property.ANONYMOUS,
             Property.PUBLIC_PROXY,
             Property.RESIDENTIAL_PROXY,
-            Property.DOMAIN
+            Property.DOMAIN,
+            Property.ISP,
+            Property.ISP_ORGANIZATION_NAME,
+            Property.MOBILE_COUNTRY_CODE,
+            Property.MOBILE_NETWORK_CODE
         ),
         Set.of(
             Property.COUNTRY_ISO_CODE,
@@ -107,6 +111,28 @@ enum Database {
             Property.CITY_NAME,
             Property.LOCATION
         )
+    ),
+    Isp(
+        Set.of(
+            Property.IP,
+            Property.ASN,
+            Property.ORGANIZATION_NAME,
+            Property.NETWORK,
+            Property.ISP,
+            Property.ISP_ORGANIZATION_NAME,
+            Property.MOBILE_COUNTRY_CODE,
+            Property.MOBILE_NETWORK_CODE
+        ),
+        Set.of(
+            Property.IP,
+            Property.ASN,
+            Property.ORGANIZATION_NAME,
+            Property.NETWORK,
+            Property.ISP,
+            Property.ISP_ORGANIZATION_NAME,
+            Property.MOBILE_COUNTRY_CODE,
+            Property.MOBILE_NETWORK_CODE
+        )
     );
 
     private static final String CITY_DB_SUFFIX = "-City";
@@ -115,6 +141,7 @@ enum Database {
     private static final String ANONYMOUS_IP_DB_SUFFIX = "-Anonymous-IP";
     private static final String DOMAIN_DB_SUFFIX = "-Domain";
     private static final String ENTERPRISE_DB_SUFFIX = "-Enterprise";
+    private static final String ISP_DB_SUFFIX = "-ISP";
 
     /**
      * Parses the passed-in databaseType (presumably from the passed-in databaseFile) and return the Database instance that is
@@ -140,6 +167,8 @@ enum Database {
                 database = Database.Domain;
             } else if (databaseType.endsWith(Database.ENTERPRISE_DB_SUFFIX)) {
                 database = Database.Enterprise;
+            } else if (databaseType.endsWith(Database.ISP_DB_SUFFIX)) {
+                database = Database.Isp;
             }
         }
 
@@ -215,7 +244,11 @@ enum Database {
         ANONYMOUS,
         PUBLIC_PROXY,
         RESIDENTIAL_PROXY,
-        DOMAIN;
+        DOMAIN,
+        ISP,
+        ISP_ORGANIZATION_NAME,
+        MOBILE_COUNTRY_CODE,
+        MOBILE_NETWORK_CODE;
 
         /**
          * Parses a string representation of a property into an actual Property instance. Not all properties that exist are

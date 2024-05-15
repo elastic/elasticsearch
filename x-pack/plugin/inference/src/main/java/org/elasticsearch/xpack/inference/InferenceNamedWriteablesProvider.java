@@ -25,6 +25,10 @@ import org.elasticsearch.xpack.core.inference.results.RankedDocsResults;
 import org.elasticsearch.xpack.core.inference.results.SparseEmbeddingResults;
 import org.elasticsearch.xpack.core.inference.results.TextEmbeddingByteResults;
 import org.elasticsearch.xpack.core.inference.results.TextEmbeddingResults;
+import org.elasticsearch.xpack.inference.services.azureaistudio.completion.AzureAiStudioChatCompletionServiceSettings;
+import org.elasticsearch.xpack.inference.services.azureaistudio.completion.AzureAiStudioChatCompletionTaskSettings;
+import org.elasticsearch.xpack.inference.services.azureaistudio.embeddings.AzureAiStudioEmbeddingsServiceSettings;
+import org.elasticsearch.xpack.inference.services.azureaistudio.embeddings.AzureAiStudioEmbeddingsTaskSettings;
 import org.elasticsearch.xpack.inference.services.azureopenai.AzureOpenAiSecretSettings;
 import org.elasticsearch.xpack.inference.services.azureopenai.completion.AzureOpenAiCompletionServiceSettings;
 import org.elasticsearch.xpack.inference.services.azureopenai.completion.AzureOpenAiCompletionTaskSettings;
@@ -69,59 +73,8 @@ public class InferenceNamedWriteablesProvider {
             new NamedWriteableRegistry.Entry(InferenceResults.class, LegacyTextEmbeddingResults.NAME, LegacyTextEmbeddingResults::new)
         );
 
-        // Inference results
-        namedWriteables.add(
-            new NamedWriteableRegistry.Entry(InferenceServiceResults.class, SparseEmbeddingResults.NAME, SparseEmbeddingResults::new)
-        );
-        namedWriteables.add(
-            new NamedWriteableRegistry.Entry(InferenceServiceResults.class, TextEmbeddingResults.NAME, TextEmbeddingResults::new)
-        );
-        namedWriteables.add(
-            new NamedWriteableRegistry.Entry(InferenceServiceResults.class, TextEmbeddingByteResults.NAME, TextEmbeddingByteResults::new)
-        );
-        namedWriteables.add(
-            new NamedWriteableRegistry.Entry(InferenceServiceResults.class, ChatCompletionResults.NAME, ChatCompletionResults::new)
-        );
-        namedWriteables.add(
-            new NamedWriteableRegistry.Entry(InferenceServiceResults.class, RankedDocsResults.NAME, RankedDocsResults::new)
-        );
-
-        // Chunked inference results
-        namedWriteables.add(
-            new NamedWriteableRegistry.Entry(
-                InferenceServiceResults.class,
-                ErrorChunkedInferenceResults.NAME,
-                ErrorChunkedInferenceResults::new
-            )
-        );
-        namedWriteables.add(
-            new NamedWriteableRegistry.Entry(
-                InferenceServiceResults.class,
-                ChunkedSparseEmbeddingResults.NAME,
-                ChunkedSparseEmbeddingResults::new
-            )
-        );
-        namedWriteables.add(
-            new NamedWriteableRegistry.Entry(
-                InferenceServiceResults.class,
-                ChunkedTextEmbeddingResults.NAME,
-                ChunkedTextEmbeddingResults::new
-            )
-        );
-        namedWriteables.add(
-            new NamedWriteableRegistry.Entry(
-                InferenceServiceResults.class,
-                ChunkedTextEmbeddingFloatResults.NAME,
-                ChunkedTextEmbeddingFloatResults::new
-            )
-        );
-        namedWriteables.add(
-            new NamedWriteableRegistry.Entry(
-                InferenceServiceResults.class,
-                ChunkedTextEmbeddingByteResults.NAME,
-                ChunkedTextEmbeddingByteResults::new
-            )
-        );
+        addInferenceResultsNamedWriteables(namedWriteables);
+        addChunkedInferenceResultsNamedWriteables(namedWriteables);
 
         // Empty default task settings
         namedWriteables.add(new NamedWriteableRegistry.Entry(TaskSettings.class, EmptyTaskSettings.NAME, EmptyTaskSettings::new));
@@ -129,13 +82,7 @@ public class InferenceNamedWriteablesProvider {
         // Default secret settings
         namedWriteables.add(new NamedWriteableRegistry.Entry(SecretSettings.class, DefaultSecretSettings.NAME, DefaultSecretSettings::new));
 
-        // Internal ELSER config
-        namedWriteables.add(
-            new NamedWriteableRegistry.Entry(ServiceSettings.class, ElserInternalServiceSettings.NAME, ElserInternalServiceSettings::new)
-        );
-        namedWriteables.add(
-            new NamedWriteableRegistry.Entry(TaskSettings.class, ElserMlNodeTaskSettings.NAME, ElserMlNodeTaskSettings::new)
-        );
+        addInternalElserNamedWriteables(namedWriteables);
 
         // Internal TextEmbedding service config
         namedWriteables.add(
@@ -153,69 +100,48 @@ public class InferenceNamedWriteablesProvider {
             )
         );
 
-        // Hugging Face config
-        namedWriteables.add(
-            new NamedWriteableRegistry.Entry(
-                ServiceSettings.class,
-                HuggingFaceElserServiceSettings.NAME,
-                HuggingFaceElserServiceSettings::new
-            )
-        );
-        namedWriteables.add(
-            new NamedWriteableRegistry.Entry(ServiceSettings.class, HuggingFaceServiceSettings.NAME, HuggingFaceServiceSettings::new)
-        );
-        namedWriteables.add(
-            new NamedWriteableRegistry.Entry(SecretSettings.class, HuggingFaceElserSecretSettings.NAME, HuggingFaceElserSecretSettings::new)
-        );
+        addHuggingFaceNamedWriteables(namedWriteables);
+        addOpenAiNamedWriteables(namedWriteables);
+        addCohereNamedWriteables(namedWriteables);
+        addAzureOpenAiNamedWriteables(namedWriteables);
+        addAzureAiStudioNamedWriteables(namedWriteables);
 
-        // OpenAI
+        return namedWriteables;
+    }
+
+    private static void addAzureAiStudioNamedWriteables(List<NamedWriteableRegistry.Entry> namedWriteables) {
         namedWriteables.add(
             new NamedWriteableRegistry.Entry(
                 ServiceSettings.class,
-                OpenAiEmbeddingsServiceSettings.NAME,
-                OpenAiEmbeddingsServiceSettings::new
-            )
-        );
-        namedWriteables.add(
-            new NamedWriteableRegistry.Entry(TaskSettings.class, OpenAiEmbeddingsTaskSettings.NAME, OpenAiEmbeddingsTaskSettings::new)
-        );
-        namedWriteables.add(
-            new NamedWriteableRegistry.Entry(
-                ServiceSettings.class,
-                OpenAiChatCompletionServiceSettings.NAME,
-                OpenAiChatCompletionServiceSettings::new
+                AzureAiStudioEmbeddingsServiceSettings.NAME,
+                AzureAiStudioEmbeddingsServiceSettings::new
             )
         );
         namedWriteables.add(
             new NamedWriteableRegistry.Entry(
                 TaskSettings.class,
-                OpenAiChatCompletionTaskSettings.NAME,
-                OpenAiChatCompletionTaskSettings::new
+                AzureAiStudioEmbeddingsTaskSettings.NAME,
+                AzureAiStudioEmbeddingsTaskSettings::new
             )
         );
 
-        // Cohere
-        namedWriteables.add(
-            new NamedWriteableRegistry.Entry(ServiceSettings.class, CohereServiceSettings.NAME, CohereServiceSettings::new)
-        );
         namedWriteables.add(
             new NamedWriteableRegistry.Entry(
                 ServiceSettings.class,
-                CohereEmbeddingsServiceSettings.NAME,
-                CohereEmbeddingsServiceSettings::new
+                AzureAiStudioChatCompletionServiceSettings.NAME,
+                AzureAiStudioChatCompletionServiceSettings::new
             )
         );
         namedWriteables.add(
-            new NamedWriteableRegistry.Entry(TaskSettings.class, CohereEmbeddingsTaskSettings.NAME, CohereEmbeddingsTaskSettings::new)
+            new NamedWriteableRegistry.Entry(
+                TaskSettings.class,
+                AzureAiStudioChatCompletionTaskSettings.NAME,
+                AzureAiStudioChatCompletionTaskSettings::new
+            )
         );
-        namedWriteables.add(
-            new NamedWriteableRegistry.Entry(ServiceSettings.class, CohereRerankServiceSettings.NAME, CohereRerankServiceSettings::new)
-        );
-        namedWriteables.add(
-            new NamedWriteableRegistry.Entry(TaskSettings.class, CohereRerankTaskSettings.NAME, CohereRerankTaskSettings::new)
-        );
+    }
 
-        // Azure OpenAI
+    private static void addAzureOpenAiNamedWriteables(List<NamedWriteableRegistry.Entry> namedWriteables) {
         namedWriteables.add(
             new NamedWriteableRegistry.Entry(
                 AzureOpenAiSecretSettings.class,
@@ -253,7 +179,135 @@ public class InferenceNamedWriteablesProvider {
                 AzureOpenAiCompletionTaskSettings::new
             )
         );
+    }
 
-        return namedWriteables;
+    private static void addCohereNamedWriteables(List<NamedWriteableRegistry.Entry> namedWriteables) {
+        namedWriteables.add(
+            new NamedWriteableRegistry.Entry(ServiceSettings.class, CohereServiceSettings.NAME, CohereServiceSettings::new)
+        );
+        namedWriteables.add(
+            new NamedWriteableRegistry.Entry(
+                ServiceSettings.class,
+                CohereEmbeddingsServiceSettings.NAME,
+                CohereEmbeddingsServiceSettings::new
+            )
+        );
+        namedWriteables.add(
+            new NamedWriteableRegistry.Entry(TaskSettings.class, CohereEmbeddingsTaskSettings.NAME, CohereEmbeddingsTaskSettings::new)
+        );
+        namedWriteables.add(
+            new NamedWriteableRegistry.Entry(ServiceSettings.class, CohereRerankServiceSettings.NAME, CohereRerankServiceSettings::new)
+        );
+        namedWriteables.add(
+            new NamedWriteableRegistry.Entry(TaskSettings.class, CohereRerankTaskSettings.NAME, CohereRerankTaskSettings::new)
+        );
+    }
+
+    private static void addOpenAiNamedWriteables(List<NamedWriteableRegistry.Entry> namedWriteables) {
+        namedWriteables.add(
+            new NamedWriteableRegistry.Entry(
+                ServiceSettings.class,
+                OpenAiEmbeddingsServiceSettings.NAME,
+                OpenAiEmbeddingsServiceSettings::new
+            )
+        );
+        namedWriteables.add(
+            new NamedWriteableRegistry.Entry(TaskSettings.class, OpenAiEmbeddingsTaskSettings.NAME, OpenAiEmbeddingsTaskSettings::new)
+        );
+        namedWriteables.add(
+            new NamedWriteableRegistry.Entry(
+                ServiceSettings.class,
+                OpenAiChatCompletionServiceSettings.NAME,
+                OpenAiChatCompletionServiceSettings::new
+            )
+        );
+        namedWriteables.add(
+            new NamedWriteableRegistry.Entry(
+                TaskSettings.class,
+                OpenAiChatCompletionTaskSettings.NAME,
+                OpenAiChatCompletionTaskSettings::new
+            )
+        );
+    }
+
+    private static void addHuggingFaceNamedWriteables(List<NamedWriteableRegistry.Entry> namedWriteables) {
+        namedWriteables.add(
+            new NamedWriteableRegistry.Entry(
+                ServiceSettings.class,
+                HuggingFaceElserServiceSettings.NAME,
+                HuggingFaceElserServiceSettings::new
+            )
+        );
+        namedWriteables.add(
+            new NamedWriteableRegistry.Entry(ServiceSettings.class, HuggingFaceServiceSettings.NAME, HuggingFaceServiceSettings::new)
+        );
+        namedWriteables.add(
+            new NamedWriteableRegistry.Entry(SecretSettings.class, HuggingFaceElserSecretSettings.NAME, HuggingFaceElserSecretSettings::new)
+        );
+    }
+
+    private static void addInternalElserNamedWriteables(List<NamedWriteableRegistry.Entry> namedWriteables) {
+        namedWriteables.add(
+            new NamedWriteableRegistry.Entry(ServiceSettings.class, ElserInternalServiceSettings.NAME, ElserInternalServiceSettings::new)
+        );
+        namedWriteables.add(
+            new NamedWriteableRegistry.Entry(TaskSettings.class, ElserMlNodeTaskSettings.NAME, ElserMlNodeTaskSettings::new)
+        );
+    }
+
+    private static void addChunkedInferenceResultsNamedWriteables(List<NamedWriteableRegistry.Entry> namedWriteables) {
+        namedWriteables.add(
+            new NamedWriteableRegistry.Entry(
+                InferenceServiceResults.class,
+                ErrorChunkedInferenceResults.NAME,
+                ErrorChunkedInferenceResults::new
+            )
+        );
+        namedWriteables.add(
+            new NamedWriteableRegistry.Entry(
+                InferenceServiceResults.class,
+                ChunkedSparseEmbeddingResults.NAME,
+                ChunkedSparseEmbeddingResults::new
+            )
+        );
+        namedWriteables.add(
+            new NamedWriteableRegistry.Entry(
+                InferenceServiceResults.class,
+                ChunkedTextEmbeddingResults.NAME,
+                ChunkedTextEmbeddingResults::new
+            )
+        );
+        namedWriteables.add(
+            new NamedWriteableRegistry.Entry(
+                InferenceServiceResults.class,
+                ChunkedTextEmbeddingFloatResults.NAME,
+                ChunkedTextEmbeddingFloatResults::new
+            )
+        );
+        namedWriteables.add(
+            new NamedWriteableRegistry.Entry(
+                InferenceServiceResults.class,
+                ChunkedTextEmbeddingByteResults.NAME,
+                ChunkedTextEmbeddingByteResults::new
+            )
+        );
+    }
+
+    private static void addInferenceResultsNamedWriteables(List<NamedWriteableRegistry.Entry> namedWriteables) {
+        namedWriteables.add(
+            new NamedWriteableRegistry.Entry(InferenceServiceResults.class, SparseEmbeddingResults.NAME, SparseEmbeddingResults::new)
+        );
+        namedWriteables.add(
+            new NamedWriteableRegistry.Entry(InferenceServiceResults.class, TextEmbeddingResults.NAME, TextEmbeddingResults::new)
+        );
+        namedWriteables.add(
+            new NamedWriteableRegistry.Entry(InferenceServiceResults.class, TextEmbeddingByteResults.NAME, TextEmbeddingByteResults::new)
+        );
+        namedWriteables.add(
+            new NamedWriteableRegistry.Entry(InferenceServiceResults.class, ChatCompletionResults.NAME, ChatCompletionResults::new)
+        );
+        namedWriteables.add(
+            new NamedWriteableRegistry.Entry(InferenceServiceResults.class, RankedDocsResults.NAME, RankedDocsResults::new)
+        );
     }
 }

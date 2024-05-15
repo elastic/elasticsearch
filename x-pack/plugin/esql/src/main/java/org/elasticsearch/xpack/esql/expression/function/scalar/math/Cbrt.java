@@ -27,11 +27,11 @@ import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.unsignedLo
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.DEFAULT;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isNumeric;
 
-public class Sqrt extends UnaryScalarFunction {
+public class Cbrt extends UnaryScalarFunction {
     @FunctionInfo(returnType = "double", description = """
-        Returns the square root of a number. The input can be any numeric value, the return value is always a double.
-        Square roots of negative numbers and infinities are null.""", examples = @Example(file = "math", tag = "sqrt"))
-    public Sqrt(
+        Returns the cube root of a number. The input can be any numeric value, the return value is always a double.
+        Cube roots of infinities are null.""", examples = @Example(file = "math", tag = "cbrt"))
+    public Cbrt(
         Source source,
         @Param(
             name = "number",
@@ -48,16 +48,16 @@ public class Sqrt extends UnaryScalarFunction {
         var fieldType = field().dataType();
 
         if (fieldType == DataTypes.DOUBLE) {
-            return new SqrtDoubleEvaluator.Factory(source(), field);
+            return new CbrtDoubleEvaluator.Factory(source(), field);
         }
         if (fieldType == DataTypes.INTEGER) {
-            return new SqrtIntEvaluator.Factory(source(), field);
+            return new CbrtIntEvaluator.Factory(source(), field);
         }
         if (fieldType == DataTypes.LONG) {
-            return new SqrtLongEvaluator.Factory(source(), field);
+            return new CbrtLongEvaluator.Factory(source(), field);
         }
         if (fieldType == DataTypes.UNSIGNED_LONG) {
-            return new SqrtUnsignedLongEvaluator.Factory(source(), field);
+            return new CbrtUnsignedLongEvaluator.Factory(source(), field);
         }
 
         throw EsqlIllegalArgumentException.illegalDataType(fieldType);
@@ -65,41 +65,32 @@ public class Sqrt extends UnaryScalarFunction {
 
     @Evaluator(extraName = "Double", warnExceptions = ArithmeticException.class)
     static double process(double val) {
-        if (val < 0) {
-            throw new ArithmeticException("Square root of negative");
-        }
-        return Math.sqrt(val);
+        return Math.cbrt(val);
     }
 
     @Evaluator(extraName = "Long", warnExceptions = ArithmeticException.class)
     static double process(long val) {
-        if (val < 0) {
-            throw new ArithmeticException("Square root of negative");
-        }
-        return Math.sqrt(val);
+        return Math.cbrt(val);
     }
 
     @Evaluator(extraName = "UnsignedLong")
     static double processUnsignedLong(long val) {
-        return Math.sqrt(unsignedLongToDouble(val));
+        return Math.cbrt(unsignedLongToDouble(val));
     }
 
     @Evaluator(extraName = "Int", warnExceptions = ArithmeticException.class)
     static double process(int val) {
-        if (val < 0) {
-            throw new ArithmeticException("Square root of negative");
-        }
-        return Math.sqrt(val);
+        return Math.cbrt(val);
     }
 
     @Override
     public final Expression replaceChildren(List<Expression> newChildren) {
-        return new Sqrt(source(), newChildren.get(0));
+        return new Cbrt(source(), newChildren.get(0));
     }
 
     @Override
     protected NodeInfo<? extends Expression> info() {
-        return NodeInfo.create(this, Sqrt::new, field());
+        return NodeInfo.create(this, Cbrt::new, field());
     }
 
     @Override

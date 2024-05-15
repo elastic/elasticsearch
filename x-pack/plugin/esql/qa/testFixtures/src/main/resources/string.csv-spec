@@ -1352,7 +1352,7 @@ ROW a = "a", b = ["b", "c"], c = to_string(null)
 ;
 
 a:keyword | b:keyword | c:keyword | a_null:keyword | null_a:keyword | b_null:keyword | null_b:keyword | null_null:keyword  
-a         | [b, c]    | null      | a              | a              | [b, c]         | [b, c]         | null
+a         | [b, c]    | null      | null           | null           | null           | null           | null
 ;
 
 
@@ -1396,7 +1396,7 @@ FROM employees
 ;
 
 emp_no:integer | first_name:keyword | job_positions:keyword | x:keyword | y:keyword | z:keyword
-10005          | Kyoichi            | null                  | Kyoichi   | Kyoichi   | null
+10005          | Kyoichi            | null                  | null      | null      | null
 ;         
 
 

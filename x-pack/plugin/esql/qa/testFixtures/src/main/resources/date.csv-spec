@@ -1055,5 +1055,5 @@ FROM employees
 
 emp_no:integer | birth_date:date      | hire_date:date       | dates:date
 10039          | 1959-10-01T00:00:00Z | 1988-01-19T00:00:00Z | [1959-10-01T00:00:00Z, 1988-01-19T00:00:00Z]
-10040          | null                 | 1993-02-14T00:00:00Z | 1993-02-14T00:00:00Z 
+10040          | null                 | 1993-02-14T00:00:00Z | null 
 ;

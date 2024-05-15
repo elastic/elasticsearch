@@ -280,7 +280,7 @@ public class MvAppendTests extends AbstractFunctionTestCase {
                 ),
                 "MvAppendIntEvaluator[field1=Attribute[channel=0], field2=Attribute[channel=1]]",
                 DataTypes.INTEGER,
-                equalTo(field2)
+                equalTo(null)
             );
         }));
         suppliers.add(new TestCaseSupplier(List.of(DataTypes.INTEGER, DataTypes.INTEGER), () -> {
@@ -292,16 +292,8 @@ public class MvAppendTests extends AbstractFunctionTestCase {
                 ),
                 "MvAppendIntEvaluator[field1=Attribute[channel=0], field2=Attribute[channel=1]]",
                 DataTypes.INTEGER,
-                equalTo(field1)
+                equalTo(null)
             );
         }));
     }
-
-    @SuppressWarnings("unchecked")
-    protected void assertSimpleWithNulls(List<Object> data, Block value, int nullBlock) {
-        Object blockData = data.get(1 - nullBlock);
-        int size = blockData == null ? 0 : blockData instanceof Collection ? ((Collection<?>) blockData).size() : 1;
-        assertEquals(value.getTotalValueCount(), size);
-    }
-
 }

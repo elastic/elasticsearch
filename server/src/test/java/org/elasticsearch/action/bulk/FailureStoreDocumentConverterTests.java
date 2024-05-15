@@ -35,20 +35,25 @@ public class FailureStoreDocumentConverterTests extends ESTestCase {
 
         // The exception will be wrapped for the test to make sure the converter correctly unwraps it
         ElasticsearchException exception = new ElasticsearchException("Test exception please ignore");
+        ElasticsearchException ingestException = exception;
+        if (randomBoolean()) {
+            ingestException = new ElasticsearchException("Test suppressed exception, please ignore");
+            exception.addSuppressed(ingestException);
+        }
         boolean withPipelineOrigin = randomBoolean();
         if (withPipelineOrigin) {
-            exception.addHeader(
+            ingestException.addHeader(
                 CompoundProcessor.PIPELINE_ORIGIN_EXCEPTION_HEADER,
                 Arrays.asList("some-failing-pipeline", "some-pipeline")
             );
         }
         boolean withProcessorTag = randomBoolean();
         if (withProcessorTag) {
-            exception.addHeader(CompoundProcessor.PROCESSOR_TAG_EXCEPTION_HEADER, "foo-tag");
+            ingestException.addHeader(CompoundProcessor.PROCESSOR_TAG_EXCEPTION_HEADER, "foo-tag");
         }
         boolean withProcessorType = randomBoolean();
         if (withProcessorType) {
-            exception.addHeader(CompoundProcessor.PROCESSOR_TYPE_EXCEPTION_HEADER, "bar-type");
+            ingestException.addHeader(CompoundProcessor.PROCESSOR_TYPE_EXCEPTION_HEADER, "bar-type");
         }
         if (randomBoolean()) {
             exception = new RemoteTransportException("Test exception wrapper, please ignore", exception);

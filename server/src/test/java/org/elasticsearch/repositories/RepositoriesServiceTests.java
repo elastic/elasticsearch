@@ -183,7 +183,7 @@ public class RepositoriesServiceTests extends ESTestCase {
         }
     }
 
-    public void testRegisterRejectsUnverifiedRepositoryWithVerifyTrue() {
+    public void testPutRepositoryVerificationFails() {
         var repoName = randomAlphaOfLengthBetween(10, 25);
         var request = new PutRepositoryRequest().name(repoName).type(VerificationFailRepository.TYPE).verify(true);
         var resultListener = new SubscribableListener<AcknowledgedResponse>();
@@ -194,7 +194,7 @@ public class RepositoriesServiceTests extends ESTestCase {
         assertThrows(RepositoryMissingException.class, () -> { repositoriesService.repository(repoName); });
     }
 
-    public void testRegisterAcceptUnverifiedRepositoryWithVerifyFalse() {
+    public void testPutRepositorySkipVerification() {
         var repoName = randomAlphaOfLengthBetween(10, 25);
         var request = new PutRepositoryRequest().name(repoName).type(VerificationFailRepository.TYPE).verify(false);
         var resultListener = new SubscribableListener<AcknowledgedResponse>();

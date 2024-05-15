@@ -111,6 +111,7 @@ public class EsqlFeatures implements FeatureSpecification {
     /**
      * Does ESQL support FROM OPTIONS?
      */
+    @Deprecated
     public static final NodeFeature FROM_OPTIONS = new NodeFeature("esql.from_options");
 
     /**

@@ -72,7 +72,7 @@ public class RollupIT extends ESRestTestCase {
         final int numDocs = 200;
         String dateFormat = "strict_date_optional_time";
 
-        //create dummy rollup index to circumvent the check that prohibits rollup usage in empty clusters:
+        // create dummy rollup index to circumvent the check that prohibits rollup usage in empty clusters:
         try (XContentBuilder builder = jsonBuilder()) {
             builder.startObject();
             {

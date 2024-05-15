@@ -370,3 +370,17 @@ version:version | name:keyword
            null | lllll
           5.2.9 | mmmmm
 ;
+
+
+mvAppend
+required_feature: esql.mv_append
+
+ROW a = to_version("1.2.0"), x1 = to_version("0.0.1"), x2 = to_version("1.0.0")
+| EVAL b = mv_append(x1, x2)
+| EVAL aa = mv_append(a, a), bb = mv_append(b, b), ab = mv_append(a, b), abb = mv_append(mv_append(a, b), b)
+| KEEP a, b, aa, bb, ab, abb
+;
+
+a:version | b:version       | aa:version         | bb:version                   | ab:version             | abb:version
+1.2.0     | [0.0.1, 1.0.0]  | [1.2.0, 1.2.0]     | [0.0.1, 1.0.0, 0.0.1, 1.0.0] | [1.2.0, 0.0.1, 1.0.0]  | [1.2.0, 0.0.1, 1.0.0, 0.0.1, 1.0.0]
+;

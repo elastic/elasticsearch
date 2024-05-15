@@ -59,7 +59,7 @@ public class MvAppend extends EsqlScalarFunction implements EvaluatorMapper {
             "long",
             "text",
             "version" },
-        description = "Appends values of two multi-value fields."
+        description = "Concatenates values of two multi-value fields."
     )
     public MvAppend(
         Source source,
@@ -114,11 +114,7 @@ public class MvAppend extends EsqlScalarFunction implements EvaluatorMapper {
             return resolution;
         }
         dataType = field1.dataType();
-        resolution = isType(field2, t -> t == dataType, sourceText(), SECOND, dataType.typeName());
-        if (resolution.unresolved()) {
-            return resolution;
-        }
-        return TypeResolution.TYPE_RESOLVED;
+        return isType(field2, t -> t == dataType, sourceText(), SECOND, dataType.typeName());
     }
 
     @Override
@@ -179,19 +175,19 @@ public class MvAppend extends EsqlScalarFunction implements EvaluatorMapper {
         int first1 = field1.getFirstValueIndex(position);
         int count2 = field2.getValueCount(position);
         int first2 = field2.getFirstValueIndex(position);
-        if (count1 == 0 && count2 == 0) {
-            builder.appendNull();
-        } else if (count1 + count2 == 1) {
-            builder.appendInt(count1 == 1 ? field1.getInt(first1) : field2.getInt(first2));
-        } else {
-            builder.beginPositionEntry();
-            for (int i = 0; i < count1; i++) {
-                builder.appendInt(field1.getInt(first1 + i));
+        switch (count1 + count2) {
+            case 0 -> builder.appendNull();
+            case 1 -> builder.appendInt(count1 == 1 ? field1.getInt(first1) : field2.getInt(first2));
+            default -> {
+                builder.beginPositionEntry();
+                for (int i = 0; i < count1; i++) {
+                    builder.appendInt(field1.getInt(first1 + i));
+                }
+                for (int i = 0; i < count2; i++) {
+                    builder.appendInt(field2.getInt(first2 + i));
+                }
+                builder.endPositionEntry();
             }
-            for (int i = 0; i < count2; i++) {
-                builder.appendInt(field2.getInt(first2 + i));
-            }
-            builder.endPositionEntry();
         }
     }
 
@@ -201,19 +197,19 @@ public class MvAppend extends EsqlScalarFunction implements EvaluatorMapper {
         int first1 = field1.getFirstValueIndex(position);
         int count2 = field2.getValueCount(position);
         int first2 = field2.getFirstValueIndex(position);
-        if (count1 == 0 && count2 == 0) {
-            builder.appendNull();
-        } else if (count1 + count2 == 1) {
-            builder.appendBoolean(count1 == 1 ? field1.getBoolean(first1) : field2.getBoolean(first2));
-        } else {
-            builder.beginPositionEntry();
-            for (int i = 0; i < count1; i++) {
-                builder.appendBoolean(field1.getBoolean(first1 + i));
+        switch (count1 + count2) {
+            case 0 -> builder.appendNull();
+            case 1 -> builder.appendBoolean(count1 == 1 ? field1.getBoolean(first1) : field2.getBoolean(first2));
+            default -> {
+                builder.beginPositionEntry();
+                for (int i = 0; i < count1; i++) {
+                    builder.appendBoolean(field1.getBoolean(first1 + i));
+                }
+                for (int i = 0; i < count2; i++) {
+                    builder.appendBoolean(field2.getBoolean(first2 + i));
+                }
+                builder.endPositionEntry();
             }
-            for (int i = 0; i < count2; i++) {
-                builder.appendBoolean(field2.getBoolean(first2 + i));
-            }
-            builder.endPositionEntry();
         }
     }
 
@@ -223,19 +219,19 @@ public class MvAppend extends EsqlScalarFunction implements EvaluatorMapper {
         int first1 = field1.getFirstValueIndex(position);
         int count2 = field2.getValueCount(position);
         int first2 = field2.getFirstValueIndex(position);
-        if (count1 == 0 && count2 == 0) {
-            builder.appendNull();
-        } else if (count1 + count2 == 1) {
-            builder.appendLong(count1 == 1 ? field1.getLong(first1) : field2.getLong(first2));
-        } else {
-            builder.beginPositionEntry();
-            for (int i = 0; i < count1; i++) {
-                builder.appendLong(field1.getLong(first1 + i));
+        switch (count1 + count2) {
+            case 0 -> builder.appendNull();
+            case 1 -> builder.appendLong(count1 == 1 ? field1.getLong(first1) : field2.getLong(first2));
+            default -> {
+                builder.beginPositionEntry();
+                for (int i = 0; i < count1; i++) {
+                    builder.appendLong(field1.getLong(first1 + i));
+                }
+                for (int i = 0; i < count2; i++) {
+                    builder.appendLong(field2.getLong(first2 + i));
+                }
+                builder.endPositionEntry();
             }
-            for (int i = 0; i < count2; i++) {
-                builder.appendLong(field2.getLong(first2 + i));
-            }
-            builder.endPositionEntry();
         }
     }
 
@@ -245,19 +241,19 @@ public class MvAppend extends EsqlScalarFunction implements EvaluatorMapper {
         int first1 = field1.getFirstValueIndex(position);
         int count2 = field2.getValueCount(position);
         int first2 = field2.getFirstValueIndex(position);
-        if (count1 == 0 && count2 == 0) {
-            builder.appendNull();
-        } else if (count1 + count2 == 1) {
-            builder.appendDouble(count1 == 1 ? field1.getDouble(first1) : field2.getDouble(first2));
-        } else {
-            builder.beginPositionEntry();
-            for (int i = 0; i < count1; i++) {
-                builder.appendDouble(field1.getDouble(first1 + i));
+        switch (count1 + count2) {
+            case 0 -> builder.appendNull();
+            case 1 -> builder.appendDouble(count1 == 1 ? field1.getDouble(first1) : field2.getDouble(first2));
+            default -> {
+                builder.beginPositionEntry();
+                for (int i = 0; i < count1; i++) {
+                    builder.appendDouble(field1.getDouble(first1 + i));
+                }
+                for (int i = 0; i < count2; i++) {
+                    builder.appendDouble(field2.getDouble(first2 + i));
+                }
+                builder.endPositionEntry();
             }
-            for (int i = 0; i < count2; i++) {
-                builder.appendDouble(field2.getDouble(first2 + i));
-            }
-            builder.endPositionEntry();
         }
     }
 
@@ -267,20 +263,21 @@ public class MvAppend extends EsqlScalarFunction implements EvaluatorMapper {
         int first1 = field1.getFirstValueIndex(position);
         int count2 = field2.getValueCount(position);
         int first2 = field2.getFirstValueIndex(position);
-        if (count1 == 0 && count2 == 0) {
-            builder.appendNull();
-        } else if (count1 + count2 == 1) {
-            builder.appendBytesRef(count1 == 1 ? field1.getBytesRef(first1, new BytesRef()) : field2.getBytesRef(first2, new BytesRef()));
-        } else {
-            builder.beginPositionEntry();
-            BytesRef spare = new BytesRef();
-            for (int i = 0; i < count1; i++) {
-                builder.appendBytesRef(field1.getBytesRef(first1 + i, spare));
+        switch (count1 + count2) {
+            case 0 -> builder.appendNull();
+            case 1 ->
+                builder.appendBytesRef(count1 == 1 ? field1.getBytesRef(first1, new BytesRef()) : field2.getBytesRef(first2, new BytesRef()));
+            default -> {
+                builder.beginPositionEntry();
+                BytesRef spare = new BytesRef();
+                for (int i = 0; i < count1; i++) {
+                    builder.appendBytesRef(field1.getBytesRef(first1 + i, spare));
+                }
+                for (int i = 0; i < count2; i++) {
+                    builder.appendBytesRef(field2.getBytesRef(first2 + i, spare));
+                }
+                builder.endPositionEntry();
             }
-            for (int i = 0; i < count2; i++) {
-                builder.appendBytesRef(field2.getBytesRef(first2 + i, spare));
-            }
-            builder.endPositionEntry();
         }
     }
 

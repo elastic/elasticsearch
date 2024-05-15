@@ -48,6 +48,7 @@ import org.elasticsearch.transport.BytesTransportRequest;
 import org.elasticsearch.transport.ClusterConnectionManager;
 import org.elasticsearch.transport.ConnectTransportException;
 import org.elasticsearch.transport.ConnectionProfile;
+import org.elasticsearch.transport.NodeNotConnectedException;
 import org.elasticsearch.transport.RequestHandlerRegistry;
 import org.elasticsearch.transport.TcpTransport;
 import org.elasticsearch.transport.Transport;
@@ -72,6 +73,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.LinkedBlockingDeque;
+import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 import java.util.function.Supplier;
@@ -428,6 +430,8 @@ public class MockTransportService extends TransportService {
         );
 
         transport().addSendBehavior(transportAddress, new StubbableTransport.SendRequestBehavior() {
+
+            private final Semaphore sendSemaphore = new Semaphore(Integer.MAX_VALUE);
             private final Set<Transport.Connection> toClose = ConcurrentHashMap.newKeySet();
 
             @Override
@@ -437,9 +441,16 @@ public class MockTransportService extends TransportService {
                 String action,
                 TransportRequest request,
                 TransportRequestOptions options
-            ) {
-                // don't send anything, the receiving node is unresponsive
-                toClose.add(connection);
+            ) throws IOException {
+                if (connection.isClosed()) {
+                    throw new NodeNotConnectedException(connection.getNode(), "connection already closed");
+                } else if (sendSemaphore.tryAcquire()) {
+                    // don't send anything, the receiving node is unresponsive
+                    toClose.add(connection);
+                    sendSemaphore.release();
+                } else {
+                    connection.sendRequest(requestId, action, request, options);
+                }
             }
 
             @Override
@@ -447,8 +458,9 @@ public class MockTransportService extends TransportService {
                 // close to simulate that tcp-ip eventually times out and closes connection (necessary to ensure transport eventually
                 // responds).
                 try {
+                    sendSemaphore.acquire(Integer.MAX_VALUE);
                     IOUtils.close(toClose);
-                } catch (IOException e) {
+                } catch (IOException | InterruptedException e) {
                     throw new RuntimeException(e);
                 }
             }

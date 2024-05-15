@@ -25,6 +25,7 @@ public class GetTopNFunctionsActionIT extends ProfilingTestCase {
             null,
             null,
             null,
+            null,
             null
         );
         request.setAdjustSampleCount(true);
@@ -42,6 +43,7 @@ public class GetTopNFunctionsActionIT extends ProfilingTestCase {
             null,
             null,
             "service.name",
+            null,
             null,
             null,
             null,
@@ -69,6 +71,7 @@ public class GetTopNFunctionsActionIT extends ProfilingTestCase {
             new String[] { "apm-test-*", "apm-legacy-test-*" },
             "transaction.profiler_stack_trace_ids",
             "transaction.name",
+            null,
             null,
             null,
             null,

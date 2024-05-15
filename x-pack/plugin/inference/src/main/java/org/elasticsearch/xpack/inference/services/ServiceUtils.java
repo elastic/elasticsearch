@@ -34,6 +34,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xpack.inference.services.ServiceFields.SIMILARITY;
@@ -89,6 +90,40 @@ public class ServiceUtils {
             validationException.addValidationError(invalidTypeErrorMsg(key, o, type.getSimpleName()));
             return null;
         }
+    }
+
+    /**
+     * Remove the object from the map and cast to first assignable type in the expected types list.
+     * If the object cannot be cast to one of the types an error is added to the
+     * {@code validationException} parameter
+     *
+     * @param sourceMap Map containing fields
+     * @param key The key of the object to remove
+     * @param types The expected types of the removed object
+     * @param validationException If the value is not of type {@code type}
+     * @return {@code null} if not present else the object cast to the first assignable type in the types list
+     */
+    public static Object removeAsOneOfTypes(
+        Map<String, Object> sourceMap,
+        String key,
+        List<Class<?>> types,
+        ValidationException validationException
+    ) {
+        Object o = sourceMap.remove(key);
+        if (o == null) {
+            return null;
+        }
+
+        for (Class<?> type : types) {
+            if (type.isAssignableFrom(o.getClass())) {
+                return type.cast(o);
+            }
+        }
+
+        validationException.addValidationError(
+            invalidTypesErrorMsg(key, o, types.stream().map(Class::getSimpleName).collect(Collectors.toList()))
+        );
+        return null;
     }
 
     @SuppressWarnings("unchecked")
@@ -148,6 +183,16 @@ public class ServiceUtils {
             settingName,
             foundObject,
             expectedType
+        );
+    }
+
+    public static String invalidTypesErrorMsg(String settingName, Object foundObject, List<String> expectedTypes) {
+        return Strings.format(
+            // omitting [ ] for the last string as this will be added, if you convert the list to a string anyway
+            "field [%s] is not of one of the expected types. The value [%s] cannot be converted to one of %s",
+            settingName,
+            foundObject,
+            expectedTypes
         );
     }
 
@@ -325,7 +370,7 @@ public class ServiceUtils {
         }
 
         if (optionalField != null && optionalField <= 0) {
-            validationException.addValidationError(ServiceUtils.mustBeAPositiveNumberErrorMessage(settingName, scope, optionalField));
+            validationException.addValidationError(ServiceUtils.mustBeAPositiveIntegerErrorMessage(settingName, scope, optionalField));
         }
 
         if (validationException.validationErrors().size() > initialValidationErrorCount) {
@@ -333,6 +378,39 @@ public class ServiceUtils {
         }
 
         return optionalField;
+    }
+
+    public static Long extractOptionalPositiveLong(
+        Map<String, Object> map,
+        String settingName,
+        String scope,
+        ValidationException validationException
+    ) {
+        // We don't want callers to handle the implementation detail that a long is expected (also treat integers like a long)
+        List<Class<?>> types = List.of(Integer.class, Long.class);
+        int initialValidationErrorCount = validationException.validationErrors().size();
+        var optionalField = ServiceUtils.removeAsOneOfTypes(map, settingName, types, validationException);
+
+        if (optionalField != null) {
+            try {
+                // Use String.valueOf first as there's no Long.valueOf(Object o)
+                Long longValue = Long.valueOf(String.valueOf(optionalField));
+
+                if (longValue <= 0L) {
+                    validationException.addValidationError(ServiceUtils.mustBeAPositiveLongErrorMessage(settingName, scope, longValue));
+                }
+
+                if (validationException.validationErrors().size() > initialValidationErrorCount) {
+                    return null;
+                }
+
+                return longValue;
+            } catch (NumberFormatException e) {
+                validationException.addValidationError(format("unable to parse long [%s]", e));
+            }
+        }
+
+        return null;
     }
 
     public static <E extends Enum<E>> E extractOptionalEnum(
@@ -391,8 +469,12 @@ public class ServiceUtils {
         }
     }
 
-    public static String mustBeAPositiveNumberErrorMessage(String settingName, String scope, int value) {
+    public static String mustBeAPositiveIntegerErrorMessage(String settingName, String scope, int value) {
         return format("[%s] Invalid value [%s]. [%s] must be a positive integer", scope, value, settingName);
+    }
+
+    public static String mustBeAPositiveLongErrorMessage(String settingName, String scope, Long value) {
+        return format("[%s] Invalid value [%s]. [%s] must be a positive long", scope, value, settingName);
     }
 
     /**

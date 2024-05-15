@@ -8,6 +8,8 @@
 
 package org.elasticsearch.kibana;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchRequest;
@@ -15,12 +17,15 @@ import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
+import org.elasticsearch.common.util.concurrent.EsThreadPoolExecutor;
 import org.elasticsearch.index.IndexingPressure;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.threadpool.ThreadPool;
 
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
 import java.util.Locale;
@@ -42,7 +47,9 @@ import static org.hamcrest.Matchers.startsWith;
  * threads that wait on a phaser. This lets us verify that operations on system indices
  * are being directed to other thread pools.</p>
  */
+@TestLogging(reason = "investigate", value = "org.elasticsearch.kibana.KibanaThreadPoolIT:DEBUG")
 public class KibanaThreadPoolIT extends ESIntegTestCase {
+    private static final Logger logger = LogManager.getLogger(KibanaThreadPoolIT.class);
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
@@ -195,9 +202,20 @@ public class KibanaThreadPoolIT extends ESIntegTestCase {
             try {
                 threadPool.executor(threadPoolName).execute(() -> {});
             } catch (EsRejectedExecutionException e) {
+                logger.debug("Exception when filling the queue " + threadPoolName, e);
+                logThreadPoolQueue(threadPoolName, threadPool);
                 // we can't be sure that some other task won't get queued in a test cluster
                 // but the threadpool's thread is already blocked
             }
+        }
+
+        logThreadPoolQueue(threadPoolName, threadPool);
+    }
+
+    private static void logThreadPoolQueue(String threadPoolName, ThreadPool threadPool) {
+        if (threadPool.executor(threadPoolName) instanceof EsThreadPoolExecutor tpe) {
+            logger.debug("Thread pool details " + threadPoolName + " " + tpe);
+            logger.debug(Arrays.toString(tpe.getTasks().toArray()));
         }
     }
 

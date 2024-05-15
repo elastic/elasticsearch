@@ -76,6 +76,10 @@ public final class InferenceProcessorInfoExtractor {
      */
     @SuppressWarnings("unchecked")
     public static Set<String> getModelIdsFromInferenceProcessors(IngestMetadata ingestMetadata) {
+        if (ingestMetadata == null) {
+            return Set.of();
+        }
+
         Set<String> modelIds = new LinkedHashSet<>();
         ingestMetadata.getPipelines().forEach((pipelineId, configuration) -> {
             Map<String, Object> configMap = configuration.getConfigAsMap();

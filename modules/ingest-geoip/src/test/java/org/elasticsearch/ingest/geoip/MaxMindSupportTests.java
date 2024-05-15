@@ -227,7 +227,8 @@ public class MaxMindSupportTests extends ESTestCase {
         "traits.organization",
         "traits.publicProxy",
         "traits.residentialProxy",
-        "traits.torExitNode"
+        "traits.torExitNode",
+        "traits.userType"
     );
     private static final Set<String> ENTERPRISE_UNSUPPORTED_FIELDS = Set.of(
         "city.confidence",
@@ -280,8 +281,7 @@ public class MaxMindSupportTests extends ESTestCase {
         "traits.legitimateProxy",
         "traits.satelliteProvider",
         "traits.staticIpScore",
-        "traits.userCount",
-        "traits.userType"
+        "traits.userCount"
     );
 
     private static final Set<String> ISP_SUPPORTED_FIELDS = Set.of(

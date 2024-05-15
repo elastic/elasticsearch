@@ -65,7 +65,7 @@ public class CrossClusterApiKeyRoleDescriptorBuilderTests extends ESTestCase {
 
         assertRoleDescriptor(
             roleDescriptor,
-            new String[] { "cross_cluster_search", "monitor_enrich" },
+            new String[] { "cross_cluster_search" },
             new RoleDescriptor.IndicesPrivileges[] {
                 RoleDescriptor.IndicesPrivileges.builder()
                     .indices("metrics")
@@ -93,7 +93,7 @@ public class CrossClusterApiKeyRoleDescriptorBuilderTests extends ESTestCase {
 
         assertRoleDescriptor(
             roleDescriptor,
-            new String[] { "cross_cluster_search", "monitor_enrich" },
+            new String[] { "cross_cluster_search" },
             new RoleDescriptor.IndicesPrivileges[] {
                 RoleDescriptor.IndicesPrivileges.builder()
                     .indices("metrics")

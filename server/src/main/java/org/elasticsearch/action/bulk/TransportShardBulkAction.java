@@ -268,8 +268,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
                                     docWriteRequest.id()
                                 ),
                                 context,
-                                null,
-                                documentParsingProvider
+                                null
                             );
                         }
                         finishRequest();
@@ -405,8 +404,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
                 onComplete(
                     exceptionToResult(e, primary, isDelete, version, result.getId()),
                     context,
-                    updateResult,
-                    documentParsingProvider
+                    updateResult
                 );
                 return true;
             }
@@ -434,8 +432,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
                     onComplete(
                         exceptionToResult(e, primary, isDelete, version, result.getId()),
                         context,
-                        updateResult,
-                        documentParsingProvider
+                        updateResult
                     );
                     // Requesting mapping update failed, so we don't have to wait for a cluster state update
                     assert context.isInitial();
@@ -444,7 +441,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
             });
             return false;
         } else {
-            onComplete(result, context, updateResult, documentParsingProvider);
+            onComplete(result, context, updateResult);
         }
         return true;
     }
@@ -476,8 +473,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
     private static void onComplete(
         Engine.Result r,
         BulkPrimaryExecutionContext context,
-        UpdateHelper.Result updateResult,
-        DocumentParsingProvider documentParsingProvider
+        UpdateHelper.Result updateResult
     ) {
         context.markOperationAsExecuted(r);
         final DocWriteRequest<?> docWriteRequest = context.getCurrent();

@@ -380,6 +380,66 @@ public class ServiceUtils {
         return optionalField;
     }
 
+    public static Float extractOptionalFloat(Map<String, Object> map, String settingName) {
+        return ServiceUtils.removeAsType(map, settingName, Float.class);
+    }
+
+    public static Double extractOptionalDoubleInRange(
+        Map<String, Object> map,
+        String settingName,
+        @Nullable Double minValue,
+        @Nullable Double maxValue,
+        String scope,
+        ValidationException validationException
+    ) {
+        int initialValidationErrorCount = validationException.validationErrors().size();
+        var doubleReturn = ServiceUtils.removeAsType(map, settingName, Double.class, validationException);
+
+        if (validationException.validationErrors().size() > initialValidationErrorCount) {
+            return null;
+        }
+
+        if (doubleReturn != null && minValue != null && doubleReturn < minValue) {
+            validationException.addValidationError(
+                ServiceUtils.mustBeGreaterThanOrEqualNumberErrorMessage(settingName, scope, doubleReturn, minValue)
+            );
+        }
+
+        if (doubleReturn != null && maxValue != null && doubleReturn > maxValue) {
+            validationException.addValidationError(
+                ServiceUtils.mustBeLessThanOrEqualNumberErrorMessage(settingName, scope, doubleReturn, maxValue)
+            );
+        }
+
+        if (validationException.validationErrors().size() > initialValidationErrorCount) {
+            return null;
+        }
+
+        return doubleReturn;
+    }
+
+    public static <E extends Enum<E>> E extractRequiredEnum(
+        Map<String, Object> map,
+        String settingName,
+        String scope,
+        EnumConstructor<E> constructor,
+        EnumSet<E> validValues,
+        ValidationException validationException
+    ) {
+        int initialValidationErrorCount = validationException.validationErrors().size();
+        var enumReturn = extractOptionalEnum(map, settingName, scope, constructor, validValues, validationException);
+
+        if (validationException.validationErrors().size() > initialValidationErrorCount) {
+            return null;
+        }
+
+        if (enumReturn == null) {
+            validationException.addValidationError(ServiceUtils.missingSettingErrorMsg(settingName, scope));
+        }
+
+        return enumReturn;
+    }
+
     public static Long extractOptionalPositiveLong(
         Map<String, Object> map,
         String settingName,
@@ -471,6 +531,18 @@ public class ServiceUtils {
 
     public static String mustBeAPositiveIntegerErrorMessage(String settingName, String scope, int value) {
         return format("[%s] Invalid value [%s]. [%s] must be a positive integer", scope, value, settingName);
+    }
+
+    public static String mustBeLessThanOrEqualNumberErrorMessage(String settingName, String scope, double value, double maxValue) {
+        return format("[%s] Invalid value [%s]. [%s] must be a less than or equal to [%s]", scope, value, settingName, maxValue);
+    }
+
+    public static String mustBeGreaterThanOrEqualNumberErrorMessage(String settingName, String scope, double value, double minValue) {
+        return format("[%s] Invalid value [%s]. [%s] must be a greater than or equal to [%s]", scope, value, settingName, minValue);
+    }
+
+    public static String mustBeAFloatingPointNumberErrorMessage(String settingName, String scope) {
+        return format("[%s] Invalid value. [%s] must be a floating point number", scope, settingName);
     }
 
     public static String mustBeAPositiveLongErrorMessage(String settingName, String scope, Long value) {

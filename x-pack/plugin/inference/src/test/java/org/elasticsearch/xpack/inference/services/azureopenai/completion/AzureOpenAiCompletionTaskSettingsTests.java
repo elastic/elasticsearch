@@ -94,6 +94,6 @@ public class AzureOpenAiCompletionTaskSettingsTests extends AbstractWireSerializ
 
     @Override
     protected AzureOpenAiCompletionTaskSettings mutateInstance(AzureOpenAiCompletionTaskSettings instance) throws IOException {
-        return createRandomWithUser();
+        return randomValueOtherThan(instance, AzureOpenAiCompletionTaskSettingsTests::createRandomWithUser);
     }
 }

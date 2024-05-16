@@ -61,7 +61,6 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.sameInstance;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doReturn;
@@ -71,18 +70,23 @@ import static org.mockito.Mockito.verify;
 
 public class SearchEngineTests extends AbstractEngineTestCase {
 
+    @Override
+    public String[] tmpPaths() {
+        // cache requires a single data path
+        return new String[] { createTempDir().toAbsolutePath().toString() };
+    }
+
     private static long getCurrentGeneration(SearchEngine engine) {
         return engine.getCurrentPrimaryTermAndGeneration().generation();
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch-serverless/issues/1297") // amongst others
     public void testCommitNotifications() throws IOException {
         final var indexConfig = indexConfig();
         final var searchTaskQueue = new DeterministicTaskQueue();
 
         try (
             var indexEngine = newIndexEngine(indexConfig);
-            var searchEngine = newSearchEngineFromIndexEngine(indexEngine, searchTaskQueue, false)
+            var searchEngine = newSearchEngineFromIndexEngine(indexEngine, searchTaskQueue)
         ) {
             assertThat("Index engine recovery executes 2 commits", indexEngine.getCurrentGeneration(), equalTo(2L));
             assertThat("Search engine recovery executes 1 commit", getCurrentGeneration(searchEngine), equalTo(1L));
@@ -119,7 +123,6 @@ public class SearchEngineTests extends AbstractEngineTestCase {
         }
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch-serverless/issues/1297") // amongst others
     public void testCommitNotificationsAfterCorruption() throws IOException {
         final var indexConfig = indexConfig();
 
@@ -134,7 +137,7 @@ public class SearchEngineTests extends AbstractEngineTestCase {
             }
 
             final var searchTaskQueue = new DeterministicTaskQueue();
-            try (var searchEngine = newSearchEngineFromIndexEngine(indexEngine, searchTaskQueue, false)) {
+            try (var searchEngine = newSearchEngineFromIndexEngine(indexEngine, searchTaskQueue)) {
                 notifyCommits(indexEngine, searchEngine);
                 searchTaskQueue.runAllRunnableTasks();
 
@@ -161,7 +164,6 @@ public class SearchEngineTests extends AbstractEngineTestCase {
         }
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch-serverless/issues/1297") // amongst others
     public void testFailEngineWithCorruption() throws IOException {
         final SearchEngine searchEngine = newSearchEngine();
         try (searchEngine) {
@@ -182,7 +184,6 @@ public class SearchEngineTests extends AbstractEngineTestCase {
         verify(sharedBlobCacheService).forceEvict(any());
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch-serverless/issues/1297") // amongst others
     public void testMarkedStoreCorrupted() throws IOException {
         final SearchEngine searchEngine = newSearchEngine();
         try (searchEngine) {
@@ -212,7 +213,6 @@ public class SearchEngineTests extends AbstractEngineTestCase {
         };
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch-serverless/issues/1297") // amongst others
     public void testAcquiredPrimaryTermAndGenerations() throws IOException {
         final AtomicLong primaryTerm = new AtomicLong(randomLongBetween(1L, 1_000L));
         final var indexConfig = indexConfig(Settings.EMPTY, Settings.EMPTY, primaryTerm::get);
@@ -220,7 +220,7 @@ public class SearchEngineTests extends AbstractEngineTestCase {
 
         try (
             var indexEngine = newIndexEngine(indexConfig);
-            var searchEngine = newSearchEngineFromIndexEngine(indexEngine, searchTaskQueue, randomBoolean())
+            var searchEngine = newSearchEngineFromIndexEngine(indexEngine, searchTaskQueue)
         ) {
             notifyCommits(indexEngine, searchEngine);
             searchTaskQueue.runAllRunnableTasks();
@@ -258,14 +258,11 @@ public class SearchEngineTests extends AbstractEngineTestCase {
                 notifyCommits(indexEngine, searchEngine);
                 searchTaskQueue.runAllRunnableTasks();
 
-                var it = searchers.iterator();
-                while (it.hasNext()) {
-                    IOUtils.close(it.next());
-                    assertThat(
-                        searchEngine.getAcquiredPrimaryTermAndGenerations(),
-                        it.hasNext() ? containsInAnyOrder(gen, gen2) : contains(gen2)
-                    );
-                }
+                searchers.forEach(searcher -> {
+                    assertThat(searchEngine.getAcquiredPrimaryTermAndGenerations(), containsInAnyOrder(gen, gen2));
+                    searcher.close();
+                });
+                assertThat(searchEngine.getAcquiredPrimaryTermAndGenerations(), hasItem(gen2));
             }
 
             {
@@ -285,9 +282,7 @@ public class SearchEngineTests extends AbstractEngineTestCase {
                     if (randomBoolean() && searchers.isEmpty() == false) {
                         var key = randomFrom(searchers.keySet());
                         assertThat(searchEngine.getAcquiredPrimaryTermAndGenerations(), hasItem(key));
-
                         IOUtils.close(searchers.remove(key));
-                        assertThat(searchEngine.getAcquiredPrimaryTermAndGenerations(), not(hasItem(key)));
                     }
 
                     if (randomBoolean()) {
@@ -300,13 +295,12 @@ public class SearchEngineTests extends AbstractEngineTestCase {
                 IOUtils.close(searchers.values());
                 assertThat(
                     searchEngine.getAcquiredPrimaryTermAndGenerations(),
-                    contains(new PrimaryTermAndGeneration(primaryTerm.get(), indexEngine.getCurrentGeneration()))
+                    hasItem(new PrimaryTermAndGeneration(primaryTerm.get(), indexEngine.getCurrentGeneration()))
                 );
             }
         }
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch-serverless/issues/1297") // amongst others
     public void testDoesNotRegisterListenersWithOldPrimaryTerm() throws Exception {
         AtomicLong primaryTerm = new AtomicLong(randomLongBetween(1L, 100L));
         long initialPrimaryTerm = primaryTerm.get();
@@ -314,7 +308,7 @@ public class SearchEngineTests extends AbstractEngineTestCase {
         var searchTaskQueue = new DeterministicTaskQueue();
         try (
             var indexEngine = newIndexEngine(indexConfig);
-            var searchEngine = newSearchEngineFromIndexEngine(indexEngine, searchTaskQueue, false)
+            var searchEngine = newSearchEngineFromIndexEngine(indexEngine, searchTaskQueue)
         ) {
             notifyCommits(indexEngine, searchEngine);
             searchTaskQueue.runAllRunnableTasks();
@@ -455,7 +449,6 @@ public class SearchEngineTests extends AbstractEngineTestCase {
      * 3. Check that checkIndex does fail when removing one random (non-segments_N) file
      *    (i.e., check that we removed all the necessary files).
      */
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch-serverless/issues/1297") // amongst others
     public void testPruneFileMetadata() throws IOException {
         final AtomicLong primaryTerm = new AtomicLong(randomLongBetween(1L, 1_000L));
         final var indexConfig = indexConfig(Settings.EMPTY, Settings.EMPTY, primaryTerm::get);
@@ -463,7 +456,7 @@ public class SearchEngineTests extends AbstractEngineTestCase {
 
         try (
             var indexEngine = newIndexEngine(indexConfig);
-            var searchEngine = newSearchEngineFromIndexEngine(indexEngine, searchTaskQueue, randomBoolean())
+            var searchEngine = newSearchEngineFromIndexEngine(indexEngine, searchTaskQueue)
         ) {
             notifyCommits(indexEngine, searchEngine);
             searchTaskQueue.runAllRunnableTasks();

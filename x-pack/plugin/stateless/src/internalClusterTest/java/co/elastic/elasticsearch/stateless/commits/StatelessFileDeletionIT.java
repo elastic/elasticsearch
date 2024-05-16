@@ -36,9 +36,10 @@ import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.action.admin.indices.open.OpenIndexRequest;
 import org.elasticsearch.action.support.ChannelActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
+import org.elasticsearch.cluster.coordination.ApplyCommitRequest;
 import org.elasticsearch.cluster.coordination.Coordinator;
-import org.elasticsearch.cluster.coordination.PublicationTransportHandler;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
@@ -52,6 +53,7 @@ import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.seqno.SeqNoStats;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.indices.recovery.RecoveryClusterStateDelayListeners;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.SearchResponseUtils;
 import org.elasticsearch.snapshots.mockstore.MockRepository;
@@ -96,6 +98,7 @@ import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasItem;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
@@ -1012,35 +1015,50 @@ public class StatelessFileDeletionIT extends AbstractStatelessIntegTestCase {
         });
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch-serverless/issues/1675")
-    public void testStatelessCommitServiceClusterStateListenerHandlesNewShardAssignmentsCorrectly() throws Exception {
+    public void testStatelessCommitServiceClusterStateListenerHandlesNewShardAssignmentsCorrectly() {
         startMasterOnlyNode();
         var indexNode = startIndexNode();
-        ensureStableCluster(2);
+        var searchNode = startSearchNode();
+        ensureStableCluster(3);
 
-        var assignedShardStateProcessed = new CountDownLatch(1);
-        var unassignedShardStateRejected = new AtomicBoolean();
-        var unassignedShardStateRejectedLatch = new CountDownLatch(1);
-        MockTransportService.getInstance(indexNode)
-            .addRequestHandlingBehavior(PublicationTransportHandler.PUBLISH_STATE_ACTION_NAME, (handler, request, channel, task) -> {
-                if (unassignedShardStateRejected.compareAndSet(false, true)) {
-                    // Let the index node miss the cluster state update with the unassigned shard
-                    channel.sendResponse(new RuntimeException("Unable to process the cluster state update"));
-                    unassignedShardStateRejectedLatch.countDown();
-                } else {
-                    handler.messageReceived(request, channel, task);
-                    assignedShardStateProcessed.countDown();
-                }
-            });
+        final long initialClusterStateVersion = clusterService().state().version();
+
         var indexName = randomIdentifier();
-        var createIndexFuture = prepareCreate(indexName, indexSettings(1, 0)).execute();
-        safeAwait(unassignedShardStateRejectedLatch);
-        safeAwait(assignedShardStateProcessed);
-        createIndexFuture.get();
-        // This assertion will pass even in the presence of the bug that was fixed when this test was introduced,
-        // but it is useful to reproduce the scenario in which a missed cluster state update could produce a NPE
-        // in the StatelessCommitService#clusterChanged method
-        ensureGreen(indexName);
+
+        try (var recoveryClusterStateDelayListeners = new RecoveryClusterStateDelayListeners(initialClusterStateVersion)) {
+            MockTransportService indexTransportService = MockTransportService.getInstance(indexNode);
+            indexTransportService.addRequestHandlingBehavior(Coordinator.COMMIT_STATE_ACTION_NAME, (handler, request, channel, task) -> {
+                assertThat(request, instanceOf(ApplyCommitRequest.class));
+                recoveryClusterStateDelayListeners.getClusterStateDelayListener(((ApplyCommitRequest) request).getVersion())
+                    .addListener(ActionListener.wrap(ignored -> handler.messageReceived(request, channel, task), channel::sendResponse));
+            });
+            recoveryClusterStateDelayListeners.addCleanup(indexTransportService::clearInboundRules);
+
+            final var searchNodeClusterService = internalCluster().getInstance(ClusterService.class, searchNode);
+            final var indexCreated = new AtomicBoolean();
+            final ClusterStateListener clusterStateListener = event -> {
+                final var indexNodeProceedListener = recoveryClusterStateDelayListeners.getClusterStateDelayListener(
+                    event.state().version()
+                );
+                final var indexRoutingTable = event.state().routingTable().index(indexName);
+                assertNotNull(indexRoutingTable);
+                final var indexShardRoutingTable = indexRoutingTable.shard(0);
+
+                if (indexShardRoutingTable.primaryShard().assignedToNode() == false && indexCreated.compareAndSet(false, true)) {
+                    // this is the cluster state update which creates the index, so fail the application in order to increase the chances of
+                    // missing the index in the cluster state when the shard is recovered from the empty store
+                    indexNodeProceedListener.onFailure(new RuntimeException("Unable to process cluster state update"));
+                } else {
+                    // this is some other cluster state update, so we must let it proceed now
+                    indexNodeProceedListener.onResponse(null);
+                }
+            };
+            searchNodeClusterService.addListener(clusterStateListener);
+            recoveryClusterStateDelayListeners.addCleanup(() -> searchNodeClusterService.removeListener(clusterStateListener));
+
+            prepareCreate(indexName).setSettings(indexSettings(1, 1)).get();
+            ensureGreen(indexName);
+        }
     }
 
     public void testLatestCommitDependenciesUsesTheRightGenerations() throws Exception {

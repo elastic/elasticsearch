@@ -29,7 +29,7 @@ import static org.elasticsearch.xpack.esql.expression.NamedExpressions.mergeOutp
 
 /**
  * Looks up values from the associated {@code tables}.
- * The class is used only during the analysis phased, after which it is replaced by a {@code Join}.
+ * The class is supposed to be substituted by a {@link Join}.
  */
 public class Lookup extends UnaryPlan {
     private final Expression tableName;

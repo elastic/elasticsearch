@@ -175,6 +175,7 @@ public class DanglingIndicesIT extends ESIntegTestCase {
      * other will be considered dangling, and can therefore be listed and
      * deleted through the API
      */
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/108288")
     public void testDanglingIndexCanBeDeleted() throws Exception {
         final Settings settings = buildSettings(1, true);
         internalCluster().startNodes(3, settings);
@@ -190,6 +191,7 @@ public class DanglingIndicesIT extends ESIntegTestCase {
         // tombstone has been pushed out of the graveyard.
         createIndex("additional");
         assertAcked(indicesAdmin().prepareDelete("additional"));
+        internalCluster().awaitIndexShardCloseAsyncTasks();
         assertThat(listDanglingIndices(), is(empty()));
     }
 

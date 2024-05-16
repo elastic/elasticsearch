@@ -95,6 +95,7 @@ public class PutDataStreamLifecycleAction {
         }
 
         public Request(String[] names, DataStreamLifecycle lifecycle) {
+            super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT, DEFAULT_ACK_TIMEOUT);
             this.names = names;
             this.lifecycle = lifecycle;
         }
@@ -104,6 +105,7 @@ public class PutDataStreamLifecycleAction {
         }
 
         public Request(String[] names, @Nullable TimeValue dataRetention, @Nullable Boolean enabled, @Nullable Downsampling downsampling) {
+            super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT, DEFAULT_ACK_TIMEOUT);
             this.names = names;
             this.lifecycle = DataStreamLifecycle.newBuilder()
                 .dataRetention(dataRetention)

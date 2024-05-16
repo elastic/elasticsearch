@@ -44,6 +44,7 @@ import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.SlowLogFieldProvider;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.index.engine.InternalEngineFactory;
+import org.elasticsearch.index.mapper.MapperMetrics;
 import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.license.ClusterStateLicenseService;
 import org.elasticsearch.license.License;
@@ -374,7 +375,8 @@ public class SecurityTests extends ESTestCase {
             () -> true,
             TestIndexNameExpressionResolver.newInstance(threadPool.getThreadContext()),
             Collections.emptyMap(),
-            mock(SlowLogFieldProvider.class)
+            mock(SlowLogFieldProvider.class),
+            MapperMetrics.NOOP
         );
         security.onIndexModule(indexModule);
         // indexReaderWrapper is a SetOnce so if Security#onIndexModule had already set an ReaderWrapper we would get an exception here
@@ -783,14 +785,12 @@ public class SecurityTests extends ESTestCase {
         final Logger amLogger = LogManager.getLogger(ActionModule.class);
         Loggers.setLevel(amLogger, Level.DEBUG);
         final MockLogAppender appender = new MockLogAppender();
-        Loggers.addAppender(amLogger, appender);
-        appender.start();
 
         Settings settings = Settings.builder().put("xpack.security.enabled", false).put("path.home", createTempDir()).build();
         SettingsModule settingsModule = new SettingsModule(Settings.EMPTY);
         ThreadPool threadPool = new TestThreadPool(getTestName());
 
-        try {
+        try (var ignored = appender.capturing(ActionModule.class)) {
             UsageService usageService = new UsageService();
             Security security = new Security(settings);
 
@@ -829,8 +829,6 @@ public class SecurityTests extends ESTestCase {
             appender.assertAllExpectationsMatched();
         } finally {
             threadPool.shutdown();
-            appender.stop();
-            Loggers.removeAppender(amLogger, appender);
         }
     }
 
@@ -839,8 +837,6 @@ public class SecurityTests extends ESTestCase {
         boolean securityEnabled = true;
         Loggers.setLevel(mockLogger, Level.INFO);
         final MockLogAppender appender = new MockLogAppender();
-        Loggers.addAppender(mockLogger, appender);
-        appender.start();
 
         Settings.Builder settings = Settings.builder().put("path.home", createTempDir());
         if (randomBoolean()) {
@@ -849,7 +845,7 @@ public class SecurityTests extends ESTestCase {
             settings.put("xpack.security.enabled", securityEnabled);
         }
 
-        try {
+        try (var ignored = appender.capturing(Security.class)) {
             appender.addExpectation(
                 new MockLogAppender.SeenEventExpectation(
                     "message",
@@ -860,9 +856,6 @@ public class SecurityTests extends ESTestCase {
             );
             createComponents(settings.build());
             appender.assertAllExpectationsMatched();
-        } finally {
-            appender.stop();
-            Loggers.removeAppender(mockLogger, appender);
         }
     }
 
@@ -1164,16 +1157,10 @@ public class SecurityTests extends ESTestCase {
     private void expectLogs(Class<?> clazz, List<MockLogAppender.LoggingExpectation> expected, Runnable runnable)
         throws IllegalAccessException {
         final MockLogAppender mockAppender = new MockLogAppender();
-        final Logger logger = LogManager.getLogger(clazz);
-        mockAppender.start();
-        try {
-            Loggers.addAppender(logger, mockAppender);
+        try (var ignored = mockAppender.capturing(clazz)) {
             expected.forEach(mockAppender::addExpectation);
             runnable.run();
             mockAppender.assertAllExpectationsMatched();
-        } finally {
-            Loggers.removeAppender(logger, mockAppender);
-            mockAppender.stop();
         }
     }
 }

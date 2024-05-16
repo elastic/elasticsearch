@@ -25,22 +25,15 @@ import static org.elasticsearch.common.util.PageCacheRecycler.LONG_PAGE_SIZE;
  * Long array abstraction able to support more than 2B values. This implementation slices data into fixed-sized blocks of
  * configurable length.
  */
-final class BigLongArray extends AbstractBigArray implements LongArray {
+final class BigLongArray extends AbstractBigByteArray implements LongArray {
 
     private static final BigLongArray ESTIMATOR = new BigLongArray(0, BigArrays.NON_RECYCLING_INSTANCE, false);
 
     static final VarHandle VH_PLATFORM_NATIVE_LONG = MethodHandles.byteArrayViewVarHandle(long[].class, ByteOrder.nativeOrder());
 
-    private byte[][] pages;
-
     /** Constructor. */
     BigLongArray(long size, BigArrays bigArrays, boolean clearOnResize) {
-        super(LONG_PAGE_SIZE, bigArrays, clearOnResize);
-        this.size = size;
-        pages = new byte[numPages(size)][];
-        for (int i = 0; i < pages.length; ++i) {
-            pages[i] = newBytePage(i);
-        }
+        super(LONG_PAGE_SIZE, bigArrays, clearOnResize, size);
     }
 
     @Override

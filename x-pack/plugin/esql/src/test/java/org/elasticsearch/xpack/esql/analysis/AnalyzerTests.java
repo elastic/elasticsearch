@@ -1007,7 +1007,13 @@ public class AnalyzerTests extends ESTestCase {
                 from test
                 | where emp_no COMPARISON "foo"
                 """.replace("COMPARISON", comparison)));
-            assertThat(e.getMessage(), containsString("Cannot convert string [foo] to [INTEGER]".replace("COMPARISON", comparison)));
+            assertThat(
+                e.getMessage(),
+                containsString(
+                    "first argument of [emp_no COMPARISON \"foo\"] is [numeric] so second argument must also be [numeric] but was [keyword]"
+                        .replace("COMPARISON", comparison)
+                )
+            );
         }
     }
 
@@ -1017,7 +1023,13 @@ public class AnalyzerTests extends ESTestCase {
                 from test
                 | where "foo" COMPARISON emp_no
                 """.replace("COMPARISON", comparison)));
-            assertThat(e.getMessage(), containsString("Cannot convert string [foo] to [INTEGER]".replace("COMPARISON", comparison)));
+            assertThat(
+                e.getMessage(),
+                containsString(
+                    "first argument of [\"foo\" COMPARISON emp_no] is [keyword] so second argument must also be [keyword] but was [integer]"
+                        .replace("COMPARISON", comparison)
+                )
+            );
         }
     }
 

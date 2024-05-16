@@ -11,7 +11,6 @@ import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.test.ESTestCase;
@@ -116,18 +115,13 @@ public class SettingsFilterTests extends ESTestCase {
         );
     }
 
-    private void assertExpectedLogMessages(Consumer<Logger> consumer, MockLogAppender.LoggingExpectation... expectations)
-        throws IllegalAccessException {
+    private void assertExpectedLogMessages(Consumer<Logger> consumer, MockLogAppender.LoggingExpectation... expectations) {
         Logger testLogger = LogManager.getLogger("org.elasticsearch.test");
         MockLogAppender appender = new MockLogAppender();
-        Loggers.addAppender(testLogger, appender);
-        try {
-            appender.start();
+        try (var ignored = appender.capturing("org.elasticsearch.test")) {
             Arrays.stream(expectations).forEach(appender::addExpectation);
             consumer.accept(testLogger);
             appender.assertAllExpectationsMatched();
-        } finally {
-            Loggers.removeAppender(testLogger, appender);
         }
     }
 

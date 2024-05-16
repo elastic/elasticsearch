@@ -61,20 +61,29 @@ public class ShardBulkInferenceActionFilterIT extends ESIntegTestCase {
 
     public void testBulkOperations() throws Exception {
         Map<String, Integer> shardsSettings = Collections.singletonMap(IndexMetadata.SETTING_NUMBER_OF_SHARDS, randomIntBetween(1, 10));
-        indicesAdmin().prepareCreate(INDEX_NAME).setMapping("""
-            {
-                "properties": {
-                    "sparse_field": {
-                        "type": "semantic_text",
-                        "inference_id": "test_service"
-                    },
-                    "dense_field": {
-                        "type": "semantic_text",
-                        "inference_id": "text_embedding_test_service"
-                    }
-                }
-            }
-            """).setSettings(shardsSettings).get();
+        indicesAdmin().prepareCreate(INDEX_NAME)
+            .setMapping(
+                String.format(
+                    """
+                        {
+                            "properties": {
+                                "sparse_field": {
+                                    "type": "semantic_text",
+                                    "inference_id": "%s"
+                                },
+                                "dense_field": {
+                                    "type": "semantic_text",
+                                    "inference_id": "%s"
+                                }
+                            }
+                        }
+                        """,
+                    TestSparseInferenceServiceExtension.TestInferenceService.NAME,
+                    TestDenseInferenceServiceExtension.TestInferenceService.NAME
+                )
+            )
+            .setSettings(shardsSettings)
+            .get();
 
         int totalBulkReqs = randomIntBetween(2, 100);
         long totalDocs = 0;
@@ -125,8 +134,11 @@ public class ShardBulkInferenceActionFilterIT extends ESIntegTestCase {
 
         SearchSourceBuilder sourceBuilder = new SearchSourceBuilder().size(0).trackTotalHits(true);
         SearchResponse searchResponse = client().search(new SearchRequest(INDEX_NAME).source(sourceBuilder)).get();
-        assertThat(searchResponse.getHits().getTotalHits().value, equalTo(totalDocs));
-        searchResponse.decRef();
+        try {
+            assertThat(searchResponse.getHits().getTotalHits().value, equalTo(totalDocs));
+        } finally {
+            searchResponse.decRef();
+        }
     }
 
     private void storeSparseModel() throws Exception {

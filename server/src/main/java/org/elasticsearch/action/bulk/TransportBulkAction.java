@@ -425,13 +425,13 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
         Set<String> failureStoresToBeRolledOver,
         long startTime
     ) {
-        final Map<String, IndexNotFoundException> indicesThatCannotBeCreated = new HashMap<>();
         final AtomicArray<BulkItemResponse> responses = new AtomicArray<>(bulkRequest.requests.size());
         // Optimizing when there are no prerequisite actions
         if (indicesToAutoCreate.isEmpty() && dataStreamsToBeRolledOver.isEmpty() && failureStoresToBeRolledOver.isEmpty()) {
-            executeBulk(task, bulkRequest, startTime, listener, executor, responses, indicesThatCannotBeCreated);
+            executeBulk(task, bulkRequest, startTime, listener, executor, responses, Map.of());
             return;
         }
+        final Map<String, IndexNotFoundException> indicesThatCannotBeCreated = new HashMap<>();
         Runnable executeBulkRunnable = () -> executor.execute(new ActionRunnable<>(listener) {
             @Override
             protected void doRun() {

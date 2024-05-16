@@ -114,10 +114,9 @@ public class NodeLeftExecutorTests extends ESTestCase {
             )
             .build();
 
-        final MockLogAppender appender = new MockLogAppender();
         final ThreadPool threadPool = new TestThreadPool("test");
         try (
-            var ignored = appender.capturing(NodeLeftExecutor.class);
+            var appender = MockLogAppender.capture(NodeLeftExecutor.class);
             var clusterService = ClusterServiceUtils.createClusterService(clusterState, threadPool)
         ) {
             final var nodeToRemove = clusterState.nodes().get("other");

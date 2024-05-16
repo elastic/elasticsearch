@@ -9,10 +9,15 @@ package org.elasticsearch.xpack.application.analytics.action;
 
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ml.AbstractBWCSerializationTestCase;
 
 import java.io.IOException;
+
+import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
+import static org.elasticsearch.xpack.application.analytics.action.DeleteAnalyticsCollectionAction.Request.COLLECTION_NAME_FIELD;
 
 public class DeleteAnalyticsCollectionRequestBWCSerializingTests extends AbstractBWCSerializationTestCase<
     DeleteAnalyticsCollectionAction.Request> {
@@ -24,7 +29,7 @@ public class DeleteAnalyticsCollectionRequestBWCSerializingTests extends Abstrac
 
     @Override
     protected DeleteAnalyticsCollectionAction.Request createTestInstance() {
-        return new DeleteAnalyticsCollectionAction.Request(randomIdentifier());
+        return new DeleteAnalyticsCollectionAction.Request(TimeValue.THIRTY_SECONDS, randomIdentifier());
     }
 
     @Override
@@ -34,7 +39,7 @@ public class DeleteAnalyticsCollectionRequestBWCSerializingTests extends Abstrac
 
     @Override
     protected DeleteAnalyticsCollectionAction.Request doParseInstance(XContentParser parser) throws IOException {
-        return DeleteAnalyticsCollectionAction.Request.parse(parser);
+        return PARSER.apply(parser, null);
     }
 
     @Override
@@ -42,6 +47,16 @@ public class DeleteAnalyticsCollectionRequestBWCSerializingTests extends Abstrac
         DeleteAnalyticsCollectionAction.Request instance,
         TransportVersion version
     ) {
-        return new DeleteAnalyticsCollectionAction.Request(instance.getCollectionName());
+        return new DeleteAnalyticsCollectionAction.Request(TimeValue.THIRTY_SECONDS, instance.getCollectionName());
     }
+
+    private static final ConstructingObjectParser<DeleteAnalyticsCollectionAction.Request, Void> PARSER = new ConstructingObjectParser<>(
+        "delete_analytics_collection_request",
+        p -> new DeleteAnalyticsCollectionAction.Request(TimeValue.THIRTY_SECONDS, (String) p[0])
+    );
+
+    static {
+        PARSER.declareString(constructorArg(), COLLECTION_NAME_FIELD);
+    }
+
 }

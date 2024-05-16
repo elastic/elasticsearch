@@ -136,3 +136,4 @@ include::{es-ref-dir}/tab-widgets/semantic-search/hybrid-search-widget.asciidoc[
 
 include::semantic-search-elser.asciidoc[]
 include::semantic-search-inference.asciidoc[]
+include::cohere-es.asciidoc[]

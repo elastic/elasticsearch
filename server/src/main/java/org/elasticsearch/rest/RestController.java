@@ -365,6 +365,32 @@ public class RestController implements HttpServerTransport.Dispatcher {
         }
     }
 
+    public boolean checkSupported(
+        RestRequest.Method method,
+        String path,
+        Set<String> parameters,
+        Set<String> capabilities,
+        RestApiVersion restApiVersion
+    ) {
+        Iterator<MethodHandlers> allHandlers = getAllHandlers(null, path);
+        while (allHandlers.hasNext()) {
+            RestHandler handler;
+            MethodHandlers handlers = allHandlers.next();
+            if (handlers == null) {
+                handler = null;
+            } else {
+                handler = handlers.getHandler(method, restApiVersion);
+            }
+
+            if (handler != null) {
+                var supportedParams = handler.supportedQueryParameters();
+                return (supportedParams == null || supportedParams.containsAll(parameters))
+                    && handler.supportedCapabilities().containsAll(capabilities);
+            }
+        }
+        return false;
+    }
+
     @Override
     public Map<String, HttpRouteStats> getStats() {
         final Iterator<MethodHandlers> methodHandlersIterator = handlers.allNodeValues();

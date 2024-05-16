@@ -199,6 +199,7 @@ public final class ConnectorTestUtils {
     public static ConnectorFiltering getRandomConnectorFiltering() {
 
         Instant currentTimestamp = Instant.now();
+        int order = randomInt();
 
         return new ConnectorFiltering.Builder().setActive(
             new FilteringRules.Builder().setAdvancedSnippet(
@@ -212,12 +213,13 @@ public final class ConnectorTestUtils {
                         new FilteringRule.Builder().setCreatedAt(currentTimestamp)
                             .setField(randomAlphaOfLength(10))
                             .setId(randomAlphaOfLength(10))
-                            .setOrder(randomInt())
+                            .setOrder(order)
                             .setPolicy(getRandomFilteringPolicy())
                             .setRule(getRandomFilteringRuleCondition())
                             .setUpdatedAt(currentTimestamp)
                             .setValue(randomAlphaOfLength(10))
-                            .build()
+                            .build(),
+                        ConnectorFiltering.getDefaultFilteringRule(currentTimestamp, order + 1)
                     )
                 )
                 .setFilteringValidationInfo(getRandomFilteringValidationInfo())
@@ -235,12 +237,14 @@ public final class ConnectorTestUtils {
                             new FilteringRule.Builder().setCreatedAt(currentTimestamp)
                                 .setField(randomAlphaOfLength(10))
                                 .setId(randomAlphaOfLength(10))
-                                .setOrder(randomInt())
+                                .setOrder(order)
                                 .setPolicy(getRandomFilteringPolicy())
                                 .setRule(getRandomFilteringRuleCondition())
                                 .setUpdatedAt(currentTimestamp)
                                 .setValue(randomAlphaOfLength(10))
-                                .build()
+                                .build(),
+                            ConnectorFiltering.getDefaultFilteringRule(currentTimestamp, order + 1)
+
                         )
                     )
                     .setFilteringValidationInfo(getRandomFilteringValidationInfo())

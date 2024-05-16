@@ -294,7 +294,7 @@ public class RankFeatureShardPhaseTests extends ESTestCase {
                 fieldName,
                 new DocumentField(fieldName, Collections.singletonList(expectedFieldData.get(numDocs - 1)))
             );
-            searchHits = new SearchHits(hits, new TotalHits(3, TotalHits.Relation.EQUAL_TO), 1.0f);
+            searchHits = SearchHits.unpooled(hits, new TotalHits(3, TotalHits.Relation.EQUAL_TO), 1.0f);
             searchContext.fetchResult().shardResult(searchHits, null);
             when(searchContext.isCancelled()).thenReturn(false);
             when(searchContext.request()).thenReturn(searchRequest);
@@ -341,7 +341,7 @@ public class RankFeatureShardPhaseTests extends ESTestCase {
         try (SearchContext searchContext = spy(getSearchContext())) {
             searchContext.addFetchResult();
             SearchHit[] hits = new SearchHit[0];
-            searchHits = new SearchHits(hits, new TotalHits(0, TotalHits.Relation.EQUAL_TO), 1.0f);
+            searchHits = SearchHits.unpooled(hits, new TotalHits(0, TotalHits.Relation.EQUAL_TO), 1.0f);
             searchContext.fetchResult().shardResult(searchHits, null);
             when(searchContext.isCancelled()).thenReturn(false);
             when(searchContext.request()).thenReturn(searchRequest);
@@ -386,7 +386,7 @@ public class RankFeatureShardPhaseTests extends ESTestCase {
         try (SearchContext searchContext = spy(getSearchContext())) {
             searchContext.addFetchResult();
             SearchHit[] hits = new SearchHit[0];
-            searchHits = new SearchHits(hits, new TotalHits(0, TotalHits.Relation.EQUAL_TO), 1.0f);
+            searchHits = SearchHits.unpooled(hits, new TotalHits(0, TotalHits.Relation.EQUAL_TO), 1.0f);
             searchContext.fetchResult().shardResult(searchHits, null);
             when(searchContext.isCancelled()).thenReturn(true);
             when(searchContext.request()).thenReturn(searchRequest);

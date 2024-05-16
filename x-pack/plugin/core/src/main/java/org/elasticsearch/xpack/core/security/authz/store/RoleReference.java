@@ -81,22 +81,11 @@ public interface RoleReference {
         private final BytesReference roleDescriptorsBytes;
         private final ApiKeyRoleType roleType;
         private RoleKey id = null;
-        private final boolean checkForInvalidLegacyRoleDescriptorsForCrossClusterAccess;
 
         public ApiKeyRoleReference(String apiKeyId, BytesReference roleDescriptorsBytes, ApiKeyRoleType roleType) {
-            this(apiKeyId, roleDescriptorsBytes, roleType, false);
-        }
-
-        public ApiKeyRoleReference(
-            String apiKeyId,
-            BytesReference roleDescriptorsBytes,
-            ApiKeyRoleType roleType,
-            boolean checkForInvalidLegacyRoleDescriptorsForCrossClusterAccess
-        ) {
             this.apiKeyId = apiKeyId;
             this.roleDescriptorsBytes = roleDescriptorsBytes;
             this.roleType = roleType;
-            this.checkForInvalidLegacyRoleDescriptorsForCrossClusterAccess = checkForInvalidLegacyRoleDescriptorsForCrossClusterAccess;
         }
 
         @Override
@@ -127,9 +116,49 @@ public interface RoleReference {
         public ApiKeyRoleType getRoleType() {
             return roleType;
         }
+    }
 
-        public boolean checkForInvalidLegacyRoleDescriptorsForCrossClusterAccess() {
-            return checkForInvalidLegacyRoleDescriptorsForCrossClusterAccess;
+    final class CrossClusterApiKeyRoleReference implements RoleReference {
+
+        private final String apiKeyId;
+        private final BytesReference roleDescriptorsBytes;
+        private final ApiKeyRoleType roleType;
+        private RoleKey id = null;
+
+        public CrossClusterApiKeyRoleReference(String apiKeyId, BytesReference roleDescriptorsBytes) {
+            this.apiKeyId = apiKeyId;
+            this.roleDescriptorsBytes = roleDescriptorsBytes;
+            this.roleType = ApiKeyRoleType.ASSIGNED;
+        }
+
+        @Override
+        public RoleKey id() {
+            // Hashing can be expensive. memorize the result in case the method is called multiple times.
+            if (id == null) {
+                final String roleDescriptorsHash = MessageDigests.toHexString(
+                    MessageDigests.digest(roleDescriptorsBytes, MessageDigests.sha256())
+                );
+                // Note: the role key is the same as for ApiKeyRoleReference, to maximize cache utilization
+                id = new RoleKey(Set.of("apikey:" + roleDescriptorsHash), "apikey_" + roleType);
+            }
+            return id;
+        }
+
+        @Override
+        public void resolve(RoleReferenceResolver resolver, ActionListener<RolesRetrievalResult> listener) {
+            resolver.resolveCrossClusterApiKeyRoleReference(this, listener);
+        }
+
+        public String getApiKeyId() {
+            return apiKeyId;
+        }
+
+        public BytesReference getRoleDescriptorsBytes() {
+            return roleDescriptorsBytes;
+        }
+
+        public ApiKeyRoleType getRoleType() {
+            return roleType;
         }
     }
 

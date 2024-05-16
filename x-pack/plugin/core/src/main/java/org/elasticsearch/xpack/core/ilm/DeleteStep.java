@@ -17,6 +17,7 @@ import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.Index;
 
 import java.util.Locale;
 
@@ -40,13 +41,24 @@ public class DeleteStep extends AsyncRetryDuringSnapshotActionStep {
         DataStream dataStream = indexAbstraction.getParentDataStream();
 
         if (dataStream != null) {
-            assert dataStream.getWriteIndex() != null : dataStream.getName() + " has no write index";
+            final Index targetWriteIndex;
+            final boolean isFailureStoreIndex;
+            if (dataStream.isFailureStoreIndex(indexName)) {
+                targetWriteIndex = dataStream.getFailureStoreWriteIndex();
+                isFailureStoreIndex = true;
+            } else {
+                targetWriteIndex = dataStream.getWriteIndex();
+                isFailureStoreIndex = false;
+            }
+            assert targetWriteIndex != null : dataStream.getName() + " has no write index";
 
             // using index name equality across this if/else branch as the UUID of the index might change via restoring a data stream
             // with one index from snapshot
-            if (dataStream.getIndices().size() == 1 && dataStream.getWriteIndex().getName().equals(indexName)) {
+            int totalDataStreamIndices = dataStream.getIndices().size() + dataStream.getFailureIndices().getIndices().size();
+            if (totalDataStreamIndices == 1 && targetWriteIndex.getName().equals(indexName)) {
                 // This is the last index in the data stream, the entire stream
                 // needs to be deleted, because we can't have an empty data stream
+                // TODO: This may not be entirely accurate since failure indices are allowed in a stream. Should those block this?
                 DeleteDataStreamAction.Request deleteReq = new DeleteDataStreamAction.Request(new String[] { dataStream.getName() });
                 getClient().execute(
                     DeleteDataStreamAction.INSTANCE,
@@ -54,13 +66,14 @@ public class DeleteStep extends AsyncRetryDuringSnapshotActionStep {
                     listener.delegateFailureAndWrap((l, response) -> l.onResponse(null))
                 );
                 return;
-            } else if (dataStream.getWriteIndex().getName().equals(indexName)) {
+            } else if (targetWriteIndex.getName().equals(indexName)) {
                 String errorMessage = String.format(
                     Locale.ROOT,
-                    "index [%s] is the write index for data stream [%s]. "
+                    "index [%s] is the%s write index for data stream [%s]. "
                         + "stopping execution of lifecycle [%s] as a data stream's write index cannot be deleted. manually rolling over the"
                         + " index will resume the execution of the policy as the index will not be the data stream's write index anymore",
                     indexName,
+                    isFailureStoreIndex ? " failure store" : "",
                     dataStream.getName(),
                     policyName
                 );

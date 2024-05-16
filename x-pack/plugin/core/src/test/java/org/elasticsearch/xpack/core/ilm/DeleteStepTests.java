@@ -130,10 +130,11 @@ public class DeleteStepTests extends AbstractStepTestCase<DeleteStep> {
 
         String policyName = "test-ilm-policy";
         String dataStreamName = randomAlphaOfLength(10);
+        long ts = System.currentTimeMillis();
 
         IndexMetadata index1;
         {
-            String indexName = DataStream.getDefaultBackingIndexName(dataStreamName, 1);
+            String indexName = DataStream.getDefaultBackingIndexName(dataStreamName, 1, ts);
             index1 = IndexMetadata.builder(indexName)
                 .settings(settings(IndexVersion.current()).put(LifecycleSettings.LIFECYCLE_NAME, policyName))
                 .numberOfShards(randomIntBetween(1, 5))
@@ -142,9 +143,26 @@ public class DeleteStepTests extends AbstractStepTestCase<DeleteStep> {
         }
         IndexMetadata sourceIndexMetadata;
         {
-
-            String indexName = DataStream.getDefaultBackingIndexName(dataStreamName, 2);
+            String indexName = DataStream.getDefaultBackingIndexName(dataStreamName, 2, ts);
             sourceIndexMetadata = IndexMetadata.builder(indexName)
+                .settings(settings(IndexVersion.current()).put(LifecycleSettings.LIFECYCLE_NAME, policyName))
+                .numberOfShards(randomIntBetween(1, 5))
+                .numberOfReplicas(randomIntBetween(0, 5))
+                .build();
+        }
+        IndexMetadata failureIndex1;
+        {
+            String indexName = DataStream.getDefaultFailureStoreName(dataStreamName, 1, ts);
+            failureIndex1 = IndexMetadata.builder(indexName)
+                .settings(settings(IndexVersion.current()).put(LifecycleSettings.LIFECYCLE_NAME, policyName))
+                .numberOfShards(randomIntBetween(1, 5))
+                .numberOfReplicas(randomIntBetween(0, 5))
+                .build();
+        }
+        IndexMetadata failureSourceIndexMetadata;
+        {
+            String indexName = DataStream.getDefaultFailureStoreName(dataStreamName, 2, ts);
+            failureSourceIndexMetadata = IndexMetadata.builder(indexName)
                 .settings(settings(IndexVersion.current()).put(LifecycleSettings.LIFECYCLE_NAME, policyName))
                 .numberOfShards(randomIntBetween(1, 5))
                 .numberOfReplicas(randomIntBetween(0, 5))
@@ -153,14 +171,25 @@ public class DeleteStepTests extends AbstractStepTestCase<DeleteStep> {
 
         DataStream dataStream = DataStreamTestHelper.newInstance(
             dataStreamName,
-            List.of(index1.getIndex(), sourceIndexMetadata.getIndex())
+            List.of(index1.getIndex(), sourceIndexMetadata.getIndex()),
+            List.of(failureIndex1.getIndex(), failureSourceIndexMetadata.getIndex())
         );
         ClusterState clusterState = ClusterState.builder(emptyClusterState())
-            .metadata(Metadata.builder().put(index1, false).put(sourceIndexMetadata, false).put(dataStream).build())
+            .metadata(
+                Metadata.builder()
+                    .put(index1, false)
+                    .put(sourceIndexMetadata, false)
+                    .put(failureIndex1, false)
+                    .put(failureSourceIndexMetadata, false)
+                    .put(dataStream)
+                    .build()
+            )
             .build();
 
         AtomicBoolean listenerCalled = new AtomicBoolean(false);
-        createRandomInstance().performDuringNoSnapshot(sourceIndexMetadata, clusterState, new ActionListener<>() {
+        final boolean useFailureStore = DataStream.isFailureStoreFeatureFlagEnabled() && randomBoolean();
+        final IndexMetadata indexToOperateOn = useFailureStore ? failureSourceIndexMetadata : sourceIndexMetadata;
+        createRandomInstance().performDuringNoSnapshot(indexToOperateOn, clusterState, new ActionListener<>() {
             @Override
             public void onResponse(Void complete) {
                 listenerCalled.set(true);
@@ -174,8 +203,10 @@ public class DeleteStepTests extends AbstractStepTestCase<DeleteStep> {
                     e.getMessage(),
                     is(
                         "index ["
-                            + sourceIndexMetadata.getIndex().getName()
-                            + "] is the write index for data stream ["
+                            + indexToOperateOn.getIndex().getName()
+                            + "] is the "
+                            + (useFailureStore ? "failure store " : "")
+                            + "write index for data stream ["
                             + dataStreamName
                             + "]. stopping execution of lifecycle [test-ilm-policy] as a data stream's write index cannot be deleted. "
                             + "manually rolling over the index will resume the execution of the policy as the index will not be the "

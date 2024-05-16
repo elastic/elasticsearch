@@ -11,6 +11,7 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.rollover.RolloverRequest;
 import org.elasticsearch.action.support.ActiveShardCount;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateObserver;
@@ -19,6 +20,7 @@ import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.Index;
 
 import java.util.Locale;
 import java.util.Objects;
@@ -57,13 +59,23 @@ public class RolloverStep extends AsyncActionStep {
         IndexAbstraction indexAbstraction = currentClusterState.metadata().getIndicesLookup().get(indexName);
         assert indexAbstraction != null : "expected the index " + indexName + " to exist in the lookup but it didn't";
         final String rolloverTarget;
+        final boolean targetFailureStore;
         DataStream dataStream = indexAbstraction.getParentDataStream();
         if (dataStream != null) {
-            assert dataStream.getWriteIndex() != null : "datastream " + dataStream.getName() + " has no write index";
-            if (dataStream.getWriteIndex().equals(indexMetadata.getIndex()) == false) {
+            final Index targetWriteIndex;
+            if (dataStream.isFailureStoreIndex(indexName)) {
+                targetWriteIndex = dataStream.getFailureStoreWriteIndex();
+                targetFailureStore = true;
+            } else {
+                targetWriteIndex = dataStream.getWriteIndex();
+                targetFailureStore = false;
+            }
+            assert targetWriteIndex != null : "datastream " + dataStream.getName() + " has no write index";
+            if (targetWriteIndex.equals(indexMetadata.getIndex()) == false) {
                 logger.warn(
-                    "index [{}] is not the write index for data stream [{}]. skipping rollover for policy [{}]",
+                    "index [{}] is not the {}write index for data stream [{}]. skipping rollover for policy [{}]",
                     indexName,
+                    targetFailureStore ? "failure store " : "",
                     dataStream.getName(),
                     indexMetadata.getLifecyclePolicyName()
                 );
@@ -115,10 +127,18 @@ public class RolloverStep extends AsyncActionStep {
             }
 
             rolloverTarget = rolloverAlias;
+            targetFailureStore = false;
         }
 
         // Calling rollover with no conditions will always roll over the index
         RolloverRequest rolloverRequest = new RolloverRequest(rolloverTarget, null).masterNodeTimeout(TimeValue.MAX_VALUE);
+        if (targetFailureStore) {
+            rolloverRequest.setIndicesOptions(
+                IndicesOptions.builder(rolloverRequest.indicesOptions())
+                    .failureStoreOptions(opts -> opts.includeFailureIndices(true).includeRegularIndices(false))
+                    .build()
+            );
+        }
         // We don't wait for active shards when we perform the rollover because the
         // {@link org.elasticsearch.xpack.core.ilm.WaitForActiveShardsStep} step will do so
         rolloverRequest.setWaitForActiveShards(ActiveShardCount.NONE);

@@ -406,6 +406,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
             // TODO: we can also check whether we need upload before appending to avoid creating VBCC just above the cache region size
 
             final VirtualBatchedCompoundCommit virtualBcc;
+            final boolean commitAfterRelocationStarted;
             synchronized (commitState) {
                 // Have to check under lock before creating vbcc to ensure that the shard has not closed.
                 if (commitState.isClosed()) {
@@ -420,13 +421,17 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                     return;
                 }
                 virtualBcc = commitState.appendCommit(reference);
+                commitAfterRelocationStarted = commitState.isRelocating() && reference.getGeneration() > commitState.maxGenerationToUpload;
             }
             success = true;
 
             if (statelessUploadDelayed) {
                 final Optional<IndexShardRoutingTable> shardRoutingTable = shardRoutingFinder.apply(shardId);
                 // todo: ES-8431 remove commitState.isInitializingNoSearch, we only need this for relocations now.
-                if (shardRoutingTable.isEmpty() || commitState.isInitializingNoSearch()) {
+                // It's possible that a background merge is triggered by the relocation flushes, we do not want to notify
+                // the search nodes about this commit since the segments in that commit can overlap with some of the segments
+                // that might be created by the new primary node and can have different contents.
+                if (shardRoutingTable.isEmpty() || commitState.isInitializingNoSearch() || commitAfterRelocationStarted) {
                     // for initializing shards, the applied state may not yet be available in `ClusterService.state()`.
                     // however, except for peer recovery, we can safely assume no search shards.
                     commitState.notifyCommitSuccessListeners(generation);
@@ -881,6 +886,10 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
 
         private boolean isClosed() {
             return state == State.CLOSED;
+        }
+
+        private boolean isRelocating() {
+            return state == State.RELOCATING;
         }
 
         /**
@@ -1541,6 +1550,8 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
         private void sendNewCommitNotification(NewCommitNotificationRequest request) {
             assert assertDelayedSetting("new commit notification for non-upload commit");
             assert request.isUploaded() == false;
+            assert isRelocating() == false || request.getGeneration() <= maxGenerationToUpload
+                : "Request generation=" + request.getGeneration() + " maxGenerationToUpload=" + maxGenerationToUpload + " state=" + state;
             lastNewCommitNotificationSentTimestamp = threadPool.relativeTimeInMillis();
             client.execute(TransportNewCommitNotificationAction.TYPE, request, ActionListener.wrap(response -> {
                 // Do NOT update uploadedGenerationNotified since it is used for file deleting tracking

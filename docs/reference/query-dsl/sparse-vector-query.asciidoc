@@ -29,7 +29,7 @@ GET _search
       "sparse_vector": {
         "field": "ml.tokens",
         "inference_id": "the inference ID to produce the token weights",
-        "text": "the query string"
+        "query": "the query string"
       }
    }
 }
@@ -63,11 +63,11 @@ GET _search
 (Optional, string) The <<inference-apis,inference ID>> to use to convert the query text into token-weight pairs.
 It must be the same inference ID that was used to create the tokens from the input text.
 Only one of `inference_id` and `query_vector` is allowed.
-If `inference_id` is specified, `text` must also be specified.
+If `inference_id` is specified, `query` must also be specified.
 
-`text`::::
+`query`::::
 (Optional, string) The query text you want to use for search.
-If `inference_id` is specified, `text` must also be specified.
+If `inference_id` is specified, `query` must also be specified.
 
 `prune` ::::
 (Optional, boolean)
@@ -126,7 +126,7 @@ GET my-index/_search
       "sparse_vector": {
          "field": "ml.tokens",
          "inference_id": "my-elser-model",
-         "text": "How is the weather in Jamaica?"
+         "query": "How is the weather in Jamaica?"
       }
    }
 }
@@ -147,7 +147,7 @@ GET my-index/_search
           "sparse_vector": {
             "field": "ml.inference.title_expanded.predicted_value",
             "inference_id": "my-elser-model",
-            "text": "How is the weather in Jamaica?",
+            "query": "How is the weather in Jamaica?",
             "boost": 1
           }
         },
@@ -155,7 +155,7 @@ GET my-index/_search
           "sparse_vector": {
             "field": "ml.inference.description_expanded.predicted_value",
             "inference_id": "my-elser-model",
-            "text": "How is the weather in Jamaica?",
+            "query": "How is the weather in Jamaica?",
             "boost": 1
           }
         },
@@ -205,7 +205,7 @@ GET my-index/_search
               "sparse_vector": {
                 "field": "ml.inference.title_expanded.predicted_value",
                 "inference_id": "my-elser-model",
-                "text": "How is the weather in Jamaica?",
+                "query": "How is the weather in Jamaica?",
                 "boost": 1
               }
             }
@@ -217,7 +217,7 @@ GET my-index/_search
               "sparse_vector": {
                 "field": "ml.inference.description_expanded.predicted_value",
                 "inference_id": "my-elser-model",
-                "text": "How is the weather in Jamaica?",
+                "query": "How is the weather in Jamaica?",
                 "boost": 1
               }
             }
@@ -252,7 +252,7 @@ GET my-index/_search
       "sparse_vector":{
          "field": "ml.tokens",
          "inference_id": "my-elser-model",
-         "text":"How is the weather in Jamaica?",
+         "query":"How is the weather in Jamaica?",
          "pruning_config": {
            "tokens_freq_ratio_threshold": 5,
            "tokens_weight_threshold": 0.4,
@@ -267,7 +267,7 @@ GET my-index/_search
             "sparse_vector": {
                "field": "ml.tokens",
                "inference_id": "my-elser-model",
-               "model_text": "How is the weather in Jamaica?",
+               "query": "How is the weather in Jamaica?",
                "pruning_config": {
                    "tokens_freq_ratio_threshold": 5,
                    "tokens_weight_threshold": 0.4,

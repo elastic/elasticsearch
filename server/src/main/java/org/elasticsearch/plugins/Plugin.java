@@ -28,6 +28,7 @@ import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettingProvider;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.SystemIndices;
+import org.elasticsearch.plugins.internal.DocumentParsingProvider;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.telemetry.TelemetryProvider;
@@ -162,6 +163,11 @@ public abstract class Plugin implements Closeable {
          * data streams managed by the data stream lifecycle.
          */
         DataStreamGlobalRetentionResolver dataStreamGlobalRetentionResolver();
+
+        /**
+         * A provider of utilities to observe and report parsing of documents
+         */
+        DocumentParsingProvider documentParsingProvider();
     }
 
     /**

@@ -1,5 +1,5 @@
 [[retriever]]
-=== Retriever API
+=== Retriever
 
 preview::["This functionality is in technical preview and may be changed or removed in a future release. The syntax will likely change before GA. Elastic will work to fix any issues, but features in technical preview are not subject to the support SLA of official GA features."]
 
@@ -11,6 +11,11 @@ retriever with two or more children is considered a compound retriever. This
 allows for complex behavior to be depicted in a tree-like structure, called
 the retriever tree, to better clarify the order of operations that occur
 during a search.
+
+[TIP]
+====
+Refer to <<retrievers-overview>> for a high level overview of the retrievers abstraction.
+====
 
 The following retrievers are available:
 

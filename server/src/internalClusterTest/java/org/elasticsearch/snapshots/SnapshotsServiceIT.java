@@ -31,9 +31,7 @@ public class SnapshotsServiceIT extends AbstractSnapshotIntegTestCase {
         createIndexWithRandomDocs("test-index", randomIntBetween(1, 42));
         createSnapshot("test-repo", "test-snapshot", List.of("test-index"));
 
-        final MockLogAppender mockLogAppender = new MockLogAppender();
-
-        try (var ignored = mockLogAppender.capturing(SnapshotsService.class)) {
+        try (var mockLogAppender = MockLogAppender.capture(SnapshotsService.class)) {
             mockLogAppender.addExpectation(
                 new MockLogAppender.UnseenEventExpectation(
                     "[does-not-exist]",
@@ -80,10 +78,7 @@ public class SnapshotsServiceIT extends AbstractSnapshotIntegTestCase {
         createIndexWithRandomDocs("test-index", randomIntBetween(1, 42));
         createSnapshot("test-repo", "test-snapshot", List.of("test-index"));
 
-        final MockLogAppender mockLogAppender = new MockLogAppender();
-
-        try (var ignored = mockLogAppender.capturing(SnapshotsService.class)) {
-
+        try (var mockLogAppender = MockLogAppender.capture(SnapshotsService.class)) {
             mockLogAppender.addExpectation(
                 new MockLogAppender.SeenEventExpectation(
                     "[test-snapshot]",

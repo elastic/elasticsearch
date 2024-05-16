@@ -678,25 +678,21 @@ public class ClusterApplierService extends AbstractLifecycleComponent implements
         isApplyingClusterState = Assertions.ENABLED ? new ThreadLocal<>() : null;
     }
 
-    public static boolean assertIsApplyingClusterState() {
-        assert isApplyingClusterState == null || isApplyingClusterState.get() != null
-            : "operation not permitted unless applying cluster state on thread " + Thread.currentThread().getName();
-        return true;
-    }
-
     public static boolean assertNotApplyingClusterState() {
         assert isApplyingClusterState == null || isApplyingClusterState.get() == null
-            : "operation not permitted while applying cluster state on thread " + Thread.currentThread().getName();
+            : "operation not permitted while applying cluster state, currently on thread " + Thread.currentThread().getName();
         return true;
     }
 
     public static void setIsApplyingClusterState() {
+        assert ThreadPool.assertCurrentThreadPool(CLUSTER_UPDATE_THREAD_NAME);
         if (isApplyingClusterState != null) {
             isApplyingClusterState.set(Boolean.TRUE);
         }
     }
 
     public static void clearIsApplyingClusterState() {
+        assert ThreadPool.assertCurrentThreadPool(CLUSTER_UPDATE_THREAD_NAME);
         if (isApplyingClusterState != null) {
             isApplyingClusterState.remove();
         }

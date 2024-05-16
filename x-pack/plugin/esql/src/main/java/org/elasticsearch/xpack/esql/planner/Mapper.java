@@ -16,6 +16,7 @@ import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Grok;
 import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
+import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.Row;
 import org.elasticsearch.xpack.esql.plan.logical.TopN;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
@@ -44,7 +45,6 @@ import org.elasticsearch.xpack.ql.plan.logical.Filter;
 import org.elasticsearch.xpack.ql.plan.logical.Limit;
 import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.ql.plan.logical.OrderBy;
-import org.elasticsearch.xpack.ql.plan.logical.Project;
 import org.elasticsearch.xpack.ql.plan.logical.UnaryPlan;
 
 import static org.elasticsearch.xpack.esql.plan.physical.AggregateExec.Mode;
@@ -54,7 +54,7 @@ import static org.elasticsearch.xpack.esql.plan.physical.AggregateExec.Mode.PART
 public class Mapper {
 
     private final FunctionRegistry functionRegistry;
-    private final boolean localMode;
+    private final boolean localMode; // non-coordinator (data node) mode
 
     public Mapper(FunctionRegistry functionRegistry) {
         this.functionRegistry = functionRegistry;

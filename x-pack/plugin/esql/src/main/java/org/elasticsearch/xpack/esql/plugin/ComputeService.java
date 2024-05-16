@@ -72,7 +72,6 @@ import org.elasticsearch.xpack.esql.planner.EsPhysicalOperationProviders;
 import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 import org.elasticsearch.xpack.esql.session.EsqlConfiguration;
-import org.elasticsearch.xpack.ql.options.EsSourceOptions;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -205,6 +204,7 @@ public class ComputeService {
             RefCountingListener refs = new RefCountingListener(listener.map(unused -> new Result(collectedPages, collectedProfiles)))
         ) {
             // run compute on the coordinator
+            exchangeSource.addCompletionListener(refs.acquire());
             runCompute(
                 rootTask,
                 new ComputeContext(sessionId, RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY, List.of(), configuration, exchangeSource, null),
@@ -303,51 +303,42 @@ public class ComputeService {
         // Since it's used only for @timestamp, it is relatively safe to assume it's not needed
         // but it would be better to have a proper impl.
         QueryBuilder requestFilter = PlannerUtils.requestFilter(planWithReducer, x -> true);
-        EsSourceOptions esSourceOptions = PlannerUtils.esSourceOptions(planWithReducer);
-        lookupDataNodes(
-            parentTask,
-            clusterAlias,
-            requestFilter,
-            concreteIndices,
-            originalIndices,
-            esSourceOptions,
-            ActionListener.wrap(dataNodes -> {
-                try (RefCountingRunnable refs = new RefCountingRunnable(() -> parentListener.onResponse(null))) {
-                    // For each target node, first open a remote exchange on the remote node, then link the exchange source to
-                    // the new remote exchange sink, and initialize the computation on the target node via data-node-request.
-                    for (DataNode node : dataNodes) {
-                        var dataNodeListener = ActionListener.releaseAfter(dataNodeListenerSupplier.get(), refs.acquire());
-                        var queryPragmas = configuration.pragmas();
-                        ExchangeService.openExchange(
-                            transportService,
-                            node.connection,
-                            sessionId,
-                            queryPragmas.exchangeBufferSize(),
-                            esqlExecutor,
-                            dataNodeListener.delegateFailureAndWrap((delegate, unused) -> {
-                                var remoteSink = exchangeService.newRemoteSink(parentTask, sessionId, transportService, node.connection);
-                                exchangeSource.addRemoteSink(remoteSink, queryPragmas.concurrentExchangeClients());
-                                transportService.sendChildRequest(
-                                    node.connection,
-                                    DATA_ACTION_NAME,
-                                    new DataNodeRequest(
-                                        sessionId,
-                                        configuration,
-                                        clusterAlias,
-                                        node.shardIds,
-                                        node.aliasFilters,
-                                        planWithReducer
-                                    ),
-                                    parentTask,
-                                    TransportRequestOptions.EMPTY,
-                                    new ActionListenerResponseHandler<>(delegate, ComputeResponse::new, esqlExecutor)
-                                );
-                            })
-                        );
-                    }
+        lookupDataNodes(parentTask, clusterAlias, requestFilter, concreteIndices, originalIndices, ActionListener.wrap(dataNodes -> {
+            try (RefCountingRunnable refs = new RefCountingRunnable(() -> parentListener.onResponse(null))) {
+                // For each target node, first open a remote exchange on the remote node, then link the exchange source to
+                // the new remote exchange sink, and initialize the computation on the target node via data-node-request.
+                for (DataNode node : dataNodes) {
+                    var dataNodeListener = ActionListener.releaseAfter(dataNodeListenerSupplier.get(), refs.acquire());
+                    var queryPragmas = configuration.pragmas();
+                    ExchangeService.openExchange(
+                        transportService,
+                        node.connection,
+                        sessionId,
+                        queryPragmas.exchangeBufferSize(),
+                        esqlExecutor,
+                        dataNodeListener.delegateFailureAndWrap((delegate, unused) -> {
+                            var remoteSink = exchangeService.newRemoteSink(parentTask, sessionId, transportService, node.connection);
+                            exchangeSource.addRemoteSink(remoteSink, queryPragmas.concurrentExchangeClients());
+                            transportService.sendChildRequest(
+                                node.connection,
+                                DATA_ACTION_NAME,
+                                new DataNodeRequest(
+                                    sessionId,
+                                    configuration,
+                                    clusterAlias,
+                                    node.shardIds,
+                                    node.aliasFilters,
+                                    planWithReducer
+                                ),
+                                parentTask,
+                                TransportRequestOptions.EMPTY,
+                                new ActionListenerResponseHandler<>(delegate, ComputeResponse::new, esqlExecutor)
+                            );
+                        })
+                    );
                 }
-            }, parentListener::onFailure)
-        );
+            }
+        }, parentListener::onFailure));
     }
 
     private void startComputeOnRemoteClusters(
@@ -553,7 +544,6 @@ public class ComputeService {
         QueryBuilder filter,
         Set<String> concreteIndices,
         String[] originalIndices,
-        EsSourceOptions esSourceOptions,
         ActionListener<List<DataNode>> listener
     ) {
         ThreadContext threadContext = transportService.getThreadPool().getThreadContext();
@@ -597,10 +587,10 @@ public class ComputeService {
             threadContext.markAsSystemContext();
             SearchShardsRequest searchShardsRequest = new SearchShardsRequest(
                 originalIndices,
-                esSourceOptions.indicesOptions(SearchRequest.DEFAULT_INDICES_OPTIONS),
+                SearchRequest.DEFAULT_INDICES_OPTIONS,
                 filter,
                 null,
-                esSourceOptions.preference(),
+                null,
                 false,
                 clusterAlias
             );
@@ -722,6 +712,7 @@ public class ComputeService {
             var externalSink = exchangeService.getSinkHandler(externalId);
             task.addListener(() -> exchangeService.finishSinkHandler(externalId, new TaskCancelledException(task.getReasonCancelled())));
             var exchangeSource = new ExchangeSourceHandler(1, esqlExecutor);
+            exchangeSource.addCompletionListener(refs.acquire());
             exchangeSource.addRemoteSink(internalSink::fetchPageAsync, 1);
             ActionListener<Void> reductionListener = cancelOnFailure(task, cancelled, refs.acquire());
             runCompute(
@@ -854,6 +845,7 @@ public class ComputeService {
             RefCountingListener refs = new RefCountingListener(listener.map(unused -> new ComputeResponse(collectedProfiles)))
         ) {
             exchangeSink.addCompletionListener(refs.acquire());
+            exchangeSource.addCompletionListener(refs.acquire());
             PhysicalPlan coordinatorPlan = new ExchangeSinkExec(
                 plan.source(),
                 plan.output(),

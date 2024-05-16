@@ -9,9 +9,9 @@ package org.elasticsearch.xpack.ml.integration;
 
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.PlainActionFuture;
-import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.xcontent.ToXContent;
@@ -57,7 +57,7 @@ public class UnusedStatsRemoverIT extends BaseMlIntegTestCase {
             client(),
             clusterService().state(),
             TestIndexNameExpressionResolver.newInstance(client().threadPool().getThreadContext()),
-            MasterNodeRequest.DEFAULT_MASTER_NODE_TIMEOUT,
+            TimeValue.THIRTY_SECONDS,
             future
         );
         future.actionGet();

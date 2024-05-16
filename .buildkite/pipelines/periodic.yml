@@ -325,8 +325,8 @@ steps:
             - signal_reason: agent_stop
               limit: 3
 
-      - label: 7.17.21 / bwc
-        command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v7.17.21#bwcTest
+      - label: 7.17.22 / bwc
+        command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v7.17.22#bwcTest
         timeout_in_minutes: 300
         agents:
           provider: gcp
@@ -335,7 +335,7 @@ steps:
           buildDirectory: /dev/shm/bk
           preemptible: true
         env:
-          BWC_VERSION: 7.17.21
+          BWC_VERSION: 7.17.22
         retry:
           automatic:
             - exit_status: "-1"
@@ -591,8 +591,8 @@ steps:
             - signal_reason: agent_stop
               limit: 3
 
-      - label: 8.13.3 / bwc
-        command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v8.13.3#bwcTest
+      - label: 8.13.5 / bwc
+        command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v8.13.5#bwcTest
         timeout_in_minutes: 300
         agents:
           provider: gcp
@@ -601,7 +601,7 @@ steps:
           buildDirectory: /dev/shm/bk
           preemptible: true
         env:
-          BWC_VERSION: 8.13.3
+          BWC_VERSION: 8.13.5
         retry:
           automatic:
             - exit_status: "-1"
@@ -714,7 +714,7 @@ steps:
           setup:
             ES_RUNTIME_JAVA:
               - openjdk17
-            BWC_VERSION: ["7.17.21", "8.13.3", "8.14.0", "8.15.0"]
+            BWC_VERSION: ["7.17.22", "8.13.5", "8.14.0", "8.15.0"]
         agents:
           provider: gcp
           image: family/elasticsearch-ubuntu-2004
@@ -735,6 +735,7 @@ steps:
               - openjdk17
               - openjdk21
               - openjdk22
+              - openjdk23
             GRADLE_TASK:
               - checkPart1
               - checkPart2
@@ -760,7 +761,8 @@ steps:
               - openjdk17
               - openjdk21
               - openjdk22
-            BWC_VERSION: ["7.17.21", "8.13.3", "8.14.0", "8.15.0"]
+              - openjdk23
+            BWC_VERSION: ["7.17.22", "8.13.5", "8.14.0", "8.15.0"]
         agents:
           provider: gcp
           image: family/elasticsearch-ubuntu-2004

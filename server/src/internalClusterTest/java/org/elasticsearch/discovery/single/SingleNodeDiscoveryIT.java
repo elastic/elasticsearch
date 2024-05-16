@@ -102,23 +102,6 @@ public class SingleNodeDiscoveryIT extends ESIntegTestCase {
     }
 
     public void testCannotJoinNodeWithSingleNodeDiscovery() throws Exception {
-        MockLogAppender mockAppender = new MockLogAppender();
-        mockAppender.addExpectation(
-            new MockLogAppender.SeenEventExpectation("test", JoinHelper.class.getCanonicalName(), Level.INFO, "failed to join") {
-
-                @Override
-                public boolean innerMatch(final LogEvent event) {
-                    return event.getThrown() != null
-                        && event.getThrown().getClass() == RemoteTransportException.class
-                        && event.getThrown().getCause() != null
-                        && event.getThrown().getCause().getClass() == IllegalStateException.class
-                        && event.getThrown()
-                            .getCause()
-                            .getMessage()
-                            .contains("cannot join node with [discovery.type] set to [single-node]");
-                }
-            }
-        );
         final TransportService service = internalCluster().getInstance(TransportService.class);
         final int port = service.boundAddress().publishAddress().getPort();
         final NodeConfigurationSource configurationSource = new NodeConfigurationSource() {
@@ -155,7 +138,24 @@ public class SingleNodeDiscoveryIT extends ESIntegTestCase {
             Arrays.asList(getTestTransportPlugin(), MockHttpTransport.TestPlugin.class),
             Function.identity()
         );
-        try (var ignored = mockAppender.capturing(JoinHelper.class)) {
+        try (var mockAppender = MockLogAppender.capture(JoinHelper.class)) {
+            mockAppender.addExpectation(
+                new MockLogAppender.SeenEventExpectation("test", JoinHelper.class.getCanonicalName(), Level.INFO, "failed to join") {
+
+                    @Override
+                    public boolean innerMatch(final LogEvent event) {
+                        return event.getThrown() != null
+                            && event.getThrown().getClass() == RemoteTransportException.class
+                            && event.getThrown().getCause() != null
+                            && event.getThrown().getCause().getClass() == IllegalStateException.class
+                            && event.getThrown()
+                                .getCause()
+                                .getMessage()
+                                .contains("cannot join node with [discovery.type] set to [single-node]");
+                    }
+                }
+            );
+
             other.beforeTest(random());
             final ClusterState first = internalCluster().getInstance(ClusterService.class).state();
             assertThat(first.nodes().getSize(), equalTo(1));

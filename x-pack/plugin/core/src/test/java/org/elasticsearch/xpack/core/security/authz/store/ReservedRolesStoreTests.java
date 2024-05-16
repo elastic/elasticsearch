@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.core.security.authz.store;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.health.TransportClusterHealthAction;
 import org.elasticsearch.action.admin.cluster.remote.TransportRemoteInfoAction;
@@ -180,6 +181,7 @@ import org.elasticsearch.xpack.core.security.authc.AuthenticationTestHelper;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.IndicesAccessControl;
 import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissionsCache;
+import org.elasticsearch.xpack.core.security.authz.permission.RemoteClusterPermissions;
 import org.elasticsearch.xpack.core.security.authz.permission.RemoteIndicesPermission;
 import org.elasticsearch.xpack.core.security.authz.permission.Role;
 import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilegeDescriptor;
@@ -2700,6 +2702,10 @@ public class ReservedRolesStoreTests extends ESTestCase {
                 .test(mockIndexAbstraction(internalSecurityIndex)),
             is(false)
         );
+        assertThat(
+            superuserRole.remoteCluster().privilegeNames("*", TransportVersion.current()),
+            equalTo(RemoteClusterPermissions.getSupportedRemoteClusterPermissions().toArray(new String[0]))
+        );
     }
 
     public void testLogstashSystemRole() {
@@ -3715,6 +3721,15 @@ public class ReservedRolesStoreTests extends ESTestCase {
         }
 
         assertThat(rolesWithRemoteIndicesPrivileges, containsInAnyOrder("kibana_system", "monitoring_user"));
+    }
+
+    /**
+     * Ensures that all reserved roles are self-documented with a brief description.
+     */
+    public void testAllReservedRolesHaveDescription() {
+        for (RoleDescriptor role : ReservedRolesStore.roleDescriptors()) {
+            assertThat("reserved role [" + role.getName() + "] must have description", role.hasDescription(), is(true));
+        }
     }
 
     private void assertAllIndicesAccessAllowed(Role role, String index) {

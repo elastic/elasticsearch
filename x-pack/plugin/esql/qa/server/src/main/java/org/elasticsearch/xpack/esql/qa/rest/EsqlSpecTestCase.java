@@ -215,7 +215,7 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
         }
         builder.version(versionString);
 
-        if (testCase.query.contains("LOOKUP")) {
+        if (testCase.query.toUpperCase(Locale.ROOT).contains("LOOKUP")) {
             builder.tables(tables());
         }
 

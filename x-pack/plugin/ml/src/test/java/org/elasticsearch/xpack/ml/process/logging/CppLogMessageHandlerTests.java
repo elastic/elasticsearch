@@ -156,32 +156,28 @@ public class CppLogMessageHandlerTests extends ESTestCase {
             ).getBytes(StandardCharsets.UTF_8)
         );
 
-        MockLogAppender mockAppender = new MockLogAppender();
-        mockAppender.addExpectation(
+        executeLoggingTest(
+            is,
+            Level.INFO,
+            "test_throttling",
             new MockLogAppender.SeenEventExpectation(
                 "test1",
                 CppLogMessageHandler.class.getName(),
                 Level.INFO,
                 "[test_throttling] * message 1"
-            )
-        );
-        mockAppender.addExpectation(
+            ),
             new MockLogAppender.UnseenEventExpectation(
                 "test2",
                 CppLogMessageHandler.class.getName(),
                 Level.INFO,
                 "[test_throttling] * message 1 | repeated [1]"
-            )
-        );
-        mockAppender.addExpectation(
+            ),
             new MockLogAppender.SeenEventExpectation(
                 "test1",
                 CppLogMessageHandler.class.getName(),
                 Level.INFO,
                 "[test_throttling] * message 4"
-            )
-        );
-        mockAppender.addExpectation(
+            ),
             new MockLogAppender.SeenEventExpectation(
                 "test2",
                 CppLogMessageHandler.class.getName(),
@@ -189,8 +185,6 @@ public class CppLogMessageHandlerTests extends ESTestCase {
                 "[test_throttling] * message 5"
             )
         );
-
-        executeLoggingTest(is, mockAppender, Level.INFO, "test_throttling");
     }
 
     public void testThrottlingSummaryLevelChanges() throws IllegalAccessException, TimeoutException, IOException {
@@ -212,48 +206,40 @@ public class CppLogMessageHandlerTests extends ESTestCase {
             ).getBytes(StandardCharsets.UTF_8)
         );
 
-        MockLogAppender mockAppender = new MockLogAppender();
-        mockAppender.addExpectation(
+        executeLoggingTest(
+            is,
+            Level.INFO,
+            "test_throttling",
             new MockLogAppender.SeenEventExpectation(
                 "test1",
                 CppLogMessageHandler.class.getName(),
                 Level.INFO,
                 "[test_throttling] * message 1"
-            )
-        );
-        mockAppender.addExpectation(
+            ),
             new MockLogAppender.SeenEventExpectation(
                 "test2",
                 CppLogMessageHandler.class.getName(),
                 Level.INFO,
                 "[test_throttling] * message 1 | repeated [2]"
-            )
-        );
-        mockAppender.addExpectation(
+            ),
             new MockLogAppender.SeenEventExpectation(
                 "test3",
                 CppLogMessageHandler.class.getName(),
                 Level.ERROR,
                 "[test_throttling] * message 3"
-            )
-        );
-        mockAppender.addExpectation(
+            ),
             new MockLogAppender.SeenEventExpectation(
                 "test4",
                 CppLogMessageHandler.class.getName(),
                 Level.INFO,
                 "[test_throttling] * message 1 | repeated [3]"
-            )
-        );
-        mockAppender.addExpectation(
+            ),
             new MockLogAppender.SeenEventExpectation(
                 "test5",
                 CppLogMessageHandler.class.getName(),
                 Level.INFO,
                 "[test_throttling] * message 4"
-            )
-        );
-        mockAppender.addExpectation(
+            ),
             new MockLogAppender.SeenEventExpectation(
                 "test6",
                 CppLogMessageHandler.class.getName(),
@@ -261,8 +247,6 @@ public class CppLogMessageHandlerTests extends ESTestCase {
                 "[test_throttling] * message 5"
             )
         );
-
-        executeLoggingTest(is, mockAppender, Level.INFO, "test_throttling");
     }
 
     public void testThrottlingLastMessageRepeast() throws IllegalAccessException, TimeoutException, IOException {
@@ -279,16 +263,16 @@ public class CppLogMessageHandlerTests extends ESTestCase {
             ).getBytes(StandardCharsets.UTF_8)
         );
 
-        MockLogAppender mockAppender = new MockLogAppender();
-        mockAppender.addExpectation(
+        executeLoggingTest(
+            is,
+            Level.INFO,
+            "test_throttling",
             new MockLogAppender.SeenEventExpectation(
                 "test1",
                 CppLogMessageHandler.class.getName(),
                 Level.INFO,
                 "[test_throttling] * message 1"
-            )
-        );
-        mockAppender.addExpectation(
+            ),
             new MockLogAppender.SeenEventExpectation(
                 "test2",
                 CppLogMessageHandler.class.getName(),
@@ -296,8 +280,6 @@ public class CppLogMessageHandlerTests extends ESTestCase {
                 "[test_throttling] * message 2 | repeated [5]"
             )
         );
-
-        executeLoggingTest(is, mockAppender, Level.INFO, "test_throttling");
     }
 
     public void testThrottlingDebug() throws IllegalAccessException, TimeoutException, IOException {
@@ -315,24 +297,22 @@ public class CppLogMessageHandlerTests extends ESTestCase {
             ).getBytes(StandardCharsets.UTF_8)
         );
 
-        MockLogAppender mockAppender = new MockLogAppender();
-        mockAppender.addExpectation(
+        executeLoggingTest(
+            is,
+            Level.DEBUG,
+            "test_throttling",
             new MockLogAppender.SeenEventExpectation(
                 "test1",
                 CppLogMessageHandler.class.getName(),
                 Level.INFO,
                 "[test_throttling] * message 1"
-            )
-        );
-        mockAppender.addExpectation(
+            ),
             new MockLogAppender.SeenEventExpectation(
                 "test2",
                 CppLogMessageHandler.class.getName(),
                 Level.DEBUG,
                 "[test_throttling] * message 6"
-            )
-        );
-        mockAppender.addExpectation(
+            ),
             new MockLogAppender.UnseenEventExpectation(
                 "test3",
                 CppLogMessageHandler.class.getName(),
@@ -340,8 +320,6 @@ public class CppLogMessageHandlerTests extends ESTestCase {
                 "[test_throttling] * message 1 | repeated [5]"
             )
         );
-
-        executeLoggingTest(is, mockAppender, Level.DEBUG, "test_throttling");
     }
 
     public void testWaitForLogStreamClose() throws IOException {

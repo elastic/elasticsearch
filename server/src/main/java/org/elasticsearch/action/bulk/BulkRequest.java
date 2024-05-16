@@ -200,10 +200,6 @@ public class BulkRequest extends ActionRequest
         return this.requests;
     }
 
-    public void nullifyRequest(int i) {
-        requests.set(i, null);
-    }
-
     /**
      * The number of actions in the bulk request.
      */
@@ -469,9 +465,5 @@ public class BulkRequest extends ActionRequest
 
     public boolean isSimulated() {
         return false;
-    }
-
-    public BulkRequest cloneForModification() {
-        return new BulkRequest();
     }
 }

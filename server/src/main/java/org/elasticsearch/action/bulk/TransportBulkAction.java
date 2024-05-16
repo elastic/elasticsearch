@@ -480,8 +480,10 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
     ) {
         for (int i = 0; i < bulkRequest.requests.size(); i++) {
             DocWriteRequest<?> request = bulkRequest.requests.get(i);
-            if (request != null && setResponseFailureIfIndexMatches(responses, i, request, target, error)) {
-                bulkRequest.nullifyRequest(i);
+            if (request != null
+                && setResponseFailureIfIndexMatches(responses, i, request, target, error)
+                && bulkRequest.isSimulated() == false) {
+                bulkRequest.requests.set(i, null);
             }
         }
     }

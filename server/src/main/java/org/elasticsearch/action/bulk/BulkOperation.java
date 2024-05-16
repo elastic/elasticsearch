@@ -610,8 +610,10 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
      */
     private void addFailureAndDiscardRequest(DocWriteRequest<?> request, int idx, String index, Exception exception) {
         addFailure(request, idx, index, exception);
-        // make sure the request gets never processed again
-        bulkRequest.nullifyRequest(idx);
+        if (this.bulkRequest.isSimulated() == false) {
+            // make sure the request gets never processed again
+            bulkRequest.requests.set(idx, null);
+        }
     }
 
     /**

@@ -32,7 +32,7 @@ public interface DocumentParsingProvider {
     /**
      * @return an instance of a reporter to use when parsing has been completed and indexing successful
      */
-    default DocumentSizeReporter getDocumentParsingReporter(String indexName, DocumentSizeAccumulator documentSizeAccumulator) {
+    default DocumentSizeReporter newDocumentParsingReporter(String indexName, DocumentSizeAccumulator documentSizeAccumulator) {
         return DocumentSizeReporter.EMPTY_INSTANCE;
     }
 

@@ -1050,6 +1050,7 @@ POINT(-266681.67563861894 3053301.5120195406)
 
 cartesianCentroidFromAirportsNested
 required_capability: st_centroid_agg
+required_capability: st_centroid_agg_optimized
 
 FROM airports_web
 | STATS centroid=ST_CENTROID_AGG(TO_CARTESIANPOINT(location));

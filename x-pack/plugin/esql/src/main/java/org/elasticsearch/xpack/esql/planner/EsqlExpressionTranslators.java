@@ -65,9 +65,6 @@ import static org.elasticsearch.xpack.ql.type.DataTypes.VERSION;
 import static org.elasticsearch.xpack.ql.util.NumericUtils.unsignedLongAsNumber;
 
 public final class EsqlExpressionTranslators {
-    public static final String DATE_FORMAT = "strict_date_optional_time_nanos";
-    public static final String TIME_FORMAT = "strict_hour_minute_second_fraction";
-
     public static final List<ExpressionTranslator<?>> QUERY_TRANSLATORS = List.of(
         new EqualsIgnoreCaseTranslator(),
         new BinaryComparisons(),
@@ -418,12 +415,5 @@ public final class EsqlExpressionTranslators {
                 throw new QlIllegalArgumentException(e.getMessage(), e);
             }
         }
-    }
-
-    private static Object valueOf(Expression e) {
-        if (e.foldable()) {
-            return e.fold();
-        }
-        throw new QlIllegalArgumentException("Cannot determine value for {}", e);
     }
 }

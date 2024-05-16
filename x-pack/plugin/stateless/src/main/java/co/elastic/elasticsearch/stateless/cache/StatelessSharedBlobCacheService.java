@@ -25,6 +25,8 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.threadpool.ThreadPool;
 
+import java.util.function.LongSupplier;
+
 public class StatelessSharedBlobCacheService extends SharedBlobCacheService<FileCacheKey> {
 
     public StatelessSharedBlobCacheService(
@@ -35,6 +37,19 @@ public class StatelessSharedBlobCacheService extends SharedBlobCacheService<File
         BlobCacheMetrics blobCacheMetrics
     ) {
         super(environment, settings, threadPool, ioExecutor, blobCacheMetrics);
+        assert getRangeSize() >= getRegionSize() : getRangeSize() + " < " + getRegionSize();
+    }
+
+    // for tests
+    public StatelessSharedBlobCacheService(
+        NodeEnvironment environment,
+        Settings settings,
+        ThreadPool threadPool,
+        String ioExecutor,
+        BlobCacheMetrics blobCacheMetrics,
+        LongSupplier relativeTimeInNanosSupplier
+    ) {
+        super(environment, settings, threadPool, ioExecutor, blobCacheMetrics, relativeTimeInNanosSupplier);
         assert getRangeSize() >= getRegionSize() : getRangeSize() + " < " + getRegionSize();
     }
 

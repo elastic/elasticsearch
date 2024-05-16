@@ -119,6 +119,7 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingRoleStrategy;
 import org.elasticsearch.cluster.routing.allocation.ExistingShardsAllocator;
@@ -1244,7 +1245,6 @@ public class Stateless extends Plugin
 
     private boolean isInitializingNoSearchShards(IndexShard shard) {
         ShardRouting shardRouting = shard.routingEntry();
-        // for now disable notification on relocations too, to avoid notifications from new target blocking relocation progress.
-        return shardRouting.initializing(); // todo: ES-8431: && shardRouting.recoverySource().getType() != RecoverySource.Type.PEER;
+        return shardRouting.initializing() && shardRouting.recoverySource().getType() != RecoverySource.Type.PEER;
     }
 }

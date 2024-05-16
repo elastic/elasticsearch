@@ -20,22 +20,30 @@ package co.elastic.elasticsearch.stateless.action;
 import co.elastic.elasticsearch.stateless.commits.StatelessCompoundCommit;
 import co.elastic.elasticsearch.stateless.engine.PrimaryTermAndGeneration;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.support.broadcast.unpromotable.BroadcastUnpromotableRequest;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.TestShardRouting;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
+import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.TransportVersionUtils;
 import org.junit.Before;
 
 import java.io.IOException;
 import java.util.Map;
 import java.util.Set;
 
+import static co.elastic.elasticsearch.serverless.constants.ServerlessTransportVersions.NEW_COMMIT_NOTIFICATION_WITH_CLUSTER_STATE_VERSION_AND_NODE_ID;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
 
@@ -61,7 +69,7 @@ public class NewCommitNotificationRequestTests extends AbstractWireSerializingTe
     protected NewCommitNotificationRequest mutateInstance(NewCommitNotificationRequest instance) throws IOException {
         final StatelessCompoundCommit compoundCommit = instance.getCompoundCommit();
 
-        final var i = between(0, 1);
+        final var i = between(0, 3);
         return switch (i) {
             // Mutate CC's primary and generation
             case 0 -> {
@@ -85,7 +93,9 @@ public class NewCommitNotificationRequestTests extends AbstractWireSerializingTe
                         compoundCommit.internalFiles()
                     ),
                     newCcTermAndGen.generation(),
-                    instance.getLatestUploadedBatchedCompoundCommitTermAndGen()
+                    instance.getLatestUploadedBatchedCompoundCommitTermAndGen(),
+                    instance.getClusterStateVersion(),
+                    instance.getNodeId()
                 );
             }
             // Mutate latest uploaded BCC's primary and generation
@@ -100,8 +110,33 @@ public class NewCommitNotificationRequestTests extends AbstractWireSerializingTe
                         null // for new shards where uploads are yet to happen
                     )
                 );
-                yield new NewCommitNotificationRequest(indexShardRoutingTable, compoundCommit, bccGeneration, newUploadedBccTermAndGen);
+                yield new NewCommitNotificationRequest(
+                    indexShardRoutingTable,
+                    compoundCommit,
+                    bccGeneration,
+                    newUploadedBccTermAndGen,
+                    instance.getClusterStateVersion(),
+                    instance.getNodeId()
+                );
             }
+            // Mutate cluster state version
+            case 2 -> new NewCommitNotificationRequest(
+                indexShardRoutingTable,
+                compoundCommit,
+                instance.getBatchedCompoundCommitGeneration(),
+                instance.getLatestUploadedBatchedCompoundCommitTermAndGen(),
+                randomValueOtherThan(instance.getClusterStateVersion(), ESTestCase::randomNonNegativeLong),
+                instance.getNodeId()
+            );
+            // Mutate node id
+            case 3 -> new NewCommitNotificationRequest(
+                indexShardRoutingTable,
+                compoundCommit,
+                instance.getBatchedCompoundCommitGeneration(),
+                instance.getLatestUploadedBatchedCompoundCommitTermAndGen(),
+                instance.getClusterStateVersion(),
+                randomValueOtherThan(instance.getNodeId(), ESTestCase::randomIdentifier)
+            );
             default -> throw new IllegalArgumentException("Unexpected value " + i);
         };
     }
@@ -128,7 +163,9 @@ public class NewCommitNotificationRequestTests extends AbstractWireSerializingTe
             indexShardRoutingTable,
             compoundCommit,
             generation + 1,
-            new PrimaryTermAndGeneration(primaryTerm, generation + 2)
+            new PrimaryTermAndGeneration(primaryTerm, generation + 2),
+            randomNonNegativeLong(),
+            randomIdentifier()
         );
 
         final ActionRequestValidationException validationException1 = request1.validate();
@@ -152,7 +189,9 @@ public class NewCommitNotificationRequestTests extends AbstractWireSerializingTe
             indexShardRoutingTable,
             compoundCommit,
             generation,
-            new PrimaryTermAndGeneration(primaryTerm + 1, generation)
+            new PrimaryTermAndGeneration(primaryTerm + 1, generation),
+            randomNonNegativeLong(),
+            randomIdentifier()
         );
 
         final ActionRequestValidationException validationException2 = request2.validate();
@@ -181,15 +220,16 @@ public class NewCommitNotificationRequestTests extends AbstractWireSerializingTe
             randomLongBetween(10, 100),
             Set.of()
         );
+        final long clusterStateVersion = randomNonNegativeLong();
+        final String nodeId = randomIdentifier();
 
-        var request = new NewCommitNotificationRequest(indexShardRoutingTable, statelessCompoundCommit, bccGeneration, null);
-        assertThat(request.toString(), request.isUploaded(), is(false));
-
-        request = new NewCommitNotificationRequest(
+        var request = new NewCommitNotificationRequest(
             indexShardRoutingTable,
             statelessCompoundCommit,
             bccGeneration,
-            new PrimaryTermAndGeneration(randomLongBetween(1, primaryTerm), randomLongBetween(1, bccGeneration - 1))
+            null,
+            clusterStateVersion,
+            nodeId
         );
         assertThat(request.toString(), request.isUploaded(), is(false));
 
@@ -197,9 +237,81 @@ public class NewCommitNotificationRequestTests extends AbstractWireSerializingTe
             indexShardRoutingTable,
             statelessCompoundCommit,
             bccGeneration,
-            new PrimaryTermAndGeneration(primaryTerm, bccGeneration)
+            new PrimaryTermAndGeneration(randomLongBetween(1, primaryTerm), randomLongBetween(1, bccGeneration - 1)),
+            clusterStateVersion,
+            nodeId
+        );
+        assertThat(request.toString(), request.isUploaded(), is(false));
+
+        request = new NewCommitNotificationRequest(
+            indexShardRoutingTable,
+            statelessCompoundCommit,
+            bccGeneration,
+            new PrimaryTermAndGeneration(primaryTerm, bccGeneration),
+            clusterStateVersion,
+            nodeId
         );
         assertThat(request.toString(), request.isUploaded(), is(true));
+    }
+
+    public void testSerializationNewToOld() throws IOException {
+        final var instance = createTestInstance();
+        final TransportVersion previousVersion = TransportVersionUtils.getPreviousVersion(
+            NEW_COMMIT_NOTIFICATION_WITH_CLUSTER_STATE_VERSION_AND_NODE_ID
+        );
+
+        var deserialized = copyInstance(instance, previousVersion);
+        try {
+            assertThat(deserialized.shardId(), equalTo(instance.shardId()));
+            assertThat(deserialized.getBatchedCompoundCommitGeneration(), equalTo(instance.getBatchedCompoundCommitGeneration()));
+            assertThat(deserialized.getCompoundCommit(), equalTo(instance.getCompoundCommit()));
+            assertThat(
+                deserialized.getLatestUploadedBatchedCompoundCommitTermAndGen(),
+                equalTo(instance.getLatestUploadedBatchedCompoundCommitTermAndGen())
+            );
+            assertThat(deserialized.getClusterStateVersion(), nullValue());
+            assertThat(deserialized.getNodeId(), nullValue());
+        } finally {
+            dispose(deserialized);
+        }
+    }
+
+    public void testDeserializationOldToNew() throws IOException {
+        try (var out = new BytesStreamOutput()) {
+            out.setTransportVersion(
+                TransportVersionUtils.getNextVersion(NEW_COMMIT_NOTIFICATION_WITH_CLUSTER_STATE_VERSION_AND_NODE_ID, true)
+            );
+            final var parentTaskId = new TaskId(randomIdentifier(), randomNonNegativeLong());
+            final var instance = createTestInstance();
+
+            // old logic to serialize NewCommitNotificationRequest without node id
+            var broadcast = new BroadcastUnpromotableRequest(indexShardRoutingTable);
+            broadcast.setParentTask(parentTaskId);
+            broadcast.writeTo(out);
+            instance.getCompoundCommit().writeTo(out);
+            out.writeVLong(instance.getBatchedCompoundCommitGeneration());
+            out.writeOptionalWriteable(instance.getLatestUploadedBatchedCompoundCommitTermAndGen());
+
+            try (var in = out.bytes().streamInput()) {
+                in.setTransportVersion(
+                    TransportVersionUtils.getPreviousVersion(NEW_COMMIT_NOTIFICATION_WITH_CLUSTER_STATE_VERSION_AND_NODE_ID)
+                );
+                var deserialized = instanceReader().read(in);
+                try {
+                    assertThat(deserialized.shardId(), equalTo(instance.shardId()));
+                    assertThat(deserialized.getBatchedCompoundCommitGeneration(), equalTo(instance.getBatchedCompoundCommitGeneration()));
+                    assertThat(deserialized.getCompoundCommit(), equalTo(instance.getCompoundCommit()));
+                    assertThat(
+                        deserialized.getLatestUploadedBatchedCompoundCommitTermAndGen(),
+                        equalTo(instance.getLatestUploadedBatchedCompoundCommitTermAndGen())
+                    );
+                    assertThat(deserialized.getClusterStateVersion(), nullValue());
+                    assertThat(deserialized.getNodeId(), nullValue());
+                } finally {
+                    dispose(deserialized);
+                }
+            }
+        }
     }
 
     public static IndexShardRoutingTable randomIndexShardRoutingTable() {
@@ -234,7 +346,9 @@ public class NewCommitNotificationRequestTests extends AbstractWireSerializingTe
                 new PrimaryTermAndGeneration(primaryTerm - between(1, 9), randomLongBetween(1, 100)),
                 new PrimaryTermAndGeneration(primaryTerm, bccGeneration - between(0, 4)),
                 null // for new shards where uploads are yet to happen
-            )
+            ),
+            randomNonNegativeLong(),
+            randomIdentifier()
         );
     }
 
@@ -254,7 +368,9 @@ public class NewCommitNotificationRequestTests extends AbstractWireSerializingTe
                 Set.of()
             ),
             generation,
-            new PrimaryTermAndGeneration(primaryTerm, generation)
+            new PrimaryTermAndGeneration(primaryTerm, generation),
+            randomNonNegativeLong(),
+            randomIdentifier()
         );
     }
 }

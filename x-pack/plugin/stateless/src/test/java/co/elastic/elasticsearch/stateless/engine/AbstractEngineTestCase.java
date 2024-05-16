@@ -19,7 +19,6 @@
 
 package co.elastic.elasticsearch.stateless.engine;
 
-import co.elastic.elasticsearch.stateless.action.NewCommitNotificationRequest;
 import co.elastic.elasticsearch.stateless.cache.StatelessSharedBlobCacheService;
 import co.elastic.elasticsearch.stateless.cache.reader.CacheBlobReaderService;
 import co.elastic.elasticsearch.stateless.cache.reader.MutableObjectStoreUploadTracker;
@@ -45,8 +44,6 @@ import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.blobcache.BlobCacheMetrics;
 import org.elasticsearch.client.internal.Client;
-import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
-import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobPath;
@@ -105,7 +102,6 @@ import java.util.stream.Collectors;
 import static co.elastic.elasticsearch.stateless.Stateless.SHARD_READ_THREAD_POOL;
 import static co.elastic.elasticsearch.stateless.Stateless.SHARD_READ_THREAD_POOL_SETTING;
 import static java.util.Collections.emptyList;
-import static org.elasticsearch.cluster.routing.TestShardRouting.newShardRouting;
 import static org.elasticsearch.index.engine.EngineTestCase.newUid;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.instanceOf;
@@ -470,7 +466,7 @@ public abstract class AbstractEngineTestCase extends ESTestCase {
 
     static class CapturingIndexCommitListener implements Engine.IndexCommitListener {
 
-        final LinkedBlockingQueue<NewCommitNotificationRequest> notifications = new LinkedBlockingQueue<>();
+        final LinkedBlockingQueue<NewCommitNotification> notifications = new LinkedBlockingQueue<>();
 
         @Override
         public void onNewCommit(
@@ -487,10 +483,7 @@ public abstract class AbstractEngineTestCase extends ESTestCase {
                     store.getMetadata(indexCommitRef.getIndexCommit())
                 );
                 notifications.add(
-                    new NewCommitNotificationRequest(
-                        IndexShardRoutingTable.builder(shardId)
-                            .addShard(newShardRouting(shardId, "_node", true, ShardRoutingState.STARTED))
-                            .build(),
+                    new NewCommitNotification(
                         new StatelessCompoundCommit(
                             shardId,
                             new PrimaryTermAndGeneration(primaryTerm, indexCommitRef.getIndexCommit().getGeneration()),
@@ -501,7 +494,9 @@ public abstract class AbstractEngineTestCase extends ESTestCase {
                             additionalFiles
                         ),
                         indexCommitRef.getIndexCommit().getGeneration(),
-                        new PrimaryTermAndGeneration(primaryTerm, indexCommitRef.getIndexCommit().getGeneration())
+                        new PrimaryTermAndGeneration(primaryTerm, indexCommitRef.getIndexCommit().getGeneration()),
+                        1L,
+                        "_node_id"
                     )
                 );
             } catch (Exception e) {
@@ -540,7 +535,7 @@ public abstract class AbstractEngineTestCase extends ESTestCase {
         var indexCommitListener = indexEngine.config().getIndexCommitListener();
         assertThat(indexCommitListener, instanceOf(CapturingIndexCommitListener.class));
 
-        final List<NewCommitNotificationRequest> notifications = new ArrayList<>();
+        final List<NewCommitNotification> notifications = new ArrayList<>();
         final int count = ((CapturingIndexCommitListener) indexCommitListener).notifications.drainTo(notifications);
         Collections.shuffle(notifications, random());
         notifications.forEach(notif -> searchEngine.onCommitNotification(notif, ActionListener.noop()));

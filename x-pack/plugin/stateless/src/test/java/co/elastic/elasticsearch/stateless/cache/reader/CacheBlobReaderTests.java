@@ -188,7 +188,9 @@ public class CacheBlobReaderTests extends ESTestCase {
 
                 SearchDirectoryTestUtils.updateLastUploadedTermAndGen(
                     searchDirectory,
-                    virtualBatchedCompoundCommit.getPrimaryTermAndGeneration()
+                    virtualBatchedCompoundCommit.getPrimaryTermAndGeneration(),
+                    virtualBatchedCompoundCommit.lastCompoundCommit().primaryTermAndGeneration(),
+                    clusterService.localNode().getId()
                 );
                 return Objects.requireNonNull(bcc.get());
             }));
@@ -232,6 +234,7 @@ public class CacheBlobReaderTests extends ESTestCase {
                     var indexingShardCacheBlobReader = new IndexingShardCacheBlobReader(
                         shardId,
                         location.getBatchedCompoundCommitTermAndGeneration(),
+                        clusterService.localNode().getId(),
                         client,
                         TRANSPORT_BLOB_READER_CHUNK_SIZE_SETTING.get(nodeSettings)
                     ) {
@@ -240,14 +243,14 @@ public class CacheBlobReaderTests extends ESTestCase {
                             final PrimaryTermAndGeneration virtualBccTermAndGen,
                             final long offset,
                             final int length,
+                            final String preferredNodeId,
                             final ActionListener<ReleasableBytesReference> listener
                         ) {
                             customizedGetVirtualBatchedCompoundCommitChunk(virtualBccTermAndGen, offset, length, listener);
                         }
                     };
                     return new SwitchingCacheBlobReader(
-                        location.getBatchedCompoundCommitTermAndGeneration(),
-                        objectStoreUploadTracker,
+                        objectStoreUploadTracker.getLatestUploadInfo(location.getBatchedCompoundCommitTermAndGeneration()),
                         originalCacheBlobReader,
                         indexingShardCacheBlobReader
                     );
@@ -285,10 +288,15 @@ public class CacheBlobReaderTests extends ESTestCase {
                         shardId,
                         (term) -> indexingDirectory.getSearchDirectory().getBlobContainer(term),
                         virtualBatchedCompoundCommit.getInternalLocations().get(getLastInternalLocation().getKey()),
-                        new ObjectStoreUploadTracker() {
+                        bccTermAndGen -> new ObjectStoreUploadTracker.UploadInfo() {
                             @Override
-                            public boolean isUploaded(PrimaryTermAndGeneration termAndGen) {
+                            public boolean isUploaded() {
                                 return false;
+                            }
+
+                            @Override
+                            public String preferredNodeId() {
+                                return null;
                             }
                         }
                     ),
@@ -644,6 +652,7 @@ public class CacheBlobReaderTests extends ESTestCase {
                         var writerFromPrimary = new IndexingShardCacheBlobReader(
                             shardId,
                             location.getBatchedCompoundCommitTermAndGeneration(),
+                            clusterService.localNode().getId(),
                             client,
                             TRANSPORT_BLOB_READER_CHUNK_SIZE_SETTING.get(nodeSettings)
                         ) {
@@ -652,6 +661,7 @@ public class CacheBlobReaderTests extends ESTestCase {
                                 final PrimaryTermAndGeneration virtualBccTermAndGen,
                                 final long offset,
                                 final int length,
+                                final String preferredNodeId,
                                 final ActionListener<ReleasableBytesReference> listener
                             ) {
                                 if (randomBoolean()) {
@@ -670,8 +680,7 @@ public class CacheBlobReaderTests extends ESTestCase {
                             }
                         };
                         return new SwitchingCacheBlobReader(
-                            location.getBatchedCompoundCommitTermAndGeneration(),
-                            objectStoreUploadTracker,
+                            objectStoreUploadTracker.getLatestUploadInfo(location.getBatchedCompoundCommitTermAndGeneration()),
                             originalCacheBlobReader,
                             writerFromPrimary
                         );

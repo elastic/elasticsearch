@@ -1783,6 +1783,7 @@ public class StatelessCommitServiceTests extends ESTestCase {
             protected StatelessCommitService createCommitService() {
                 return new StatelessCommitService(
                     nodeSettings,
+                    clusterService,
                     objectStoreService,
                     () -> clusterService.localNode().getEphemeralId(),
                     this::getShardRoutingTable,

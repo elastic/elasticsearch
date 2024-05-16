@@ -47,7 +47,12 @@ public class SearchDirectoryTestUtils {
         return target.getCacheService();
     }
 
-    public static void updateLastUploadedTermAndGen(SearchDirectory target, PrimaryTermAndGeneration termAndGeneration) {
-        target.updateLatestUploadedTermAndGen(termAndGeneration);
+    public static void updateLastUploadedTermAndGen(
+        SearchDirectory target,
+        PrimaryTermAndGeneration latestUploadedBccTermAndGen,
+        PrimaryTermAndGeneration bccTermAndGen,
+        String nodeId
+    ) {
+        target.updateLatestUploadInfo(latestUploadedBccTermAndGen, bccTermAndGen, nodeId);
     }
 }

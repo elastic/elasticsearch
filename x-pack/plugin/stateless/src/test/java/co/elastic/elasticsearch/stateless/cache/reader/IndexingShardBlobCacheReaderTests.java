@@ -33,6 +33,7 @@ public class IndexingShardBlobCacheReaderTests extends ESTestCase {
         IndexingShardCacheBlobReader reader = new IndexingShardCacheBlobReader(
             new ShardId(randomAlphaOfLength(10), randomUUID(), between(0, 10)),
             new PrimaryTermAndGeneration(between(0, 10), between(1, 10)),
+            "_na_",
             null,
             chunkSizeValue
         );

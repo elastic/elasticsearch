@@ -43,21 +43,34 @@ public class RegisterCommitResponse extends ActionResponse {
      */
     private final StatelessCompoundCommit compoundCommit;
 
-    public RegisterCommitResponse(PrimaryTermAndGeneration lastUploaded, StatelessCompoundCommit compoundCommit) {
+    /**
+     * Holds the node id to which the register commit request was sent to and on which the recovery commit was registered onto. The node id
+     * is not serialized over the wire, and is set back when the search node receives the response.
+     */
+    private final @Nullable String nodeId;
+
+    private RegisterCommitResponse(PrimaryTermAndGeneration lastUploaded, StatelessCompoundCommit compoundCommit, @Nullable String nodeId) {
         this.latestUploadedBatchedCompoundCommitTermAndGen = Objects.requireNonNull(lastUploaded);
         this.compoundCommit = compoundCommit;
+        this.nodeId = nodeId;
     }
 
-    public RegisterCommitResponse(StreamInput in) throws IOException {
+    public RegisterCommitResponse(PrimaryTermAndGeneration lastUploaded, StatelessCompoundCommit compoundCommit) {
+        this(lastUploaded, compoundCommit, null);
+    }
+
+    public RegisterCommitResponse(StreamInput in, @Nullable String nodeId) throws IOException {
         super(in);
         this.latestUploadedBatchedCompoundCommitTermAndGen = new PrimaryTermAndGeneration(in);
         this.compoundCommit = in.readOptionalWriteable(input -> StatelessCompoundCommit.readFromTransport(in));
+        this.nodeId = nodeId; // not serialized
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         this.latestUploadedBatchedCompoundCommitTermAndGen.writeTo(out);
         out.writeOptionalWriteable(this.compoundCommit);
+        // node id is not serialized
     }
 
     public PrimaryTermAndGeneration getLatestUploadedBatchedCompoundCommitTermAndGen() {
@@ -69,6 +82,14 @@ public class RegisterCommitResponse extends ActionResponse {
         return compoundCommit;
     }
 
+    /**
+     * @return the node id on which the recovery commit was registered onto
+     */
+    @Nullable
+    public String getNodeId() {
+        return nodeId;
+    }
+
     @Override
     public String toString() {
         return "RegisterCommitResponse ["
@@ -76,6 +97,8 @@ public class RegisterCommitResponse extends ActionResponse {
             + latestUploadedBatchedCompoundCommitTermAndGen
             + ", compoundCommit="
             + (compoundCommit != null ? compoundCommit.toShortDescription() : "null")
+            + ", nodeId="
+            + nodeId
             + ']';
     }
 
@@ -85,11 +108,12 @@ public class RegisterCommitResponse extends ActionResponse {
         if (o == null || getClass() != o.getClass()) return false;
         RegisterCommitResponse that = (RegisterCommitResponse) o;
         return Objects.equals(latestUploadedBatchedCompoundCommitTermAndGen, that.latestUploadedBatchedCompoundCommitTermAndGen)
-            && Objects.equals(compoundCommit, that.compoundCommit);
+            && Objects.equals(compoundCommit, that.compoundCommit)
+            && Objects.equals(nodeId, that.nodeId);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(latestUploadedBatchedCompoundCommitTermAndGen, compoundCommit);
+        return Objects.hash(latestUploadedBatchedCompoundCommitTermAndGen, compoundCommit, nodeId);
     }
 }

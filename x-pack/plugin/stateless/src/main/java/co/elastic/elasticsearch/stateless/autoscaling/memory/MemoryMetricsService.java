@@ -77,6 +77,7 @@ public class MemoryMetricsService implements ClusterStateListener {
     private static final long MAX_NODE_MEMORY = ByteSizeValue.ofGb(48).getBytes();
     private volatile boolean initialized = false;
     private final Map<Index, IndexMemoryMetrics> indicesMemoryMetrics = new ConcurrentHashMap<>();
+    private volatile int totalNumberOfShards;
 
     private final LongSupplier relativeTimeInNanosSupplier;
     private volatile TimeValue staleMetricsCheckDuration;
@@ -104,9 +105,8 @@ public class MemoryMetricsService implements ClusterStateListener {
         // notice that autoscaling controller adds the node memory multiplied by replicas to the tier memory:
         // https://github.com/elastic/elasticsearch-serverless/pull/1372/files#r1467399624
         // That indirectly adds the necessary total indices and workload memory due to being included in the node memory above.
-        // We assume 1 shard per index for now.
         final long tierMemoryInBytes = HeapToSystemMemory.dataNode(
-            totalIndicesMappingSize.sizeInBytes + shardMemoryOverhead.getBytes() * indicesCount()
+            totalIndicesMappingSize.sizeInBytes + shardMemoryOverhead.getBytes() * totalNumberOfShards()
         );
 
         return new MemoryMetrics(nodeMemoryInBytes, tierMemoryInBytes, totalIndicesMappingSize.metricQuality);
@@ -114,6 +114,11 @@ public class MemoryMetricsService implements ClusterStateListener {
 
     private int indicesCount() {
         return indicesMemoryMetrics.size(); // since mapping is Index -> IndexMemoryMetrics
+    }
+
+    // Visible for testing
+    int totalNumberOfShards() {
+        return totalNumberOfShards;
     }
 
     // Total mapping size of all known indices, and whether it is exact or not.
@@ -181,6 +186,8 @@ public class MemoryMetricsService implements ClusterStateListener {
             initialized = false;
             return;
         }
+
+        totalNumberOfShards = event.state().metadata().indices().values().stream().mapToInt(IndexMetadata::getNumberOfShards).sum();
 
         // new master use case: no indices exist in internal map
         if (event.nodesDelta().masterNodeChanged() || initialized == false) {

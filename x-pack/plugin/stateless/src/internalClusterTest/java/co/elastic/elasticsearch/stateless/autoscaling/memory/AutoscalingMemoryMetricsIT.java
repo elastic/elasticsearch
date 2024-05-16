@@ -45,7 +45,6 @@ import org.elasticsearch.xcontent.XContentFactory;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -780,24 +779,23 @@ public class AutoscalingMemoryMetricsIT extends AbstractStatelessIntegTestCase {
         disruption.stopDisrupting();
     }
 
-    public void testSharMemoryOverheadSetting() throws Exception {
+    public void testShardMemoryOverheadSetting() throws Exception {
+        var projectType = randomFrom(ProjectType.values());
         startMasterAndIndexNode(
             Settings.builder()
                 .put(PUBLISHING_FREQUENCY_SETTING.getKey(), TimeValue.timeValueSeconds(1))
-                // For now, we assume one shard per index in the memory estimates, so pick a project type
-                // that has the default value of 1 for the number of shards.
-                .put(
-                    ServerlessSharedSettings.PROJECT_TYPE.getKey(),
-                    randomFrom(Arrays.stream(ProjectType.values()).filter(t -> t.getNumberOfShards() == 1).toList())
-                )
+                .put(ServerlessSharedSettings.PROJECT_TYPE.getKey(), projectType)
                 .build()
         );
         startSearchNode();
         ensureStableCluster(2);
-        // Make sure we go beyond min heap size, otherwise they all round up to the same value
-        int minNoOfIndices = (int) (HeapToSystemMemory.MIN_HEAP_SIZE / SHARD_MEMORY_OVERHEAD_DEFAULT.getBytes());
-        int noOfIndices = randomIntBetween(minNoOfIndices + 1, (int) (minNoOfIndices * 1.5));
+        var defaultNoOfShards = projectType.getNumberOfShards();
+        logger.info("--> Default No. of shards: {}", defaultNoOfShards);
+        // Make sure we go beyond min heap size (have enough shards), otherwise they all round up to the same value
+        int minNoOfShards = (int) (HeapToSystemMemory.MIN_HEAP_SIZE / SHARD_MEMORY_OVERHEAD_DEFAULT.getBytes());
+        int noOfIndices = randomIntBetween(minNoOfShards / defaultNoOfShards + 1, (int) (minNoOfShards * 1.5 / defaultNoOfShards));
         logger.info("--> No. of indices: {}", noOfIndices);
+        // Create all indices with one bulk request
         var bulk = client().prepareBulk();
         IntStream.range(0, noOfIndices).forEach(i -> bulk.add(new IndexRequest("index-" + i).source("field", randomUnicodeOfLength(10))));
         assertNoFailures(bulk.get());
@@ -809,14 +807,19 @@ public class AutoscalingMemoryMetricsIT extends AbstractStatelessIntegTestCase {
         assertThat(
             totalMemoryWithDefaultShardOverhead,
             allOf(
-                greaterThan(HeapToSystemMemory.dataNode(noOfIndices * SHARD_MEMORY_OVERHEAD_DEFAULT.getBytes())),
-                lessThan(HeapToSystemMemory.dataNode((noOfIndices + 1) * SHARD_MEMORY_OVERHEAD_DEFAULT.getBytes()))
+                greaterThan(HeapToSystemMemory.dataNode(noOfIndices * defaultNoOfShards * SHARD_MEMORY_OVERHEAD_DEFAULT.getBytes())),
+                lessThan(HeapToSystemMemory.dataNode((noOfIndices + 1) * defaultNoOfShards * SHARD_MEMORY_OVERHEAD_DEFAULT.getBytes()))
             )
         );
 
+        // The heap to system memory multiplier changes at {@link HeapToSystemMemory.HEAP_THRESHOLD}, so we keep the increased shard memory
+        // overhead to a limit that allows the test to easily verify the resulting totalMemoryInBytes. Essentially, we are keeping the
+        // before and after values under the threshold that changes the multiplier.
         var newShardMemoryOverhead = ByteSizeValue.ofMb(
-            randomLongBetween(SHARD_MEMORY_OVERHEAD_DEFAULT.getMb() + 1, SHARD_MEMORY_OVERHEAD_DEFAULT.getMb() * 3)
+            randomLongBetween(SHARD_MEMORY_OVERHEAD_DEFAULT.getMb() + 1, SHARD_MEMORY_OVERHEAD_DEFAULT.getMb() * 2)
         );
+        // Update the shard memory overhead and ensure that it is reflected in the total tier memory recommendation
+        logger.info("--> New shard memory overhead: {} mb", newShardMemoryOverhead.getMb());
         assertAcked(
             admin().cluster()
                 .prepareUpdateSettings()
@@ -832,7 +835,7 @@ public class AutoscalingMemoryMetricsIT extends AbstractStatelessIntegTestCase {
         // The heap to system memory multiplier changes at {@link HeapToSystemMemory.HEAP_THRESHOLD}, so we only compare the lower bound.
         assertThat(
             totalMemoryWithNewShardOverhead,
-            greaterThan(HeapToSystemMemory.dataNode(noOfIndices * newShardMemoryOverhead.getBytes()))
+            greaterThan(HeapToSystemMemory.dataNode(noOfIndices * defaultNoOfShards * newShardMemoryOverhead.getBytes()))
         );
     }
 

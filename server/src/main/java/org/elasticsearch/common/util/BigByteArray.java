@@ -10,10 +10,11 @@ package org.elasticsearch.common.util;
 
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefIterator;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.core.Streams;
 
 import java.io.IOException;
+import java.io.InputStream;
 import java.util.Arrays;
 
 import static org.elasticsearch.common.util.BigLongArray.writePages;
@@ -153,11 +154,11 @@ final class BigByteArray extends AbstractBigByteArray implements ByteArray {
     }
 
     @Override
-    public void fillWith(StreamInput in) throws IOException {
+    public void fillWith(InputStream in) throws IOException {
         for (int i = 0; i < pages.length - 1; i++) {
-            in.readBytes(getPageForWriting(i), 0, PAGE_SIZE_IN_BYTES);
+            Streams.readFully(in, getPageForWriting(i), 0, PAGE_SIZE_IN_BYTES);
         }
-        in.readBytes(getPageForWriting(pages.length - 1), 0, Math.toIntExact(size - (pages.length - 1L) * PAGE_SIZE_IN_BYTES));
+        Streams.readFully(in, getPageForWriting(pages.length - 1), 0, Math.toIntExact(size - (pages.length - 1L) * PAGE_SIZE_IN_BYTES));
     }
 
     @Override

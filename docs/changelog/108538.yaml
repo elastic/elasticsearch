@@ -1,6 +1,5 @@
 pr: 108538
-summary: "Adding RankFeature search phase implementation"
-area: "Search"
+summary: Adding RankFeature search phase implementation
+area: Search
 type: feature
-issues:
-  - 105472
+issues: []

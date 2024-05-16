@@ -39,9 +39,9 @@ On each rollover, the new index becomes the write index.
 
 [NOTE]
 ====
-When an index is rolled over, the new index has a `creation_date` that reflects
-the rollover time. This impacts the calculation of downstream {ilm} `max_age` and `min_age` conditions. 
-<<min-age-calculation,Learn more>>.
+When an index is rolled over, previous index's age is updated to reflect the rollover time. 
+This date, rather than the index's `creation_date`, is used in {ilm} 
+`min_age` phase calculations. <<min-age-calculation,Learn more>>.
 ====
 
 [discrete]

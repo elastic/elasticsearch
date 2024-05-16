@@ -57,8 +57,7 @@ public class TransportLoggerTests extends ESTestCase {
             readPattern
         );
 
-        MockLogAppender appender = new MockLogAppender();
-        try (var ignored = appender.capturing(TransportLogger.class)) {
+        try (var appender = MockLogAppender.capture(TransportLogger.class)) {
             appender.addExpectation(writeExpectation);
             appender.addExpectation(readExpectation);
             BytesReference bytesReference = buildRequest();

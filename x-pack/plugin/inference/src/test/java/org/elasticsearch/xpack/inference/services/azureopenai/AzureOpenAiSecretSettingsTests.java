@@ -143,7 +143,7 @@ public class AzureOpenAiSecretSettingsTests extends AbstractWireSerializingTestC
 
     @Override
     protected AzureOpenAiSecretSettings mutateInstance(AzureOpenAiSecretSettings instance) throws IOException {
-        return createRandom();
+        return randomValueOtherThan(instance, AzureOpenAiSecretSettingsTests::createRandom);
     }
 
     public static Map<String, Object> getAzureOpenAiSecretSettingsMap(@Nullable String apiKey, @Nullable String entraId) {

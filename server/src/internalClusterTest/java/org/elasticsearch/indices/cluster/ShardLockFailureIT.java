@@ -68,10 +68,9 @@ public class ShardLockFailureIT extends ESIntegTestCase {
             }
         });
 
-        var mockLogAppender = new MockLogAppender();
         try (
             var ignored1 = internalCluster().getInstance(NodeEnvironment.class, node).shardLock(shardId, "blocked for test");
-            var ignored2 = mockLogAppender.capturing(IndicesClusterStateService.class);
+            var mockLogAppender = MockLogAppender.capture(IndicesClusterStateService.class);
         ) {
             final CountDownLatch countDownLatch = new CountDownLatch(1);
 
@@ -138,10 +137,9 @@ public class ShardLockFailureIT extends ESIntegTestCase {
 
         final var shardId = new ShardId(resolveIndex(indexName), 0);
 
-        var mockLogAppender = new MockLogAppender();
         try (
             var ignored1 = internalCluster().getInstance(NodeEnvironment.class, node).shardLock(shardId, "blocked for test");
-            var ignored2 = mockLogAppender.capturing(IndicesClusterStateService.class);
+            var mockLogAppender = MockLogAppender.capture(IndicesClusterStateService.class);
         ) {
             mockLogAppender.addExpectation(
                 new MockLogAppender.SeenEventExpectation(

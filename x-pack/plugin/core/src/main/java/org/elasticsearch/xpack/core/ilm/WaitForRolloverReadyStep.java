@@ -95,8 +95,7 @@ public class WaitForRolloverReadyStep extends AsyncWaitStep {
                 targetWriteIndex = dataStream.getWriteIndex();
                 targetFailureStore = false;
             }
-            assert targetWriteIndex != null
-                : "datastream " + dataStream.getName() + "failure store has no write index";
+            assert targetWriteIndex != null : "datastream " + dataStream.getName() + "failure store has no write index";
             if (targetWriteIndex.equals(index) == false) {
                 logger.warn(
                     "index [{}] is not the {}write index for data stream [{}]. skipping rollover for policy [{}]",

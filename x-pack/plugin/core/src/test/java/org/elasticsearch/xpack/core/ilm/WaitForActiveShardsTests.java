@@ -228,7 +228,8 @@ public class WaitForActiveShardsTests extends AbstractStepTestCase<WaitForActive
                         DataStreamTestHelper.newInstance(
                             dataStreamName,
                             List.of(originalIndexMeta.getIndex(), rolledIndexMeta.getIndex()),
-                            List.of(failureOriginalIndexMeta.getIndex(), failureRolledIndexMeta.getIndex()))
+                            List.of(failureOriginalIndexMeta.getIndex(), failureRolledIndexMeta.getIndex())
+                        )
                     )
                     .put(originalIndexMeta, true)
                     .put(rolledIndexMeta, true)

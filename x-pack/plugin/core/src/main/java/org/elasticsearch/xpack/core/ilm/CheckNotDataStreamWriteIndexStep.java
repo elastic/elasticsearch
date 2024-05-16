@@ -79,7 +79,7 @@ public class CheckNotDataStreamWriteIndexStep extends ClusterStateWaitStep {
                         + "ILM execution of lifecycle [%s] until this index is no longer the write index for the data stream via manual or "
                         + "automated rollover",
                     indexName,
-                    isFailureStoreIndex ? " failure store": "",
+                    isFailureStoreIndex ? " failure store" : "",
                     dataStream.getName(),
                     policyName
                 );

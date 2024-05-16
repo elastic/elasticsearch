@@ -50,7 +50,7 @@ public class BulkPrimaryExecutionContextTests extends ESTestCase {
             // using failures prevents caring about types
             context.markOperationAsExecuted(
                 new Engine.IndexResult(new ElasticsearchException("bla"), 1, context.getRequestToExecute().id()),
-                false
+                randomBoolean()
             );
             context.markAsCompleted(context.getExecutionResult());
         }
@@ -82,6 +82,7 @@ public class BulkPrimaryExecutionContextTests extends ESTestCase {
 
         long translogGen = 0;
         long translogOffset = 0;
+        boolean isSimulated = randomBoolean();
 
         BulkPrimaryExecutionContext context = new BulkPrimaryExecutionContext(shardRequest, primary);
         while (context.hasMoreOperationsToExecute()) {
@@ -126,10 +127,10 @@ public class BulkPrimaryExecutionContextTests extends ESTestCase {
             if (failure == false) {
                 expectedLocation = location;
             }
-            context.markOperationAsExecuted(result, false);
+            context.markOperationAsExecuted(result, isSimulated);
             context.markAsCompleted(context.getExecutionResult());
         }
 
-        assertThat(context.getLocationToSync(), equalTo(expectedLocation));
+        assertThat(context.getLocationToSync(), equalTo(isSimulated ? null : expectedLocation));
     }
 }

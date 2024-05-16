@@ -278,6 +278,27 @@ public class BulkOperationTests extends ESTestCase {
         assertThat(bulkItemResponses.hasFailures(), is(false));
     }
 
+    public void testSimulatedBulkIndexRequest() throws Exception {
+        /*
+         * Here we are making sure that if the request is a SimulatedBulkRequest that the request goes to TransportSimulateShardBulkAction
+         * rather than to TransportShardBulkAction, and that the BulkShardRequest it receives is a simulated BulkShardRequest. Both of
+         * these assertions are in getSimulateNodeClient().
+         */
+        BulkRequest bulkRequest = new SimulateBulkRequest(Map.of());
+        bulkRequest.add(new IndexRequest(indexName).id("1").source(Map.of("key", "val")));
+        bulkRequest.add(new IndexRequest(indexName).id("3").source(Map.of("key", "val")));
+
+        NodeClient client = getSimulateNodeClient(acceptAllShardWrites());
+
+        CompletableFuture<BulkResponse> future = new CompletableFuture<>();
+        ActionListener<BulkResponse> listener = ActionListener.wrap(future::complete, future::completeExceptionally);
+
+        newBulkOperation(client, bulkRequest, listener).run();
+
+        BulkResponse bulkItemResponses = future.get();
+        assertThat(bulkItemResponses.hasFailures(), is(false));
+    }
+
     /**
      * A bulk operation to an index should partially succeed if only some of its shard level requests fail
      */
@@ -891,6 +912,34 @@ public class BulkOperationTests extends ESTestCase {
                         (ActionListener<BulkShardResponse>) listener
                     );
                     try {
+                        assertFalse(((BulkShardRequest) request).isSimulated());
+                        onShardAction.accept((BulkShardRequest) request, notifyOnceListener);
+                    } catch (Exception responseException) {
+                        notifyOnceListener.onFailure(responseException);
+                    }
+                } else {
+                    fail("Unexpected client call to " + action.name());
+                }
+                return null;
+            }
+        };
+    }
+
+    private NodeClient getSimulateNodeClient(BiConsumer<BulkShardRequest, ActionListener<BulkShardResponse>> onShardAction) {
+        return new NoOpNodeClient(threadPool) {
+            @Override
+            @SuppressWarnings("unchecked")
+            public <Request extends ActionRequest, Response extends ActionResponse> Task executeLocally(
+                ActionType<Response> action,
+                Request request,
+                ActionListener<Response> listener
+            ) {
+                if (TransportSimulateShardBulkAction.TYPE.equals(action)) {
+                    ActionListener<BulkShardResponse> notifyOnceListener = ActionListener.notifyOnce(
+                        (ActionListener<BulkShardResponse>) listener
+                    );
+                    try {
+                        assertTrue(((BulkShardRequest) request).isSimulated());
                         onShardAction.accept((BulkShardRequest) request, notifyOnceListener);
                     } catch (Exception responseException) {
                         notifyOnceListener.onFailure(responseException);

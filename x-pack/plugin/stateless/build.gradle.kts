@@ -1,4 +1,3 @@
-import org.elasticsearch.gradle.internal.info.BuildParams
 import org.elasticsearch.gradle.internal.test.InternalClusterTestPlugin
 import org.elasticsearch.gradle.util.GradleUtils
 
@@ -56,8 +55,6 @@ restResources {
     }
 }
 
-val uploadMaxCommits = BuildParams.getRandom().nextInt(1, 10)
-
 tasks {
     test {
         exclude("**/S3RegisterCASLinearizabilityTests.class")
@@ -76,29 +73,19 @@ tasks {
     }
 
     /**
-     * Same as internalClusterTest but with delayed upload enabled for batched compound commit
+     * Same as internalClusterTest but without delayed upload enabled
      * TODO: ES-8317 Remove it by merging into internalClusterTest once BCC changes are deployed to production
      */
-    val internalClusterTestWithBcc = register<Test>("internalClusterTestWithBcc") {
+    val internalClusterTestWitoutRco = register<Test>("internalClusterTestWitoutRco") {
         val sourceSet = sourceSets.getByName(InternalClusterTestPlugin.SOURCE_SET_NAME)
         setTestClassesDirs(sourceSet.getOutput().getClassesDirs())
         setClasspath(sourceSet.getRuntimeClasspath())
         jvmArgs("-XX:+UseG1GC", "--add-opens=java.base/java.io=ALL-UNNAMED")
-        systemProperty("es.test.stateless.upload.delayed", "true")
-        systemProperty("es.test.stateless.upload.max_commits", uploadMaxCommits)
-
-        // A work-in-progress exclusion list of failed tests when BCC has more than one CC
-        filter {
-            // To mute a test, adds a line here following to the below example
-            // excludeTestsMatching("*.TestClassIT.testMethod")
-            excludeTestsMatching("*.AutoscalingReplicaIT.testSearchPowerAffectsReplica")
-            excludeTestsMatching("*.AutoscalingReplicaIT.testSearchSizeAffectsReplicasSPBetween100And250")
-            excludeTestsMatching("*.AutoscalingReplicaIT.testDisablingReplicasScalesDown")
-        }
+        systemProperty("es.test.stateless.upload.delayed", "false")
     }
 
     check {
-        dependsOn(internalClusterTestWithBcc)
+        dependsOn(internalClusterTestWitoutRco)
     }
 
     yamlRestTest {

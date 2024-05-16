@@ -270,7 +270,7 @@ public class StatelessBatchedBehavioursIT extends AbstractStatelessIntegTestCase
         final String indexNode = startMasterAndIndexNode(
             Settings.builder().put(StatelessCommitService.STATELESS_UPLOAD_DELAYED.getKey(), true).build()
         );
-        startSearchNode();
+        startSearchNode(Settings.builder().put(StatelessCommitService.STATELESS_UPLOAD_DELAYED.getKey(), true).build());
 
         final String indexName = randomIdentifier();
         createIndex(indexName, indexSettings(1, 1).put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), -1).build());
@@ -294,7 +294,7 @@ public class StatelessBatchedBehavioursIT extends AbstractStatelessIntegTestCase
             final long currentGeneration = initialGeneration + i;
             indexDocs(indexName, randomIntBetween(1, 100));
             refresh(indexName);
-            final boolean isUpload = i % STATELESS_UPLOAD_MAX_COMMITS == 0;
+            final boolean isUpload = i % getUploadMaxCommits() == 0;
             assertBusy(() -> {
                 final List<NewCommitNotificationRequest> requestList = List.copyOf(requests);
                 assertThat(requestList.size(), equalTo(1 + (isUpload ? 1 : 0)));
@@ -309,7 +309,7 @@ public class StatelessBatchedBehavioursIT extends AbstractStatelessIntegTestCase
                     equalTo(
                         latestUploadedGeneration.get() == initialGeneration
                             ? initialGeneration + 1
-                            : latestUploadedGeneration.get() + STATELESS_UPLOAD_MAX_COMMITS
+                            : latestUploadedGeneration.get() + getUploadMaxCommits()
                     )
                 );
                 assertThat(

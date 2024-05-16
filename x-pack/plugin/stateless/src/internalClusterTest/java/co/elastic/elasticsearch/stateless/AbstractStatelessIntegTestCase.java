@@ -101,12 +101,19 @@ import static org.hamcrest.Matchers.notNullValue;
 public abstract class AbstractStatelessIntegTestCase extends ESIntegTestCase {
 
     public static final boolean STATELESS_UPLOAD_DELAYED = Boolean.parseBoolean(
-        System.getProperty("es.test.stateless.upload.delayed", "false")
+        System.getProperty("es.test.stateless.upload.delayed", "true")
     );
 
-    public static final int STATELESS_UPLOAD_MAX_COMMITS = Integer.parseInt(
-        System.getProperty("es.test.stateless.upload.max_commits", "1")
-    );
+    private int uploadMaxCommits;
+
+    @Before
+    public void initUploadMaxCommits() {
+        uploadMaxCommits = between(1, 10);
+    }
+
+    public int getUploadMaxCommits() {
+        return uploadMaxCommits;
+    }
 
     @Override
     protected boolean addMockInternalEngine() {
@@ -228,8 +235,10 @@ public abstract class AbstractStatelessIntegTestCase extends ESIntegTestCase {
         }
         if (STATELESS_UPLOAD_DELAYED) {
             builder.put(StatelessCommitService.STATELESS_UPLOAD_DELAYED.getKey(), true);
-            builder.put(StatelessCommitService.STATELESS_UPLOAD_MAX_AMOUNT_COMMITS.getKey(), STATELESS_UPLOAD_MAX_COMMITS);
+        } else {
+            builder.put(StatelessCommitService.STATELESS_UPLOAD_DELAYED.getKey(), false);
         }
+        builder.put(StatelessCommitService.STATELESS_UPLOAD_MAX_AMOUNT_COMMITS.getKey(), getUploadMaxCommits());
         return builder;
     }
 

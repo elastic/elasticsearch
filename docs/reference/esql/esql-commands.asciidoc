@@ -40,7 +40,7 @@ image::images/esql/processing-command.svg[A processing command changing an input
 * <<esql-keep>>
 * <<esql-limit>>
 ifeval::["{release-state}"=="unreleased"]
-* experimental:[] <<esql-limit>>
+* experimental:[] <<esql-lookup>>
 endif::[]
 * experimental:[] <<esql-mv_expand>>
 * <<esql-rename>>

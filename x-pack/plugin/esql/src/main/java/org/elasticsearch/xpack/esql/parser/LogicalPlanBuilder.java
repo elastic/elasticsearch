@@ -47,7 +47,6 @@ import org.elasticsearch.xpack.ql.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.ql.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.ql.expression.UnresolvedStar;
 import org.elasticsearch.xpack.ql.expression.function.UnresolvedFunction;
-import org.elasticsearch.xpack.ql.options.EsSourceOptions;
 import org.elasticsearch.xpack.ql.parser.ParserUtils;
 import org.elasticsearch.xpack.ql.plan.TableIdentifier;
 import org.elasticsearch.xpack.ql.plan.logical.Filter;
@@ -207,7 +206,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
     @Override
     public LogicalPlan visitFromCommand(EsqlBaseParser.FromCommandContext ctx) {
         Source source = source(ctx);
-        TableIdentifier table = new TableIdentifier(source, null, visitFromIdentifiers(ctx.fromIdentifier()));
+        TableIdentifier table = new TableIdentifier(source, null, visitIndexIdentifiers(ctx.indexIdentifier()));
         Map<String, Attribute> metadataMap = new LinkedHashMap<>();
         if (ctx.metadata() != null) {
             var deprecatedContext = ctx.metadata().deprecated_metadata();
@@ -224,8 +223,8 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
                 metadataOptionContext = ctx.metadata().metadataOption();
 
             }
-            for (var c : metadataOptionContext.fromIdentifier()) {
-                String id = visitFromIdentifier(c);
+            for (var c : metadataOptionContext.indexIdentifier()) {
+                String id = visitIndexIdentifier(c);
                 Source src = source(c);
                 if (MetadataAttribute.isSupported(id) == false) {
                     throw new ParsingException(src, "unsupported metadata field [" + id + "]");
@@ -236,29 +235,24 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
                 }
             }
         }
-        EsSourceOptions esSourceOptions = new EsSourceOptions();
-        if (ctx.fromOptions() != null) {
-            for (var o : ctx.fromOptions().configOption()) {
-                var nameContext = o.string().get(0);
-                String name = visitString(nameContext).fold().toString();
-                String value = visitString(o.string().get(1)).fold().toString();
-                try {
-                    esSourceOptions.addOption(name, value);
-                } catch (IllegalArgumentException iae) {
-                    var cause = iae.getCause() != null ? ". " + iae.getCause().getMessage() : "";
-                    throw new ParsingException(iae, source(nameContext), "invalid options provided: " + iae.getMessage() + cause);
-                }
-            }
-        }
-        return new EsqlUnresolvedRelation(source, table, Arrays.asList(metadataMap.values().toArray(Attribute[]::new)), esSourceOptions);
+        return new EsqlUnresolvedRelation(source, table, Arrays.asList(metadataMap.values().toArray(Attribute[]::new)));
     }
 
     @Override
     public PlanFactory visitStatsCommand(EsqlBaseParser.StatsCommandContext ctx) {
-        List<NamedExpression> aggregates = new ArrayList<>(visitFields(ctx.stats));
-        List<NamedExpression> groupings = visitGrouping(ctx.grouping);
+        final Stats stats = stats(source(ctx), ctx.grouping, ctx.stats);
+        return input -> new EsqlAggregate(source(ctx), input, stats.groupings, stats.aggregates);
+    }
+
+    private record Stats(List<Expression> groupings, List<? extends NamedExpression> aggregates) {
+
+    }
+
+    private Stats stats(Source source, EsqlBaseParser.FieldsContext groupingsCtx, EsqlBaseParser.FieldsContext aggregatesCtx) {
+        List<NamedExpression> groupings = visitGrouping(groupingsCtx);
+        List<NamedExpression> aggregates = new ArrayList<>(visitFields(aggregatesCtx));
         if (aggregates.isEmpty() && groupings.isEmpty()) {
-            throw new ParsingException(source(ctx), "At least one aggregation or grouping expression required in [{}]", ctx.getText());
+            throw new ParsingException(source, "At least one aggregation or grouping expression required in [{}]", source.text());
         }
         // grouping keys are automatically added as aggregations however the user is not allowed to specify them
         if (groupings.isEmpty() == false && aggregates.isEmpty() == false) {
@@ -281,8 +275,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         for (Expression group : groupings) {
             aggregates.add(Expressions.attribute(group));
         }
-
-        return input -> new EsqlAggregate(source(ctx), input, new ArrayList<>(groupings), aggregates);
+        return new Stats(new ArrayList<>(groupings), aggregates);
     }
 
     private void fail(Expression exp, String message, Object... args) {
@@ -419,6 +412,21 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
 
         String policyName = index < 0 ? stringValue : stringValue.substring(index + 1);
         return new Tuple<>(mode, policyName);
+    }
+
+    @Override
+    public LogicalPlan visitMetricsCommand(EsqlBaseParser.MetricsCommandContext ctx) {
+        if (Build.current().isSnapshot() == false) {
+            throw new IllegalArgumentException("METRICS command currently requires a snapshot build");
+        }
+        Source source = source(ctx);
+        TableIdentifier table = new TableIdentifier(source, null, visitIndexIdentifiers(ctx.indexIdentifier()));
+        var unresolvedRelation = new EsqlUnresolvedRelation(source, table, List.of());
+        if (ctx.aggregates == null && ctx.grouping == null) {
+            return unresolvedRelation;
+        }
+        final Stats stats = stats(source, ctx.grouping, ctx.aggregates);
+        return new EsqlAggregate(source, unresolvedRelation, stats.groupings, stats.aggregates);
     }
 
     @Override

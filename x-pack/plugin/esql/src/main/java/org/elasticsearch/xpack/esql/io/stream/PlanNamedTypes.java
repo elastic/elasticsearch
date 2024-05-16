@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.io.stream;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.TriFunction;
 import org.elasticsearch.common.io.stream.NamedWriteable;
@@ -67,6 +68,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.math.Acos;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Asin;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Atan;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Atan2;
+import org.elasticsearch.xpack.esql.expression.function.scalar.math.Cbrt;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Ceil;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Cos;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Cosh;
@@ -197,7 +199,6 @@ import org.elasticsearch.xpack.ql.expression.predicate.regex.RLikePattern;
 import org.elasticsearch.xpack.ql.expression.predicate.regex.RegexMatch;
 import org.elasticsearch.xpack.ql.expression.predicate.regex.WildcardPattern;
 import org.elasticsearch.xpack.ql.index.EsIndex;
-import org.elasticsearch.xpack.ql.options.EsSourceOptions;
 import org.elasticsearch.xpack.ql.plan.logical.Filter;
 import org.elasticsearch.xpack.ql.plan.logical.Limit;
 import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
@@ -354,6 +355,7 @@ public final class PlanNamedTypes {
             of(ESQL_UNARY_SCLR_CLS, Acos.class, PlanNamedTypes::writeESQLUnaryScalar, PlanNamedTypes::readESQLUnaryScalar),
             of(ESQL_UNARY_SCLR_CLS, Asin.class, PlanNamedTypes::writeESQLUnaryScalar, PlanNamedTypes::readESQLUnaryScalar),
             of(ESQL_UNARY_SCLR_CLS, Atan.class, PlanNamedTypes::writeESQLUnaryScalar, PlanNamedTypes::readESQLUnaryScalar),
+            of(ESQL_UNARY_SCLR_CLS, Cbrt.class, PlanNamedTypes::writeESQLUnaryScalar, PlanNamedTypes::readESQLUnaryScalar),
             of(ESQL_UNARY_SCLR_CLS, Ceil.class, PlanNamedTypes::writeESQLUnaryScalar, PlanNamedTypes::readESQLUnaryScalar),
             of(ESQL_UNARY_SCLR_CLS, Cos.class, PlanNamedTypes::writeESQLUnaryScalar, PlanNamedTypes::readESQLUnaryScalar),
             of(ESQL_UNARY_SCLR_CLS, Cosh.class, PlanNamedTypes::writeESQLUnaryScalar, PlanNamedTypes::readESQLUnaryScalar),
@@ -550,7 +552,7 @@ public final class PlanNamedTypes {
         final String policyMatchField = in.readString();
         final Map<String, String> concreteIndices;
         final Enrich.Mode mode;
-        if (in.getTransportVersion().onOrAfter(TransportVersions.ESQL_MULTI_CLUSTERS_ENRICH)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_13_0)) {
             mode = in.readEnum(Enrich.Mode.class);
             concreteIndices = in.readMap(StreamInput::readString, StreamInput::readString);
         } else {
@@ -583,7 +585,7 @@ public final class PlanNamedTypes {
             out.writeString(enrich.matchType());
         }
         out.writeString(enrich.policyMatchField());
-        if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_MULTI_CLUSTERS_ENRICH)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_13_0)) {
             out.writeEnum(enrich.mode());
             out.writeMap(enrich.concreteIndices(), StreamOutput::writeString, StreamOutput::writeString);
         } else {
@@ -804,11 +806,11 @@ public final class PlanNamedTypes {
         Source source = in.readSource();
         EsIndex esIndex = readEsIndex(in);
         List<Attribute> attributes = readAttributes(in);
-        EsSourceOptions esSourceOptions = in.getTransportVersion().onOrAfter(TransportVersions.ESQL_ES_SOURCE_OPTIONS)
-            ? new EsSourceOptions(in)
-            : EsSourceOptions.NO_OPTIONS;
+        if (supportingEsSourceOptions(in.getTransportVersion())) {
+            readEsSourceOptions(in); // consume optional strings sent by remote
+        }
         boolean frozen = in.readBoolean();
-        return new EsRelation(source, esIndex, attributes, esSourceOptions, frozen);
+        return new EsRelation(source, esIndex, attributes, frozen);
     }
 
     static void writeEsRelation(PlanStreamOutput out, EsRelation relation) throws IOException {
@@ -816,10 +818,33 @@ public final class PlanNamedTypes {
         out.writeNoSource();
         writeEsIndex(out, relation.index());
         writeAttributes(out, relation.output());
-        if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_ES_SOURCE_OPTIONS)) {
-            relation.esSourceOptions().writeEsSourceOptions(out);
+        if (supportingEsSourceOptions(out.getTransportVersion())) {
+            writeEsSourceOptions(out); // write (null) string fillers expected by remote
         }
         out.writeBoolean(relation.frozen());
+    }
+
+    private static boolean supportingEsSourceOptions(TransportVersion version) {
+        return version.onOrAfter(TransportVersions.ESQL_ES_SOURCE_OPTIONS)
+            && version.before(TransportVersions.ESQL_REMOVE_ES_SOURCE_OPTIONS);
+    }
+
+    private static void readEsSourceOptions(PlanStreamInput in) throws IOException {
+        // allowNoIndices
+        in.readOptionalString();
+        // ignoreUnavailable
+        in.readOptionalString();
+        // preference
+        in.readOptionalString();
+    }
+
+    private static void writeEsSourceOptions(PlanStreamOutput out) throws IOException {
+        // allowNoIndices
+        out.writeOptionalString(null);
+        // ignoreUnavailable
+        out.writeOptionalString(null);
+        // preference
+        out.writeOptionalString(null);
     }
 
     static Eval readEval(PlanStreamInput in) throws IOException {
@@ -834,19 +859,19 @@ public final class PlanNamedTypes {
 
     static Enrich readEnrich(PlanStreamInput in) throws IOException {
         Enrich.Mode mode = Enrich.Mode.ANY;
-        if (in.getTransportVersion().onOrAfter(TransportVersions.ESQL_ENRICH_POLICY_CCQ_MODE)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_13_0)) {
             mode = in.readEnum(Enrich.Mode.class);
         }
         final Source source = in.readSource();
         final LogicalPlan child = in.readLogicalPlanNode();
         final Expression policyName = in.readExpression();
         final NamedExpression matchField = in.readNamedExpression();
-        if (in.getTransportVersion().before(TransportVersions.ESQL_MULTI_CLUSTERS_ENRICH)) {
+        if (in.getTransportVersion().before(TransportVersions.V_8_13_0)) {
             in.readString(); // discard the old policy name
         }
         final EnrichPolicy policy = new EnrichPolicy(in);
         final Map<String, String> concreteIndices;
-        if (in.getTransportVersion().onOrAfter(TransportVersions.ESQL_MULTI_CLUSTERS_ENRICH)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_13_0)) {
             concreteIndices = in.readMap(StreamInput::readString, StreamInput::readString);
         } else {
             EsIndex esIndex = readEsIndex(in);
@@ -859,7 +884,7 @@ public final class PlanNamedTypes {
     }
 
     static void writeEnrich(PlanStreamOutput out, Enrich enrich) throws IOException {
-        if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_ENRICH_POLICY_CCQ_MODE)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_13_0)) {
             out.writeEnum(enrich.mode());
         }
 
@@ -867,11 +892,11 @@ public final class PlanNamedTypes {
         out.writeLogicalPlanNode(enrich.child());
         out.writeExpression(enrich.policyName());
         out.writeNamedExpression(enrich.matchField());
-        if (out.getTransportVersion().before(TransportVersions.ESQL_MULTI_CLUSTERS_ENRICH)) {
+        if (out.getTransportVersion().before(TransportVersions.V_8_13_0)) {
             out.writeString(BytesRefs.toString(enrich.policyName().fold())); // old policy name
         }
         enrich.policy().writeTo(out);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_MULTI_CLUSTERS_ENRICH)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_13_0)) {
             out.writeMap(enrich.concreteIndices(), StreamOutput::writeString, StreamOutput::writeString);
         } else {
             Map<String, String> concreteIndices = enrich.concreteIndices();
@@ -1299,6 +1324,7 @@ public final class PlanNamedTypes {
         entry(name(Acos.class), Acos::new),
         entry(name(Asin.class), Asin::new),
         entry(name(Atan.class), Atan::new),
+        entry(name(Cbrt.class), Cbrt::new),
         entry(name(Ceil.class), Ceil::new),
         entry(name(Cos.class), Cos::new),
         entry(name(Cosh.class), Cosh::new),
@@ -1829,8 +1855,8 @@ public final class PlanNamedTypes {
      */
     private static Object mapFromLiteralValue(PlanStreamOutput out, DataType dataType, Object value) {
         if (dataType == GEO_POINT || dataType == CARTESIAN_POINT) {
-            // In 8.12.0 and earlier builds of 8.13 (pre-release) we serialized point literals as encoded longs, but now use WKB
-            if (out.getTransportVersion().before(TransportVersions.ESQL_PLAN_POINT_LITERAL_WKB)) {
+            // In 8.12.0 we serialized point literals as encoded longs, but now use WKB
+            if (out.getTransportVersion().before(TransportVersions.V_8_13_0)) {
                 if (value instanceof List<?> list) {
                     return list.stream().map(v -> mapFromLiteralValue(out, dataType, v)).toList();
                 }
@@ -1846,8 +1872,8 @@ public final class PlanNamedTypes {
      */
     private static Object mapToLiteralValue(PlanStreamInput in, DataType dataType, Object value) {
         if (dataType == GEO_POINT || dataType == CARTESIAN_POINT) {
-            // In 8.12.0 and earlier builds of 8.13 (pre-release) we serialized point literals as encoded longs, but now use WKB
-            if (in.getTransportVersion().before(TransportVersions.ESQL_PLAN_POINT_LITERAL_WKB)) {
+            // In 8.12.0 we serialized point literals as encoded longs, but now use WKB
+            if (in.getTransportVersion().before(TransportVersions.V_8_13_0)) {
                 if (value instanceof List<?> list) {
                     return list.stream().map(v -> mapToLiteralValue(in, dataType, v)).toList();
                 }

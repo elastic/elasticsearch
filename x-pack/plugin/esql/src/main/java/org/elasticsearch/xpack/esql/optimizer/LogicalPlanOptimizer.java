@@ -127,7 +127,7 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
             // lastly replace surrogate functions
             new SubstituteSurrogates(),
             new ReplaceRegexMatch(),
-            new ReplaceTypeConvertingEvalWithAliasingEval(),
+            new ReplaceTrivialTypeConversions(),
             new ReplaceAliasingEvalWithProject(),
             new SkipQueryOnEmptyMappings(),
             new SubstituteSpatialSurrogates(),
@@ -1623,7 +1623,7 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
      * A following {@link ReplaceAliasingEvalWithProject} will effectively convert {@link ReferenceAttribute} into {@link FieldAttribute},
      * something very useful in local physical planning.
      */
-    static class ReplaceTypeConvertingEvalWithAliasingEval extends OptimizerRules.OptimizerRule<Eval> {
+    static class ReplaceTrivialTypeConversions extends OptimizerRules.OptimizerRule<Eval> {
         @Override
         protected LogicalPlan rule(Eval eval) {
             return eval.transformExpressionsOnly(AbstractConvertFunction.class, convert -> {

@@ -350,7 +350,11 @@ public class RepositoriesServiceTests extends ESTestCase {
     }
 
     private void assertThrowsOnRegister(String repoName) {
-        expectThrows(RepositoryException.class, () -> repositoriesService.registerRepository(new PutRepositoryRequest(repoName), null));
+        final var request = new PutRepositoryRequest(repoName);
+        final var listener = new SubscribableListener<AcknowledgedResponse>();
+        repositoriesService.registerRepository(request, listener);
+        final var failure = safeAwaitFailure(listener);
+        assertThat(failure, isA(RepositoryException.class));
     }
 
     private static class TestRepository implements Repository {

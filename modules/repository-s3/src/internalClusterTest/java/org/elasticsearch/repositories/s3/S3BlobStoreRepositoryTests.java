@@ -304,7 +304,7 @@ public class S3BlobStoreRepositoryTests extends ESMockAPIBasedRepositoryIntegTes
     }
 
     public void testRequestStatsWithOperationPurposes() throws IOException {
-        final String repoName = createRepository(randomRepositoryName());
+        final String repoName = createRepository(randomRepositoryName(), true);
         final RepositoriesService repositoriesService = internalCluster().getCurrentMasterNodeInstance(RepositoriesService.class);
         final BlobStoreRepository repository = (BlobStoreRepository) repositoriesService.repository(repoName);
         final BlobStoreWrapper blobStore = asInstanceOf(BlobStoreWrapper.class, repository.blobStore());

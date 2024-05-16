@@ -14,6 +14,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.admin.cluster.repositories.delete.DeleteRepositoryRequest;
 import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryRequest;
+import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterChangedEvent;
@@ -144,147 +145,101 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
     /**
      * Registers new repository in the cluster
      * <p>
-     * This method can be only called on the master node. It tries to create a new repository on the master
-     * and if it was successful it adds new repository to cluster metadata.
+     * This method can be only called on the master node.
+     * It tries to create a new repository on the master, and if it was successful, it adds a new repository to cluster metadata.
      *
      * @param request  register repository request
      * @param responseListener register repository listener
      */
     public void registerRepository(final PutRepositoryRequest request, final ActionListener<AcknowledgedResponse> responseListener) {
         assert lifecycle.started() : "Trying to register new repository but service is in state [" + lifecycle.state() + "]";
-        validateRepositoryName(request.name());
 
-        // Trying to create the new repository on master to make sure it works
-        try {
-            validateRepositoryCanBeCreated(request);
-        } catch (Exception e) {
-            responseListener.onFailure(e);
-            return;
-        }
+        SubscribableListener
 
-        final ListenableFuture<AcknowledgedResponse> acknowledgementStep = new ListenableFuture<>();
-        final ListenableFuture<Boolean> publicationStep = new ListenableFuture<>(); // Boolean==changed.
-
-        if (request.verify()) {
-
-            // When publication has completed (and all acks received or timed out) then verify the repository.
-            // (if acks timed out then acknowledgementStep completes before the master processes this cluster state, hence why we have
-            // to wait for the publication to be complete too)
-            final ListenableFuture<List<DiscoveryNode>> doVerifyStep = new ListenableFuture<>();
-            publicationStep.addListener(
-                responseListener.delegateFailureAndWrap(
-                    (delegate, changed) -> acknowledgementStep.addListener(
-                        delegate.delegateFailureAndWrap((l, clusterStateUpdateResponse) -> {
-                            if (clusterStateUpdateResponse.isAcknowledged() && changed) {
-                                // The response was acknowledged - all nodes should know about the new repository, let's verify them
-                                verifyRepository(request.name(), doVerifyStep);
-                            } else {
-                                doVerifyStep.onResponse(null);
-                            }
-                        })
-                    )
-                )
-            );
-
-            // Verification starts when repository commited to cluster state.
-            // When verification fails, we need to remove the repository.
-            // Here we issue a cluster state roll-back - unregister repository.
-            final ListenableFuture<Boolean> verifiedStep = new ListenableFuture<>();
-            doVerifyStep.addListener(new ActionListener<>() {
-                @Override
-                public void onResponse(List<DiscoveryNode> ignored) {
-                    verifiedStep.onResponse(true);
+            .<Void>newForked(validationStep -> {
+                if (request.verify()) {
+                    validatePutRepositoryRequest(request, validationStep);
+                } else {
+                    validationStep.onResponse(null);
                 }
-
-                @Override
-                public void onFailure(Exception verificationException) {
-                    final var unregisterRequest = new DeleteRepositoryRequest().name(request.name());
-                    unregisterRepository(unregisterRequest, new ActionListener<>() {
-                        @Override
-                        public void onResponse(AcknowledgedResponse acknowledgedResponse) {
-                            logger.warn(
-                                () -> "registerRepository ["
-                                    + request.name()
-                                    + "]: verification failed: unregister repository returned not-acknowledged"
-                            );
-                            responseListener.onFailure(verificationException);
-                        }
-
+            })
+            .<RegisterRepositoryTaskResult>andThen((clusterUpdateStep, ignored) -> {
+                final ListenableFuture<AcknowledgedResponse> acknowledgementStep = new ListenableFuture<>();
+                final ListenableFuture<Boolean> publicationStep = new ListenableFuture<>(); // Boolean==changed.
+                submitUnbatchedTask(
+                    "put_repository [" + request.name() + "]",
+                    new RegisterRepositoryTask(this, request, acknowledgementStep) {
                         @Override
                         public void onFailure(Exception e) {
-                            logger.warn(
-                                () -> "registerRepository [" + request.name() + "]: verification failed: unregister repository failed"
-                            );
-                            responseListener.onFailure(verificationException);
+                            logger.warn(() -> "failed to create repository [" + request.name() + "]", e);
+                            publicationStep.onFailure(e);
+                            super.onFailure(e);
                         }
-                    });
-                }
-            });
 
-            // When verification has completed, get the repository data for the first time
-            final ListenableFuture<RepositoryData> getRepositoryDataStep = new ListenableFuture<>();
-            verifiedStep.addListener(
-                responseListener.delegateFailureAndWrap(
-                    (l, ignored) -> threadPool.generic()
-                        .execute(
-                            ActionRunnable.wrap(
-                                getRepositoryDataStep,
-                                ll -> repository(request.name()).getRepositoryData(
-                                    EsExecutors.DIRECT_EXECUTOR_SERVICE, // TODO contemplate threading, do we need to fork, see #101445?
-                                    ll
-                                )
-                            )
-                        )
-                )
-            );
+                        @Override
+                        public boolean mustAck(DiscoveryNode discoveryNode) {
+                            // repository is created on both master and data nodes
+                            return discoveryNode.isMasterNode() || discoveryNode.canContainData();
+                        }
 
-            // When the repository metadata is ready, update the repository UUID stored in the cluster state, if available
-            final ListenableFuture<Void> updateRepoUuidStep = new ListenableFuture<>();
-            getRepositoryDataStep.addListener(
-                responseListener.delegateFailureAndWrap(
-                    (l, repositoryData) -> updateRepositoryUuidInMetadata(
-                        clusterService,
-                        request.name(),
-                        repositoryData,
-                        updateRepoUuidStep
-                    )
-                )
-            );
-
-            // Finally respond to the outer listener with the response from the original cluster state update
-            updateRepoUuidStep.addListener(responseListener.delegateFailureAndWrap((l, ignored) -> acknowledgementStep.addListener(l)));
-
-        } else {
-            acknowledgementStep.addListener(responseListener);
-        }
-
-        submitUnbatchedTask("put_repository [" + request.name() + "]", new RegisterRepositoryTask(this, request, acknowledgementStep) {
-            @Override
-            public void onFailure(Exception e) {
-                logger.warn(() -> "failed to create repository [" + request.name() + "]", e);
-                publicationStep.onFailure(e);
-                super.onFailure(e);
-            }
-
-            @Override
-            public boolean mustAck(DiscoveryNode discoveryNode) {
-                // repository is created on both master and data nodes
-                return discoveryNode.isMasterNode() || discoveryNode.canContainData();
-            }
-
-            @Override
-            public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
-                if (changed) {
-                    if (found) {
-                        logger.info("updated repository [{}]", request.name());
-                    } else {
-                        logger.info("put repository [{}]", request.name());
+                        @Override
+                        public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
+                            if (changed) {
+                                if (found) {
+                                    logger.info("updated repository [{}]", request.name());
+                                } else {
+                                    logger.info("put repository [{}]", request.name());
+                                }
+                            }
+                            publicationStep.onResponse(oldState != newState);
+                        }
                     }
+                );
+                publicationStep.addListener(clusterUpdateStep.delegateFailureAndWrap((ignored1, changed) -> {
+                    acknowledgementStep.addListener(clusterUpdateStep.delegateFailureAndWrap((ignored2, ack) -> {
+                        clusterUpdateStep.onResponse(new RegisterRepositoryTaskResult(ack, changed));
+                    }));
+                }));
+            })
+            .<AcknowledgedResponse>andThen((verificationStep, taskResult) -> {
+                if (request.verify() == false) {
+                    verificationStep.onResponse(taskResult.ackResponse);
+                } else {
+                    SubscribableListener
+
+                        .<List<DiscoveryNode>>newForked(verifyRepositoryStep -> {
+                            if (taskResult.ackResponse.isAcknowledged() && taskResult.changed) {
+                                verifyRepository(request.name(), verifyRepositoryStep);
+                            } else {
+                                verifyRepositoryStep.onResponse(null);
+                            }
+                        })
+                        .<RepositoryData>andThen((getRepositoryDataStep, ignored) -> {
+                            threadPool.generic()
+                                .execute(
+                                    ActionRunnable.wrap(
+                                        getRepositoryDataStep,
+                                        ll -> repository(request.name()).getRepositoryData(
+                                            // TODO contemplate threading, do we need to fork, see #101445?
+                                            EsExecutors.DIRECT_EXECUTOR_SERVICE,
+                                            ll
+                                        )
+                                    )
+                                );
+                        })
+                        .<Void>andThen((updateRepoUuidStep, repositoryData) -> {
+                            updateRepositoryUuidInMetadata(clusterService, request.name(), repositoryData, updateRepoUuidStep);
+                        })
+                        .<AcknowledgedResponse>andThen(
+                            (endVerificationStep, ignored) -> { endVerificationStep.onResponse(taskResult.ackResponse); }
+                        )
+                        .addListener(verificationStep);
                 }
-                publicationStep.onResponse(oldState != newState);
-            }
-        });
+            })
+            .addListener(responseListener);
     }
+
+    private record RegisterRepositoryTaskResult(AcknowledgedResponse ackResponse, boolean changed) {}
 
     /**
      * Task class that extracts the 'execute' part of the functionality for registering
@@ -370,6 +325,31 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
             mdBuilder.putCustom(RepositoriesMetadata.TYPE, repositories);
             changed = true;
             return ClusterState.builder(currentState).metadata(mdBuilder).build();
+        }
+    }
+
+    private void validatePutRepositoryRequest(final PutRepositoryRequest request, final ActionListener<Void> validationListener) {
+        try {
+            validateRepositoryName(request.name());
+            final var metadata = new RepositoryMetadata(request.name(), request.type(), request.settings());
+            final var repository = createRepository(metadata);
+            threadPool.executor(ThreadPool.Names.SNAPSHOT).execute(new ActionRunnable<>(validationListener) {
+                @Override
+                protected void doRun() {
+                    try {
+                        final var token = repository.startVerification();
+                        if (token != null) {
+                            repository.verify(token, clusterService.localNode());
+                            repository.endVerification(token);
+                        }
+                    } finally {
+                        closeRepository(repository);
+                    }
+                    validationListener.onResponse(null);
+                }
+            });
+        } catch (Exception e) {
+            validationListener.onFailure(e);
         }
     }
 

@@ -143,11 +143,12 @@ other test runners to skip tests if they do not support the capabilities API yet
        ... test definitions ...
 ....
 
-Note: If planning to `skip` on capabilities, keep in mind this might lead to unexpected results in _mixed cluster_
-tests. A test is only skipped if all nodes support the requested capabilities, in _mixed clusters_ this might not be
-the case: such a cluster can consist of a mix of nodes where some support respective capabilities and others don't.
-However, in that case, the test is *not* skipped and you might randomly hit one of the nodes that actually supports
-what you intended to skip on. This might break your assumptions and fail the test. 
+*NOTE: If planning to `skip` on capabilities, keep in mind this might lead to unexpected results in _mixed cluster_
+tests!* A test is only skipped if *all* nodes support the requested capabilities, in _mixed clusters_ this might not be
+the case: such a cluster can consist of a mix of nodes where some support respective capabilities and others don't,
+additionally there might even be nodes that do not support the capabilities API at all.
+In such cases the capabilities check will *not* succeed, hence the test is *not* skipped and might randomly hit one
+of the nodes that actually support what you intended to skip on. This might then break your assumptions and fail the test.
 
 Capabilities are declared as part of an implementation of `RestHandler`.
 Override the `supportedQueryParameters` and/or the `supportedCapabilities` methods:

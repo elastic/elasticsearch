@@ -14,10 +14,6 @@ import org.junit.AssumptionViolatedException;
 import java.io.IOException;
 
 public class DoubleRangeFieldMapperTests extends RangeFieldMapperTests {
-    public void testStuff() {
-        System.out.println(RangeType.DOUBLE.nextUp(Double.NEGATIVE_INFINITY));
-    }
-
     @Override
     protected XContentBuilder rangeSource(XContentBuilder in) throws IOException {
         return rangeSource(in, "0.5", "2.7");

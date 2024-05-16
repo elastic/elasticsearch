@@ -5,7 +5,7 @@
 <titleabbrev>Semantic text</titleabbrev>
 ++++
 
-experimental[]
+beta[]
 
 The `semantic_text` field type automatically generates embeddings for text
 content using an inference service. 
@@ -129,3 +129,21 @@ In case you want to customize data indexing, use the
 types and create an ingest pipeline with an
 <<inference-processor, {infer} processor>> to generate the embeddings.
 <<semantic-search-inference,This tutorial>> walks you through the process.
+
+
+[discrete]
+[[copy-to-support]]
+==== `copy_to` support
+
+The `semantic_text` field type can be the target of
+<<copy-to,`copy_to` fields>>. This means you can use a single `semantic_text`
+field to copy the values of other fields. Each value has its embeddings
+calculated separately; each field value is a separate chunk in the resulting
+embeddings.
+
+This imposes some restrictions on updating documents with `semantic_text`:
+* In bulk requests, all fields that are copied to a `semantic_text` field must
+have a value to ensure every embedding is calculated correctly.
+* Individual document updates will always recalculate embeddings for
+`semantic_text` fields that are the target of `copy_to` fields - even when the
+fields have not been changed.

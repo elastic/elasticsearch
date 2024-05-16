@@ -4,7 +4,7 @@
 <titleabbrev>Semantic search with `semantic_text`</titleabbrev>
 ++++
 
-experimental[]
+beta[]
 
 This tutorial show you how to use the semantic text feature to perform semantic
 search on your data.
@@ -20,4 +20,6 @@ can still use the complete {infer} workflow (refer to
 
 This tutorial uses the `elser` service for demonstration but you can use any
 service and their supported models offered by the {infer-cap} API.
+
+
 

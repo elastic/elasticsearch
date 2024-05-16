@@ -5,6 +5,11 @@
 //tag::body[]
 For NULL comparison, use the `IS NULL` and `IS NOT NULL` predicates:
 
+[.text-center]
+image::esql/functions/signature/is_null.svg[Embedded,opts=inline]
+
+include::types/is_null.asciidoc[]
+
 [source.merge.styled,esql]
 ----
 include::{esql-specs}/null.csv-spec[tag=is-null]
@@ -13,6 +18,11 @@ include::{esql-specs}/null.csv-spec[tag=is-null]
 |===
 include::{esql-specs}/null.csv-spec[tag=is-null-result]
 |===
+
+[.text-center]
+image::esql/functions/signature/is_not_null.svg[Embedded,opts=inline]
+
+include::types/is_not_null.asciidoc[]
 
 [source.merge.styled,esql]
 ----

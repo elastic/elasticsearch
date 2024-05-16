@@ -91,6 +91,31 @@ public class RailRoadDiagram {
         return toSvg(new Sequence(expressions.toArray(Expression[]::new)));
     }
 
+    /**
+     * Generate a railroad diagram for a function. The output would look like
+     * {@code FOO(a, b, c)}.
+     */
+    static String functionSignature(String functionName, List<String> args) throws IOException {
+        List<Expression> expressions = new ArrayList<>();
+        expressions.add(new SpecialSequence(functionName.toUpperCase(Locale.ROOT)));
+        expressions.add(new Syntax("("));
+        boolean first = true;
+        for (String arg : args) {
+            if (arg.endsWith("...")) {
+                expressions.add(new Repetition(new Sequence(new Syntax(","), new Literal(arg.substring(0, arg.length() - 3))), 0, null));
+            } else {
+                if (first) {
+                    first = false;
+                } else {
+                    expressions.add(new Syntax(","));
+                }
+                expressions.add(new Literal(arg));
+            }
+        }
+        expressions.add(new Syntax(")"));
+        return toSvg(new Sequence(expressions.toArray(Expression[]::new)));
+    }
+
     private static String toSvg(Expression exp) throws IOException {
         RRDiagram rrDiagram = new GrammarToRRDiagram().convert(new Rule("", exp));
 

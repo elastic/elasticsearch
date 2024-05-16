@@ -3,6 +3,7 @@
 [discrete]
 [[esql-mv_sort]]
 === `MV_SORT`
+//tag::body[]
 
 *Syntax*
 
@@ -13,3 +14,4 @@ include::../parameters/mv_sort.asciidoc[]
 include::../description/mv_sort.asciidoc[]
 include::../types/mv_sort.asciidoc[]
 include::../examples/mv_sort.asciidoc[]
+//end::body[]

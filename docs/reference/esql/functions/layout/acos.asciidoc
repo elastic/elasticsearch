@@ -3,6 +3,7 @@
 [discrete]
 [[esql-acos]]
 === `ACOS`
+//tag::body[]
 
 *Syntax*
 
@@ -13,3 +14,4 @@ include::../parameters/acos.asciidoc[]
 include::../description/acos.asciidoc[]
 include::../types/acos.asciidoc[]
 include::../examples/acos.asciidoc[]
+//end::body[]

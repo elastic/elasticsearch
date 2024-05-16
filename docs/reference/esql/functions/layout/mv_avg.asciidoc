@@ -3,6 +3,7 @@
 [discrete]
 [[esql-mv_avg]]
 === `MV_AVG`
+//tag::body[]
 
 *Syntax*
 
@@ -13,3 +14,4 @@ include::../parameters/mv_avg.asciidoc[]
 include::../description/mv_avg.asciidoc[]
 include::../types/mv_avg.asciidoc[]
 include::../examples/mv_avg.asciidoc[]
+//end::body[]

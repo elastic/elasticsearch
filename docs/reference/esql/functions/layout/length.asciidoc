@@ -3,6 +3,7 @@
 [discrete]
 [[esql-length]]
 === `LENGTH`
+//tag::body[]
 
 *Syntax*
 
@@ -13,3 +14,4 @@ include::../parameters/length.asciidoc[]
 include::../description/length.asciidoc[]
 include::../types/length.asciidoc[]
 include::../examples/length.asciidoc[]
+//end::body[]

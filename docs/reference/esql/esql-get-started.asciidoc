@@ -118,7 +118,7 @@ events with a duration longer than 5ms:
 include::{esql-specs}/where.csv-spec[tag=gs-where]
 ----
 
-`WHERE` supports several <<esql-operators,operators>>. For example, you can use <<esql-like-operator>> to run a wildcard query against the `message` column:
+`WHERE` supports several <<esql-operators,operators>>. For example, you can use <<esql-like>> to run a wildcard query against the `message` column:
 
 [source,esql]
 ----

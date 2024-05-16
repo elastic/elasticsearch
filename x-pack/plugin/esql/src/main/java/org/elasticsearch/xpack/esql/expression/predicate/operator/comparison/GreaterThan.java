@@ -8,6 +8,8 @@ package org.elasticsearch.xpack.esql.expression.predicate.operator.comparison;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.ann.Evaluator;
+import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
+import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.EsqlArithmeticOperation;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.predicate.Negatable;
@@ -32,7 +34,20 @@ public class GreaterThan extends EsqlBinaryComparison implements Negatable<EsqlB
         Map.entry(DataTypes.IP, GreaterThanKeywordsEvaluator.Factory::new)
     );
 
-    public GreaterThan(Source source, Expression left, Expression right) {
+    @FunctionInfo(returnType = { "boolean" }, description = "Returns true if the value on the left is greater than the value on the right.")
+    public GreaterThan(
+        Source source,
+        @Param(
+            name = "lhs",
+            type = { "boolean", "date", "double", "integer", "ip", "keyword", "long", "text", "unsigned_long", "version" },
+            description = "An expression."
+        ) Expression left,
+        @Param(
+            name = "rhs",
+            type = { "boolean", "date", "double", "integer", "ip", "keyword", "long", "text", "unsigned_long", "version" },
+            description = "An expression."
+        ) Expression right
+    ) {
         super(source, left, right, BinaryComparisonOperation.GT, evaluatorMap);
     }
 

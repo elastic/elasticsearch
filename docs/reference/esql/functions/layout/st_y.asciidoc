@@ -3,6 +3,7 @@
 [discrete]
 [[esql-st_y]]
 === `ST_Y`
+//tag::body[]
 
 *Syntax*
 
@@ -13,3 +14,4 @@ include::../parameters/st_y.asciidoc[]
 include::../description/st_y.asciidoc[]
 include::../types/st_y.asciidoc[]
 include::../examples/st_y.asciidoc[]
+//end::body[]

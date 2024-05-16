@@ -3,6 +3,7 @@
 [discrete]
 [[esql-to_radians]]
 === `TO_RADIANS`
+//tag::body[]
 
 *Syntax*
 
@@ -13,3 +14,4 @@ include::../parameters/to_radians.asciidoc[]
 include::../description/to_radians.asciidoc[]
 include::../types/to_radians.asciidoc[]
 include::../examples/to_radians.asciidoc[]
+//end::body[]

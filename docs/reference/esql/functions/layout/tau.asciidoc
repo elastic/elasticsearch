@@ -3,6 +3,7 @@
 [discrete]
 [[esql-tau]]
 === `TAU`
+//tag::body[]
 
 *Syntax*
 
@@ -13,3 +14,4 @@ include::../parameters/tau.asciidoc[]
 include::../description/tau.asciidoc[]
 include::../types/tau.asciidoc[]
 include::../examples/tau.asciidoc[]
+//end::body[]

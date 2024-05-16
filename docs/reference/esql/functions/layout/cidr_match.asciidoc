@@ -3,6 +3,7 @@
 [discrete]
 [[esql-cidr_match]]
 === `CIDR_MATCH`
+//tag::body[]
 
 *Syntax*
 
@@ -13,3 +14,4 @@ include::../parameters/cidr_match.asciidoc[]
 include::../description/cidr_match.asciidoc[]
 include::../types/cidr_match.asciidoc[]
 include::../examples/cidr_match.asciidoc[]
+//end::body[]

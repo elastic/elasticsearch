@@ -3,6 +3,7 @@
 [discrete]
 [[esql-round]]
 === `ROUND`
+//tag::body[]
 
 *Syntax*
 
@@ -13,3 +14,4 @@ include::../parameters/round.asciidoc[]
 include::../description/round.asciidoc[]
 include::../types/round.asciidoc[]
 include::../examples/round.asciidoc[]
+//end::body[]

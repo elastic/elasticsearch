@@ -3,6 +3,7 @@
 [discrete]
 [[esql-floor]]
 === `FLOOR`
+//tag::body[]
 
 *Syntax*
 
@@ -13,3 +14,4 @@ include::../parameters/floor.asciidoc[]
 include::../description/floor.asciidoc[]
 include::../types/floor.asciidoc[]
 include::../examples/floor.asciidoc[]
+//end::body[]

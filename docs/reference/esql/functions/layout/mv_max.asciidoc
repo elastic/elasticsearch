@@ -3,6 +3,7 @@
 [discrete]
 [[esql-mv_max]]
 === `MV_MAX`
+//tag::body[]
 
 *Syntax*
 
@@ -13,3 +14,4 @@ include::../parameters/mv_max.asciidoc[]
 include::../description/mv_max.asciidoc[]
 include::../types/mv_max.asciidoc[]
 include::../examples/mv_max.asciidoc[]
+//end::body[]

@@ -3,6 +3,7 @@
 [discrete]
 [[esql-least]]
 === `LEAST`
+//tag::body[]
 
 *Syntax*
 
@@ -13,3 +14,4 @@ include::../parameters/least.asciidoc[]
 include::../description/least.asciidoc[]
 include::../types/least.asciidoc[]
 include::../examples/least.asciidoc[]
+//end::body[]

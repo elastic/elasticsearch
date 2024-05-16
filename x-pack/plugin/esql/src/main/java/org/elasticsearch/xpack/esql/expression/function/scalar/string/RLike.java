@@ -9,6 +9,9 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.string;
 
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
+import org.elasticsearch.xpack.esql.expression.function.Example;
+import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
+import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.predicate.regex.RLikePattern;
 import org.elasticsearch.xpack.ql.tree.NodeInfo;
@@ -20,12 +23,27 @@ import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isString;
 
 public class RLike extends org.elasticsearch.xpack.ql.expression.predicate.regex.RLike implements EvaluatorMapper {
-    public RLike(Source source, Expression value, RLikePattern pattern) {
-        super(source, value, pattern);
+
+    @FunctionInfo(returnType = "boolean", description = """
+        Use `RLIKE` to filter data based on string patterns using using
+        <<regexp-syntax,regular expressions>>. `RLIKE` usually acts on a field placed on
+        the left-hand side of the operator, but it can also act on a constant (literal)
+        expression. The right-hand side of the operator represents the pattern.""", examples = @Example(file = "docs", tag = "rlike"))
+    public RLike(
+        Source source,
+        @Param(name = "str", type = { "keyword", "text" }, description = "A literal value.") Expression field,
+        @Param(name = "pattern", type = { "keyword", "text" }, description = "A regular expression.") RLikePattern rLikePattern,
+        @Param(
+            name = "caseInsensitive",
+            type = { "boolean" },
+            description = "Indicate whether it is case insensitive."
+        ) boolean caseInsensitive
+    ) {
+        super(source, field, rLikePattern, caseInsensitive);
     }
 
-    public RLike(Source source, Expression field, RLikePattern rLikePattern, boolean caseInsensitive) {
-        super(source, field, rLikePattern, caseInsensitive);
+    public RLike(Source source, Expression value, RLikePattern pattern) {
+        super(source, value, pattern);
     }
 
     @Override

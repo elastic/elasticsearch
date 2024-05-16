@@ -4,9 +4,4 @@
 
 The only unary operators is negation (`-`):
 
-[.text-center]
-image::esql/functions/signature/neg.svg[Embedded,opts=inline]
-
-Supported types:
-
-include::types/neg.asciidoc[]
+include::layout/neg.asciidoc[]

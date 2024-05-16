@@ -33,7 +33,7 @@ Which, if `still_hired` is a boolean field, can be simplified to:
 include::{esql-specs}/docs.csv-spec[tag=whereBoolean]
 ----
 
-Use date math to retrieve data from a specific time range. For example, to 
+Use date math to retrieve data from a specific time range. For example, to
 retrieve the last hour of logs:
 
 [source,esql]
@@ -53,9 +53,9 @@ For a complete list of all functions, refer to <<esql-functions>>.
 
 include::../functions/predicates.asciidoc[tag=body]
 
-include::../functions/like.asciidoc[tag=body]
+include::../functions/layout/like.asciidoc[tag=body]
 
-include::../functions/rlike.asciidoc[tag=body]
+include::../functions/layout/rlike.asciidoc[tag=body]
 
 include::../functions/in.asciidoc[tag=body]
 

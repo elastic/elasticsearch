@@ -3,6 +3,7 @@
 [discrete]
 [[esql-to_boolean]]
 === `TO_BOOLEAN`
+//tag::body[]
 
 *Syntax*
 
@@ -13,3 +14,4 @@ include::../parameters/to_boolean.asciidoc[]
 include::../description/to_boolean.asciidoc[]
 include::../types/to_boolean.asciidoc[]
 include::../examples/to_boolean.asciidoc[]
+//end::body[]

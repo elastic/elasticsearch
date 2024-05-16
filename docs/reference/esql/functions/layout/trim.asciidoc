@@ -3,6 +3,7 @@
 [discrete]
 [[esql-trim]]
 === `TRIM`
+//tag::body[]
 
 *Syntax*
 
@@ -13,3 +14,4 @@ include::../parameters/trim.asciidoc[]
 include::../description/trim.asciidoc[]
 include::../types/trim.asciidoc[]
 include::../examples/trim.asciidoc[]
+//end::body[]

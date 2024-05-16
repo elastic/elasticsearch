@@ -9,6 +9,8 @@ package org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic;
 
 import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.ann.Fixed;
+import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
+import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.arithmetic.BinaryComparisonInversible;
 import org.elasticsearch.xpack.ql.tree.NodeInfo;
@@ -26,7 +28,23 @@ import static org.elasticsearch.xpack.ql.util.NumericUtils.unsignedLongAddExact;
 
 public class Add extends DateTimeArithmeticOperation implements BinaryComparisonInversible {
 
-    public Add(Source source, Expression left, Expression right) {
+    @FunctionInfo(
+        returnType = { "double", "integer", "long", "date_period", "datetime", "time_duration", "unsigned_long" },
+        description = "Returns the sum of two values."
+    )
+    public Add(
+        Source source,
+        @Param(
+            name = "lhs",
+            description = "A numeric value or a date time value.",
+            type = { "double", "integer", "long", "date_period", "datetime", "time_duration", "unsigned_long" }
+        ) Expression left,
+        @Param(
+            name = "rhs",
+            description = "A numeric value or a date time value.",
+            type = { "double", "integer", "long", "date_period", "datetime", "time_duration", "unsigned_long" }
+        ) Expression right
+    ) {
         super(
             source,
             left,

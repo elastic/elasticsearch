@@ -3,6 +3,7 @@
 [discrete]
 [[esql-replace]]
 === `REPLACE`
+//tag::body[]
 
 *Syntax*
 
@@ -13,3 +14,4 @@ include::../parameters/replace.asciidoc[]
 include::../description/replace.asciidoc[]
 include::../types/replace.asciidoc[]
 include::../examples/replace.asciidoc[]
+//end::body[]

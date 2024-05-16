@@ -3,6 +3,7 @@
 [discrete]
 [[esql-pow]]
 === `POW`
+//tag::body[]
 
 *Syntax*
 
@@ -13,3 +14,4 @@ include::../parameters/pow.asciidoc[]
 include::../description/pow.asciidoc[]
 include::../types/pow.asciidoc[]
 include::../examples/pow.asciidoc[]
+//end::body[]

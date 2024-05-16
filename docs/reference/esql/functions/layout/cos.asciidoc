@@ -3,6 +3,7 @@
 [discrete]
 [[esql-cos]]
 === `COS`
+//tag::body[]
 
 *Syntax*
 
@@ -13,3 +14,4 @@ include::../parameters/cos.asciidoc[]
 include::../description/cos.asciidoc[]
 include::../types/cos.asciidoc[]
 include::../examples/cos.asciidoc[]
+//end::body[]

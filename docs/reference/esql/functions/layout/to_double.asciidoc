@@ -3,6 +3,7 @@
 [discrete]
 [[esql-to_double]]
 === `TO_DOUBLE`
+//tag::body[]
 
 *Syntax*
 
@@ -13,3 +14,4 @@ include::../parameters/to_double.asciidoc[]
 include::../description/to_double.asciidoc[]
 include::../types/to_double.asciidoc[]
 include::../examples/to_double.asciidoc[]
+//end::body[]

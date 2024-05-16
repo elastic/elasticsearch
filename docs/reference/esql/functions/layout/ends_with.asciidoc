@@ -3,6 +3,7 @@
 [discrete]
 [[esql-ends_with]]
 === `ENDS_WITH`
+//tag::body[]
 
 *Syntax*
 
@@ -13,3 +14,4 @@ include::../parameters/ends_with.asciidoc[]
 include::../description/ends_with.asciidoc[]
 include::../types/ends_with.asciidoc[]
 include::../examples/ends_with.asciidoc[]
+//end::body[]

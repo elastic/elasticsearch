@@ -3,6 +3,7 @@
 [discrete]
 [[esql-st_disjoint]]
 === `ST_DISJOINT`
+//tag::body[]
 
 *Syntax*
 
@@ -13,3 +14,4 @@ include::../parameters/st_disjoint.asciidoc[]
 include::../description/st_disjoint.asciidoc[]
 include::../types/st_disjoint.asciidoc[]
 include::../examples/st_disjoint.asciidoc[]
+//end::body[]

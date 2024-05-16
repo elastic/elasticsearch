@@ -3,6 +3,7 @@
 [discrete]
 [[esql-abs]]
 === `ABS`
+//tag::body[]
 
 *Syntax*
 
@@ -13,3 +14,4 @@ include::../parameters/abs.asciidoc[]
 include::../description/abs.asciidoc[]
 include::../types/abs.asciidoc[]
 include::../examples/abs.asciidoc[]
+//end::body[]

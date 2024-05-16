@@ -3,6 +3,7 @@
 [discrete]
 [[esql-mv_median]]
 === `MV_MEDIAN`
+//tag::body[]
 
 *Syntax*
 
@@ -13,3 +14,4 @@ include::../parameters/mv_median.asciidoc[]
 include::../description/mv_median.asciidoc[]
 include::../types/mv_median.asciidoc[]
 include::../examples/mv_median.asciidoc[]
+//end::body[]

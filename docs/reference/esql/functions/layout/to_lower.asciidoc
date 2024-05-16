@@ -3,6 +3,7 @@
 [discrete]
 [[esql-to_lower]]
 === `TO_LOWER`
+//tag::body[]
 
 *Syntax*
 
@@ -13,3 +14,4 @@ include::../parameters/to_lower.asciidoc[]
 include::../description/to_lower.asciidoc[]
 include::../types/to_lower.asciidoc[]
 include::../examples/to_lower.asciidoc[]
+//end::body[]

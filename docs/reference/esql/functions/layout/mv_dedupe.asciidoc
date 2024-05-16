@@ -3,6 +3,7 @@
 [discrete]
 [[esql-mv_dedupe]]
 === `MV_DEDUPE`
+//tag::body[]
 
 *Syntax*
 
@@ -13,3 +14,4 @@ include::../parameters/mv_dedupe.asciidoc[]
 include::../description/mv_dedupe.asciidoc[]
 include::../types/mv_dedupe.asciidoc[]
 include::../examples/mv_dedupe.asciidoc[]
+//end::body[]

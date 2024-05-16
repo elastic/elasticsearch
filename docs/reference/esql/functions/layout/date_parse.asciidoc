@@ -3,6 +3,7 @@
 [discrete]
 [[esql-date_parse]]
 === `DATE_PARSE`
+//tag::body[]
 
 *Syntax*
 
@@ -13,3 +14,4 @@ include::../parameters/date_parse.asciidoc[]
 include::../description/date_parse.asciidoc[]
 include::../types/date_parse.asciidoc[]
 include::../examples/date_parse.asciidoc[]
+//end::body[]

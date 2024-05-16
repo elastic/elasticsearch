@@ -3,6 +3,7 @@
 [discrete]
 [[esql-starts_with]]
 === `STARTS_WITH`
+//tag::body[]
 
 *Syntax*
 
@@ -13,3 +14,4 @@ include::../parameters/starts_with.asciidoc[]
 include::../description/starts_with.asciidoc[]
 include::../types/starts_with.asciidoc[]
 include::../examples/starts_with.asciidoc[]
+//end::body[]

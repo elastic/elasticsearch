@@ -3,6 +3,7 @@
 [discrete]
 [[esql-to_cartesianshape]]
 === `TO_CARTESIANSHAPE`
+//tag::body[]
 
 *Syntax*
 
@@ -13,3 +14,4 @@ include::../parameters/to_cartesianshape.asciidoc[]
 include::../description/to_cartesianshape.asciidoc[]
 include::../types/to_cartesianshape.asciidoc[]
 include::../examples/to_cartesianshape.asciidoc[]
+//end::body[]

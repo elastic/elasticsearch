@@ -3,6 +3,7 @@
 [discrete]
 [[esql-sinh]]
 === `SINH`
+//tag::body[]
 
 *Syntax*
 
@@ -13,3 +14,4 @@ include::../parameters/sinh.asciidoc[]
 include::../description/sinh.asciidoc[]
 include::../types/sinh.asciidoc[]
 include::../examples/sinh.asciidoc[]
+//end::body[]

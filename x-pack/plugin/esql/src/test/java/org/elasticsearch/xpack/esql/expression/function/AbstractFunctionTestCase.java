@@ -45,6 +45,21 @@ import org.elasticsearch.xpack.esql.evaluator.EvalMapper;
 import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.Greatest;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.AbstractMultivalueFunctionTestCase;
 import org.elasticsearch.xpack.esql.expression.function.scalar.nulls.Coalesce;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.RLike;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.WildcardLike;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Add;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Div;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Mod;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Mul;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Neg;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Sub;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThan;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThanOrEqual;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.In;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThan;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThanOrEqual;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.NotEquals;
 import org.elasticsearch.xpack.esql.optimizer.FoldNull;
 import org.elasticsearch.xpack.esql.parser.ExpressionBuilder;
 import org.elasticsearch.xpack.esql.planner.Layout;
@@ -56,6 +71,9 @@ import org.elasticsearch.xpack.ql.expression.FieldAttribute;
 import org.elasticsearch.xpack.ql.expression.Literal;
 import org.elasticsearch.xpack.ql.expression.TypeResolutions;
 import org.elasticsearch.xpack.ql.expression.function.FunctionDefinition;
+import org.elasticsearch.xpack.ql.expression.predicate.nulls.IsNotNull;
+import org.elasticsearch.xpack.ql.expression.predicate.nulls.IsNull;
+import org.elasticsearch.xpack.ql.session.Configuration;
 import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.type.DataTypes;
@@ -69,6 +87,7 @@ import org.junit.AfterClass;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.nio.file.Files;
@@ -95,6 +114,7 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
+import static java.util.Map.entry;
 import static org.elasticsearch.compute.data.BlockUtils.toJavaObject;
 import static org.elasticsearch.xpack.esql.SerializationTestUtils.assertSerialization;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.isSpatial;
@@ -113,6 +133,26 @@ import static org.hamcrest.Matchers.sameInstance;
  * which can be automatically tested against several scenarios (null handling, concurrency, etc).
  */
 public abstract class AbstractFunctionTestCase extends ESTestCase {
+    private static final Map<String, Class<?>> UNREGISTERED_FUNCTIONS = Map.ofEntries(
+        entry("like", WildcardLike.class),
+        entry("rlike", RLike.class),
+        entry("in", In.class),
+        entry("equals", Equals.class),
+        entry("not_equals", NotEquals.class),
+        entry("greater_than", GreaterThan.class),
+        entry("greater_than_or_equal", GreaterThanOrEqual.class),
+        entry("less_than", LessThan.class),
+        entry("less_than_or_equal", LessThanOrEqual.class),
+        entry("add", Add.class),
+        entry("sub", Sub.class),
+        entry("mul", Mul.class),
+        entry("div", Div.class),
+        entry("mod", Mod.class),
+        entry("neg", Neg.class),
+        entry("is_null", IsNull.class),
+        entry("is_not_null", IsNotNull.class)
+    );
+
     /**
      * Generate a random value of the appropriate type to fit into blocks of {@code e}.
      */
@@ -907,7 +947,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
     }
 
     private static final Map<Set<DataType>, String> NAMED_EXPECTED_TYPES = Map.ofEntries(
-        Map.entry(
+        entry(
             Set.of(
                 EsqlDataTypes.DATE_PERIOD,
                 DataTypes.DOUBLE,
@@ -918,18 +958,18 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
             ),
             "numeric, date_period or time_duration"
         ),
-        Map.entry(Set.of(DataTypes.DATETIME, DataTypes.NULL), "datetime"),
-        Map.entry(Set.of(DataTypes.DOUBLE, DataTypes.NULL), "double"),
-        Map.entry(Set.of(DataTypes.INTEGER, DataTypes.NULL), "integer"),
-        Map.entry(Set.of(DataTypes.IP, DataTypes.NULL), "ip"),
-        Map.entry(Set.of(DataTypes.LONG, DataTypes.INTEGER, DataTypes.UNSIGNED_LONG, DataTypes.DOUBLE, DataTypes.NULL), "numeric"),
-        Map.entry(Set.of(DataTypes.LONG, DataTypes.INTEGER, DataTypes.UNSIGNED_LONG, DataTypes.DOUBLE), "numeric"),
-        Map.entry(Set.of(DataTypes.KEYWORD, DataTypes.TEXT, DataTypes.VERSION, DataTypes.NULL), "string or version"),
-        Map.entry(Set.of(DataTypes.KEYWORD, DataTypes.TEXT, DataTypes.NULL), "string"),
-        Map.entry(Set.of(DataTypes.IP, DataTypes.KEYWORD, DataTypes.TEXT, DataTypes.NULL), "ip or string"),
-        Map.entry(Set.copyOf(Arrays.asList(representableTypes())), "representable"),
-        Map.entry(Set.copyOf(Arrays.asList(representableNonSpatialTypes())), "representableNonSpatial"),
-        Map.entry(
+        entry(Set.of(DataTypes.DATETIME, DataTypes.NULL), "datetime"),
+        entry(Set.of(DataTypes.DOUBLE, DataTypes.NULL), "double"),
+        entry(Set.of(DataTypes.INTEGER, DataTypes.NULL), "integer"),
+        entry(Set.of(DataTypes.IP, DataTypes.NULL), "ip"),
+        entry(Set.of(DataTypes.LONG, DataTypes.INTEGER, DataTypes.UNSIGNED_LONG, DataTypes.DOUBLE, DataTypes.NULL), "numeric"),
+        entry(Set.of(DataTypes.LONG, DataTypes.INTEGER, DataTypes.UNSIGNED_LONG, DataTypes.DOUBLE), "numeric"),
+        entry(Set.of(DataTypes.KEYWORD, DataTypes.TEXT, DataTypes.VERSION, DataTypes.NULL), "string or version"),
+        entry(Set.of(DataTypes.KEYWORD, DataTypes.TEXT, DataTypes.NULL), "string"),
+        entry(Set.of(DataTypes.IP, DataTypes.KEYWORD, DataTypes.TEXT, DataTypes.NULL), "ip or string"),
+        entry(Set.copyOf(Arrays.asList(representableTypes())), "representable"),
+        entry(Set.copyOf(Arrays.asList(representableNonSpatialTypes())), "representableNonSpatial"),
+        entry(
             Set.of(
                 DataTypes.BOOLEAN,
                 DataTypes.DOUBLE,
@@ -942,7 +982,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
             ),
             "boolean or numeric or string"
         ),
-        Map.entry(
+        entry(
             Set.of(
                 DataTypes.DATETIME,
                 DataTypes.DOUBLE,
@@ -956,7 +996,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
             "datetime or numeric or string"
         ),
         // What Add accepts
-        Map.entry(
+        entry(
             Set.of(
                 EsqlDataTypes.DATE_PERIOD,
                 DataTypes.DATETIME,
@@ -969,7 +1009,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
             ),
             "datetime or numeric"
         ),
-        Map.entry(
+        entry(
             Set.of(
                 DataTypes.BOOLEAN,
                 DataTypes.DATETIME,
@@ -984,7 +1024,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
             "boolean or datetime or numeric or string"
         ),
         // to_int
-        Map.entry(
+        entry(
             Set.of(
                 DataTypes.BOOLEAN,
                 EsqlDataTypes.COUNTER_INTEGER,
@@ -1000,7 +1040,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
             "boolean or counter_integer or datetime or numeric or string"
         ),
         // to_long
-        Map.entry(
+        entry(
             Set.of(
                 DataTypes.BOOLEAN,
                 EsqlDataTypes.COUNTER_INTEGER,
@@ -1017,7 +1057,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
             "boolean or counter_integer or counter_long or datetime or numeric or string"
         ),
         // to_double
-        Map.entry(
+        entry(
             Set.of(
                 DataTypes.BOOLEAN,
                 EsqlDataTypes.COUNTER_DOUBLE,
@@ -1034,7 +1074,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
             ),
             "boolean or counter_double or counter_integer or counter_long or datetime or numeric or string"
         ),
-        Map.entry(
+        entry(
             Set.of(
                 DataTypes.BOOLEAN,
                 EsqlDataTypes.CARTESIAN_POINT,
@@ -1050,7 +1090,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
             ),
             "boolean or cartesian_point or datetime or geo_point or numeric or string"
         ),
-        Map.entry(
+        entry(
             Set.of(
                 DataTypes.DATETIME,
                 DataTypes.DOUBLE,
@@ -1065,7 +1105,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
             ),
             "datetime, double, integer, ip, keyword, long, text, unsigned_long or version"
         ),
-        Map.entry(
+        entry(
             Set.of(
                 DataTypes.BOOLEAN,
                 DataTypes.DATETIME,
@@ -1083,18 +1123,18 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
             ),
             "cartesian_point or datetime or geo_point or numeric or string"
         ),
-        Map.entry(Set.of(EsqlDataTypes.GEO_POINT, DataTypes.KEYWORD, DataTypes.TEXT, DataTypes.NULL), "geo_point or string"),
-        Map.entry(Set.of(EsqlDataTypes.CARTESIAN_POINT, DataTypes.KEYWORD, DataTypes.TEXT, DataTypes.NULL), "cartesian_point or string"),
-        Map.entry(
+        entry(Set.of(EsqlDataTypes.GEO_POINT, DataTypes.KEYWORD, DataTypes.TEXT, DataTypes.NULL), "geo_point or string"),
+        entry(Set.of(EsqlDataTypes.CARTESIAN_POINT, DataTypes.KEYWORD, DataTypes.TEXT, DataTypes.NULL), "cartesian_point or string"),
+        entry(
             Set.of(EsqlDataTypes.GEO_POINT, EsqlDataTypes.GEO_SHAPE, DataTypes.KEYWORD, DataTypes.TEXT, DataTypes.NULL),
             "geo_point or geo_shape or string"
         ),
-        Map.entry(
+        entry(
             Set.of(EsqlDataTypes.CARTESIAN_POINT, EsqlDataTypes.CARTESIAN_SHAPE, DataTypes.KEYWORD, DataTypes.TEXT, DataTypes.NULL),
             "cartesian_point or cartesian_shape or string"
         ),
-        Map.entry(Set.of(EsqlDataTypes.GEO_POINT, EsqlDataTypes.CARTESIAN_POINT, DataTypes.NULL), "geo_point or cartesian_point"),
-        Map.entry(Set.of(EsqlDataTypes.DATE_PERIOD, EsqlDataTypes.TIME_DURATION, DataTypes.NULL), "dateperiod or timeduration")
+        entry(Set.of(EsqlDataTypes.GEO_POINT, EsqlDataTypes.CARTESIAN_POINT, DataTypes.NULL), "geo_point or cartesian_point"),
+        entry(Set.of(EsqlDataTypes.DATE_PERIOD, EsqlDataTypes.TIME_DURATION, DataTypes.NULL), "dateperiod or timeduration")
     );
 
     // TODO: generate this message dynamically, a la AbstractConvertFunction#supportedTypesNames()?
@@ -1161,6 +1201,11 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
         if (definition != null) {
             return RailRoadDiagram.functionSignature(definition);
         }
+        Class<?> clazz = UNREGISTERED_FUNCTIONS.get(name);
+        if (clazz != null) {
+            EsqlFunctionRegistry.FunctionDescription functionDescription = mockFunctionDescription(name, clazz);
+            return RailRoadDiagram.functionSignature(name, functionDescription.argNames());
+        }
         return null;
     }
 
@@ -1206,20 +1251,14 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
             return;
         }
         String name = functionName();
-        if (binaryOperator(name) != null) {
-            renderTypes(List.of("lhs", "rhs"));
-            return;
-        }
-        if (unaryOperator(name) != null) {
-            renderTypes(List.of("v"));
-            return;
-        }
-        if (name.equalsIgnoreCase("rlike")) {
-            renderTypes(List.of("str", "pattern", "caseInsensitive"));
-            return;
-        }
-        if (name.equalsIgnoreCase("like")) {
-            renderTypes(List.of("str", "pattern"));
+        if (binaryOperator(name) != null
+            || unaryOperator(name) != null
+            || name.equalsIgnoreCase("rlike")
+            || name.equalsIgnoreCase("like")
+            || name.equalsIgnoreCase("is_null")
+            || name.equalsIgnoreCase("is_not_null")
+            || name.equalsIgnoreCase("in")) {
+            renderDocsForUnregisteredFunctions(name);
             return;
         }
         FunctionDefinition definition = definition(name);
@@ -1251,6 +1290,66 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
             return;
         }
         LogManager.getLogger(getTestClass()).info("Skipping rendering types because the function '" + name + "' isn't registered");
+    }
+
+    private static FunctionInfo mockFunctionInfo(Class<?> clazz) {
+        var constructors = clazz.getConstructors();
+        if (constructors.length == 0) {
+            return null;
+        }
+        Constructor<?> constructor = constructors[0];
+        return constructor.getAnnotation(FunctionInfo.class);
+    }
+
+    private static EsqlFunctionRegistry.FunctionDescription mockFunctionDescription(String functionName, Class<?> clazz) {
+        var constructors = clazz.getConstructors();
+        if (constructors.length == 0) {
+            return new EsqlFunctionRegistry.FunctionDescription(functionName, List.of(), null, null, false, false);
+        }
+        Constructor<?> constructor = constructors[0];
+        FunctionInfo functionInfo = mockFunctionInfo(clazz);
+        String functionDescription = functionInfo == null ? "" : functionInfo.description().replace('\n', ' ');
+        String[] returnType = functionInfo == null ? new String[] { "?" } : functionInfo.returnType();
+        var params = constructor.getParameters(); // no multiple c'tors supported
+
+        List<EsqlFunctionRegistry.ArgSignature> args = new ArrayList<>(params.length);
+        boolean variadic = false;
+        boolean isAggregation = functionInfo == null ? false : functionInfo.isAggregation();
+        for (int i = 1; i < params.length; i++) { // skipping 1st argument, the source
+            if (Configuration.class.isAssignableFrom(params[i].getType()) == false) {
+                Param paramInfo = params[i].getAnnotation(Param.class);
+                String name = paramInfo == null ? params[i].getName() : paramInfo.name();
+                variadic |= List.class.isAssignableFrom(params[i].getType());
+                String[] type = paramInfo == null ? new String[] { "?" } : paramInfo.type();
+                String desc = paramInfo == null ? "" : paramInfo.description().replace('\n', ' ');
+                boolean optional = paramInfo == null ? false : paramInfo.optional();
+                DataType targetDataType = EsqlFunctionRegistry.getTargetType(type);
+                args.add(new EsqlFunctionRegistry.ArgSignature(name, type, desc, optional, targetDataType));
+            }
+        }
+        return new EsqlFunctionRegistry.FunctionDescription(functionName, args, returnType, functionDescription, variadic, isAggregation);
+    }
+
+    private static void renderDocsForUnregisteredFunctions(String functioName) throws IOException {
+        Class<?> clazz = UNREGISTERED_FUNCTIONS.get(functioName);
+        FunctionInfo functionInfo = mockFunctionInfo(clazz);
+        EsqlFunctionRegistry.FunctionDescription functionDescription = mockFunctionDescription(functioName, clazz);
+        renderTypes(functionDescription.argNames());
+        renderParametersList(functionDescription.argNames(), functionDescription.argDescriptions());
+        if (functionInfo == null) {
+            return;
+        }
+        renderDescription(functionInfo.description().replace('\n', ' '), functionInfo.detailedDescription(), functionInfo.note());
+        boolean hasExamples = renderExamples(functionInfo);
+        renderFullLayout(functioName, hasExamples);
+        renderKibanaInlineDocs(functioName, functionInfo);
+        renderKibanaFunctionDefinition(
+            functioName,
+            functionInfo,
+            functionDescription.args(),
+            functioName.equalsIgnoreCase("like") ? true : functionDescription.variadic()
+        );
+
     }
 
     private static final String DOCS_WARNING =
@@ -1359,11 +1458,16 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
         return true;
     }
 
+    private static final String BODY_BEGIN = "\n//tag::body[]\n";
+    private static final String BODY_END = "//end::body[]\n";
+
     private static void renderFullLayout(String name, boolean hasExamples) throws IOException {
         String rendered = DOCS_WARNING + """
             [discrete]
             [[esql-$NAME$]]
-            === `$UPPER_NAME$`
+            === `$UPPER_NAME$`""".replace("$NAME$", name).replace("$UPPER_NAME$", name.toUpperCase(Locale.ROOT));
+        rendered += BODY_BEGIN;
+        rendered += """
 
             *Syntax*
 
@@ -1377,6 +1481,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
         if (hasExamples) {
             rendered += "include::../examples/" + name + ".asciidoc[]\n";
         }
+        rendered += BODY_END;
         LogManager.getLogger(getTestClass()).info("Writing layout for [{}]:\n{}", functionName(), rendered);
         writeToTempDir("layout", rendered, "asciidoc");
     }

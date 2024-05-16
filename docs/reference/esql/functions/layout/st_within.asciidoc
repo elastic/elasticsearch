@@ -3,6 +3,7 @@
 [discrete]
 [[esql-st_within]]
 === `ST_WITHIN`
+//tag::body[]
 
 *Syntax*
 
@@ -13,3 +14,4 @@ include::../parameters/st_within.asciidoc[]
 include::../description/st_within.asciidoc[]
 include::../types/st_within.asciidoc[]
 include::../examples/st_within.asciidoc[]
+//end::body[]

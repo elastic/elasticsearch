@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.expression.predicate.operator.comparison;
 import org.elasticsearch.xpack.esql.expression.EsqlTypeResolutions;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
+import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.Expressions;
@@ -32,7 +33,45 @@ public class In extends org.elasticsearch.xpack.ql.expression.predicate.operator
             + "fields or expressions:",
         examples = @Example(file = "row", tag = "in-with-expressions")
     )
-    public In(Source source, Expression value, List<Expression> list) {
+    public In(
+        Source source,
+        @Param(
+            name = "field",
+            type = {
+                "boolean",
+                "cartesian_point",
+                "cartesian_shape",
+                "date",
+                "double",
+                "geo_point",
+                "geo_shape",
+                "integer",
+                "ip",
+                "keyword",
+                "long",
+                "text",
+                "version" },
+            description = "An expression."
+        ) Expression value,
+        @Param(
+            name = "inlist",
+            type = {
+                "boolean",
+                "cartesian_point",
+                "cartesian_shape",
+                "date",
+                "double",
+                "geo_point",
+                "geo_shape",
+                "integer",
+                "ip",
+                "keyword",
+                "long",
+                "text",
+                "version" },
+            description = "A list of items."
+        ) List<Expression> list
+    ) {
         super(source, value, list);
     }
 

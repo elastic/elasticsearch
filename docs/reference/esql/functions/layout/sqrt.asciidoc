@@ -3,6 +3,7 @@
 [discrete]
 [[esql-sqrt]]
 === `SQRT`
+//tag::body[]
 
 *Syntax*
 
@@ -13,3 +14,4 @@ include::../parameters/sqrt.asciidoc[]
 include::../description/sqrt.asciidoc[]
 include::../types/sqrt.asciidoc[]
 include::../examples/sqrt.asciidoc[]
+//end::body[]

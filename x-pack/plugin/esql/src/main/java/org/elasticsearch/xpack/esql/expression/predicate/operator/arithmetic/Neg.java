@@ -11,6 +11,8 @@ import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.ExceptionUtils;
+import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
+import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.function.Warnings;
 import org.elasticsearch.xpack.esql.expression.function.scalar.UnaryScalarFunction;
 import org.elasticsearch.xpack.ql.expression.Expression;
@@ -34,7 +36,18 @@ public class Neg extends UnaryScalarFunction {
 
     private final Warnings warnings;
 
-    public Neg(Source source, Expression field) {
+    @FunctionInfo(
+        returnType = { "double", "integer", "long", "date_period", "time_duration" },
+        description = "Returns the negation of the argument."
+    )
+    public Neg(
+        Source source,
+        @Param(
+            name = "field",
+            description = "A numeric value or a date time interval.",
+            type = { "double", "integer", "long", "date_period", "time_duration" }
+        ) Expression field
+    ) {
         super(source, field);
         warnings = new Warnings(source);
     }

@@ -3,6 +3,7 @@
 [discrete]
 [[esql-mv_zip]]
 === `MV_ZIP`
+//tag::body[]
 
 *Syntax*
 
@@ -13,3 +14,4 @@ include::../parameters/mv_zip.asciidoc[]
 include::../description/mv_zip.asciidoc[]
 include::../types/mv_zip.asciidoc[]
 include::../examples/mv_zip.asciidoc[]
+//end::body[]

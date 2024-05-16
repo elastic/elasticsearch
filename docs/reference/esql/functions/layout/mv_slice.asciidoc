@@ -3,6 +3,7 @@
 [discrete]
 [[esql-mv_slice]]
 === `MV_SLICE`
+//tag::body[]
 
 *Syntax*
 
@@ -13,3 +14,4 @@ include::../parameters/mv_slice.asciidoc[]
 include::../description/mv_slice.asciidoc[]
 include::../types/mv_slice.asciidoc[]
 include::../examples/mv_slice.asciidoc[]
+//end::body[]

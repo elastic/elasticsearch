@@ -3,6 +3,7 @@
 [discrete]
 [[esql-tan]]
 === `TAN`
+//tag::body[]
 
 *Syntax*
 
@@ -13,3 +14,4 @@ include::../parameters/tan.asciidoc[]
 include::../description/tan.asciidoc[]
 include::../types/tan.asciidoc[]
 include::../examples/tan.asciidoc[]
+//end::body[]

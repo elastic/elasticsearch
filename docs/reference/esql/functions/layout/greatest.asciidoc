@@ -3,6 +3,7 @@
 [discrete]
 [[esql-greatest]]
 === `GREATEST`
+//tag::body[]
 
 *Syntax*
 
@@ -13,3 +14,4 @@ include::../parameters/greatest.asciidoc[]
 include::../description/greatest.asciidoc[]
 include::../types/greatest.asciidoc[]
 include::../examples/greatest.asciidoc[]
+//end::body[]

@@ -8,6 +8,8 @@ package org.elasticsearch.xpack.esql.expression.predicate.operator.comparison;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.ann.Evaluator;
+import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
+import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.EsqlArithmeticOperation;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.predicate.Negatable;
@@ -33,7 +35,20 @@ public class LessThan extends EsqlBinaryComparison implements Negatable<EsqlBina
         Map.entry(DataTypes.IP, LessThanKeywordsEvaluator.Factory::new)
     );
 
-    public LessThan(Source source, Expression left, Expression right) {
+    @FunctionInfo(returnType = { "boolean" }, description = "Returns true if the value on the left is less than the value on the right.")
+    public LessThan(
+        Source source,
+        @Param(
+            name = "lhs",
+            type = { "boolean", "date", "double", "integer", "ip", "keyword", "long", "text", "unsigned_long", "version" },
+            description = "An expression."
+        ) Expression left,
+        @Param(
+            name = "rhs",
+            type = { "boolean", "date", "double", "integer", "ip", "keyword", "long", "text", "unsigned_long", "version" },
+            description = "An expression."
+        ) Expression right
+    ) {
         this(source, left, right, null);
     }
 

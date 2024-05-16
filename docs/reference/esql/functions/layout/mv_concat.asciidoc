@@ -3,6 +3,7 @@
 [discrete]
 [[esql-mv_concat]]
 === `MV_CONCAT`
+//tag::body[]
 
 *Syntax*
 
@@ -13,3 +14,4 @@ include::../parameters/mv_concat.asciidoc[]
 include::../description/mv_concat.asciidoc[]
 include::../types/mv_concat.asciidoc[]
 include::../examples/mv_concat.asciidoc[]
+//end::body[]

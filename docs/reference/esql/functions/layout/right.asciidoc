@@ -3,6 +3,7 @@
 [discrete]
 [[esql-right]]
 === `RIGHT`
+//tag::body[]
 
 *Syntax*
 
@@ -13,3 +14,4 @@ include::../parameters/right.asciidoc[]
 include::../description/right.asciidoc[]
 include::../types/right.asciidoc[]
 include::../examples/right.asciidoc[]
+//end::body[]

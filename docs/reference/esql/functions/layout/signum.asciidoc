@@ -3,6 +3,7 @@
 [discrete]
 [[esql-signum]]
 === `SIGNUM`
+//tag::body[]
 
 *Syntax*
 
@@ -13,3 +14,4 @@ include::../parameters/signum.asciidoc[]
 include::../description/signum.asciidoc[]
 include::../types/signum.asciidoc[]
 include::../examples/signum.asciidoc[]
+//end::body[]

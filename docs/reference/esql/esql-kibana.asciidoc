@@ -99,6 +99,19 @@ type. When that happens, a warning symbol is shown in the query bar. To see the
 detailed warning, expand the query bar, and click *warnings*.
 
 [discrete]
+[[esql-kibana-query-history]]
+==== Query history
+
+You can reuse your recent {esql} queries in the query bar.
+In the query bar click *Show recent queries*:
+
+image::images/esql/esql-discover-show-recent-query.png[align="center",size="50%"]
+
+You can then scroll through your recent queries:
+
+image::images/esql/esql-discover-query-history.png[align="center",size="50%"]
+
+[discrete]
 [[esql-kibana-results-table]]
 === The results table
 
@@ -206,7 +219,7 @@ image::images/esql/esql-kibana-edit-on-dashboard.png[align="center",width=66%]
 
 [discrete]
 [[esql-kibana-dashboard-panel]]
-=== Add a panel to a dashboard
+==== Add a panel to a dashboard
 
 You can use {esql} queries to create panels on your dashboards.
 To add a panel to a dashboard, under *Dashboards*, click the *Add panel* button and select {esql}.

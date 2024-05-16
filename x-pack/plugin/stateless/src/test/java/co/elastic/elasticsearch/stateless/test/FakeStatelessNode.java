@@ -398,6 +398,7 @@ public class FakeStatelessNode implements Closeable {
     protected StatelessCommitService createCommitService() {
         return new StatelessCommitService(
             nodeSettings,
+            clusterService,
             objectStoreService,
             () -> clusterService.localNode().getEphemeralId(),
             this::getShardRoutingTable,

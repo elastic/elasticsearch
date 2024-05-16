@@ -246,6 +246,8 @@ class StatelessIndexEventListener implements IndexEventListener {
                 ActionListener.releaseAfter(listener.delegateFailure((l, response) -> ActionListener.completeWith(listener, () -> {
                     var searchDirectory = SearchDirectory.unwrapDirectory(store.directory());
                     var lastUploaded = response.getLatestUploadedBatchedCompoundCommitTermAndGen();
+                    var nodeId = response.getNodeId();
+                    assert nodeId != null : response;
 
                     var compoundCommit = response.getCompoundCommit();
                     if (compoundCommit == null) {
@@ -274,7 +276,7 @@ class StatelessIndexEventListener implements IndexEventListener {
                         || batchedCompoundCommit.last().primaryTermAndGeneration().onOrBefore(compoundCommit.primaryTermAndGeneration());
                     assert compoundCommit != null;
 
-                    searchDirectory.updateLatestUploadedTermAndGen(lastUploaded);
+                    searchDirectory.updateLatestUploadInfo(lastUploaded, compoundCommit.primaryTermAndGeneration(), nodeId);
                     searchDirectory.updateCommit(compoundCommit);
                     warmingService.warmCacheForShardRecovery(indexShard, compoundCommit);
                     return null;

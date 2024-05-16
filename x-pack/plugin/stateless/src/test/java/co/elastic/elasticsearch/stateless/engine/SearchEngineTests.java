@@ -17,7 +17,6 @@
 
 package co.elastic.elasticsearch.stateless.engine;
 
-import co.elastic.elasticsearch.stateless.action.NewCommitNotificationRequest;
 import co.elastic.elasticsearch.stateless.action.NewCommitNotificationRequestTests;
 import co.elastic.elasticsearch.stateless.cache.reader.AtomicMutableObjectStoreUploadTracker;
 import co.elastic.elasticsearch.stateless.commits.StatelessCompoundCommit;
@@ -541,22 +540,32 @@ public class SearchEngineTests extends AbstractEngineTestCase {
 
             final var compoundCommit = buildCompoundCommit(indexShardRoutingTable.shardId(), primaryTerm, ccGen);
             searchEngine.onCommitNotification(
-                new NewCommitNotificationRequest(indexShardRoutingTable, compoundCommit, bccGen, latestUploadedTermAndGen),
+                new NewCommitNotification(compoundCommit, bccGen, latestUploadedTermAndGen, 1L, "_node_id"),
                 new PlainActionFuture<>()
             );
-            verify(objectStoreUploadTracker, times(1)).updateLatestUploaded(latestUploadedTermAndGen);
-            assertThat(objectStoreUploadTracker.isUploaded(latestUploadedTermAndGen), is(true));
-            assertThat(objectStoreUploadTracker.isUploaded(latestUploadedTermAndGenPlus1), is(false));
+            verify(objectStoreUploadTracker, times(1)).updateLatestUploadInfo(
+                latestUploadedTermAndGen,
+                compoundCommit.primaryTermAndGeneration(),
+                "_node_id"
+            );
+            var uploadInfoGen = objectStoreUploadTracker.getLatestUploadInfo(latestUploadedTermAndGen);
+            assertThat(uploadInfoGen.isUploaded(), is(true));
+            var uploadInfoGenPlus1 = objectStoreUploadTracker.getLatestUploadInfo(latestUploadedTermAndGenPlus1);
+            assertThat(uploadInfoGenPlus1.isUploaded(), is(false));
 
             // 2nd notification for commit upload
             Mockito.clearInvocations(objectStoreUploadTracker);
             searchEngine.onCommitNotification(
-                new NewCommitNotificationRequest(indexShardRoutingTable, compoundCommit, bccGen, latestUploadedTermAndGenPlus1),
+                new NewCommitNotification(compoundCommit, bccGen, latestUploadedTermAndGenPlus1, 1L, "_node_id"),
                 new PlainActionFuture<>()
             );
-            verify(objectStoreUploadTracker, times(1)).updateLatestUploaded(latestUploadedTermAndGenPlus1);
-            assertThat(objectStoreUploadTracker.isUploaded(latestUploadedTermAndGen), is(true));
-            assertThat(objectStoreUploadTracker.isUploaded(latestUploadedTermAndGenPlus1), is(true));
+            verify(objectStoreUploadTracker, times(1)).updateLatestUploadInfo(
+                latestUploadedTermAndGenPlus1,
+                compoundCommit.primaryTermAndGeneration(),
+                "_node_id"
+            );
+            assertThat(uploadInfoGen.isUploaded(), is(true));
+            assertThat(uploadInfoGenPlus1.isUploaded(), is(true));
 
             // 3rd notification is a delayed one that has smaller uploaded bcc gen, ensure we do not go backwards in terms of tracking
             Mockito.clearInvocations(objectStoreUploadTracker);
@@ -564,19 +573,26 @@ public class SearchEngineTests extends AbstractEngineTestCase {
                 primaryTerm,
                 latestUploadedGen - randomLongBetween(0, 2)
             );
+            var compoundCommitGenMinusN = buildCompoundCommit(indexShardRoutingTable.shardId(), primaryTerm, ccGen - 1);
             searchEngine.onCommitNotification(
-                new NewCommitNotificationRequest(
-                    indexShardRoutingTable,
-                    buildCompoundCommit(indexShardRoutingTable.shardId(), primaryTerm, ccGen - 1),
+                new NewCommitNotification(
+                    compoundCommitGenMinusN,
                     latestUploadedTermAndGenMinusN.generation(),
-                    latestUploadedTermAndGenMinusN
+                    latestUploadedTermAndGenMinusN,
+                    1L,
+                    "_node_id"
                 ),
                 new PlainActionFuture<>()
             );
-            verify(objectStoreUploadTracker, times(1)).updateLatestUploaded(latestUploadedTermAndGenMinusN);
-            assertThat(objectStoreUploadTracker.isUploaded(latestUploadedTermAndGenMinusN), is(true));
-            assertThat(objectStoreUploadTracker.isUploaded(latestUploadedTermAndGen), is(true));
-            assertThat(objectStoreUploadTracker.isUploaded(latestUploadedTermAndGenPlus1), is(true));
+            verify(objectStoreUploadTracker, times(1)).updateLatestUploadInfo(
+                latestUploadedTermAndGenMinusN,
+                compoundCommitGenMinusN.primaryTermAndGeneration(),
+                "_node_id"
+            );
+            var uploadInfoGenMinusN = objectStoreUploadTracker.getLatestUploadInfo(latestUploadedTermAndGenMinusN);
+            assertThat(uploadInfoGenMinusN.isUploaded(), is(true));
+            assertThat(uploadInfoGen.isUploaded(), is(true));
+            assertThat(uploadInfoGenPlus1.isUploaded(), is(true));
         }
     }
 

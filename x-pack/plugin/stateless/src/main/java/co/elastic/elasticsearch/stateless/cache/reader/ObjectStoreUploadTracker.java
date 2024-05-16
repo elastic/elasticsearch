@@ -26,6 +26,12 @@ import co.elastic.elasticsearch.stateless.engine.PrimaryTermAndGeneration;
  */
 public interface ObjectStoreUploadTracker {
 
-    boolean isUploaded(PrimaryTermAndGeneration termAndGen);
+    interface UploadInfo {
 
+        boolean isUploaded();
+
+        String preferredNodeId();
+    }
+
+    UploadInfo getLatestUploadInfo(PrimaryTermAndGeneration bccTermAndGen);
 }

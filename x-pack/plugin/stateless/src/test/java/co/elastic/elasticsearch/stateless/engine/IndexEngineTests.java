@@ -421,7 +421,8 @@ public class IndexEngineTests extends AbstractEngineTestCase {
                 primaryTerm,
                 generation,
                 offset,
-                length
+                length,
+                "_na_"
             );
             final StreamOutput output = mock(StreamOutput.class);
             engine.readVirtualBatchedCompoundCommitChunk(request, output);

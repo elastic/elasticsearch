@@ -110,8 +110,12 @@ public class SearchDirectory extends ByteSizeDirectory {
         this.blobContainer.set(blobContainer);
     }
 
-    public void updateLatestUploadedTermAndGen(PrimaryTermAndGeneration termAndGen) {
-        objectStoreUploadTracker.updateLatestUploaded(termAndGen);
+    public void updateLatestUploadInfo(
+        PrimaryTermAndGeneration latestUploadedBccTermAndGen,
+        PrimaryTermAndGeneration ccTermAndGen,
+        String nodeId
+    ) {
+        objectStoreUploadTracker.updateLatestUploadInfo(latestUploadedBccTermAndGen, ccTermAndGen, nodeId);
     }
 
     public boolean containsFile(String name) {

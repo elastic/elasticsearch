@@ -29,24 +29,59 @@ import java.util.concurrent.atomic.AtomicReference;
 public class AtomicMutableObjectStoreUploadTracker implements MutableObjectStoreUploadTracker {
 
     // Null means no commit has been uploaded yet.
-    private final AtomicReference<PrimaryTermAndGeneration> lastestUploaded = new AtomicReference<>(null);
+    private final AtomicReference<PrimaryTermAndGeneration> latestUploaded = new AtomicReference<>(null);
+
+    // Keep the latest non uploaded commit that has been notified (null means no commit has been notified yet)
+    private record LatestCommitInfo(PrimaryTermAndGeneration ccTermAndGen, String nodeId) {}
+
+    private final AtomicReference<LatestCommitInfo> latestCommitInfo = new AtomicReference<>(null);
 
     public AtomicMutableObjectStoreUploadTracker() {}
 
     /**
      * Updates the last uploaded term and generation if the provided term and generation is greater than the current one.
      */
-    public void updateLatestUploaded(PrimaryTermAndGeneration termAndGen) {
-        lastestUploaded.updateAndGet((current) -> {
-            if (current == null || (termAndGen != null && termAndGen.compareTo(current) > 0)) {
-                return termAndGen;
+    @Override
+    public void updateLatestUploadInfo(
+        PrimaryTermAndGeneration latestUploadedBccTermAndGen,
+        PrimaryTermAndGeneration ccTermAndGen,
+        String nodeId
+    ) {
+        latestUploaded.updateAndGet((current) -> {
+            if (current == null || (latestUploadedBccTermAndGen != null && latestUploadedBccTermAndGen.compareTo(current) > 0)) {
+                return latestUploadedBccTermAndGen;
+            }
+            return current;
+        });
+        latestCommitInfo.updateAndGet((current) -> {
+            if (current == null || (ccTermAndGen != null && ccTermAndGen.compareTo(current.ccTermAndGen) > 0)) {
+                return new LatestCommitInfo(ccTermAndGen, nodeId);
             }
             return current;
         });
     }
 
-    public boolean isUploaded(PrimaryTermAndGeneration termAndGen) {
-        var uploaded = lastestUploaded.get();
-        return uploaded != null && termAndGen.compareTo(uploaded) <= 0;
+    private String getLatestNodeIdOrNull() {
+        var latest = latestCommitInfo.get();
+        return latest != null ? latest.nodeId : null;
+    }
+
+    @Override
+    public UploadInfo getLatestUploadInfo(PrimaryTermAndGeneration bccTermAndGen) {
+        // capture the preferred node id at the time the file is opened (can be null if no commit have been notified yet, in which case the
+        // search shard should not try to reach the indexing shard)
+        var preferredNodeId = getLatestNodeIdOrNull();
+        return new UploadInfo() {
+            @Override
+            public boolean isUploaded() {
+                var uploaded = latestUploaded.get();
+                return uploaded != null && bccTermAndGen.compareTo(uploaded) <= 0;
+            }
+
+            @Override
+            public String preferredNodeId() {
+                return preferredNodeId;
+            }
+        };
     }
 }

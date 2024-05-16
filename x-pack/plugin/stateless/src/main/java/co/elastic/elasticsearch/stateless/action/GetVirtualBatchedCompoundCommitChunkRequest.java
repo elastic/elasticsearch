@@ -25,6 +25,7 @@ import org.elasticsearch.index.shard.ShardId;
 
 import java.io.IOException;
 
+import static co.elastic.elasticsearch.serverless.constants.ServerlessTransportVersions.NEW_COMMIT_NOTIFICATION_WITH_CLUSTER_STATE_VERSION_AND_NODE_ID;
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 
 public class GetVirtualBatchedCompoundCommitChunkRequest extends ActionRequest {
@@ -34,13 +35,15 @@ public class GetVirtualBatchedCompoundCommitChunkRequest extends ActionRequest {
     private final long virtualBatchedCompoundCommitGeneration;
     private final long offset;
     private final int length;
+    private final String preferredNodeId;
 
     public GetVirtualBatchedCompoundCommitChunkRequest(
         final ShardId shardId,
         final long primaryTerm,
         final long virtualBatchedCompoundCommitGeneration,
         final long offset,
-        final int length
+        final int length,
+        final String preferredNodeId
     ) {
         super();
         this.shardId = shardId;
@@ -48,6 +51,8 @@ public class GetVirtualBatchedCompoundCommitChunkRequest extends ActionRequest {
         this.virtualBatchedCompoundCommitGeneration = virtualBatchedCompoundCommitGeneration;
         this.offset = offset;
         this.length = length;
+        this.preferredNodeId = preferredNodeId;
+        assert preferredNodeId != null;
         assert length > 0 : length;
         assert offset >= 0 : offset;
     }
@@ -59,6 +64,9 @@ public class GetVirtualBatchedCompoundCommitChunkRequest extends ActionRequest {
         virtualBatchedCompoundCommitGeneration = in.readVLong();
         offset = in.readVLong();
         length = in.readVInt();
+        preferredNodeId = in.getTransportVersion().onOrAfter(NEW_COMMIT_NOTIFICATION_WITH_CLUSTER_STATE_VERSION_AND_NODE_ID)
+            ? in.readOptionalString()
+            : null;
     }
 
     @Override
@@ -77,6 +85,9 @@ public class GetVirtualBatchedCompoundCommitChunkRequest extends ActionRequest {
         out.writeVLong(virtualBatchedCompoundCommitGeneration);
         out.writeVLong(offset);
         out.writeVInt(length);
+        if (out.getTransportVersion().onOrAfter(NEW_COMMIT_NOTIFICATION_WITH_CLUSTER_STATE_VERSION_AND_NODE_ID)) {
+            out.writeOptionalString(preferredNodeId);
+        }
     }
 
     public ShardId getShardId() {
@@ -99,6 +110,10 @@ public class GetVirtualBatchedCompoundCommitChunkRequest extends ActionRequest {
         return length;
     }
 
+    public String getPreferredNodeId() {
+        return preferredNodeId;
+    }
+
     @Override
     public String toString() {
         return GetVirtualBatchedCompoundCommitChunkRequest.class.getSimpleName()
@@ -112,6 +127,8 @@ public class GetVirtualBatchedCompoundCommitChunkRequest extends ActionRequest {
             + offset
             + ","
             + length
+            + ","
+            + preferredNodeId
             + "]";
     }
 }

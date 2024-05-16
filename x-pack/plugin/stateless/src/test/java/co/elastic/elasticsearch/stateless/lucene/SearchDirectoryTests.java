@@ -218,8 +218,10 @@ public class SearchDirectoryTests extends ESTestCase {
 
                 logger.debug("--> update commit with file [{}]", fileName);
                 // bypass index directory so that files remain on disk and can be read again by ChecksumedFilesInputStream
-                searchDirectory.updateLatestUploadedTermAndGen(
-                    randomBoolean() ? null : new PrimaryTermAndGeneration(primaryTerm, generation)
+                searchDirectory.updateLatestUploadInfo(
+                    randomBoolean() ? null : new PrimaryTermAndGeneration(primaryTerm, generation),
+                    new PrimaryTermAndGeneration(primaryTerm, generation),
+                    node.clusterService.localNode().getId()
                 );
                 searchDirectory.updateCommit(
                     new StatelessCompoundCommit(

@@ -159,6 +159,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
         Setting.Property.NodeScope
     );
 
+    private final ClusterService clusterService;
     private final ObjectStoreService objectStoreService;
     private final Supplier<String> ephemeralNodeIdSupplier;
     private final Function<ShardId, Optional<IndexShardRoutingTable>> shardRoutingFinder;
@@ -194,6 +195,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
     ) {
         this(
             settings,
+            clusterService,
             objectStoreService,
             () -> clusterService.localNode().getEphemeralId(),
             (shardId) -> shardRoutingTableFunction(clusterService, shardId),
@@ -206,6 +208,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
 
     public StatelessCommitService(
         Settings settings,
+        ClusterService clusterService,
         ObjectStoreService objectStoreService,
         Supplier<String> ephemeralNodeIdSupplier,
         Function<ShardId, Optional<IndexShardRoutingTable>> shardRouting,
@@ -214,6 +217,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
         StatelessCommitCleaner commitCleaner,
         SharedBlobCacheWarmingService cacheWarmingService
     ) {
+        this.clusterService = clusterService;
         this.objectStoreService = objectStoreService;
         this.ephemeralNodeIdSupplier = ephemeralNodeIdSupplier;
         this.shardRoutingFinder = shardRouting;
@@ -440,7 +444,9 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                         shardRoutingTable.get(),
                         virtualBcc.lastCompoundCommit(),
                         virtualBcc.getPrimaryTermAndGeneration().generation(),
-                        commitState.getMaxUploadedBccTermAndGen()
+                        commitState.getMaxUploadedBccTermAndGen(),
+                        clusterService.state().version(),
+                        clusterService.localNode().getId()
                     );
                     // Another thread may freeze, upload the current VBCC and update latestUploadedBcc concurrently.
                     // In that case, we skip the notification since it will be handled by the other thread.
@@ -1516,10 +1522,11 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
             final var maxUploadedCcGen = getMaxUploadedGeneration();
             if (generation > maxUploadedCcGen) {
                 final String message = format(
-                    "generation [%s] is not covered by either maxUploadedGeneration [%s] or maxPendingUploadBcc [%s]",
+                    "generation [%s] is not covered by either maxUploadedGeneration [%s] or maxPendingUploadBcc [%s] on node [%s]",
                     generation,
                     maxUploadedCcGen,
-                    maxPendingUploadBcc
+                    maxPendingUploadBcc,
+                    clusterService.localNode().getId()
                 );
                 assert maxPendingUploadBcc.isPresent() : message;
                 final var maxPendingUploadCcGen = maxPendingUploadBcc.isPresent() ? maxPendingUploadBcc.get().getMaxGeneration() : -1L;
@@ -1614,7 +1621,9 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                 shardRoutingTable.get(),
                 uploadedBcc.last(),
                 uploadedBcc.primaryTermAndGeneration().generation(),
-                uploadedBcc.primaryTermAndGeneration()
+                uploadedBcc.primaryTermAndGeneration(),
+                clusterService.state().version(),
+                clusterService.localNode().getId()
             );
             assert request.isUploaded();
             client.execute(TransportNewCommitNotificationAction.TYPE, request, ActionListener.wrap(response -> {

@@ -90,7 +90,6 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertFailures;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailuresAndResponse;
-import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.empty;
@@ -703,7 +702,8 @@ public class VirtualBatchedCompoundCommitsIT extends AbstractStatelessIntegTestC
                     r.getPrimaryTerm(),
                     r.getVirtualBatchedCompoundCommitGeneration(),
                     Long.MAX_VALUE, // results in either a FileNotFoundException or NoSuchFileException from this test plugin
-                    r.getLength()
+                    r.getLength(),
+                    r.getPreferredNodeId()
                 );
                 connection.sendRequest(requestId, action, newRequest, options);
             } else {
@@ -755,7 +755,8 @@ public class VirtualBatchedCompoundCommitsIT extends AbstractStatelessIntegTestC
                     randomValueOtherThan(r.getPrimaryTerm(), ESTestCase::randomNonNegativeLong),
                     r.getVirtualBatchedCompoundCommitGeneration(),
                     r.getOffset(),
-                    r.getLength()
+                    r.getLength(),
+                    r.getPreferredNodeId()
                 );
                 connection.sendRequest(requestId, action, newRequest, options);
             } else {

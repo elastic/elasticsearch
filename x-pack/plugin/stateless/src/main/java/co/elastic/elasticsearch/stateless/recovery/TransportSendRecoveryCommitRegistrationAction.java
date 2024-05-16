@@ -121,7 +121,7 @@ public class TransportSendRecoveryCommitRegistrationAction extends HandledTransp
             IndexService indexService = indicesService.indexServiceSafe(shardId.getIndex());
             IndexShard indexShard = indexService.getShard(shardId.id());
             assert indexShard.routingEntry().isPromotableToPrimary() == false
-                : "TransportRouteRecoveryCommitRegistrationAction can only be executed on a search shard";
+                : "TransportSendRecoveryCommitRegistrationAction can only be executed on a search shard";
             // Forward the request to the indexing shard
             var shardRoutingTable = state.routingTable().shardRoutingTable(shardId);
             if (shardRoutingTable.primaryShard() == null || shardRoutingTable.primaryShard().active() == false) {
@@ -138,7 +138,11 @@ public class TransportSendRecoveryCommitRegistrationAction extends HandledTransp
                 request.withClusterStateVersion(state.version()),
                 task,
                 TransportRequestOptions.EMPTY,
-                new ActionListenerResponseHandler<>(listener, RegisterCommitResponse::new, transportService.getThreadPool().generic())
+                new ActionListenerResponseHandler<>(
+                    listener,
+                    in -> new RegisterCommitResponse(in, node.getId()),
+                    transportService.getThreadPool().generic()
+                )
             );
         } catch (Exception e) {
             listener.onFailure(e);

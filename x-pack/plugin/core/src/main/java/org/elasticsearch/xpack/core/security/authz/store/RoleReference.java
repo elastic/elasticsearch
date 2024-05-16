@@ -92,12 +92,16 @@ public interface RoleReference {
         public RoleKey id() {
             // Hashing can be expensive. memorize the result in case the method is called multiple times.
             if (id == null) {
-                final String roleDescriptorsHash = MessageDigests.toHexString(
-                    MessageDigests.digest(roleDescriptorsBytes, MessageDigests.sha256())
-                );
-                id = new RoleKey(Set.of("apikey:" + roleDescriptorsHash), "apikey_" + roleType);
+                id = computeApiKeyBasedRoleKey(roleDescriptorsBytes, roleType);
             }
             return id;
+        }
+
+        private static RoleKey computeApiKeyBasedRoleKey(BytesReference roleDescriptorsBytes, ApiKeyRoleType roleType1) {
+            final String roleDescriptorsHash = MessageDigests.toHexString(
+                MessageDigests.digest(roleDescriptorsBytes, MessageDigests.sha256())
+            );
+            return new RoleKey(Set.of("apikey:" + roleDescriptorsHash), "apikey_" + roleType1);
         }
 
         @Override
@@ -135,11 +139,8 @@ public interface RoleReference {
         public RoleKey id() {
             // Hashing can be expensive. memorize the result in case the method is called multiple times.
             if (id == null) {
-                final String roleDescriptorsHash = MessageDigests.toHexString(
-                    MessageDigests.digest(roleDescriptorsBytes, MessageDigests.sha256())
-                );
                 // Note: the role key is the same as for ApiKeyRoleReference, to maximize cache utilization
-                id = new RoleKey(Set.of("apikey:" + roleDescriptorsHash), "apikey_" + roleType);
+                id = ApiKeyRoleReference.computeApiKeyBasedRoleKey(roleDescriptorsBytes, roleType);
             }
             return id;
         }

@@ -1264,11 +1264,10 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
         final String repoName = "test-repo";
         createRepository(repoName, "fs");
 
-        final MockLogAppender mockAppender = new MockLogAppender();
-        mockAppender.addExpectation(
-            new MockLogAppender.UnseenEventExpectation("no warnings", BlobStoreRepository.class.getCanonicalName(), Level.WARN, "*")
-        );
-        try (var ignored = mockAppender.capturing(BlobStoreRepository.class)) {
+        try (var mockAppender = MockLogAppender.capture(BlobStoreRepository.class)) {
+            mockAppender.addExpectation(
+                new MockLogAppender.UnseenEventExpectation("no warnings", BlobStoreRepository.class.getCanonicalName(), Level.WARN, "*")
+            );
             final String index1 = "index-1";
             final String index2 = "index-2";
             createIndexWithContent("index-1");

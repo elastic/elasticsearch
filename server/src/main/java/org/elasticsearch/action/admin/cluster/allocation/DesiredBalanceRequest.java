@@ -14,7 +14,9 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import java.io.IOException;
 
 public class DesiredBalanceRequest extends MasterNodeReadRequest<DesiredBalanceRequest> {
-    public DesiredBalanceRequest() {}
+    public DesiredBalanceRequest() {
+        super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT);
+    }
 
     public DesiredBalanceRequest(StreamInput in) throws IOException {
         super(in);

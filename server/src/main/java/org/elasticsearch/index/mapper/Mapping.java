@@ -21,6 +21,7 @@ import java.util.Arrays;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.stream.Stream;
 
 /**
  * Wrapper around everything that defines a mapping, without references to
@@ -125,7 +126,8 @@ public final class Mapping implements ToXContentFragment {
     }
 
     public SourceLoader.SyntheticFieldLoader syntheticFieldLoader() {
-        return root.syntheticFieldLoader(Arrays.stream(metadataMappers));
+        var stream = Stream.concat(Stream.of(metadataMappers), root.mappers.values().stream());
+        return root.syntheticFieldLoader(stream);
     }
 
     /**

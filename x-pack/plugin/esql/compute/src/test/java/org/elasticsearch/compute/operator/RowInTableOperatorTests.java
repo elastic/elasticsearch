@@ -94,9 +94,7 @@ public class RowInTableOperatorTests extends OperatorTestCase {
 
     @Override
     protected Matcher<String> expectedToStringOfSimple() {
-        return matchesRegex(
-            "RowInTable\\[PackedValuesBlockHash\\{groups=\\[0:LONG], entries=4, size=\\d+b}, keys=\\[foo], mapping=\\[0]]"
-        );
+        return matchesRegex("RowInTable\\[PackedValuesBlockHash\\{groups=\\[0:LONG], entries=4, size=\\d+b}, keys=\\[foo], mapping=\\[0]]");
     }
 
     public void testSelectBlocks() {

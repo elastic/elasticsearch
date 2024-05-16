@@ -129,6 +129,7 @@ import org.elasticsearch.index.translog.TranslogConfig;
 import org.elasticsearch.index.translog.TranslogDeletionPolicy;
 import org.elasticsearch.index.translog.TranslogOperationsUtils;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
+import org.elasticsearch.plugins.internal.DocumentSizeObserver;
 import org.elasticsearch.test.IndexSettingsModule;
 import org.elasticsearch.test.index.IndexVersionUtils;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -5524,7 +5525,8 @@ public class InternalEngineTests extends EngineTestCase {
                 Collections.singletonList(document),
                 source,
                 XContentType.JSON,
-                null
+                null,
+                DocumentSizeObserver.EMPTY_INSTANCE
             );
 
             final Engine.Index index = new Engine.Index(

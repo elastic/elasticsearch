@@ -20,6 +20,7 @@ restResources {
 
 dependencies {
   testImplementation project(path: ':test:test-clusters')
+  internalClusterTestImplementation project(":modules:mapper-extras")
 }
 
 tasks.named('yamlRestTest') {

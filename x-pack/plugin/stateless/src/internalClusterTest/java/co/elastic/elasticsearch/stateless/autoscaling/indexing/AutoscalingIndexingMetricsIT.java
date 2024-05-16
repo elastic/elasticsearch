@@ -339,16 +339,10 @@ public class AutoscalingIndexingMetricsIT extends AbstractStatelessIntegTestCase
         });
     }
 
-    @TestIssueLogging(
-        issueUrl = "https://github.com/elastic/elasticsearch-serverless/issues/1730",
-        value = "co.elastic.elasticsearch.stateless.autoscaling.indexing:TRACE"
-    )
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch-serverless/issues/1730")
     public void testMasterFailoverWithOnGoingMetricPublication() throws Exception {
         for (int i = 0; i < 2; i++) {
             startMasterNode();
         }
-
         startIndexNode(
             Settings.builder()
                 .put(IngestLoadSampler.MAX_TIME_BETWEEN_METRIC_PUBLICATIONS_SETTING.getKey(), TimeValue.timeValueSeconds(1))
@@ -371,12 +365,10 @@ public class AutoscalingIndexingMetricsIT extends AbstractStatelessIntegTestCase
             TransportService.class
         );
         mockTransportService.addRequestHandlingBehavior(TransportPublishNodeIngestLoadMetric.NAME, (handler, request, channel, task) -> {
-            if (request instanceof PublishNodeIngestLoadRequest publishRequest) {
-                logger.trace("Reported ingestion load: {}", publishRequest.getIngestionLoad());
-                if (publishRequest.getIngestionLoad() > 0) {
-                    firstNonZeroPublishIndexLoadLatch.countDown();
-                }
+            if (request instanceof PublishNodeIngestLoadRequest publishRequest && publishRequest.getIngestionLoad() > 0) {
+                firstNonZeroPublishIndexLoadLatch.countDown();
             }
+            handler.messageReceived(request, channel, task);
         });
 
         int bulks = randomIntBetween(3, 5);

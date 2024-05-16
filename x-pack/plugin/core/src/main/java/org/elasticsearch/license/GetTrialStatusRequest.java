@@ -14,7 +14,9 @@ import java.io.IOException;
 
 public class GetTrialStatusRequest extends MasterNodeReadRequest<GetTrialStatusRequest> {
 
-    public GetTrialStatusRequest() {}
+    public GetTrialStatusRequest() {
+        super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT);
+    }
 
     public GetTrialStatusRequest(StreamInput in) throws IOException {
         super(in);

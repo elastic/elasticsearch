@@ -88,7 +88,6 @@ import org.elasticsearch.xpack.ql.expression.Nullability;
 import org.elasticsearch.xpack.ql.expression.function.Function;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.arithmetic.ArithmeticOperation;
 import org.elasticsearch.xpack.ql.index.EsIndex;
-import org.elasticsearch.xpack.ql.options.EsSourceOptions;
 import org.elasticsearch.xpack.ql.plan.logical.Filter;
 import org.elasticsearch.xpack.ql.plan.logical.Limit;
 import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
@@ -464,7 +463,7 @@ public class PlanNamedTypesTests extends ESTestCase {
     }
 
     public void testEsRelation() throws IOException {
-        var orig = new EsRelation(Source.EMPTY, randomEsIndex(), List.of(randomFieldAttribute()), randomEsSourceOptions(), randomBoolean());
+        var orig = new EsRelation(Source.EMPTY, randomEsIndex(), List.of(randomFieldAttribute()), randomBoolean());
         BytesStreamOutput bso = new BytesStreamOutput();
         PlanStreamOutput out = new PlanStreamOutput(bso, planNameRegistry, null);
         PlanNamedTypes.writeEsRelation(out, orig);
@@ -475,7 +474,7 @@ public class PlanNamedTypesTests extends ESTestCase {
     public void testEsqlProject() throws IOException {
         var orig = new EsqlProject(
             Source.EMPTY,
-            new EsRelation(Source.EMPTY, randomEsIndex(), List.of(randomFieldAttribute()), randomEsSourceOptions(), randomBoolean()),
+            new EsRelation(Source.EMPTY, randomEsIndex(), List.of(randomFieldAttribute()), randomBoolean()),
             List.of(randomFieldAttribute())
         );
         BytesStreamOutput bso = new BytesStreamOutput();
@@ -486,13 +485,7 @@ public class PlanNamedTypesTests extends ESTestCase {
     }
 
     public void testMvExpand() throws IOException {
-        var esRelation = new EsRelation(
-            Source.EMPTY,
-            randomEsIndex(),
-            List.of(randomFieldAttribute()),
-            randomEsSourceOptions(),
-            randomBoolean()
-        );
+        var esRelation = new EsRelation(Source.EMPTY, randomEsIndex(), List.of(randomFieldAttribute()), randomBoolean());
         var orig = new MvExpand(Source.EMPTY, esRelation, randomFieldAttribute(), randomFieldAttribute());
         BytesStreamOutput bso = new BytesStreamOutput();
         PlanStreamOutput out = new PlanStreamOutput(bso, planNameRegistry, null);
@@ -682,31 +675,6 @@ public class PlanNamedTypesTests extends ESTestCase {
             );
         }
         return Map.copyOf(map);
-    }
-
-    static EsSourceOptions randomEsSourceOptions() {
-        EsSourceOptions eso = new EsSourceOptions();
-        if (randomBoolean()) {
-            eso.addOption("allow_no_indices", String.valueOf(randomBoolean()));
-        }
-        if (randomBoolean()) {
-            eso.addOption("ignore_unavailable", String.valueOf(randomBoolean()));
-        }
-        if (randomBoolean()) {
-            String idsList = String.join(",", randomList(1, 5, PlanNamedTypesTests::randomName));
-            eso.addOption(
-                "preference",
-                randomFrom(
-                    "_only_local",
-                    "_local",
-                    "_only_nodes:" + idsList,
-                    "_prefer_nodes:" + idsList,
-                    "_shards:" + idsList,
-                    randomName()
-                )
-            );
-        }
-        return eso;
     }
 
     static List<DataType> DATA_TYPES = EsqlDataTypes.types().stream().toList();

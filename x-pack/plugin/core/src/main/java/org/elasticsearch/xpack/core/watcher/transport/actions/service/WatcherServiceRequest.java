@@ -29,7 +29,9 @@ public class WatcherServiceRequest extends MasterNodeRequest<WatcherServiceReque
         command = Command.valueOf(in.readString().toUpperCase(Locale.ROOT));
     }
 
-    public WatcherServiceRequest() {}
+    public WatcherServiceRequest() {
+        super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT);
+    }
 
     /**
      * Starts the watcher service if not already started.

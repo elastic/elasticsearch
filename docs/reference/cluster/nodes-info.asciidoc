@@ -184,7 +184,7 @@ running process:
 
 include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=flat-settings]
 
-include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=timeout-nodes-request]
 
 
 [[cluster-nodes-info-api-example]]

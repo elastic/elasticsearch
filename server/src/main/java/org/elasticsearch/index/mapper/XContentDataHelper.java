@@ -28,7 +28,7 @@ import java.util.Arrays;
 /**
  * Helper class for processing field data of any type, as provided by the {@link XContentParser}.
  */
-final class XContentDataHelper {
+public final class XContentDataHelper {
     /**
      * Build a {@link StoredField} for the value on which the parser is
      * currently positioned.
@@ -49,6 +49,14 @@ final class XContentDataHelper {
      */
     static BytesRef encodeToken(XContentParser parser) throws IOException {
         return new BytesRef((byte[]) processToken(parser, (typeUtils) -> typeUtils.encode(parser)));
+    }
+
+    /**
+     * Build a {@link BytesRef} wrapping a byte array containing an encoded form
+     * of the passed XContentBuilder contents.
+     */
+    public static BytesRef encodeXContentBuilder(XContentBuilder builder) throws IOException {
+        return new BytesRef(TypeUtils.encode(builder));
     }
 
     /**

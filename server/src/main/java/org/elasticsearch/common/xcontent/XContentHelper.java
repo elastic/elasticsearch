@@ -748,4 +748,25 @@ public class XContentHelper {
             throw new ElasticsearchGenerationException("Failed to generate [" + source + "]", e);
         }
     }
+
+    /**
+     * Drains all data available via this parser into a provided builder.
+     * @param parser
+     * @param destination
+     */
+    public static void drainParser(XContentParser parser, XContentBuilder destination) throws IOException {
+        if (parser.isClosed()) {
+            throw new IllegalStateException("Parser is closed");
+        }
+
+        XContentParser.Token token;
+        while (true) {
+            destination.copyCurrentStructure(parser);
+            token = parser.nextToken();
+            if (token == null) {
+                return;
+            }
+        }
+
+    }
 }

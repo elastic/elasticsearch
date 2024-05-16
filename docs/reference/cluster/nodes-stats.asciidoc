@@ -147,7 +147,7 @@ include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=level]
     (Optional, string) A comma-separated list of document types for the
     `indexing` index metric.
 
-include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=timeout-nodes-request]
 
 include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=include-segment-file-sizes]
 

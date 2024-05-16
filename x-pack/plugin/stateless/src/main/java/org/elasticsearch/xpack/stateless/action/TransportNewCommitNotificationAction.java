@@ -19,6 +19,7 @@ package co.elastic.elasticsearch.stateless.action;
 
 import co.elastic.elasticsearch.stateless.Stateless;
 import co.elastic.elasticsearch.stateless.autoscaling.search.ShardSizeCollector;
+import co.elastic.elasticsearch.stateless.engine.NewCommitNotification;
 import co.elastic.elasticsearch.stateless.engine.SearchEngine;
 
 import org.elasticsearch.ElasticsearchException;
@@ -126,7 +127,17 @@ public class TransportNewCommitNotificationAction extends TransportBroadcastUnpr
             })
 
             // Step 3: notify the engine of the new commit, and wait for it to finish processing this notification
-            .<SearchEngine>andThen((l, searchEngine) -> searchEngine.onCommitNotification(request, l.map(v -> searchEngine)))
+            .<SearchEngine>andThen((l, searchEngine) -> {
+                assert assertRequestNodeIdMatchesParentTaskNodeId(request, task);
+                var notification = new NewCommitNotification(
+                    request.getCompoundCommit(),
+                    request.getBatchedCompoundCommitGeneration(),
+                    request.getLatestUploadedBatchedCompoundCommitTermAndGen(),
+                    request.getClusterStateVersion(),
+                    request.getNodeId() != null ? request.getNodeId() : task.getParentTaskId().getNodeId()
+                );
+                searchEngine.onCommitNotification(notification, l.map(v -> searchEngine));
+            })
 
             // Step 4: update the things that need updating, and compute the final response containing the commits that are still in use
             .<NewCommitNotificationResponse>andThen((l, searchEngine) -> {
@@ -157,5 +168,12 @@ public class TransportNewCommitNotificationAction extends TransportBroadcastUnpr
     @Override
     protected NewCommitNotificationResponse emptyResponse() {
         return NewCommitNotificationResponse.EMPTY;
+    }
+
+    private static boolean assertRequestNodeIdMatchesParentTaskNodeId(NewCommitNotificationRequest request, Task task) {
+        assert task.getParentTaskId() != null : task;
+        assert request.getNodeId() == null || task.getParentTaskId().getNodeId().equals(request.getNodeId())
+            : "request's node id [" + request.getNodeId() + "] does not match parent task's node id [" + task.getParentTaskId() + ']';
+        return true;
     }
 }

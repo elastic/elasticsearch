@@ -30,26 +30,53 @@ import org.elasticsearch.core.Nullable;
 import java.io.IOException;
 import java.util.Objects;
 
+import static co.elastic.elasticsearch.serverless.constants.ServerlessTransportVersions.NEW_COMMIT_NOTIFICATION_WITH_CLUSTER_STATE_VERSION_AND_NODE_ID;
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 
 public class NewCommitNotificationRequest extends BroadcastUnpromotableRequest {
+
+    /**
+     * The new compound commit
+     */
     private final StatelessCompoundCommit compoundCommit;
-    // The generation of the BCC that contains the CC. The BCC's primary term is the same as the CC's primary.
+
+    /**
+     * The generation of the BCC that contains the CC. The BCC's primary term is the same as the CC's primary.
+     */
     private final long batchedCompoundCommitGeneration;
-    // The generation of latest uploaded BCC. It is null if no upload has happened.
+
+    /**
+     * The generation of latest uploaded BCC. It is null if no upload has happened.
+     */
     @Nullable
     private final PrimaryTermAndGeneration latestUploadedBatchedCompoundCommitTermAndGen;
+
+    /**
+     * The cluster state version on the node at the time the new compound commit was notified
+     */
+    @Nullable
+    private final Long clusterStateVersion;
+
+    /**
+     * The id of the node that notified the new compound commit
+     */
+    @Nullable
+    private final String nodeId;
 
     public NewCommitNotificationRequest(
         final IndexShardRoutingTable indexShardRoutingTable,
         final StatelessCompoundCommit compoundCommit,
         final long batchedCompoundCommitGeneration,
-        @Nullable final PrimaryTermAndGeneration latestUploadedBatchedCompoundCommitTermAndGen
+        @Nullable final PrimaryTermAndGeneration latestUploadedBatchedCompoundCommitTermAndGen,
+        final long clusterStateVersion,
+        final String nodeId
     ) {
         super(indexShardRoutingTable);
         this.compoundCommit = compoundCommit;
         this.batchedCompoundCommitGeneration = batchedCompoundCommitGeneration;
         this.latestUploadedBatchedCompoundCommitTermAndGen = latestUploadedBatchedCompoundCommitTermAndGen;
+        this.clusterStateVersion = clusterStateVersion;
+        this.nodeId = nodeId;
     }
 
     public NewCommitNotificationRequest(final StreamInput in) throws IOException {
@@ -57,6 +84,13 @@ public class NewCommitNotificationRequest extends BroadcastUnpromotableRequest {
         compoundCommit = StatelessCompoundCommit.readFromTransport(in);
         batchedCompoundCommitGeneration = in.readVLong();
         latestUploadedBatchedCompoundCommitTermAndGen = in.readOptionalWriteable(PrimaryTermAndGeneration::new);
+        if (in.getTransportVersion().onOrAfter(NEW_COMMIT_NOTIFICATION_WITH_CLUSTER_STATE_VERSION_AND_NODE_ID)) {
+            clusterStateVersion = in.readVLong();
+            nodeId = in.readString();
+        } else {
+            clusterStateVersion = null;
+            nodeId = null;
+        }
     }
 
     public long getTerm() {
@@ -77,6 +111,22 @@ public class NewCommitNotificationRequest extends BroadcastUnpromotableRequest {
 
     public PrimaryTermAndGeneration getLatestUploadedBatchedCompoundCommitTermAndGen() {
         return latestUploadedBatchedCompoundCommitTermAndGen;
+    }
+
+    /**
+     * The cluster state version on the node at the time the new compound commit was notified
+     */
+    @Nullable
+    public Long getClusterStateVersion() {
+        return clusterStateVersion;
+    }
+
+    /**
+     * The id of the node that notified the new compound commit
+     */
+    @Nullable
+    public String getNodeId() {
+        return nodeId;
     }
 
     /**
@@ -133,6 +183,10 @@ public class NewCommitNotificationRequest extends BroadcastUnpromotableRequest {
         compoundCommit.writeTo(out);
         out.writeVLong(batchedCompoundCommitGeneration);
         out.writeOptionalWriteable(latestUploadedBatchedCompoundCommitTermAndGen);
+        if (out.getTransportVersion().onOrAfter(NEW_COMMIT_NOTIFICATION_WITH_CLUSTER_STATE_VERSION_AND_NODE_ID)) {
+            out.writeVLong(clusterStateVersion);
+            out.writeString(nodeId);
+        }
     }
 
     @Override
@@ -142,12 +196,20 @@ public class NewCommitNotificationRequest extends BroadcastUnpromotableRequest {
         NewCommitNotificationRequest request = (NewCommitNotificationRequest) o;
         return batchedCompoundCommitGeneration == request.batchedCompoundCommitGeneration
             && Objects.equals(compoundCommit, request.compoundCommit)
-            && Objects.equals(latestUploadedBatchedCompoundCommitTermAndGen, request.latestUploadedBatchedCompoundCommitTermAndGen);
+            && Objects.equals(latestUploadedBatchedCompoundCommitTermAndGen, request.latestUploadedBatchedCompoundCommitTermAndGen)
+            && Objects.equals(clusterStateVersion, request.clusterStateVersion)
+            && Objects.equals(nodeId, request.nodeId);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(compoundCommit, batchedCompoundCommitGeneration, latestUploadedBatchedCompoundCommitTermAndGen);
+        return Objects.hash(
+            compoundCommit,
+            batchedCompoundCommitGeneration,
+            latestUploadedBatchedCompoundCommitTermAndGen,
+            clusterStateVersion,
+            nodeId
+        );
     }
 
     @Override
@@ -159,6 +221,10 @@ public class NewCommitNotificationRequest extends BroadcastUnpromotableRequest {
             + batchedCompoundCommitGeneration
             + ", latestUploadedBatchedCompoundCommitTermAndGen="
             + latestUploadedBatchedCompoundCommitTermAndGen
+            + ", clusterStateVersion="
+            + clusterStateVersion
+            + ", nodeId="
+            + nodeId
             + '}';
     }
 }

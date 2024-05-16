@@ -17,6 +17,8 @@
 
 package co.elastic.elasticsearch.stateless;
 
+import co.elastic.elasticsearch.stateless.action.GetVirtualBatchedCompoundCommitChunkRequest;
+import co.elastic.elasticsearch.stateless.action.NewCommitNotificationRequest;
 import co.elastic.elasticsearch.stateless.action.NewCommitNotificationResponse;
 import co.elastic.elasticsearch.stateless.action.TransportGetVirtualBatchedCompoundCommitChunkAction;
 import co.elastic.elasticsearch.stateless.action.TransportNewCommitNotificationAction;
@@ -2679,5 +2681,149 @@ public class StatelessRecoveryIT extends AbstractStatelessIntegTestCase {
         }
         assertThat(indexingThread.isAlive(), is(false));
         assertThat(searchingThread.isAlive(), is(false));
+    }
+
+    public void testPreferredNodeIdsAreUsedDuringRelocation() {
+        startMasterOnlyNode();
+
+        int maxNonUploadedCommits = randomIntBetween(1, 4);
+        var nodeSettings = Settings.builder()
+            .put(StatelessCommitService.STATELESS_UPLOAD_DELAYED.getKey(), true)
+            .put(StatelessCommitService.STATELESS_UPLOAD_MAX_AMOUNT_COMMITS.getKey(), maxNonUploadedCommits)
+            .build();
+
+        final var indexNodeSource = startIndexNode(nodeSettings);
+        final var searchNode = startSearchNode(nodeSettings);
+
+        final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+        createIndex(
+            indexName,
+            indexSettings(1, 1)
+                // make sure nothing triggers flushes
+                .put(IndexSettings.INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING.getKey(), ByteSizeValue.ofGb(1L))
+                .put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), TimeValue.MINUS_ONE)
+                .put(MaxRetryAllocationDecider.SETTING_ALLOCATION_MAX_RETRY.getKey(), 0)
+                .build()
+        );
+        ensureGreen(indexName);
+
+        int nbUploadedBatchedCommits = between(1, 3);
+        for (int i = 0; i < nbUploadedBatchedCommits; i++) {
+            for (int j = 0; j < maxNonUploadedCommits; j++) {
+                indexDocs(indexName, scaledRandomIntBetween(100, 1_000));
+                flush(indexName);
+            }
+        }
+
+        // block the start of the relocation
+        final var pauseRelocation = new CountDownLatch(1);
+        final var resumeRelocation = new CountDownLatch(1);
+        MockTransportService.getInstance(indexNodeSource)
+            .addRequestHandlingBehavior(START_RELOCATION_ACTION_NAME, (handler, request, channel, task) -> {
+                pauseRelocation.countDown();
+                logger.info("--> relocation is paused");
+                safeAwait(resumeRelocation);
+                logger.info("--> relocation is resumed");
+                handler.messageReceived(request, channel, task);
+            });
+
+        var index = resolveIndex(indexName);
+        var indexShardSource = findIndexShard(index, 0, indexNodeSource);
+        final var primaryTerm = indexShardSource.getOperationPrimaryTerm();
+
+        // start another indexing node
+        var indexNodeTarget = startIndexNode(nodeSettings);
+
+        // last generation on source
+        final var generation = indexShardSource.getEngineOrNull().getLastCommittedSegmentInfos().getGeneration();
+        // expected generation on source when refreshing the index (before relocation completes)
+        final var beforeGeneration = generation + 1L;
+        // expected generation for flush on target (after relocation completes)
+        final var afterGeneration = beforeGeneration + 1L;
+
+        logger.info("--> move index shard from: {} to: {}", indexNodeSource, indexNodeTarget);
+        assertAcked(clusterAdmin().prepareReroute().add(new MoveAllocationCommand(indexName, 0, indexNodeSource, indexNodeTarget)));
+
+        logger.info("--> wait for relocation to start on source");
+        safeAwait(pauseRelocation);
+
+        logger.info("--> add more docs so that the refresh produces a new commit");
+        indexDocs(indexName, scaledRandomIntBetween(100, 1_000));
+
+        // check that the source indexing shard sent a new commit notification with the correct generation and node id
+        final var sourceNotificationReceived = new CountDownLatch(1);
+        MockTransportService.getInstance(searchNode)
+            .addRequestHandlingBehavior(TransportNewCommitNotificationAction.NAME + "[u]", (handler, request, channel, task) -> {
+                var notification = asInstanceOf(NewCommitNotificationRequest.class, request);
+                assertThat(notification.getTerm(), equalTo(primaryTerm));
+
+                if (notification.getGeneration() == beforeGeneration) {
+                    assertThat(notification.getNodeId(), equalTo(getNodeId(indexNodeSource)));
+                    sourceNotificationReceived.countDown();
+                }
+                handler.messageReceived(request, channel, task);
+            });
+
+        // check that the source indexing shard receives at least one GetVirtualBatchedCompoundCommitChunkRequest
+        final var sourceGetChunkRequestReceived = new CountDownLatch(1);
+        MockTransportService.getInstance(indexNodeSource)
+            .addRequestHandlingBehavior(
+                TransportGetVirtualBatchedCompoundCommitChunkAction.NAME + "[p]",
+                (handler, request, channel, task) -> {
+                    var chunkRequest = asInstanceOf(GetVirtualBatchedCompoundCommitChunkRequest.class, request);
+                    assertThat(chunkRequest.getPrimaryTerm(), equalTo(primaryTerm));
+
+                    if (chunkRequest.getVirtualBatchedCompoundCommitGeneration() == beforeGeneration) {
+                        assertThat(chunkRequest.getPreferredNodeId(), equalTo(getNodeId(indexNodeSource)));
+                        sourceGetChunkRequestReceived.countDown();
+                    }
+                    handler.messageReceived(request, channel, task);
+                }
+            );
+
+        var refreshFuture = admin().indices().prepareRefresh(indexName).execute();
+        safeAwait(sourceNotificationReceived);
+        safeAwait(sourceGetChunkRequestReceived);
+
+        // check that the target indexing shard sent a new commit notification with the correct generation and node id
+        final var targetNotificationReceived = new CountDownLatch(1);
+        MockTransportService.getInstance(searchNode)
+            .addRequestHandlingBehavior(TransportNewCommitNotificationAction.NAME + "[u]", (handler, request, channel, task) -> {
+                var notification = asInstanceOf(NewCommitNotificationRequest.class, request);
+                assertThat(notification.getTerm(), equalTo(primaryTerm));
+
+                if (notification.getGeneration() == afterGeneration) {
+                    assertThat(notification.getNodeId(), equalTo(getNodeId(indexNodeTarget)));
+                    targetNotificationReceived.countDown();
+                }
+                handler.messageReceived(request, channel, task);
+            });
+
+        // check that the target indexing shard receives at least one GetVirtualBatchedCompoundCommitChunkRequest
+        final var targetGetChunkRequestReceived = new CountDownLatch(1);
+        MockTransportService.getInstance(indexNodeTarget)
+            .addRequestHandlingBehavior(
+                TransportGetVirtualBatchedCompoundCommitChunkAction.NAME + "[p]",
+                (handler, request, channel, task) -> {
+                    var chunkRequest = asInstanceOf(GetVirtualBatchedCompoundCommitChunkRequest.class, request);
+                    assertThat(chunkRequest.getPrimaryTerm(), equalTo(primaryTerm));
+
+                    if (chunkRequest.getVirtualBatchedCompoundCommitGeneration() == afterGeneration) {
+                        assertThat(chunkRequest.getPreferredNodeId(), equalTo(getNodeId(indexNodeTarget)));
+                        targetGetChunkRequestReceived.countDown();
+                    }
+                    handler.messageReceived(request, channel, task);
+                }
+            );
+
+        logger.info("--> resume relocation");
+        resumeRelocation.countDown();
+
+        safeAwait(targetNotificationReceived);
+        safeAwait(targetGetChunkRequestReceived);
+        assertThat(refreshFuture.actionGet().getFailedShards(), equalTo(0));
+
+        // also waits for no relocating shards.
+        ensureGreen(indexName);
     }
 }

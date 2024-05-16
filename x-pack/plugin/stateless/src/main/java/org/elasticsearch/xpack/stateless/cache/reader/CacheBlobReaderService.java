@@ -77,14 +77,14 @@ public class CacheBlobReaderService {
      * @param blobContainer the blob container where the location's blob can be read from
      * @param location the blob's location. only the blob name, and the BCC primary term and generation are used. the offset and fileLength
      *                 is disregarded.
-     * @param objectStoreUploadTracker the tracker to determine if the blob has been uploaded to the object store
+     * @param tracker the tracker to determine if the blob has been uploaded to the object store
      * @return a {@link CacheBlobReader} for the given shard and blob
      */
     public CacheBlobReader getCacheBlobReader(
         ShardId shardId,
         LongFunction<BlobContainer> blobContainer,
         BlobLocation location,
-        ObjectStoreUploadTracker objectStoreUploadTracker
+        ObjectStoreUploadTracker tracker
     ) {
         final var locationPrimaryTermAndGeneration = location.getBatchedCompoundCommitTermAndGeneration();
         final long rangeSize = cacheService.getRangeSize();
@@ -93,21 +93,18 @@ public class CacheBlobReaderService {
             location.blobName(),
             rangeSize
         );
-        if (objectStoreUploadTracker.isUploaded(locationPrimaryTermAndGeneration)) {
+        var latestUploadInfo = tracker.getLatestUploadInfo(locationPrimaryTermAndGeneration);
+        if (latestUploadInfo.isUploaded()) {
             return objectStoreCacheBlobReader;
         } else {
             var indexingShardCacheBlobReader = new IndexingShardCacheBlobReader(
                 shardId,
                 locationPrimaryTermAndGeneration,
+                latestUploadInfo.preferredNodeId(),
                 client,
                 indexingShardCacheBlobReaderChunkSize
             );
-            return new SwitchingCacheBlobReader(
-                locationPrimaryTermAndGeneration,
-                objectStoreUploadTracker,
-                objectStoreCacheBlobReader,
-                indexingShardCacheBlobReader
-            );
+            return new SwitchingCacheBlobReader(latestUploadInfo, objectStoreCacheBlobReader, indexingShardCacheBlobReader);
         }
     }
 }

@@ -26,17 +26,36 @@ import co.elastic.elasticsearch.stateless.engine.PrimaryTermAndGeneration;
  */
 public interface MutableObjectStoreUploadTracker extends ObjectStoreUploadTracker {
 
-    MutableObjectStoreUploadTracker ALWAYS_UPLOADED = new MutableObjectStoreUploadTracker() {
+    UploadInfo UPLOADED = new UploadInfo() {
+
         @Override
-        public boolean isUploaded(PrimaryTermAndGeneration termAndGen) {
+        public boolean isUploaded() {
             return true;
         }
 
         @Override
-        public void updateLatestUploaded(PrimaryTermAndGeneration termAndGen) {
+        public String preferredNodeId() {
+            assert false : "method should not be called";
+            return null;
+        }
+    };
+
+    MutableObjectStoreUploadTracker ALWAYS_UPLOADED = new MutableObjectStoreUploadTracker() {
+
+        @Override
+        public UploadInfo getLatestUploadInfo(PrimaryTermAndGeneration bccTermAndGen) {
+            return UPLOADED;
+        }
+
+        @Override
+        public void updateLatestUploadInfo(
+            PrimaryTermAndGeneration latestUploadedBccTermAndGen,
+            PrimaryTermAndGeneration ccTermAndGen,
+            String nodeId
+        ) {
             // no op
         }
     };
 
-    void updateLatestUploaded(PrimaryTermAndGeneration termAndGen);
+    void updateLatestUploadInfo(PrimaryTermAndGeneration latestUploadedBccTermAndGen, PrimaryTermAndGeneration ccTermAndGen, String nodeId);
 }

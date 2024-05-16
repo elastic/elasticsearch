@@ -20,7 +20,6 @@
 package co.elastic.elasticsearch.stateless.engine;
 
 import co.elastic.elasticsearch.stateless.Stateless;
-import co.elastic.elasticsearch.stateless.action.NewCommitNotificationRequest;
 import co.elastic.elasticsearch.stateless.commits.BatchedCompoundCommit;
 import co.elastic.elasticsearch.stateless.commits.ClosedShardService;
 import co.elastic.elasticsearch.stateless.commits.StatelessCompoundCommit;
@@ -99,7 +98,7 @@ public class SearchEngine extends Engine {
     private final ClosedShardService closedShardService;
     private final Map<PrimaryTermAndGeneration, SubscribableListener<Long>> segmentGenerationListeners = ConcurrentCollections
         .newConcurrentMap();
-    private final LinkedBlockingQueue<NewCommitNotificationRequest> commitNotifications = new LinkedBlockingQueue<>();
+    private final LinkedBlockingQueue<NewCommitNotification> commitNotifications = new LinkedBlockingQueue<>();
     private final AtomicInteger pendingCommitNotifications = new AtomicInteger();
     private final ReferenceManager<ElasticsearchDirectoryReader> readerManager;
     private final SearchDirectory directory;
@@ -236,10 +235,20 @@ public class SearchEngine extends Engine {
      * Process a new commit notification from the primary, and complete the provided {@code listener} when this commit (or a later commit)
      * is visible to searches.
      */
-    public void onCommitNotification(NewCommitNotificationRequest request, ActionListener<Void> listener) {
-        directory.updateLatestUploadedTermAndGen(request.getLatestUploadedBatchedCompoundCommitTermAndGen());
-        if (addOrExecuteSegmentGenerationListener(request.getCompoundCommit().primaryTermAndGeneration(), listener.map(g -> null))) {
-            commitNotifications.add(request);
+    public void onCommitNotification(NewCommitNotification notification, ActionListener<Void> listener) {
+        logger.trace(
+            "{} received new commit notification [bcc={}, cc={}] with latest uploaded {} from node [{}] and cluster state version [{}]",
+            shardId,
+            notification.batchedCompoundCommitGeneration(),
+            notification.compoundCommit().primaryTermAndGeneration(),
+            notification.latestUploadedBatchedCompoundCommitTermAndGen(),
+            notification.nodeId(),
+            notification.clusterStateVersion()
+        );
+        var ccTermAndGen = notification.compoundCommit().primaryTermAndGeneration();
+        directory.updateLatestUploadInfo(notification.latestUploadedBatchedCompoundCommitTermAndGen(), ccTermAndGen, notification.nodeId());
+        if (addOrExecuteSegmentGenerationListener(ccTermAndGen, listener.map(g -> null))) {
+            commitNotifications.add(notification);
             if (pendingCommitNotifications.incrementAndGet() == 1) {
                 processCommitNotifications();
             }
@@ -274,13 +283,13 @@ public class SearchEngine extends Engine {
                         primaryTerm(current),
                         currentPrimaryTermGeneration
                     );
-                NewCommitNotificationRequest latestRequest = findLatestNotification(current);
-                if (latestRequest == null) {
+                NewCommitNotification latestNotification = findLatestNotification(current);
+                if (latestNotification == null) {
                     logger.trace("directory is on most recent commit generation [{}]", current.getGeneration());
                     // TODO should we assert that we have no segment listeners with minGen <= current.getGeneration()?
                     return;
                 }
-                StatelessCompoundCommit latestCommit = latestRequest.getCompoundCommit();
+                StatelessCompoundCommit latestCommit = latestNotification.compoundCommit();
                 if (directory.isMarkedAsCorrupted()) {
                     logger.trace("directory is marked as corrupted, ignoring all future commit notifications");
                     failSegmentGenerationListeners();
@@ -340,15 +349,15 @@ public class SearchEngine extends Engine {
                 }
             }
 
-            private NewCommitNotificationRequest findLatestNotification(SegmentInfos current) throws IOException {
+            private NewCommitNotification findLatestNotification(SegmentInfos current) throws IOException {
                 PrimaryTermAndGeneration currentPrimaryTermGeneration = new PrimaryTermAndGeneration(
                     primaryTerm(current),
                     current.getGeneration()
                 );
-                NewCommitNotificationRequest latestRequest = null;
+                NewCommitNotification latestNotification = null;
                 for (int i = batchSize; i > 0; i--) {
-                    NewCommitNotificationRequest request = commitNotifications.poll();
-                    StatelessCompoundCommit commit = request.getCompoundCommit();
+                    NewCommitNotification notification = commitNotifications.poll();
+                    StatelessCompoundCommit commit = notification.compoundCommit();
                     assert commit != null;
                     if (commit.primaryTermAndGeneration().compareTo(currentPrimaryTermGeneration) <= 0) {
                         assert commit.primaryTermAndGeneration().compareTo(currentPrimaryTermGeneration) < 0
@@ -360,12 +369,13 @@ public class SearchEngine extends Engine {
                         );
                         continue;
                     }
-                    if (latestRequest == null
-                        || commit.primaryTermAndGeneration().compareTo(latestRequest.getCompoundCommit().primaryTermAndGeneration()) > 0) {
-                        latestRequest = request;
+                    if (latestNotification == null
+                        || commit.primaryTermAndGeneration()
+                            .compareTo(latestNotification.compoundCommit().primaryTermAndGeneration()) > 0) {
+                        latestNotification = notification;
                     }
                 }
-                return latestRequest;
+                return latestNotification;
             }
 
             private void updateInternalState(StatelessCompoundCommit latestCommit, SegmentInfos current) {

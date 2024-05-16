@@ -19,7 +19,7 @@
 
 package co.elastic.elasticsearch.stateless.cache.reader;
 
-import co.elastic.elasticsearch.stateless.engine.PrimaryTermAndGeneration;
+import co.elastic.elasticsearch.stateless.cache.reader.ObjectStoreUploadTracker.UploadInfo;
 
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.ResourceNotFoundException;
@@ -34,26 +34,23 @@ import java.io.InputStream;
  */
 public class SwitchingCacheBlobReader implements CacheBlobReader {
 
-    private final PrimaryTermAndGeneration locationPrimaryTermAndGeneration;
-    private final ObjectStoreUploadTracker objectStoreUploadTracker;
+    private final UploadInfo latestUploadInfo;
     private final CacheBlobReader cacheBlobReaderForUploaded;
     private final CacheBlobReader cacheBlobReaderForNonUploaded;
 
     public SwitchingCacheBlobReader(
-        PrimaryTermAndGeneration locationPrimaryTermAndGeneration,
-        ObjectStoreUploadTracker objectStoreUploadTracker,
+        UploadInfo latestUploadInfo,
         CacheBlobReader cacheBlobReaderForUploaded,
         CacheBlobReader cacheBlobReaderForNonUploaded
     ) {
-        this.locationPrimaryTermAndGeneration = locationPrimaryTermAndGeneration;
-        this.objectStoreUploadTracker = objectStoreUploadTracker;
+        this.latestUploadInfo = latestUploadInfo;
         this.cacheBlobReaderForUploaded = cacheBlobReaderForUploaded;
         this.cacheBlobReaderForNonUploaded = cacheBlobReaderForNonUploaded;
     }
 
     @Override
     public ByteRange getRange(long position, int length, long remainingFileLength) {
-        if (objectStoreUploadTracker.isUploaded(locationPrimaryTermAndGeneration)) {
+        if (latestUploadInfo.isUploaded()) {
             return cacheBlobReaderForUploaded.getRange(position, length, remainingFileLength);
         } else {
             return cacheBlobReaderForNonUploaded.getRange(position, length, remainingFileLength);
@@ -62,7 +59,7 @@ public class SwitchingCacheBlobReader implements CacheBlobReader {
 
     @Override
     public InputStream getRangeInputStream(long position, int length) throws IOException {
-        if (objectStoreUploadTracker.isUploaded(locationPrimaryTermAndGeneration)) {
+        if (latestUploadInfo.isUploaded()) {
             return cacheBlobReaderForUploaded.getRangeInputStream(position, length);
         } else {
             try {

@@ -40,7 +40,7 @@ public class RegisterCommitResponseSerializationTests extends AbstractWireSerial
 
     @Override
     protected Writeable.Reader<RegisterCommitResponse> instanceReader() {
-        return RegisterCommitResponse::new;
+        return in -> new RegisterCommitResponse(in, null);
     }
 
     @Override

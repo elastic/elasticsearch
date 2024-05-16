@@ -129,7 +129,7 @@ public class SearchIndexInputTests extends ESIndexInputTestCase {
             return objectStore;
         }
         ByteSizeValue chunkSize = ByteSizeValue.ofKb(8);
-        return new IndexingShardCacheBlobReader(null, null, null, chunkSize) {
+        return new IndexingShardCacheBlobReader(null, null, null, null, chunkSize) {
             @Override
             public InputStream getRangeInputStream(long position, int length) throws IOException {
                 // verifies that `getRange` does not exceed remaining file length except for padding, implicitly also

@@ -37,7 +37,6 @@ import org.elasticsearch.action.support.RetryableAction;
 import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateObserver;
-import org.elasticsearch.cluster.action.shard.ShardStateAction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
@@ -66,8 +65,6 @@ import org.elasticsearch.node.NodeClosedException;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.ConnectTransportException;
-import org.elasticsearch.transport.TransportChannel;
-import org.elasticsearch.transport.TransportRequestHandler;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportService;
 
@@ -86,7 +83,6 @@ public class TransportGetVirtualBatchedCompoundCommitChunkAction extends Transpo
     private final IndicesService indicesService;
     private final TransportService transportService;
     private final ClusterService clusterService;
-    private final ShardStateAction shardStateAction;
 
     @Inject
     public TransportGetVirtualBatchedCompoundCommitChunkAction(
@@ -94,28 +90,22 @@ public class TransportGetVirtualBatchedCompoundCommitChunkAction extends Transpo
         BigArrays bigArrays,
         TransportService transportService,
         IndicesService indicesService,
-        ClusterService clusterService,
-        ShardStateAction shardStateAction
+        ClusterService clusterService
     ) {
         super(NAME, actionFilters, transportService.getTaskManager());
         this.bigArrays = bigArrays;
         this.indicesService = indicesService;
         this.transportService = transportService;
         this.clusterService = clusterService;
-        this.shardStateAction = shardStateAction;
         this.transportPrimaryAction = actionName + "[p]";
 
         transportService.registerRequestHandler(
             transportPrimaryAction,
             transportService.getThreadPool().executor(Stateless.GET_VIRTUAL_BATCHED_COMPOUND_COMMIT_CHUNK_THREAD_POOL),
-            (inputStream) -> new GetVirtualBatchedCompoundCommitChunkRequest(inputStream),
-            new TransportRequestHandler<GetVirtualBatchedCompoundCommitChunkRequest>() {
-                @Override
-                public void messageReceived(GetVirtualBatchedCompoundCommitChunkRequest request, TransportChannel channel, Task task)
-                    throws Exception {
-                    final ActionListener<GetVirtualBatchedCompoundCommitChunkResponse> listener = new ChannelActionListener<>(channel);
-                    ActionListener.run(listener, (l) -> primaryShardOperation(task, request, l));
-                }
+            GetVirtualBatchedCompoundCommitChunkRequest::new,
+            (request, channel, task) -> {
+                final ActionListener<GetVirtualBatchedCompoundCommitChunkResponse> listener = new ChannelActionListener<>(channel);
+                ActionListener.run(listener, (l) -> primaryShardOperation(task, request, l));
             }
         );
     }
@@ -177,8 +167,7 @@ public class TransportGetVirtualBatchedCompoundCommitChunkAction extends Transpo
         ActionListener<GetVirtualBatchedCompoundCommitChunkResponse> listener
     ) {
         if (isPrimaryShardActiveOrDeleted(clusterState, request.getShardId())) {
-            ShardRouting primaryShardRouting = clusterState.routingTable().shardRoutingTable(request.getShardId()).primaryShard();
-            sendRequestToPrimaryNode(primaryShardRouting, clusterState, request, listener);
+            sendRequestToPrimaryNode(findPrimaryNode(clusterState, request), request, listener);
         } else {
             TimeValue timeout = TimeValue.timeValueMinutes(5);
             ClusterStateObserver observer = new ClusterStateObserver(
@@ -191,10 +180,7 @@ public class TransportGetVirtualBatchedCompoundCommitChunkAction extends Transpo
             observer.waitForNextChange(new ClusterStateObserver.Listener() {
                 @Override
                 public void onNewClusterState(ClusterState state) {
-                    ActionListener.run(listener, l -> {
-                        ShardRouting primaryShardRouting = state.routingTable().shardRoutingTable(request.getShardId()).primaryShard();
-                        sendRequestToPrimaryNode(primaryShardRouting, state, request, listener);
-                    });
+                    ActionListener.run(listener, l -> sendRequestToPrimaryNode(findPrimaryNode(state, request), request, listener));
                 }
 
                 @Override
@@ -219,8 +205,8 @@ public class TransportGetVirtualBatchedCompoundCommitChunkAction extends Transpo
     }
 
     /**
-     * Returns true if the primary shard is found and is started, or if the primary shard is not found in the cluster state.
-     * Returns false if the primary shard is found and is not started.
+     * Returns true if the primary shard is found and is active, or if the primary shard is not found in the cluster state.
+     * Returns false if the primary shard is found and is not active.
      */
     private boolean isPrimaryShardActiveOrDeleted(ClusterState clusterState, ShardId shardId) {
         var indexRoutingTable = clusterState.routingTable().index(shardId.getIndex());
@@ -234,23 +220,41 @@ public class TransportGetVirtualBatchedCompoundCommitChunkAction extends Transpo
         return shardRoutingTable.primaryShard().active();
     }
 
+    private DiscoveryNode findPrimaryNode(ClusterState clusterState, GetVirtualBatchedCompoundCommitChunkRequest request) {
+        // throws IndexNotFoundException or ShardNotFoundException as expected by isPrimaryShardStartedOrDeleted()
+        var shardRoutingTable = clusterState.routingTable().shardRoutingTable(request.getShardId());
+        String nodeId;
+        if (request.getPreferredNodeId() != null
+            && clusterState.nodes().nodeExists(request.getPreferredNodeId())
+            && shardRoutingTable.activeShards()
+                .stream()
+                .filter(ShardRouting::isPromotableToPrimary)
+                .anyMatch(
+                    shard -> request.getPreferredNodeId().equals(shard.currentNodeId())
+                        || request.getPreferredNodeId().equals(shard.relocatingNodeId())
+                )) {
+            nodeId = request.getPreferredNodeId();
+        } else {
+            // TODO evaluate if we should throw a ResourceNotFoundException here
+            nodeId = shardRoutingTable.primaryShard().currentNodeId();
+        }
+        return clusterState.nodes().get(nodeId);
+    }
+
     private void sendRequestToPrimaryNode(
-        ShardRouting shardRouting,
-        ClusterState clusterState,
+        DiscoveryNode discoveryNode,
         GetVirtualBatchedCompoundCommitChunkRequest request,
         ActionListener<GetVirtualBatchedCompoundCommitChunkResponse> listener
     ) {
-        String primaryNode = shardRouting.currentNodeId();
-        final DiscoveryNode primaryDiscoveryNode = clusterState.nodes().get(primaryNode);
-        assert primaryDiscoveryNode != null;
+        assert discoveryNode != null : request;
         transportService.sendRequest(
-            primaryDiscoveryNode,
+            discoveryNode,
             transportPrimaryAction,
             request,
             TransportRequestOptions.EMPTY,
             new ActionListenerResponseHandler<>(
                 listener,
-                (inputStream) -> new GetVirtualBatchedCompoundCommitChunkResponse(inputStream),
+                GetVirtualBatchedCompoundCommitChunkResponse::new,
                 transportService.getThreadPool().executor(Stateless.SHARD_READ_THREAD_POOL)
             )
         );

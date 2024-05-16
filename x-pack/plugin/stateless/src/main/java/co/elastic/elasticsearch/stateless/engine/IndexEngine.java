@@ -50,6 +50,8 @@ import org.elasticsearch.index.engine.InternalEngine;
 import org.elasticsearch.index.engine.LiveVersionMapArchive;
 import org.elasticsearch.index.seqno.LocalCheckpointTracker;
 import org.elasticsearch.index.translog.Translog;
+import org.elasticsearch.plugins.internal.DocumentParsingProvider;
+import org.elasticsearch.plugins.internal.DocumentSizeReporter;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
@@ -83,6 +85,7 @@ public class IndexEngine extends InternalEngine {
     private final RefreshThrottler refreshThrottler;
     private final IndexEngineLocalReaderListener localReaderListener;
     private final CommitBCCResolver commitBCCResolver;
+    private final DocumentParsingProvider documentParsingProvider;
     // This is written and then accessed on the same thread under the flush lock. So not need for volatile
     private long translogStartFileForNextCommit = 0;
 
@@ -98,7 +101,8 @@ public class IndexEngine extends InternalEngine {
         StatelessCommitService statelessCommitService,
         RefreshThrottler.Factory refreshThrottlerFactory,
         IndexEngineLocalReaderListener localReaderListener,
-        CommitBCCResolver commitBCCResolver
+        CommitBCCResolver commitBCCResolver,
+        DocumentParsingProvider documentParsingProvider
     ) {
         super(engineConfig);
         assert engineConfig.isPromotableToPrimary();
@@ -109,6 +113,7 @@ public class IndexEngine extends InternalEngine {
         this.refreshThrottler = refreshThrottlerFactory.create(this::doExternalRefresh);
         this.localReaderListener = localReaderListener;
         this.commitBCCResolver = commitBCCResolver;
+        this.documentParsingProvider = documentParsingProvider;
 
         // We have to track the initial BCC references held by local readers at this point instead of doing it in
         // #createInternalReaderManager because that method is called from the super constructor and at that point,
@@ -264,6 +269,18 @@ public class IndexEngine extends InternalEngine {
             logger.trace("flush sets max generation of {} to generation [{}]", shardId, generation);
             statelessCommitService.ensureMaxGenerationToUploadForFlush(shardId, generation);
         }
+    }
+
+    @Override
+    public IndexResult index(Index index) throws IOException {
+        DocumentSizeReporter documentParsingReporter = documentParsingProvider.newDocumentSizeReporter(shardId.getIndexName());
+
+        IndexResult result = super.index(index);
+
+        if (result.getResultType() == Result.Type.SUCCESS) {
+            documentParsingReporter.onIndexingCompleted(index.parsedDoc());
+        }
+        return result;
     }
 
     @Override

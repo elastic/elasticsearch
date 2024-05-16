@@ -59,6 +59,7 @@ import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.node.NodeClosedException;
 import org.elasticsearch.node.PluginComponentBinding;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.plugins.internal.DocumentParsingProvider;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.aggregations.metrics.Sum;
 import org.elasticsearch.test.ESTestCase;
@@ -124,7 +125,8 @@ public class VirtualBatchedCompoundCommitsIT extends AbstractStatelessIntegTestC
             TranslogReplicator translogReplicator,
             Function<String, BlobContainer> translogBlobContainer,
             StatelessCommitService statelessCommitService,
-            RefreshThrottler.Factory refreshThrottlerFactory
+            RefreshThrottler.Factory refreshThrottlerFactory,
+            DocumentParsingProvider documentParsingProvider
         ) {
             return new IndexEngine(
                 engineConfig,
@@ -133,7 +135,8 @@ public class VirtualBatchedCompoundCommitsIT extends AbstractStatelessIntegTestC
                 statelessCommitService,
                 refreshThrottlerFactory,
                 statelessCommitService.getIndexEngineLocalReaderListenerForShard(engineConfig.getShardId()),
-                statelessCommitService.getCommitBCCResolverForShard(engineConfig.getShardId())
+                statelessCommitService.getCommitBCCResolverForShard(engineConfig.getShardId()),
+                documentParsingProvider
             ) {
                 @Override
                 public void readVirtualBatchedCompoundCommitChunk(

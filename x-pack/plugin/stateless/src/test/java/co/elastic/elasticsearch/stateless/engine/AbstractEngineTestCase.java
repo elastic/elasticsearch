@@ -77,6 +77,8 @@ import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.index.translog.TranslogConfig;
 import org.elasticsearch.indices.IndexingMemoryController;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
+import org.elasticsearch.plugins.internal.DocumentParsingProvider;
+import org.elasticsearch.plugins.internal.DocumentSizeObserver;
 import org.elasticsearch.test.DummyShardLock;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
@@ -190,6 +192,16 @@ public abstract class AbstractEngineTestCase extends ESTestCase {
         final ObjectStoreService objectStoreService,
         final StatelessCommitService commitService
     ) {
+        return newIndexEngine(indexConfig, translogReplicator, objectStoreService, commitService, DocumentParsingProvider.EMPTY_INSTANCE);
+    }
+
+    protected IndexEngine newIndexEngine(
+        EngineConfig indexConfig,
+        TranslogReplicator translogReplicator,
+        ObjectStoreService objectStoreService,
+        StatelessCommitService commitService,
+        DocumentParsingProvider documentParsingProvider
+    ) {
         var indexEngine = new IndexEngine(
             indexConfig,
             translogReplicator,
@@ -197,7 +209,8 @@ public abstract class AbstractEngineTestCase extends ESTestCase {
             commitService,
             RefreshThrottler.Noop::new,
             commitService.getIndexEngineLocalReaderListenerForShard(indexConfig.getShardId()),
-            commitService.getCommitBCCResolverForShard(indexConfig.getShardId())
+            commitService.getCommitBCCResolverForShard(indexConfig.getShardId()),
+            documentParsingProvider
         ) {
 
             @Override
@@ -448,7 +461,17 @@ public abstract class AbstractEngineTestCase extends ESTestCase {
             source = BytesReference.bytes(builder);
             document.add(new StoredField(SourceFieldMapper.NAME, source.toBytesRef().bytes, 0, source.length()));
         }
-        final ParsedDocument doc = new ParsedDocument(version, seqID, id, null, List.of(document), source, XContentType.JSON, null);
+        final ParsedDocument doc = new ParsedDocument(
+            version,
+            seqID,
+            id,
+            null,
+            List.of(document),
+            source,
+            XContentType.JSON,
+            null,
+            DocumentSizeObserver.EMPTY_INSTANCE
+        );
         return new Engine.Index(newUid(id), 1L, doc);
     }
 
@@ -527,7 +550,7 @@ public abstract class AbstractEngineTestCase extends ESTestCase {
      * Retrieve all captured commits on a given {@link IndexEngine} and notify the {@link SearchEngine} of those new commits in a random
      * order.
      *
-     * @param indexEngine the index engine to retrieve the capture commits from
+     * @param indexEngine  the index engine to retrieve the capture commits from
      * @param searchEngine the search engine to notify with new commits
      * @return the number of new commits notifications
      */

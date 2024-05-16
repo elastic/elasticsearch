@@ -575,7 +575,7 @@ public class StatelessSearchIT extends AbstractStatelessIntegTestCase {
             previousGeneration = generation;
         }
         // The last commit may be a refresh and not uploaded when BCC can contain more than 1 CC
-        if (STATELESS_UPLOAD_DELAYED && STATELESS_UPLOAD_MAX_COMMITS > 1) {
+        if (STATELESS_UPLOAD_DELAYED && getUploadMaxCommits() > 1) {
             flushNoForceNoWait(indexName);
             assertThat(indexShard.getEngineOrNull().getLastCommittedSegmentInfos().getGeneration(), equalTo(previousGeneration));
         }

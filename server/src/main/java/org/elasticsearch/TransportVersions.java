@@ -177,7 +177,6 @@ public class TransportVersions {
     public static final TransportVersion ILM_SHRINK_ENABLE_WRITE = def(8_635_00_0);
     public static final TransportVersion GEOIP_CACHE_STATS = def(8_636_00_0);
     public static final TransportVersion SHUTDOWN_REQUEST_TIMEOUTS_FIX_8_14 = def(8_636_00_1);
-    public static final TransportVersion ESQL_REMOVE_ES_SOURCE_OPTIONS_8_14 = def(8_636_00_2);
 
     /*
      * STOP! READ THIS FIRST! No, really,

@@ -1620,7 +1620,7 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
 
     /**
      * Replace type converting eval with aliasing eval when type change does not occur.
-     * A following ReplaceAliasingEvalWithProject will effectively convert ReferenceAttribute into FieldAttribute,
+     * A following {@link ReplaceAliasingEvalWithProject} will effectively convert {@link ReferenceAttribute} into {@link FieldAttribute},
      * something very useful in local physical planning.
      */
     static class ReplaceTypeConvertingEvalWithAliasingEval extends OptimizerRules.OptimizerRule<Eval> {

@@ -350,7 +350,6 @@ public final class Automatons {
         settingsList.add(CACHE_TTL);
     }
 
-    // for testing only
     private static Automaton maybeRecordPatterns(Automaton automaton, Collection<String> patterns) {
         if (recordPatterns) {
             patternsMap.put(
@@ -361,7 +360,6 @@ public final class Automatons {
         return automaton;
     }
 
-    // for testing only
     public static List<String> getPatterns(Automaton automaton) {
         if (recordPatterns) {
             return patternsMap.get(automaton);

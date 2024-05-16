@@ -245,6 +245,105 @@ public class MetadataDeleteIndexServiceTests extends ESTestCase {
         );
     }
 
+    public void testDeleteFailureIndexForDataStream() {
+        int numBackingIndices = randomIntBetween(2, 5);
+        String dataStreamName = randomAlphaOfLength(6).toLowerCase(Locale.ROOT);
+        long ts = System.currentTimeMillis();
+        ClusterState before = DataStreamTestHelper.getClusterStateWithDataStreams(
+            List.of(new Tuple<>(dataStreamName, numBackingIndices)),
+            List.of(),
+            ts,
+            Settings.EMPTY,
+            1,
+            false,
+            true
+        );
+
+        int numIndexToDelete = randomIntBetween(1, numBackingIndices - 1);
+
+        Index indexToDelete = before.metadata()
+            .index(DataStream.getDefaultFailureStoreName(dataStreamName, numIndexToDelete, ts))
+            .getIndex();
+        ClusterState after = MetadataDeleteIndexService.deleteIndices(before, Set.of(indexToDelete), Settings.EMPTY);
+
+        assertThat(after.metadata().getIndices().get(indexToDelete.getName()), nullValue());
+        assertThat(after.metadata().getIndices().size(), equalTo((2 * numBackingIndices) - 1));
+        assertThat(
+            after.metadata().getIndices().get(DataStream.getDefaultFailureStoreName(dataStreamName, numIndexToDelete, ts)),
+            nullValue()
+        );
+    }
+
+    public void testDeleteMultipleFailureIndexForDataStream() {
+        int numBackingIndices = randomIntBetween(3, 5);
+        int numBackingIndicesToDelete = randomIntBetween(2, numBackingIndices - 1);
+        String dataStreamName = randomAlphaOfLength(6).toLowerCase(Locale.ROOT);
+        long ts = System.currentTimeMillis();
+        ClusterState before = DataStreamTestHelper.getClusterStateWithDataStreams(
+            List.of(new Tuple<>(dataStreamName, numBackingIndices)),
+            List.of(),
+            ts,
+            Settings.EMPTY,
+            1,
+            false,
+            true
+        );
+
+        List<Integer> indexNumbersToDelete = randomSubsetOf(
+            numBackingIndicesToDelete,
+            IntStream.rangeClosed(1, numBackingIndices - 1).boxed().toList()
+        );
+
+        Set<Index> indicesToDelete = new HashSet<>();
+        for (int k : indexNumbersToDelete) {
+            indicesToDelete.add(before.metadata().index(DataStream.getDefaultFailureStoreName(dataStreamName, k, ts)).getIndex());
+        }
+        ClusterState after = MetadataDeleteIndexService.deleteIndices(before, indicesToDelete, Settings.EMPTY);
+
+        DataStream dataStream = after.metadata().dataStreams().get(dataStreamName);
+        assertThat(dataStream, notNullValue());
+        assertThat(dataStream.getFailureIndices().getIndices().size(), equalTo(numBackingIndices - indexNumbersToDelete.size()));
+        for (Index i : indicesToDelete) {
+            assertThat(after.metadata().getIndices().get(i.getName()), nullValue());
+            assertFalse(dataStream.getFailureIndices().getIndices().contains(i));
+        }
+        assertThat(after.metadata().getIndices().size(), equalTo((2 * numBackingIndices) - indexNumbersToDelete.size()));
+    }
+
+    public void testDeleteCurrentWriteFailureIndexForDataStream() {
+        int numBackingIndices = randomIntBetween(1, 5);
+        String dataStreamName = randomAlphaOfLength(6).toLowerCase(Locale.ROOT);
+        long ts = System.currentTimeMillis();
+        ClusterState before = DataStreamTestHelper.getClusterStateWithDataStreams(
+            List.of(new Tuple<>(dataStreamName, numBackingIndices)),
+            List.of(),
+            ts,
+            Settings.EMPTY,
+            1,
+            false,
+            true
+        );
+
+        Index indexToDelete = before.metadata()
+            .index(DataStream.getDefaultFailureStoreName(dataStreamName, numBackingIndices, ts))
+            .getIndex();
+        Exception e = expectThrows(
+            IllegalArgumentException.class,
+            () -> MetadataDeleteIndexService.deleteIndices(before, Set.of(indexToDelete), Settings.EMPTY)
+        );
+
+        assertThat(
+            e.getMessage(),
+            containsString(
+                "index ["
+                    + indexToDelete.getName()
+                    + "] is the failure store write index for data stream ["
+                    + dataStreamName
+                    + "] and cannot be deleted"
+            )
+        );
+    }
+
     private ClusterState clusterState(String index) {
         IndexMetadata indexMetadata = IndexMetadata.builder(index)
             .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersionUtils.randomVersion(random())))

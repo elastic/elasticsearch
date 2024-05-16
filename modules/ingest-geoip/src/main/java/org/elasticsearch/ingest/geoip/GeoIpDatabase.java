@@ -12,6 +12,7 @@ import com.maxmind.geoip2.model.AnonymousIpResponse;
 import com.maxmind.geoip2.model.AsnResponse;
 import com.maxmind.geoip2.model.CityResponse;
 import com.maxmind.geoip2.model.CountryResponse;
+import com.maxmind.geoip2.model.DomainResponse;
 import com.maxmind.geoip2.model.EnterpriseResponse;
 
 import org.elasticsearch.core.Nullable;
@@ -57,6 +58,9 @@ public interface GeoIpDatabase {
 
     @Nullable
     AnonymousIpResponse getAnonymousIp(InetAddress ipAddress);
+
+    @Nullable
+    DomainResponse getDomain(InetAddress ipAddress);
 
     @Nullable
     EnterpriseResponse getEnterprise(InetAddress ipAddress);

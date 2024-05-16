@@ -425,7 +425,7 @@ public class IndexNameExpressionResolver {
         if (shouldIncludeFailureIndices(context.getOptions(), dataStream)) {
             // We short-circuit here, if failure indices are not allowed and they can be skipped
             if (context.getOptions().allowFailureIndices() || context.getOptions().ignoreUnavailable() == false) {
-                for (Index index : dataStream.getFailureIndices()) {
+                for (Index index : dataStream.getFailureIndices().getIndices()) {
                     if (shouldTrackConcreteIndex(context, context.getOptions(), index)) {
                         concreteIndicesResult.add(index);
                     }
@@ -470,7 +470,7 @@ public class IndexNameExpressionResolver {
                 count += dataStream.getIndices().size();
             }
             if (shouldIncludeFailureIndices(context.getOptions(), dataStream)) {
-                count += dataStream.getFailureIndices().size();
+                count += dataStream.getFailureIndices().getIndices().size();
             }
             return count > 1;
         }
@@ -1431,7 +1431,7 @@ public class IndexNameExpressionResolver {
                         DataStream dataStream = (DataStream) indexAbstraction;
                         indicesStateStream = Stream.concat(
                             indicesStateStream,
-                            dataStream.getFailureIndices().stream().map(context.state.metadata()::index)
+                            dataStream.getFailureIndices().getIndices().stream().map(context.state.metadata()::index)
                         );
                     }
                     if (excludeState != null) {

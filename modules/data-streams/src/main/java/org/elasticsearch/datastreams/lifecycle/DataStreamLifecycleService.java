@@ -753,8 +753,10 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
                 targetIndices.add(index);
             }
         }
-        if (withFailureStore && DataStream.isFailureStoreFeatureFlagEnabled() && dataStream.getFailureIndices().isEmpty() == false) {
-            for (Index index : dataStream.getFailureIndices()) {
+        if (withFailureStore
+            && DataStream.isFailureStoreFeatureFlagEnabled()
+            && dataStream.getFailureIndices().getIndices().isEmpty() == false) {
+            for (Index index : dataStream.getFailureIndices().getIndices()) {
                 if (dataStream.isIndexManagedByDataStreamLifecycle(index, indexMetadataSupplier)
                     && indicesToExcludeForRemainingRun.contains(index) == false) {
                     targetIndices.add(index);

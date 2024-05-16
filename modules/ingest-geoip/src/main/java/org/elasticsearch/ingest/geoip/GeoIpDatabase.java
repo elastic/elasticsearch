@@ -11,6 +11,7 @@ package org.elasticsearch.ingest.geoip;
 import com.maxmind.geoip2.model.AnonymousIpResponse;
 import com.maxmind.geoip2.model.AsnResponse;
 import com.maxmind.geoip2.model.CityResponse;
+import com.maxmind.geoip2.model.ConnectionTypeResponse;
 import com.maxmind.geoip2.model.CountryResponse;
 import com.maxmind.geoip2.model.DomainResponse;
 import com.maxmind.geoip2.model.EnterpriseResponse;
@@ -59,6 +60,9 @@ public interface GeoIpDatabase {
 
     @Nullable
     AnonymousIpResponse getAnonymousIp(InetAddress ipAddress);
+
+    @Nullable
+    ConnectionTypeResponse getConnectionType(InetAddress ipAddress);
 
     @Nullable
     DomainResponse getDomain(InetAddress ipAddress);

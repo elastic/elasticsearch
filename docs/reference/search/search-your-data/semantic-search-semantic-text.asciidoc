@@ -172,8 +172,8 @@ GET semantic-embeddings/_search
 {
   "query": {
     "semantic": { 
-      "field: "inference_content", <1>
-      "query": "How to avoid muscle soreness while running?"<2>
+      "field": "inference_content", <1>
+      "query": "How to avoid muscle soreness while running?" <2>
     }
   }
 }

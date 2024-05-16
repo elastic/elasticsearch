@@ -143,6 +143,7 @@ public class BulkOperationTests extends ESTestCase {
         .build();
 
     private final ClusterState DEFAULT_STATE = ClusterState.builder(ClusterName.DEFAULT)
+        .nodeFeatures(Map.of(randomAlphaOfLength(10), Set.of(LazyRolloverAction.FAILURE_STORE_LAZY_ROLLOVER.id())))
         .metadata(
             Metadata.builder()
                 .indexTemplates(

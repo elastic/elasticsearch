@@ -21,13 +21,19 @@ import java.util.Set;
  * {@link RestNodesCapabilitiesAction} and we use them to enable tests.
  */
 public class EsqlCapabilities {
+    /**
+     * Support for function {@code CBRT}. Done in #108574.
+     */
+    private static final String FN_CBRT = "fn_cbrt";
+
     static final Set<String> CAPABILITIES = capabilities();
 
     private static Set<String> capabilities() {
+        List<String> caps = new ArrayList<>(List.of(FN_CBRT));
+
         /*
          * Add all of our cluster features without the leading "esql."
          */
-        List<String> caps = new ArrayList<>();
         for (NodeFeature feature : new EsqlFeatures().getFeatures()) {
             caps.add(cap(feature));
         }

@@ -1,8 +1,8 @@
 ---
 setup:
   - requires:
-      cluster_features: ["gte_v8.14.0"]
-      reason: "data stream failure store rollover only supported in 8.14+"
+      cluster_features: ["gte_v8.15.0"]
+      reason: "data stream failure stores REST structure changed in 8.15+"
       test_runner_features: allowed_warnings
 
   - do:
@@ -48,9 +48,9 @@ setup:
   - match: { data_streams.0.generation: 2 }
   - length: { data_streams.0.indices: 1 }
   - match: { data_streams.0.indices.0.index_name: '/\.ds-data-stream-for-rollover-(\d{4}\.\d{2}\.\d{2}-)?000001/' }
-  - length: { data_streams.0.failure_indices: 2 }
-  - match: { data_streams.0.failure_indices.0.index_name: '/\.fs-data-stream-for-rollover-(\d{4}\.\d{2}\.\d{2}-)?000001/' }
-  - match: { data_streams.0.failure_indices.1.index_name: '/\.fs-data-stream-for-rollover-(\d{4}\.\d{2}\.\d{2}-)?000002/' }
+  - length: { data_streams.0.failure_store.indices: 2 }
+  - match: { data_streams.0.failure_store.indices.0.index_name: '/\.fs-data-stream-for-rollover-(\d{4}\.\d{2}\.\d{2}-)?000001/' }
+  - match: { data_streams.0.failure_store.indices.1.index_name: '/\.fs-data-stream-for-rollover-(\d{4}\.\d{2}\.\d{2}-)?000002/' }
 
 ---
 "Roll over a data stream's failure store with conditions":
@@ -86,9 +86,9 @@ setup:
   - match: { data_streams.0.generation: 2 }
   - length: { data_streams.0.indices: 1 }
   - match: { data_streams.0.indices.0.index_name: '/\.ds-data-stream-for-rollover-(\d{4}\.\d{2}\.\d{2}-)?000001/' }
-  - length: { data_streams.0.failure_indices: 2 }
-  - match: { data_streams.0.failure_indices.0.index_name: '/\.fs-data-stream-for-rollover-(\d{4}\.\d{2}\.\d{2}-)?000001/' }
-  - match: { data_streams.0.failure_indices.1.index_name: '/\.fs-data-stream-for-rollover-(\d{4}\.\d{2}\.\d{2}-)?000002/' }
+  - length: { data_streams.0.failure_store.indices: 2 }
+  - match: { data_streams.0.failure_store.indices.0.index_name: '/\.fs-data-stream-for-rollover-(\d{4}\.\d{2}\.\d{2}-)?000001/' }
+  - match: { data_streams.0.failure_store.indices.1.index_name: '/\.fs-data-stream-for-rollover-(\d{4}\.\d{2}\.\d{2}-)?000002/' }
 
 ---
 "Don't roll over a data stream's failure store when conditions aren't met":
@@ -112,5 +112,5 @@ setup:
   - match: { data_streams.0.generation: 1 }
   - length: { data_streams.0.indices: 1 }
   - match: { data_streams.0.indices.0.index_name: '/\.ds-data-stream-for-rollover-(\d{4}\.\d{2}\.\d{2}-)?000001/' }
-  - length: { data_streams.0.failure_indices: 1 }
-  - match: { data_streams.0.failure_indices.0.index_name: '/\.fs-data-stream-for-rollover-(\d{4}\.\d{2}\.\d{2}-)?000001/' }
+  - length: { data_streams.0.failure_store.indices: 1 }
+  - match: { data_streams.0.failure_store.indices.0.index_name: '/\.fs-data-stream-for-rollover-(\d{4}\.\d{2}\.\d{2}-)?000001/' }

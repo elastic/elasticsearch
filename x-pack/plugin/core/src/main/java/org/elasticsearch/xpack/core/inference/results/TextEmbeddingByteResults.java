@@ -131,6 +131,14 @@ public record TextEmbeddingByteResults(List<Embedding> embeddings) implements In
             out.writeByteArray(values);
         }
 
+        public static Embedding of(List<Byte> embeddingValuesList) {
+            byte[] embeddingValues = new byte[embeddingValuesList.size()];
+            for (int i = 0; i < embeddingValuesList.size(); i++) {
+                embeddingValues[i] = embeddingValuesList.get(i);
+            }
+            return new Embedding(embeddingValues);
+        }
+
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();

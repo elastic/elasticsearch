@@ -169,6 +169,14 @@ public record TextEmbeddingResults(List<Embedding> embeddings) implements Infere
             return new Embedding(embeddingAsArray);
         }
 
+        public static Embedding of(List<Float> embeddingValuesList) {
+            float[] embeddingValues = new float[embeddingValuesList.size()];
+            for (int i = 0; i < embeddingValuesList.size(); i++) {
+                embeddingValues[i] = embeddingValuesList.get(i);
+            }
+            return new Embedding(embeddingValues);
+        }
+
         @Override
         public int getSize() {
             return values.length;

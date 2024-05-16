@@ -2124,7 +2124,7 @@ public class IngestServiceTests extends ESTestCase {
         clusterState = executePut(putRequest, clusterState);
         ingestService.applyClusterState(new ClusterChangedEvent("", clusterState, previousClusterState));
         indexRequest.setPipeline("_id1");
-        startSize1 = indexRequest.ramBytesUsed();
+        startSize1 += indexRequest.ramBytesUsed();
         ingestService.executeBulkRequest(
             1,
             List.of(indexRequest),
@@ -2136,7 +2136,7 @@ public class IngestServiceTests extends ESTestCase {
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
         final IngestStats afterThirdRequestStats = ingestService.stats();
-        endSize1 = indexRequest.ramBytesUsed();
+        endSize1 += indexRequest.ramBytesUsed();
         assertThat(afterThirdRequestStats.pipelineStats().size(), equalTo(2));
         // total
         assertStats(afterThirdRequestStats.totalStats(), 3, 0, 0);
@@ -2158,7 +2158,7 @@ public class IngestServiceTests extends ESTestCase {
         clusterState = executePut(putRequest, clusterState);
         ingestService.applyClusterState(new ClusterChangedEvent("", clusterState, previousClusterState));
         indexRequest.setPipeline("_id1");
-        startSize1 = indexRequest.ramBytesUsed();
+        startSize1 += indexRequest.ramBytesUsed();
         ingestService.executeBulkRequest(
             1,
             List.of(indexRequest),
@@ -2170,6 +2170,7 @@ public class IngestServiceTests extends ESTestCase {
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
         final IngestStats afterForthRequestStats = ingestService.stats();
+        endSize1 += indexRequest.ramBytesUsed();
         assertThat(afterForthRequestStats.pipelineStats().size(), equalTo(2));
         // total
         assertStats(afterForthRequestStats.totalStats(), 4, 0, 0);

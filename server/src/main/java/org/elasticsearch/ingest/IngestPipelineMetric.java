@@ -25,6 +25,12 @@ public class IngestPipelineMetric extends IngestMetric {
      */
     private final CounterMetric bytesProduced = new CounterMetric();
 
+    void add(IngestPipelineMetric metrics) {
+        super.add(metrics);
+        bytesReceived.inc(metrics.bytesReceived.count());
+        bytesProduced.inc(metrics.bytesProduced.count());
+    }
+
     /**
      * Call this prior to the ingest action.
      * @param bytesReceived The number of bytes received by the pipeline.

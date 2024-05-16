@@ -3149,36 +3149,30 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
 
     /**
      * Expects:
-     * Eval[[first_name{f}#6 AS first_name]]
+     * Eval[[types.type{f}#5 AS new_types.type]]
      * \_Limit[1000[INTEGER]]
      *   \_EsRelation[test][_meta_field{f}#11, emp_no{f}#5, first_name{f}#6, ge..]
-     * NOTE: The convert function to_string is removed, since the types match
+     * NOTE: The convert function to_type is removed, since the types match
+     * This does not work for to_string(text) since that converts text to keyword
      */
-    public void testToStringOnStringWrittenAway() {
-        var plan = plan("from test | eval first_name = to_string(first_name)");
-        var eval = as(plan, Eval.class);
-        var alias = as(eval.fields().get(0), Alias.class);
-        var fa = as(alias.child(), FieldAttribute.class);
-        assertThat(fa.name(), equalTo("first_name"));
-        var limit = as(eval.child(), Limit.class);
-        as(limit.child(), EsRelation.class);
-    }
-
-    /**
-     * Expects:
-     * Eval[[emp_no{f}#5 AS emp_no]]
-     * \_Limit[1000[INTEGER]]
-     *   \_EsRelation[test][_meta_field{f}#11, emp_no{f}#5, first_name{f}#6, ge..]
-     * NOTE: The convert function to_integer is removed, since the types match
-     */
-    public void testToIntegerOnIntegerWrittenAway() {
-        var plan = plan("from test | eval emp_no = to_integer(emp_no)");
-        var eval = as(plan, Eval.class);
-        var alias = as(eval.fields().get(0), Alias.class);
-        var fa = as(alias.child(), FieldAttribute.class);
-        assertThat(fa.name(), equalTo("emp_no"));
-        var limit = as(eval.child(), Limit.class);
-        as(limit.child(), EsRelation.class);
+    public void testTrivialTypeConversionWrittenAway() {
+        for (String type : new String[] { "keyword", "float", "double", "long", "integer", "boolean", "geo_point" }) {
+            var func = switch (type) {
+                case "keyword", "text" -> "to_string";
+                case "double", "float" -> "to_double";
+                case "geo_point" -> "to_geopoint";
+                default -> "to_" + type;
+            };
+            var field = "types." + type;
+            var plan = plan("from test | eval new_" + field + " = " + func + "(" + field + ")");
+            var eval = as(plan, Eval.class);
+            var alias = as(eval.fields().get(0), Alias.class);
+            assertThat(func + "(" + field + ")", alias.name(), equalTo("new_" + field));
+            var fa = as(alias.child(), FieldAttribute.class);
+            assertThat(func + "(" + field + ")", fa.name(), equalTo(field));
+            var limit = as(eval.child(), Limit.class);
+            as(limit.child(), EsRelation.class);
+        }
     }
 
     /**

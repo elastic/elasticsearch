@@ -1161,13 +1161,15 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
             assertThat(codec, instanceOf(LegacyPerFieldMapperCodec.class));
             knnVectorsFormat = ((LegacyPerFieldMapperCodec) codec).getKnnVectorsFormatForField("field");
         }
-        String expectedString = "ES814HnswScalarQuantizedVectorsFormat(name=ES814HnswScalarQuantizedVectorsFormat, maxConn="
+        String expectedString = "Lucene99HnswScalarQuantizedVectorsFormat(name=Lucene99HnswScalarQuantizedVectorsFormat, maxConn="
             + m
             + ", beamWidth="
             + efConstruction
-            + ", flatVectorFormat=ES814ScalarQuantizedVectorsFormat("
-            + "name=ES814ScalarQuantizedVectorsFormat, confidenceInterval="
+            + ", flatVectorFormat=Lucene99ScalarQuantizedVectorsFormat("
+            + "name=Lucene99ScalarQuantizedVectorsFormat, confidenceInterval="
             + (setConfidenceInterval ? confidenceInterval : null)
+            + ", bits=7, compress=false"
+            + ", flatVectorScorer=ScalarQuantizedVectorScorer(nonQuantizedDelegate=DefaultFlatVectorScorer())"
             + ", rawVectorFormat=Lucene99FlatVectorsFormat(vectorsScorer=DefaultFlatVectorScorer())"
             + "))";
         assertEquals(expectedString, knnVectorsFormat.toString());

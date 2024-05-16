@@ -733,11 +733,10 @@ public abstract class AbstractStatelessIntegTestCase extends ESIntegTestCase {
             .collect(Collectors.toSet());
     }
 
-    protected static BlobContainer getShardCommitsContainerForCurrentPrimaryTerm(String indexName, String indexNode) {
+    protected static BlobContainer getShardCommitsContainerForCurrentPrimaryTerm(String indexName, String indexNode, int shardId) {
         var indexObjectStoreService = internalCluster().getInstance(ObjectStoreService.class, indexNode);
-        var primaryTerm = client().admin().cluster().prepareState().get().getState().metadata().index(indexName).primaryTerm(0);
-        var shardId = new ShardId(resolveIndex(indexName), 0);
-        return indexObjectStoreService.getBlobContainer(shardId, primaryTerm);
+        var primaryTerm = client().admin().cluster().prepareState().get().getState().metadata().index(indexName).primaryTerm(shardId);
+        return indexObjectStoreService.getBlobContainer(new ShardId(resolveIndex(indexName), shardId), primaryTerm);
     }
 
     @Override

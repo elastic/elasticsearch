@@ -262,7 +262,7 @@ public class SparseVectorQueryBuilderTests extends AbstractQueryTestCase<SparseV
                 IllegalArgumentException.class,
                 () -> new SparseVectorQueryBuilder("field name", "model text", null)
             );
-            assertEquals("[sparse_vector] requires [text] when [inference_id] is specified", e.getMessage());
+            assertEquals("[sparse_vector] requires [query] when [inference_id] is specified", e.getMessage());
         }
     }
 
@@ -273,7 +273,7 @@ public class SparseVectorQueryBuilderTests extends AbstractQueryTestCase<SparseV
               "sparse_vector": {
                 "field": "foo",
                 "inference_id": "bar",
-                "text": "baz",
+                "query": "baz",
                 "prune": false
               }
             }""", query);
@@ -286,7 +286,7 @@ public class SparseVectorQueryBuilderTests extends AbstractQueryTestCase<SparseV
               "sparse_vector": {
                 "field": "foo",
                 "inference_id": "bar",
-                "text": "baz",
+                "query": "baz",
                 "prune": true,
                 "pruning_config": {
                   "tokens_freq_ratio_threshold": 4.0,
@@ -304,7 +304,7 @@ public class SparseVectorQueryBuilderTests extends AbstractQueryTestCase<SparseV
               "sparse_vector": {
                 "field": "foo",
                 "inference_id": "bar",
-                "text": "baz",
+                "query": "baz",
                 "prune": true,
                 "pruning_config": {
                   "tokens_freq_ratio_threshold": 4.0,

@@ -55,7 +55,7 @@ public class SparseVectorQueryBuilder extends AbstractQueryBuilder<SparseVectorQ
     public static final ParseField FIELD_FIELD = new ParseField("field");
     public static final ParseField QUERY_VECTOR_FIELD = new ParseField("query_vector");
     public static final ParseField INFERENCE_ID_FIELD = new ParseField("inference_id");
-    public static final ParseField TEXT_FIELD = new ParseField("text");
+    public static final ParseField QUERY_FIELD = new ParseField("query");
     public static final ParseField PRUNE_FIELD = new ParseField("prune");
     public static final ParseField PRUNING_CONFIG_FIELD = new ParseField("pruning_config");
 
@@ -64,7 +64,7 @@ public class SparseVectorQueryBuilder extends AbstractQueryBuilder<SparseVectorQ
     private final String fieldName;
     private final List<WeightedToken> queryVectors;
     private final String inferenceId;
-    private final String text;
+    private final String query;
     private final boolean shouldPruneTokens;
 
     private final SetOnce<TextExpansionResults> weightedTokensSupplier;
@@ -72,8 +72,8 @@ public class SparseVectorQueryBuilder extends AbstractQueryBuilder<SparseVectorQ
     @Nullable
     private final TokenPruningConfig tokenPruningConfig;
 
-    public SparseVectorQueryBuilder(String fieldName, String inferenceId, String text) {
-        this(fieldName, null, inferenceId, text, DEFAULT_PRUNE, null);
+    public SparseVectorQueryBuilder(String fieldName, String inferenceId, String query) {
+        this(fieldName, null, inferenceId, query, DEFAULT_PRUNE, null);
     }
 
     public SparseVectorQueryBuilder(String fieldName, List<WeightedToken> queryVector) {
@@ -84,7 +84,7 @@ public class SparseVectorQueryBuilder extends AbstractQueryBuilder<SparseVectorQ
         String fieldName,
         @Nullable List<WeightedToken> queryVectors,
         @Nullable String inferenceId,
-        @Nullable String text,
+        @Nullable String query,
         @Nullable Boolean shouldPruneTokens,
         @Nullable TokenPruningConfig tokenPruningConfig
     ) {
@@ -92,7 +92,7 @@ public class SparseVectorQueryBuilder extends AbstractQueryBuilder<SparseVectorQ
         this.shouldPruneTokens = (shouldPruneTokens != null ? shouldPruneTokens : DEFAULT_PRUNE);
         this.queryVectors = queryVectors;
         this.inferenceId = inferenceId;
-        this.text = text;
+        this.query = query;
         this.tokenPruningConfig = (tokenPruningConfig != null
             ? tokenPruningConfig
             : (this.shouldPruneTokens ? new TokenPruningConfig() : null));
@@ -109,12 +109,12 @@ public class SparseVectorQueryBuilder extends AbstractQueryBuilder<SparseVectorQ
                     + "]"
             );
         }
-        if (inferenceId != null && text == null) {
+        if (inferenceId != null && query == null) {
             throw new IllegalArgumentException(
                 "["
                     + NAME
                     + "] requires ["
-                    + TEXT_FIELD.getPreferredName()
+                    + QUERY_FIELD.getPreferredName()
                     + "] when ["
                     + INFERENCE_ID_FIELD.getPreferredName()
                     + "] is specified"
@@ -128,7 +128,7 @@ public class SparseVectorQueryBuilder extends AbstractQueryBuilder<SparseVectorQ
         this.shouldPruneTokens = in.readBoolean();
         this.queryVectors = in.readOptionalCollectionAsList(WeightedToken::new);
         this.inferenceId = in.readOptionalString();
-        this.text = in.readOptionalString();
+        this.query = in.readOptionalString();
         this.tokenPruningConfig = in.readOptionalWriteable(TokenPruningConfig::new);
         this.weightedTokensSupplier = null;
     }
@@ -138,7 +138,7 @@ public class SparseVectorQueryBuilder extends AbstractQueryBuilder<SparseVectorQ
         this.shouldPruneTokens = other.shouldPruneTokens;
         this.queryVectors = other.queryVectors;
         this.inferenceId = other.inferenceId;
-        this.text = other.text;
+        this.query = other.query;
         this.tokenPruningConfig = other.tokenPruningConfig;
         this.weightedTokensSupplier = weightedTokensSupplier;
     }
@@ -169,7 +169,7 @@ public class SparseVectorQueryBuilder extends AbstractQueryBuilder<SparseVectorQ
         out.writeBoolean(shouldPruneTokens);
         out.writeOptionalCollection(queryVectors);
         out.writeOptionalString(inferenceId);
-        out.writeOptionalString(text);
+        out.writeOptionalString(query);
         out.writeOptionalWriteable(tokenPruningConfig);
     }
 
@@ -185,7 +185,7 @@ public class SparseVectorQueryBuilder extends AbstractQueryBuilder<SparseVectorQ
             builder.endObject();
         } else {
             builder.field(INFERENCE_ID_FIELD.getPreferredName(), inferenceId);
-            builder.field(TEXT_FIELD.getPreferredName(), text);
+            builder.field(QUERY_FIELD.getPreferredName(), query);
         }
         builder.field(PRUNE_FIELD.getPreferredName(), shouldPruneTokens);
         if (tokenPruningConfig != null) {
@@ -241,7 +241,7 @@ public class SparseVectorQueryBuilder extends AbstractQueryBuilder<SparseVectorQ
         // TODO move this to xpack core and use inference APIs
         CoordinatedInferenceAction.Request inferRequest = CoordinatedInferenceAction.Request.forTextInput(
             inferenceId,
-            List.of(text),
+            List.of(query),
             TextExpansionConfigUpdate.EMPTY_UPDATE,
             false,
             InferModelAction.Request.DEFAULT_TIMEOUT_FOR_API
@@ -300,12 +300,12 @@ public class SparseVectorQueryBuilder extends AbstractQueryBuilder<SparseVectorQ
             && Objects.equals(queryVectors, other.queryVectors)
             && Objects.equals(shouldPruneTokens, other.shouldPruneTokens)
             && Objects.equals(inferenceId, other.inferenceId)
-            && Objects.equals(text, other.text);
+            && Objects.equals(query, other.query);
     }
 
     @Override
     protected int doHashCode() {
-        return Objects.hash(fieldName, queryVectors, tokenPruningConfig, shouldPruneTokens, inferenceId, text);
+        return Objects.hash(fieldName, queryVectors, tokenPruningConfig, shouldPruneTokens, inferenceId, query);
     }
 
     @Override
@@ -351,7 +351,7 @@ public class SparseVectorQueryBuilder extends AbstractQueryBuilder<SparseVectorQ
         PARSER.declareString(constructorArg(), FIELD_FIELD);
         PARSER.declareObject(optionalConstructorArg(), (p, c) -> p.map(), QUERY_VECTOR_FIELD);
         PARSER.declareString(optionalConstructorArg(), INFERENCE_ID_FIELD);
-        PARSER.declareString(optionalConstructorArg(), TEXT_FIELD);
+        PARSER.declareString(optionalConstructorArg(), QUERY_FIELD);
         PARSER.declareBoolean(optionalConstructorArg(), PRUNE_FIELD);
         PARSER.declareObject(optionalConstructorArg(), (p, c) -> TokenPruningConfig.fromXContent(p), PRUNING_CONFIG_FIELD);
         declareStandardFields(PARSER);

@@ -65,7 +65,7 @@ setup:
         refresh: true
         body: |
           {"index": {}}
-          {"source_text": "my words comforter", "ml.tokens":{"my":0.5, "words":1.0,"comforter":2.0}}
+          {"source_text": "my words comforter", "ml.tokens":{"my":0.5,"words":1.0,"comforter":2.0}}
           {"index": {}}
           {"source_text": "the machine is leaking", "ml.tokens":{"the":0.5,"machine":1.0,"is":0.5,"leaking":1.0}}
           {"index": {}}
@@ -73,7 +73,7 @@ setup:
           {"index": {}}
           {"source_text": "the octopus comforter smells", "ml.tokens":{"the":0.5,"octopus":2.0,"comforter":2.0,"smells":1.0}}
           {"index": {}}
-          {"source_text": "the octopus comforter is leaking", "ml.tokens":{"the":0.5,"octopus":2.0,"comforter":2.0,"is":0.5"leaking":1.0}}
+          {"source_text": "the octopus comforter is leaking", "ml.tokens":{"the":0.5,"octopus":2.0,"comforter":2.0,"is":0.5,"leaking":1.0}}
           {"index": {}}
           {"source_text": "washing machine smells", "ml.tokens":{"washing":1.0,"machine":1.0,"smells":1.0}}
 
@@ -95,7 +95,7 @@ setup:
             sparse_vector:
               field: ml.tokens
               inference_id: text_expansion_model
-              text: "octopus comforter smells"
+              query: "octopus comforter smells"
   - match: { hits.total.value: 4 }
   - match: { hits.hits.0._source.source_text: "the octopus comforter smells" }
 
@@ -109,7 +109,7 @@ setup:
             sparse_vector:
               field: ml.tokens
               inference_id: text_expansion_model
-              text: "octopus comforter smells"
+              query: "octopus comforter smells"
               prune: true
               pruning_config:
   - match: { hits.total.value: 4 }
@@ -125,7 +125,7 @@ setup:
             sparse_vector:
               field: ml.tokens
               inference_id: text_expansion_model
-              text: "octopus comforter smells"
+              query: "octopus comforter smells"
               prune: true
   - match: { hits.total.value: 4 }
   - match: { hits.hits.0._source.source_text: "the octopus comforter smells" }
@@ -139,7 +139,7 @@ setup:
             sparse_vector:
               field: ml.tokens
               inference_id: text_expansion_model
-              text: "octopus comforter smells"
+              query: "octopus comforter smells"
               prune: true
               _name: i-like-naming-my-queries
               boost: 100.0
@@ -158,7 +158,7 @@ setup:
             sparse_vector:
               field: ml.tokens
               inference_id: text_expansion_model
-              text: "octopus comforter smells"
+              query: "octopus comforter smells"
               prune: true
               pruning_config:
                 tokens_freq_ratio_threshold: 5
@@ -177,7 +177,7 @@ setup:
             sparse_vector:
               field: ml.tokens
               inference_id: text_expansion_model
-              text: "octopus comforter smells"
+              query: "octopus comforter smells"
               prune: true
               pruning_config: { }
   - match: { hits.total.value: 4 }
@@ -193,7 +193,7 @@ setup:
             sparse_vector:
               field: ml.tokens
               inference_id: text_expansion_model
-              text: "octopus comforter smells"
+              query: "octopus comforter smells"
               prune: true
               pruning_config:
                 tokens_freq_ratio_threshold: 4
@@ -304,4 +304,4 @@ setup:
             sparse_vector:
               field: source_text
               inference_id: text_expansion_model
-              text: "octopus comforter smells"
+              query: "octopus comforter smells"

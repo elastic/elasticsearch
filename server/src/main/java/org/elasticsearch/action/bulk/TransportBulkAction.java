@@ -419,7 +419,6 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
             if (lazyRolloverFeature) {
                 DataStream dataStream = state.metadata().dataStreams().get(request.index());
                 if (dataStream != null) {
-                    // TODO: Do we only want to roll over data streams on _index_ requests?
                     var writeToFailureStore = request instanceof IndexRequest indexRequest && indexRequest.isWriteToFailureStore();
                     if (writeToFailureStore == false && dataStream.getBackingIndices().isRolloverOnWrite()) {
                         dataStreamsToBeRolledOver.add(request.index());

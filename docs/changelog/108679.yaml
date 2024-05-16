@@ -1,6 +1,5 @@
 pr: 108679
-summary: Fix deleting a trained model can emit deprecation warnings related to ingest
-  pipeline configs
+summary: Suppress deprecation warnings from ingest pipelines when deleting trained model
 area: Machine Learning
 type: bug
 issues:

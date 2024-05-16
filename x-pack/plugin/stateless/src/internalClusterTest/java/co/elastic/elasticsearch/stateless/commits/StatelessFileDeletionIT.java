@@ -448,7 +448,7 @@ public class StatelessFileDeletionIT extends AbstractStatelessIntegTestCase {
         ensureGreen(indexName);
 
         // awaits #793
-        // var shardCommitsContainer = getShardCommitsContainerForCurrentPrimaryTerm(indexName, indexNode);
+        // var shardCommitsContainer = getShardCommitsContainerForCurrentPrimaryTerm(indexName, indexNode, 0);
         // var initialBlobs = listBlobsWithAbsolutePath(shardCommitsContainer);
 
         int totalIndexedDocs = 0;
@@ -533,7 +533,7 @@ public class StatelessFileDeletionIT extends AbstractStatelessIntegTestCase {
         createIndex(indexName, 1, 1);
         ensureGreen(indexName);
 
-        var shardCommitsContainer = getShardCommitsContainerForCurrentPrimaryTerm(indexName, indexNode);
+        var shardCommitsContainer = getShardCommitsContainerForCurrentPrimaryTerm(indexName, indexNode, 0);
 
         int totalIndexedDocs = 0;
         int numberOfCommitsBeforeMerge = 3;
@@ -598,7 +598,7 @@ public class StatelessFileDeletionIT extends AbstractStatelessIntegTestCase {
         createIndex(indexName, 1, 1);
         ensureGreen(indexName);
 
-        var shardCommitsContainer = getShardCommitsContainerForCurrentPrimaryTerm(indexName, indexNode);
+        var shardCommitsContainer = getShardCommitsContainerForCurrentPrimaryTerm(indexName, indexNode, 0);
         var initialBlobs = listBlobsWithAbsolutePath(shardCommitsContainer);
 
         int totalIndexedDocs = 0;
@@ -702,7 +702,7 @@ public class StatelessFileDeletionIT extends AbstractStatelessIntegTestCase {
         var indexName = randomIdentifier();
         createIndex(indexName, 1, 1);
         ensureGreen(indexName);
-        var shardCommitsContainer = getShardCommitsContainerForCurrentPrimaryTerm(indexName, indexNode);
+        var shardCommitsContainer = getShardCommitsContainerForCurrentPrimaryTerm(indexName, indexNode, 0);
         indexDocsAndFlush(indexName);
         assertAcked(indicesAdmin().delete(new DeleteIndexRequest(indexName)).actionGet());
         assertBusy(() -> { assertThat(listBlobsWithAbsolutePath(shardCommitsContainer), empty()); });
@@ -770,7 +770,7 @@ public class StatelessFileDeletionIT extends AbstractStatelessIntegTestCase {
         createIndex(indexName, 1, 1);
         ensureGreen(indexName);
         var totalIndexedDocs = indexDocsAndFlush(indexName);
-        var shardCommitsContainer = getShardCommitsContainerForCurrentPrimaryTerm(indexName, indexNodeA);
+        var shardCommitsContainer = getShardCommitsContainerForCurrentPrimaryTerm(indexName, indexNodeA, 0);
 
         startIndexNode();
         startSearchNode();
@@ -806,7 +806,7 @@ public class StatelessFileDeletionIT extends AbstractStatelessIntegTestCase {
         createIndex(indexName, 1, 1);
         ensureGreen(indexName);
         var totalIndexedDocs = indexDocsAndFlush(indexName);
-        var shardCommitsContainer = getShardCommitsContainerForCurrentPrimaryTerm(indexName, indexNodeA);
+        var shardCommitsContainer = getShardCommitsContainerForCurrentPrimaryTerm(indexName, indexNodeA, 0);
 
         startIndexNode();
         ensureStableCluster(4);
@@ -840,7 +840,7 @@ public class StatelessFileDeletionIT extends AbstractStatelessIntegTestCase {
         createIndex(indexName, 1, 0);
         ensureGreen(indexName);
 
-        var shardCommitsContainer = getShardCommitsContainerForCurrentPrimaryTerm(indexName, indexNodeA);
+        var shardCommitsContainer = getShardCommitsContainerForCurrentPrimaryTerm(indexName, indexNodeA, 0);
         var initialBlobs = listBlobsWithAbsolutePath(shardCommitsContainer);
 
         final int numberOfSegments = randomIntBetween(2, 5);
@@ -916,7 +916,7 @@ public class StatelessFileDeletionIT extends AbstractStatelessIntegTestCase {
         ensureGreen(indexName);
         var searchNode2 = startSearchNode();
         ensureStableCluster(3);
-        var shardCommitsContainer = getShardCommitsContainerForCurrentPrimaryTerm(indexName, indexNode);
+        var shardCommitsContainer = getShardCommitsContainerForCurrentPrimaryTerm(indexName, indexNode, 0);
         var initialBlobs = listBlobsWithAbsolutePath(shardCommitsContainer);
 
         // Create some commits
@@ -1130,7 +1130,7 @@ public class StatelessFileDeletionIT extends AbstractStatelessIntegTestCase {
 
         long maxUploadedBCCGeneration = uploadedBCCGenerations.stream().mapToLong(PrimaryTermAndGeneration::generation).max().orElse(-1);
 
-        var shardCommitsContainer = getShardCommitsContainerForCurrentPrimaryTerm(indexName, indexNode);
+        var shardCommitsContainer = getShardCommitsContainerForCurrentPrimaryTerm(indexName, indexNode, 0);
         final Set<String> expectedBlobsAfterProcessingNewCommitNotifications;
         if (searchNodeUsesBothBCCs) {
             // If the search node opened a scroll, we should not remove any of the BCCs

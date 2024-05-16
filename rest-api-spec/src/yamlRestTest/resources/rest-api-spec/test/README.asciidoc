@@ -120,8 +120,8 @@ if defined in `setup` and `teardown`.
 [[capabilities_check]]
 === Require or skip API capabilities
 
-As opposed to <<cluster_features,cluster features>>, which are aimed at doing fast checks internally,
-the capabilities API allows external clients to ask an elasticsearch cluster what it supports in terms of
+As opposed to <<cluster_features,cluster features>>, which are aimed at performing checks internal to Elasticsearch,
+the capabilities API allows external clients to ask an Elasticsearch cluster what it supports in terms of
 particular endpoints, query parameters and other arbitrary capabilities.
 
 Only if every node in the cluster supports the requested path and method with all parameters and capabilities,
@@ -145,7 +145,9 @@ other test runners to skip tests if they do not support the capabilities API yet
 
 Note: If planning to `skip` on capabilities, keep in mind this might lead to unexpected results in _mixed cluster_
 tests. A test is only skipped if all nodes support the requested capabilities, in _mixed clusters_ this might not be
-the case: you might randomly hit a node that actually supports what you intended to skip on.
+the case: such a cluster can consist of a mix of nodes where some support respective capabilities and others don't.
+However, in that case, the test is *not* skipped and you might randomly hit one of the nodes that actually supports
+what you intended to skip on. This might break your assumptions and fail the test. 
 
 Capabilities are declared as part of an implementation of `RestHandler`.
 Override the `supportedQueryParameters` and/or the `supportedCapabilities` methods:

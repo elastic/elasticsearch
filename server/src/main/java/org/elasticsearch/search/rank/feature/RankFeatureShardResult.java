@@ -40,7 +40,7 @@ public class RankFeatureShardResult implements RankShardResult {
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.V_8_12_0; // TODO: changeme
+        return TransportVersions.RANK_FEATURE_PHASE_ADDED;
     }
 
     @Override

@@ -168,6 +168,7 @@ public class TransportVersions {
     public static final TransportVersion ML_INFERENCE_AZURE_AI_STUDIO = def(8_659_00_0);
     public static final TransportVersion ML_INFERENCE_COHERE_COMPLETION_ADDED = def(8_660_00_0);
     public static final TransportVersion ESQL_REMOVE_ES_SOURCE_OPTIONS = def(8_661_00_0);
+    public static final TransportVersion RANK_FEATURE_PHASE_ADDED = def(8_662_00_0);
 
     /*
      * STOP! READ THIS FIRST! No, really,

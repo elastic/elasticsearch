@@ -390,6 +390,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
         Function<String, Boolean> indexExistenceComputation = (index) -> indexNameExpressionResolver.hasIndexAbstraction(index, state);
         boolean lazyRolloverFeature = featureService.clusterHasFeature(state, LazyRolloverAction.DATA_STREAM_LAZY_ROLLOVER);
         boolean lazyRolloverFailureStoreFeature = featureService.clusterHasFeature(state, LazyRolloverAction.FAILURE_STORE_LAZY_ROLLOVER);
+        Set<String> indicesThatRequireAlias = new HashSet<>();
 
         for (DocWriteRequest<?> request : bulkRequest.requests) {
             // Delete requests should not attempt to create the index (if the index does not exist), unless an external versioning is used.
@@ -399,11 +400,19 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                 continue;
             }
             boolean indexExists = indexExistence.computeIfAbsent(request.index(), indexExistenceComputation);
-            // We should only auto create if we are not requiring it to be an alias.
-            if (indexExists == false && request.isRequireAlias() == false) {
-                Boolean requiresDataStream = indicesToAutoCreate.get(request.index());
-                if (requiresDataStream == null || (requiresDataStream == false && request.isRequireDataStream())) {
-                    indicesToAutoCreate.put(request.index(), request.isRequireDataStream());
+            if (indexExists == false) {
+                // We should only auto create an index if _none_ of the requests are requiring it to be an alias.
+                if (request.isRequireAlias()) {
+                    // Remember that this a request required this index to be an alias.
+                    if (indicesThatRequireAlias.add(request.index())) {
+                        // If we didn't already know that, we remove the index from the list of indices to create (if present).
+                        indicesToAutoCreate.remove(request.index());
+                    }
+                } else if (indicesThatRequireAlias.contains(request.index()) == false) {
+                    Boolean requiresDataStream = indicesToAutoCreate.get(request.index());
+                    if (requiresDataStream == null || (requiresDataStream == false && request.isRequireDataStream())) {
+                        indicesToAutoCreate.put(request.index(), request.isRequireDataStream());
+                    }
                 }
             }
             // Determine which data streams and failure stores need to be rolled over.

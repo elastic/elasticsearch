@@ -373,7 +373,7 @@ version:version | name:keyword
 
 
 mvAppend
-required_feature: esql.mv_append
+required_capability: fn_mv_append
 
 ROW a = to_version("1.2.0"), x1 = to_version("0.0.1"), x2 = to_version("1.0.0")
 | EVAL b = mv_append(x1, x2)

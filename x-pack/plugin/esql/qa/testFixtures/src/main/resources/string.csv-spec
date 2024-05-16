@@ -1329,7 +1329,7 @@ null       | 0
 
 
 mvAppend
-required_feature: esql.mv_append
+required_capability: fn_mv_append
 
 ROW a = "a", b = ["b", "c"]
 | EVAL aa = mv_append(a, a), bb = mv_append(b, b), ab = mv_append(a, b), abb = mv_append(mv_append(a, b), b)
@@ -1341,7 +1341,7 @@ a         | [b, c]    | [a, a]     | [b, c, b, c] | [a, b, c]  | [a, b, c, b, c]
 
 
 mvAppendNull
-required_feature: esql.mv_append
+required_capability: fn_mv_append
 
 ROW a = "a", b = ["b", "c"], c = to_string(null)
 | EVAL a_null = mv_append(a, c),
@@ -1357,7 +1357,7 @@ a         | [b, c]    | null      | null           | null           | null      
 
 
 mvAppendStrings
-required_feature: esql.mv_append
+required_capability: fn_mv_append
 
 FROM employees
 | WHERE emp_no == 10004
@@ -1374,7 +1374,7 @@ emp_no:integer | names:keyword    | two_jobs:keyword                            
 
 
 mvAppendStringsWhere
-required_feature: esql.mv_append
+required_capability: fn_mv_append
 
 FROM employees
 | EVAL two_jobs = mv_append(mv_sort(job_positions), mv_sort(job_positions)) 
@@ -1387,7 +1387,7 @@ emp_no:integer | two_jobs:keyword
 ;
 
 mvAppendNullFields
-required_feature: esql.mv_append
+required_capability: fn_mv_append
 
 FROM employees
 | WHERE emp_no == 10005

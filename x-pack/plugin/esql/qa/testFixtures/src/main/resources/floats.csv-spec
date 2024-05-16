@@ -525,7 +525,7 @@ required_capability: agg_values
 
 
 mvAppend
-required_feature: esql.mv_append
+required_capability: fn_mv_append
 
 FROM employees
 | WHERE emp_no == 10008 OR emp_no == 10021

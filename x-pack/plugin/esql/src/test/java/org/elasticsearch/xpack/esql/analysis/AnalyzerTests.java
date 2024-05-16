@@ -1881,10 +1881,10 @@ public class AnalyzerTests extends ESTestCase {
             { "bool", "boolean" },
             { "int", "integer" },
             { "unsigned_long", "unsigned_long" },
-            { "float", "float" },
+            { "float", "double" },
             { "text", "text" },
             { "keyword", "keyword" },
-            { "date", "date" },
+            { "date", "datetime" },
             { "point", "geo_point" },
             { "shape", "geo_shape" },
             { "version", "version" } };

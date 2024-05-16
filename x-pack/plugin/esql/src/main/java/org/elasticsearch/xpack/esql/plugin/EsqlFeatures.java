@@ -35,11 +35,6 @@ public class EsqlFeatures implements FeatureSpecification {
     private static final NodeFeature MV_SORT = new NodeFeature("esql.mv_sort");
 
     /**
-     * Introduction of {@code MV_APPEND}
-     */
-    private static final NodeFeature MV_APPEND = new NodeFeature("esql.mv_append");
-
-    /**
      * When we disabled some broken optimizations around {@code nullable}.
      * Fixed in #105691.
      */
@@ -173,7 +168,6 @@ public class EsqlFeatures implements FeatureSpecification {
             AGG_VALUES,
             BASE64_DECODE_ENCODE,
             MV_SORT,
-            MV_APPEND,
             DISABLE_NULLABLE_OPTS,
             ST_X_Y,
             FROM_OPTIONS,

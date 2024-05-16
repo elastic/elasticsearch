@@ -8,6 +8,8 @@
 
 package org.elasticsearch.common.util;
 
+import org.apache.lucene.util.ArrayUtil;
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.recycler.Recycler;
 
@@ -25,6 +27,32 @@ abstract class AbstractBigByteArray extends AbstractBigArray {
         this.size = size;
         pages = new byte[numPages(size)][];
         Arrays.fill(pages, ZERO_PAGE);
+        assert assertZeroPageClean();
+    }
+
+    private static boolean assertZeroPageClean() {
+        for (byte b : ZERO_PAGE) {
+            assert b == 0 : b;
+        }
+        return true;
+    }
+
+    /** Change the size of this array. Content between indexes <code>0</code> and <code>min(size(), newSize)</code> will be preserved. */
+    @Override
+    public void resize(long newSize) {
+        final int numPages = numPages(newSize);
+        if (numPages > pages.length) {
+            pages = Arrays.copyOf(pages, ArrayUtil.oversize(numPages, RamUsageEstimator.NUM_BYTES_OBJECT_REF));
+        }
+        for (int i = numPages - 1; i >= 0 && pages[i] == null; --i) {
+            pages[i] = ZERO_PAGE;
+        }
+        for (int i = numPages; i < pages.length && pages[i] != null; ++i) {
+            assert pages[i] != ZERO_PAGE;
+            pages[i] = null;
+            releasePage(i);
+        }
+        this.size = newSize;
     }
 
     protected final byte[] newBytePage(int page) {

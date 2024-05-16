@@ -346,22 +346,72 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
             if (modelSettings == null) {
                 // No inference results have been indexed yet
                 childQueryBuilder = new MatchNoneQueryBuilder();
-            } else if (inferenceResults instanceof TextExpansionResults textExpansionResults) {
-                // TODO: Use WeightedTokensQueryBuilder
-                var boolQuery = QueryBuilders.boolQuery();
-                for (var weightedToken : textExpansionResults.getWeightedTokens()) {
-                    boolQuery.should(
-                        QueryBuilders.termQuery(inferenceResultsFieldName, weightedToken.token()).boost(weightedToken.weight())
-                    );
-                }
-                boolQuery.minimumShouldMatch(1);
-
-                childQueryBuilder = boolQuery;
-            } else if (inferenceResults instanceof TextEmbeddingResults textEmbeddingResults) {
-                float[] inference = textEmbeddingResults.getInferenceAsFloat();
-                childQueryBuilder = new KnnVectorQueryBuilder(inferenceResultsFieldName, inference, null, null);
             } else {
-                throw new IllegalArgumentException("Unsupported inference results type [" + inferenceResults.getWriteableName() + "]");
+                childQueryBuilder = switch (modelSettings.taskType()) {
+                    case SPARSE_EMBEDDING -> {
+                        if (inferenceResults instanceof TextExpansionResults == false) {
+                            throw new IllegalArgumentException(
+                                "Field ["
+                                    + name()
+                                    + "] expected query inference results to be of type ["
+                                    + TextExpansionResults.NAME
+                                    + "],"
+                                    + " got ["
+                                    + inferenceResults.getWriteableName()
+                                    + "]. Has the inference endpoint configuration changed?"
+                            );
+                        }
+
+                        // TODO: Use WeightedTokensQueryBuilder
+                        TextExpansionResults textExpansionResults = (TextExpansionResults) inferenceResults;
+                        var boolQuery = QueryBuilders.boolQuery();
+                        for (var weightedToken : textExpansionResults.getWeightedTokens()) {
+                            boolQuery.should(
+                                QueryBuilders.termQuery(inferenceResultsFieldName, weightedToken.token()).boost(weightedToken.weight())
+                            );
+                        }
+                        boolQuery.minimumShouldMatch(1);
+
+                        yield boolQuery;
+                    }
+                    case TEXT_EMBEDDING -> {
+                        if (inferenceResults instanceof TextEmbeddingResults == false) {
+                            throw new IllegalArgumentException(
+                                "Field ["
+                                    + name()
+                                    + "] expected query inference results to be of type ["
+                                    + TextEmbeddingResults.NAME
+                                    + "],"
+                                    + " got ["
+                                    + inferenceResults.getWriteableName()
+                                    + "]. Has the inference endpoint configuration changed?"
+                            );
+                        }
+
+                        TextEmbeddingResults textEmbeddingResults = (TextEmbeddingResults) inferenceResults;
+                        float[] inference = textEmbeddingResults.getInferenceAsFloat();
+                        if (inference.length != modelSettings.dimensions()) {
+                            throw new IllegalArgumentException(
+                                "Field ["
+                                    + name()
+                                    + "] expected query inference results with "
+                                    + modelSettings.dimensions()
+                                    + " dimensions, got " +
+                                    inference.length +
+                                    " dimensions. Has the inference endpoint configuration changed?"
+                            );
+                        }
+
+                        yield new KnnVectorQueryBuilder(inferenceResultsFieldName, inference, null, null);
+                    }
+                    default -> throw new IllegalStateException(
+                        "Field ["
+                            + name()
+                            + "] configured to use an inference endpoint with an unsupported task type ["
+                            + modelSettings.taskType()
+                            + "]"
+                    );
+                };
             }
 
             return new NestedQueryBuilder(nestedFieldPath, childQueryBuilder, ScoreMode.Max).boost(boost).queryName(queryName);

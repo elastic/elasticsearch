@@ -362,6 +362,7 @@ import org.elasticsearch.xpack.security.rest.action.role.RestClearRolesCacheActi
 import org.elasticsearch.xpack.security.rest.action.role.RestDeleteRoleAction;
 import org.elasticsearch.xpack.security.rest.action.role.RestGetRolesAction;
 import org.elasticsearch.xpack.security.rest.action.role.RestPutRoleAction;
+import org.elasticsearch.xpack.security.rest.action.role.RestQueryRoleAction;
 import org.elasticsearch.xpack.security.rest.action.rolemapping.RestDeleteRoleMappingAction;
 import org.elasticsearch.xpack.security.rest.action.rolemapping.RestGetRoleMappingsAction;
 import org.elasticsearch.xpack.security.rest.action.rolemapping.RestPutRoleMappingAction;
@@ -1484,6 +1485,7 @@ public class Security extends Plugin
             new RestPutUserAction(settings, getLicenseState()),
             new RestDeleteUserAction(settings, getLicenseState()),
             new RestGetRolesAction(settings, getLicenseState()),
+            new RestQueryRoleAction(settings, getLicenseState()),
             new RestPutRoleAction(settings, getLicenseState(), putRoleRequestBuilderFactory.get()),
             new RestDeleteRoleAction(settings, getLicenseState()),
             new RestChangePasswordAction(settings, securityContext.get(), getLicenseState()),

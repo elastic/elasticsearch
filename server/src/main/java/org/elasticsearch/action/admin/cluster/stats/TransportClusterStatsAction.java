@@ -70,7 +70,8 @@ public class TransportClusterStatsAction extends TransportNodesAction<
         CommonStatsFlags.Flag.QueryCache,
         CommonStatsFlags.Flag.Completion,
         CommonStatsFlags.Flag.Segments,
-        CommonStatsFlags.Flag.DenseVector
+        CommonStatsFlags.Flag.DenseVector,
+        CommonStatsFlags.Flag.SparseVector
     );
 
     private final NodeService nodeService;

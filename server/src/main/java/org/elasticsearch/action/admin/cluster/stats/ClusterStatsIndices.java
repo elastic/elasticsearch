@@ -14,6 +14,7 @@ import org.elasticsearch.index.engine.SegmentsStats;
 import org.elasticsearch.index.fielddata.FieldDataStats;
 import org.elasticsearch.index.shard.DenseVectorStats;
 import org.elasticsearch.index.shard.DocsStats;
+import org.elasticsearch.index.shard.SparseVectorStats;
 import org.elasticsearch.index.store.StoreStats;
 import org.elasticsearch.search.suggest.completion.CompletionStats;
 import org.elasticsearch.xcontent.ToXContentFragment;
@@ -23,6 +24,7 @@ import java.io.IOException;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.OptionalLong;
 
 public class ClusterStatsIndices implements ToXContentFragment {
     private final int indexCount;
@@ -38,6 +40,7 @@ public class ClusterStatsIndices implements ToXContentFragment {
     private final MappingStats mappings;
     private final VersionStats versions;
     private final DenseVectorStats denseVectorStats;
+    private final SparseVectorStats sparseVectorStats;
 
     public ClusterStatsIndices(
         List<ClusterStatsNodeResponse> nodeResponses,
@@ -55,6 +58,7 @@ public class ClusterStatsIndices implements ToXContentFragment {
         this.completion = new CompletionStats();
         this.segments = new SegmentsStats();
         this.denseVectorStats = new DenseVectorStats();
+        this.sparseVectorStats = new SparseVectorStats();
 
         for (ClusterStatsNodeResponse r : nodeResponses) {
             for (org.elasticsearch.action.admin.indices.stats.ShardStats shardStats : r.shardsStats()) {
@@ -78,6 +82,7 @@ public class ClusterStatsIndices implements ToXContentFragment {
                 completion.add(shardCommonStats.getCompletion());
                 segments.add(shardCommonStats.getSegments());
                 denseVectorStats.add(shardCommonStats.getDenseVectorStats());
+                sparseVectorStats.add(shardCommonStats.getSparseVectorStats());
             }
 
             searchUsageStats.add(r.searchUsageStats());
@@ -146,6 +151,12 @@ public class ClusterStatsIndices implements ToXContentFragment {
         return denseVectorStats;
     }
 
+    public SparseVectorStats getSparseVectorStats() {
+        OptionalLong maybeSparseVectorFieldCount = mappings.getTotalSparseVectorFieldCount();
+        long sparseVectorFieldCount = maybeSparseVectorFieldCount.isPresent() ? maybeSparseVectorFieldCount.getAsLong() : 0;
+        return new SparseVectorStats(sparseVectorFieldCount);
+    }
+
     static final class Fields {
         static final String COUNT = "count";
     }
@@ -171,6 +182,7 @@ public class ClusterStatsIndices implements ToXContentFragment {
         }
         searchUsageStats.toXContent(builder, params);
         denseVectorStats.toXContent(builder, params);
+        sparseVectorStats.toXContent(builder, params);
         return builder;
     }
 

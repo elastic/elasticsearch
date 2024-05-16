@@ -101,6 +101,7 @@ import org.elasticsearch.index.get.ShardGetService;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperMetrics;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.Mapping;
@@ -1426,6 +1427,15 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     public DenseVectorStats denseVectorStats() {
         readAllowed();
         return getEngine().denseVectorStats();
+    }
+
+    public SparseVectorStats sparseVectorStats() {
+        readAllowed();
+        int totalSparseVectorFieldCount = 0;
+        for (Mapper mapper : mapperService.mappingLookup().fieldMappers()) {
+            totalSparseVectorFieldCount += mapper.getTotalSparseVectorFieldCount();
+        }
+        return new SparseVectorStats(totalSparseVectorFieldCount);
     }
 
     public BulkStats bulkStats() {

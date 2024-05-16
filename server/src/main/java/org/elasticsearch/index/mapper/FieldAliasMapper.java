@@ -118,6 +118,11 @@ public final class FieldAliasMapper extends Mapper {
         return 1;
     }
 
+    @Override
+    public int getTotalSparseVectorFieldCount() {
+        return 0;
+    }
+
     public static class TypeParser implements Mapper.TypeParser {
         @Override
         public Mapper.Builder parse(String name, Map<String, Object> node, MappingParserContext parserContext)

@@ -24,6 +24,7 @@ import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
+import org.elasticsearch.index.mapper.vectors.SparseVectorFieldMapper;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.lookup.SearchLookup;
@@ -433,6 +434,15 @@ public abstract class FieldMapper extends Mapper {
     @Override
     public int getTotalFieldsCount() {
         return 1 + Stream.of(multiFields.mappers).mapToInt(FieldMapper::getTotalFieldsCount).sum();
+    }
+
+    @Override
+    public int getTotalSparseVectorFieldCount() {
+        int inc = mappedFieldType instanceof SparseVectorFieldMapper.SparseVectorFieldType ? 1 : 0;
+        return inc + Stream.of(multiFields.mappers)
+            .filter(m -> m instanceof SparseVectorFieldMapper)
+            .mapToInt(FieldMapper::getTotalFieldsCount)
+            .sum();
     }
 
     public Map<String, NamedAnalyzer> indexAnalyzers() {

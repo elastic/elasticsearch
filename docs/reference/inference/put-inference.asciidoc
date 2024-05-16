@@ -579,11 +579,9 @@ PUT _inference/completion/azure_openai_completion
     }
 }
 ------------------------------------------------------------
+// TEST[skip:TBD]
 
 The list of chat completion models that you can choose from in your Azure OpenAI deployment can be found at the following places:
 
 * https://learn.microsoft.com/en-us/azure/ai-services/openai/concepts/models#gpt-4-and-gpt-4-turbo-models[GPT-4 and GPT-4 Turbo models]
 * https://learn.microsoft.com/en-us/azure/ai-services/openai/concepts/models#gpt-35[GPT-3.5]
-
-// TEST[skip:TBD]
-

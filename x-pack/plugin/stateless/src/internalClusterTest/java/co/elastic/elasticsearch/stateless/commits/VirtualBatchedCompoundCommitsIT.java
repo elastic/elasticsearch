@@ -354,11 +354,11 @@ public class VirtualBatchedCompoundCommitsIT extends AbstractStatelessIntegTestC
         ensureGreen(indexName);
 
         var shardId = findIndexShard(indexName).shardId();
-        var indexShardCommitService = internalCluster().getInstance(StatelessCommitService.class, indexNode);
+        var statelessCommitService = internalCluster().getInstance(StatelessCommitService.class, indexNode);
 
         // Index some docs
         final IndexedDocs indexedDocs = indexDocsAndRefresh(indexName);
-        var vbccGen = indexShardCommitService.getCurrentVirtualBcc(shardId).getPrimaryTermAndGeneration().generation();
+        var vbccGen = statelessCommitService.getCurrentVirtualBcc(shardId).getPrimaryTermAndGeneration().generation();
 
         // serve Lucene files from the indexing node
         if (randomBoolean()) {
@@ -369,11 +369,11 @@ public class VirtualBatchedCompoundCommitsIT extends AbstractStatelessIntegTestC
         validateSearchResponse(indexName, testSearchType, indexedDocs);
 
         // Ensure VBCC not yet uploaded
-        assertThat(indexShardCommitService.getCurrentVirtualBcc(shardId).getPrimaryTermAndGeneration().generation(), equalTo(vbccGen));
+        assertThat(statelessCommitService.getCurrentVirtualBcc(shardId).getPrimaryTermAndGeneration().generation(), equalTo(vbccGen));
 
         // Upload VBCC
         flush(indexName);
-        assertNull(indexShardCommitService.getCurrentVirtualBcc(shardId));
+        assertNull(statelessCommitService.getCurrentVirtualBcc(shardId));
 
         // Search via the object store
         if (randomBoolean()) {
@@ -395,10 +395,10 @@ public class VirtualBatchedCompoundCommitsIT extends AbstractStatelessIntegTestC
         // Index some docs
         final IndexedDocs indexedDocs = indexDocsAndRefresh(indexName);
         var shardId = findIndexShard(indexName).shardId();
-        var indexShardCommitService = internalCluster().getInstance(StatelessCommitService.class, indexNodeA);
+        var statelessCommitService = internalCluster().getInstance(StatelessCommitService.class, indexNodeA);
 
         // Ensure VBCC not yet uploaded
-        assertNotNull(indexShardCommitService.getCurrentVirtualBcc(shardId));
+        assertNotNull(statelessCommitService.getCurrentVirtualBcc(shardId));
 
         final var indexNodeTransportService = MockTransportService.getInstance(indexNodeA);
         CountDownLatch relocationStarted = new CountDownLatch(1);
@@ -423,15 +423,20 @@ public class VirtualBatchedCompoundCommitsIT extends AbstractStatelessIntegTestC
             searchSent.countDown();
         });
 
-        var thread = new Thread(() -> {
-            // serve Lucene files from the indexing node
-            TestSearchType testSearchType = randomFrom(TestSearchType.values());
-            validateSearchResponse(indexName, testSearchType, indexedDocs);
-        });
-        thread.start();
+        var threads = new Thread[randomIntBetween(1, 8)];
+        for (int i = 0; i < threads.length; i++) {
+            threads[i] = new Thread(() -> {
+                // serve Lucene files from the indexing node
+                TestSearchType testSearchType = randomFrom(TestSearchType.values());
+                validateSearchResponse(indexName, testSearchType, indexedDocs);
+            });
+            threads[i].start();
+        }
 
         assertBusy(() -> assertThat(internalCluster().nodesInclude(indexName), not(hasItem(indexNodeA))));
-        thread.join();
+        for (Thread thread : threads) {
+            thread.join();
+        }
     }
 
     public void testGetVirtualBatchedCompoundCommitChunkRetriesIfPrimaryRelocates() throws Exception {
@@ -447,19 +452,19 @@ public class VirtualBatchedCompoundCommitsIT extends AbstractStatelessIntegTestC
         // Index some docs
         final IndexedDocs indexedDocs = indexDocsAndRefresh(indexName);
         var shardId = findIndexShard(indexName).shardId();
-        var indexShardCommitService = internalCluster().getInstance(StatelessCommitService.class, indexNodeA);
+        var statelessCommitService = internalCluster().getInstance(StatelessCommitService.class, indexNodeA);
 
         // Ensure VBCC not yet uploaded
-        assertNotNull(indexShardCommitService.getCurrentVirtualBcc(shardId));
+        assertNotNull(statelessCommitService.getCurrentVirtualBcc(shardId));
 
         CountDownLatch actionAppeared = new CountDownLatch(1);
-        CountDownLatch actionSent = new CountDownLatch(1);
+        CountDownLatch getVBCCChunkBlocked = new CountDownLatch(1);
         final var transportService = MockTransportService.getInstance(searchNode);
         transportService.addSendBehavior((connection, requestId, action, request, options) -> {
             if (connection.getNode().getName().equals(indexNodeA)
                 && action.equals(TransportGetVirtualBatchedCompoundCommitChunkAction.NAME + "[p]")) {
                 actionAppeared.countDown();
-                safeAwait(actionSent);
+                safeAwait(getVBCCChunkBlocked);
             }
             connection.sendRequest(requestId, action, request, options);
         });
@@ -522,7 +527,7 @@ public class VirtualBatchedCompoundCommitsIT extends AbstractStatelessIntegTestC
             }
         );
 
-        actionSent.countDown();
+        getVBCCChunkBlocked.countDown();
         safeAwait(actionOnNewPrimarySeen);
         thread.join();
     }
@@ -543,12 +548,12 @@ public class VirtualBatchedCompoundCommitsIT extends AbstractStatelessIntegTestC
         // Index some docs
         indexDocsAndRefresh(indexName);
         var shardId = findIndexShard(indexName).shardId();
-        var indexShardCommitService = internalCluster().getInstance(StatelessCommitService.class, indexNode);
+        var statelessCommitService = internalCluster().getInstance(StatelessCommitService.class, indexNode);
         var indexNodeIndicesService = internalCluster().getInstance(IndicesService.class, indexNode);
-        var shardCommitsContainer = getShardCommitsContainerForCurrentPrimaryTerm(indexName, indexNode);
+        var shardCommitsContainer = getShardCommitsContainerForCurrentPrimaryTerm(indexName, indexNode, 0);
 
         // Ensure VBCC not yet uploaded
-        assertNotNull(indexShardCommitService.getCurrentVirtualBcc(shardId));
+        assertNotNull(statelessCommitService.getCurrentVirtualBcc(shardId));
 
         final var getChunkActionBlocked = new AtomicBoolean(false); // block only the manually triggered read action
         CountDownLatch actionAppeared = new CountDownLatch(1);
@@ -634,10 +639,10 @@ public class VirtualBatchedCompoundCommitsIT extends AbstractStatelessIntegTestC
         final var index = resolveIndex(indexName);
         final var indexShard = findIndexShard(index, 0);
         var shardId = indexShard.shardId();
-        var indexShardCommitService = internalCluster().getInstance(StatelessCommitService.class, indexNode);
+        var statelessCommitService = internalCluster().getInstance(StatelessCommitService.class, indexNode);
 
         // Ensure VBCC not yet uploaded
-        assertNotNull(indexShardCommitService.getCurrentVirtualBcc(shardId));
+        assertNotNull(statelessCommitService.getCurrentVirtualBcc(shardId));
 
         AtomicInteger counter = new AtomicInteger(0);
         final var transportService = MockTransportService.getInstance(indexNode);
@@ -668,7 +673,7 @@ public class VirtualBatchedCompoundCommitsIT extends AbstractStatelessIntegTestC
 
         // Upload VBCC
         flush(indexName);
-        assertNull(indexShardCommitService.getCurrentVirtualBcc(shardId));
+        assertNull(statelessCommitService.getCurrentVirtualBcc(shardId));
 
         // Search via the object store
         if (randomBoolean()) {
@@ -690,10 +695,10 @@ public class VirtualBatchedCompoundCommitsIT extends AbstractStatelessIntegTestC
         final var index = resolveIndex(indexName);
         final var indexShard = findIndexShard(index, 0);
         var shardId = indexShard.shardId();
-        var indexShardCommitService = internalCluster().getInstance(StatelessCommitService.class, indexNode);
+        var statelessCommitService = internalCluster().getInstance(StatelessCommitService.class, indexNode);
 
         // Ensure VBCC not yet uploaded
-        assertNotNull(indexShardCommitService.getCurrentVirtualBcc(shardId));
+        assertNotNull(statelessCommitService.getCurrentVirtualBcc(shardId));
 
         final var failedOnce = new AtomicBoolean(false); // fail only once
         final var transportService = MockTransportService.getInstance(searchNode);
@@ -742,12 +747,12 @@ public class VirtualBatchedCompoundCommitsIT extends AbstractStatelessIntegTestC
         ensureGreen(indexName);
 
         // Index some docs
-        final IndexedDocs indexedDocs = indexDocsAndRefresh(indexName);
+        indexDocsAndRefresh(indexName);
         var shardId = findIndexShard(indexName).shardId();
-        var indexShardCommitService = internalCluster().getInstance(StatelessCommitService.class, indexNodeA);
+        var statelessCommitService = internalCluster().getInstance(StatelessCommitService.class, indexNodeA);
 
         // Ensure VBCC not yet uploaded
-        assertNotNull(indexShardCommitService.getCurrentVirtualBcc(shardId));
+        assertNotNull(statelessCommitService.getCurrentVirtualBcc(shardId));
 
         final var transportService = MockTransportService.getInstance(searchNode);
         transportService.addSendBehavior((connection, requestId, action, request, options) -> {

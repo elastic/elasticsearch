@@ -74,6 +74,7 @@ import java.util.Set;
 import java.util.SortedMap;
 import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Function;
 import java.util.function.LongSupplier;
 
 import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_PRIMARY_TERM;
@@ -366,34 +367,46 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
         );
     }
 
+    /**
+     * Determine all the targets (i.e. indices, data streams, failure stores) that require an action before we can proceed with the bulk
+     * request. Indices might need to be created, and data streams and failure stores might need to be rolled over when they're marked
+     * for lazy rollover.
+     *
+     * @param bulkRequest the bulk request
+     * @param indicesToAutoCreate a map of index names to whether they require a data stream
+     * @param dataStreamsToBeRolledOver a set of data stream names that were marked for lazy rollover and thus need to be rolled over now
+     * @param failureStoresToBeRolledOver a set of data stream names whose failure store was marked for lazy rollover and thus need to be
+     * rolled over now
+     */
     private void populateMissingTargets(
         BulkRequest bulkRequest,
         Map<String, Boolean> indicesToAutoCreate,
         Set<String> dataStreamsToBeRolledOver,
         Set<String> failureStoresToBeRolledOver
     ) {
-        Map<String, Boolean> indexExistence = new HashMap<>();
         ClusterState state = clusterService.state();
+        // A map for memorizing which indices we already exist (or don't).
+        Map<String, Boolean> indexExistence = new HashMap<>();
+        Function<String, Boolean> indexExistenceComputation = (index) -> indexNameExpressionResolver.hasIndexAbstraction(index, state);
         boolean lazyRolloverFeature = featureService.clusterHasFeature(state, LazyRolloverAction.DATA_STREAM_LAZY_ROLLOVER);
         boolean lazyRolloverFailureStoreFeature = featureService.clusterHasFeature(state, LazyRolloverAction.FAILURE_STORE_LAZY_ROLLOVER);
 
         for (DocWriteRequest<?> request : bulkRequest.requests) {
+            // Delete requests should not attempt to create the index (if the index does not exist), unless an external versioning is used.
             if (request.opType() == OpType.DELETE
                 && request.versionType() != VersionType.EXTERNAL
                 && request.versionType() != VersionType.EXTERNAL_GTE) {
                 continue;
             }
-            Boolean indexExists = indexExistence.get(request.index());
-            if (indexExists == null) {
-                indexExists = indexNameExpressionResolver.hasIndexAbstraction(request.index(), state);
-                indexExistence.put(request.index(), indexExists);
-            }
+            boolean indexExists = indexExistence.computeIfAbsent(request.index(), indexExistenceComputation);
+            // We should only auto create if we are not requiring it to be an alias.
             if (indexExists == false && request.isRequireAlias() == false) {
                 Boolean requiresDataStream = indicesToAutoCreate.get(request.index());
                 if (requiresDataStream == null || (requiresDataStream == false && request.isRequireDataStream())) {
                     indicesToAutoCreate.put(request.index(), request.isRequireDataStream());
                 }
             }
+            // Determine which data streams and failure stores need to be rolled over.
             if (lazyRolloverFeature) {
                 DataStream dataStream = state.metadata().dataStreams().get(request.index());
                 if (dataStream != null) {

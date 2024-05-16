@@ -17,10 +17,13 @@
 
 package co.elastic.elasticsearch.stateless;
 
+import co.elastic.elasticsearch.stateless.cache.SharedBlobCacheWarmingService;
+import co.elastic.elasticsearch.stateless.cache.StatelessSharedBlobCacheService;
 import co.elastic.elasticsearch.stateless.commits.BatchedCompoundCommit;
 import co.elastic.elasticsearch.stateless.commits.BlobLocation;
 import co.elastic.elasticsearch.stateless.commits.StatelessCommitService;
 import co.elastic.elasticsearch.stateless.commits.StatelessCompoundCommit;
+import co.elastic.elasticsearch.stateless.commits.VirtualBatchedCompoundCommit;
 import co.elastic.elasticsearch.stateless.engine.translog.TranslogReplicatorReader;
 import co.elastic.elasticsearch.stateless.objectstore.ObjectStoreService;
 import co.elastic.elasticsearch.stateless.objectstore.ObjectStoreTestUtils;
@@ -29,6 +32,7 @@ import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
@@ -71,6 +75,7 @@ import org.elasticsearch.snapshots.SnapshotInfo;
 import org.elasticsearch.snapshots.SnapshotState;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.transport.MockTransportService;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.junit.Before;
 import org.junit.BeforeClass;
 
@@ -83,6 +88,7 @@ import java.util.Collection;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.UnaryOperator;
 import java.util.stream.Collectors;
 
@@ -158,6 +164,22 @@ public abstract class AbstractStatelessIntegTestCase extends ESIntegTestCase {
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         return List.of(SystemIndexTestPlugin.class, BlobCachePlugin.class, Stateless.class, MockTransportService.TestPlugin.class);
+    }
+
+    public static class NoopSharedBlobCacheWarmingService extends SharedBlobCacheWarmingService {
+        public NoopSharedBlobCacheWarmingService(StatelessSharedBlobCacheService cacheService, ThreadPool threadPool, Settings settings) {
+            super(cacheService, threadPool, settings);
+        }
+
+        @Override
+        protected void warmCache(IndexShard indexShard, StatelessCompoundCommit commit, ActionListener<Void> listener) {
+            listener.onResponse(null);
+        }
+
+        @Override
+        public void warmCacheBeforeUpload(VirtualBatchedCompoundCommit vbcc, ActionListener<Void> listener) {
+            listener.onResponse(null);
+        }
     }
 
     @Override
@@ -700,6 +722,22 @@ public abstract class AbstractStatelessIntegTestCase extends ESIntegTestCase {
                 assertThat(totalOps, equalTo(indexShard.seqNoStats().getMaxSeqNo() + 1));
             }
         }
+    }
+
+    protected Set<String> listBlobsWithAbsolutePath(BlobContainer blobContainer) throws IOException {
+        var blobContainerPath = blobContainer.path().buildAsString();
+        return blobContainer.listBlobs(operationPurpose)
+            .keySet()
+            .stream()
+            .map(blob -> blobContainerPath + blob)
+            .collect(Collectors.toSet());
+    }
+
+    protected static BlobContainer getShardCommitsContainerForCurrentPrimaryTerm(String indexName, String indexNode) {
+        var indexObjectStoreService = internalCluster().getInstance(ObjectStoreService.class, indexNode);
+        var primaryTerm = client().admin().cluster().prepareState().get().getState().metadata().index(indexName).primaryTerm(0);
+        var shardId = new ShardId(resolveIndex(indexName), 0);
+        return indexObjectStoreService.getBlobContainer(shardId, primaryTerm);
     }
 
     @Override

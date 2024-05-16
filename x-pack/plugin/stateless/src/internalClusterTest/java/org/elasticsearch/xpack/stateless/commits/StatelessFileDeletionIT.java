@@ -41,7 +41,6 @@ import org.elasticsearch.cluster.coordination.Coordinator;
 import org.elasticsearch.cluster.coordination.PublicationTransportHandler;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.util.set.Sets;
@@ -1145,22 +1144,6 @@ public class StatelessFileDeletionIT extends AbstractStatelessIntegTestCase {
 
         // Until we fix ES-8335 we should do an explicit flush to release all VBCCs
         flush(indexName);
-    }
-
-    private Set<String> listBlobsWithAbsolutePath(BlobContainer blobContainer) throws IOException {
-        var blobContainerPath = blobContainer.path().buildAsString();
-        return blobContainer.listBlobs(operationPurpose)
-            .keySet()
-            .stream()
-            .map(blob -> blobContainerPath + blob)
-            .collect(Collectors.toSet());
-    }
-
-    private static BlobContainer getShardCommitsContainerForCurrentPrimaryTerm(String indexName, String indexNode) {
-        var indexObjectStoreService = internalCluster().getInstance(ObjectStoreService.class, indexNode);
-        var primaryTerm = client().admin().cluster().prepareState().get().getState().metadata().index(indexName).primaryTerm(0);
-        var shardId = new ShardId(resolveIndex(indexName), 0);
-        return indexObjectStoreService.getBlobContainer(shardId, primaryTerm);
     }
 
     private int indexDocsAndFlush(String indexName) {

@@ -35,6 +35,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicReference;
@@ -64,6 +65,7 @@ public class ShardBulkInferenceActionFilterIT extends ESIntegTestCase {
         indicesAdmin().prepareCreate(INDEX_NAME)
             .setMapping(
                 String.format(
+                    Locale.ROOT,
                     """
                         {
                             "properties": {
@@ -144,11 +146,7 @@ public class ShardBulkInferenceActionFilterIT extends ESIntegTestCase {
     private void storeSparseModel() throws Exception {
         Model model = new TestSparseInferenceServiceExtension.TestSparseModel(
             TestSparseInferenceServiceExtension.TestInferenceService.NAME,
-            new TestSparseInferenceServiceExtension.TestServiceSettings(
-                "sparse_model",
-                null,
-                false
-            )
+            new TestSparseInferenceServiceExtension.TestServiceSettings("sparse_model", null, false)
         );
         storeModel(model);
     }

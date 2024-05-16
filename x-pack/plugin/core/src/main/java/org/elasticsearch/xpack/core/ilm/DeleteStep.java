@@ -58,7 +58,6 @@ public class DeleteStep extends AsyncRetryDuringSnapshotActionStep {
             if (totalDataStreamIndices == 1 && targetWriteIndex.getName().equals(indexName)) {
                 // This is the last index in the data stream, the entire stream
                 // needs to be deleted, because we can't have an empty data stream
-                // TODO: This may not be entirely accurate since failure indices are allowed in a stream. Should those block this?
                 DeleteDataStreamAction.Request deleteReq = new DeleteDataStreamAction.Request(new String[] { dataStream.getName() });
                 getClient().execute(
                     DeleteDataStreamAction.INSTANCE,

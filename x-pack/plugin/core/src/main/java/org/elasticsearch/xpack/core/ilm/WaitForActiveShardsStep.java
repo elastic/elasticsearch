@@ -136,9 +136,6 @@ public class WaitForActiveShardsStep extends ClusterStateWaitStep {
             }
         }
 
-        // TODO: Right now failure stores inherit all settings from the data stream template, including shard counts
-        // If we revisit that so that they are indeed locked to a single shard, then we need to return here and make sure
-        // to cap the active shard count if we're rolling a failure store
         ActiveShardCount activeShardCount = ActiveShardCount.parseString(waitForActiveShardsSettingValue);
         boolean enoughShardsActive = activeShardCount.enoughShardsActive(clusterState, rolledIndexName);
 

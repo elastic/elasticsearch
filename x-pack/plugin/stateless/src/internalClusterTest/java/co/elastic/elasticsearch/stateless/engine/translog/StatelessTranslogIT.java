@@ -19,6 +19,7 @@ package co.elastic.elasticsearch.stateless.engine.translog;
 
 import co.elastic.elasticsearch.stateless.AbstractStatelessIntegTestCase;
 import co.elastic.elasticsearch.stateless.IndexingDiskController;
+import co.elastic.elasticsearch.stateless.cluster.coordination.StatelessClusterConsistencyService;
 import co.elastic.elasticsearch.stateless.objectstore.ObjectStoreService;
 
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
@@ -201,7 +202,13 @@ public class StatelessTranslogIT extends AbstractStatelessIntegTestCase {
         startMasterOnlyNode();
 
         String indexNode = startIndexNode(
-            Settings.builder().put(IndexingDiskController.INDEXING_DISK_INTERVAL_TIME_SETTING.getKey(), TimeValue.timeValueHours(1)).build()
+            Settings.builder()
+                .put(
+                    StatelessClusterConsistencyService.DELAYED_CLUSTER_CONSISTENCY_INTERVAL_SETTING.getKey(),
+                    TimeValue.timeValueMillis(200)
+                )
+                .put(IndexingDiskController.INDEXING_DISK_INTERVAL_TIME_SETTING.getKey(), TimeValue.timeValueHours(1))
+                .build()
         );
         ensureStableCluster(2);
 
@@ -262,6 +269,44 @@ public class StatelessTranslogIT extends AbstractStatelessIntegTestCase {
                 .getAsLong();
             assertThat(minReferenced, equalTo(minReferencedFile));
         }
+    }
+
+    public void testTranslogWillRecoveryAllFilesIfShardMissingDirectory() throws Exception {
+        startMasterOnlyNode();
+        startSearchNode();
+        String indexNode = startIndexNode(
+            Settings.builder().put(IndexingDiskController.INDEXING_DISK_INTERVAL_TIME_SETTING.getKey(), TimeValue.timeValueHours(1)).build()
+        );
+        ensureStableCluster(3);
+
+        final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+        createIndex(indexName, indexSettings(1, 1).put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), TimeValue.MINUS_ONE).build());
+        final String secondIndex = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+        createIndex(
+            secondIndex,
+            indexSettings(1, 0).put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), TimeValue.MINUS_ONE).build()
+        );
+
+        ensureGreen(indexName);
+
+        final int docs = randomIntBetween(1, 10);
+        indexDocs(indexName, docs);
+        indexDocs(secondIndex, docs);
+
+        updateIndexSettings(Settings.builder().put("index.routing.allocation.exclude._name", indexNode), indexName);
+        findIndexShard(resolveIndex(indexName), 0).failShard("broken", new Exception("boom"));
+
+        indexDocs(secondIndex, docs);
+
+        updateIndexSettings(Settings.builder().put("index.routing.allocation.exclude._name", ""), indexName);
+
+        ensureGreen(indexName);
+
+        refresh(indexName);
+        assertResponse(prepareSearch(indexName).setQuery(QueryBuilders.matchAllQuery()), searchResponse -> {
+            assertNoFailures(searchResponse);
+            assertThat(searchResponse.getHits().getTotalHits().value, equalTo((long) docs));
+        });
     }
 
     @TestLogging(

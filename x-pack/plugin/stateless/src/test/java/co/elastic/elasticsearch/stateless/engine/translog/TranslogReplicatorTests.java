@@ -56,6 +56,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.indices.recovery.RecoverySourceHandlerTests.generateOperation;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.notNullValue;
@@ -289,6 +290,97 @@ public class TranslogReplicatorTests extends ESTestCase {
                 startRecoveryFile,
                 () -> false
             ),
+            operations[3],
+            operations[4],
+            operations[5]
+        );
+    }
+
+    public void testTranslogReplicatorReaderUsesDirectoryToSkipFiles() throws Exception {
+        ShardId shardId = new ShardId(new Index("name", "uuid"), 0);
+        long primaryTerm = randomLongBetween(0, 10);
+
+        ArrayList<BytesReference> compoundFiles = new ArrayList<>();
+        ObjectStoreService objectStoreService = mockObjectStoreService(compoundFiles);
+        StatelessClusterConsistencyService consistencyService = mockConsistencyService();
+
+        TranslogReplicator translogReplicator = new TranslogReplicator(
+            threadPool,
+            getSettings(),
+            objectStoreService,
+            consistencyService,
+            (sId) -> primaryTerm
+        );
+        translogReplicator.doStart();
+        translogReplicator.register(shardId, primaryTerm, seqNo -> {});
+
+        Translog.Operation[] operations = generateRandomOperations(6);
+        BytesReference[] operationsBytes = convertOperationsToBytes(operations);
+        long currentLocation = 0;
+        translogReplicator.add(shardId, operationsBytes[0], 0, new Translog.Location(0, currentLocation, operationsBytes[0].length()));
+        currentLocation += operationsBytes[0].length();
+        translogReplicator.add(shardId, operationsBytes[1], 1, new Translog.Location(0, currentLocation, operationsBytes[1].length()));
+        currentLocation += operationsBytes[1].length();
+        translogReplicator.add(shardId, operationsBytes[2], 2, new Translog.Location(0, currentLocation, operationsBytes[2].length()));
+        currentLocation += operationsBytes[2].length();
+
+        PlainActionFuture<Void> future = new PlainActionFuture<>();
+        translogReplicator.syncAll(shardId, future);
+        future.actionGet();
+
+        assertTranslogContains(
+            new TranslogReplicatorReader(objectStoreService.getTranslogBlobContainer(), shardId, 0, Long.MAX_VALUE, 0, () -> false),
+            operations[0],
+            operations[1],
+            operations[2]
+        );
+
+        assertThat(
+            translogReplicator.getMaxUploadedFile(),
+            equalTo((long) objectStoreService.getTranslogBlobContainer().listBlobs(OperationPurpose.TRANSLOG).size() - 1)
+        );
+        long commitFileNewStartingPoint = translogReplicator.getMaxUploadedFile() + 1;
+
+        translogReplicator.add(shardId, operationsBytes[3], 3, new Translog.Location(0, currentLocation, operationsBytes[3].length()));
+        currentLocation += operationsBytes[3].length();
+        translogReplicator.add(shardId, operationsBytes[4], 4, new Translog.Location(0, currentLocation, operationsBytes[4].length()));
+        currentLocation += operationsBytes[4].length();
+
+        future = new PlainActionFuture<>();
+        translogReplicator.syncAll(shardId, future);
+        future.actionGet();
+
+        assertThat(
+            translogReplicator.getMaxUploadedFile(),
+            equalTo((long) objectStoreService.getTranslogBlobContainer().listBlobs(OperationPurpose.TRANSLOG).size() - 1)
+        );
+
+        assertTranslogContains(
+            new TranslogReplicatorReader(objectStoreService.getTranslogBlobContainer(), shardId, 0, Long.MAX_VALUE, 0, () -> false),
+            operations[0],
+            operations[1],
+            operations[2],
+            operations[3],
+            operations[4]
+        );
+
+        translogReplicator.markShardCommitUploaded(shardId, commitFileNewStartingPoint);
+
+        assertBusy(() -> assertThat(translogReplicator.getTranslogFilesToDelete(), empty()));
+
+        translogReplicator.add(shardId, operationsBytes[5], 5, new Translog.Location(0, currentLocation, operationsBytes[5].length()));
+
+        future = new PlainActionFuture<>();
+        translogReplicator.syncAll(shardId, future);
+        future.actionGet();
+
+        assertThat(
+            translogReplicator.getMaxUploadedFile(),
+            equalTo((long) objectStoreService.getTranslogBlobContainer().listBlobs(OperationPurpose.TRANSLOG).size() - 1)
+        );
+
+        assertTranslogContains(
+            new TranslogReplicatorReader(objectStoreService.getTranslogBlobContainer(), shardId, 0, Long.MAX_VALUE, 0, () -> false),
             operations[3],
             operations[4],
             operations[5]
@@ -985,6 +1077,11 @@ public class TranslogReplicatorTests extends ESTestCase {
             listener.onResponse(null);
             return null;
         }).when(consistencyService).ensureClusterStateConsistentWithRootBlob(any(), any());
+        doAnswer(invocation -> {
+            ActionListener<Void> listener = invocation.getArgument(0);
+            listener.onResponse(null);
+            return null;
+        }).when(consistencyService).delayedEnsureClusterStateConsistentWithRootBlob(any());
         when(consistencyService.state()).thenReturn(ClusterState.EMPTY_STATE);
         return consistencyService;
     }

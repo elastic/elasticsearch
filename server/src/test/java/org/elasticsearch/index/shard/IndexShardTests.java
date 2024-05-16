@@ -3527,8 +3527,7 @@ public class IndexShardTests extends IndexShardTestCase {
             EMPTY_EVENT_LISTENER
         );
 
-        final MockLogAppender appender = new MockLogAppender();
-        try (var ignored = appender.capturing(IndexShard.class)) {
+        try (var appender = MockLogAppender.capture(IndexShard.class)) {
             appender.addExpectation(
                 new MockLogAppender.SeenEventExpectation(
                     "expensive checks warning",
@@ -4062,8 +4061,7 @@ public class IndexShardTests extends IndexShardTestCase {
 
     @TestLogging(reason = "testing traces of concurrent flushes", value = "org.elasticsearch.index.engine.Engine:TRACE")
     public void testFlushOnIdleConcurrentFlushDoesNotWait() throws Exception {
-        final MockLogAppender mockLogAppender = new MockLogAppender();
-        try (var ignored = mockLogAppender.capturing(Engine.class)) {
+        try (var mockLogAppender = MockLogAppender.capture(Engine.class)) {
             CountDownLatch readyToCompleteFlushLatch = new CountDownLatch(1);
             IndexShard shard = newStartedShard(false, Settings.EMPTY, config -> new InternalEngine(config) {
                 @Override

@@ -173,8 +173,7 @@ public class ClusterConnectionManagerTests extends ESTestCase {
         final Releasable localConnectionRef = toClose.getAndSet(null);
         assertThat(localConnectionRef, notNullValue());
 
-        final MockLogAppender appender = new MockLogAppender();
-        try (var ignored = appender.capturing(ClusterConnectionManager.class)) {
+        try (var appender = MockLogAppender.capture(ClusterConnectionManager.class)) {
             appender.addExpectation(
                 new MockLogAppender.SeenEventExpectation(
                     "locally-triggered close message",

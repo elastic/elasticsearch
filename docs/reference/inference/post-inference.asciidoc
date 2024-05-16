@@ -7,7 +7,7 @@ experimental[]
 Performs an inference task on an input text by using an {infer} endpoint.
 
 IMPORTANT: The {infer} APIs enable you to use certain services, such as built-in
-{ml} models (ELSER, E5), models uploaded through Eland, Cohere, OpenAI, or
+{ml} models (ELSER, E5), models uploaded through Eland, Cohere, OpenAI, Azure or
 Hugging Face. For built-in models and models uploaded though Eland, the {infer}
 APIs offer an alternative way to use and manage trained models. However, if you
 do not plan to use the {infer} APIs to use these models or if you want to use
@@ -133,8 +133,8 @@ The following example performs reranking on the example input.
 ------------------------------------------------------------
 POST _inference/rerank/cohere_rerank
 {
-  "input": ["luke", "like", "leia", "chewy","r2d2", "star", "wars"], 
-  "query": "star wars main character" 
+  "input": ["luke", "like", "leia", "chewy","r2d2", "star", "wars"],
+  "query": "star wars main character"
 }
 ------------------------------------------------------------
 // TEST[skip:TBD]

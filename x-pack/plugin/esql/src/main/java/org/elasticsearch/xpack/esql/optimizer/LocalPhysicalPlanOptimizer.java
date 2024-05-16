@@ -25,7 +25,6 @@ import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
 import org.elasticsearch.xpack.esql.plan.physical.EsSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.EsStatsQueryExec;
 import org.elasticsearch.xpack.esql.plan.physical.EsStatsQueryExec.Stat;
-import org.elasticsearch.xpack.esql.plan.physical.EsTimeseriesQueryExec;
 import org.elasticsearch.xpack.esql.plan.physical.EvalExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeExec;
 import org.elasticsearch.xpack.esql.plan.physical.FieldExtractExec;
@@ -85,11 +84,9 @@ public class LocalPhysicalPlanOptimizer extends ParameterizedRuleExecutor<Physic
     public static final EsqlTranslatorHandler TRANSLATOR_HANDLER = new EsqlTranslatorHandler();
 
     private final PhysicalVerifier verifier = PhysicalVerifier.INSTANCE;
-    private final boolean timeSeriesMode;
 
     public LocalPhysicalPlanOptimizer(LocalPhysicalOptimizerContext context) {
         super(context);
-        this.timeSeriesMode = context.configuration().pragmas().timeSeriesMode();
     }
 
     public PhysicalPlan localOptimize(PhysicalPlan plan) {
@@ -106,7 +103,7 @@ public class LocalPhysicalPlanOptimizer extends ParameterizedRuleExecutor<Physic
 
     protected List<Batch<PhysicalPlan>> rules(boolean optimizeForEsSource) {
         List<Rule<?, PhysicalPlan>> esSourceRules = new ArrayList<>(4);
-        esSourceRules.add(new ReplaceAttributeSourceWithDocId(timeSeriesMode));
+        esSourceRules.add(new ReplaceAttributeSourceWithDocId());
 
         if (optimizeForEsSource) {
             esSourceRules.add(new PushTopNToSource());
@@ -131,20 +128,13 @@ public class LocalPhysicalPlanOptimizer extends ParameterizedRuleExecutor<Physic
 
     private static class ReplaceAttributeSourceWithDocId extends OptimizerRule<EsSourceExec> {
 
-        private final boolean timeSeriesMode;
-
-        ReplaceAttributeSourceWithDocId(boolean timeSeriesMode) {
+        ReplaceAttributeSourceWithDocId() {
             super(UP);
-            this.timeSeriesMode = timeSeriesMode;
         }
 
         @Override
         protected PhysicalPlan rule(EsSourceExec plan) {
-            if (timeSeriesMode) {
-                return new EsTimeseriesQueryExec(plan.source(), plan.index(), plan.query());
-            } else {
-                return new EsQueryExec(plan.source(), plan.index(), plan.query());
-            }
+            return new EsQueryExec(plan.source(), plan.index(), plan.indexMode(), plan.query());
         }
     }
 
@@ -230,6 +220,7 @@ public class LocalPhysicalPlanOptimizer extends ParameterizedRuleExecutor<Physic
                     queryExec = new EsQueryExec(
                         queryExec.source(),
                         queryExec.index(),
+                        queryExec.indexMode(),
                         queryExec.output(),
                         query,
                         queryExec.limit(),
@@ -326,8 +317,10 @@ public class LocalPhysicalPlanOptimizer extends ParameterizedRuleExecutor<Physic
             PhysicalPlan plan = topNExec;
             PhysicalPlan child = topNExec.child();
 
-            boolean canPushDownTopN = child instanceof EsQueryExec
-                || (child instanceof ExchangeExec exchangeExec && exchangeExec.child() instanceof EsQueryExec);
+            boolean canPushDownTopN = (child instanceof EsQueryExec esQueryExec && esQueryExec.canPushSorts())
+                || (child instanceof ExchangeExec exchangeExec
+                    && exchangeExec.child() instanceof EsQueryExec esQuery
+                    && esQuery.canPushSorts());
             if (canPushDownTopN && canPushDownOrders(topNExec.order(), x -> hasIdenticalDelegate(x, ctx.searchStats()))) {
                 var sorts = buildFieldSorts(topNExec.order());
                 var limit = topNExec.limit();

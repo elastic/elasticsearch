@@ -115,7 +115,7 @@ Valid values are:
 `model_id`::
 (Optional, string)
 The name of the model to use for the {infer} task.
-To review the availble `rerank` models, refer to the
+To review the available `rerank` models, refer to the
 https://docs.cohere.com/reference/rerank-1[Cohere docs].
 
 To review the available `text_embedding` models, refer to the
@@ -288,7 +288,7 @@ Valid values are:
   * `clusterning`: use it for the embeddings run through a clustering algorithm.
   * `ingest`: use it for storing document embeddings in a vector database.
   * `search`: use it for storing embeddings of search queries run against a
-  vector data base to find relevant documents.
+  vector database to find relevant documents.
 
 `truncate`:::
 (Optional, string)

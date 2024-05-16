@@ -396,9 +396,9 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
                                     + name()
                                     + "] expected query inference results with "
                                     + modelSettings.dimensions()
-                                    + " dimensions, got " +
-                                    inference.length +
-                                    " dimensions. Has the inference endpoint configuration changed?"
+                                    + " dimensions, got "
+                                    + inference.length
+                                    + " dimensions. Has the inference endpoint configuration changed?"
                             );
                         }
 

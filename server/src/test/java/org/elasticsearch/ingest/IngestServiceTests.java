@@ -1072,7 +1072,7 @@ public class IngestServiceTests extends ESTestCase {
         for (Character badChar : List.of('\\', '/', '*', '?', '"', '<', '>', '|', ' ', ',')) {
             final String name = randomAlphaOfLength(5) + badChar + randomAlphaOfLength(5);
             Exception e = expectThrows(
-                InvalidPipelineNameException.class,
+                IllegalArgumentException.class,
                 () -> ingestService.validatePipeline(ingestInfos, name, pipelineConfig)
             );
             assertThat(e.getMessage(), containsString("Invalid pipeline name [" + name + "], must not contain the following characters"));

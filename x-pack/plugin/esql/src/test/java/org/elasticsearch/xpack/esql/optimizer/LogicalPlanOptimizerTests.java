@@ -3125,6 +3125,65 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
     /**
      * Expects
      * Limit[1000[INTEGER]]
+     * \_Aggregate[[],[SPATIALCENTROID(location{f}#9) AS centroid]]
+     *   \_EsRelation[airports][abbrev{f}#5, location{f}#9, name{f}#6, scalerank{f}..]
+     */
+    public void testSpatialTypesAndStatsUseDocValuesWithEval() {
+        var plan = planAirports("""
+            from test
+            | stats centroid = st_centroid_agg(to_geopoint(location))
+            """);
+
+        var limit = as(plan, Limit.class);
+        var agg = as(limit.child(), Aggregate.class);
+        assertThat(Expressions.names(agg.aggregates()), contains("centroid"));
+        assertTrue("Expected GEO_POINT aggregation for STATS", agg.aggregates().stream().allMatch(aggExp -> {
+            var alias = as(aggExp, Alias.class);
+            var aggFunc = as(alias.child(), AggregateFunction.class);
+            var aggField = as(aggFunc.field(), FieldAttribute.class);
+            return aggField.dataType() == GEO_POINT;
+        }));
+
+        as(agg.child(), EsRelation.class);
+    }
+
+    /**
+     * Expects:
+     * Eval[[first_name{f}#6 AS first_name]]
+     * \_Limit[1000[INTEGER]]
+     *   \_EsRelation[test][_meta_field{f}#11, emp_no{f}#5, first_name{f}#6, ge..]
+     * NOTE: The convert function to_string is removed, since the types match
+     */
+    public void testToStringOnStringWrittenAway() {
+        var plan = plan("from test | eval first_name = to_string(first_name)");
+        var eval = as(plan, Eval.class);
+        var alias = as(eval.fields().get(0), Alias.class);
+        var fa = as(alias.child(), FieldAttribute.class);
+        assertThat(fa.name(), equalTo("first_name"));
+        var limit = as(eval.child(), Limit.class);
+        as(limit.child(), EsRelation.class);
+    }
+
+    /**
+     * Expects:
+     * Eval[[emp_no{f}#5 AS emp_no]]
+     * \_Limit[1000[INTEGER]]
+     *   \_EsRelation[test][_meta_field{f}#11, emp_no{f}#5, first_name{f}#6, ge..]
+     * NOTE: The convert function to_integer is removed, since the types match
+     */
+    public void testToIntegerOnIntegerWrittenAway() {
+        var plan = plan("from test | eval emp_no = to_integer(emp_no)");
+        var eval = as(plan, Eval.class);
+        var alias = as(eval.fields().get(0), Alias.class);
+        var fa = as(alias.child(), FieldAttribute.class);
+        assertThat(fa.name(), equalTo("emp_no"));
+        var limit = as(eval.child(), Limit.class);
+        as(limit.child(), EsRelation.class);
+    }
+
+    /**
+     * Expects
+     * Limit[1000[INTEGER]]
      * \_Aggregate[[emp_no%2{r}#6],[COUNT(salary{f}#12) AS c, emp_no%2{r}#6]]
      *   \_Eval[[emp_no{f}#7 % 2[INTEGER] AS emp_no%2]]
      *     \_EsRelation[test][_meta_field{f}#13, emp_no{f}#7, first_name{f}#8, ge..]

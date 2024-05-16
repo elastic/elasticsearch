@@ -22,6 +22,7 @@ import co.elastic.elasticsearch.stateless.IndexingDiskController;
 import co.elastic.elasticsearch.stateless.objectstore.ObjectStoreService;
 
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
+import org.elasticsearch.action.bulk.BulkShardRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.PlainActionFuture;
@@ -38,6 +39,7 @@ import org.elasticsearch.common.io.stream.InputStreamStreamInput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.query.QueryBuilders;
@@ -267,7 +269,6 @@ public class StatelessTranslogIT extends AbstractStatelessIntegTestCase {
             + "co.elastic.elasticsearch.stateless.engine.translog.TranslogReplicatorReader:debug",
         reason = "to ensure we translog events on DEBUG level"
     )
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch-serverless/issues/1859")
     public void testTranslogStressRecoveryTest() throws Exception {
         Settings isolatedNodeSettings = addIsolatedNodeSettings(Settings.builder()).build();
         runStressTest(
@@ -327,7 +328,6 @@ public class StatelessTranslogIT extends AbstractStatelessIntegTestCase {
             + "co.elastic.elasticsearch.stateless.engine.translog.TranslogReplicatorReader:debug",
         reason = "to ensure we translog events on DEBUG level"
     )
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch-serverless/issues/1858")
     public void testTranslogIsolatedNodeOnlyStressRecoveryTest() throws Exception {
         Settings isolatedNodeSettings = addIsolatedNodeSettings(Settings.builder()).build();
         runStressTest(2, isolatedNodeSettings, Failures.ISOLATED_INDEXING_NODE);
@@ -383,11 +383,14 @@ public class StatelessTranslogIT extends AbstractStatelessIntegTestCase {
 
         for (int n = 0; n < reqN; ++n) {
             executorService.execute(() -> {
+                TimeValue bulkRequestTimeout = BulkShardRequest.DEFAULT_TIMEOUT;
                 try {
                     var bulkRequest = client().prepareBulk();
                     // Occasionally set timeout to avoid retries
                     if (randomBoolean() && randomBoolean()) {
-                        bulkRequest.setTimeout(TimeValue.timeValueMillis(100));
+                        TimeValue timeout = TimeValue.timeValueMillis(100);
+                        bulkRequest.setTimeout(timeout);
+                        bulkRequestTimeout = timeout;
                     }
                     int numDocs = randomIntBetween(10, 50);
                     for (int i = 0; i < numDocs; i++) {
@@ -410,7 +413,7 @@ public class StatelessTranslogIT extends AbstractStatelessIntegTestCase {
                         indicesAdmin().prepareFlush(indexName).get();
                     }
                 } catch (Exception e) {
-                    logger.warn("exception on indexing thread", e);
+                    logger.warn(Strings.format("exception on indexing thread [bulk request timeout=%s]", bulkRequestTimeout), e);
                 } finally {
                     failureLatches.forEach(CountDownLatch::countDown);
                     allReqLatch.countDown();

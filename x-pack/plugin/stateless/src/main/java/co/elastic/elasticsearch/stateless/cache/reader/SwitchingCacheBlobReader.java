@@ -70,6 +70,7 @@ public class SwitchingCacheBlobReader implements CacheBlobReader {
             } catch (Exception ex) {
                 // TODO ideally use ShardReadThread pool here again. (ES-8155)
                 // TODO ideally use a region-aligned range to write. (ES-8225)
+                // TODO remove ResourceAlreadyUploadedException from core ES
                 if (ExceptionsHelper.unwrapCause(ex) instanceof ResourceNotFoundException) {
                     return cacheBlobReaderForUploaded.getRangeInputStream(position, length);
                 } else {

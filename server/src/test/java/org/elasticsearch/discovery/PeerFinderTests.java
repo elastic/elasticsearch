@@ -808,8 +808,7 @@ public class PeerFinderTests extends ESTestCase {
         final long endTime = deterministicTaskQueue.getCurrentTimeMillis() + VERBOSITY_INCREASE_TIMEOUT_SETTING.get(Settings.EMPTY)
             .millis();
 
-        MockLogAppender appender = new MockLogAppender();
-        try (var ignored = appender.capturing(PeerFinder.class)) {
+        try (var appender = MockLogAppender.capture(PeerFinder.class)) {
             appender.addExpectation(
                 new MockLogAppender.SeenEventExpectation(
                     "discovery result",
@@ -842,8 +841,7 @@ public class PeerFinderTests extends ESTestCase {
         final long endTime = deterministicTaskQueue.getCurrentTimeMillis() + VERBOSITY_INCREASE_TIMEOUT_SETTING.get(Settings.EMPTY)
             .millis();
 
-        MockLogAppender appender = new MockLogAppender();
-        try (var ignored = appender.capturing(PeerFinder.class)) {
+        try (var appender = MockLogAppender.capture(PeerFinder.class)) {
             appender.addExpectation(
                 new MockLogAppender.SeenEventExpectation(
                     "discovery result",

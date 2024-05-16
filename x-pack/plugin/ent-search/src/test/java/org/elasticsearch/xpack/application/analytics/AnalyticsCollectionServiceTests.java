@@ -23,6 +23,7 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.TriFunction;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.client.NoOpClient;
@@ -400,7 +401,7 @@ public class AnalyticsCollectionServiceTests extends ESTestCase {
         ClusterState clusterState,
         String... collectionName
     ) throws Exception {
-        GetAnalyticsCollectionAction.Request request = new GetAnalyticsCollectionAction.Request(collectionName);
+        GetAnalyticsCollectionAction.Request request = new GetAnalyticsCollectionAction.Request(TimeValue.THIRTY_SECONDS, collectionName);
         return new Executor<>(clusterState, analyticsCollectionService::getAnalyticsCollection).execute(request).getAnalyticsCollections();
     }
 
@@ -409,7 +410,7 @@ public class AnalyticsCollectionServiceTests extends ESTestCase {
         ClusterState clusterState,
         String collectionName
     ) throws Exception {
-        PutAnalyticsCollectionAction.Request request = new PutAnalyticsCollectionAction.Request(collectionName);
+        PutAnalyticsCollectionAction.Request request = new PutAnalyticsCollectionAction.Request(TimeValue.THIRTY_SECONDS, collectionName);
         return new Executor<>(clusterState, analyticsCollectionService::putAnalyticsCollection).execute(request);
     }
 
@@ -418,7 +419,10 @@ public class AnalyticsCollectionServiceTests extends ESTestCase {
         ClusterState clusterState,
         String collectionName
     ) throws Exception {
-        DeleteAnalyticsCollectionAction.Request request = new DeleteAnalyticsCollectionAction.Request(collectionName);
+        DeleteAnalyticsCollectionAction.Request request = new DeleteAnalyticsCollectionAction.Request(
+            TimeValue.THIRTY_SECONDS,
+            collectionName
+        );
         return new Executor<>(clusterState, analyticsCollectionService::deleteAnalyticsCollection).execute(request);
     }
 

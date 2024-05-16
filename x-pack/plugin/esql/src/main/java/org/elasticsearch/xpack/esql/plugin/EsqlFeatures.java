@@ -7,12 +7,15 @@
 
 package org.elasticsearch.xpack.esql.plugin;
 
+import org.elasticsearch.Build;
 import org.elasticsearch.Version;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.features.FeatureSpecification;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.rest.action.admin.cluster.RestNodesCapabilitiesAction;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 
+import java.util.Collections;
 import java.util.Map;
 import java.util.Set;
 
@@ -161,9 +164,24 @@ public class EsqlFeatures implements FeatureSpecification {
      */
     public static final NodeFeature TIMESPAN_ABBREVIATIONS = new NodeFeature("esql.timespan_abbreviations");
 
+    /**
+     * Support metrics counter types
+     */
+    public static final NodeFeature COUNTER_TYPES = new NodeFeature("esql.counter_types");
+
+    /**
+     * Support metrics syntax
+     */
+    public static final NodeFeature METRICS_SYNTAX = new NodeFeature("esql.metrics_syntax");
+
+    private Set<NodeFeature> snapshotBuildFeatures() {
+        assert Build.current().isSnapshot() : Build.current();
+        return Set.of(COUNTER_TYPES);
+    }
+
     @Override
     public Set<NodeFeature> getFeatures() {
-        return Set.of(
+        Set<NodeFeature> features = Set.of(
             ASYNC_QUERY,
             AGG_VALUES,
             BASE64_DECODE_ENCODE,
@@ -183,8 +201,14 @@ public class EsqlFeatures implements FeatureSpecification {
             METRICS_COUNTER_FIELDS,
             STRING_LITERAL_AUTO_CASTING_EXTENDED,
             METADATA_FIELDS,
-            TIMESPAN_ABBREVIATIONS
+            TIMESPAN_ABBREVIATIONS,
+            COUNTER_TYPES
         );
+        if (Build.current().isSnapshot()) {
+            return Collections.unmodifiableSet(Sets.union(features, snapshotBuildFeatures()));
+        } else {
+            return features;
+        }
     }
 
     @Override

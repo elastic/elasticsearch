@@ -25,10 +25,10 @@ import co.elastic.elasticsearch.stateless.cache.reader.MutableObjectStoreUploadT
 import co.elastic.elasticsearch.stateless.commits.BlobLocation;
 import co.elastic.elasticsearch.stateless.commits.ClosedShardService;
 import co.elastic.elasticsearch.stateless.commits.StatelessCommitService;
-import co.elastic.elasticsearch.stateless.commits.StatelessCompoundCommit;
+import co.elastic.elasticsearch.stateless.commits.VirtualBatchedCompoundCommit;
 import co.elastic.elasticsearch.stateless.engine.translog.TranslogReplicator;
 import co.elastic.elasticsearch.stateless.lucene.SearchDirectory;
-import co.elastic.elasticsearch.stateless.lucene.SearchDirectoryTestUtils;
+import co.elastic.elasticsearch.stateless.lucene.StatelessCommitRef;
 import co.elastic.elasticsearch.stateless.objectstore.ObjectStoreService;
 
 import org.apache.lucene.document.Field;
@@ -38,8 +38,6 @@ import org.apache.lucene.document.StringField;
 import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.MergePolicy;
 import org.apache.lucene.search.IndexSearcher;
-import org.apache.lucene.store.IOContext;
-import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.blobcache.BlobCacheMetrics;
@@ -49,15 +47,15 @@ import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.blobstore.fs.FsBlobContainer;
-import org.elasticsearch.common.blobstore.support.FilterBlobContainer;
+import org.elasticsearch.common.blobstore.fs.FsBlobStore;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.lucene.Lucene;
-import org.elasticsearch.common.lucene.store.InputStreamIndexInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
 import org.elasticsearch.core.IOUtils;
+import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexModule;
@@ -90,16 +88,16 @@ import org.elasticsearch.xcontent.XContentType;
 import org.junit.Before;
 
 import java.io.IOException;
-import java.io.InputStream;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.LongSupplier;
-import java.util.stream.Collectors;
 
 import static co.elastic.elasticsearch.stateless.Stateless.SHARD_READ_THREAD_POOL;
 import static co.elastic.elasticsearch.stateless.Stateless.SHARD_READ_THREAD_POOL_SETTING;
@@ -119,6 +117,8 @@ import static org.mockito.Mockito.when;
 public abstract class AbstractEngineTestCase extends ESTestCase {
 
     private Map<String, ThreadPool> threadPools;
+    private Path blobStorePath;
+    private BlobContainer blobContainer;
     protected StatelessSharedBlobCacheService sharedBlobCacheService;
 
     @SuppressWarnings("unchecked")
@@ -128,6 +128,13 @@ public abstract class AbstractEngineTestCase extends ESTestCase {
         super.setUp();
         threadPools = ConcurrentCollections.newConcurrentMap();
         sharedBlobCacheService = mock(StatelessSharedBlobCacheService.class);
+        // setup `real` blob container since test expect write/read from/to compound commits
+        blobStorePath = PathUtils.get(createTempDir().toString());
+        blobContainer = new FsBlobContainer(
+            new FsBlobStore(randomIntBetween(1, 8) * 1024, blobStorePath, false),
+            BlobPath.EMPTY,
+            blobStorePath
+        );
     }
 
     @Override
@@ -139,6 +146,7 @@ public abstract class AbstractEngineTestCase extends ESTestCase {
             iterator.remove();
         }
         assert threadPools.isEmpty() : threadPools;
+        IOUtils.rm(blobStorePath);
         super.tearDown();
     }
 
@@ -311,11 +319,8 @@ public abstract class AbstractEngineTestCase extends ESTestCase {
         };
     }
 
-    protected SearchEngine newSearchEngineFromIndexEngine(
-        IndexEngine indexEngine,
-        DeterministicTaskQueue deterministicTaskQueue,
-        boolean copyInitialMetadata
-    ) throws IOException {
+    protected SearchEngine newSearchEngineFromIndexEngine(IndexEngine indexEngine, DeterministicTaskQueue deterministicTaskQueue)
+        throws IOException {
         var shardId = indexEngine.getEngineConfig().getShardId();
         var indexSettings = indexEngine.getEngineConfig().getIndexSettings();
         var threadPool = deterministicTaskQueue.getThreadPool();
@@ -325,7 +330,8 @@ public abstract class AbstractEngineTestCase extends ESTestCase {
             indexSettings.getSettings(),
             threadPool,
             SHARD_READ_THREAD_POOL,
-            BlobCacheMetrics.NOOP
+            BlobCacheMetrics.NOOP,
+            System::nanoTime
         );
         var directory = new SearchDirectory(
             cache,
@@ -333,15 +339,7 @@ public abstract class AbstractEngineTestCase extends ESTestCase {
             MutableObjectStoreUploadTracker.ALWAYS_UPLOADED,
             shardId
         );
-        directory.setBlobContainer(primaryTerm -> storeBlobContainer(indexEngine.getEngineConfig().getStore()));
-        if (copyInitialMetadata) {
-            Store.MetadataSnapshot latestMetadata = indexEngine.getEngineConfig().getStore().getMetadata(null);
-            Map<String, BlobLocation> blobLocations = collectBlobLocations(
-                indexEngine.getEngineConfig().getPrimaryTermSupplier().getAsLong(),
-                latestMetadata
-            );
-            SearchDirectoryTestUtils.setMetadata(directory, blobLocations);
-        }
+        directory.setBlobContainer(primaryTerm -> blobContainer);
         var store = new Store(shardId, indexSettings, directory, new DummyShardLock(shardId));
         final EngineConfig searchConfig = new EngineConfig(
             shardId,
@@ -487,9 +485,10 @@ public abstract class AbstractEngineTestCase extends ESTestCase {
         }
     }
 
-    static class CapturingIndexCommitListener implements Engine.IndexCommitListener {
+    class CapturingIndexCommitListener implements Engine.IndexCommitListener {
 
-        final LinkedBlockingQueue<NewCommitNotification> notifications = new LinkedBlockingQueue<>();
+        private final Map<String, BlobLocation> uploadedBlobLocations = new HashMap<>();
+        private final LinkedBlockingQueue<NewCommitNotification> notifications = new LinkedBlockingQueue<>();
 
         @Override
         public void onNewCommit(
@@ -501,27 +500,36 @@ public abstract class AbstractEngineTestCase extends ESTestCase {
         ) {
             store.incRef();
             try {
-                Map<String, BlobLocation> commitFiles = collectBlobLocations(
+
+                var vbcc = new VirtualBatchedCompoundCommit(
+                    shardId,
+                    "node-id",
                     primaryTerm,
-                    store.getMetadata(indexCommitRef.getIndexCommit())
+                    indexCommitRef.getIndexCommit().getGeneration(),
+                    fileName -> uploadedBlobLocations.get(fileName),
+                    ESTestCase::randomNonNegativeLong
                 );
-                notifications.add(
-                    new NewCommitNotification(
-                        new StatelessCompoundCommit(
-                            shardId,
-                            new PrimaryTermAndGeneration(primaryTerm, indexCommitRef.getIndexCommit().getGeneration()),
-                            0,
-                            "fake_node_ephemeral_id",
-                            commitFiles,
-                            commitFiles.values().stream().mapToLong(BlobLocation::fileLength).sum(),
-                            additionalFiles
-                        ),
-                        indexCommitRef.getIndexCommit().getGeneration(),
-                        new PrimaryTermAndGeneration(primaryTerm, indexCommitRef.getIndexCommit().getGeneration()),
-                        1L,
-                        "_node_id"
+
+                vbcc.appendCommit(
+                    new StatelessCommitRef(
+                        shardId,
+                        indexCommitRef,
+                        indexCommitRef.getIndexCommit().getFileNames(),
+                        additionalFiles,
+                        primaryTerm,
+                        0   // not used, stubbing value for translogRecoveryStartFile
                     )
                 );
+
+                vbcc.freeze();
+
+                blobContainer.writeMetadataBlob(OperationPurpose.INDICES, vbcc.getBlobName(), false, true, vbcc::writeToStore);
+
+                var scc = vbcc.lastCompoundCommit();
+
+                uploadedBlobLocations.putAll(scc.commitFiles());
+
+                notifications.add(new NewCommitNotification(scc, scc.generation(), scc.primaryTermAndGeneration(), 1L, "_node_id"));
             } catch (Exception e) {
                 throw new AssertionError(e);
             } finally {
@@ -535,15 +543,6 @@ public abstract class AbstractEngineTestCase extends ESTestCase {
 
         @Override
         public void onIndexCommitDelete(ShardId shardId, IndexCommit deletedCommit) {}
-    }
-
-    private static Map<String, BlobLocation> collectBlobLocations(long primaryTerm, Store.MetadataSnapshot metadata) {
-        return metadata.fileMetadataMap()
-            .entrySet()
-            .stream()
-            .collect(
-                Collectors.toMap(Map.Entry::getKey, entry -> new BlobLocation(primaryTerm, entry.getKey(), 0, entry.getValue().length()))
-            );
     }
 
     /**
@@ -563,45 +562,5 @@ public abstract class AbstractEngineTestCase extends ESTestCase {
         Collections.shuffle(notifications, random());
         notifications.forEach(notif -> searchEngine.onCommitNotification(notif, ActionListener.noop()));
         return count;
-    }
-
-    /**
-     * A {@link BlobContainer} that can read files from a {@link Store}
-     */
-    private static BlobContainer storeBlobContainer(final Store store) {
-        return new FilterBlobContainer(new FsBlobContainer(null, BlobPath.EMPTY, null)) {
-            @Override
-            protected BlobContainer wrapChild(BlobContainer child) {
-                return child;
-            }
-
-            @Override
-            public InputStream readBlob(OperationPurpose purpose, String blobName, long position, long length) throws IOException {
-                boolean success = false;
-                store.incRef();
-                try {
-                    final IndexInput input = store.directory().openInput(blobName, IOContext.DEFAULT);
-                    if (position > 0L) {
-                        input.seek(position);
-                    }
-                    final InputStreamIndexInput stream = new InputStreamIndexInput(input, length) {
-                        @Override
-                        public void close() throws IOException {
-                            try {
-                                super.close();
-                            } finally {
-                                IOUtils.closeWhileHandlingException(input, store::decRef);
-                            }
-                        }
-                    };
-                    success = true;
-                    return stream;
-                } finally {
-                    if (success == false) {
-                        store.decRef();
-                    }
-                }
-            }
-        };
     }
 }

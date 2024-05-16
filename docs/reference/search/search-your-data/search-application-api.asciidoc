@@ -39,14 +39,67 @@ The default template implements a simple search use case.
 
 To create a search application with the default template, issue a <<put-search-application, create or update Search Application>> request without specifying a template:
 
+////
+
+[source,console]
+--------------------------------------------------
+PUT index1
+{
+  "mappings": {
+    "properties": {
+      "image-vector": {
+        "type": "dense_vector",
+        "dims": 3
+      }
+    }
+  }
+}
+
+PUT index2
+
+PUT _application/search_application/my_search_application
+{
+  "indices": [ "index1", "index2" ],
+  "template": {
+    "script": {
+      "source": {
+        "query": {
+          "query_string": {
+            "query": "{{query_string}}",
+            "default_field": "{{default_field}}"
+          }
+        }
+      },
+      "params": {
+        "query_string": "*",
+        "default_field": "*"
+      }
+    }
+  }
+}
+
+--------------------------------------------------
+// TESTSETUP
+
+[source,console]
+--------------------------------------------------
+DELETE _application/search_application/my_search_application
+
+DELETE index1
+
+DELETE index2
+--------------------------------------------------
+// TEARDOWN
+////
+
 [source,console]
 ----
 PUT _application/search_application/my_search_application
 {
-  "indices": ["my_index1", "my_index2"]
+  "indices": ["index1", "index2"]
 }
 ----
-// TEST[skip:TODO]
+// TEST[warning:Using default search application template which is subject to change. We recommend storing a template to avoid breaking changes.]
 
 You can then use the <<get-search-application, get search application>> API call to view your newly created search application, which will also include the default template that was created for you:
 
@@ -54,18 +107,18 @@ You can then use the <<get-search-application, get search application>> API call
 ----
 GET _application/search_application/my_search_application
 ----
-// TEST[skip:TODO]
+// TEST[continued]
+// TEST[warning:Using default search application template which is subject to change. We recommend storing a template to avoid breaking changes.]
 
 In this case, the response would be:
 
-[source,js]
+[source,console-result]
 ----
-GET _application/search_application/my_search_application
 {
   "name": "my_search_application",
   "indices": [
-    "my_index1",
-    "my_index2"
+    "index1",
+    "index2"
   ],
   "updated_at_millis": 1715802354482,
   "template": {
@@ -88,11 +141,11 @@ GET _application/search_application/my_search_application
   }
 }
 ----
-// NOTCONSOLE
+// TEST[continued]
 
 The default template is very minimal:
 
-[source,js]
+[source,console-result]
 ----
 {
   "template": {
@@ -129,10 +182,11 @@ For example, searching the search application with no parameters:
 ----
 POST _application/search_application/my_search_application/_render_query
 ----
+// TEST[continued]
 
 will return:
 
-[source,js]
+[source,console-result]
 ----
 {
   "query": {
@@ -144,6 +198,7 @@ will return:
   }
 }
 ----
+// TEST[continued]
 
 This uses the default parameters that were defined with the template.
 You can also specify one or mre parameters to the render call, for example:
@@ -157,10 +212,11 @@ POST _application/search_application/my_search_application/_render_query
   }
 }
 ----
+// TEST[continued]
 
 will return:
 
-[source,js]
+[source,console-result]
 ----
 {
   "query": {
@@ -172,6 +228,7 @@ will return:
   }
 }
 ----
+// TEST[continued]
 
 In this case, the `{{query_string}}` parameter has been replaced with the value `rock climbing`, and the `{{default_field}}` parameter was not specified so used the default value of `*`.
 
@@ -182,7 +239,7 @@ In this case, a search with no parameters will return all results, in a similar 
 ----
 POST _application/search_application/my_search_application/_search
 ----
-// TEST[skip:TODO]
+// TEST[continued]
 
 
 Searching with the `query_string` and/or `default_field` parameters will perform a <<query-dsl-query-string-query,`query_string`>> query.
@@ -211,14 +268,14 @@ With the default template, a search looks like this:
 
 [source,console]
 ----
-POST _application/search_application/<my_search_application>/_search
+POST _application/search_application/my_search_application/_search
 {
   "params": {
     "query_string": "kayaking"
   }
 }
 ----
-// TEST[skip:TODO]
+// TEST[continued]
 
 In this example, we've overridden the `query_string` parameter's default value of `*`.
 Since we didn't specify `default_field` the value of this parameter will still be `*`.
@@ -257,7 +314,7 @@ The following template supports a `multi_match` search over specified fields and
 ----
 PUT _application/search_application/my_search_application
 {
-  "indices": ["my_index1", "my_index2"],
+  "indices": ["index1", "index2"],
   "template": {
     "script": {
       "lang": "mustache",
@@ -288,7 +345,6 @@ PUT _application/search_application/my_search_application
   }
 }
 ----
-// TEST[skip:TODO]
 
 A search query using this template might look like this:
 
@@ -307,7 +363,7 @@ POST _application/search_application/my_search_application/_search
   }
 }
 ----
-// TEST[skip:TODO]
+// TEST[continued]
 
 The `text_fields` parameters can be overridden with new/different fields and boosts to experiment with the best configuration for your use case.
 This template also supports pagination and `explain` via parameters.
@@ -325,7 +381,7 @@ It outperforms all other ranking algorithms, and often surpasses the best indivi
 PUT _application/search_application/my-search-app
 {
   "indices": [
-    "search-my-crawler"
+    "index1"
   ],
   "template": {
     "script": {
@@ -358,10 +414,10 @@ PUT _application/search_application/my-search-app
                     }
                   }
                 }
-              }
+              },
               {{/elser_fields}}
             ],
-            "window_size": {{rrf.window_size}},
+            "rank_window_size": {{rrf.rank_window_size}},
             "rank_constant": {{rrf.rank_constant}}
           }
         }
@@ -372,7 +428,7 @@ PUT _application/search_application/my-search-app
         "text_fields": ["title", "meta_description"],
         "query_string": "",
         "rrf": {
-          "window_size": 100,
+          "rank_window_size": 100,
           "rank_constant": 60
         }
       }
@@ -380,7 +436,6 @@ PUT _application/search_application/my-search-app
   }
 }
 ----
-// TEST[skip:TODO]
 
 NOTE: Replace `<elser_model_id>` with the model ID of your ELSER deployment.
 
@@ -395,13 +450,13 @@ POST _application/search_application/my-search-app/_search
     "elser_fields": ["title", "meta_description"],
     "text_fields": ["title", "meta_description"],
     "rrf": {
-      "window_size": 50,
+      "rank_window_size": 50,
       "rank_constant": 25
     }
   }
 }
 ----
-// TEST[skip:TODO]
+// TEST[skip:ELSER requires inference]
 
 [discrete]
 [[search-application-api-catchall-template]]
@@ -420,8 +475,8 @@ It also provides a simple default `query_string` query if no parameters are spec
 PUT _application/search_application/my_search_application
 {
   "indices": [
-    "my_index1",
-    "my_index2"
+    "index1",
+    "index2"
   ],
   "template": {
     "script": {
@@ -502,7 +557,6 @@ PUT _application/search_application/my_search_application
   }
 }
 ----
-// TEST[skip:TODO]
 
 A text search query using this template might look like this:
 
@@ -522,7 +576,7 @@ POST _application/search_application/my_search_application/_search
   }
 }
 ----
-// TEST[skip:TODO]
+// TEST[skip:ELSER requires inference]
 
 An ELSER search query using this template will look like the following example:
 
@@ -540,7 +594,7 @@ POST _application/search_application/my_search_application/_search
   }
 }
 ----
-// TEST[skip:TODO]
+// TEST[skip:ELSER requires inference]
 
 A combined text search and ELSER search query using this template will look like the following example:
 
@@ -561,7 +615,7 @@ POST _application/search_application/my_search_application/_search
   }
 }
 ----
-// TEST[skip:TODO]
+// TEST[skip:ELSER requires inference]
 
 [TIP]
 ====
@@ -582,7 +636,7 @@ Finally, a parameterless search using this template would fall back to a default
 ----
 POST _application/search_application/my_search_application/_search
 ----
-// TEST[skip:TODO]
+// TEST[continued]
 
 [discrete]
 [[search-application-api-elser-template]]
@@ -595,8 +649,8 @@ This example supports a streamlined version of ELSER search.
 PUT _application/search_application/my_search_application
 {
   "indices": [
-    "my_index1",
-    "my_index2"
+    "index1",
+    "index2"
     ],
     "template": {
       "script": {
@@ -638,7 +692,6 @@ PUT _application/search_application/my_search_application
     }
 }
 ----
-// TEST[skip:TODO]
 
 NOTE: Replace `<elser_model_id>` with the model ID of your ELSER deployment.
 
@@ -653,7 +706,7 @@ POST _application/search_application/my_search_application/_search
     }
   }
 ----
-// TEST[skip:TODO]
+// TEST[skip:ELSER requires inference]
 
 
 [discrete]
@@ -669,7 +722,7 @@ A template supporting exact kNN search will look like the following example:
 PUT _application/search_application/my_search_application
 {
   "indices": [
-    "my_product_index"
+    "index1"
   ],
   "template": {
     "script": {
@@ -707,7 +760,6 @@ PUT _application/search_application/my_search_application
   }
 }
 ----
-// TEST[skip:TODO]
 
 A search query using this template will look like the following example:
 
@@ -722,7 +774,7 @@ POST _application/search_application/my_search_application/_search
   }
 }
 ----
-// TEST[skip:TODO]
+// TEST[continued]
 
 A template supporting approximate kNN search will look like the following example:
 
@@ -731,7 +783,7 @@ A template supporting approximate kNN search will look like the following exampl
 PUT _application/search_application/my_search_application
 {
   "indices": [
-    "my_product_index"
+    "index1"
   ],
   "template": {
     "script": {
@@ -758,7 +810,6 @@ PUT _application/search_application/my_search_application
   }
 }
 ----
-// TEST[skip:TODO]
 
 A search query using this template will look like the following example:
 
@@ -776,4 +827,4 @@ POST _application/search_application/my_search_application/_search
 }
 
 ----
-// TEST[skip:TODO]
+// TEST[continued]

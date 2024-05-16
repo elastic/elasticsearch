@@ -172,6 +172,7 @@ import org.elasticsearch.plugins.ExtensiblePlugin;
 import org.elasticsearch.plugins.HealthPlugin;
 import org.elasticsearch.plugins.PersistentTaskPlugin;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.plugins.internal.DocumentParsingProvider;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 import org.elasticsearch.rest.RestController;
@@ -268,7 +269,7 @@ public class Stateless extends Plugin
     private final SetOnce<IndicesMappingSizeCollector> indicesMappingSizeCollector = new SetOnce<>();
     private final SetOnce<RecoveryCommitRegistrationHandler> recoveryCommitRegistrationHandler = new SetOnce<>();
     private final SetOnce<RecoveryMetricsCollector> recoveryMetricsCollector = new SetOnce<>();
-
+    private final SetOnce<DocumentParsingProvider> documentParsingProvider = new SetOnce<>();
     private final boolean sharedCachedSettingExplicitlySet;
 
     private final boolean sharedCacheMmapExplicitlySet;
@@ -547,6 +548,7 @@ public class Stateless extends Plugin
             )
         );
         components.add(setAndGet(recoveryMetricsCollector, new RecoveryMetricsCollector(services.telemetryProvider())));
+        documentParsingProvider.set(services.documentParsingProvider());
         return components;
     }
 
@@ -923,7 +925,8 @@ public class Stateless extends Plugin
         TranslogReplicator translogReplicator,
         Function<String, BlobContainer> translogBlobContainer,
         StatelessCommitService statelessCommitService,
-        RefreshThrottler.Factory refreshThrottlerFactory
+        RefreshThrottler.Factory refreshThrottlerFactory,
+        DocumentParsingProvider documentParsingProvider
     ) {
         return new IndexEngine(
             engineConfig,
@@ -932,7 +935,8 @@ public class Stateless extends Plugin
             statelessCommitService,
             refreshThrottlerFactory,
             statelessCommitService.getIndexEngineLocalReaderListenerForShard(engineConfig.getShardId()),
-            statelessCommitService.getCommitBCCResolverForShard(engineConfig.getShardId())
+            statelessCommitService.getCommitBCCResolverForShard(engineConfig.getShardId()),
+            documentParsingProvider
         );
     }
 
@@ -986,7 +990,8 @@ public class Stateless extends Plugin
                     translogReplicator.get(),
                     getObjectStoreService()::getTranslogBlobContainer,
                     getCommitService(),
-                    refreshThrottlingService.get().createRefreshThrottlerFactory(indexSettings)
+                    refreshThrottlingService.get().createRefreshThrottlerFactory(indexSettings),
+                    documentParsingProvider.get()
                 );
             } else {
                 return new SearchEngine(config, getClosedShardService());

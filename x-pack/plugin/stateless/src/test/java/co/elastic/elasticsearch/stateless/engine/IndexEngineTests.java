@@ -28,11 +28,16 @@ import org.apache.lucene.index.NoMergePolicy;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.engine.Engine;
+import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.index.translog.Translog;
+import org.elasticsearch.plugins.internal.DocumentParsingProvider;
+import org.elasticsearch.plugins.internal.DocumentSizeReporter;
 import org.mockito.stubbing.Answer;
 
 import java.io.IOException;
@@ -42,6 +47,9 @@ import java.util.Set;
 import java.util.TreeMap;
 import java.util.stream.LongStream;
 
+import static org.elasticsearch.index.engine.Engine.Operation.Origin.PRIMARY;
+import static org.elasticsearch.index.engine.EngineTestCase.newUid;
+import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
 import static org.elasticsearch.test.ActionListenerUtils.anyActionListener;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
@@ -436,5 +444,55 @@ public class IndexEngineTests extends AbstractEngineTestCase {
             }
             verify(virtualBcc, times(1)).getBytesByRange(eq(offset), eq(effectiveLength), eq(output));
         }
+    }
+
+    public void testDocSizeIsReportedUponSuccessfulIndex() throws IOException {
+        TranslogReplicator mockTranslogReplicator = mock(TranslogReplicator.class);
+        StatelessCommitService mockCommitService = mockCommitService(Settings.EMPTY);
+        DocumentParsingProvider documentParsingProvider = mock(DocumentParsingProvider.class);
+        EngineConfig indexConfig = indexConfig();
+        try (
+            var engine = newIndexEngine(
+                indexConfig,
+                mockTranslogReplicator,
+                mock(ObjectStoreService.class),
+                mockCommitService,
+                documentParsingProvider
+            )
+        ) {
+            Engine.Index index = randomDoc("id");
+            DocumentSizeReporter documentSizeReporter = mock(DocumentSizeReporter.class);
+            when(documentParsingProvider.newDocumentSizeReporter(eq(indexConfig.getShardId().getIndexName()))).thenReturn(
+                documentSizeReporter
+            );
+
+            Engine.IndexResult result = engine.index(index);
+            assertThat(result.getResultType(), equalTo(Engine.Result.Type.SUCCESS));
+            verify(documentSizeReporter).onIndexingCompleted(eq(index.parsedDoc()));
+
+            Engine.Index newIndex = randomDoc("id");
+            var failIndex = versionConflictingIndexOperation(index, newIndex);
+            result = engine.index(failIndex);
+
+            assertThat(result.getResultType(), equalTo(Engine.Result.Type.FAILURE));
+            verify(documentSizeReporter, times(0)).onIndexingCompleted(eq(newIndex.parsedDoc()));
+        }
+    }
+
+    private static Engine.Index versionConflictingIndexOperation(Engine.Index index, Engine.Index indexOp) throws IOException {
+        return new Engine.Index(
+            newUid(indexOp.parsedDoc()),
+            indexOp.parsedDoc(),
+            UNASSIGNED_SEQ_NO,
+            1,
+            Versions.MATCH_DELETED,
+            VersionType.INTERNAL,
+            PRIMARY,
+            0,
+            -1,
+            false,
+            UNASSIGNED_SEQ_NO,
+            0
+        );
     }
 }

@@ -79,7 +79,7 @@ Cohere service.
 service.
 * `openai`: specify the `completion` or `text_embedding` task type to use the
 OpenAI service.
-* `azureopenai`: specify the `text_embedding` task type to use the Azure OpenAI service.
+* `azureopenai`: specify the `completion` or `text_embedding` task type to use the Azure OpenAI service.
 * `elasticsearch`: specify the `text_embedding` task type to use the E5
 built-in model or text embedding models uploaded by Eland.
 
@@ -552,3 +552,26 @@ PUT _inference/text_embedding/azure_openai_embeddings
 }
 ------------------------------------------------------------
 // TEST[skip:TBD]
+
+The next example shows how to create an {infer} endpoint called
+`azure_openai_completion` to perform a `completion` task type.
+
+[source,console]
+------------------------------------------------------------
+PUT _inference/completion/azure_openai_completion
+{
+    "service": "azureopenai",
+    "service_settings": {
+        "api_key": "<api_key>",
+        "resource_name": "<resource_name>",
+        "deployment_id": "<deployment_id>",
+        "api_version": "2024-02-01"
+    }
+}
+------------------------------------------------------------
+// TEST[skip:TBD]
+
+The list of chat completion models that you can choose from in your Azure OpenAI deployment can be found at the following places:
+
+* https://learn.microsoft.com/en-us/azure/ai-services/openai/concepts/models#gpt-4-and-gpt-4-turbo-models[GPT-4 and GPT-4 Turbo models]
+* https://learn.microsoft.com/en-us/azure/ai-services/openai/concepts/models#gpt-35[GPT-3.5]

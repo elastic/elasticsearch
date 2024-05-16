@@ -826,7 +826,8 @@ class NodeConstruction {
             IndicesService indicesService,
             FeatureService featureService,
             SystemIndices systemIndices,
-            DataStreamGlobalRetentionResolver dataStreamGlobalRetentionResolver
+            DataStreamGlobalRetentionResolver dataStreamGlobalRetentionResolver,
+            DocumentParsingProvider documentParsingProvider
         ) implements Plugin.PluginServices {}
         PluginServiceInstances pluginServices = new PluginServiceInstances(
             client,
@@ -846,7 +847,8 @@ class NodeConstruction {
             indicesService,
             featureService,
             systemIndices,
-            dataStreamGlobalRetentionResolver
+            dataStreamGlobalRetentionResolver,
+            documentParsingProvider
         );
 
         Collection<?> pluginComponents = pluginsService.flatMap(p -> p.createComponents(pluginServices)).toList();

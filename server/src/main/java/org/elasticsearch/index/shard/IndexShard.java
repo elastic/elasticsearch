@@ -4233,12 +4233,13 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
                 @Override
                 public void close() throws IOException {
-                    assert Thread.holdsLock(engineMutex);
-
-                    Engine newEngine = newEngineReference.get();
-                    if (newEngine == currentEngineReference.get()) {
-                        // we successfully installed the new engine so do not close it.
-                        newEngine = null;
+                    Engine newEngine;
+                    synchronized (engineMutex) {
+                        newEngine = newEngineReference.get();
+                        if (newEngine == currentEngineReference.get()) {
+                            // we successfully installed the new engine so do not close it.
+                            newEngine = null;
+                        }
                     }
                     IOUtils.close(super::close, newEngine);
                 }

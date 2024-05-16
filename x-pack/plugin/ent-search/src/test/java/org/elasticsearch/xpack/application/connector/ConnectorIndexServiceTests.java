@@ -61,6 +61,7 @@ import static org.elasticsearch.xpack.application.connector.ConnectorTestUtils.g
 import static org.elasticsearch.xpack.application.connector.ConnectorTestUtils.registerSimplifiedConnectorIndexTemplates;
 import static org.hamcrest.CoreMatchers.anyOf;
 import static org.hamcrest.CoreMatchers.equalTo;
+import static org.hamcrest.CoreMatchers.not;
 
 public class ConnectorIndexServiceTests extends ESSingleNodeTestCase {
 
@@ -288,6 +289,81 @@ public class ConnectorIndexServiceTests extends ESSingleNodeTestCase {
         assertThat(
             ConnectorFiltering.getDefaultConnectorFilteringConfig().getDomain(),
             equalTo(indexedConnector.getFiltering().get(0).getDomain())
+        );
+    }
+
+    public void testUpdateConnectorFiltering_updateDraftWithDefaultRuleOnly() throws Exception {
+        Connector connector = ConnectorTestUtils.getRandomConnector();
+        String connectorId = randomUUID();
+
+        DocWriteResponse resp = buildRequestAndAwaitPutConnector(connectorId, connector);
+        assertThat(resp.status(), anyOf(equalTo(RestStatus.CREATED), equalTo(RestStatus.OK)));
+
+        FilteringAdvancedSnippet advancedSnippet = ConnectorTestUtils.getRandomConnectorFiltering().getDraft().getAdvancedSnippet();
+        List<FilteringRule> rules = ConnectorTestUtils.getRandomConnectorFiltering().getDraft().getRules();
+
+        DocWriteResponse updateResponse = awaitUpdateConnectorFilteringDraft(connectorId, advancedSnippet, rules);
+        assertThat(updateResponse.status(), equalTo(RestStatus.OK));
+
+        List<FilteringRule> defaultRules = List.of(ConnectorFiltering.getDefaultFilteringRuleWithOrder(0));
+
+        DocWriteResponse defaultUpdateResponse = awaitUpdateConnectorFilteringDraft(connectorId, advancedSnippet, defaultRules);
+        assertThat(defaultUpdateResponse.status(), equalTo(RestStatus.OK));
+
+        Connector indexedConnector = awaitGetConnector(connectorId);
+
+        // Assert that draft has correct rules
+        assertTrue(
+            indexedConnector.getFiltering()
+                .get(0)
+                .getDraft()
+                .getRules()
+                .get(0)
+                .equalsExceptForTimestampsAndOrder(ConnectorFiltering.getDefaultFilteringRuleWithOrder(0))
+        );
+
+        // Assert that draft is marked as EDITED
+        assertThat(
+            FilteringValidationInfo.getInitialDraftValidationInfo(),
+            equalTo(indexedConnector.getFiltering().get(0).getDraft().getFilteringValidationInfo())
+        );
+    }
+
+    public void testUpdateConnectorFiltering_updateDraftWithEmptyRules() throws Exception {
+        Connector connector = ConnectorTestUtils.getRandomConnector();
+        String connectorId = randomUUID();
+
+        DocWriteResponse resp = buildRequestAndAwaitPutConnector(connectorId, connector);
+        assertThat(resp.status(), anyOf(equalTo(RestStatus.CREATED), equalTo(RestStatus.OK)));
+
+        FilteringAdvancedSnippet advancedSnippet = ConnectorTestUtils.getRandomConnectorFiltering().getDraft().getAdvancedSnippet();
+        List<FilteringRule> rules = ConnectorTestUtils.getRandomConnectorFiltering().getDraft().getRules();
+
+        DocWriteResponse updateResponse = awaitUpdateConnectorFilteringDraft(connectorId, advancedSnippet, rules);
+        assertThat(updateResponse.status(), equalTo(RestStatus.OK));
+
+        List<FilteringRule> emptyRules = Collections.emptyList();
+
+        DocWriteResponse emptyUpdateResponse = awaitUpdateConnectorFilteringDraft(connectorId, advancedSnippet, emptyRules);
+        assertThat(emptyUpdateResponse.status(), equalTo(RestStatus.OK));
+
+        Connector indexedConnector = awaitGetConnector(connectorId);
+
+        // Assert that draft got updated
+        assertThat(emptyRules, not(equalTo(indexedConnector.getFiltering().get(0).getDraft().getRules())));
+        assertTrue(
+            indexedConnector.getFiltering()
+                .get(0)
+                .getDraft()
+                .getRules()
+                .get(0)
+                .equalsExceptForTimestampsAndOrder(ConnectorFiltering.getDefaultFilteringRuleWithOrder(0))
+        );
+
+        // Assert that draft is marked as EDITED
+        assertThat(
+            FilteringValidationInfo.getInitialDraftValidationInfo(),
+            equalTo(indexedConnector.getFiltering().get(0).getDraft().getFilteringValidationInfo())
         );
     }
 

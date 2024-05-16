@@ -127,8 +127,7 @@ public class FsHealthServiceTests extends ESTestCase {
         PathUtilsForTesting.installMock(fileSystem);
         final ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
 
-        MockLogAppender mockAppender = new MockLogAppender();
-        try (NodeEnvironment env = newNodeEnvironment(); var ignored = mockAppender.capturing(FsHealthService.class)) {
+        try (NodeEnvironment env = newNodeEnvironment(); var mockAppender = MockLogAppender.capture(FsHealthService.class)) {
             FsHealthService fsHealthService = new FsHealthService(settings, clusterSettings, testThreadPool, env);
             int counter = 0;
             for (Path path : env.nodeDataPaths()) {

@@ -1,0 +1,28 @@
+pr: 108683
+summary: Add support for the 'Connection Type' database to the geoip processor
+area: Ingest Node
+type: enhancement
+issues: []
+highlight:
+  title: Add support for the 'Connection Type' database to the geoip processor
+  body: |-
+    Follow on to #107287, #107377, #108639, and #108651
+
+    Adds support for the ['GeoIP2 Connection
+    Type'](https://dev.maxmind.com/geoip/docs/databases/connection-type)
+    database from MaxMind to the `geoip` processor.
+
+    The `geoip` processor will automatically download the [various
+    'GeoLite2'
+    databases](https://dev.maxmind.com/geoip/geolite2-free-geolocation-data),
+    but the 'GeoIP2 Connection Type' database is not a 'GeoLite2' database
+    -- it's a commercial database available to those with a suitable license
+    from MaxMind.
+
+    The support that is being added for it in this PR is in line with the
+    support that we already have for MaxMind's 'GeoIP2 City' and 'GeoIP2
+    Country' databases -- that is, one would need to arrange their own
+    download management via some custom endpoint or otherwise arrange for
+    the relevant file(s) to be in the `$ES_CONFIG/ingest-geoip` directory on
+    the nodes of the cluster.
+  notable: true

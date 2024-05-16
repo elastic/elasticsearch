@@ -8,7 +8,6 @@
 
 package org.elasticsearch.plugins.internal;
 
-
 import java.util.Map;
 
 /**

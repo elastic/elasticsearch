@@ -83,8 +83,7 @@ public class AtomicRegisterPreVoteCollectorTests extends ESTestCase {
         final var heartbeatFrequency = TimeValue.timeValueSeconds(randomIntBetween(15, 30));
         final var maxTimeSinceLastHeartbeat = TimeValue.timeValueSeconds(2 * heartbeatFrequency.seconds());
         DiscoveryNodeUtils.create("master");
-        final var appender = new MockLogAppender();
-        try (var ignored = appender.capturing(AtomicRegisterPreVoteCollector.class)) {
+        try (var appender = MockLogAppender.capture(AtomicRegisterPreVoteCollector.class)) {
             appender.addExpectation(
                 new MockLogAppender.SeenEventExpectation(
                     "log emitted when skipping election",

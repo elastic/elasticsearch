@@ -20,6 +20,15 @@ package co.elastic.elasticsearch.stateless.autoscaling.memory;
 import co.elastic.elasticsearch.stateless.autoscaling.MetricQuality;
 
 import org.apache.logging.log4j.Level;
+import org.elasticsearch.cluster.ClusterChangedEvent;
+import org.elasticsearch.cluster.ClusterName;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
+import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.routing.RoutingTable;
+import org.elasticsearch.cluster.routing.RoutingTableGenerator;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
@@ -34,6 +43,7 @@ import org.junit.Before;
 import org.junit.BeforeClass;
 
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
@@ -280,9 +290,13 @@ public class MemoryMetricsServiceTests extends ESTestCase {
     public void testSpecificValues() {
         boolean small = randomBoolean();
         long size = small ? between(1, 1000) : randomLongBetween(ByteSizeUnit.GB.toBytes(1), ByteSizeUnit.GB.toBytes(2));
-
-        service.getIndicesMemoryMetrics()
-            .put(INDEX, new MemoryMetricsService.IndexMemoryMetrics(size, 0, MetricQuality.EXACT, "node-0", 0));
+        var clusterState = createClusterStateWithIndices(1);
+        ClusterChangedEvent event = new ClusterChangedEvent("test", clusterState, ClusterState.EMPTY_STATE);
+        service.clusterChanged(event);
+        assertEquals(1, clusterState.metadata().indices().size());
+        var index = clusterState.metadata().indices().values().iterator().next().getIndex();
+        var node = clusterState.nodes().getLocalNode().getId();
+        service.getIndicesMemoryMetrics().put(index, new MemoryMetricsService.IndexMemoryMetrics(size, 0, MetricQuality.EXACT, node, 0));
 
         MemoryMetrics memoryMetrics = service.getMemoryMetrics();
         assertThat(
@@ -299,22 +313,43 @@ public class MemoryMetricsServiceTests extends ESTestCase {
     }
 
     public void testManyShards() {
-        for (int i = 0; i < 300; ++i) {
+        int numberOfIndices = 300;
+        var clusterState = createClusterStateWithIndices(numberOfIndices);
+        ClusterChangedEvent event = new ClusterChangedEvent("test", clusterState, ClusterState.EMPTY_STATE);
+        service.clusterChanged(event);
+        assertEquals(numberOfIndices, service.totalNumberOfShards());
+        var node = clusterState.nodes().getLocalNode().getId();
+        for (var indexMetadata : clusterState.metadata().indices().values()) {
             service.getIndicesMemoryMetrics()
-                .put(
-                    new Index(randomAlphaOfLength(10), randomUUID()),
-                    new MemoryMetricsService.IndexMemoryMetrics(0, 0, MetricQuality.EXACT, "node-0", 0)
-                );
+                .put(indexMetadata.getIndex(), new MemoryMetricsService.IndexMemoryMetrics(0, 0, MetricQuality.EXACT, node, 0));
         }
 
         MemoryMetrics memoryMetrics = service.getMemoryMetrics();
         assertThat(memoryMetrics.totalMemoryInBytes(), greaterThan(ByteSizeUnit.GB.toBytes(2)));
         assertThat(memoryMetrics.totalMemoryInBytes(), lessThan(ByteSizeUnit.GB.toBytes(4)));
         // * 2 to go from heap to system memory
-        assertThat(memoryMetrics.totalMemoryInBytes(), equalTo(300 * service.shardMemoryOverhead.getBytes() * 2));
+        assertThat(memoryMetrics.totalMemoryInBytes(), equalTo(numberOfIndices * service.shardMemoryOverhead.getBytes() * 2));
 
         // show that one 4GB node is not enough, but 1.5 node would be.
         assertThat(memoryMetrics.totalMemoryInBytes() + memoryMetrics.nodeMemoryInBytes() * 2, greaterThan(ByteSizeUnit.GB.toBytes(4)));
         assertThat(memoryMetrics.totalMemoryInBytes() + memoryMetrics.nodeMemoryInBytes() * 2, lessThan(ByteSizeUnit.GB.toBytes(6)));
+    }
+
+    /** Creates a cluster state for a one node cluster, having the given number of indices in its metadata. */
+    private ClusterState createClusterStateWithIndices(int numberOfIndices) {
+        var indices = new HashMap<String, IndexMetadata>();
+        var routingTableBuilder = RoutingTable.builder();
+        IntStream.range(0, numberOfIndices).forEach(i -> {
+            var indexMetadata = IndexMetadata.builder("index" + i).settings(indexSettings(1, 1).put("index.version.created", 1)).build();
+            indices.put("index" + i, indexMetadata);
+            routingTableBuilder.add(
+                new RoutingTableGenerator().genIndexRoutingTable(indexMetadata, new RoutingTableGenerator.ShardCounter())
+            );
+        });
+        return ClusterState.builder(new ClusterName("test"))
+            .nodes(DiscoveryNodes.builder().add(DiscoveryNodeUtils.create("node_0")).localNodeId("node_0").masterNodeId("node_0"))
+            .routingTable(routingTableBuilder)
+            .metadata(Metadata.builder().indices(indices))
+            .build();
     }
 }

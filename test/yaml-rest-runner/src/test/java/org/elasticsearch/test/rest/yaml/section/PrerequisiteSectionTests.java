@@ -636,6 +636,7 @@ public class PrerequisiteSectionTests extends AbstractClientYamlTestFragmentPars
             "foobar",
             emptyList()
         );
+        assertFalse(section.hasCapabilitiesCheck());
 
         var mockContext = mock(ClientYamlTestExecutionContext.class);
         assertFalse(section.skipCriteriaMet(mockContext));
@@ -649,6 +650,7 @@ public class PrerequisiteSectionTests extends AbstractClientYamlTestFragmentPars
             "foobar",
             emptyList()
         );
+        assertFalse(section.hasCapabilitiesCheck());
 
         var mockContext = mock(ClientYamlTestExecutionContext.class);
         when(mockContext.clusterHasFeature("required-feature-1")).thenReturn(true);
@@ -667,6 +669,7 @@ public class PrerequisiteSectionTests extends AbstractClientYamlTestFragmentPars
             "foobar",
             emptyList()
         );
+        assertFalse(section.hasCapabilitiesCheck());
 
         var mockContext = mock(ClientYamlTestExecutionContext.class);
         when(mockContext.clusterHasFeature("required-feature-1")).thenReturn(true);
@@ -684,6 +687,7 @@ public class PrerequisiteSectionTests extends AbstractClientYamlTestFragmentPars
             "foobar",
             emptyList()
         );
+        assertFalse(section.hasCapabilitiesCheck());
 
         var mockContext = mock(ClientYamlTestExecutionContext.class);
         assertFalse(section.skipCriteriaMet(mockContext));
@@ -717,7 +721,7 @@ public class PrerequisiteSectionTests extends AbstractClientYamlTestFragmentPars
             "required",
             emptyList()
         );
-
+        assertTrue(section.hasCapabilitiesCheck());
         var context = mock(ClientYamlTestExecutionContext.class);
 
         // when the capabilities API is unavailable:

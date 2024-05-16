@@ -43,8 +43,8 @@ public class GetDataStreamLifecycleStatsAction extends ActionType<GetDataStreamL
             super(in);
         }
 
-        public Request() {
-            super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT);
+        public Request(TimeValue masterNodeTimeout) {
+            super(masterNodeTimeout);
         }
 
         @Override

@@ -15,9 +15,11 @@ import com.maxmind.geoip2.model.AbstractResponse;
 import com.maxmind.geoip2.model.AnonymousIpResponse;
 import com.maxmind.geoip2.model.AsnResponse;
 import com.maxmind.geoip2.model.CityResponse;
+import com.maxmind.geoip2.model.ConnectionTypeResponse;
 import com.maxmind.geoip2.model.CountryResponse;
 import com.maxmind.geoip2.model.DomainResponse;
 import com.maxmind.geoip2.model.EnterpriseResponse;
+import com.maxmind.geoip2.model.IspResponse;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -180,6 +182,12 @@ class DatabaseReaderLazyLoader implements GeoIpDatabase, Closeable {
 
     @Nullable
     @Override
+    public ConnectionTypeResponse getConnectionType(InetAddress ipAddress) {
+        return getResponse(ipAddress, DatabaseReader::tryConnectionType);
+    }
+
+    @Nullable
+    @Override
     public DomainResponse getDomain(InetAddress ipAddress) {
         return getResponse(ipAddress, DatabaseReader::tryDomain);
     }
@@ -188,6 +196,12 @@ class DatabaseReaderLazyLoader implements GeoIpDatabase, Closeable {
     @Override
     public EnterpriseResponse getEnterprise(InetAddress ipAddress) {
         return getResponse(ipAddress, DatabaseReader::tryEnterprise);
+    }
+
+    @Nullable
+    @Override
+    public IspResponse getIsp(InetAddress ipAddress) {
+        return getResponse(ipAddress, DatabaseReader::tryIsp);
     }
 
     boolean preLookup() {

@@ -266,8 +266,7 @@ public class ReadinessServiceTests extends ESTestCase implements ReadinessClient
             )
             .build();
         event = new ClusterChangedEvent("test", nodeShuttingDownState, completeState);
-        var mockAppender = new MockLogAppender();
-        try (var ignored = mockAppender.capturing(ReadinessService.class)) {
+        try (var mockAppender = MockLogAppender.capture(ReadinessService.class)) {
             mockAppender.addExpectation(
                 new MockLogAppender.SeenEventExpectation(
                     "node shutting down logged",

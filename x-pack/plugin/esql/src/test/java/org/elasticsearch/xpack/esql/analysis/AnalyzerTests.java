@@ -1864,6 +1864,38 @@ public class AnalyzerTests extends ESTestCase {
             """, "mapping-multi-field-variation.json", "text");
     }
 
+    public void testMvAppendValidation() {
+        String[][] fields = {
+            { "bool", "boolean" },
+            { "int", "integer" },
+            { "unsigned_long", "unsigned_long" },
+            { "float", "float" },
+            { "text", "text" },
+            { "keyword", "keyword" },
+            { "date", "date" },
+            { "point", "geo_point" },
+            { "shape", "geo_shape" },
+            { "version", "version" } };
+        int first = randomInt(fields.length - 1);
+        int second = first;
+        while (second == first) {
+            second = randomInt(fields.length - 1);
+        }
+        String signature = "mv_append(" + fields[first][0] + ", " + fields[second][0] + ")";
+        verifyUnsupported(
+            " from test | eval " + signature,
+            "second argument of ["
+                + signature
+                + "] must be ["
+                + fields[first][1]
+                + "], found value ["
+                + fields[second][0]
+                + "] type ["
+                + fields[second][1]
+                + "]"
+        );
+    }
+
     private void verifyUnsupported(String query, String errorMessage) {
         verifyUnsupported(query, errorMessage, "mapping-multi-field-variation.json");
     }

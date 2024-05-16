@@ -760,13 +760,9 @@ public class XContentHelper {
         }
 
         XContentParser.Token token;
-        while (true) {
+        do {
             destination.copyCurrentStructure(parser);
             token = parser.nextToken();
-            if (token == null) {
-                return;
-            }
-        }
-
+        } while (token != null);
     }
 }

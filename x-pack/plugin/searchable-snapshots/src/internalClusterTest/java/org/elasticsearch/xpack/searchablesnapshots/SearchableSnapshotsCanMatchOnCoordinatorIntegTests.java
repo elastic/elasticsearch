@@ -35,6 +35,7 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.junit.annotations.TestIssueLogging;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xpack.core.searchablesnapshots.MountSearchableSnapshotAction;
@@ -46,10 +47,8 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.Locale;
-import java.util.Map;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.cluster.metadata.IndexMetadata.EVENT_INGESTED_FIELD_NAME;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_ROUTING_REQUIRE_GROUP_SETTING;
 import static org.elasticsearch.index.IndexSettings.INDEX_SOFT_DELETES_SETTING;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
@@ -101,11 +100,11 @@ public class SearchableSnapshotsCanMatchOnCoordinatorIntegTests extends BaseFroz
 
         final String indexOutsideSearchRange = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
         final int indexOutsideSearchRangeShardCount = randomIntBetween(1, 3);
-        createIndexWithTimestampAndEventIngested(indexOutsideSearchRange, indexOutsideSearchRangeShardCount, Settings.EMPTY);
+        createIndexWithTimestamp(indexOutsideSearchRange, indexOutsideSearchRangeShardCount, Settings.EMPTY);
 
         final String indexWithinSearchRange = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
         final int indexWithinSearchRangeShardCount = randomIntBetween(1, 3);
-        createIndexWithTimestampAndEventIngested(
+        createIndexWithTimestamp(
             indexWithinSearchRange,
             indexWithinSearchRangeShardCount,
             Settings.builder()
@@ -118,10 +117,11 @@ public class SearchableSnapshotsCanMatchOnCoordinatorIntegTests extends BaseFroz
         // Either add data outside of the range, or documents that don't have timestamp data
         final boolean indexDataWithTimestamp = randomBoolean();
         // Add enough documents to have non-metadata segment files in all shards,
-        // otherwise the mount operation might go through as the read won't be blocked
+        // otherwise the mount operation might go through as the read won't be
+        // blocked
         final int numberOfDocsInIndexOutsideSearchRange = between(350, 1000);
         if (indexDataWithTimestamp) {
-            indexDocumentsWithTimestampAndEventIngestedDates(
+            indexDocumentsWithTimestampWithinDate(
                 indexOutsideSearchRange,
                 numberOfDocsInIndexOutsideSearchRange,
                 TIMESTAMP_TEMPLATE_OUTSIDE_RANGE
@@ -132,7 +132,7 @@ public class SearchableSnapshotsCanMatchOnCoordinatorIntegTests extends BaseFroz
 
         // Index enough documents to ensure that all shards have at least some documents
         int numDocsWithinRange = between(100, 1000);
-        indexDocumentsWithTimestampAndEventIngestedDates(indexWithinSearchRange, numDocsWithinRange, TIMESTAMP_TEMPLATE_WITHIN_RANGE);
+        indexDocumentsWithTimestampWithinDate(indexWithinSearchRange, numDocsWithinRange, TIMESTAMP_TEMPLATE_WITHIN_RANGE);
 
         final String repositoryName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
         createRepository(repositoryName, "mock");
@@ -165,10 +165,9 @@ public class SearchableSnapshotsCanMatchOnCoordinatorIntegTests extends BaseFroz
 
         final IndexMetadata indexMetadata = getIndexMetadata(searchableSnapshotIndexOutsideSearchRange);
         assertThat(indexMetadata.getTimestampRange(), equalTo(IndexLongFieldRange.NO_SHARDS));
-        assertThat(indexMetadata.getEventIngestedRange(), equalTo(IndexLongFieldRange.NO_SHARDS));
 
-        Map<String, DateFieldMapper.DateFieldType> fieldTypeMap = indicesService.getTimestampFieldTypeMap(indexMetadata.getIndex());
-        assertThat(fieldTypeMap, nullValue());
+        DateFieldMapper.DateFieldType timestampFieldType = indicesService.getTimestampFieldType(indexMetadata.getIndex());
+        assertThat(timestampFieldType, nullValue());
 
         final boolean includeIndexCoveringSearchRangeInSearchRequest = randomBoolean();
         List<String> indicesToSearch = new ArrayList<>();
@@ -176,9 +175,7 @@ public class SearchableSnapshotsCanMatchOnCoordinatorIntegTests extends BaseFroz
             indicesToSearch.add(indexWithinSearchRange);
         }
         indicesToSearch.add(searchableSnapshotIndexOutsideSearchRange);
-
-        String timeField = randomFrom(IndexMetadata.EVENT_INGESTED_FIELD_NAME, DataStream.TIMESTAMP_FIELD_NAME);
-        RangeQueryBuilder rangeQuery = QueryBuilders.rangeQuery(timeField)
+        RangeQueryBuilder rangeQuery = QueryBuilders.rangeQuery(DataStream.TIMESTAMP_FIELD_NAME)
             .from("2020-11-28T00:00:00.000000000Z", true)
             .to("2020-11-29T00:00:00.000000000Z");
 
@@ -253,46 +250,19 @@ public class SearchableSnapshotsCanMatchOnCoordinatorIntegTests extends BaseFroz
 
         final IndexMetadata updatedIndexMetadata = getIndexMetadata(searchableSnapshotIndexOutsideSearchRange);
         final IndexLongFieldRange updatedTimestampMillisRange = updatedIndexMetadata.getTimestampRange();
-        final IndexLongFieldRange updatedEventIngestedMillisRange = updatedIndexMetadata.getEventIngestedRange();
-
-        fieldTypeMap = indicesService.getTimestampFieldTypeMap(updatedIndexMetadata.getIndex());
-
-        final DateFieldMapper.DateFieldType timestampDataFieldType = fieldTypeMap.get(DataStream.TIMESTAMP_FIELD_NAME);
-        assertThat(timestampDataFieldType, notNullValue());
-        final DateFieldMapper.Resolution timestampResolution = timestampDataFieldType.resolution();
+        final DateFieldMapper.DateFieldType dateFieldType = indicesService.getTimestampFieldType(updatedIndexMetadata.getIndex());
+        assertThat(dateFieldType, notNullValue());
+        final DateFieldMapper.Resolution resolution = dateFieldType.resolution();
         assertThat(updatedTimestampMillisRange.isComplete(), equalTo(true));
-
-        final DateFieldMapper.DateFieldType eventIngestedFieldType = fieldTypeMap.get(EVENT_INGESTED_FIELD_NAME);
-        assertThat(eventIngestedFieldType, notNullValue());
-        final DateFieldMapper.Resolution eventIngestedResolution = eventIngestedFieldType.resolution();
-        assertThat(updatedEventIngestedMillisRange.isComplete(), equalTo(true));
-
         if (indexDataWithTimestamp) {
-            // @timestamp asserts
             assertThat(updatedTimestampMillisRange, not(sameInstance(IndexLongFieldRange.EMPTY)));
             assertThat(
                 updatedTimestampMillisRange.getMin(),
-                greaterThanOrEqualTo(timestampResolution.convert(Instant.parse("2020-11-26T00:00:00Z")))
+                greaterThanOrEqualTo(resolution.convert(Instant.parse("2020-11-26T00:00:00Z")))
             );
-            assertThat(
-                updatedTimestampMillisRange.getMax(),
-                lessThanOrEqualTo(timestampResolution.convert(Instant.parse("2020-11-27T00:00:00Z")))
-            );
-
-            // event.ingested asserts
-            assertThat(updatedEventIngestedMillisRange, not(sameInstance(IndexLongFieldRange.EMPTY)));
-            assertThat(
-                updatedEventIngestedMillisRange.getMin(),
-                greaterThanOrEqualTo(eventIngestedResolution.convert(Instant.parse("2020-11-26T00:00:00Z")))
-            );
-            assertThat(
-                updatedEventIngestedMillisRange.getMax(),
-                lessThanOrEqualTo(eventIngestedResolution.convert(Instant.parse("2020-11-27T00:00:00Z")))
-            );
-
+            assertThat(updatedTimestampMillisRange.getMax(), lessThanOrEqualTo(resolution.convert(Instant.parse("2020-11-27T00:00:00Z"))));
         } else {
             assertThat(updatedTimestampMillisRange, sameInstance(IndexLongFieldRange.EMPTY));
-            assertThat(updatedEventIngestedMillisRange, sameInstance(IndexLongFieldRange.EMPTY));
         }
 
         // Stop the node holding the searchable snapshots, and since we defined
@@ -413,197 +383,6 @@ public class SearchableSnapshotsCanMatchOnCoordinatorIntegTests extends BaseFroz
     }
 
     /**
-     * Test shard skipping when only 'event.ingested' is in the index and cluster state.
-     */
-    public void testEventIngestedRangeInSearchAgainstSearchableSnapshotShards() throws Exception {
-        internalCluster().startMasterOnlyNode();
-        internalCluster().startCoordinatingOnlyNode(Settings.EMPTY);
-        final String dataNodeHoldingRegularIndex = internalCluster().startDataOnlyNode();
-        final String dataNodeHoldingSearchableSnapshot = internalCluster().startDataOnlyNode();
-        final IndicesService indicesService = internalCluster().getInstance(IndicesService.class, dataNodeHoldingSearchableSnapshot);
-
-        final String indexOutsideSearchRange = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
-        final int indexOutsideSearchRangeShardCount = randomIntBetween(1, 3);
-
-        final String timestampField = IndexMetadata.EVENT_INGESTED_FIELD_NAME;
-
-        createIndexWithOnlyOneTimestampField(timestampField, indexOutsideSearchRange, indexOutsideSearchRangeShardCount, Settings.EMPTY);
-
-        final String indexWithinSearchRange = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
-        final int indexWithinSearchRangeShardCount = randomIntBetween(1, 3);
-        createIndexWithOnlyOneTimestampField(
-            timestampField,
-            indexWithinSearchRange,
-            indexWithinSearchRangeShardCount,
-            Settings.builder()
-                .put(INDEX_ROUTING_REQUIRE_GROUP_SETTING.getConcreteSettingForNamespace("_name").getKey(), dataNodeHoldingRegularIndex)
-                .build()
-        );
-
-        final int totalShards = indexOutsideSearchRangeShardCount + indexWithinSearchRangeShardCount;
-
-        // Add enough documents to have non-metadata segment files in all shards,
-        // otherwise the mount operation might go through as the read won't be blocked
-        final int numberOfDocsInIndexOutsideSearchRange = between(350, 1000);
-
-        indexDocumentsWithOneTimestampField(
-            timestampField,
-            indexOutsideSearchRange,
-            numberOfDocsInIndexOutsideSearchRange,
-            TIMESTAMP_TEMPLATE_OUTSIDE_RANGE
-        );
-
-        // Index enough documents to ensure that all shards have at least some documents
-        int numDocsWithinRange = between(100, 1000);
-        indexDocumentsWithOneTimestampField(timestampField, indexWithinSearchRange, numDocsWithinRange, TIMESTAMP_TEMPLATE_WITHIN_RANGE);
-
-        final String repositoryName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
-        createRepository(repositoryName, "mock");
-
-        final SnapshotId snapshotId = createSnapshot(repositoryName, "snapshot-1", List.of(indexOutsideSearchRange)).snapshotId();
-        assertAcked(indicesAdmin().prepareDelete(indexOutsideSearchRange));
-
-        final String searchableSnapshotIndexOutsideSearchRange = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
-
-        // Block the repository for the node holding the searchable snapshot shards
-        // to delay its restore
-        blockDataNode(repositoryName, dataNodeHoldingSearchableSnapshot);
-
-        // Force the searchable snapshot to be allocated in a particular node
-        Settings restoredIndexSettings = Settings.builder()
-            .put(INDEX_ROUTING_REQUIRE_GROUP_SETTING.getConcreteSettingForNamespace("_name").getKey(), dataNodeHoldingSearchableSnapshot)
-            .build();
-
-        final MountSearchableSnapshotRequest mountRequest = new MountSearchableSnapshotRequest(
-            searchableSnapshotIndexOutsideSearchRange,
-            repositoryName,
-            snapshotId.getName(),
-            indexOutsideSearchRange,
-            restoredIndexSettings,
-            Strings.EMPTY_ARRAY,
-            false,
-            randomFrom(MountSearchableSnapshotRequest.Storage.values())
-        );
-        client().execute(MountSearchableSnapshotAction.INSTANCE, mountRequest).actionGet();
-
-        final IndexMetadata indexMetadata = getIndexMetadata(searchableSnapshotIndexOutsideSearchRange);
-        assertThat(indexMetadata.getTimestampRange(), equalTo(IndexLongFieldRange.NO_SHARDS));
-        assertThat(indexMetadata.getEventIngestedRange(), equalTo(IndexLongFieldRange.NO_SHARDS));
-
-        // Allow the searchable snapshots to be finally mounted
-        unblockNode(repositoryName, dataNodeHoldingSearchableSnapshot);
-        waitUntilRecoveryIsDone(searchableSnapshotIndexOutsideSearchRange);
-        ensureGreen(searchableSnapshotIndexOutsideSearchRange);
-
-        IndexMetadata updatedIndexMetadata = getIndexMetadata(searchableSnapshotIndexOutsideSearchRange);
-        IndexLongFieldRange updatedTimestampMillisRange = updatedIndexMetadata.getTimestampRange();
-        IndexLongFieldRange updatedEventIngestedMillisRange = updatedIndexMetadata.getEventIngestedRange();
-
-        Map<String, DateFieldMapper.DateFieldType> fieldTypeMap = indicesService.getTimestampFieldTypeMap(updatedIndexMetadata.getIndex());
-
-        // @timestamp range should be null since it was not included in the index or indexed docs
-        assertThat(updatedTimestampMillisRange, equalTo(IndexLongFieldRange.UNKNOWN));
-        DateFieldMapper.DateFieldType timestampDataFieldType = fieldTypeMap.get(DataStream.TIMESTAMP_FIELD_NAME);
-        assertThat(timestampDataFieldType, nullValue());
-
-        DateFieldMapper.DateFieldType eventIngestedFieldType = fieldTypeMap.get(EVENT_INGESTED_FIELD_NAME);
-        assertThat(eventIngestedFieldType, notNullValue());
-        DateFieldMapper.Resolution eventIngestedResolution = eventIngestedFieldType.resolution();
-        assertThat(updatedEventIngestedMillisRange.isComplete(), equalTo(true));
-        assertThat(
-            updatedEventIngestedMillisRange.getMin(),
-            greaterThanOrEqualTo(eventIngestedResolution.convert(Instant.parse("2020-11-26T00:00:00Z")))
-        );
-        assertThat(
-            updatedEventIngestedMillisRange.getMax(),
-            lessThanOrEqualTo(eventIngestedResolution.convert(Instant.parse("2020-11-27T00:00:00Z")))
-        );
-
-        // now do a search against event.ingested
-        List<String> indicesToSearch = new ArrayList<>();
-        indicesToSearch.add(indexWithinSearchRange);
-        indicesToSearch.add(searchableSnapshotIndexOutsideSearchRange);
-
-        {
-            RangeQueryBuilder rangeQuery = QueryBuilders.rangeQuery(timestampField)
-                .from("2020-11-28T00:00:00.000000000Z", true)
-                .to("2020-11-29T00:00:00.000000000Z");
-
-            SearchRequest request = new SearchRequest().indices(indicesToSearch.toArray(new String[0]))
-                .source(new SearchSourceBuilder().query(rangeQuery));
-
-            assertResponse(client().search(request), searchResponse -> {
-                // All the regular index searches succeeded
-                assertThat(searchResponse.getSuccessfulShards(), equalTo(totalShards));
-                assertThat(searchResponse.getFailedShards(), equalTo(0));
-                // All the searchable snapshots shard search were skipped
-                assertThat(searchResponse.getSkippedShards(), equalTo(indexOutsideSearchRangeShardCount));
-                assertThat(searchResponse.getTotalShards(), equalTo(totalShards));
-            });
-
-            SearchShardAPIResult searchShardResult = doSearchShardAPIQuery(indicesToSearch, rangeQuery, true, totalShards);
-            assertThat(searchShardResult.skipped().size(), equalTo(indexOutsideSearchRangeShardCount));
-            assertThat(searchShardResult.notSkipped().size(), equalTo(indexWithinSearchRangeShardCount));
-        }
-
-        // query a range that covers both indexes - all shards should be searched, none skipped
-        {
-            RangeQueryBuilder rangeQuery = QueryBuilders.rangeQuery(timestampField)
-                .from("2019-11-28T00:00:00.000000000Z", true)
-                .to("2021-11-29T00:00:00.000000000Z");
-
-            SearchRequest request = new SearchRequest().indices(indicesToSearch.toArray(new String[0]))
-                .source(new SearchSourceBuilder().query(rangeQuery));
-
-            assertResponse(client().search(request), searchResponse -> {
-                assertThat(searchResponse.getSuccessfulShards(), equalTo(totalShards));
-                assertThat(searchResponse.getFailedShards(), equalTo(0));
-                assertThat(searchResponse.getSkippedShards(), equalTo(0));
-                assertThat(searchResponse.getTotalShards(), equalTo(totalShards));
-            });
-
-            SearchShardAPIResult searchShardResult = doSearchShardAPIQuery(indicesToSearch, rangeQuery, true, totalShards);
-            assertThat(searchShardResult.skipped().size(), equalTo(0));
-            assertThat(searchShardResult.notSkipped().size(), equalTo(totalShards));
-        }
-    }
-
-    record SearchShardAPIResult(List<SearchShardsGroup> skipped, List<SearchShardsGroup> notSkipped) {}
-
-    private static SearchShardAPIResult doSearchShardAPIQuery(
-        List<String> indicesToSearch,
-        RangeQueryBuilder rangeQuery,
-        boolean allowPartialSearchResults,
-        int expectedTotalShards
-    ) {
-        SearchShardsRequest searchShardsRequest = new SearchShardsRequest(
-            indicesToSearch.toArray(new String[0]),
-            SearchRequest.DEFAULT_INDICES_OPTIONS,
-            rangeQuery,
-            null,
-            null,
-            allowPartialSearchResults,
-            null
-        );
-
-        SearchShardsResponse searchShardsResponse = client().execute(TransportSearchShardsAction.TYPE, searchShardsRequest).actionGet();
-        assertThat(searchShardsResponse.getGroups().size(), equalTo(expectedTotalShards));
-        List<List<SearchShardsGroup>> partitionedBySkipped = searchShardsResponse.getGroups()
-            .stream()
-            .collect(
-                Collectors.teeing(
-                    Collectors.filtering(g -> g.skipped(), Collectors.toList()),
-                    Collectors.filtering(g -> g.skipped() == false, Collectors.toList()),
-                    List::of
-                )
-            );
-
-        List<SearchShardsGroup> skipped = partitionedBySkipped.get(0);
-        List<SearchShardsGroup> notSkipped = partitionedBySkipped.get(1);
-        return new SearchShardAPIResult(skipped, notSkipped);
-    }
-
-    /**
      * Can match against searchable snapshots is tested via both the Search API and the SearchShards (transport-only) API.
      * The latter is a way to do only a can-match rather than all search phases.
      */
@@ -616,7 +395,7 @@ public class SearchableSnapshotsCanMatchOnCoordinatorIntegTests extends BaseFroz
 
         final String indexOutsideSearchRange = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
         final int indexOutsideSearchRangeShardCount = randomIntBetween(1, 3);
-        createIndexWithTimestampAndEventIngested(
+        createIndexWithTimestamp(
             indexOutsideSearchRange,
             indexOutsideSearchRangeShardCount,
             Settings.builder()
@@ -624,7 +403,7 @@ public class SearchableSnapshotsCanMatchOnCoordinatorIntegTests extends BaseFroz
                 .build()
         );
 
-        indexDocumentsWithTimestampAndEventIngestedDates(indexOutsideSearchRange, between(1, 1000), TIMESTAMP_TEMPLATE_OUTSIDE_RANGE);
+        indexDocumentsWithTimestampWithinDate(indexOutsideSearchRange, between(1, 1000), TIMESTAMP_TEMPLATE_OUTSIDE_RANGE);
 
         final String repositoryName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
         createRepository(repositoryName, "mock");
@@ -657,13 +436,11 @@ public class SearchableSnapshotsCanMatchOnCoordinatorIntegTests extends BaseFroz
 
         final IndexMetadata indexMetadata = getIndexMetadata(searchableSnapshotIndexOutsideSearchRange);
         assertThat(indexMetadata.getTimestampRange(), equalTo(IndexLongFieldRange.NO_SHARDS));
-        assertThat(indexMetadata.getEventIngestedRange(), equalTo(IndexLongFieldRange.NO_SHARDS));
 
-        Map<String, DateFieldMapper.DateFieldType> fieldTypeMap = indicesService.getTimestampFieldTypeMap(indexMetadata.getIndex());
-        assertThat(fieldTypeMap, nullValue());
+        DateFieldMapper.DateFieldType timestampFieldType = indicesService.getTimestampFieldType(indexMetadata.getIndex());
+        assertThat(timestampFieldType, nullValue());
 
-        String timeField = randomFrom(IndexMetadata.EVENT_INGESTED_FIELD_NAME, DataStream.TIMESTAMP_FIELD_NAME);
-        RangeQueryBuilder rangeQuery = QueryBuilders.rangeQuery(timeField)
+        RangeQueryBuilder rangeQuery = QueryBuilders.rangeQuery(DataStream.TIMESTAMP_FIELD_NAME)
             .from("2020-11-28T00:00:00.000000000Z", true)
             .to("2020-11-29T00:00:00.000000000Z");
 
@@ -675,11 +452,11 @@ public class SearchableSnapshotsCanMatchOnCoordinatorIntegTests extends BaseFroz
         // test with Search API
         {
             assertResponse(client().search(request), searchResponse -> {
-                // All the regular index searches succeeded (were skipped)
+                // All the regular index searches succeeded
                 assertThat(searchResponse.getSuccessfulShards(), equalTo(indexOutsideSearchRangeShardCount));
-                assertThat(searchResponse.getSkippedShards(), equalTo(indexOutsideSearchRangeShardCount));
                 // All the searchable snapshots shard search failed
-                assertThat(searchResponse.getFailedShards(), equalTo(searchableSnapshotShardCount));
+                assertThat(searchResponse.getFailedShards(), equalTo(indexOutsideSearchRangeShardCount));
+                assertThat(searchResponse.getSkippedShards(), equalTo(searchableSnapshotShardCount));
                 assertThat(searchResponse.getTotalShards(), equalTo(totalShards));
                 assertThat(searchResponse.getHits().getTotalHits().value, equalTo(0L));
             });
@@ -721,38 +498,14 @@ public class SearchableSnapshotsCanMatchOnCoordinatorIntegTests extends BaseFroz
         ensureGreen(searchableSnapshotIndexOutsideSearchRange);
 
         final IndexMetadata updatedIndexMetadata = getIndexMetadata(searchableSnapshotIndexOutsideSearchRange);
-        fieldTypeMap = indicesService.getTimestampFieldTypeMap(updatedIndexMetadata.getIndex());
-        final DateFieldMapper.DateFieldType dateFieldType = fieldTypeMap.get(DataStream.TIMESTAMP_FIELD_NAME);
-        assertThat(dateFieldType, notNullValue());
-        final DateFieldMapper.Resolution timestampResolution = dateFieldType.resolution();
-
-        final DateFieldMapper.DateFieldType eventIngestedFieldType = fieldTypeMap.get(IndexMetadata.EVENT_INGESTED_FIELD_NAME);
-        assertThat(eventIngestedFieldType, notNullValue());
-        final DateFieldMapper.Resolution eventIngestedResolution = eventIngestedFieldType.resolution();
-
         final IndexLongFieldRange updatedTimestampMillisRange = updatedIndexMetadata.getTimestampRange();
+        final DateFieldMapper.DateFieldType dateFieldType = indicesService.getTimestampFieldType(updatedIndexMetadata.getIndex());
+        assertThat(dateFieldType, notNullValue());
+        final DateFieldMapper.Resolution resolution = dateFieldType.resolution();
         assertThat(updatedTimestampMillisRange.isComplete(), equalTo(true));
         assertThat(updatedTimestampMillisRange, not(sameInstance(IndexLongFieldRange.EMPTY)));
-        assertThat(
-            updatedTimestampMillisRange.getMin(),
-            greaterThanOrEqualTo(timestampResolution.convert(Instant.parse("2020-11-26T00:00:00Z")))
-        );
-        assertThat(
-            updatedTimestampMillisRange.getMax(),
-            lessThanOrEqualTo(timestampResolution.convert(Instant.parse("2020-11-27T00:00:00Z")))
-        );
-
-        final IndexLongFieldRange updatedEventIngestedMillisRange = updatedIndexMetadata.getEventIngestedRange();
-        assertThat(updatedEventIngestedMillisRange.isComplete(), equalTo(true));
-        assertThat(updatedEventIngestedMillisRange, not(sameInstance(IndexLongFieldRange.EMPTY)));
-        assertThat(
-            updatedEventIngestedMillisRange.getMin(),
-            greaterThanOrEqualTo(eventIngestedResolution.convert(Instant.parse("2020-11-26T00:00:00Z")))
-        );
-        assertThat(
-            updatedEventIngestedMillisRange.getMax(),
-            lessThanOrEqualTo(eventIngestedResolution.convert(Instant.parse("2020-11-27T00:00:00Z")))
-        );
+        assertThat(updatedTimestampMillisRange.getMin(), greaterThanOrEqualTo(resolution.convert(Instant.parse("2020-11-26T00:00:00Z"))));
+        assertThat(updatedTimestampMillisRange.getMax(), lessThanOrEqualTo(resolution.convert(Instant.parse("2020-11-27T00:00:00Z"))));
 
         // Stop the node holding the searchable snapshots, and since we defined
         // the index allocation criteria to require the searchable snapshot
@@ -760,7 +513,7 @@ public class SearchableSnapshotsCanMatchOnCoordinatorIntegTests extends BaseFroz
         internalCluster().stopNode(dataNodeHoldingSearchableSnapshot);
         waitUntilAllShardsAreUnassigned(updatedIndexMetadata.getIndex());
 
-        // busy assert since computing the timestamp field from the cluster state happens off of the CS applier thread and thus can be
+        // busy assert since computing the time stamp field from the cluster state happens off of the CS applier thread and thus can be
         // slightly delayed
         assertBusy(() -> {
             assertResponse(client().search(request), newSearchResponse -> {
@@ -810,11 +563,11 @@ public class SearchableSnapshotsCanMatchOnCoordinatorIntegTests extends BaseFroz
      * Can match against searchable snapshots is tested via both the Search API and the SearchShards (transport-only) API.
      * The latter is a way to do only a can-match rather than all search phases.
      */
-    // @TestIssueLogging(
-    // issueUrl = "https://github.com/elastic/elasticsearch/issues/97878",
-    // value = "org.elasticsearch.snapshots:DEBUG,org.elasticsearch.indices.recovery:DEBUG,org.elasticsearch.action.search:DEBUG"
-    // )
-    // @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/105339")
+    @TestIssueLogging(
+        issueUrl = "https://github.com/elastic/elasticsearch/issues/97878",
+        value = "org.elasticsearch.snapshots:DEBUG,org.elasticsearch.indices.recovery:DEBUG,org.elasticsearch.action.search:DEBUG"
+    )
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/105339")
     public void testSearchableSnapshotShardsThatHaveMatchingDataAreNotSkippedOnTheCoordinatingNode() throws Exception {
         internalCluster().startMasterOnlyNode();
         internalCluster().startCoordinatingOnlyNode(Settings.EMPTY);
@@ -824,7 +577,7 @@ public class SearchableSnapshotsCanMatchOnCoordinatorIntegTests extends BaseFroz
 
         final String indexWithinSearchRange = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
         final int indexWithinSearchRangeShardCount = randomIntBetween(1, 3);
-        createIndexWithTimestampAndEventIngested(
+        createIndexWithTimestamp(
             indexWithinSearchRange,
             indexWithinSearchRangeShardCount,
             Settings.builder()
@@ -832,7 +585,7 @@ public class SearchableSnapshotsCanMatchOnCoordinatorIntegTests extends BaseFroz
                 .build()
         );
 
-        indexDocumentsWithTimestampAndEventIngestedDates(indexWithinSearchRange, between(1, 1000), TIMESTAMP_TEMPLATE_WITHIN_RANGE);
+        indexDocumentsWithTimestampWithinDate(indexWithinSearchRange, between(1, 1000), TIMESTAMP_TEMPLATE_WITHIN_RANGE);
 
         final String repositoryName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
         createRepository(repositoryName, "mock");
@@ -865,13 +618,11 @@ public class SearchableSnapshotsCanMatchOnCoordinatorIntegTests extends BaseFroz
 
         final IndexMetadata indexMetadata = getIndexMetadata(searchableSnapshotIndexWithinSearchRange);
         assertThat(indexMetadata.getTimestampRange(), equalTo(IndexLongFieldRange.NO_SHARDS));
-        assertThat(indexMetadata.getEventIngestedRange(), equalTo(IndexLongFieldRange.NO_SHARDS));
 
-        Map<String, DateFieldMapper.DateFieldType> fieldTypeMap = indicesService.getTimestampFieldTypeMap(indexMetadata.getIndex());
-        assertThat(fieldTypeMap, nullValue());
+        DateFieldMapper.DateFieldType timestampFieldType = indicesService.getTimestampFieldType(indexMetadata.getIndex());
+        assertThat(timestampFieldType, nullValue());
 
-        String timeField = randomFrom(IndexMetadata.EVENT_INGESTED_FIELD_NAME, DataStream.TIMESTAMP_FIELD_NAME);
-        RangeQueryBuilder rangeQuery = QueryBuilders.rangeQuery(timeField)
+        RangeQueryBuilder rangeQuery = QueryBuilders.rangeQuery(DataStream.TIMESTAMP_FIELD_NAME)
             .from("2020-11-28T00:00:00.000000000Z", true)
             .to("2020-11-29T00:00:00.000000000Z");
 
@@ -925,41 +676,14 @@ public class SearchableSnapshotsCanMatchOnCoordinatorIntegTests extends BaseFroz
         ensureGreen(searchableSnapshotIndexWithinSearchRange);
 
         final IndexMetadata updatedIndexMetadata = getIndexMetadata(searchableSnapshotIndexWithinSearchRange);
-        fieldTypeMap = indicesService.getTimestampFieldTypeMap(updatedIndexMetadata.getIndex());
-
-        // asserts against @timestamp in index metadata
-        final DateFieldMapper.DateFieldType timestampDateFieldType = fieldTypeMap.get(DataStream.TIMESTAMP_FIELD_NAME);
-        assertThat(timestampDateFieldType, notNullValue());
-        final DateFieldMapper.Resolution timestampResolution = timestampDateFieldType.resolution();
-
         final IndexLongFieldRange updatedTimestampMillisRange = updatedIndexMetadata.getTimestampRange();
+        final DateFieldMapper.DateFieldType dateFieldType = indicesService.getTimestampFieldType(updatedIndexMetadata.getIndex());
+        assertThat(dateFieldType, notNullValue());
+        final DateFieldMapper.Resolution resolution = dateFieldType.resolution();
         assertThat(updatedTimestampMillisRange.isComplete(), equalTo(true));
         assertThat(updatedTimestampMillisRange, not(sameInstance(IndexLongFieldRange.EMPTY)));
-        assertThat(
-            updatedTimestampMillisRange.getMin(),
-            greaterThanOrEqualTo(timestampResolution.convert(Instant.parse("2020-11-28T00:00:00Z")))
-        );
-        assertThat(
-            updatedTimestampMillisRange.getMax(),
-            lessThanOrEqualTo(timestampResolution.convert(Instant.parse("2020-11-29T00:00:00Z")))
-        );
-
-        // asserts against event.ingested in index metadata
-        final DateFieldMapper.DateFieldType eventIngestedDateFieldType = fieldTypeMap.get(EVENT_INGESTED_FIELD_NAME);
-        assertThat(eventIngestedDateFieldType, notNullValue());
-        final DateFieldMapper.Resolution eventIngestedResolution = eventIngestedDateFieldType.resolution();
-
-        final IndexLongFieldRange updatedEventIngestedMillisRange = updatedIndexMetadata.getEventIngestedRange();
-        assertThat(updatedEventIngestedMillisRange.isComplete(), equalTo(true));
-        assertThat(updatedEventIngestedMillisRange, not(sameInstance(IndexLongFieldRange.EMPTY)));
-        assertThat(
-            updatedEventIngestedMillisRange.getMin(),
-            greaterThanOrEqualTo(eventIngestedResolution.convert(Instant.parse("2020-11-28T00:00:00Z")))
-        );
-        assertThat(
-            updatedEventIngestedMillisRange.getMax(),
-            lessThanOrEqualTo(eventIngestedResolution.convert(Instant.parse("2020-11-29T00:00:00Z")))
-        );
+        assertThat(updatedTimestampMillisRange.getMin(), greaterThanOrEqualTo(resolution.convert(Instant.parse("2020-11-28T00:00:00Z"))));
+        assertThat(updatedTimestampMillisRange.getMax(), lessThanOrEqualTo(resolution.convert(Instant.parse("2020-11-29T00:00:00Z"))));
 
         // Stop the node holding the searchable snapshots, and since we defined
         // the index allocation criteria to require the searchable snapshot
@@ -997,24 +721,17 @@ public class SearchableSnapshotsCanMatchOnCoordinatorIntegTests extends BaseFroz
         }
     }
 
-    private void createIndexWithTimestampAndEventIngested(String indexName, int numShards, Settings extraSettings) throws IOException {
+    private void createIndexWithTimestamp(String indexName, int numShards, Settings extraSettings) throws IOException {
         assertAcked(
             indicesAdmin().prepareCreate(indexName)
                 .setMapping(
                     XContentFactory.jsonBuilder()
                         .startObject()
                         .startObject("properties")
-
                         .startObject(DataStream.TIMESTAMP_FIELD_NAME)
                         .field("type", randomFrom("date", "date_nanos"))
                         .field("format", "strict_date_optional_time_nanos")
                         .endObject()
-
-                        .startObject(IndexMetadata.EVENT_INGESTED_FIELD_NAME)
-                        .field("type", randomFrom("date", "date_nanos"))
-                        .field("format", "strict_date_optional_time_nanos")
-                        .endObject()
-
                         .endObject()
                         .endObject()
                 )
@@ -1023,11 +740,11 @@ public class SearchableSnapshotsCanMatchOnCoordinatorIntegTests extends BaseFroz
         ensureGreen(indexName);
     }
 
-    private void indexDocumentsWithTimestampAndEventIngestedDates(String index, int docCount, String timestampTemplate) throws Exception {
+    private void indexDocumentsWithTimestampWithinDate(String indexName, int docCount, String timestampTemplate) throws Exception {
         final List<IndexRequestBuilder> indexRequestBuilders = new ArrayList<>();
         for (int i = 0; i < docCount; i++) {
             indexRequestBuilders.add(
-                prepareIndex(index).setSource(
+                prepareIndex(indexName).setSource(
                     DataStream.TIMESTAMP_FIELD_NAME,
                     String.format(
                         Locale.ROOT,
@@ -1036,70 +753,17 @@ public class SearchableSnapshotsCanMatchOnCoordinatorIntegTests extends BaseFroz
                         between(0, 59),
                         between(0, 59),
                         randomLongBetween(0, 999999999L)
-                    ),
-                    IndexMetadata.EVENT_INGESTED_FIELD_NAME,
-                    String.format(
-                        Locale.ROOT,
-                        timestampTemplate,
-                        between(0, 23),
-                        between(0, 59),
-                        between(0, 59),
-                        randomLongBetween(0, 999999999L)
                     )
                 )
             );
         }
         indexRandom(true, false, indexRequestBuilders);
 
-        assertThat(indicesAdmin().prepareForceMerge(index).setOnlyExpungeDeletes(true).setFlush(true).get().getFailedShards(), equalTo(0));
-        refresh(index);
-        forceMerge();
-    }
-
-    private void createIndexWithOnlyOneTimestampField(String timestampField, String index, int numShards, Settings extraSettings)
-        throws IOException {
-        assertAcked(
-            indicesAdmin().prepareCreate(index)
-                .setMapping(
-                    XContentFactory.jsonBuilder()
-                        .startObject()
-                        .startObject("properties")
-
-                        .startObject(timestampField)
-                        .field("type", randomFrom("date", "date_nanos"))
-                        .field("format", "strict_date_optional_time_nanos")
-                        .endObject()
-
-                        .endObject()
-                        .endObject()
-                )
-                .setSettings(indexSettingsNoReplicas(numShards).put(INDEX_SOFT_DELETES_SETTING.getKey(), true).put(extraSettings))
+        assertThat(
+            indicesAdmin().prepareForceMerge(indexName).setOnlyExpungeDeletes(true).setFlush(true).get().getFailedShards(),
+            equalTo(0)
         );
-        ensureGreen(index);
-    }
-
-    private void indexDocumentsWithOneTimestampField(String timestampField, String index, int docCount, String timestampTemplate)
-        throws Exception {
-        final List<IndexRequestBuilder> indexRequestBuilders = new ArrayList<>();
-        for (int i = 0; i < docCount; i++) {
-            indexRequestBuilders.add(
-                prepareIndex(index).setSource(
-                    timestampField,
-                    String.format(
-                        Locale.ROOT,
-                        timestampTemplate,
-                        between(0, 23),
-                        between(0, 59),
-                        between(0, 59),
-                        randomLongBetween(0, 999999999L)
-                    )
-                )
-            );
-        }
-        indexRandom(true, false, indexRequestBuilders);
-
-        assertThat(indicesAdmin().prepareForceMerge(index).setOnlyExpungeDeletes(true).setFlush(true).get().getFailedShards(), equalTo(0));
-        refresh(index);
+        refresh(indexName);
         forceMerge();
     }
 

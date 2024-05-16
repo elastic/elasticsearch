@@ -9,9 +9,6 @@
 package org.elasticsearch.index.query;
 
 import org.elasticsearch.client.internal.Client;
-import org.elasticsearch.cluster.metadata.DataStream;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -25,37 +22,20 @@ import java.util.function.LongSupplier;
 /**
  * Context object used to rewrite {@link QueryBuilder} instances into simplified version in the coordinator.
  * Instances of this object rely on information stored in the {@code IndexMetadata} for certain indices.
- * Right now this context object is able to rewrite range queries that include known timestamp fields
- * (i.e. the timestamp field for DataStreams and the 'event.ingested' field of ECS) into a MatchNoneQueryBuilder
- * and skip the shards that don't hold queried data.
+ * Right now this context object is able to rewrite range queries that include a known timestamp field
+ * (i.e. the timestamp field for DataStreams) into a MatchNoneQueryBuilder and skip the shards that
+ * don't hold queried data. See IndexMetadata#getTimestampRange() for more details
  */
 public class CoordinatorRewriteContext extends QueryRewriteContext {
-    private final DateFieldRange atTimestampInfo; // Refers to '@timestamp' field
-    private final DateFieldRange eventIngestedInfo; // Refers to 'event.ingested' field
+    private final IndexLongFieldRange indexLongFieldRange;
+    private final DateFieldMapper.DateFieldType timestampFieldType;
 
-    /**
-     * Date range record that collates a DateFieldType with an IndexLongFieldRange.
-     * Used to hold ranges for the @timestamp and 'event.ingested' date fields, which are held in
-     * cluster state.
-     * @param fieldType DateFieldType for @timestamp or 'event.ingested'
-     * @param fieldRange the range for the field type
-     */
-    public record DateFieldRange(DateFieldMapper.DateFieldType fieldType, IndexLongFieldRange fieldRange) {}
-
-    /**
-     * Context for coordinator search rewrites based on time ranges for the @timestamp field and/or 'event.ingested' field
-     * @param parserConfig
-     * @param client
-     * @param nowInMillis
-     * @param atTimestampRange range for @timestamp
-     * @param eventIngestedRange range for 'event.ingested'
-     */
     public CoordinatorRewriteContext(
         XContentParserConfiguration parserConfig,
         Client client,
         LongSupplier nowInMillis,
-        DateFieldRange atTimestampRange,
-        DateFieldRange eventIngestedRange
+        IndexLongFieldRange indexLongFieldRange,
+        DateFieldMapper.DateFieldType timestampFieldType
     ) {
         super(
             parserConfig,
@@ -73,71 +53,29 @@ public class CoordinatorRewriteContext extends QueryRewriteContext {
             null,
             null
         );
-        this.atTimestampInfo = atTimestampRange;
-        this.eventIngestedInfo = eventIngestedRange;
+        this.indexLongFieldRange = indexLongFieldRange;
+        this.timestampFieldType = timestampFieldType;
     }
 
-    long getMinTimestamp(String fieldName) {
-        if (fieldName.equals(DataStream.TIMESTAMP_FIELD_NAME)) {
-            return atTimestampInfo.fieldRange().getMin();
-        } else if (fieldName.equals(IndexMetadata.EVENT_INGESTED_FIELD_NAME)) {
-            return eventIngestedInfo.fieldRange.getMin();
-        } else {
-            throw new IllegalArgumentException(
-                Strings.format(
-                    "Only [%s] or [%s] fields are supported for min timestamp coordinator rewrites, but got: [%s]",
-                    DataStream.TIMESTAMP_FIELD_NAME,
-                    IndexMetadata.EVENT_INGESTED_FIELD_NAME,
-                    fieldName
-                )
-            );
-        }
+    long getMinTimestamp() {
+        return indexLongFieldRange.getMin();
     }
 
-    long getMaxTimestamp(String fieldName) {
-        if (fieldName.equals(DataStream.TIMESTAMP_FIELD_NAME)) {
-            return atTimestampInfo.fieldRange().getMax();
-        } else if (fieldName.equals(IndexMetadata.EVENT_INGESTED_FIELD_NAME)) {
-
-            return eventIngestedInfo.fieldRange.getMax();
-        } else {
-            throw new IllegalArgumentException(
-                Strings.format(
-                    "Only [%s] or [%s] fields are supported for max timestamp coordinator rewrites, but got: [%s]",
-                    DataStream.TIMESTAMP_FIELD_NAME,
-                    IndexMetadata.EVENT_INGESTED_FIELD_NAME,
-                    fieldName
-                )
-            );
-        }
+    long getMaxTimestamp() {
+        return indexLongFieldRange.getMax();
     }
 
-    boolean hasTimestampData(String fieldName) {
-        if (fieldName.equals(DataStream.TIMESTAMP_FIELD_NAME)) {
-            return atTimestampInfo.fieldRange().isComplete() && atTimestampInfo.fieldRange() != IndexLongFieldRange.EMPTY;
-        } else if (fieldName.equals(IndexMetadata.EVENT_INGESTED_FIELD_NAME)) {
-            return eventIngestedInfo.fieldRange().isComplete() && eventIngestedInfo.fieldRange() != IndexLongFieldRange.EMPTY;
-        } else {
-            throw new IllegalArgumentException(
-                Strings.format(
-                    "Only [%s] or [%s] fields are supported for min/max timestamp coordinator rewrites, but got: [%s]",
-                    DataStream.TIMESTAMP_FIELD_NAME,
-                    IndexMetadata.EVENT_INGESTED_FIELD_NAME,
-                    fieldName
-                )
-            );
-        }
+    boolean hasTimestampData() {
+        return indexLongFieldRange.isComplete() && indexLongFieldRange != IndexLongFieldRange.EMPTY;
     }
 
     @Nullable
     public MappedFieldType getFieldType(String fieldName) {
-        if (fieldName.equals(DataStream.TIMESTAMP_FIELD_NAME)) {
-            return atTimestampInfo.fieldType();
-        } else if (fieldName.equals(IndexMetadata.EVENT_INGESTED_FIELD_NAME)) {
-            return eventIngestedInfo.fieldType();
-        } else {
+        if (fieldName.equals(timestampFieldType.name()) == false) {
             return null;
         }
+
+        return timestampFieldType;
     }
 
     @Override

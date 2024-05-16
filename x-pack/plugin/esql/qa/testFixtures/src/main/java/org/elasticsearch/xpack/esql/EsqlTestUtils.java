@@ -304,8 +304,8 @@ public final class EsqlTestUtils {
             );
         }
         try (
-            DoubleBlock.Builder doubles = factory.newDoubleBlockBuilder(10);
-            BytesRefBlock.Builder names = factory.newBytesRefBlockBuilder(10);
+            DoubleBlock.Builder doubles = factory.newDoubleBlockBuilder(2);
+            BytesRefBlock.Builder names = factory.newBytesRefBlockBuilder(2);
         ) {
             doubles.appendDouble(2.03);
             names.appendBytesRef(new BytesRef("two point zero three"));
@@ -314,6 +314,41 @@ public final class EsqlTestUtils {
             tables.put(
                 "double_number_names",
                 table("double", new Column(DataTypes.DOUBLE, doubles.build()), "name", new Column(DataTypes.KEYWORD, names.build()))
+            );
+        }
+        try (
+            BytesRefBlock.Builder aa = factory.newBytesRefBlockBuilder(3);
+            BytesRefBlock.Builder ab = factory.newBytesRefBlockBuilder(3);
+            IntBlock.Builder na = factory.newIntBlockBuilder(3);
+            IntBlock.Builder nb = factory.newIntBlockBuilder(3);
+        ) {
+            aa.appendBytesRef(new BytesRef("foo"));
+            ab.appendBytesRef(new BytesRef("zoo"));
+            na.appendInt(1);
+            nb.appendInt(-1);
+
+            aa.appendBytesRef(new BytesRef("bar"));
+            ab.appendBytesRef(new BytesRef("zop"));
+            na.appendInt(10);
+            na.appendInt(-10);
+
+            aa.appendBytesRef(new BytesRef("baz"));
+            ab.appendBytesRef(new BytesRef("zoi"));
+            na.appendInt(100);
+            na.appendInt(-100);
+
+            tables.put(
+                "big",
+                table(
+                    "aa",
+                    new Column(DataTypes.KEYWORD, aa.build()),
+                    "ab",
+                    new Column(DataTypes.KEYWORD, ab.build()),
+                    "na",
+                    new Column(DataTypes.INTEGER, na.build()),
+                    "nb",
+                    new Column(DataTypes.INTEGER, nb.build())
+                )
             );
         }
 

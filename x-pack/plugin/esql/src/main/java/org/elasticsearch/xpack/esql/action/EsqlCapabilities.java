@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.action;
 
+import org.elasticsearch.Build;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.rest.action.admin.cluster.RestNodesCapabilitiesAction;
 import org.elasticsearch.xpack.esql.plugin.EsqlFeatures;
@@ -26,10 +27,19 @@ public class EsqlCapabilities {
      */
     private static final String FN_CBRT = "fn_cbrt";
 
+    /**
+     * Support for {@code LOOKUP} command.
+     */
+    public static final String LOOKUP_COMMAND = "lookup_command";
+
     static final Set<String> CAPABILITIES = capabilities();
 
     private static Set<String> capabilities() {
-        List<String> caps = new ArrayList<>(List.of(FN_CBRT));
+        List<String> caps = new ArrayList<>();
+        caps.add(FN_CBRT);
+        if (Build.current().isSnapshot()) {
+            caps.add(LOOKUP_COMMAND);
+        }
 
         /*
          * Add all of our cluster features without the leading "esql."

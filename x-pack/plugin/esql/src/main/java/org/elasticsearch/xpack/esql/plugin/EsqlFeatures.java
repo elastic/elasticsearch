@@ -164,20 +164,8 @@ public class EsqlFeatures implements FeatureSpecification {
      */
     public static final NodeFeature TIMESPAN_ABBREVIATIONS = new NodeFeature("esql.timespan_abbreviations");
 
-    /**
-     * Support for {@code LOOKUP} command.
-     */
-    public static final NodeFeature LOOKUP_COMMAND = new NodeFeature("esql.lookup_command");
-
     @Override
     public Set<NodeFeature> getFeatures() {
-        if (false == Build.current().isSnapshot()) {
-            return alwaysOn();
-        }
-        return Stream.concat(alwaysOn().stream(), Stream.of(LOOKUP_COMMAND)).collect(Collectors.toSet());
-    }
-
-    private Set<NodeFeature> alwaysOn() {
         return Set.of(
             ASYNC_QUERY,
             AGG_VALUES,

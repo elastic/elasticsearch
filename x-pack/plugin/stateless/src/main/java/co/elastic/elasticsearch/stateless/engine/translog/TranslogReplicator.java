@@ -826,13 +826,13 @@ public class TranslogReplicator extends AbstractLifecycleComponent {
         }
 
         private void deleteFile(BlobTranslogFile fileToDelete) {
-            translogFilesToDelete.remove(fileToDelete);
             for (ShardId shardId : fileToDelete.includedShards) {
                 ShardSyncState shardSyncState = shardSyncStates.get(shardId);
                 if (shardSyncState != null) {
                     shardSyncState.markTranslogDeleted(fileToDelete.generation());
                 }
             }
+            translogFilesToDelete.remove(fileToDelete);
             logger.debug(() -> format("scheduling translog file [%s] for async delete", fileToDelete.blobName()));
             objectStoreService.asyncDeleteTranslogFile(fileToDelete.blobName);
         }

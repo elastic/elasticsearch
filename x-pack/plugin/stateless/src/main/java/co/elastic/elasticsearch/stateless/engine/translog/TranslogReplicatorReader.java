@@ -40,9 +40,11 @@ import java.io.IOException;
 import java.nio.file.NoSuchFileException;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.BooleanSupplier;
 
 import static org.elasticsearch.core.Strings.format;
@@ -61,9 +63,9 @@ public class TranslogReplicatorReader implements Translog.Snapshot {
     private final long toSeqNo;
     private final long translogRecoveryStartFile;
     private final BooleanSupplier isClosing;
-
     private final BlobContainer translogBlobContainer;
     private final Iterator<? extends Translog.Operation> operations;
+    private final int estimatedOperations;
     private final List<BlobMetadata> blobsToRead;
     private final List<BlobMetadata> blobsMissed = new ArrayList<>();
     private final long startNanos;
@@ -105,20 +107,56 @@ public class TranslogReplicatorReader implements Translog.Snapshot {
         assert fromSeqNo >= 0 : "fromSeqNo must be non-negative " + fromSeqNo;
         this.shardId = shardId;
         this.fromSeqNo = fromSeqNo;
-        this.toSeqNo = toSeqNo;
         this.translogBlobContainer = translogBlobContainer;
-        this.blobsToRead = translogBlobContainer.listBlobs(OperationPurpose.TRANSLOG)
+        this.toSeqNo = toSeqNo;
+        this.startNanos = System.nanoTime();
+        assert fromSeqNo <= toSeqNo : fromSeqNo + " > " + toSeqNo;
+        assert fromSeqNo >= 0 : "fromSeqNo must be non-negative " + fromSeqNo;
+        List<BlobMetadata> unFilteredBlobs = translogBlobContainer.listBlobs(OperationPurpose.TRANSLOG)
             .entrySet()
             .stream()
             .filter(e -> Long.parseLong(e.getKey()) >= translogRecoveryStartFile)
             .sorted(Map.Entry.comparingByKey())
             .map(Map.Entry::getValue)
             .toList();
+        final Set<Long> referencedTranslogFiles;
+        if (unFilteredBlobs.isEmpty()) {
+            estimatedOperations = 0;
+            referencedTranslogFiles = Collections.emptySet();
+        } else {
+            BlobMetadata blobMetadata = unFilteredBlobs.get(unFilteredBlobs.size() - 1);
+            long translogGeneration = Long.parseLong(blobMetadata.name());
+            try (
+                StreamInput streamInput = new InputStreamStreamInput(
+                    translogBlobContainer.readBlob(OperationPurpose.TRANSLOG, blobMetadata.name())
+                )
+            ) {
+                CompoundTranslogHeader translogHeader = CompoundTranslogHeader.readFromStore(blobMetadata.name(), streamInput);
+                TranslogMetadata metadata = translogHeader.metadata().get(shardId);
+                if (metadata == null) {
+                    referencedTranslogFiles = null;
+                    estimatedOperations = RecoveryState.Translog.UNKNOWN;
+                } else {
+                    HashSet<Long> referenced = new HashSet<>();
+                    for (int offset : metadata.directory().referencedTranslogFileOffsets()) {
+                        referenced.add(translogGeneration - offset);
+                    }
+                    if (metadata.totalOps() > 0) {
+                        referenced.add(translogGeneration);
+                    }
+                    referencedTranslogFiles = referenced;
+                    estimatedOperations = Math.toIntExact(metadata.directory().estimatedOperationsToRecover());
+                }
+            }
+        }
+        this.blobsToRead = unFilteredBlobs.stream()
+            .filter(b -> referencedTranslogFiles == null || referencedTranslogFiles.contains(Long.parseLong(b.name())))
+            .toList();
         logger.debug(
             () -> format("translog replicator reader opened for recovery %s", blobsToRead.stream().map(BlobMetadata::name).toList())
         );
         this.operations = Iterators.flatMap(blobsToRead.iterator(), this::readBlobTranslogOperations);
-        this.startNanos = System.nanoTime();
+
     }
 
     /**
@@ -135,7 +173,7 @@ public class TranslogReplicatorReader implements Translog.Snapshot {
 
     @Override
     public int totalOperations() {
-        return blobsToRead.isEmpty() ? 0 : RecoveryState.Translog.UNKNOWN;
+        return blobsToRead.isEmpty() ? 0 : estimatedOperations;
     }
 
     private Iterator<Translog.Operation> readBlobTranslogOperations(BlobMetadata blobMetadata) {

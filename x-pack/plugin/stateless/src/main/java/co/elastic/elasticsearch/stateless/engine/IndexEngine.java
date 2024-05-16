@@ -482,6 +482,7 @@ public class IndexEngine extends InternalEngine {
             return new Translog.Snapshot() {
                 @Override
                 public int totalOperations() {
+                    // The reader returns an estimated number of operations which will inform the stats.
                     return reader.totalOperations();
                 }
 

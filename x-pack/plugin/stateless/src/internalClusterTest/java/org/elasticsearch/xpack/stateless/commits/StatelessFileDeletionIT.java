@@ -20,6 +20,7 @@ package co.elastic.elasticsearch.stateless.commits;
 import co.elastic.elasticsearch.stateless.AbstractStatelessIntegTestCase;
 import co.elastic.elasticsearch.stateless.IndexingDiskController;
 import co.elastic.elasticsearch.stateless.action.NewCommitNotificationRequest;
+import co.elastic.elasticsearch.stateless.action.TransportGetVirtualBatchedCompoundCommitChunkAction;
 import co.elastic.elasticsearch.stateless.action.TransportNewCommitNotificationAction;
 import co.elastic.elasticsearch.stateless.cluster.coordination.StatelessClusterConsistencyService;
 import co.elastic.elasticsearch.stateless.engine.PrimaryTermAndGeneration;
@@ -909,10 +910,7 @@ public class StatelessFileDeletionIT extends AbstractStatelessIntegTestCase {
         var indexNode = startMasterAndIndexNode();
         startSearchNode();
         final String indexName = randomIdentifier();
-        createIndex(
-            indexName,
-            indexSettings(1, 1).put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), new TimeValue(1, TimeUnit.HOURS)).build()
-        );
+        createIndex(indexName, indexSettings(1, 1).put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), -1).build());
         ensureGreen(indexName);
         var searchNode2 = startSearchNode();
         ensureStableCluster(3);
@@ -931,6 +929,17 @@ public class StatelessFileDeletionIT extends AbstractStatelessIntegTestCase {
         MockRepository searchNode2Repository = ObjectStoreTestUtils.getObjectStoreMockRepository(
             internalCluster().getInstance(ObjectStoreService.class, searchNode2)
         );
+        CountDownLatch getVbccChunkLatch = new CountDownLatch(1);
+
+        Runnable blockGetVbccChunk = () -> MockTransportService.getInstance(indexNode)
+            .addRequestHandlingBehavior(
+                TransportGetVirtualBatchedCompoundCommitChunkAction.NAME + "[p]",
+                (handler, request, channel, task) -> {
+                    safeAwait(getVbccChunkLatch);
+                    handler.messageReceived(request, channel, task);
+                }
+            );
+
         MockTransportService.getInstance(indexNode)
             .addRequestHandlingBehavior(TransportRegisterCommitForRecoveryAction.NAME, (handler, request, channel, task) -> {
                 handler.messageReceived(
@@ -938,7 +947,8 @@ public class StatelessFileDeletionIT extends AbstractStatelessIntegTestCase {
                     new TestTransportChannel(ActionListener.runBefore(new ChannelActionListener<>(channel), () -> {
                         if (enableChecks.get()) {
                             commitRegistrationStarted.countDown();
-                            searchNode2Repository.setBlockOnAnyFiles(); // block recovery
+                            searchNode2Repository.setBlockOnAnyFiles(); // block recovery from object store
+                            blockGetVbccChunk.run(); // block recovery from indexing node
                         }
                     })),
                     task
@@ -978,6 +988,7 @@ public class StatelessFileDeletionIT extends AbstractStatelessIntegTestCase {
 
         // Allow recovery to finish, and trigger check that files should not be deleted
         searchNode2Repository.unblock();
+        getVbccChunkLatch.countDown();
         ensureGreen(indexName);
         searchShardRecovered.countDown();
 

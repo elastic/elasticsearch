@@ -3723,6 +3723,15 @@ public class ReservedRolesStoreTests extends ESTestCase {
         assertThat(rolesWithRemoteIndicesPrivileges, containsInAnyOrder("kibana_system", "monitoring_user"));
     }
 
+    /**
+     * Ensures that all reserved roles are self-documented with a brief description.
+     */
+    public void testAllReservedRolesHaveDescription() {
+        for (RoleDescriptor role : ReservedRolesStore.roleDescriptors()) {
+            assertThat("reserved role [" + role.getName() + "] must have description", role.hasDescription(), is(true));
+        }
+    }
+
     private void assertAllIndicesAccessAllowed(Role role, String index) {
         logger.info("index name [{}]", index);
         assertThat(role.indices().allowedIndicesMatcher("indices:foo").test(mockIndexAbstraction(index)), is(true));

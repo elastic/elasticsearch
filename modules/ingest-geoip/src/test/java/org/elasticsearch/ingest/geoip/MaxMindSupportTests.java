@@ -153,6 +153,9 @@ public class MaxMindSupportTests extends ESTestCase {
         "traits.userType"
     );
 
+    private static final Set<String> CONNECT_TYPE_SUPPORTED_FIELDS = Set.of("connectionType");
+    private static final Set<String> CONNECT_TYPE_UNSUPPORTED_FIELDS = Set.of("ipAddress", "network");
+
     private static final Set<String> COUNTRY_SUPPORTED_FIELDS = Set.of("continent.name", "country.isoCode", "country.name");
     private static final Set<String> COUNTRY_UNSUPPORTED_FIELDS = Set.of(
         "continent.code",
@@ -218,6 +221,7 @@ public class MaxMindSupportTests extends ESTestCase {
         "traits.anonymousVpn",
         "traits.autonomousSystemNumber",
         "traits.autonomousSystemOrganization",
+        "traits.connectionType",
         "traits.domain",
         "traits.hostingProvider",
         "traits.isp",
@@ -276,7 +280,6 @@ public class MaxMindSupportTests extends ESTestCase {
         "subdivisions.names",
         "traits.anonymousProxy",
         "traits.anycast",
-        "traits.connectionType",
         "traits.ipAddress",
         "traits.legitimateProxy",
         "traits.satelliteProvider",
@@ -303,6 +306,8 @@ public class MaxMindSupportTests extends ESTestCase {
         ASN_SUPPORTED_FIELDS,
         Database.City,
         CITY_SUPPORTED_FIELDS,
+        Database.ConnectionType,
+        CONNECT_TYPE_SUPPORTED_FIELDS,
         Database.Country,
         COUNTRY_SUPPORTED_FIELDS,
         Database.Domain,
@@ -319,6 +324,8 @@ public class MaxMindSupportTests extends ESTestCase {
         ASN_UNSUPPORTED_FIELDS,
         Database.City,
         CITY_UNSUPPORTED_FIELDS,
+        Database.ConnectionType,
+        CONNECT_TYPE_UNSUPPORTED_FIELDS,
         Database.Country,
         COUNTRY_UNSUPPORTED_FIELDS,
         Database.Domain,
@@ -335,6 +342,8 @@ public class MaxMindSupportTests extends ESTestCase {
         AsnResponse.class,
         Database.City,
         CityResponse.class,
+        Database.ConnectionType,
+        ConnectionTypeResponse.class,
         Database.Country,
         CountryResponse.class,
         Database.Domain,
@@ -345,10 +354,7 @@ public class MaxMindSupportTests extends ESTestCase {
         IspResponse.class
     );
 
-    private static final Set<Class<? extends AbstractResponse>> KNOWN_UNSUPPORTED_RESPONSE_CLASSES = Set.of(
-        ConnectionTypeResponse.class,
-        IpRiskResponse.class
-    );
+    private static final Set<Class<? extends AbstractResponse>> KNOWN_UNSUPPORTED_RESPONSE_CLASSES = Set.of(IpRiskResponse.class);
 
     public void testMaxMindSupport() {
         for (Database databaseType : Database.values()) {

@@ -32,6 +32,7 @@ dependencies {
   compileOnly project(":server")
   compileOnly project(path: xpackModule('core'))
   testImplementation(testArtifact(project(xpackModule('core'))))
+  testImplementation(project(':x-pack:plugin:inference:qa:test-service-plugin'))
   testImplementation project(':modules:reindex')
   clusterPlugins project(':x-pack:plugin:inference:qa:test-service-plugin')
 

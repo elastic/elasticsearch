@@ -1363,8 +1363,7 @@ public class DiskThresholdMonitorTests extends ESAllocationTestCase {
     }
 
     private void assertNoLogging(DiskThresholdMonitor monitor, Map<String, DiskUsage> diskUsages) throws IllegalAccessException {
-        MockLogAppender mockAppender = new MockLogAppender();
-        try (var ignored = mockAppender.capturing(DiskThresholdMonitor.class)) {
+        try (var mockAppender = MockLogAppender.capture(DiskThresholdMonitor.class)) {
             mockAppender.addExpectation(
                 new MockLogAppender.UnseenEventExpectation(
                     "any INFO message",
@@ -1410,8 +1409,7 @@ public class DiskThresholdMonitorTests extends ESAllocationTestCase {
     }
 
     private void assertLogging(DiskThresholdMonitor monitor, Map<String, DiskUsage> diskUsages, Level level, String message) {
-        MockLogAppender mockAppender = new MockLogAppender();
-        try (var ignored = mockAppender.capturing(DiskThresholdMonitor.class)) {
+        try (var mockAppender = MockLogAppender.capture(DiskThresholdMonitor.class)) {
             mockAppender.addExpectation(
                 new MockLogAppender.SeenEventExpectation("expected message", DiskThresholdMonitor.class.getCanonicalName(), level, message)
             );

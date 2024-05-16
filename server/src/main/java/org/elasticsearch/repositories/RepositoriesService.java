@@ -153,6 +153,15 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
      */
     public void registerRepository(final PutRepositoryRequest request, final ActionListener<AcknowledgedResponse> responseListener) {
         assert lifecycle.started() : "Trying to register new repository but service is in state [" + lifecycle.state() + "]";
+        validateRepositoryName(request.name());
+
+        // Trying to create the new repository on master to make sure it works
+        try {
+            validateRepositoryCanBeCreated(request);
+        } catch (Exception e) {
+            responseListener.onFailure(e);
+            return;
+        }
 
         SubscribableListener
 
@@ -330,7 +339,6 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
 
     private void validatePutRepositoryRequest(final PutRepositoryRequest request, final ActionListener<Void> validationListener) {
         try {
-            validateRepositoryName(request.name());
             final var metadata = new RepositoryMetadata(request.name(), request.type(), request.settings());
             final var repository = createRepository(metadata);
             threadPool.executor(ThreadPool.Names.SNAPSHOT).execute(new ActionRunnable<>(validationListener) {
@@ -342,10 +350,10 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
                             repository.verify(token, clusterService.localNode());
                             repository.endVerification(token);
                         }
+                        validationListener.onResponse(null);
                     } finally {
                         closeRepository(repository);
                     }
-                    validationListener.onResponse(null);
                 }
             });
         } catch (Exception e) {

@@ -86,7 +86,9 @@ import static org.elasticsearch.core.Strings.format;
 public class ObjectStoreService extends AbstractLifecycleComponent {
 
     private static final Logger logger = LogManager.getLogger(ObjectStoreService.class);
-    private static final Logger SHARD_FILES_DELETE_LOGGER = LogManager.getLogger("stateless.object_store.shard_files_deletes");
+    private static final Logger SHARD_FILES_DELETES_LOGGER = LogManager.getLogger(
+        ObjectStoreService.class.getCanonicalName() + ".shard_files_deletes"
+    );
 
     /**
      * This setting refers to the destination of the blobs in the object store.
@@ -824,7 +826,7 @@ public class ObjectStoreService extends AbstractLifecycleComponent {
             boolean success = false;
             try {
                 getObjectStore().blobStore().deleteBlobsIgnoringIfNotExists(OperationPurpose.INDICES, blobPathStream().iterator());
-                SHARD_FILES_DELETE_LOGGER.debug(() -> format("deleted shard files %s", blobPathStream().toList()));
+                SHARD_FILES_DELETES_LOGGER.debug(() -> format("deleted shard files %s", blobPathStream().toList()));
                 success = true;
             } finally {
                 if (success == false) {

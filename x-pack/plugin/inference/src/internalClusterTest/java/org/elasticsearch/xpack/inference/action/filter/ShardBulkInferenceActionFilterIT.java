@@ -145,7 +145,7 @@ public class ShardBulkInferenceActionFilterIT extends ESIntegTestCase {
         Model model = new TestSparseInferenceServiceExtension.TestSparseModel(
             TestSparseInferenceServiceExtension.TestInferenceService.NAME,
             new TestSparseInferenceServiceExtension.TestServiceSettings(
-                TestSparseInferenceServiceExtension.TestInferenceService.NAME,
+                "sparse_model",
                 null,
                 false
             )
@@ -157,7 +157,7 @@ public class ShardBulkInferenceActionFilterIT extends ESIntegTestCase {
         Model model = new TestDenseInferenceServiceExtension.TestDenseModel(
             TestDenseInferenceServiceExtension.TestInferenceService.NAME,
             new TestDenseInferenceServiceExtension.TestServiceSettings(
-                TestDenseInferenceServiceExtension.TestInferenceService.NAME,
+                "dense_model",
                 randomIntBetween(1, 100),
                 // dot product means that we need normalized vectors; it's not worth doing that in this test
                 randomValueOtherThan(SimilarityMeasure.DOT_PRODUCT, () -> randomFrom(SimilarityMeasure.values()))

@@ -180,6 +180,8 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
     private static Map<String, EsField> mapping;
     private static Map<String, EsField> mappingAirports;
     private static Analyzer analyzerAirports;
+    private static Map<String, EsField> mappingExtra;
+    private static Analyzer analyzerExtra;
     private static EnrichResolution enrichResolution;
 
     private static class SubstitutionOnlyOptimizer extends LogicalPlanOptimizer {
@@ -217,6 +219,15 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         IndexResolution getIndexResultAirports = IndexResolution.valid(airports);
         analyzerAirports = new Analyzer(
             new AnalyzerContext(EsqlTestUtils.TEST_CFG, new EsqlFunctionRegistry(), getIndexResultAirports, enrichResolution),
+            TEST_VERIFIER
+        );
+
+        // Some tests use mappings from mapping-extra.json to be able to test more types so we load it here
+        mappingExtra = loadMapping("mapping-extra.json");
+        EsIndex extra = new EsIndex("extra", mappingExtra, Set.of("extra"));
+        IndexResolution getIndexResultExtra = IndexResolution.valid(extra);
+        analyzerExtra = new Analyzer(
+            new AnalyzerContext(EsqlTestUtils.TEST_CFG, new EsqlFunctionRegistry(), getIndexResultExtra, enrichResolution),
             TEST_VERIFIER
         );
     }
@@ -3164,7 +3175,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
                 default -> "to_" + type;
             };
             var field = "types." + type;
-            var plan = plan("from test | eval new_" + field + " = " + func + "(" + field + ")");
+            var plan = planExtra("from test | eval new_" + field + " = " + func + "(" + field + ")");
             var eval = as(plan, Eval.class);
             var alias = as(eval.fields().get(0), Alias.class);
             assertThat(func + "(" + field + ")", alias.name(), equalTo("new_" + field));
@@ -4413,6 +4424,14 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
 
     private LogicalPlan planAirports(String query) {
         var analyzed = analyzerAirports.analyze(parser.createStatement(query));
+        // System.out.println(analyzed);
+        var optimized = logicalOptimizer.optimize(analyzed);
+        // System.out.println(optimized);
+        return optimized;
+    }
+
+    private LogicalPlan planExtra(String query) {
+        var analyzed = analyzerExtra.analyze(parser.createStatement(query));
         // System.out.println(analyzed);
         var optimized = logicalOptimizer.optimize(analyzed);
         // System.out.println(optimized);

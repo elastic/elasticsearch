@@ -33,6 +33,31 @@
           "type": "long",
           "index": false,
           "doc_values": false
+        },
+        "types": {
+          "properties": {
+            "keyword": {
+              "type": "keyword"
+            },
+            "float": {
+              "type": "float"
+            },
+            "double": {
+              "type": "double"
+            },
+            "long": {
+              "type": "long"
+            },
+            "integer": {
+              "type": "integer"
+            },
+            "boolean": {
+              "type": "boolean"
+            },
+            "geo_point": {
+              "type": "geo_point"
+            }
+          }
         }
     }
 }

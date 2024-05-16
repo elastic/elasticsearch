@@ -159,6 +159,6 @@ public class ChunkedTextEmbeddingResultsTests extends AbstractWireSerializingTes
 
     @Override
     protected ChunkedTextEmbeddingResults mutateInstance(ChunkedTextEmbeddingResults instance) throws IOException {
-        return null;
+        return randomValueOtherThan(instance, ChunkedTextEmbeddingResultsTests::createRandomResults);
     }
 }

@@ -611,60 +611,37 @@ public class DesiredBalanceComputerTests extends ESAllocationTestCase {
 
             for (int shard = 0; shard < shards; shard++) {
                 var remainingNodeIds = new ArrayList<>(nodeIds);
-                remainingNodeIds.add(null);// disconnected node
                 var shardId = new ShardId(indexId, shard);
                 var thisShardSize = smallShardSizeDeviation(shardSize);
 
                 var primaryNodeId = pickAndRemoveRandomValueFrom(remainingNodeIds);
                 shardSizes.put(shardIdentifierFromRouting(shardId, true), thisShardSize);
                 totalShardsSize += thisShardSize;
-                if (primaryNodeId != null) {
-                    dataPath.put(new NodeAndShard(primaryNodeId, shardId), "/data");
-                    usedDiskSpace.compute(primaryNodeId, (k, v) -> v + thisShardSize);
-                    indexRoutingTableBuilder.addShard(
-                        shardRoutingBuilder(shardId, primaryNodeId, true, STARTED).withAllocationId(
-                            AllocationId.newInitializing(inSyncIds.get(shard * (replicas + 1)))
-                        ).build()
-                    );
-                } else {
-                    var lastAllocatedNodeId = randomFrom(remainingNodeIds);
-                    assertThat(lastAllocatedNodeId, notNullValue());// the only null was picked as primaryNodeId
-                    dataPath.put(new NodeAndShard(lastAllocatedNodeId, shardId), "/data");
-                    usedDiskSpace.compute(lastAllocatedNodeId, (k, v) -> v + thisShardSize);
-                    indexRoutingTableBuilder.addShard(
-                        shardRoutingBuilder(shardId, null, true, UNASSIGNED).withRecoverySource(
-                            RecoverySource.ExistingStoreRecoverySource.INSTANCE
-                        )
-                            .withUnassignedInfo(
-                                new UnassignedInfo(
-                                    UnassignedInfo.Reason.NODE_LEFT,
-                                    null,
-                                    null,
-                                    0,
-                                    0,
-                                    0,
-                                    false,
-                                    UnassignedInfo.AllocationStatus.NO_ATTEMPT,
-                                    Set.of(),
-                                    lastAllocatedNodeId
-                                )
-                            )
-                            .withAllocationId(AllocationId.newInitializing(inSyncIds.get(shard * (replicas + 1))))
-                            .build()
-                    );
-                }
+                dataPath.put(new NodeAndShard(primaryNodeId, shardId), "/data");
+                usedDiskSpace.compute(primaryNodeId, (k, v) -> v + thisShardSize);
+                var primaryState = randomIntBetween(0, 9) == 0 ? INITIALIZING : STARTED;
+                indexRoutingTableBuilder.addShard(
+                    shardRoutingBuilder(shardId, primaryNodeId, true, primaryState).withAllocationId(
+                        AllocationId.newInitializing(inSyncIds.get(shard * (replicas + 1)))
+                    ).build()
+                );
 
+                remainingNodeIds.add(null);// to simulate unassigned shard
                 for (int replica = 0; replica < replicas; replica++) {
-                    var replicaNodeId = primaryNodeId == null ? null : pickAndRemoveRandomValueFrom(remainingNodeIds);
+                    var replicaNodeId = pickAndRemoveRandomValueFrom(remainingNodeIds);
                     shardSizes.put(shardIdentifierFromRouting(shardId, false), thisShardSize);
                     totalShardsSize += thisShardSize;
                     if (replicaNodeId != null) {
                         dataPath.put(new NodeAndShard(replicaNodeId, shardId), "/data");
                         usedDiskSpace.compute(replicaNodeId, (k, v) -> v + thisShardSize);
                     }
-
+                    var replicaState = randomIntBetween(0, 9) == 0 ? INITIALIZING : STARTED;
+                    if (primaryState == INITIALIZING || replicaNodeId == null) {
+                        replicaState = UNASSIGNED;
+                        replicaNodeId = null;
+                    }
                     indexRoutingTableBuilder.addShard(
-                        shardRoutingBuilder(shardId, replicaNodeId, false, replicaNodeId == null ? UNASSIGNED : STARTED).withAllocationId(
+                        shardRoutingBuilder(shardId, replicaNodeId, false, replicaState).withAllocationId(
                             AllocationId.newInitializing(inSyncIds.get(shard * (replicas + 1) + 1 + replica))
                         ).build()
                     );
@@ -1281,10 +1258,6 @@ public class DesiredBalanceComputerTests extends ESAllocationTestCase {
                 input -> iteration.incrementAndGet() < iterations
             );
         }, DesiredBalanceComputer.class, expectation);
-    }
-
-    private static Map.Entry<String, Long> indexSize(ClusterState clusterState, String name, long size, boolean primary) {
-        return Map.entry(shardIdentifierFromRouting(findShardId(clusterState, name), primary), size);
     }
 
     private static ShardId findShardId(ClusterState clusterState, String name) {

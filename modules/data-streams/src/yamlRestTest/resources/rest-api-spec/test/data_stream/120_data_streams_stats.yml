@@ -26,8 +26,8 @@ setup:
 
 ---
 "No data streams":
-  - skip:
-      version: " - 7.8.99"
+  - requires:
+      cluster_features: ["gte_v7.9.0"]
       reason: "data streams only supported in 7.9+"
 
   - do:
@@ -38,8 +38,8 @@ setup:
 
 ---
 "Empty data stream":
-  - skip:
-      version: " - 7.8.99"
+  - requires:
+      cluster_features: ["gte_v7.9.0"]
       reason: "data streams only supported in 7.9+"
 
   - do:
@@ -67,8 +67,8 @@ setup:
 
 ---
 "Single data stream":
-  - skip:
-      version: " - 7.8.99"
+  - requires:
+      cluster_features: ["gte_v7.9.0"]
       reason: "data streams only supported in 7.9+"
 
   - do:
@@ -99,8 +99,8 @@ setup:
 
 ---
 "Rolled over data stream":
-  - skip:
-      version: " - 7.8.99"
+  - requires:
+      cluster_features: ["gte_v7.9.0"]
       reason: "data streams only supported in 7.9+"
 
   - do:
@@ -144,8 +144,8 @@ setup:
 
 ---
 "Multiple data stream":
-  - skip:
-      version: " - 7.8.99"
+  - requires:
+      cluster_features: ["gte_v7.9.0"]
       reason: "data streams only supported in 7.9+"
 
   - do:

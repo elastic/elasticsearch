@@ -20,6 +20,7 @@ import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.TransportSettings;
+import org.mockito.Mockito;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -41,6 +42,10 @@ import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.startsWith;
 import static org.hamcrest.Matchers.hasToString;
+import static org.mockito.Mockito.clearInvocations;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoMoreInteractions;
 
 public class ScopedSettingsTests extends ESTestCase {
 
@@ -534,6 +539,29 @@ public class ScopedSettingsTests extends ESTestCase {
         assertEquals(1, results.size());
         assertEquals(2, groupOneSettings.size());
         results.clear();
+    }
+
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/106283")
+    public void testAffixUpdateConsumerWithAlias() {
+        Setting.AffixSetting<String> prefixSetting = Setting.prefixKeySetting(
+            "prefix.",
+            "fallback.",
+            (ns, k) -> Setting.simpleString(k, "default", Property.Dynamic, Property.NodeScope)
+        );
+        AbstractScopedSettings service = new ClusterSettings(Settings.EMPTY, new HashSet<>(Arrays.asList(prefixSetting)));
+        BiConsumer<String, String> affixUpdateConsumer = Mockito.mock("affixUpdateConsumer");
+        service.addAffixUpdateConsumer(prefixSetting, affixUpdateConsumer, (s, v) -> {});
+
+        service.applySettings(Settings.builder().put("prefix.key", "value").build());
+        verify(affixUpdateConsumer).accept("key", "value");
+        verifyNoMoreInteractions(affixUpdateConsumer);
+        clearInvocations((Object) affixUpdateConsumer);
+
+        service.applySettings(Settings.builder().put("fallback.key", "othervalue").build());
+        verify(affixUpdateConsumer, never()).accept("key", "default"); // unexpected invocation using the default value
+        verify(affixUpdateConsumer).accept("key", "othervalue");
+        verifyNoMoreInteractions(affixUpdateConsumer);
+        clearInvocations((Object) affixUpdateConsumer);
     }
 
     public void testAddConsumerAffix() {

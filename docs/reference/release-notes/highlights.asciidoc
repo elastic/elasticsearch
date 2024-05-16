@@ -11,7 +11,8 @@ For detailed information about this release, see the <<es-release-notes>> and
 // Add previous release to the list
 Other versions:
 
-{ref-bare}/8.13/release-highlights.html[8.13]
+{ref-bare}/8.14/release-highlights.html[8.14]
+| {ref-bare}/8.13/release-highlights.html[8.13]
 | {ref-bare}/8.12/release-highlights.html[8.12]
 | {ref-bare}/8.11/release-highlights.html[8.11]
 | {ref-bare}/8.10/release-highlights.html[8.10]
@@ -31,36 +32,49 @@ endif::[]
 // tag::notable-highlights[]
 
 [discrete]
-[[improve_storage_efficiency_for_non_metric_fields_in_tsdb]]
-=== Improve storage efficiency for non-metric fields in TSDB
-Adds a new `doc_values` encoding for non-metric fields in TSDB that takes advantage of TSDB's index sorting.
-While terms that are used in multiple documents (such as the host name) are already stored only once in the terms dictionary,
-there are a lot of repetitions in the references to the terms dictionary that are stored in `doc_values` (ordinals).
-In TSDB, documents (and therefore `doc_values`) are implicitly sorted by dimenstions and timestamp.
-This means that for each time series, we are storing long consecutive runs of the same ordinal.
-With this change, we are introducing an encoding that detects and efficiently stores runs of the same value (such as `1 1 1 2 2 2 …`),
-and runs of cycling values (such as `1 2 1 2 …`).
-In our testing, we have seen a reduction in storage size by about 13%.
-The effectiveness of this encoding depends on how many non-metric fields, such as dimensions, are used.
-The more non-metric fields, the more effective this improvement will be.
+[[stored_fields_are_compressed_with_zstandard_instead_of_lz4_deflate]]
+=== Stored fields are now compressed with ZStandard instead of LZ4/DEFLATE
+Stored fields are now compressed by splitting documents into blocks, which
+are then compressed independently with ZStandard. `index.codec: default`
+(default) uses blocks of at most 14kB or 128 documents compressed with level
+0, while `index.codec: best_compression` uses blocks of at most 240kB or
+2048 documents compressed at level 3. On most datasets that we tested
+against, this yielded storage improvements in the order of 10%, slightly
+faster indexing and similar retrieval latencies.
 
-{es-pull}99747[#99747]
+{es-pull}103374[#103374]
 
 [discrete]
-[[ga_release_of_synonyms_api]]
-=== GA Release of Synonyms API
-Removes the beta label for the Synonyms API to make it GA.
+[[query_phase_knn_supports_query_vector_builder]]
+=== Query phase KNN now supports query_vector_builder
+It is now possible to pass `model_text` and `model_id` within a `knn` query
+in the [query DSL](https://www.elastic.co/guide/en/elasticsearch/reference/current/query-dsl-knn-query.html) to convert a text query into a dense vector and run the
+nearest neighbor query on it, instead of requiring the dense vector to be
+directly passed (within the `query_vector` parameter). Similar to the
+[top-level knn query](https://www.elastic.co/guide/en/elasticsearch/reference/current/knn-search.html) (executed in the DFS phase), it is possible to supply
+a `query_vector_builder` object containing a `text_embedding` object with
+`model_text` (the text query to be converted into a dense vector) and
+`model_id` (the identifier of a deployed model responsible for transforming
+the text query into a dense vector). Note that an embedding model with the
+referenced `model_id` needs to be [deployed on a ML node](https://www.elastic.co/guide/en/machine-learning/current/ml-nlp-deploy-models.html).
+in the cluster.
 
-{es-pull}103223[#103223]
+{es-pull}106068[#106068]
 
 [discrete]
-[[flag_in_field_caps_to_return_only_fields_with_values_in_index]]
-=== Flag in `_field_caps` to return only fields with values in index
-We added support for filtering the field capabilities API output by removing
-fields that don't have a value. This can be done through the newly added
-`include_empty_fields` parameter, which defaults to true.
+[[simd_neon_optimised_vector_distance_function_for_merging_int8_scalar_quantized_vectors_has_been_added]]
+=== A SIMD (Neon) optimised vector distance function for merging int8 Scalar Quantized vectors has been added
+An optimised int8 vector distance implementation for aarch64 has been added.
+This implementation is currently only used during merging.
+The vector distance implementation outperforms Lucene's Pamana Vector
+implementation for binary comparisons by approx 5x (depending on the number
+of dimensions). It does so by means of SIMD (Neon) intrinsics compiled into a
+separate native library and link by Panama's FFI. Comparisons are performed on
+off-heap mmap'ed vector data.
+Macro benchmarks, SO_Dense_Vector with scalar quantization enabled, shows
+significant improvements in merge times, approximately 3 times faster.
 
-{es-pull}103651[#103651]
+{es-pull}106133[#106133]
 
 // end::notable-highlights[]
 

@@ -13,6 +13,7 @@ import org.elasticsearch.compute.ann.Fixed;
 import org.elasticsearch.compute.operator.BreakingBytesRefBuilder;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
 import org.elasticsearch.xpack.esql.EsqlClientException;
+import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunction;
@@ -38,11 +39,15 @@ public class Concat extends EsqlScalarFunction {
 
     static final long MAX_CONCAT_LENGTH = MB.toBytes(1);
 
-    @FunctionInfo(returnType = "keyword", description = "Concatenates two or more strings.")
+    @FunctionInfo(
+        returnType = "keyword",
+        description = "Concatenates two or more strings.",
+        examples = @Example(file = "eval", tag = "docsConcat")
+    )
     public Concat(
         Source source,
-        @Param(name = "first", type = { "keyword", "text" }) Expression first,
-        @Param(name = "rest", type = { "keyword", "text" }) List<? extends Expression> rest
+        @Param(name = "string1", type = { "keyword", "text" }, description = "Strings to concatenate.") Expression first,
+        @Param(name = "string2", type = { "keyword", "text" }, description = "Strings to concatenate.") List<? extends Expression> rest
     ) {
         super(source, Stream.concat(Stream.of(first), rest.stream()).toList());
     }

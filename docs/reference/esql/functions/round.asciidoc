@@ -20,8 +20,6 @@ Rounds a number to the closest number with the specified number of digits.
 Defaults to 0 digits if no number of digits is provided. If the specified number
 of digits is negative, rounds to the number of digits left of the decimal point.
 
-*Supported types*
-
 include::types/round.asciidoc[]
 
 *Example*

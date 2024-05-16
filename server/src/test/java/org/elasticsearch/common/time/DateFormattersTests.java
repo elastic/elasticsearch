@@ -22,10 +22,13 @@ import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
 import java.time.temporal.ChronoField;
 import java.time.temporal.TemporalAccessor;
+import java.util.List;
 import java.util.Locale;
 
+import static org.elasticsearch.test.LambdaMatchers.transformedItemsMatch;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.everyItem;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
@@ -548,8 +551,8 @@ public class DateFormattersTests extends ESTestCase {
     public void testRoundupFormatterWithEpochDates() {
         assertRoundupFormatter("epoch_millis", "1234567890", 1234567890L);
         // also check nanos of the epoch_millis formatter if it is rounded up to the nano second
-        JavaDateFormatter roundUpFormatter = ((JavaDateFormatter) DateFormatter.forPattern("8epoch_millis")).getRoundupParser();
-        Instant epochMilliInstant = DateFormatters.from(roundUpFormatter.parse("1234567890")).toInstant();
+        var formatter = (JavaDateFormatter) DateFormatter.forPattern("8epoch_millis");
+        Instant epochMilliInstant = DateFormatters.from(formatter.roundupParse("1234567890")).toInstant();
         assertThat(epochMilliInstant.getLong(ChronoField.NANO_OF_SECOND), is(890_999_999L));
 
         assertRoundupFormatter("strict_date_optional_time||epoch_millis", "2018-10-10T12:13:14.123Z", 1539173594123L);
@@ -561,8 +564,8 @@ public class DateFormattersTests extends ESTestCase {
 
         assertRoundupFormatter("epoch_second", "1234567890", 1234567890999L);
         // also check nanos of the epoch_millis formatter if it is rounded up to the nano second
-        JavaDateFormatter epochSecondRoundupParser = ((JavaDateFormatter) DateFormatter.forPattern("8epoch_second")).getRoundupParser();
-        Instant epochSecondInstant = DateFormatters.from(epochSecondRoundupParser.parse("1234567890")).toInstant();
+        formatter = (JavaDateFormatter) DateFormatter.forPattern("8epoch_second");
+        Instant epochSecondInstant = DateFormatters.from(formatter.roundupParse("1234567890")).toInstant();
         assertThat(epochSecondInstant.getLong(ChronoField.NANO_OF_SECOND), is(999_999_999L));
 
         assertRoundupFormatter("strict_date_optional_time||epoch_second", "2018-10-10T12:13:14.123Z", 1539173594123L);
@@ -583,8 +586,7 @@ public class DateFormattersTests extends ESTestCase {
     private void assertRoundupFormatter(String format, String input, long expectedMilliSeconds) {
         JavaDateFormatter dateFormatter = (JavaDateFormatter) DateFormatter.forPattern(format);
         dateFormatter.parse(input);
-        JavaDateFormatter roundUpFormatter = dateFormatter.getRoundupParser();
-        long millis = DateFormatters.from(roundUpFormatter.parse(input)).toInstant().toEpochMilli();
+        long millis = DateFormatters.from(dateFormatter.roundupParse(input)).toInstant().toEpochMilli();
         assertThat(millis, is(expectedMilliSeconds));
     }
 
@@ -598,9 +600,8 @@ public class DateFormattersTests extends ESTestCase {
             "strict_date_optional_time||date_optional_time"
         );
         JavaDateFormatter formatter = (JavaDateFormatter) DateFormatter.forPattern(format).withZone(zoneId);
-        JavaDateFormatter roundUpFormatter = formatter.getRoundupParser();
-        assertThat(roundUpFormatter.zone(), is(zoneId));
         assertThat(formatter.zone(), is(zoneId));
+        assertThat(List.of(formatter.roundupParsers), transformedItemsMatch(DateTimeParser::getZone, everyItem(is(zoneId))));
     }
 
     public void testRoundupFormatterLocale() {
@@ -613,9 +614,8 @@ public class DateFormattersTests extends ESTestCase {
             "strict_date_optional_time||date_optional_time"
         );
         JavaDateFormatter formatter = (JavaDateFormatter) DateFormatter.forPattern(format).withLocale(locale);
-        JavaDateFormatter roundupParser = formatter.getRoundupParser();
-        assertThat(roundupParser.locale(), is(locale));
         assertThat(formatter.locale(), is(locale));
+        assertThat(List.of(formatter.roundupParsers), transformedItemsMatch(DateTimeParser::getLocale, everyItem(is(locale))));
     }
 
     public void test0MillisAreFormatted() {

@@ -17,4 +17,9 @@ import java.lang.annotation.Target;
 public @interface GroupingAggregator {
 
     IntermediateState[] value() default {};
+
+    /**
+     * If {@code true} then the @timestamp LongVector will be appended to the input blocks of the aggregation function.
+     */
+    boolean includeTimestamps() default false;
 }

@@ -1,7 +1,7 @@
 setup:
   - skip:
       features: allowed_warnings
-      version: " - 8.10.99"
+      cluster_features: ["gte_v8.11.0"]
       reason: "Data stream lifecycle was GA in 8.11"
   - do:
       allowed_warnings:

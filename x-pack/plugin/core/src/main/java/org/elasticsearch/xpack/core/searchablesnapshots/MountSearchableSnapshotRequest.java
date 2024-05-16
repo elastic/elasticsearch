@@ -101,6 +101,7 @@ public class MountSearchableSnapshotRequest extends MasterNodeRequest<MountSearc
         boolean waitForCompletion,
         Storage storage
     ) {
+        super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT);
         this.mountedIndexName = Objects.requireNonNull(mountedIndexName);
         this.repositoryName = Objects.requireNonNull(repositoryName);
         this.snapshotName = Objects.requireNonNull(snapshotName);
@@ -222,7 +223,7 @@ public class MountSearchableSnapshotRequest extends MasterNodeRequest<MountSearc
             && Objects.equals(snapshotIndexName, that.snapshotIndexName)
             && Objects.equals(indexSettings, that.indexSettings)
             && Arrays.equals(ignoreIndexSettings, that.ignoreIndexSettings)
-            && Objects.equals(masterNodeTimeout, that.masterNodeTimeout);
+            && Objects.equals(masterNodeTimeout(), that.masterNodeTimeout());
     }
 
     @Override
@@ -234,7 +235,7 @@ public class MountSearchableSnapshotRequest extends MasterNodeRequest<MountSearc
             snapshotIndexName,
             indexSettings,
             waitForCompletion,
-            masterNodeTimeout,
+            masterNodeTimeout(),
             storage
         );
         result = 31 * result + Arrays.hashCode(ignoreIndexSettings);

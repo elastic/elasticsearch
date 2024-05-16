@@ -4,6 +4,7 @@ apply plugin: 'elasticsearch.java'
 dependencies {
     implementation project(':x-pack:plugin:esql:compute')
     compileOnly project(':x-pack:plugin:esql')
+    compileOnly project(path: xpackModule('core'))
     implementation project(":libs:elasticsearch-x-content")
     implementation project(':client:rest')
     implementation project(':libs:elasticsearch-logging')

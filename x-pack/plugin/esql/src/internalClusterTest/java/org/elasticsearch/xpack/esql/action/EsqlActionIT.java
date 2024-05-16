@@ -31,6 +31,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.ListMatcher;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonXContent;
+import org.elasticsearch.xpack.core.esql.action.ColumnInfo;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
@@ -993,27 +994,17 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
             .add(new IndexRequest("test_overlapping_index_patterns_2").id("1").source("field", "foo"))
             .get();
 
-        assertVerificationException("from test_overlapping_index_patterns_* | sort field");
+        assertThrows(VerificationException.class, () -> run("from test_overlapping_index_patterns_* | sort field"));
     }
 
     public void testErrorMessageForUnknownColumn() {
-        var e = assertVerificationException("row a = 1 | eval x = b");
+        var e = expectThrows(VerificationException.class, () -> run("row a = 1 | eval x = b"));
         assertThat(e.getMessage(), containsString("Unknown column [b]"));
     }
 
-    // Straightforward verification. Subclasses can override.
-    protected Exception assertVerificationException(String esqlCommand) {
-        return expectThrows(VerificationException.class, () -> run(esqlCommand));
-    }
-
     public void testErrorMessageForEmptyParams() {
-        var e = assertParsingException("row a = 1 | eval x = ?");
+        var e = expectThrows(ParsingException.class, () -> run("row a = 1 | eval x = ?"));
         assertThat(e.getMessage(), containsString("Not enough actual parameters 0"));
-    }
-
-    // Straightforward verification. Subclasses can override.
-    protected Exception assertParsingException(String esqlCommand) {
-        return expectThrows(ParsingException.class, () -> run(esqlCommand));
     }
 
     public void testEmptyIndex() {
@@ -1037,8 +1028,8 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
         }
     }
 
-    public void testShowFunctions() {
-        try (EsqlQueryResponse results = run("show functions")) {
+    public void testMetaFunctions() {
+        try (EsqlQueryResponse results = run("meta functions")) {
             assertThat(
                 results.columns(),
                 equalTo(

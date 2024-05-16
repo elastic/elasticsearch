@@ -1,5 +1,8 @@
+import org.elasticsearch.gradle.util.GradleUtils
+
 apply plugin: 'elasticsearch.internal-java-rest-test'
 apply plugin: 'elasticsearch.internal-yaml-rest-test'
+apply plugin: 'elasticsearch.internal-test-artifact'
 
 dependencies {
   javaRestTestImplementation project(xpackModule('esql:qa:testFixtures'))
@@ -7,6 +10,7 @@ dependencies {
   yamlRestTestImplementation project(xpackModule('esql:qa:server'))
 }
 
+GradleUtils.extendSourceSet(project, "javaRestTest", "yamlRestTest")
 
 tasks.named('javaRestTest') {
   usesDefaultDistribution()

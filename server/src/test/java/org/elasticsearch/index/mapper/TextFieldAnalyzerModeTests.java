@@ -13,6 +13,7 @@ import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.analysis.AbstractTokenFilterFactory;
 import org.elasticsearch.index.analysis.AnalysisMode;
@@ -67,6 +68,9 @@ public class TextFieldAnalyzerModeTests extends ESTestCase {
         fieldNode.put("analyzer", "my_analyzer");
         MappingParserContext parserContext = mock(MappingParserContext.class);
         when(parserContext.indexVersionCreated()).thenReturn(IndexVersion.current());
+        when(parserContext.getIndexSettings()).thenReturn(
+            new IndexSettings(IndexMetadata.builder("index").settings(indexSettings(IndexVersion.current(), 1, 0)).build(), Settings.EMPTY)
+        );
 
         // check AnalysisMode.ALL works
         Map<String, NamedAnalyzer> analyzers = defaultAnalyzers();
@@ -102,6 +106,12 @@ public class TextFieldAnalyzerModeTests extends ESTestCase {
             }
             MappingParserContext parserContext = mock(MappingParserContext.class);
             when(parserContext.indexVersionCreated()).thenReturn(IndexVersion.current());
+            when(parserContext.getIndexSettings()).thenReturn(
+                new IndexSettings(
+                    IndexMetadata.builder("index").settings(indexSettings(IndexVersion.current(), 1, 0)).build(),
+                    Settings.EMPTY
+                )
+            );
 
             // check AnalysisMode.ALL and AnalysisMode.SEARCH_TIME works
             Map<String, NamedAnalyzer> analyzers = defaultAnalyzers();
@@ -143,6 +153,9 @@ public class TextFieldAnalyzerModeTests extends ESTestCase {
         fieldNode.put("analyzer", "my_analyzer");
         MappingParserContext parserContext = mock(MappingParserContext.class);
         when(parserContext.indexVersionCreated()).thenReturn(IndexVersion.current());
+        when(parserContext.getIndexSettings()).thenReturn(
+            new IndexSettings(IndexMetadata.builder("index").settings(indexSettings(IndexVersion.current(), 1, 0)).build(), Settings.EMPTY)
+        );
 
         // check that "analyzer" set to AnalysisMode.INDEX_TIME is blocked if there is no search analyzer
         AnalysisMode mode = AnalysisMode.INDEX_TIME;

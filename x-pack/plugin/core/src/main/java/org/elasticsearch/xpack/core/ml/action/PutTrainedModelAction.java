@@ -75,6 +75,7 @@ public class PutTrainedModelAction extends ActionType<PutTrainedModelAction.Resp
         }
 
         public Request(TrainedModelConfig config, boolean deferDefinitionDecompression, boolean waitForCompletion) {
+            super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT, DEFAULT_ACK_TIMEOUT);
             this.config = config;
             this.deferDefinitionDecompression = deferDefinitionDecompression;
             this.waitForCompletion = waitForCompletion;

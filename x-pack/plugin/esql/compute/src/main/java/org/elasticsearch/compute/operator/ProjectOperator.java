@@ -7,7 +7,6 @@
 
 package org.elasticsearch.compute.operator;
 
-import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.Page;
 
 import java.util.Arrays;
@@ -30,7 +29,6 @@ public class ProjectOperator extends AbstractPageMappingOperator {
     }
 
     private final int[] projection;
-    private final Block[] blocks;
 
     /**
      * Creates an operator that applies the given projection, encoded as an integer list where
@@ -41,7 +39,6 @@ public class ProjectOperator extends AbstractPageMappingOperator {
      */
     public ProjectOperator(List<Integer> projection) {
         this.projection = projection.stream().mapToInt(Integer::intValue).toArray();
-        this.blocks = new Block[projection.size()];
     }
 
     @Override
@@ -50,24 +47,11 @@ public class ProjectOperator extends AbstractPageMappingOperator {
         if (blockCount == 0) {
             return page;
         }
-        int b = 0;
-        for (int source : projection) {
-            if (source >= blockCount) {
-                throw new IllegalArgumentException(
-                    "Cannot project block with index [" + source + "] from a page with size [" + blockCount + "]"
-                );
-            }
-            var block = page.getBlock(source);
-            blocks[b++] = block;
-            block.incRef();
+        try {
+            return page.projectBlocks(projection);
+        } finally {
+            page.releaseBlocks();
         }
-        int positionCount = page.getPositionCount();
-        page.releaseBlocks();
-        // Use positionCount explicitly to avoid re-computing - also, if the projection is empty, there may be
-        // no more blocks left to determine the positionCount from.
-        Page output = new Page(positionCount, blocks);
-        Arrays.fill(blocks, null);
-        return output;
     }
 
     @Override

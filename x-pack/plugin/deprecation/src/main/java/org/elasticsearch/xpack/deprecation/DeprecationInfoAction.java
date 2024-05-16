@@ -331,6 +331,7 @@ public class DeprecationInfoAction extends ActionType<DeprecationInfoAction.Resp
         private String[] indices;
 
         public Request(String... indices) {
+            super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT);
             this.indices = indices;
         }
 

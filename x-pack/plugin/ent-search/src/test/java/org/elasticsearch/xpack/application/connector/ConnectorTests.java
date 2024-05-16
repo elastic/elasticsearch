@@ -139,6 +139,9 @@ public class ConnectorTests extends ESTestCase {
                      "basic":{
                         "enabled":true
                      }
+                  },
+                  "native_connector_api_keys": {
+                     "enabled": true
                   }
                },
                "filtering":[

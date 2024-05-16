@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.math;
 
 import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
+import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunction;
@@ -21,7 +22,6 @@ import org.elasticsearch.xpack.ql.type.DataTypes;
 
 import java.util.Arrays;
 import java.util.List;
-import java.util.Objects;
 import java.util.function.Function;
 
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.FIRST;
@@ -30,13 +30,31 @@ import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isNumeric;
 
 public class Log extends EsqlScalarFunction implements OptionalArgument {
 
-    private final Expression base, value;
+    private final Expression base;
+    private final Expression value;
 
-    @FunctionInfo(returnType = "double", description = "Returns the logarithm of a value to a base.")
+    @FunctionInfo(
+        returnType = "double",
+        description = "Returns the logarithm of a value to a base. The input can be any numeric value, "
+            + "the return value is always a double.\n"
+            + "\n"
+            + "Logs of zero, negative numbers, and base of one return `null` as well as a warning.",
+        examples = { @Example(file = "math", tag = "log"), @Example(file = "math", tag = "logUnary") }
+    )
     public Log(
         Source source,
-        @Param(name = "base", type = { "integer", "unsigned_long", "long", "double" }, optional = true) Expression base,
-        @Param(name = "value", type = { "integer", "unsigned_long", "long", "double" }) Expression value
+        @Param(
+            name = "base",
+            type = { "integer", "unsigned_long", "long", "double" },
+            description = "Base of logarithm. If `null`, the function returns `null`. "
+                + "If not provided, this function returns the natural logarithm (base e) of a value.",
+            optional = true
+        ) Expression base,
+        @Param(
+            name = "number",
+            type = { "integer", "unsigned_long", "long", "double" },
+            description = "Numeric expression. If `null`, the function returns `null`."
+        ) Expression value
     ) {
         super(source, value != null ? Arrays.asList(base, value) : Arrays.asList(base));
         this.value = value != null ? value : base;
@@ -108,19 +126,5 @@ public class Log extends EsqlScalarFunction implements OptionalArgument {
             return new LogEvaluator.Factory(source(), baseEval, valueEval);
         }
         return new LogConstantEvaluator.Factory(source(), valueEval);
-    }
-
-    @Override
-    public int hashCode() {
-        return Objects.hash(base, value);
-    }
-
-    @Override
-    public boolean equals(Object obj) {
-        if (obj == null || obj.getClass() != getClass()) {
-            return false;
-        }
-        Log other = (Log) obj;
-        return Objects.equals(other.base, base) && Objects.equals(other.value, value);
     }
 }

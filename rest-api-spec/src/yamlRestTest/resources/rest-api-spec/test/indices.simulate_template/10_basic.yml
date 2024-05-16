@@ -1,9 +1,9 @@
 ---
 "Simulate template without a template in the body":
-  - skip:
-      version: " - 7.8.99"
+  - requires:
+      cluster_features: "gte_v7.9.0"
       reason: "only available in 7.9+"
-      features: ["default_shards"]
+      test_runner_features: ["default_shards"]
 
   - do:
       indices.put_index_template:
@@ -30,10 +30,10 @@
 
 ---
 "Simulate index template specifying a new template":
-  - skip:
-      version: " - 7.8.99"
+  - requires:
+      cluster_features: "gte_v7.9.0"
       reason: "only available in 7.9+"
-      features: ["default_shards"]
+      test_runner_features: ["default_shards"]
 
   - do:
       indices.put_index_template:
@@ -84,10 +84,10 @@
 
 ---
 "Simulate template matches overlapping legacy and composable templates":
-  - skip:
-      version: " - 7.8.99"
+  - requires:
+      cluster_features: "gte_v7.9.0"
       reason: "only available in 7.9+"
-      features: ["allowed_warnings", "default_shards"]
+      test_runner_features: ["allowed_warnings", "default_shards"]
 
   - do:
       indices.put_template:
@@ -147,10 +147,10 @@
 
 ---
 "Simulate replacing a template with a newer version":
-  - skip:
-      version: " - 7.99.99"
+  - requires:
+      cluster_features: "gte_v8.0.0"
       reason: "not yet backported"
-      features: ["allowed_warnings", "default_shards"]
+      test_runner_features: ["allowed_warnings", "default_shards"]
 
   - do:
       indices.put_index_template:
@@ -201,10 +201,10 @@
 
 ---
 "Simulate template with lifecycle and include defaults":
-  - skip:
-      version: " - 8.10.99"
+  - requires:
+      cluster_features: [ "gte_v8.11.0" ]
       reason: "Lifecycle is only available in 8.11+"
-      features: ["default_shards"]
+      test_runner_features: ["default_shards"]
 
   - do:
       indices.put_index_template:

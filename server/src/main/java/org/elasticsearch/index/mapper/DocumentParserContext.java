@@ -12,8 +12,10 @@ import org.apache.lucene.document.Field;
 import org.apache.lucene.document.StringField;
 import org.apache.lucene.index.IndexableField;
 import org.elasticsearch.common.time.DateFormatter;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
+import org.elasticsearch.index.mapper.MapperService.MergeReason;
 import org.elasticsearch.xcontent.FilterXContentParserWrapper;
 import org.elasticsearch.xcontent.FlatteningXContentParser;
 import org.elasticsearch.xcontent.XContentParser;
@@ -102,6 +104,7 @@ public abstract class DocumentParserContext {
     private final MappingParserContext mappingParserContext;
     private final SourceToParse sourceToParse;
     private final Set<String> ignoredFields;
+    private final List<IgnoredSourceFieldMapper.NameValue> ignoredFieldValues;
     private final Map<String, List<Mapper>> dynamicMappers;
     private final DynamicMapperSize dynamicMappersSize;
     private final Map<String, ObjectMapper> dynamicObjectMappers;
@@ -120,6 +123,7 @@ public abstract class DocumentParserContext {
         MappingParserContext mappingParserContext,
         SourceToParse sourceToParse,
         Set<String> ignoreFields,
+        List<IgnoredSourceFieldMapper.NameValue> ignoredFieldValues,
         Map<String, List<Mapper>> dynamicMappers,
         Map<String, ObjectMapper> dynamicObjectMappers,
         Map<String, List<RuntimeField>> dynamicRuntimeFields,
@@ -137,6 +141,7 @@ public abstract class DocumentParserContext {
         this.mappingParserContext = mappingParserContext;
         this.sourceToParse = sourceToParse;
         this.ignoredFields = ignoreFields;
+        this.ignoredFieldValues = ignoredFieldValues;
         this.dynamicMappers = dynamicMappers;
         this.dynamicObjectMappers = dynamicObjectMappers;
         this.dynamicRuntimeFields = dynamicRuntimeFields;
@@ -157,6 +162,7 @@ public abstract class DocumentParserContext {
             in.mappingParserContext,
             in.sourceToParse,
             in.ignoredFields,
+            in.ignoredFieldValues,
             in.dynamicMappers,
             in.dynamicObjectMappers,
             in.dynamicRuntimeFields,
@@ -184,6 +190,7 @@ public abstract class DocumentParserContext {
             mappingParserContext,
             source,
             new HashSet<>(),
+            new ArrayList<>(),
             new HashMap<>(),
             new HashMap<>(),
             new HashMap<>(),
@@ -231,6 +238,10 @@ public abstract class DocumentParserContext {
         return this.sourceToParse;
     }
 
+    public final String routing() {
+        return mappingParserContext.getIndexSettings().getMode() == IndexMode.TIME_SERIES ? null : sourceToParse.routing();
+    }
+
     /**
      * Add the given {@code field} to the set of ignored fields.
      */
@@ -243,6 +254,20 @@ public abstract class DocumentParserContext {
      */
     public final Collection<String> getIgnoredFields() {
         return Collections.unmodifiableCollection(ignoredFields);
+    }
+
+    /**
+     * Add the given ignored values to the corresponding list.
+     */
+    public final void addIgnoredField(IgnoredSourceFieldMapper.NameValue values) {
+        ignoredFieldValues.add(values);
+    }
+
+    /**
+     * Return the collection of values for fields that have been ignored so far.
+     */
+    public final Collection<IgnoredSourceFieldMapper.NameValue> getIgnoredFieldValues() {
+        return Collections.unmodifiableCollection(ignoredFieldValues);
     }
 
     /**
@@ -339,6 +364,20 @@ public abstract class DocumentParserContext {
             int additionalFieldsToAdd = getNewFieldsSize() + mapperSize;
             if (indexSettings().isIgnoreDynamicFieldsBeyondLimit()) {
                 if (mappingLookup.exceedsLimit(indexSettings().getMappingTotalFieldsLimit(), additionalFieldsToAdd)) {
+                    if (mappingLookup.isSourceSynthetic()) {
+                        try {
+                            int parentOffset = parent() instanceof RootObjectMapper ? 0 : parent().fullPath().length() + 1;
+                            addIgnoredField(
+                                new IgnoredSourceFieldMapper.NameValue(
+                                    mapper.name(),
+                                    parentOffset,
+                                    XContentDataHelper.encodeToken(parser())
+                                )
+                            );
+                        } catch (IOException e) {
+                            throw new IllegalArgumentException("failed to parse field [" + mapper.name() + " ]", e);
+                        }
+                    }
                     addIgnoredField(mapper.name());
                     return false;
                 }
@@ -613,7 +652,14 @@ public abstract class DocumentParserContext {
         if (objectMapper instanceof PassThroughObjectMapper passThroughObjectMapper) {
             containsDimensions = passThroughObjectMapper.containsDimensions();
         }
-        return new MapperBuilderContext(p, mappingLookup().isSourceSynthetic(), false, containsDimensions, dynamic);
+        return new MapperBuilderContext(
+            p,
+            mappingLookup.isSourceSynthetic(),
+            false,
+            containsDimensions,
+            dynamic,
+            MergeReason.MAPPING_UPDATE
+        );
     }
 
     public abstract XContentParser parser();

@@ -10,8 +10,11 @@ package org.elasticsearch.compute.data;
 $if(BytesRef)$
 import org.apache.lucene.util.BytesRef;
 $endif$
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.core.ReleasableIterator;
 
 import java.io.IOException;
 
@@ -20,7 +23,8 @@ import java.io.IOException;
  * This class is generated. Do not edit it.
  */
 $if(BytesRef)$
-public sealed interface $Type$Vector extends Vector permits Constant$Type$Vector, $Type$ArrayVector, ConstantNullVector {
+public sealed interface BytesRefVector extends Vector permits ConstantBytesRefVector, BytesRefArrayVector, ConstantNullVector,
+    OrdinalBytesRefVector {
 $elseif(boolean)$
 public sealed interface $Type$Vector extends Vector permits Constant$Type$Vector, $Type$ArrayVector, $Type$BigArrayVector,
     ConstantNullVector {
@@ -41,8 +45,31 @@ $endif$
     @Override
     $Type$Block asBlock();
 
+$if(BytesRef)$
+    /**
+     * Returns an ordinal BytesRef vector if this vector is backed by a dictionary and ordinals; otherwise,
+     * returns null. Callers must not release the returned vector as no extra reference is retained by this method.
+     */
+    OrdinalBytesRefVector asOrdinals();
+$endif$
+
     @Override
     $Type$Vector filter(int... positions);
+
+    @Override
+    ReleasableIterator<? extends $Type$Block> lookup(IntBlock positions, ByteSizeValue targetBlockSize);
+
+$if(int)$
+    /**
+     * The minimum value in the Vector. An empty Vector will return {@link Integer#MAX_VALUE}.
+     */
+    int min();
+
+    /**
+     * The maximum value in the Vector. An empty Vector will return {@link Integer#MIN_VALUE}.
+     */
+    int max();
+$endif$
 
     /**
      * Compares the given object with this vector for equality. Returns {@code true} if and only if the
@@ -108,38 +135,72 @@ $endif$
     /** Deserializes a Vector from the given stream input. */
     static $Type$Vector readFrom(BlockFactory blockFactory, StreamInput in) throws IOException {
         final int positions = in.readVInt();
-        final boolean constant = in.readBoolean();
-        if (constant && positions > 0) {
-            return blockFactory.newConstant$Type$Vector(in.read$Type$(), positions);
-        } else {
-            try (var builder = blockFactory.new$Type$Vector$if(BytesRef)$$else$Fixed$endif$Builder(positions)) {
-                for (int i = 0; i < positions; i++) {
-                    builder.append$Type$(in.read$Type$());
-                }
-                return builder.build();
+        final byte serializationType = in.readByte();
+        return switch (serializationType) {
+            case SERIALIZE_VECTOR_VALUES -> readValues(positions, in, blockFactory);
+            case SERIALIZE_VECTOR_CONSTANT -> blockFactory.newConstant$Type$Vector(in.read$Type$(), positions);
+            case SERIALIZE_VECTOR_ARRAY -> $Type$ArrayVector.readArrayVector(positions, in, blockFactory);
+$if(BytesRef)$
+            case SERIALIZE_VECTOR_ORDINAL -> OrdinalBytesRefVector.readOrdinalVector(blockFactory, in);
+$else$
+            case SERIALIZE_VECTOR_BIG_ARRAY -> $Type$BigArrayVector.readArrayVector(positions, in, blockFactory);
+$endif$
+            default -> {
+                assert false : "invalid vector serialization type [" + serializationType + "]";
+                throw new IllegalStateException("invalid vector serialization type [" + serializationType + "]");
             }
-        }
+        };
     }
 
     /** Serializes this Vector to the given stream output. */
     default void writeTo(StreamOutput out) throws IOException {
         final int positions = getPositionCount();
+        final var version = out.getTransportVersion();
         out.writeVInt(positions);
-        out.writeBoolean(isConstant());
         if (isConstant() && positions > 0) {
+            out.writeByte(SERIALIZE_VECTOR_CONSTANT);
 $if(BytesRef)$
             out.write$Type$(get$Type$(0, new BytesRef()));
 $else$
             out.write$Type$(get$Type$(0));
 $endif$
-        } else {
-            for (int i = 0; i < positions; i++) {
+        } else if (version.onOrAfter(TransportVersions.ESQL_SERIALIZE_ARRAY_VECTOR) && this instanceof $Type$ArrayVector v) {
+            out.writeByte(SERIALIZE_VECTOR_ARRAY);
+            v.writeArrayVector(positions, out);
 $if(BytesRef)$
-                out.write$Type$(get$Type$(i, new BytesRef()));
+        } else if (version.onOrAfter(TransportVersions.ESQL_ORDINAL_BLOCK) && this instanceof OrdinalBytesRefVector v && v.isDense()) {
+            out.writeByte(SERIALIZE_VECTOR_ORDINAL);
+            v.writeOrdinalVector(out);
 $else$
-                out.write$Type$(get$Type$(i));
+        } else if (version.onOrAfter(TransportVersions.ESQL_SERIALIZE_BIG_VECTOR) && this instanceof $Type$BigArrayVector v) {
+            out.writeByte(SERIALIZE_VECTOR_BIG_ARRAY);
+            v.writeArrayVector(positions, out);
 $endif$
+        } else {
+            out.writeByte(SERIALIZE_VECTOR_VALUES);
+            writeValues(this, positions, out);
+        }
+    }
+
+    private static $Type$Vector readValues(int positions, StreamInput in, BlockFactory blockFactory) throws IOException {
+        try (var builder = blockFactory.new$Type$Vector$if(BytesRef)$$else$Fixed$endif$Builder(positions)) {
+            for (int i = 0; i < positions; i++) {
+                builder.append$Type$(in.read$Type$());
             }
+            return builder.build();
+        }
+    }
+
+    private static void writeValues($Type$Vector v, int positions, StreamOutput out) throws IOException {
+$if(BytesRef)$
+        var scratch = new BytesRef();
+$endif$
+        for (int i = 0; i < positions; i++) {
+$if(BytesRef)$
+            out.write$Type$(v.get$Type$(i, scratch));
+$else$
+            out.write$Type$(v.get$Type$(i));
+$endif$
         }
     }
 

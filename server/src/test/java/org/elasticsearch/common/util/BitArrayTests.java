@@ -8,15 +8,19 @@
 
 package org.elasticsearch.common.util;
 
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.test.ESTestCase;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.junit.Assume.assumeThat;
 
@@ -59,15 +63,22 @@ public class BitArrayTests extends ESTestCase {
         }
     }
 
-    public void testTooBigIsNotSet() {
-        try (BitArray bitArray = new BitArray(1, BigArrays.NON_RECYCLING_INSTANCE)) {
+    public void testTooBigIsNotSet() throws IOException {
+        try (BitArray bits1 = new BitArray(1, BigArrays.NON_RECYCLING_INSTANCE)) {
             for (int i = 0; i < 1000; i++) {
                 /*
                  * The first few times this is called we check within the
                  * array. But we quickly go beyond it and those all return
                  * false as well.
                  */
-                assertFalse(bitArray.get(i));
+                assertFalse(bits1.get(i));
+            }
+            BytesStreamOutput out = new BytesStreamOutput();
+            bits1.writeTo(out);
+            try (BitArray bits2 = new BitArray(BigArrays.NON_RECYCLING_INSTANCE, randomBoolean(), out.bytes().streamInput())) {
+                for (int i = 0; i < 1000; i++) {
+                    assertFalse(bits2.get(i));
+                }
             }
         }
     }
@@ -171,4 +182,27 @@ public class BitArrayTests extends ESTestCase {
             assertFalse(bitArray.get(1001));
         }
     }
+
+    public void testSerialize() throws Exception {
+        int initial = randomIntBetween(1, 100_000);
+        BitArray bits1 = new BitArray(initial, BigArrays.NON_RECYCLING_INSTANCE);
+        int numBits = randomIntBetween(1, 1000_000);
+        for (int i = 0; i < numBits; i++) {
+            if (randomBoolean()) {
+                bits1.set(i);
+            }
+            if (rarely()) {
+                bits1.clear(i);
+            }
+        }
+        BytesStreamOutput out = new BytesStreamOutput();
+        bits1.writeTo(out);
+        BitArray bits2 = new BitArray(BigArrays.NON_RECYCLING_INSTANCE, randomBoolean(), out.bytes().streamInput());
+        assertThat(bits2.size(), equalTo(bits1.size()));
+        for (long i = 0; i < bits1.size(); i++) {
+            assertThat(bits2.get(i), equalTo(bits1.get(i)));
+        }
+        Releasables.close(bits1, bits2);
+    }
+
 }

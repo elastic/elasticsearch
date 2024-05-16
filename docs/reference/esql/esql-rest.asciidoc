@@ -16,7 +16,8 @@ The <<esql-query-api,{esql} query API>> accepts an {esql} query string in the
 ----
 POST /_query?format=txt
 {
-  "query": "FROM library | KEEP author, name, page_count, release_date | SORT page_count DESC | LIMIT 5"
+  "query": "FROM library | KEEP author, name, page_count, release_date | SORT page_count DESC | LIMIT 5",
+  "version": "2024.04.01"
 }
 ----
 // TEST[setup:library]
@@ -55,7 +56,8 @@ POST /_query?format=txt
     | KEEP author, name, page_count, release_date
     | SORT page_count DESC
     | LIMIT 5
-  """
+  """,
+  "version": "2024.04.01"
 }
 ----
 // TEST[setup:library]
@@ -143,7 +145,8 @@ POST /_query?format=txt
         "lte": 200
       }
     }
-  }
+  },
+  "version": "2024.04.01"
 }
 ----
 // TEST[setup:library]
@@ -179,7 +182,8 @@ POST /_query?format=json
     | SORT page_count DESC
     | LIMIT 5
   """,
-  "columnar": true
+  "columnar": true,
+  "version": "2024.04.01"
 }
 ----
 // TEST[setup:library]
@@ -222,11 +226,12 @@ POST /_query
 {
   "locale": "fr-FR",
   "query": """
-          ROW birth_date_string = "2023-01-15T00:00:00.000Z" 
+          ROW birth_date_string = "2023-01-15T00:00:00.000Z"
           | EVAL birth_date = date_parse(birth_date_string)
           | EVAL month_of_birth = DATE_FORMAT("MMMM",birth_date)
           | LIMIT 5
-   """
+   """,
+  "version": "2024.04.01"
 }
 ----
 // TEST[setup:library]
@@ -249,7 +254,8 @@ POST /_query
     | STATS count = COUNT(*) by year
     | WHERE count > 0
     | LIMIT 5
-  """
+  """,
+  "version": "2024.04.01"
 }
 ----
 // TEST[setup:library]
@@ -270,7 +276,8 @@ POST /_query
     | WHERE count > ?
     | LIMIT 5
   """,
-  "params": [300, "Frank Herbert", 0]
+  "params": [300, "Frank Herbert", 0],
+  "version": "2024.04.01"
 }
 ----
 // TEST[setup:library]
@@ -304,10 +311,12 @@ POST /_query/async
     | SORT year
     | LIMIT 5
   """,
-  "wait_for_completion_timeout": "2s"
+  "wait_for_completion_timeout": "2s",
+  "version": "2024.04.01"
 }
 ----
 // TEST[setup:library]
+// TEST[skip:awaitsfix https://github.com/elastic/elasticsearch/issues/104013]
 
 If the results are not available within the given timeout period, 2
 seconds in this case, no results are returned but rather a response that

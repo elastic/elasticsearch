@@ -54,7 +54,9 @@ public final class ResumeFollowAction extends ActionType<AcknowledgedResponse> {
         private String followerIndex;
         private FollowParameters parameters = new FollowParameters();
 
-        public Request() {}
+        public Request() {
+            super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT);
+        }
 
         public String getFollowerIndex() {
             return followerIndex;

@@ -31,7 +31,6 @@ import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.core.Releasable;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
@@ -48,6 +47,7 @@ import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.plugins.FieldPredicate;
 import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.SearchPlugin;
@@ -78,11 +78,11 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 import java.util.function.Function;
-import java.util.function.Predicate;
 import java.util.stream.IntStream;
 
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.action.support.ActionTestUtils.wrapAsRestResponseListener;
+import static org.elasticsearch.index.shard.IndexShardTestCase.closeShardNoCheck;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.aMapWithSize;
 import static org.hamcrest.Matchers.array;
@@ -526,7 +526,7 @@ public class FieldCapabilitiesIT extends ESIntegTestCase {
         for (IndexService indexService : indicesService) {
             for (IndexShard indexShard : indexService) {
                 if (randomBoolean()) {
-                    indexShard.close("test", randomBoolean());
+                    closeShardNoCheck(indexShard, randomBoolean());
                 } else if (randomBoolean()) {
                     final ShardId shardId = indexShard.shardId();
                     final String[] nodeNames = internalCluster().getNodeNames();
@@ -648,8 +648,7 @@ public class FieldCapabilitiesIT extends ESIntegTestCase {
         reason = "verify the log output on cancelled"
     )
     public void testCancel() throws Exception {
-        MockLogAppender logAppender = new MockLogAppender();
-        try (Releasable ignored = logAppender.capturing(TransportFieldCapabilitiesAction.class)) {
+        try (var logAppender = MockLogAppender.capture(TransportFieldCapabilitiesAction.class)) {
             logAppender.addExpectation(
                 new MockLogAppender.SeenEventExpectation(
                     "clear resources",
@@ -809,8 +808,23 @@ public class FieldCapabilitiesIT extends ESIntegTestCase {
         }
 
         @Override
-        public Function<String, Predicate<String>> getFieldFilter() {
-            return index -> field -> field.equals("playlist") == false;
+        public Function<String, FieldPredicate> getFieldFilter() {
+            return index -> new FieldPredicate() {
+                @Override
+                public boolean test(String field) {
+                    return field.equals("playlist") == false;
+                }
+
+                @Override
+                public String modifyHash(String hash) {
+                    return "not-playlist:" + hash;
+                }
+
+                @Override
+                public long ramBytesUsed() {
+                    return 0;
+                }
+            };
         }
     }
 

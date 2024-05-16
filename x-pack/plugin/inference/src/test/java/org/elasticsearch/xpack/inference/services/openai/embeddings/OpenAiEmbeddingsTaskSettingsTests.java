@@ -12,7 +12,8 @@ import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
-import org.elasticsearch.xpack.inference.services.openai.OpenAiParseContext;
+import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
+import org.elasticsearch.xpack.inference.services.openai.OpenAiServiceFields;
 import org.hamcrest.MatcherAssert;
 
 import java.io.IOException;
@@ -38,10 +39,7 @@ public class OpenAiEmbeddingsTaskSettingsTests extends AbstractWireSerializingTe
     public void testFromMap_WithUser() {
         assertEquals(
             new OpenAiEmbeddingsTaskSettings("user"),
-            OpenAiEmbeddingsTaskSettings.fromMap(
-                new HashMap<>(Map.of(OpenAiEmbeddingsTaskSettings.USER, "user")),
-                OpenAiParseContext.REQUEST
-            )
+            OpenAiEmbeddingsTaskSettings.fromMap(new HashMap<>(Map.of(OpenAiServiceFields.USER, "user")), ConfigurationParseContext.REQUEST)
         );
     }
 
@@ -49,8 +47,8 @@ public class OpenAiEmbeddingsTaskSettingsTests extends AbstractWireSerializingTe
         var thrownException = expectThrows(
             ValidationException.class,
             () -> OpenAiEmbeddingsTaskSettings.fromMap(
-                new HashMap<>(Map.of(OpenAiEmbeddingsTaskSettings.USER, "")),
-                OpenAiParseContext.REQUEST
+                new HashMap<>(Map.of(OpenAiServiceFields.USER, "")),
+                ConfigurationParseContext.REQUEST
             )
         );
 
@@ -61,14 +59,14 @@ public class OpenAiEmbeddingsTaskSettingsTests extends AbstractWireSerializingTe
     }
 
     public void testFromMap_MissingUser_DoesNotThrowException() {
-        var taskSettings = OpenAiEmbeddingsTaskSettings.fromMap(new HashMap<>(Map.of()), OpenAiParseContext.PERSISTENT);
+        var taskSettings = OpenAiEmbeddingsTaskSettings.fromMap(new HashMap<>(Map.of()), ConfigurationParseContext.PERSISTENT);
         assertNull(taskSettings.user());
     }
 
     public void testOverrideWith_KeepsOriginalValuesWithOverridesAreNull() {
         var taskSettings = OpenAiEmbeddingsTaskSettings.fromMap(
-            new HashMap<>(Map.of(OpenAiEmbeddingsTaskSettings.USER, "user")),
-            OpenAiParseContext.PERSISTENT
+            new HashMap<>(Map.of(OpenAiServiceFields.USER, "user")),
+            ConfigurationParseContext.PERSISTENT
         );
 
         var overriddenTaskSettings = OpenAiEmbeddingsTaskSettings.of(taskSettings, OpenAiEmbeddingsRequestTaskSettings.EMPTY_SETTINGS);
@@ -77,13 +75,11 @@ public class OpenAiEmbeddingsTaskSettingsTests extends AbstractWireSerializingTe
 
     public void testOverrideWith_UsesOverriddenSettings() {
         var taskSettings = OpenAiEmbeddingsTaskSettings.fromMap(
-            new HashMap<>(Map.of(OpenAiEmbeddingsTaskSettings.USER, "user")),
-            OpenAiParseContext.PERSISTENT
+            new HashMap<>(Map.of(OpenAiServiceFields.USER, "user")),
+            ConfigurationParseContext.PERSISTENT
         );
 
-        var requestTaskSettings = OpenAiEmbeddingsRequestTaskSettings.fromMap(
-            new HashMap<>(Map.of(OpenAiEmbeddingsTaskSettings.USER, "user2"))
-        );
+        var requestTaskSettings = OpenAiEmbeddingsRequestTaskSettings.fromMap(new HashMap<>(Map.of(OpenAiServiceFields.USER, "user2")));
 
         var overriddenTaskSettings = OpenAiEmbeddingsTaskSettings.of(taskSettings, requestTaskSettings);
         MatcherAssert.assertThat(overriddenTaskSettings, is(new OpenAiEmbeddingsTaskSettings("user2")));
@@ -101,14 +97,14 @@ public class OpenAiEmbeddingsTaskSettingsTests extends AbstractWireSerializingTe
 
     @Override
     protected OpenAiEmbeddingsTaskSettings mutateInstance(OpenAiEmbeddingsTaskSettings instance) throws IOException {
-        return createRandomWithUser();
+        return randomValueOtherThan(instance, OpenAiEmbeddingsTaskSettingsTests::createRandomWithUser);
     }
 
     public static Map<String, Object> getTaskSettingsMap(@Nullable String user) {
         var map = new HashMap<String, Object>();
 
         if (user != null) {
-            map.put(OpenAiEmbeddingsTaskSettings.USER, user);
+            map.put(OpenAiServiceFields.USER, user);
         }
 
         return map;

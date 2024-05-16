@@ -9,7 +9,6 @@
 package org.elasticsearch.transport;
 
 import org.apache.logging.log4j.Level;
-import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.util.Supplier;
 import org.apache.lucene.util.CollectionUtil;
 import org.elasticsearch.ElasticsearchException;
@@ -29,7 +28,6 @@ import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.network.CloseableChannel;
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.network.NetworkUtils;
@@ -928,19 +926,14 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
     public void testConcurrentSendRespondAndDisconnect() throws BrokenBarrierException, InterruptedException {
         Set<Exception> sendingErrors = ConcurrentCollections.newConcurrentSet();
         Set<Exception> responseErrors = ConcurrentCollections.newConcurrentSet();
-        serviceA.registerRequestHandler(
-            "internal:test",
-            threadPool.executor(randomBoolean() ? ThreadPool.Names.SAME : ThreadPool.Names.GENERIC),
-            TestRequest::new,
-            (request, channel, task) -> {
-                try {
-                    channel.sendResponse(new TestResponse((String) null));
-                } catch (Exception e) {
-                    logger.info("caught exception while responding", e);
-                    responseErrors.add(e);
-                }
+        serviceA.registerRequestHandler("internal:test", randomExecutor(threadPool), TestRequest::new, (request, channel, task) -> {
+            try {
+                channel.sendResponse(new TestResponse((String) null));
+            } catch (Exception e) {
+                logger.info("caught exception while responding", e);
+                responseErrors.add(e);
             }
-        );
+        });
         final TransportRequestHandler<TestRequest> ignoringRequestHandler = (request, channel, task) -> {
             try {
                 channel.sendResponse(new TestResponse((String) null));
@@ -1326,10 +1319,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
                 .build()
         );
 
-        MockLogAppender appender = new MockLogAppender();
-        try {
-            appender.start();
-            Loggers.addAppender(LogManager.getLogger("org.elasticsearch.transport.TransportService.tracer"), appender);
+        try (var appender = MockLogAppender.capture("org.elasticsearch.transport.TransportService.tracer")) {
 
             ////////////////////////////////////////////////////////////////////////
             // tests for included action type "internal:test"
@@ -1469,9 +1459,6 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
             submitRequest(serviceA, nodeB, "internal:testNotSeen", new StringMessageRequest(""), noopResponseHandler).get();
 
             assertBusy(appender::assertAllExpectationsMatched);
-        } finally {
-            Loggers.removeAppender(LogManager.getLogger("org.elasticsearch.transport.TransportService.tracer"), appender);
-            appender.stop();
         }
     }
 
@@ -2225,30 +2212,15 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
 
             }
         }
-        serviceB.registerRequestHandler(
-            "internal:action1",
-            threadPool.executor(randomFrom(ThreadPool.Names.SAME, ThreadPool.Names.GENERIC)),
-            TestRequest::new,
-            new TestRequestHandler(serviceB)
-        );
-        serviceC.registerRequestHandler(
-            "internal:action1",
-            threadPool.executor(randomFrom(ThreadPool.Names.SAME, ThreadPool.Names.GENERIC)),
-            TestRequest::new,
-            new TestRequestHandler(serviceC)
-        );
-        serviceA.registerRequestHandler(
-            "internal:action1",
-            threadPool.executor(randomFrom(ThreadPool.Names.SAME, ThreadPool.Names.GENERIC)),
-            TestRequest::new,
-            new TestRequestHandler(serviceA)
-        );
+        serviceB.registerRequestHandler("internal:action1", randomExecutor(threadPool), TestRequest::new, new TestRequestHandler(serviceB));
+        serviceC.registerRequestHandler("internal:action1", randomExecutor(threadPool), TestRequest::new, new TestRequestHandler(serviceC));
+        serviceA.registerRequestHandler("internal:action1", randomExecutor(threadPool), TestRequest::new, new TestRequestHandler(serviceA));
         int iters = randomIntBetween(30, 60);
         CountDownLatch allRequestsDone = new CountDownLatch(iters);
         class TestResponseHandler implements TransportResponseHandler<TestResponse> {
 
             private final int id;
-            private final String executor = randomBoolean() ? ThreadPool.Names.SAME : ThreadPool.Names.GENERIC;
+            private final Executor executor = randomExecutor(threadPool);
 
             TestResponseHandler(int id) {
                 this.id = id;
@@ -2277,7 +2249,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
 
             @Override
             public Executor executor() {
-                return threadPool.executor(executor);
+                return executor;
             }
         }
 
@@ -2311,19 +2283,14 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
     }
 
     public void testRegisterHandlerTwice() {
-        serviceB.registerRequestHandler(
-            "internal:action1",
-            threadPool.executor(randomFrom(ThreadPool.Names.SAME, ThreadPool.Names.GENERIC)),
-            TestRequest::new,
-            (request, message, task) -> {
-                throw new AssertionError("boom");
-            }
-        );
+        serviceB.registerRequestHandler("internal:action1", randomExecutor(threadPool), TestRequest::new, (request, message, task) -> {
+            throw new AssertionError("boom");
+        });
         expectThrows(
             IllegalArgumentException.class,
             () -> serviceB.registerRequestHandler(
                 "internal:action1",
-                threadPool.executor(randomFrom(ThreadPool.Names.SAME, ThreadPool.Names.GENERIC)),
+                randomExecutor(threadPool),
                 TestRequest::new,
                 (request, message, task) -> {
                     throw new AssertionError("boom");
@@ -2331,14 +2298,9 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
             )
         );
 
-        serviceA.registerRequestHandler(
-            "internal:action1",
-            threadPool.executor(randomFrom(ThreadPool.Names.SAME, ThreadPool.Names.GENERIC)),
-            TestRequest::new,
-            (request, message, task) -> {
-                throw new AssertionError("boom");
-            }
-        );
+        serviceA.registerRequestHandler("internal:action1", randomExecutor(threadPool), TestRequest::new, (request, message, task) -> {
+            throw new AssertionError("boom");
+        });
     }
 
     public void testHandshakeWithIncompatVersion() {

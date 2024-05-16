@@ -9,6 +9,7 @@
 package org.elasticsearch.internal;
 
 import org.elasticsearch.Build;
+import org.elasticsearch.env.BuildVersion;
 
 /**
  * Allows plugging in current build info.
@@ -26,4 +27,14 @@ public interface BuildExtension {
     default boolean hasReleaseVersioning() {
         return true;
     }
+
+    /**
+     * Returns the {@link BuildVersion} for the running Elasticsearch code.
+     */
+    BuildVersion currentBuildVersion();
+
+    /**
+     * Returns the {@link BuildVersion} for a given version identifier.
+     */
+    BuildVersion fromVersionId(int versionId);
 }

@@ -61,8 +61,13 @@ public final class FetchSearchResult extends SearchPhaseResult {
 
     public void shardResult(SearchHits hits, ProfileResult profileResult) {
         assert assertNoSearchTarget(hits);
+        assert hasReferences();
+        var existing = this.hits;
+        if (existing != null) {
+            existing.decRef();
+        }
         this.hits = hits;
-        hits.incRef();
+        hits.mustIncRef();
         assert this.profileResult == null;
         this.profileResult = profileResult;
     }

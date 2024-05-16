@@ -10,6 +10,7 @@ package org.elasticsearch.test.rest.yaml.section;
 import org.elasticsearch.client.NodeSelector;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.Channels;
+import org.elasticsearch.test.rest.yaml.ParameterizableYamlXContentParser;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentParseException;
 import org.elasticsearch.xcontent.XContentParser;
@@ -26,6 +27,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
@@ -38,7 +40,8 @@ import java.util.stream.Stream;
  * Supports a setup section and multiple test sections.
  */
 public class ClientYamlTestSuite {
-    public static ClientYamlTestSuite parse(NamedXContentRegistry executeableSectionRegistry, String api, Path file) throws IOException {
+    public static ClientYamlTestSuite parse(NamedXContentRegistry executeableSectionRegistry, String api, Path file, Map<String, ?> params)
+        throws IOException {
         if (Files.isRegularFile(file) == false) {
             throw new IllegalArgumentException(file.toAbsolutePath() + " is not a file");
         }
@@ -63,10 +66,18 @@ public class ClientYamlTestSuite {
         }
 
         try (
-            XContentParser parser = YamlXContent.yamlXContent.createParser(
-                XContentParserConfiguration.EMPTY.withRegistry(executeableSectionRegistry),
-                Files.newInputStream(file)
-            )
+            XContentParser parser = params.isEmpty()
+                ? YamlXContent.yamlXContent.createParser(
+                    XContentParserConfiguration.EMPTY.withRegistry(executeableSectionRegistry),
+                    Files.newInputStream(file)
+                )
+                : new ParameterizableYamlXContentParser(
+                    YamlXContent.yamlXContent.createParser(
+                        XContentParserConfiguration.EMPTY.withRegistry(executeableSectionRegistry),
+                        Files.newInputStream(file)
+                    ),
+                    params
+                )
         ) {
             return parse(api, filename, Optional.of(file), parser);
         } catch (Exception e) {
@@ -101,6 +112,10 @@ public class ClientYamlTestSuite {
         }
 
         return new ClientYamlTestSuite(api, suiteName, file, setupSection, teardownSection, new ArrayList<>(testSections));
+    }
+
+    public static ClientYamlTestSuite parse(NamedXContentRegistry xcontentRegistry, String api, Path filePath) throws IOException {
+        return parse(xcontentRegistry, api, filePath, Collections.emptyMap());
     }
 
     private final String api;
@@ -284,6 +299,14 @@ public class ClientYamlTestSuite {
                     """, section.getLocation().lineNumber()))
         );
 
+        if (hasCapabilitiesCheck(testSection, setupSection, teardownSection)
+            && false == hasYamlRunnerFeature("capabilities", testSection, setupSection, teardownSection)) {
+            errors = Stream.concat(errors, Stream.of("""
+                attempted to add a [capabilities] check in prerequisites without a corresponding \
+                ["requires": "test_runner_features": "capabilities"] \
+                so runners that do not support [capabilities] checks can skip the test"""));
+        }
+
         return errors;
     }
 
@@ -296,6 +319,16 @@ public class ClientYamlTestSuite {
         return (testSection != null && hasYamlRunnerFeature(feature, testSection.getPrerequisiteSection()))
             || (setupSection != null && hasYamlRunnerFeature(feature, setupSection.getPrerequisiteSection()))
             || (teardownSection != null && hasYamlRunnerFeature(feature, teardownSection.getPrerequisiteSection()));
+    }
+
+    private static boolean hasCapabilitiesCheck(
+        ClientYamlTestSection testSection,
+        SetupSection setupSection,
+        TeardownSection teardownSection
+    ) {
+        return (testSection != null && testSection.getPrerequisiteSection().hasCapabilitiesCheck())
+            || (setupSection != null && setupSection.getPrerequisiteSection().hasCapabilitiesCheck())
+            || (teardownSection != null && teardownSection.getPrerequisiteSection().hasCapabilitiesCheck());
     }
 
     private static boolean hasYamlRunnerFeature(String feature, PrerequisiteSection prerequisiteSection) {

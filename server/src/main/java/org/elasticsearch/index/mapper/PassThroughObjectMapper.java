@@ -10,7 +10,6 @@ package org.elasticsearch.index.mapper;
 
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.index.IndexVersion;
-import org.elasticsearch.index.mapper.MapperService.MergeReason;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -41,8 +40,8 @@ public class PassThroughObjectMapper extends ObjectMapper {
 
         @Override
         public PassThroughObjectMapper.Builder add(Mapper.Builder builder) {
-            if (timeSeriesDimensionSubFields.value() && builder instanceof KeywordFieldMapper.Builder keywordBuilder) {
-                keywordBuilder.dimension(true);
+            if (timeSeriesDimensionSubFields.value() && builder instanceof FieldMapper.DimensionBuilder dimensionBuilder) {
+                dimensionBuilder.setInheritDimensionParameterFromParentObject();
             }
             super.add(builder);
             return this;
@@ -78,7 +77,7 @@ public class PassThroughObjectMapper extends ObjectMapper {
         Explicit<Boolean> timeSeriesDimensionSubFields
     ) {
         // Subobjects are not currently supported.
-        super(name, fullPath, enabled, Explicit.IMPLICIT_FALSE, dynamic, mappers);
+        super(name, fullPath, enabled, Explicit.IMPLICIT_FALSE, Explicit.IMPLICIT_FALSE, dynamic, mappers);
         this.timeSeriesDimensionSubFields = timeSeriesDimensionSubFields;
     }
 
@@ -100,9 +99,14 @@ public class PassThroughObjectMapper extends ObjectMapper {
         return builder;
     }
 
-    public PassThroughObjectMapper merge(ObjectMapper mergeWith, MergeReason reason, MapperMergeContext parentBuilderContext) {
-        final var mergeResult = MergeResult.build(this, mergeWith, reason, parentBuilderContext);
+    @Override
+    public PassThroughObjectMapper merge(Mapper mergeWith, MapperMergeContext parentBuilderContext) {
+        if (mergeWith instanceof PassThroughObjectMapper == false) {
+            MapperErrors.throwObjectMappingConflictError(mergeWith.name());
+        }
+
         PassThroughObjectMapper mergeWithObject = (PassThroughObjectMapper) mergeWith;
+        final var mergeResult = MergeResult.build(this, mergeWithObject, parentBuilderContext);
 
         final Explicit<Boolean> containsDimensions = (mergeWithObject.timeSeriesDimensionSubFields.explicit())
             ? mergeWithObject.timeSeriesDimensionSubFields

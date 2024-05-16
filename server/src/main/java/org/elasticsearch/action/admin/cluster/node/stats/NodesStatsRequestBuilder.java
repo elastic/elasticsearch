@@ -158,6 +158,11 @@ public class NodesStatsRequestBuilder extends NodesOperationRequestBuilder<
         return this;
     }
 
+    public NodesStatsRequestBuilder setAllocationStats(boolean allocationStats) {
+        addOrRemoveMetric(allocationStats, NodesStatsRequestParameters.Metric.ALLOCATIONS);
+        return this;
+    }
+
     /**
      * Helper method for adding metrics to a request
      */

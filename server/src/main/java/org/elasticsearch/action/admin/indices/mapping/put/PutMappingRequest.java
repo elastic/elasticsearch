@@ -48,7 +48,7 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
  */
 public class PutMappingRequest extends AcknowledgedRequest<PutMappingRequest> implements IndicesRequest.Replaceable {
 
-    private static Set<String> RESERVED_FIELDS = Set.of(
+    private static final Set<String> RESERVED_FIELDS = Set.of(
         "_uid",
         "_id",
         "_type",
@@ -108,13 +108,16 @@ public class PutMappingRequest extends AcknowledgedRequest<PutMappingRequest> im
         writeIndexOnly = in.readBoolean();
     }
 
-    public PutMappingRequest() {}
+    public PutMappingRequest() {
+        super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT, DEFAULT_ACK_TIMEOUT);
+    }
 
     /**
      * Constructs a new put mapping request against one or more indices. If nothing is set then
      * it will be executed against all indices.
      */
     public PutMappingRequest(String... indices) {
+        super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT, DEFAULT_ACK_TIMEOUT);
         this.indices = indices;
     }
 

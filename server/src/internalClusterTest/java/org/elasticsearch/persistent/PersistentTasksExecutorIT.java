@@ -145,7 +145,7 @@ public class PersistentTasksExecutorIT extends ESIntegTestCase {
 
         Settings nodeSettings = Settings.builder().put(nodeSettings(0, Settings.EMPTY)).put("node.attr.test_attr", "test").build();
         String newNode = internalCluster().startNode(nodeSettings);
-        String newNodeId = internalCluster().clusterService(newNode).localNode().getId();
+        String newNodeId = getNodeId(newNode);
         waitForTaskToStart();
 
         TaskInfo taskInfo = clusterAdmin().prepareListTasks().setActions(TestPersistentTasksExecutor.NAME + "[c]").get().getTasks().get(0);

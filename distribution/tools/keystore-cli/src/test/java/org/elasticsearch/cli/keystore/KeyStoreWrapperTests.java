@@ -457,6 +457,26 @@ public class KeyStoreWrapperTests extends ESTestCase {
         assertThat(toByteArray(wrapper.getFile("file_setting")), equalTo("file_value".getBytes(StandardCharsets.UTF_8)));
     }
 
+    public void testLegacyV5() throws GeneralSecurityException, IOException {
+        final Path configDir = createTempDir();
+        final Path keystore = configDir.resolve("elasticsearch.keystore");
+        try (
+            InputStream is = KeyStoreWrapperTests.class.getResourceAsStream("/format-v5-with-password-elasticsearch.keystore");
+            OutputStream os = Files.newOutputStream(keystore)
+        ) {
+            final byte[] buffer = new byte[4096];
+            int readBytes;
+            while ((readBytes = is.read(buffer)) > 0) {
+                os.write(buffer, 0, readBytes);
+            }
+        }
+        final KeyStoreWrapper wrapper = KeyStoreWrapper.load(configDir);
+        assertNotNull(wrapper);
+        wrapper.decrypt("keystorepassword".toCharArray());
+        assertThat(wrapper.getFormatVersion(), equalTo(5));
+        assertThat(wrapper.getSettingNames(), equalTo(Set.of("keystore.seed")));
+    }
+
     public void testSerializationNewlyCreated() throws Exception {
         final KeyStoreWrapper wrapper = KeyStoreWrapper.create();
         wrapper.setString("string_setting", "string_value".toCharArray());

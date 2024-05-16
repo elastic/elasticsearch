@@ -11,7 +11,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchSecurityException;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionModule;
 import org.elasticsearch.action.ActionResponse;
@@ -33,6 +32,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.env.BuildVersion;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeMetadata;
 import org.elasticsearch.env.TestEnvironment;
@@ -41,8 +41,10 @@ import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
+import org.elasticsearch.index.SlowLogFieldProvider;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.index.engine.InternalEngineFactory;
+import org.elasticsearch.index.mapper.MapperMetrics;
 import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.license.ClusterStateLicenseService;
 import org.elasticsearch.license.License;
@@ -51,9 +53,9 @@ import org.elasticsearch.license.TestUtils;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.license.internal.XPackLicenseStatus;
 import org.elasticsearch.plugins.ExtensiblePlugin;
+import org.elasticsearch.plugins.FieldPredicate;
 import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.plugins.internal.RestExtension;
-import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.script.ScriptService;
@@ -120,7 +122,6 @@ import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
-import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyMap;
@@ -176,7 +177,7 @@ public class SecurityTests extends ESTestCase {
         }
 
         @Override
-        public OperatorPrivilegesViolation checkRest(RestHandler restHandler, RestRequest restRequest, RestChannel restChannel) {
+        public void checkRest(RestHandler restHandler, RestRequest restRequest) {
             throw new RuntimeException("boom");
         }
     }
@@ -202,7 +203,7 @@ public class SecurityTests extends ESTestCase {
 
     private Collection<Object> createComponentsUtil(Settings settings) throws Exception {
         Environment env = TestEnvironment.newEnvironment(settings);
-        NodeMetadata nodeMetadata = new NodeMetadata(randomAlphaOfLength(8), Version.CURRENT, IndexVersion.current());
+        NodeMetadata nodeMetadata = new NodeMetadata(randomAlphaOfLength(8), BuildVersion.current(), IndexVersion.current());
         ThreadPool threadPool = mock(ThreadPool.class);
         ClusterService clusterService = mock(ClusterService.class);
         settings = Security.additionalSettings(settings, true);
@@ -373,7 +374,9 @@ public class SecurityTests extends ESTestCase {
             Collections.emptyMap(),
             () -> true,
             TestIndexNameExpressionResolver.newInstance(threadPool.getThreadContext()),
-            Collections.emptyMap()
+            Collections.emptyMap(),
+            mock(SlowLogFieldProvider.class),
+            MapperMetrics.NOOP
         );
         security.onIndexModule(indexModule);
         // indexReaderWrapper is a SetOnce so if Security#onIndexModule had already set an ReaderWrapper we would get an exception here
@@ -468,7 +471,7 @@ public class SecurityTests extends ESTestCase {
 
     public void testGetFieldFilterSecurityEnabled() throws Exception {
         createComponents(Settings.EMPTY);
-        Function<String, Predicate<String>> fieldFilter = security.getFieldFilter();
+        Function<String, FieldPredicate> fieldFilter = security.getFieldFilter();
         assertNotSame(MapperPlugin.NOOP_FIELD_FILTER, fieldFilter);
         Map<String, IndicesAccessControl.IndexAccessControl> permissionsMap = new HashMap<>();
 
@@ -490,9 +493,9 @@ public class SecurityTests extends ESTestCase {
 
         assertThat(fieldFilter.apply("index_granted"), trueWith("field_granted"));
         assertThat(fieldFilter.apply("index_granted"), falseWith(randomAlphaOfLengthBetween(3, 10)));
-        assertEquals(MapperPlugin.NOOP_FIELD_PREDICATE, fieldFilter.apply("index_granted_all_permissions"));
+        assertEquals(FieldPredicate.ACCEPT_ALL, fieldFilter.apply("index_granted_all_permissions"));
         assertThat(fieldFilter.apply("index_granted_all_permissions"), trueWith(randomAlphaOfLengthBetween(3, 10)));
-        assertEquals(MapperPlugin.NOOP_FIELD_PREDICATE, fieldFilter.apply("index_other"));
+        assertEquals(FieldPredicate.ACCEPT_ALL, fieldFilter.apply("index_other"));
     }
 
     public void testGetFieldFilterSecurityDisabled() throws Exception {
@@ -502,7 +505,7 @@ public class SecurityTests extends ESTestCase {
 
     public void testGetFieldFilterSecurityEnabledLicenseNoFLS() throws Exception {
         createComponents(Settings.EMPTY);
-        Function<String, Predicate<String>> fieldFilter = security.getFieldFilter();
+        Function<String, FieldPredicate> fieldFilter = security.getFieldFilter();
         assertNotSame(MapperPlugin.NOOP_FIELD_FILTER, fieldFilter);
         licenseState.update(
             new XPackLicenseStatus(
@@ -512,7 +515,7 @@ public class SecurityTests extends ESTestCase {
             )
         );
         assertNotSame(MapperPlugin.NOOP_FIELD_FILTER, fieldFilter);
-        assertSame(MapperPlugin.NOOP_FIELD_PREDICATE, fieldFilter.apply(randomAlphaOfLengthBetween(3, 6)));
+        assertSame(FieldPredicate.ACCEPT_ALL, fieldFilter.apply(randomAlphaOfLengthBetween(3, 6)));
     }
 
     public void testValidateRealmsWhenSettingsAreInvalid() {
@@ -782,14 +785,12 @@ public class SecurityTests extends ESTestCase {
         final Logger amLogger = LogManager.getLogger(ActionModule.class);
         Loggers.setLevel(amLogger, Level.DEBUG);
         final MockLogAppender appender = new MockLogAppender();
-        Loggers.addAppender(amLogger, appender);
-        appender.start();
 
         Settings settings = Settings.builder().put("xpack.security.enabled", false).put("path.home", createTempDir()).build();
         SettingsModule settingsModule = new SettingsModule(Settings.EMPTY);
         ThreadPool threadPool = new TestThreadPool(getTestName());
 
-        try {
+        try (var ignored = appender.capturing(ActionModule.class)) {
             UsageService usageService = new UsageService();
             Security security = new Security(settings);
 
@@ -828,8 +829,6 @@ public class SecurityTests extends ESTestCase {
             appender.assertAllExpectationsMatched();
         } finally {
             threadPool.shutdown();
-            appender.stop();
-            Loggers.removeAppender(amLogger, appender);
         }
     }
 
@@ -838,8 +837,6 @@ public class SecurityTests extends ESTestCase {
         boolean securityEnabled = true;
         Loggers.setLevel(mockLogger, Level.INFO);
         final MockLogAppender appender = new MockLogAppender();
-        Loggers.addAppender(mockLogger, appender);
-        appender.start();
 
         Settings.Builder settings = Settings.builder().put("path.home", createTempDir());
         if (randomBoolean()) {
@@ -848,7 +845,7 @@ public class SecurityTests extends ESTestCase {
             settings.put("xpack.security.enabled", securityEnabled);
         }
 
-        try {
+        try (var ignored = appender.capturing(Security.class)) {
             appender.addExpectation(
                 new MockLogAppender.SeenEventExpectation(
                     "message",
@@ -859,9 +856,6 @@ public class SecurityTests extends ESTestCase {
             );
             createComponents(settings.build());
             appender.assertAllExpectationsMatched();
-        } finally {
-            appender.stop();
-            Loggers.removeAppender(mockLogger, appender);
         }
     }
 
@@ -1163,16 +1157,10 @@ public class SecurityTests extends ESTestCase {
     private void expectLogs(Class<?> clazz, List<MockLogAppender.LoggingExpectation> expected, Runnable runnable)
         throws IllegalAccessException {
         final MockLogAppender mockAppender = new MockLogAppender();
-        final Logger logger = LogManager.getLogger(clazz);
-        mockAppender.start();
-        try {
-            Loggers.addAppender(logger, mockAppender);
+        try (var ignored = mockAppender.capturing(clazz)) {
             expected.forEach(mockAppender::addExpectation);
             runnable.run();
             mockAppender.assertAllExpectationsMatched();
-        } finally {
-            Loggers.removeAppender(logger, mockAppender);
-            mockAppender.stop();
         }
     }
 }

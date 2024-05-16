@@ -62,7 +62,7 @@ public class PrimaryFollowerAllocationIT extends CcrIntegTestCase {
                 .build()
         );
         putFollowRequest.waitForActiveShards(ActiveShardCount.ONE);
-        putFollowRequest.timeout(TimeValue.timeValueSeconds(2));
+        putFollowRequest.ackTimeout(TimeValue.timeValueSeconds(2));
         final PutFollowAction.Response response = followerClient().execute(PutFollowAction.INSTANCE, putFollowRequest).get();
         assertFalse(response.isFollowIndexShardsAcked());
         assertFalse(response.isIndexFollowingStarted());

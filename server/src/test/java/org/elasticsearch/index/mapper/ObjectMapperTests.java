@@ -126,6 +126,7 @@ public class ObjectMapperTests extends MapperServiceTestCase {
         assertNull(mapper.mapping().getRoot().dynamic());
         Mapping mergeWith = mapperService.parseMapping(
             "_doc",
+            MergeReason.MAPPING_UPDATE,
             new CompressedXContent(BytesReference.bytes(topMapping(b -> b.field("dynamic", "strict"))))
         );
         Mapping merged = mapper.mapping().merge(mergeWith, reason, Long.MAX_VALUE);
@@ -164,6 +165,7 @@ public class ObjectMapperTests extends MapperServiceTestCase {
         assertNotNull(objectMapper);
         assertFalse(objectMapper.isEnabled());
         assertTrue(objectMapper.subobjects());
+        assertFalse(objectMapper.trackArraySource());
 
         // Setting 'enabled' to true is allowed, and updates the mapping.
         update = Strings.toString(
@@ -174,6 +176,7 @@ public class ObjectMapperTests extends MapperServiceTestCase {
                 .field("type", "object")
                 .field("enabled", true)
                 .field("subobjects", false)
+                .field(ObjectMapper.STORE_ARRAY_SOURCE_PARAM, true)
                 .endObject()
                 .endObject()
                 .endObject()
@@ -184,6 +187,7 @@ public class ObjectMapperTests extends MapperServiceTestCase {
         assertNotNull(objectMapper);
         assertTrue(objectMapper.isEnabled());
         assertFalse(objectMapper.subobjects());
+        assertTrue(objectMapper.trackArraySource());
     }
 
     public void testFieldReplacementForIndexTemplates() throws IOException {
@@ -463,10 +467,14 @@ public class ObjectMapperTests extends MapperServiceTestCase {
         MapperService mapperService = createMapperService(fieldMapping(b -> b.field("type", "object")));
         DocumentMapper mapper = mapperService.documentMapper();
         assertNull(mapper.mapping().getRoot().dynamic());
-        Mapping mergeWith = mapperService.parseMapping("_doc", new CompressedXContent(BytesReference.bytes(fieldMapping(b -> {
-            b.field("type", "object");
-            b.field("subobjects", "false");
-        }))));
+        Mapping mergeWith = mapperService.parseMapping(
+            "_doc",
+            MergeReason.MAPPING_UPDATE,
+            new CompressedXContent(BytesReference.bytes(fieldMapping(b -> {
+                b.field("type", "object");
+                b.field("subobjects", "false");
+            })))
+        );
         MapperException exception = expectThrows(
             MapperException.class,
             () -> mapper.mapping().merge(mergeWith, MergeReason.MAPPING_UPDATE, Long.MAX_VALUE)
@@ -478,9 +486,13 @@ public class ObjectMapperTests extends MapperServiceTestCase {
         MapperService mapperService = createMapperService(topMapping(b -> b.field("subobjects", false)));
         DocumentMapper mapper = mapperService.documentMapper();
         assertNull(mapper.mapping().getRoot().dynamic());
-        Mapping mergeWith = mapperService.parseMapping("_doc", new CompressedXContent(BytesReference.bytes(topMapping(b -> {
-            b.field("subobjects", true);
-        }))));
+        Mapping mergeWith = mapperService.parseMapping(
+            "_doc",
+            MergeReason.MAPPING_UPDATE,
+            new CompressedXContent(BytesReference.bytes(topMapping(b -> {
+                b.field("subobjects", true);
+            })))
+        );
         MapperException exception = expectThrows(
             MapperException.class,
             () -> mapper.mapping().merge(mergeWith, MergeReason.MAPPING_UPDATE, Long.MAX_VALUE)
@@ -530,11 +542,11 @@ public class ObjectMapperTests extends MapperServiceTestCase {
     public void testNestedObjectWithMultiFieldsgetTotalFieldsCount() {
         ObjectMapper.Builder mapperBuilder = new ObjectMapper.Builder("parent_size_1", Explicit.IMPLICIT_TRUE).add(
             new ObjectMapper.Builder("child_size_2", Explicit.IMPLICIT_TRUE).add(
-                new TextFieldMapper.Builder("grand_child_size_3", createDefaultIndexAnalyzers()).addMultiField(
+                new TextFieldMapper.Builder("grand_child_size_3", createDefaultIndexAnalyzers(), false).addMultiField(
                     new KeywordFieldMapper.Builder("multi_field_size_4", IndexVersion.current())
                 )
                     .addMultiField(
-                        new TextFieldMapper.Builder("grand_child_size_5", createDefaultIndexAnalyzers()).addMultiField(
+                        new TextFieldMapper.Builder("grand_child_size_5", createDefaultIndexAnalyzers(), false).addMultiField(
                             new KeywordFieldMapper.Builder("multi_field_of_multi_field_size_6", IndexVersion.current())
                         )
                     )
@@ -564,6 +576,7 @@ public class ObjectMapperTests extends MapperServiceTestCase {
                 b.field("subobjects", false);
                 b.field("enabled", false);
                 b.field("dynamic", false);
+                b.field(ObjectMapper.STORE_ARRAY_SOURCE_PARAM, true);
                 b.startObject("properties");
                 propertiesBuilder.accept(b);
                 b.endObject();

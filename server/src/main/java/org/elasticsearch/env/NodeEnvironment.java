@@ -22,7 +22,6 @@ import org.apache.lucene.store.NIOFSDirectory;
 import org.apache.lucene.store.NativeFSLockFactory;
 import org.elasticsearch.Build;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
@@ -529,13 +528,13 @@ public final class NodeEnvironment implements Closeable {
             String bestDowngradeVersion = getBestDowngradeVersion(metadata.previousNodeVersion().toString());
             throw new IllegalStateException(
                 "Cannot start this node because it holds metadata for indices with version ["
-                    + metadata.oldestIndexVersion()
+                    + metadata.oldestIndexVersion().toReleaseVersion()
                     + "] with which this node of version ["
                     + Build.current().version()
                     + "] is incompatible. Revert this node to version ["
                     + bestDowngradeVersion
                     + "] and delete any indices with versions earlier than ["
-                    + IndexVersions.MINIMUM_COMPATIBLE
+                    + IndexVersions.MINIMUM_COMPATIBLE.toReleaseVersion()
                     + "] before upgrading to version ["
                     + Build.current().version()
                     + "]. If all such indices have already been deleted, revert this node to version ["
@@ -628,7 +627,7 @@ public final class NodeEnvironment implements Closeable {
                 assert nodeIds.isEmpty() : nodeIds;
                 // If we couldn't find legacy metadata, we set the latest index version to this version. This happens
                 // when we are starting a new node and there are no indices to worry about.
-                metadata = new NodeMetadata(generateNodeId(settings), Version.CURRENT, IndexVersion.current());
+                metadata = new NodeMetadata(generateNodeId(settings), BuildVersion.current(), IndexVersion.current());
             } else {
                 assert nodeIds.equals(Collections.singleton(legacyMetadata.nodeId())) : nodeIds + " doesn't match " + legacyMetadata;
                 metadata = legacyMetadata;
@@ -636,7 +635,7 @@ public final class NodeEnvironment implements Closeable {
         }
 
         metadata = metadata.upgradeToCurrentVersion();
-        assert metadata.nodeVersion().equals(Version.CURRENT) : metadata.nodeVersion() + " != " + Version.CURRENT;
+        assert metadata.nodeVersion().equals(BuildVersion.current()) : metadata.nodeVersion() + " != " + Build.current();
 
         return metadata;
     }

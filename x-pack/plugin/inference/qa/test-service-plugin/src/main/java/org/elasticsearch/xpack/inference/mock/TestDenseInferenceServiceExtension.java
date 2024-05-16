@@ -13,6 +13,8 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.ChunkedInferenceServiceResults;
 import org.elasticsearch.inference.ChunkingOptions;
 import org.elasticsearch.inference.InferenceServiceExtension;
@@ -73,9 +75,11 @@ public class TestDenseInferenceServiceExtension implements InferenceServiceExten
         @Override
         public void infer(
             Model model,
+            @Nullable String query,
             List<String> input,
             Map<String, Object> taskSettings,
             InputType inputType,
+            TimeValue timeout,
             ActionListener<InferenceServiceResults> listener
         ) {
             switch (model.getConfigurations().getTaskType()) {
@@ -94,10 +98,12 @@ public class TestDenseInferenceServiceExtension implements InferenceServiceExten
         @Override
         public void chunkedInfer(
             Model model,
+            @Nullable String query,
             List<String> input,
             Map<String, Object> taskSettings,
             InputType inputType,
             ChunkingOptions chunkingOptions,
+            TimeValue timeout,
             ActionListener<List<ChunkedInferenceServiceResults>> listener
         ) {
             switch (model.getConfigurations().getTaskType()) {
@@ -118,7 +124,7 @@ public class TestDenseInferenceServiceExtension implements InferenceServiceExten
             for (int i = 0; i < input.size(); i++) {
                 List<Float> values = new ArrayList<>();
                 for (int j = 0; j < dimensions; j++) {
-                    values.add((float) j);
+                    values.add((float) stringWeight(input.get(i), j));
                 }
                 embeddings.add(new TextEmbeddingResults.Embedding(values));
             }
@@ -129,8 +135,8 @@ public class TestDenseInferenceServiceExtension implements InferenceServiceExten
             var results = new ArrayList<ChunkedInferenceServiceResults>();
             for (int i = 0; i < input.size(); i++) {
                 double[] values = new double[dimensions];
-                for (int j = 0; j < 5; j++) {
-                    values[j] = j;
+                for (int j = 0; j < dimensions; j++) {
+                    values[j] = stringWeight(input.get(i), j);
                 }
                 results.add(
                     new org.elasticsearch.xpack.core.inference.results.ChunkedTextEmbeddingResults(
@@ -166,7 +172,7 @@ public class TestDenseInferenceServiceExtension implements InferenceServiceExten
             SimilarityMeasure similarity = null;
             String similarityStr = (String) map.remove("similarity");
             if (similarityStr != null) {
-                similarity = SimilarityMeasure.valueOf(similarityStr);
+                similarity = SimilarityMeasure.fromString(similarityStr);
             }
 
             return new TestServiceSettings(model, dimensions, similarity);

@@ -1,0 +1,5 @@
+pr: 106767
+summary: Handle pass-through subfields with deep nesting
+area: Mapping
+type: bug
+issues: []

@@ -11,6 +11,7 @@ import org.apache.http.client.protocol.HttpClientContext;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Strings;
@@ -257,20 +258,32 @@ class RequestExecutorService implements RequestExecutor {
      * Execute the request at some point in the future.
      *
      * @param requestCreator the http request to send
-     * @param input the text to perform inference on
+     * @param inferenceInputs the inputs to send in the request
      * @param timeout the maximum time to wait for this request to complete (failing or succeeding). Once the time elapses, the
      *                listener::onFailure is called with a {@link org.elasticsearch.ElasticsearchTimeoutException}.
      *                If null, then the request will wait forever
      * @param listener an {@link ActionListener<InferenceServiceResults>} for the response or failure
      */
     public void execute(
-        ExecutableRequestCreator requestCreator,
-        List<String> input,
+        RequestManager requestCreator,
+        InferenceInputs inferenceInputs,
         @Nullable TimeValue timeout,
         ActionListener<InferenceServiceResults> listener
     ) {
-        var task = new RequestTask(requestCreator, input, timeout, threadPool, listener);
+        var task = new RequestTask(
+            requestCreator,
+            inferenceInputs,
+            timeout,
+            threadPool,
+            // TODO when multi-tenancy (as well as batching) is implemented we need to be very careful that we preserve
+            // the thread contexts correctly to avoid accidentally retrieving the credentials for the wrong user
+            ContextPreservingActionListener.wrapPreservingContext(listener, threadPool.getThreadContext())
+        );
 
+        completeExecution(task);
+    }
+
+    private void completeExecution(RequestTask task) {
         if (isShutdown()) {
             EsRejectedExecutionException rejected = new EsRejectedExecutionException(
                 format("Failed to enqueue task because the http executor service [%s] has already shutdown", serviceName),

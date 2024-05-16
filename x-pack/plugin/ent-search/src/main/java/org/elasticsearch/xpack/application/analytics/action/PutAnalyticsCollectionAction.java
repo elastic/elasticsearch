@@ -43,6 +43,7 @@ public class PutAnalyticsCollectionAction {
         }
 
         public Request(String name) {
+            super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT);
             this.name = name;
         }
 
@@ -144,21 +145,6 @@ public class PutAnalyticsCollectionAction {
         @Override
         protected void addCustomFields(XContentBuilder builder, Params params) throws IOException {
             builder.field(COLLECTION_NAME_FIELD.getPreferredName(), name);
-        }
-
-        private static final ConstructingObjectParser<Response, String> PARSER = new ConstructingObjectParser<>(
-            "put_analytics_collection_response",
-            false,
-            (p) -> {
-                return new Response((boolean) p[0], (String) p[1]);
-            }
-        );
-        static {
-            PARSER.declareString(constructorArg(), COLLECTION_NAME_FIELD);
-        }
-
-        public static Response fromXContent(String resourceName, XContentParser parser) throws IOException {
-            return new Response(AcknowledgedResponse.fromXContent(parser).isAcknowledged(), resourceName);
         }
 
     }

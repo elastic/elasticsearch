@@ -19,7 +19,7 @@ data* on the *Sample web logs* card.
 
 // tag::esql-mode[]
 To get started with {esql} in Discover, open the main menu and select
-*Discover*. Next, from the Data views menu, select *Try ES|QL*.
+*Discover*. Next, from the Data views menu, select *Language: ES|QL*.
 
 image::images/esql/esql-data-view-menu.png[align="center",width=33%]
 // end::esql-mode[]
@@ -47,7 +47,7 @@ A source command can be followed by one or more <<esql-commands,processing
 commands>>. In this query, the processing command is <<esql-limit>>. `LIMIT`
 limits the number of rows that are retrieved.
 
-TIP: Click the help icon (image:images/esql/esql-icon-help.svg[]) to open the
+TIP: Click the help icon (image:images/esql/esql-icon-help.svg[Static,20]) to open the
 in-product reference documentation for all commands and functions.
 
 // tag::autocomplete[]
@@ -189,24 +189,20 @@ The resulting visualization is a bar chart showing the top 3 countries:
 
 image::images/esql/esql-kibana-bar-chart.png[align="center"]
 
-To change the visualization into another type, click the visualization type
-dropdown:
-
-image::images/esql/esql-kibana-visualization-type.png[align="center",width=33%]
-
-To make other changes to the visualization, like the axes and colors, click the
+To make changes to the visualization, like changing the visualization type, axes and colors, click the
 pencil button (image:images/esql/esql-icon-edit-visualization.svg[]). This opens
 an in-line editor:
 
-image::images/esql/esql-kibana-in-line-editor.png[align="center"]
+image::images/esql/esql-kibana-in-line-editor.png[align="center",width=66%]
 
 You can save the visualization to a new or existing dashboard by clicking the
 save button (image:images/esql/esql-icon-save-visualization.svg[]). Once saved
-to a dashboard, you can continue to make changes to visualization. Click the
+to a dashboard, you'll be taken to the Dashboards page. You can continue to 
+make changes to the visualization. Click the
 options button in the top-right (image:images/esql/esql-icon-options.svg[]) and
 select *Edit ESQL visualization* to open the in-line editor:
 
-image::images/esql/esql-kibana-edit-on-dashboard.png[align="center"]
+image::images/esql/esql-kibana-edit-on-dashboard.png[align="center",width=66%]
 
 [discrete]
 [[esql-kibana-enrich]]
@@ -233,7 +229,14 @@ Finally, click *Create and execute*.
 
 Now, you can use the enrich policy in an {esql} query:
 
-image::images/esql/esql-kibana-enriched-data.png[align="center"]
+[source,esql]
+----
+FROM kibana_sample_data_logs
+| STATS total_bytes = SUM(bytes) BY geo.dest
+| SORT total_bytes DESC
+| LIMIT 3
+| ENRICH countries
+----
 
 [discrete]
 [[esql-kibana-alerting-rule]]

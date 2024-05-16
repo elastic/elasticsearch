@@ -17,7 +17,10 @@
 
 package co.elastic.elasticsearch.stateless;
 
+import co.elastic.elasticsearch.stateless.action.NewCommitNotificationRequest;
+import co.elastic.elasticsearch.stateless.action.TransportNewCommitNotificationAction;
 import co.elastic.elasticsearch.stateless.commits.BatchedCompoundCommit;
+import co.elastic.elasticsearch.stateless.commits.StatelessCommitService;
 import co.elastic.elasticsearch.stateless.commits.StatelessCompoundCommit;
 import co.elastic.elasticsearch.stateless.engine.IndexEngine;
 import co.elastic.elasticsearch.stateless.engine.translog.TranslogReplicator;
@@ -26,10 +29,13 @@ import co.elastic.elasticsearch.stateless.lucene.SearchDirectory;
 import co.elastic.elasticsearch.stateless.objectstore.ObjectStoreService;
 import co.elastic.elasticsearch.stateless.objectstore.ObjectStoreTestUtils;
 
+import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.action.ActionFuture;
+import org.elasticsearch.action.UnavailableShardsException;
 import org.elasticsearch.action.admin.indices.close.CloseIndexRequest;
+import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeRequest;
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsRequest;
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsResponse;
 import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequest;
@@ -44,6 +50,7 @@ import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.cluster.routing.allocation.command.MoveAllocationCommand;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.lucene.Lucene;
@@ -53,6 +60,7 @@ import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.UncategorizedExecutionException;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.health.HealthIndicatorResult;
 import org.elasticsearch.health.HealthService;
@@ -70,6 +78,7 @@ import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.snapshots.mockstore.MockRepository;
+import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -91,15 +100,20 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.locks.LockSupport;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
 
+import static co.elastic.elasticsearch.stateless.recovery.TransportStatelessPrimaryRelocationAction.PRIMARY_CONTEXT_HANDOFF_ACTION_NAME;
 import static org.elasticsearch.index.IndexSettings.STATELESS_DEFAULT_REFRESH_INTERVAL;
+import static org.elasticsearch.indices.IndexingMemoryController.SHARD_INACTIVE_TIME_SETTING;
+import static org.elasticsearch.indices.IndexingMemoryController.SHARD_MEMORY_INTERVAL_TIME_SETTING;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.hamcrest.Matchers.empty;
@@ -784,6 +798,104 @@ public class StatelessIT extends AbstractStatelessIntegTestCase {
         );
         ensureGreen(indexName);
         assertEquals(clusterService().state().routingTable().index(indexName).shard(0).replicaShards().size(), 1);
+    }
+
+    public void testBackgroundMergeCommitAfterRelocationHasStartedDoesNotSendANewCommitNotification() throws Exception {
+        var nodeSettings = Settings.builder()
+            .put(StatelessCommitService.STATELESS_UPLOAD_DELAYED.getKey(), true)
+            .put(StatelessCommitService.STATELESS_UPLOAD_MAX_AMOUNT_COMMITS.getKey(), 12)
+            // Ensure that merges are flushed immediately
+            .put(SHARD_INACTIVE_TIME_SETTING.getKey(), TimeValue.ZERO)
+            // Disable background flushes
+            .put(SHARD_MEMORY_INTERVAL_TIME_SETTING.getKey(), TimeValue.timeValueHours(2))
+            .build();
+        var indexNode1 = startMasterAndIndexNode(nodeSettings);
+        var searchNode = startSearchNode(nodeSettings);
+        ensureStableCluster(2);
+        var indexNode1EphemeralId = client().admin()
+            .cluster()
+            .prepareState()
+            .get()
+            .getState()
+            .getNodes()
+            .resolveNode(indexNode1)
+            .getEphemeralId();
+
+        var indexName = randomIdentifier();
+        createIndex(indexName, 1, 1);
+        ensureGreen(indexName);
+        var indexNode2 = startMasterAndIndexNode(nodeSettings);
+
+        for (int i = 0; i < 5; i++) {
+            indexDocs(indexName, 300);
+            refresh(indexName);
+        }
+
+        var indexShard = findIndexShard(indexName);
+        var indexEngine = (IndexEngine) indexShard.getEngineOrNull();
+        var statelessCommitService = indexEngine.getStatelessCommitService();
+        var latestGenerationBeforeRelocation = indexEngine.getLastCommittedSegmentInfos().getGeneration();
+        var mergeCommitGeneration = latestGenerationBeforeRelocation + 1;
+
+        MockTransportService.getInstance(searchNode)
+            .addRequestHandlingBehavior(TransportNewCommitNotificationAction.NAME + "[u]", (handler, request, channel, task) -> {
+                NewCommitNotificationRequest newCommitNotificationRequest = (NewCommitNotificationRequest) request;
+                if (newCommitNotificationRequest.getCompoundCommit().nodeEphemeralId().equals(indexNode1EphemeralId)
+                    && newCommitNotificationRequest.getGeneration() > latestGenerationBeforeRelocation) {
+                    fail("Unexpected new commit notification for merge commit " + newCommitNotificationRequest);
+                }
+                handler.messageReceived(request, channel, task);
+            });
+
+        var primaryContextHandoffSent = new CountDownLatch(1);
+        AtomicReference<CheckedRunnable<Exception>> runPrimaryContextHandOff = new AtomicReference<>();
+        MockTransportService.getInstance(indexNode2)
+            .addRequestHandlingBehavior(PRIMARY_CONTEXT_HANDOFF_ACTION_NAME, (handler, request, channel, task) -> {
+                runPrimaryContextHandOff.set(() -> handler.messageReceived(request, channel, task));
+                primaryContextHandoffSent.countDown();
+            });
+
+        logger.info("--> relocating shard 0 from {} to {}", indexNode1, indexNode2);
+        var relocationFuture = clusterAdmin().prepareReroute()
+            .add(new MoveAllocationCommand(indexName, 0, indexNode1, indexNode2))
+            .execute();
+
+        safeAwait(primaryContextHandoffSent);
+
+        var mergeCommitBCCUploadListener = new PlainActionFuture<Void>();
+        statelessCommitService.addListenerForUploadedGeneration(
+            indexEngine.config().getShardId(),
+            mergeCommitGeneration,
+            mergeCommitBCCUploadListener
+        );
+
+        var forceMergeThread = new Thread(() -> {
+            try {
+                indexShard.forceMerge(new ForceMergeRequest().maxNumSegments(1));
+            } catch (UnavailableShardsException | AlreadyClosedException e) {
+                // Force merge checks if the engine is still open at the end, and sometimes it might
+                // throw an AlreadyClosedException even after the commit is already processed by ShardCommitState
+            } catch (IOException e) {
+                fail(e);
+            }
+        }, "force-merge-thread");
+        forceMergeThread.start();
+
+        runPrimaryContextHandOff.get().run();
+        forceMergeThread.join();
+        relocationFuture.get();
+        ensureGreen(indexName);
+
+        // TODO run a concurrent search to exercise more code paths that could lead to transient corruption issues
+
+        indexDocs(indexName, 200);
+        refresh(indexName);
+
+        // The upload task for the merge commit retries a few times, and it holds a reference to the merge commit, if we don't wait
+        // until that task finishes the test might fail since that task holds a Lucene commit reference after the test has finished
+        var exception = expectThrows(ExecutionException.class, mergeCommitBCCUploadListener::get);
+        assertThat(exception.getCause(), is(notNullValue()));
+        assertThat(exception.getCause(), instanceOf(UnavailableShardsException.class));
     }
 
     protected static TimeValue getRefreshIntervalSetting(String index, boolean includeDefaults) throws Exception {

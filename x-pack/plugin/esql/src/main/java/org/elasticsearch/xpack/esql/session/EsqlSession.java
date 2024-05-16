@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.esql.session;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.fieldcaps.FieldCapabilities;
-import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.core.Assertions;
@@ -208,13 +207,11 @@ public class EsqlSession {
             TableInfo tableInfo = preAnalysis.indices.get(0);
             TableIdentifier table = tableInfo.id();
             var fieldNames = fieldNames(parsed, enrichPolicyMatchFields);
-            assert preAnalysis.esSourceOptions.size() == 1 : "Unexpected source options count: " + preAnalysis.esSourceOptions.size();
-            var indicesOptions = preAnalysis.esSourceOptions.get(0).indicesOptions(IndexResolver.FIELD_CAPS_INDICES_OPTIONS);
 
             if (Assertions.ENABLED) {
-                resolveMergedMappingAgainstBothResolvers(table.index(), fieldNames, indicesOptions, listener);
+                resolveMergedMappingAgainstBothResolvers(table.index(), fieldNames, listener);
             } else {
-                esqlIndexResolver.resolveAsMergedMapping(table.index(), fieldNames, indicesOptions, listener);
+                esqlIndexResolver.resolveAsMergedMapping(table.index(), fieldNames, listener);
             }
         } else {
             try {
@@ -234,13 +231,12 @@ public class EsqlSession {
     private void resolveMergedMappingAgainstBothResolvers(
         String indexWildcard,
         Set<String> fieldNames,
-        IndicesOptions indicesOptions,
         ActionListener<IndexResolution> listener
     ) {
         indexResolver.resolveAsMergedMapping(indexWildcard, fieldNames, false, Map.of(), new ActionListener<>() {
             @Override
             public void onResponse(IndexResolution fromQl) {
-                esqlIndexResolver.resolveAsMergedMapping(indexWildcard, fieldNames, indicesOptions, new ActionListener<>() {
+                esqlIndexResolver.resolveAsMergedMapping(indexWildcard, fieldNames, new ActionListener<>() {
                     @Override
                     public void onResponse(IndexResolution fromEsql) {
                         if (fromQl.isValid() == false) {

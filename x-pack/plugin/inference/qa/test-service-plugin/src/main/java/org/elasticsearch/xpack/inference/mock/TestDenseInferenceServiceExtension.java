@@ -22,6 +22,7 @@ import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.ModelConfigurations;
+import org.elasticsearch.inference.ModelSecrets;
 import org.elasticsearch.inference.ServiceSettings;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
@@ -43,8 +44,22 @@ public class TestDenseInferenceServiceExtension implements InferenceServiceExten
         return List.of(TestInferenceService::new);
     }
 
+    public static class TestDenseModel extends Model {
+        public TestDenseModel(String inferenceEntityId, TestDenseInferenceServiceExtension.TestServiceSettings serviceSettings) {
+            super(
+                new ModelConfigurations(
+                    inferenceEntityId,
+                    TaskType.TEXT_EMBEDDING,
+                    TestDenseInferenceServiceExtension.TestInferenceService.NAME,
+                    serviceSettings
+                ),
+                new ModelSecrets(new AbstractTestInferenceService.TestSecretSettings("api_key"))
+            );
+        }
+    }
+
     public static class TestInferenceService extends AbstractTestInferenceService {
-        private static final String NAME = "text_embedding_test_service";
+        public static final String NAME = "text_embedding_test_service";
 
         public TestInferenceService(InferenceServiceFactoryContext context) {}
 
@@ -83,9 +98,10 @@ public class TestDenseInferenceServiceExtension implements InferenceServiceExten
             ActionListener<InferenceServiceResults> listener
         ) {
             switch (model.getConfigurations().getTaskType()) {
-                case ANY, TEXT_EMBEDDING -> listener.onResponse(
-                    makeResults(input, ((TestServiceModel) model).getServiceSettings().dimensions())
-                );
+                case ANY, TEXT_EMBEDDING -> {
+                    ServiceSettings modelServiceSettings = model.getServiceSettings();
+                    listener.onResponse(makeResults(input, modelServiceSettings.dimensions()));
+                }
                 default -> listener.onFailure(
                     new ElasticsearchStatusException(
                         TaskType.unsupportedTaskTypeErrorMsg(model.getConfigurations().getTaskType(), name()),
@@ -107,9 +123,10 @@ public class TestDenseInferenceServiceExtension implements InferenceServiceExten
             ActionListener<List<ChunkedInferenceServiceResults>> listener
         ) {
             switch (model.getConfigurations().getTaskType()) {
-                case ANY, TEXT_EMBEDDING -> listener.onResponse(
-                    makeChunkedResults(input, ((TestServiceModel) model).getServiceSettings().dimensions())
-                );
+                case ANY, TEXT_EMBEDDING -> {
+                    ServiceSettings modelServiceSettings = model.getServiceSettings();
+                    listener.onResponse(makeChunkedResults(input, modelServiceSettings.dimensions()));
+                }
                 default -> listener.onFailure(
                     new ElasticsearchStatusException(
                         TaskType.unsupportedTaskTypeErrorMsg(model.getConfigurations().getTaskType(), name()),
@@ -122,11 +139,12 @@ public class TestDenseInferenceServiceExtension implements InferenceServiceExten
         private TextEmbeddingResults makeResults(List<String> input, int dimensions) {
             List<TextEmbeddingResults.Embedding> embeddings = new ArrayList<>();
             for (int i = 0; i < input.size(); i++) {
-                List<Float> values = new ArrayList<>();
+                double[] doubleEmbeddings = generateEmbedding(input.get(i), dimensions);
+                List<Float> floatEmbeddings = new ArrayList<>(dimensions);
                 for (int j = 0; j < dimensions; j++) {
-                    values.add((float) stringWeight(input.get(i), j));
+                    floatEmbeddings.add((float) doubleEmbeddings[j]);
                 }
-                embeddings.add(new TextEmbeddingResults.Embedding(values));
+                embeddings.add(new TextEmbeddingResults.Embedding(floatEmbeddings));
             }
             return new TextEmbeddingResults(embeddings);
         }
@@ -134,13 +152,10 @@ public class TestDenseInferenceServiceExtension implements InferenceServiceExten
         private List<ChunkedInferenceServiceResults> makeChunkedResults(List<String> input, int dimensions) {
             var results = new ArrayList<ChunkedInferenceServiceResults>();
             for (int i = 0; i < input.size(); i++) {
-                double[] values = new double[dimensions];
-                for (int j = 0; j < dimensions; j++) {
-                    values[j] = stringWeight(input.get(i), j);
-                }
+                double[] embeddings = generateEmbedding(input.get(i), dimensions);
                 results.add(
                     new org.elasticsearch.xpack.core.inference.results.ChunkedTextEmbeddingResults(
-                        List.of(new ChunkedTextEmbeddingResults.EmbeddingChunk(input.get(i), values))
+                        List.of(new ChunkedTextEmbeddingResults.EmbeddingChunk(input.get(i), embeddings))
                     )
                 );
             }
@@ -149,6 +164,15 @@ public class TestDenseInferenceServiceExtension implements InferenceServiceExten
 
         protected ServiceSettings getServiceSettingsFromMap(Map<String, Object> serviceSettingsMap) {
             return TestServiceSettings.fromMap(serviceSettingsMap);
+        }
+
+        private static double[] generateEmbedding(String input, int dimensions) {
+            double[] embedding = new double[dimensions];
+            for (int j = 0; j < dimensions; j++) {
+                embedding[j] = input.hashCode() + 1 + j;
+            }
+
+            return embedding;
         }
     }
 

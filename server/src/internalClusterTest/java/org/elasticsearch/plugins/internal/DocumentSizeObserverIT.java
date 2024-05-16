@@ -9,6 +9,11 @@
 package org.elasticsearch.plugins.internal;
 
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.engine.EngineFactory;
+import org.elasticsearch.index.engine.InternalEngine;
+import org.elasticsearch.index.mapper.ParsedDocument;
+import org.elasticsearch.plugins.EnginePlugin;
 import org.elasticsearch.plugins.IngestPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -19,6 +24,8 @@ import org.elasticsearch.xcontent.XContentType;
 import java.io.IOException;
 import java.util.Collection;
 import java.util.List;
+import java.util.Optional;
+import java.util.concurrent.atomic.AtomicLong;
 
 import static org.elasticsearch.xcontent.XContentFactory.cborBuilder;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
@@ -29,17 +36,28 @@ public class DocumentSizeObserverIT extends ESIntegTestCase {
 
     private static String TEST_INDEX_NAME = "test-index-name";
 
+    @Override
+    protected boolean addMockInternalEngine() {
+        return false;
+    }
+
+    @Override
+    protected Collection<Class<? extends Plugin>> nodePlugins() {
+        return List.of(TestDocumentParsingProviderPlugin.class, TestEnginePlugin.class);
+    }
+
     // the assertions are done in plugin which is static and will be created by ES server.
     // hence a static flag to make sure it is indeed used
     public static boolean hasWrappedParser;
+    public static AtomicLong COUNTER = new AtomicLong();
 
-    public void testDocumentIsReportedUponBulk() throws IOException {
+    public void testDocumentIsReportedUponBulk() throws Exception {
         hasWrappedParser = false;
         client().index(
             new IndexRequest(TEST_INDEX_NAME).id("1").source(jsonBuilder().startObject().field("test", "I am sam i am").endObject())
         ).actionGet();
         assertTrue(hasWrappedParser);
-        // there are more assertions in a TestDocumentParsingProviderPlugin
+        assertDocumentReported();
 
         hasWrappedParser = false;
         // the format of the request does not matter
@@ -47,7 +65,7 @@ public class DocumentSizeObserverIT extends ESIntegTestCase {
             new IndexRequest(TEST_INDEX_NAME).id("2").source(cborBuilder().startObject().field("test", "I am sam i am").endObject())
         ).actionGet();
         assertTrue(hasWrappedParser);
-        // there are more assertions in a TestDocumentParsingProviderPlugin
+        assertDocumentReported();
 
         hasWrappedParser = false;
         // white spaces does not matter
@@ -59,12 +77,37 @@ public class DocumentSizeObserverIT extends ESIntegTestCase {
             }
             """, XContentType.JSON)).actionGet();
         assertTrue(hasWrappedParser);
-        // there are more assertions in a TestDocumentParsingProviderPlugin
+        assertDocumentReported();
     }
 
-    @Override
-    protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return List.of(TestDocumentParsingProviderPlugin.class);
+    private void assertDocumentReported() throws Exception {
+        assertBusy(() -> assertThat(COUNTER.get(), equalTo(5L)));
+        COUNTER.set(0);
+    }
+
+    public static class TestEnginePlugin extends Plugin implements EnginePlugin {
+        DocumentParsingProvider documentParsingProvider;
+
+        @Override
+        public Collection<?> createComponents(PluginServices services) {
+            documentParsingProvider = services.documentParsingProvider();
+            return super.createComponents(services);
+        }
+
+        @Override
+        public Optional<EngineFactory> getEngineFactory(IndexSettings indexSettings) {
+            return Optional.of(config -> new InternalEngine(config) {
+                @Override
+                public IndexResult index(Index index) throws IOException {
+                    IndexResult result = super.index(index);
+
+                    DocumentSizeReporter documentParsingReporter = documentParsingProvider.newDocumentSizeReporter(shardId.getIndexName());
+                    documentParsingReporter.onIndexingCompleted(index.parsedDoc());
+
+                    return result;
+                }
+            });
+        }
     }
 
     public static class TestDocumentParsingProviderPlugin extends Plugin implements DocumentParsingProviderPlugin, IngestPlugin {
@@ -86,8 +129,8 @@ public class DocumentSizeObserverIT extends ESIntegTestCase {
                 }
 
                 @Override
-                public DocumentSizeReporter getDocumentParsingReporter(String indexName) {
-                    return new TestDocumentSizeReporter();
+                public DocumentSizeReporter newDocumentSizeReporter(String indexName) {
+                    return new TestDocumentSizeReporter(indexName);
                 }
             };
         }
@@ -95,10 +138,17 @@ public class DocumentSizeObserverIT extends ESIntegTestCase {
 
     public static class TestDocumentSizeReporter implements DocumentSizeReporter {
 
+        private final String indexName;
+
+        public TestDocumentSizeReporter(String indexName) {
+            this.indexName = indexName;
+        }
+
         @Override
-        public void onCompleted(String indexName, long normalizedBytesParsed) {
+        public void onIndexingCompleted(ParsedDocument parsedDocument) {
+            DocumentSizeObserver documentSizeObserver = parsedDocument.getDocumentSizeObserver();
+            COUNTER.addAndGet(documentSizeObserver.normalisedBytesParsed());
             assertThat(indexName, equalTo(TEST_INDEX_NAME));
-            assertThat(normalizedBytesParsed, equalTo(5L));
         }
     }
 

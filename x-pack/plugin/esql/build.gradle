@@ -65,6 +65,7 @@ tasks.named("test").configure {
           String tag = it[2]
           boolean isJson = it[3]
           String allExamples = new File("${projectDir}/qa/testFixtures/src/main/resources/${file}").text
+            .replaceAll(System.lineSeparator(), "\n")
           int start = allExamples.indexOf("tag::${tag}[]")
           int end = allExamples.indexOf("end::${tag}[]", start)
           if (start < 0 || end < 0) {

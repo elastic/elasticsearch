@@ -22,6 +22,7 @@ import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.ModelConfigurations;
+import org.elasticsearch.inference.ModelSecrets;
 import org.elasticsearch.inference.ServiceSettings;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.rest.RestStatus;
@@ -44,8 +45,17 @@ public class TestSparseInferenceServiceExtension implements InferenceServiceExte
         return List.of(TestInferenceService::new);
     }
 
+    public static class TestSparseModel extends Model {
+        public TestSparseModel(String inferenceEntityId, TestServiceSettings serviceSettings) {
+            super(
+                new ModelConfigurations(inferenceEntityId, TaskType.SPARSE_EMBEDDING, TestInferenceService.NAME, serviceSettings),
+                new ModelSecrets(new AbstractTestInferenceService.TestSecretSettings("api_key"))
+            );
+        }
+    }
+
     public static class TestInferenceService extends AbstractTestInferenceService {
-        private static final String NAME = "test_service";
+        public static final String NAME = "test_service";
 
         public TestInferenceService(InferenceServiceExtension.InferenceServiceFactoryContext context) {}
 
@@ -121,7 +131,7 @@ public class TestSparseInferenceServiceExtension implements InferenceServiceExte
             for (int i = 0; i < input.size(); i++) {
                 var tokens = new ArrayList<SparseEmbeddingResults.WeightedToken>();
                 for (int j = 0; j < 5; j++) {
-                    tokens.add(new SparseEmbeddingResults.WeightedToken("feature_" + j, stringWeight(input.get(i), j)));
+                    tokens.add(new SparseEmbeddingResults.WeightedToken("feature_" + j, generateEmbedding(input.get(i), j)));
                 }
                 embeddings.add(new SparseEmbeddingResults.Embedding(tokens, false));
             }
@@ -133,7 +143,7 @@ public class TestSparseInferenceServiceExtension implements InferenceServiceExte
             for (int i = 0; i < input.size(); i++) {
                 var tokens = new ArrayList<TextExpansionResults.WeightedToken>();
                 for (int j = 0; j < 5; j++) {
-                    tokens.add(new TextExpansionResults.WeightedToken("feature_" + j, stringWeight(input.get(i), j)));
+                    tokens.add(new TextExpansionResults.WeightedToken("feature_" + j, generateEmbedding(input.get(i), j)));
                 }
                 results.add(
                     new ChunkedSparseEmbeddingResults(List.of(new ChunkedTextExpansionResults.ChunkedResult(input.get(i), tokens)))
@@ -144,6 +154,11 @@ public class TestSparseInferenceServiceExtension implements InferenceServiceExte
 
         protected ServiceSettings getServiceSettingsFromMap(Map<String, Object> serviceSettingsMap) {
             return TestServiceSettings.fromMap(serviceSettingsMap);
+        }
+
+        private static float generateEmbedding(String input, int position) {
+            // Ensure non-negative and non-zero values for features
+            return Math.abs(input.hashCode()) + 1 + position;
         }
     }
 

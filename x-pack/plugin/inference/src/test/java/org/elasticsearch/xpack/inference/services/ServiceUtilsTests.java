@@ -577,6 +577,127 @@ public class ServiceUtilsTests extends ESTestCase {
         );
     }
 
+    public void testExtractOptionalDouble_ExtractsAsDoubleInRange() {
+        var validationException = new ValidationException();
+        Map<String, Object> map = modifiableMap(Map.of("key", 1.01));
+        var result = ServiceUtils.extractOptionalDoubleInRange(map, "key", 0.0, 2.0, "test_scope", validationException);
+        assertEquals(Double.valueOf(1.01), result);
+        assertTrue(map.isEmpty());
+        assertThat(validationException.validationErrors().size(), is(0));
+    }
+
+    public void testExtractOptionalDouble_InRange_ReturnsNullWhenKeyNotPresent() {
+        var validationException = new ValidationException();
+        Map<String, Object> map = modifiableMap(Map.of("key", 1.01));
+        var result = ServiceUtils.extractOptionalDoubleInRange(map, "other_key", 0.0, 2.0, "test_scope", validationException);
+        assertNull(result);
+        assertThat(map.size(), is(1));
+        assertThat(map.get("key"), is(1.01));
+    }
+
+    public void testExtractOptionalDouble_InRange_HasErrorWhenBelowMinValue() {
+        var validationException = new ValidationException();
+        Map<String, Object> map = modifiableMap(Map.of("key", -2.0));
+        var result = ServiceUtils.extractOptionalDoubleInRange(map, "key", 0.0, 2.0, "test_scope", validationException);
+        assertNull(result);
+        assertThat(validationException.validationErrors().size(), is(1));
+        assertThat(
+            validationException.validationErrors().get(0),
+            is("[test_scope] Invalid value [-2.0]. [key] must be a greater than or equal to [0.0]")
+        );
+    }
+
+    public void testExtractOptionalDouble_InRange_HasErrorWhenAboveMaxValue() {
+        var validationException = new ValidationException();
+        Map<String, Object> map = modifiableMap(Map.of("key", 12.0));
+        var result = ServiceUtils.extractOptionalDoubleInRange(map, "key", 0.0, 2.0, "test_scope", validationException);
+        assertNull(result);
+        assertThat(validationException.validationErrors().size(), is(1));
+        assertThat(
+            validationException.validationErrors().get(0),
+            is("[test_scope] Invalid value [12.0]. [key] must be a less than or equal to [2.0]")
+        );
+    }
+
+    public void testExtractOptionalDouble_InRange_DoesNotCheckMinWhenNull() {
+        var validationException = new ValidationException();
+        Map<String, Object> map = modifiableMap(Map.of("key", -2.0));
+        var result = ServiceUtils.extractOptionalDoubleInRange(map, "key", null, 2.0, "test_scope", validationException);
+        assertEquals(Double.valueOf(-2.0), result);
+        assertTrue(map.isEmpty());
+        assertThat(validationException.validationErrors().size(), is(0));
+    }
+
+    public void testExtractOptionalDouble_InRange_DoesNotCheckMaxWhenNull() {
+        var validationException = new ValidationException();
+        Map<String, Object> map = modifiableMap(Map.of("key", 12.0));
+        var result = ServiceUtils.extractOptionalDoubleInRange(map, "key", 0.0, null, "test_scope", validationException);
+        assertEquals(Double.valueOf(12.0), result);
+        assertTrue(map.isEmpty());
+        assertThat(validationException.validationErrors().size(), is(0));
+    }
+
+    public void testExtractOptionalFloat_ExtractsAFloat() {
+        Map<String, Object> map = modifiableMap(Map.of("key", 1.0f));
+        var result = ServiceUtils.extractOptionalFloat(map, "key");
+        assertThat(result, is(1.0f));
+        assertTrue(map.isEmpty());
+    }
+
+    public void testExtractOptionalFloat_ReturnsNullWhenKeyNotPresent() {
+        Map<String, Object> map = modifiableMap(Map.of("key", 1.0f));
+        var result = ServiceUtils.extractOptionalFloat(map, "other_key");
+        assertNull(result);
+        assertThat(map.size(), is(1));
+        assertThat(map.get("key"), is(1.0f));
+    }
+
+    public void testExtractRequiredEnum_ExtractsAEnum() {
+        ValidationException validationException = new ValidationException();
+        Map<String, Object> map = modifiableMap(Map.of("key", "ingest"));
+        var result = ServiceUtils.extractRequiredEnum(
+            map,
+            "key",
+            "testscope",
+            InputType::fromString,
+            EnumSet.allOf(InputType.class),
+            validationException
+        );
+        assertThat(result, is(InputType.INGEST));
+    }
+
+    public void testExtractRequiredEnum_ReturnsNullWhenEnumValueIsNotPresent() {
+        ValidationException validationException = new ValidationException();
+        Map<String, Object> map = modifiableMap(Map.of("key", "invalid"));
+        var result = ServiceUtils.extractRequiredEnum(
+            map,
+            "key",
+            "testscope",
+            InputType::fromString,
+            EnumSet.allOf(InputType.class),
+            validationException
+        );
+        assertNull(result);
+        assertThat(validationException.validationErrors().size(), is(1));
+        assertThat(validationException.validationErrors().get(0), containsString("Invalid value [invalid] received. [key] must be one of"));
+    }
+
+    public void testExtractRequiredEnum_HasValidationErrorOnMissingSetting() {
+        ValidationException validationException = new ValidationException();
+        Map<String, Object> map = modifiableMap(Map.of("key", "ingest"));
+        var result = ServiceUtils.extractRequiredEnum(
+            map,
+            "missing_key",
+            "testscope",
+            InputType::fromString,
+            EnumSet.allOf(InputType.class),
+            validationException
+        );
+        assertNull(result);
+        assertThat(validationException.validationErrors().size(), is(1));
+        assertThat(validationException.validationErrors().get(0), is("[testscope] does not contain the required setting [missing_key]"));
+    }
+
     public void testGetEmbeddingSize_ReturnsError_WhenTextEmbeddingResults_IsEmpty() {
         var service = mock(InferenceService.class);
 

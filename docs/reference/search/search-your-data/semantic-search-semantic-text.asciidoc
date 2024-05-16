@@ -23,6 +23,14 @@ service and their supported models offered by the {infer-cap} API.
 
 
 [discrete]
+[[semantic-text-requirements]]
+==== Requirements
+
+To use `semantic_text` field type, you must have an {infer} endpoint deployed in
+your cluster using the <<put-inference-api>>.
+
+
+[discrete]
 [[semantic-text-infer-endpoint]]
 ==== Create the {infer} endpoint
 

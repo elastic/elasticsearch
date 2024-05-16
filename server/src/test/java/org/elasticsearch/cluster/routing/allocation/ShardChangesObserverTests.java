@@ -24,12 +24,14 @@ import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.MockLogAppender;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 
 import java.util.Set;
 
 import static org.elasticsearch.cluster.routing.TestShardRouting.shardRoutingBuilder;
 import static org.elasticsearch.test.MockLogAppender.assertThatLogger;
 
+@TestLogging(value = "org.elasticsearch.cluster.routing.allocation.ShardChangesObserver:DEBUG", reason = "verifies debug level logging")
 public class ShardChangesObserverTests extends ESAllocationTestCase {
 
     public void testLogShardStarting() {
@@ -49,7 +51,7 @@ public class ShardChangesObserverTests extends ESAllocationTestCase {
             new MockLogAppender.SeenEventExpectation(
                 "Should log shard starting",
                 ShardChangesObserver.class.getCanonicalName(),
-                Level.INFO,
+                Level.DEBUG,
                 "[" + indexName + "][0][P] started on node [node-1]"
             )
         );
@@ -80,13 +82,13 @@ public class ShardChangesObserverTests extends ESAllocationTestCase {
             new MockLogAppender.SeenEventExpectation(
                 "Should log shard moving",
                 ShardChangesObserver.class.getCanonicalName(),
-                Level.INFO,
+                Level.DEBUG,
                 "[" + indexName + "][0][P] is relocating (move) from [node-1] to [node-2]"
             ),
             new MockLogAppender.SeenEventExpectation(
                 "Should log shard starting",
                 ShardChangesObserver.class.getCanonicalName(),
-                Level.INFO,
+                Level.DEBUG,
                 "[" + indexName + "][0][P] started on node [node-2]"
             )
         );
@@ -122,13 +124,13 @@ public class ShardChangesObserverTests extends ESAllocationTestCase {
             new MockLogAppender.SeenEventExpectation(
                 "Should log shard moving",
                 ShardChangesObserver.class.getCanonicalName(),
-                Level.INFO,
+                Level.DEBUG,
                 "[" + indexName + "][0][R] is promoted to primary on [node-2]"
             ),
             new MockLogAppender.SeenEventExpectation(
                 "Should log shard starting",
                 ShardChangesObserver.class.getCanonicalName(),
-                Level.INFO,
+                Level.DEBUG,
                 "[" + indexName + "][0][P] has failed on [node-1]: NODE_LEFT"
             )
         );

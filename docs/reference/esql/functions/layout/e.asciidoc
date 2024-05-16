@@ -3,7 +3,6 @@
 [discrete]
 [[esql-e]]
 === `E`
-//tag::body[]
 
 *Syntax*
 
@@ -14,4 +13,3 @@ include::../parameters/e.asciidoc[]
 include::../description/e.asciidoc[]
 include::../types/e.asciidoc[]
 include::../examples/e.asciidoc[]
-//end::body[]

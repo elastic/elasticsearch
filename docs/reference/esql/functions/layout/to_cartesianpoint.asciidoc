@@ -3,7 +3,6 @@
 [discrete]
 [[esql-to_cartesianpoint]]
 === `TO_CARTESIANPOINT`
-//tag::body[]
 
 *Syntax*
 
@@ -14,4 +13,3 @@ include::../parameters/to_cartesianpoint.asciidoc[]
 include::../description/to_cartesianpoint.asciidoc[]
 include::../types/to_cartesianpoint.asciidoc[]
 include::../examples/to_cartesianpoint.asciidoc[]
-//end::body[]

@@ -3,7 +3,6 @@
 [discrete]
 [[esql-ltrim]]
 === `LTRIM`
-//tag::body[]
 
 *Syntax*
 
@@ -14,4 +13,3 @@ include::../parameters/ltrim.asciidoc[]
 include::../description/ltrim.asciidoc[]
 include::../types/ltrim.asciidoc[]
 include::../examples/ltrim.asciidoc[]
-//end::body[]

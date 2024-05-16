@@ -53,10 +53,10 @@ For a complete list of all functions, refer to <<esql-functions>>.
 
 include::../functions/predicates.asciidoc[tag=body]
 
-include::../functions/layout/like.asciidoc[tag=body]
+include::../functions/examples/like.asciidoc[tag=example]
 
-include::../functions/layout/rlike.asciidoc[tag=body]
+include::../functions/examples/rlike.asciidoc[tag=example]
 
-include::../functions/in.asciidoc[tag=body]
+include::../functions/examples/in.asciidoc[tag=example]
 
 For a complete list of all operators, refer to <<esql-operators>>.

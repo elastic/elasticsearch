@@ -3,7 +3,6 @@
 [discrete]
 [[esql-substring]]
 === `SUBSTRING`
-//tag::body[]
 
 *Syntax*
 
@@ -14,4 +13,3 @@ include::../parameters/substring.asciidoc[]
 include::../description/substring.asciidoc[]
 include::../types/substring.asciidoc[]
 include::../examples/substring.asciidoc[]
-//end::body[]

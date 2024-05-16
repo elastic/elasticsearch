@@ -121,5 +121,20 @@ public class InMapper extends ExpressionMapper<In> {
         public void close() {
             Releasables.closeExpectNoException(() -> Releasables.close(listEvaluators));
         }
+
+        @Override
+        public String toString() {
+            StringBuffer builder = new StringBuffer();
+            builder.append("InExpressionEvaluator[");
+            builder.append(listEvaluators.get(0).toString());
+            for (int i = 1; i < listEvaluators().size(); i++) {
+                builder.append(", ");
+                var evaluator = listEvaluators.get(i);
+                builder.append(evaluator.toString());
+            }
+            builder.append("]");
+            return builder.toString();
+        }
+
     }
 }

@@ -3,7 +3,6 @@
 [discrete]
 [[esql-add]]
 === `ADD`
-//tag::body[]
 
 *Syntax*
 
@@ -13,4 +12,3 @@ image::esql/functions/signature/add.svg[Embedded,opts=inline]
 include::../parameters/add.asciidoc[]
 include::../description/add.asciidoc[]
 include::../types/add.asciidoc[]
-//end::body[]

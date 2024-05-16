@@ -3,7 +3,6 @@
 [discrete]
 [[esql-coalesce]]
 === `COALESCE`
-//tag::body[]
 
 *Syntax*
 
@@ -14,4 +13,3 @@ include::../parameters/coalesce.asciidoc[]
 include::../description/coalesce.asciidoc[]
 include::../types/coalesce.asciidoc[]
 include::../examples/coalesce.asciidoc[]
-//end::body[]

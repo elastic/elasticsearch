@@ -3,7 +3,6 @@
 [discrete]
 [[esql-to_datetime]]
 === `TO_DATETIME`
-//tag::body[]
 
 *Syntax*
 
@@ -14,4 +13,3 @@ include::../parameters/to_datetime.asciidoc[]
 include::../description/to_datetime.asciidoc[]
 include::../types/to_datetime.asciidoc[]
 include::../examples/to_datetime.asciidoc[]
-//end::body[]

@@ -3,7 +3,6 @@
 [discrete]
 [[esql-ceil]]
 === `CEIL`
-//tag::body[]
 
 *Syntax*
 
@@ -14,4 +13,3 @@ include::../parameters/ceil.asciidoc[]
 include::../description/ceil.asciidoc[]
 include::../types/ceil.asciidoc[]
 include::../examples/ceil.asciidoc[]
-//end::body[]

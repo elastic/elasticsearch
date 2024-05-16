@@ -3,7 +3,6 @@
 [discrete]
 [[esql-to_integer]]
 === `TO_INTEGER`
-//tag::body[]
 
 *Syntax*
 
@@ -14,4 +13,3 @@ include::../parameters/to_integer.asciidoc[]
 include::../description/to_integer.asciidoc[]
 include::../types/to_integer.asciidoc[]
 include::../examples/to_integer.asciidoc[]
-//end::body[]

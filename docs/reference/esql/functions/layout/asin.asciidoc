@@ -3,7 +3,6 @@
 [discrete]
 [[esql-asin]]
 === `ASIN`
-//tag::body[]
 
 *Syntax*
 
@@ -14,4 +13,3 @@ include::../parameters/asin.asciidoc[]
 include::../description/asin.asciidoc[]
 include::../types/asin.asciidoc[]
 include::../examples/asin.asciidoc[]
-//end::body[]

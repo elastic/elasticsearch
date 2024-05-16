@@ -3,7 +3,6 @@
 [discrete]
 [[esql-sub]]
 === `SUB`
-//tag::body[]
 
 *Syntax*
 
@@ -13,4 +12,3 @@ image::esql/functions/signature/sub.svg[Embedded,opts=inline]
 include::../parameters/sub.asciidoc[]
 include::../description/sub.asciidoc[]
 include::../types/sub.asciidoc[]
-//end::body[]

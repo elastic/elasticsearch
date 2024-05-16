@@ -3,7 +3,6 @@
 [discrete]
 [[esql-from_base64]]
 === `FROM_BASE64`
-//tag::body[]
 
 *Syntax*
 
@@ -14,4 +13,3 @@ include::../parameters/from_base64.asciidoc[]
 include::../description/from_base64.asciidoc[]
 include::../types/from_base64.asciidoc[]
 include::../examples/from_base64.asciidoc[]
-//end::body[]

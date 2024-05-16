@@ -3,7 +3,6 @@
 [discrete]
 [[esql-tanh]]
 === `TANH`
-//tag::body[]
 
 *Syntax*
 
@@ -14,4 +13,3 @@ include::../parameters/tanh.asciidoc[]
 include::../description/tanh.asciidoc[]
 include::../types/tanh.asciidoc[]
 include::../examples/tanh.asciidoc[]
-//end::body[]

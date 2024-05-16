@@ -3,7 +3,6 @@
 [discrete]
 [[esql-date_diff]]
 === `DATE_DIFF`
-//tag::body[]
 
 *Syntax*
 
@@ -14,4 +13,3 @@ include::../parameters/date_diff.asciidoc[]
 include::../description/date_diff.asciidoc[]
 include::../types/date_diff.asciidoc[]
 include::../examples/date_diff.asciidoc[]
-//end::body[]

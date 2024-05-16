@@ -3,7 +3,6 @@
 [discrete]
 [[esql-mul]]
 === `MUL`
-//tag::body[]
 
 *Syntax*
 
@@ -13,4 +12,3 @@ image::esql/functions/signature/mul.svg[Embedded,opts=inline]
 include::../parameters/mul.asciidoc[]
 include::../description/mul.asciidoc[]
 include::../types/mul.asciidoc[]
-//end::body[]

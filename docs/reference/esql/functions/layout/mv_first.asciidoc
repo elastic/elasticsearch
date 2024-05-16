@@ -3,7 +3,6 @@
 [discrete]
 [[esql-mv_first]]
 === `MV_FIRST`
-//tag::body[]
 
 *Syntax*
 
@@ -14,4 +13,3 @@ include::../parameters/mv_first.asciidoc[]
 include::../description/mv_first.asciidoc[]
 include::../types/mv_first.asciidoc[]
 include::../examples/mv_first.asciidoc[]
-//end::body[]

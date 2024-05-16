@@ -3,7 +3,6 @@
 [discrete]
 [[esql-pi]]
 === `PI`
-//tag::body[]
 
 *Syntax*
 
@@ -14,4 +13,3 @@ include::../parameters/pi.asciidoc[]
 include::../description/pi.asciidoc[]
 include::../types/pi.asciidoc[]
 include::../examples/pi.asciidoc[]
-//end::body[]

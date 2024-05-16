@@ -3,7 +3,6 @@
 [discrete]
 [[esql-st_intersects]]
 === `ST_INTERSECTS`
-//tag::body[]
 
 *Syntax*
 
@@ -14,4 +13,3 @@ include::../parameters/st_intersects.asciidoc[]
 include::../description/st_intersects.asciidoc[]
 include::../types/st_intersects.asciidoc[]
 include::../examples/st_intersects.asciidoc[]
-//end::body[]

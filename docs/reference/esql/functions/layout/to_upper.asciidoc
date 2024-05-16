@@ -3,7 +3,6 @@
 [discrete]
 [[esql-to_upper]]
 === `TO_UPPER`
-//tag::body[]
 
 *Syntax*
 
@@ -14,4 +13,3 @@ include::../parameters/to_upper.asciidoc[]
 include::../description/to_upper.asciidoc[]
 include::../types/to_upper.asciidoc[]
 include::../examples/to_upper.asciidoc[]
-//end::body[]

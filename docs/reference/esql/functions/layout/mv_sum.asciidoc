@@ -3,7 +3,6 @@
 [discrete]
 [[esql-mv_sum]]
 === `MV_SUM`
-//tag::body[]
 
 *Syntax*
 
@@ -14,4 +13,3 @@ include::../parameters/mv_sum.asciidoc[]
 include::../description/mv_sum.asciidoc[]
 include::../types/mv_sum.asciidoc[]
 include::../examples/mv_sum.asciidoc[]
-//end::body[]

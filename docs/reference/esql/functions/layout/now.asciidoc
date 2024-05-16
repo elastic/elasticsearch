@@ -3,7 +3,6 @@
 [discrete]
 [[esql-now]]
 === `NOW`
-//tag::body[]
 
 *Syntax*
 
@@ -14,4 +13,3 @@ include::../parameters/now.asciidoc[]
 include::../description/now.asciidoc[]
 include::../types/now.asciidoc[]
 include::../examples/now.asciidoc[]
-//end::body[]

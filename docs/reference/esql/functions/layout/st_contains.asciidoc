@@ -3,7 +3,6 @@
 [discrete]
 [[esql-st_contains]]
 === `ST_CONTAINS`
-//tag::body[]
 
 *Syntax*
 
@@ -14,4 +13,3 @@ include::../parameters/st_contains.asciidoc[]
 include::../description/st_contains.asciidoc[]
 include::../types/st_contains.asciidoc[]
 include::../examples/st_contains.asciidoc[]
-//end::body[]

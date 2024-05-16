@@ -3,7 +3,6 @@
 [discrete]
 [[esql-sin]]
 === `SIN`
-//tag::body[]
 
 *Syntax*
 
@@ -14,4 +13,3 @@ include::../parameters/sin.asciidoc[]
 include::../description/sin.asciidoc[]
 include::../types/sin.asciidoc[]
 include::../examples/sin.asciidoc[]
-//end::body[]

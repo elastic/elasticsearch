@@ -3,7 +3,6 @@
 [discrete]
 [[esql-bucket]]
 === `BUCKET`
-//tag::body[]
 
 *Syntax*
 
@@ -14,4 +13,3 @@ include::../parameters/bucket.asciidoc[]
 include::../description/bucket.asciidoc[]
 include::../types/bucket.asciidoc[]
 include::../examples/bucket.asciidoc[]
-//end::body[]

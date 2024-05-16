@@ -3,7 +3,6 @@
 [discrete]
 [[esql-to_long]]
 === `TO_LONG`
-//tag::body[]
 
 *Syntax*
 
@@ -14,4 +13,3 @@ include::../parameters/to_long.asciidoc[]
 include::../description/to_long.asciidoc[]
 include::../types/to_long.asciidoc[]
 include::../examples/to_long.asciidoc[]
-//end::body[]

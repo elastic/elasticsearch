@@ -3,7 +3,6 @@
 [discrete]
 [[esql-concat]]
 === `CONCAT`
-//tag::body[]
 
 *Syntax*
 
@@ -14,4 +13,3 @@ include::../parameters/concat.asciidoc[]
 include::../description/concat.asciidoc[]
 include::../types/concat.asciidoc[]
 include::../examples/concat.asciidoc[]
-//end::body[]

@@ -3,7 +3,6 @@
 [discrete]
 [[esql-split]]
 === `SPLIT`
-//tag::body[]
 
 *Syntax*
 
@@ -14,4 +13,3 @@ include::../parameters/split.asciidoc[]
 include::../description/split.asciidoc[]
 include::../types/split.asciidoc[]
 include::../examples/split.asciidoc[]
-//end::body[]

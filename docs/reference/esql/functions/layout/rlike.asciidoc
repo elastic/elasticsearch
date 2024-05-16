@@ -3,7 +3,6 @@
 [discrete]
 [[esql-rlike]]
 === `RLIKE`
-//tag::body[]
 
 *Syntax*
 
@@ -14,4 +13,3 @@ include::../parameters/rlike.asciidoc[]
 include::../description/rlike.asciidoc[]
 include::../types/rlike.asciidoc[]
 include::../examples/rlike.asciidoc[]
-//end::body[]

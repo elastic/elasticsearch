@@ -3,7 +3,6 @@
 [discrete]
 [[esql-log]]
 === `LOG`
-//tag::body[]
 
 *Syntax*
 
@@ -14,4 +13,3 @@ include::../parameters/log.asciidoc[]
 include::../description/log.asciidoc[]
 include::../types/log.asciidoc[]
 include::../examples/log.asciidoc[]
-//end::body[]

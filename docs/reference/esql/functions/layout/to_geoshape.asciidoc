@@ -3,7 +3,6 @@
 [discrete]
 [[esql-to_geoshape]]
 === `TO_GEOSHAPE`
-//tag::body[]
 
 *Syntax*
 
@@ -14,4 +13,3 @@ include::../parameters/to_geoshape.asciidoc[]
 include::../description/to_geoshape.asciidoc[]
 include::../types/to_geoshape.asciidoc[]
 include::../examples/to_geoshape.asciidoc[]
-//end::body[]

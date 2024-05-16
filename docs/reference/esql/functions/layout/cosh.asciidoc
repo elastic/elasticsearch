@@ -3,7 +3,6 @@
 [discrete]
 [[esql-cosh]]
 === `COSH`
-//tag::body[]
 
 *Syntax*
 
@@ -14,4 +13,3 @@ include::../parameters/cosh.asciidoc[]
 include::../description/cosh.asciidoc[]
 include::../types/cosh.asciidoc[]
 include::../examples/cosh.asciidoc[]
-//end::body[]

@@ -3,7 +3,6 @@
 [discrete]
 [[esql-to_ip]]
 === `TO_IP`
-//tag::body[]
 
 *Syntax*
 
@@ -14,4 +13,3 @@ include::../parameters/to_ip.asciidoc[]
 include::../description/to_ip.asciidoc[]
 include::../types/to_ip.asciidoc[]
 include::../examples/to_ip.asciidoc[]
-//end::body[]

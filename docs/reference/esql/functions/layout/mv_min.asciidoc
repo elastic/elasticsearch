@@ -3,7 +3,6 @@
 [discrete]
 [[esql-mv_min]]
 === `MV_MIN`
-//tag::body[]
 
 *Syntax*
 
@@ -14,4 +13,3 @@ include::../parameters/mv_min.asciidoc[]
 include::../description/mv_min.asciidoc[]
 include::../types/mv_min.asciidoc[]
 include::../examples/mv_min.asciidoc[]
-//end::body[]

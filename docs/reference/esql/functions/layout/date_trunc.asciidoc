@@ -3,7 +3,6 @@
 [discrete]
 [[esql-date_trunc]]
 === `DATE_TRUNC`
-//tag::body[]
 
 *Syntax*
 
@@ -14,4 +13,3 @@ include::../parameters/date_trunc.asciidoc[]
 include::../description/date_trunc.asciidoc[]
 include::../types/date_trunc.asciidoc[]
 include::../examples/date_trunc.asciidoc[]
-//end::body[]

@@ -3,7 +3,6 @@
 [discrete]
 [[esql-equals]]
 === `EQUALS`
-//tag::body[]
 
 *Syntax*
 
@@ -13,4 +12,3 @@ image::esql/functions/signature/equals.svg[Embedded,opts=inline]
 include::../parameters/equals.asciidoc[]
 include::../description/equals.asciidoc[]
 include::../types/equals.asciidoc[]
-//end::body[]

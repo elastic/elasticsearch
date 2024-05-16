@@ -3,7 +3,6 @@
 [discrete]
 [[esql-like]]
 === `LIKE`
-//tag::body[]
 
 *Syntax*
 
@@ -14,4 +13,3 @@ include::../parameters/like.asciidoc[]
 include::../description/like.asciidoc[]
 include::../types/like.asciidoc[]
 include::../examples/like.asciidoc[]
-//end::body[]

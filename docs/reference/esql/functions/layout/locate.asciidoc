@@ -3,7 +3,6 @@
 [discrete]
 [[esql-locate]]
 === `LOCATE`
-//tag::body[]
 
 *Syntax*
 
@@ -14,4 +13,3 @@ include::../parameters/locate.asciidoc[]
 include::../description/locate.asciidoc[]
 include::../types/locate.asciidoc[]
 include::../examples/locate.asciidoc[]
-//end::body[]

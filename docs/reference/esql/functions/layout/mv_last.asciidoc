@@ -3,7 +3,6 @@
 [discrete]
 [[esql-mv_last]]
 === `MV_LAST`
-//tag::body[]
 
 *Syntax*
 
@@ -14,4 +13,3 @@ include::../parameters/mv_last.asciidoc[]
 include::../description/mv_last.asciidoc[]
 include::../types/mv_last.asciidoc[]
 include::../examples/mv_last.asciidoc[]
-//end::body[]

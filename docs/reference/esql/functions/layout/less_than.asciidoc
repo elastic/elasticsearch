@@ -3,7 +3,6 @@
 [discrete]
 [[esql-less_than]]
 === `LESS_THAN`
-//tag::body[]
 
 *Syntax*
 
@@ -13,4 +12,3 @@ image::esql/functions/signature/less_than.svg[Embedded,opts=inline]
 include::../parameters/less_than.asciidoc[]
 include::../description/less_than.asciidoc[]
 include::../types/less_than.asciidoc[]
-//end::body[]

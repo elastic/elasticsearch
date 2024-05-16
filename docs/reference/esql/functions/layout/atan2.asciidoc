@@ -3,7 +3,6 @@
 [discrete]
 [[esql-atan2]]
 === `ATAN2`
-//tag::body[]
 
 *Syntax*
 
@@ -14,4 +13,3 @@ include::../parameters/atan2.asciidoc[]
 include::../description/atan2.asciidoc[]
 include::../types/atan2.asciidoc[]
 include::../examples/atan2.asciidoc[]
-//end::body[]

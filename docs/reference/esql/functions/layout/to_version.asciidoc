@@ -3,7 +3,6 @@
 [discrete]
 [[esql-to_version]]
 === `TO_VERSION`
-//tag::body[]
 
 *Syntax*
 
@@ -14,4 +13,3 @@ include::../parameters/to_version.asciidoc[]
 include::../description/to_version.asciidoc[]
 include::../types/to_version.asciidoc[]
 include::../examples/to_version.asciidoc[]
-//end::body[]

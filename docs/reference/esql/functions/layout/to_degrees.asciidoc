@@ -3,7 +3,6 @@
 [discrete]
 [[esql-to_degrees]]
 === `TO_DEGREES`
-//tag::body[]
 
 *Syntax*
 
@@ -14,4 +13,3 @@ include::../parameters/to_degrees.asciidoc[]
 include::../description/to_degrees.asciidoc[]
 include::../types/to_degrees.asciidoc[]
 include::../examples/to_degrees.asciidoc[]
-//end::body[]

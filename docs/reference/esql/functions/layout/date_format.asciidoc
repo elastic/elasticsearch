@@ -3,7 +3,6 @@
 [discrete]
 [[esql-date_format]]
 === `DATE_FORMAT`
-//tag::body[]
 
 *Syntax*
 
@@ -14,4 +13,3 @@ include::../parameters/date_format.asciidoc[]
 include::../description/date_format.asciidoc[]
 include::../types/date_format.asciidoc[]
 include::../examples/date_format.asciidoc[]
-//end::body[]

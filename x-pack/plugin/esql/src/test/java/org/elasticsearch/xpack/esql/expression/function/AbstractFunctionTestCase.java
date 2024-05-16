@@ -563,7 +563,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
         }
     }
 
-    public final void testFactoryToString() {
+    public void testFactoryToString() {
         Expression expression = buildFieldExpression(testCase);
         if (testCase.getExpectedTypeError() != null) {
             assertTypeResolutionFailure(expression);
@@ -1458,16 +1458,11 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
         return true;
     }
 
-    private static final String BODY_BEGIN = "\n//tag::body[]\n";
-    private static final String BODY_END = "//end::body[]\n";
-
     private static void renderFullLayout(String name, boolean hasExamples) throws IOException {
         String rendered = DOCS_WARNING + """
             [discrete]
             [[esql-$NAME$]]
-            === `$UPPER_NAME$`""".replace("$NAME$", name).replace("$UPPER_NAME$", name.toUpperCase(Locale.ROOT));
-        rendered += BODY_BEGIN;
-        rendered += """
+            === `$UPPER_NAME$`
 
             *Syntax*
 
@@ -1481,7 +1476,6 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
         if (hasExamples) {
             rendered += "include::../examples/" + name + ".asciidoc[]\n";
         }
-        rendered += BODY_END;
         LogManager.getLogger(getTestClass()).info("Writing layout for [{}]:\n{}", functionName(), rendered);
         writeToTempDir("layout", rendered, "asciidoc");
     }

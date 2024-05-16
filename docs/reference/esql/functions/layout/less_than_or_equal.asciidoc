@@ -3,7 +3,6 @@
 [discrete]
 [[esql-less_than_or_equal]]
 === `LESS_THAN_OR_EQUAL`
-//tag::body[]
 
 *Syntax*
 
@@ -13,4 +12,3 @@ image::esql/functions/signature/less_than_or_equal.svg[Embedded,opts=inline]
 include::../parameters/less_than_or_equal.asciidoc[]
 include::../description/less_than_or_equal.asciidoc[]
 include::../types/less_than_or_equal.asciidoc[]
-//end::body[]

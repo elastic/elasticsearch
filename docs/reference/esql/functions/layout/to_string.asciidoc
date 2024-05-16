@@ -3,7 +3,6 @@
 [discrete]
 [[esql-to_string]]
 === `TO_STRING`
-//tag::body[]
 
 *Syntax*
 
@@ -14,4 +13,3 @@ include::../parameters/to_string.asciidoc[]
 include::../description/to_string.asciidoc[]
 include::../types/to_string.asciidoc[]
 include::../examples/to_string.asciidoc[]
-//end::body[]

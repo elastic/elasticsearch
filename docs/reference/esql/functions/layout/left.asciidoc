@@ -3,7 +3,6 @@
 [discrete]
 [[esql-left]]
 === `LEFT`
-//tag::body[]
 
 *Syntax*
 
@@ -14,4 +13,3 @@ include::../parameters/left.asciidoc[]
 include::../description/left.asciidoc[]
 include::../types/left.asciidoc[]
 include::../examples/left.asciidoc[]
-//end::body[]

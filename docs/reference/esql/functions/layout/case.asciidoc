@@ -3,7 +3,6 @@
 [discrete]
 [[esql-case]]
 === `CASE`
-//tag::body[]
 
 *Syntax*
 
@@ -14,4 +13,3 @@ include::../parameters/case.asciidoc[]
 include::../description/case.asciidoc[]
 include::../types/case.asciidoc[]
 include::../examples/case.asciidoc[]
-//end::body[]

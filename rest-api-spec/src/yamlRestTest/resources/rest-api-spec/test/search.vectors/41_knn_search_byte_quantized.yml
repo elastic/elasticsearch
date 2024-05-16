@@ -267,8 +267,9 @@ setup:
           vector: [1, 2, 3, 4, 5]
 
   # Flush in order to provoke a merge later
-  - do:
-      indices.flush: { }
+  # https://github.com/apache/lucene/pull/13374
+  #- do:
+  #    indices.flush: { }
 
   - do:
       index:
@@ -278,9 +279,10 @@ setup:
           name: moose.jpg
           vector: [1, 1, 1, 1, 1]
 
-   # Flush in order to provoke a merge later
-  - do:
-      indices.flush: { }
+  # Flush in order to provoke a merge later
+  # https://github.com/apache/lucene/pull/13374
+  #- do:
+  #    indices.flush: { }
 
   - do:
       index:
@@ -423,8 +425,9 @@ setup:
           embedding: [1.0, 1.0, 1.0, 1.0]
 
   # Flush in order to provoke a merge later
-  - do:
-      indices.flush: { }
+  # https://github.com/apache/lucene/pull/13374
+  #- do:
+  #    indices.flush: { }
 
   - do:
       index:
@@ -434,8 +437,9 @@ setup:
           embedding: [1.0, 1.0, 1.0, 2.0]
 
   # Flush in order to provoke a merge later
-  - do:
-      indices.flush: { }
+  # https://github.com/apache/lucene/pull/13374
+  #- do:
+  #    indices.flush: { }
 
   - do:
       index:
@@ -496,8 +500,9 @@ setup:
           embedding: [0.6, 0.8]
 
   # Flush in order to provoke a merge later
-  - do:
-      indices.flush: { }
+  # https://github.com/apache/lucene/pull/13374
+  #- do:
+  #    indices.flush: { }
 
   - do:
       index:
@@ -507,8 +512,9 @@ setup:
           embedding: [0.8, 0.6]
 
   # Flush in order to provoke a merge later
-  - do:
-      indices.flush: { }
+  # https://github.com/apache/lucene/pull/13374
+  #- do:
+  #    indices.flush: { }
 
   - do:
       index:

@@ -60,7 +60,7 @@ public final class QueryRoleResponse extends ActionResponse implements ToXConten
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        builder.field("total", total).field("count", foundRoleDescriptorList.size()).field("role_descriptors", foundRoleDescriptorList);
+        builder.field("total", total).field("count", foundRoleDescriptorList.size()).field("roles", foundRoleDescriptorList);
         builder.endObject();
         return builder;
     }

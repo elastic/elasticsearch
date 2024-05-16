@@ -118,9 +118,19 @@ public class QueryTranslatorTests extends ESTestCase {
             .*"range":\\{"integer":\\{"gt":10,.*"range":\\{"integer":\\{"lt":12.*"""));
 
         assertQueryTranslation("""
+            FROM test | WHERE 10 <= integer AND integer <= 12""", matchesRegex("""
+            .*must.*esql_single_value":\\{"field":"integer\"""" + """
+            .*"range":\\{"integer":\\{"gte":10,.*"range":\\{"integer":\\{"lte":12.*"""));
+
+        assertQueryTranslation("""
             FROM test | WHERE 10.9 < double AND double < 12.1""", matchesRegex("""
             .*must.*esql_single_value":\\{"field":"double\"""" + """
             .*"range":\\{"double":\\{"gt":10.9,.*"range":\\{"double":\\{"lt":12.1.*"""));
+
+        assertQueryTranslation("""
+            FROM test | WHERE 10.9 <= double AND double <= 12.1""", matchesRegex("""
+            .*must.*esql_single_value":\\{"field":"double\"""" + """
+            .*"range":\\{"double":\\{"gte":10.9,.*"range":\\{"double":\\{"lte":12.1.*"""));
 
         assertQueryTranslation("""
             FROM test | WHERE "2007-12-03T10:15:30+01:00" < date AND date < "2024-01-01T10:15:30+01:00\"""", matchesRegex("""
@@ -128,8 +138,18 @@ public class QueryTranslatorTests extends ESTestCase {
             .*"range":\\{"date":\\{"gt":1196673330000,.*"range":\\{"date":\\{"lt":1704100530000.*"""));
 
         assertQueryTranslation("""
+            FROM test | WHERE "2007-12-03T10:15:30+01:00" <= date AND date <= "2024-01-01T10:15:30+01:00\"""", matchesRegex("""
+            .*must.*esql_single_value":\\{"field":"date\"""" + """
+            .*"range":\\{"date":\\{"gte":1196673330000,.*"range":\\{"date":\\{"lte":1704100530000.*"""));
+
+        assertQueryTranslation("""
             FROM test | WHERE 2147483648::unsigned_long < unsigned_long AND unsigned_long < 2147483650::unsigned_long""", matchesRegex("""
             .*must.*esql_single_value":\\{"field":"unsigned_long\"""" + """
             .*"range":\\{"unsigned_long":\\{"gt":2147483648,.*"range":\\{"unsigned_long":\\{"lt":2147483650,.*"""));
+
+        assertQueryTranslation("""
+            FROM test | WHERE 2147483648::unsigned_long <= unsigned_long AND unsigned_long <= 2147483650::unsigned_long""", matchesRegex("""
+            .*must.*esql_single_value":\\{"field":"unsigned_long\"""" + """
+            .*"range":\\{"unsigned_long":\\{"gte":2147483648,.*"range":\\{"unsigned_long":\\{"lte":2147483650,.*"""));
     }
 }

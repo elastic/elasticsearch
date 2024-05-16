@@ -817,7 +817,7 @@ public final class PlanNamedTypes {
 
     private static boolean supportingEsSourceOptions(TransportVersion version) {
         return version.onOrAfter(TransportVersions.ESQL_ES_SOURCE_OPTIONS)
-            && version.before(TransportVersions.ESQL_REMOVE_ES_SOURCE_OPTIONS);
+            && version.before(TransportVersions.ESQL_REMOVE_ES_SOURCE_OPTIONS_8_14);
     }
 
     private static void readEsSourceOptions(PlanStreamInput in) throws IOException {

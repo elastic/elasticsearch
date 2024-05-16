@@ -175,7 +175,7 @@ public class MvAppend extends EsqlScalarFunction implements EvaluatorMapper {
         int first1 = field1.getFirstValueIndex(position);
         int count2 = field2.getValueCount(position);
         int first2 = field2.getFirstValueIndex(position);
-        if(count1==0 || count2==0) {
+        if (count1 == 0 || count2 == 0) {
             builder.appendNull();
         } else {
             builder.beginPositionEntry();
@@ -196,7 +196,7 @@ public class MvAppend extends EsqlScalarFunction implements EvaluatorMapper {
         int first1 = field1.getFirstValueIndex(position);
         int count2 = field2.getValueCount(position);
         int first2 = field2.getFirstValueIndex(position);
-        if(count1==0 || count2==0) {
+        if (count1 == 0 || count2 == 0) {
             builder.appendNull();
         } else {
             builder.beginPositionEntry();
@@ -217,7 +217,7 @@ public class MvAppend extends EsqlScalarFunction implements EvaluatorMapper {
         int first1 = field1.getFirstValueIndex(position);
         int count2 = field2.getValueCount(position);
         int first2 = field2.getFirstValueIndex(position);
-        if(count1==0 || count2==0) {
+        if (count1 == 0 || count2 == 0) {
             builder.appendNull();
         } else {
             builder.beginPositionEntry();
@@ -237,7 +237,7 @@ public class MvAppend extends EsqlScalarFunction implements EvaluatorMapper {
         int first1 = field1.getFirstValueIndex(position);
         int count2 = field2.getValueCount(position);
         int first2 = field2.getFirstValueIndex(position);
-        if(count1==0 || count2==0) {
+        if (count1 == 0 || count2 == 0) {
             builder.appendNull();
         } else {
             builder.beginPositionEntry();
@@ -258,7 +258,7 @@ public class MvAppend extends EsqlScalarFunction implements EvaluatorMapper {
         int first1 = field1.getFirstValueIndex(position);
         int count2 = field2.getValueCount(position);
         int first2 = field2.getFirstValueIndex(position);
-        if(count1==0 || count2==0) {
+        if (count1 == 0 || count2 == 0) {
             builder.appendNull();
         } else {
             builder.beginPositionEntry();

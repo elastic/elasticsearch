@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.application.connector.action;
 
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -23,7 +22,6 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.xpack.application.connector.Connector;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -33,7 +31,7 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstr
 public class PostConnectorAction {
 
     public static final String NAME = "indices:data/write/xpack/connector/post";
-    public static final ActionType<PostConnectorAction.Response> INSTANCE = new ActionType<>(NAME);
+    public static final ActionType<ConnectorCreateActionResponse> INSTANCE = new ActionType<>(NAME);
 
     private PostConnectorAction() {/* no instances */}
 
@@ -59,6 +57,10 @@ public class PostConnectorAction {
             this.language = language;
             this.name = name;
             this.serviceType = serviceType;
+        }
+
+        public Request() {
+            this(null, null, false, null, null, null);
         }
 
         public Request(StreamInput in) throws IOException {
@@ -192,52 +194,6 @@ public class PostConnectorAction {
         @Override
         public int hashCode() {
             return Objects.hash(description, indexName, isNative, language, name, serviceType);
-        }
-    }
-
-    public static class Response extends ActionResponse implements ToXContentObject {
-
-        private final String id;
-
-        public Response(StreamInput in) throws IOException {
-            super(in);
-            this.id = in.readString();
-        }
-
-        public Response(String id) {
-            this.id = id;
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            out.writeString(id);
-        }
-
-        public String getId() {
-            return id;
-        }
-
-        @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            builder.startObject();
-            {
-                builder.field(Connector.ID_FIELD.getPreferredName(), id);
-            }
-            builder.endObject();
-            return builder;
-        }
-
-        @Override
-        public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-            Response response = (Response) o;
-            return Objects.equals(id, response.id);
-        }
-
-        @Override
-        public int hashCode() {
-            return Objects.hash(id);
         }
     }
 }

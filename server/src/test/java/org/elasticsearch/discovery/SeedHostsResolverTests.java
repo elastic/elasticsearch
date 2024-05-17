@@ -215,19 +215,18 @@ public class SeedHostsResolverTests extends ESTestCase {
         closeables.push(transportService);
         recreateSeedHostsResolver(transportService);
 
-        final MockLogAppender appender = new MockLogAppender();
-        appender.addExpectation(
-            new MockLogAppender.ExceptionSeenEventExpectation(
-                getTestName(),
-                SeedHostsResolver.class.getCanonicalName(),
-                Level.WARN,
-                "failed to resolve host [" + hostname + "]",
-                UnknownHostException.class,
-                unknownHostException.getMessage()
-            )
-        );
+        try (var appender = MockLogAppender.capture(SeedHostsResolver.class)) {
+            appender.addExpectation(
+                new MockLogAppender.ExceptionSeenEventExpectation(
+                    getTestName(),
+                    SeedHostsResolver.class.getCanonicalName(),
+                    Level.WARN,
+                    "failed to resolve host [" + hostname + "]",
+                    UnknownHostException.class,
+                    unknownHostException.getMessage()
+                )
+            );
 
-        try (var ignored = appender.capturing(SeedHostsResolver.class)) {
             assertThat(seedHostsResolver.resolveHosts(Collections.singletonList(hostname)), empty());
             appender.assertAllExpectationsMatched();
         }
@@ -286,19 +285,17 @@ public class SeedHostsResolverTests extends ESTestCase {
         closeables.push(transportService);
         recreateSeedHostsResolver(transportService);
 
-        final MockLogAppender appender = new MockLogAppender();
-        appender.addExpectation(
-            new MockLogAppender.SeenEventExpectation(
-                getTestName(),
-                SeedHostsResolver.class.getCanonicalName(),
-                Level.WARN,
-                "timed out after [*] ([discovery.seed_resolver.timeout]=["
-                    + SeedHostsResolver.getResolveTimeout(Settings.EMPTY)
-                    + "]) resolving host [hostname2]"
-            )
-        );
-
-        try (var ignored = appender.capturing(SeedHostsResolver.class)) {
+        try (var appender = MockLogAppender.capture(SeedHostsResolver.class)) {
+            appender.addExpectation(
+                new MockLogAppender.SeenEventExpectation(
+                    getTestName(),
+                    SeedHostsResolver.class.getCanonicalName(),
+                    Level.WARN,
+                    "timed out after [*] ([discovery.seed_resolver.timeout]=["
+                        + SeedHostsResolver.getResolveTimeout(Settings.EMPTY)
+                        + "]) resolving host [hostname2]"
+                )
+            );
             assertThat(seedHostsResolver.resolveHosts(Arrays.asList("hostname1", "hostname2")), hasSize(1));
             appender.assertAllExpectationsMatched();
         } finally {
@@ -405,17 +402,15 @@ public class SeedHostsResolverTests extends ESTestCase {
         closeables.push(transportService);
         recreateSeedHostsResolver(transportService);
 
-        final MockLogAppender appender = new MockLogAppender();
-        appender.addExpectation(
-            new MockLogAppender.SeenEventExpectation(
-                getTestName(),
-                SeedHostsResolver.class.getCanonicalName(),
-                Level.WARN,
-                "failed to resolve host [127.0.0.1:9300:9300]"
-            )
-        );
-
-        try (var ignored = appender.capturing(SeedHostsResolver.class)) {
+        try (var appender = MockLogAppender.capture(SeedHostsResolver.class)) {
+            appender.addExpectation(
+                new MockLogAppender.SeenEventExpectation(
+                    getTestName(),
+                    SeedHostsResolver.class.getCanonicalName(),
+                    Level.WARN,
+                    "failed to resolve host [127.0.0.1:9300:9300]"
+                )
+            );
             final List<TransportAddress> transportAddresses = seedHostsResolver.resolveHosts(
                 Arrays.asList("127.0.0.1:9300:9300", "127.0.0.1:9301")
             );

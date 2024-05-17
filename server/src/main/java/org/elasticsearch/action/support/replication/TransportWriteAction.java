@@ -105,6 +105,14 @@ public abstract class TransportWriteAction<
     }
 
     protected Executor executor(IndexShard shard) {
+        return executor(shard, executorFunction, executorSelector);
+    }
+
+    protected static Executor executor(
+        IndexShard shard,
+        BiFunction<ExecutorSelector, IndexShard, Executor> executorFunction,
+        ExecutorSelector executorSelector
+    ) {
         return executorFunction.apply(executorSelector, shard);
     }
 

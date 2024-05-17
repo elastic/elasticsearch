@@ -69,6 +69,7 @@ import java.io.IOException;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.Executor;
+import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.function.LongSupplier;
 
@@ -146,10 +147,41 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
         IndexShard primary,
         ActionListener<PrimaryResult<BulkShardRequest, BulkShardResponse>> listener
     ) {
+        dispatchedShardOperationOnPrimary(
+            request,
+            primary,
+            listener,
+            clusterService,
+            threadPool,
+            updateHelper,
+            mappingUpdatedAction,
+            postWriteRefresh,
+            postWriteAction,
+            documentParsingProvider,
+            ExecutorSelector.getWriteExecutorForShard(threadPool),
+            executorSelector
+        );
+    }
+
+    protected static void dispatchedShardOperationOnPrimary(
+        BulkShardRequest request,
+        IndexShard primary,
+        ActionListener<PrimaryResult<BulkShardRequest, BulkShardResponse>> listener,
+        ClusterService clusterService,
+        ThreadPool threadPool,
+        UpdateHelper updateHelper,
+        @Nullable MappingUpdatedAction mappingUpdatedAction,
+        PostWriteRefresh postWriteRefresh,
+        Consumer<Runnable> postWriteAction,
+        DocumentParsingProvider documentParsingProvider,
+        BiFunction<ExecutorSelector, IndexShard, Executor> executorFunction,
+        ExecutorSelector executorSelector
+    ) {
         ClusterStateObserver observer = new ClusterStateObserver(clusterService, request.timeout(), logger, threadPool.getThreadContext());
         performOnPrimary(request, primary, updateHelper, threadPool::absoluteTimeInMillis, (update, shardId, mappingListener) -> {
             assert update != null;
             assert shardId != null;
+            assert mappingUpdatedAction != null : "mappingUpdatedAction is null, but the mappingUpdater was called";
             mappingUpdatedAction.updateMappingOnMaster(shardId.getIndex(), update, mappingListener);
         }, mappingUpdateListener -> observer.waitForNextChange(new ClusterStateObserver.Listener() {
             @Override
@@ -166,7 +198,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
             public void onTimeout(TimeValue timeout) {
                 mappingUpdateListener.onFailure(new MapperException("timed out while waiting for a dynamic mapping update"));
             }
-        }), listener, executor(primary), postWriteRefresh, postWriteAction, documentParsingProvider);
+        }), listener, executor(primary, executorFunction, executorSelector), postWriteRefresh, postWriteAction, documentParsingProvider);
     }
 
     @Override

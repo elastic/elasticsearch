@@ -162,6 +162,7 @@ import org.elasticsearch.action.bulk.SimulateBulkAction;
 import org.elasticsearch.action.bulk.TransportBulkAction;
 import org.elasticsearch.action.bulk.TransportShardBulkAction;
 import org.elasticsearch.action.bulk.TransportSimulateBulkAction;
+import org.elasticsearch.action.bulk.TransportSimulateShardBulkAction;
 import org.elasticsearch.action.delete.TransportDeleteAction;
 import org.elasticsearch.action.explain.TransportExplainAction;
 import org.elasticsearch.action.fieldcaps.TransportFieldCapabilitiesAction;
@@ -714,6 +715,7 @@ public class ActionModule extends AbstractModule {
         actions.register(TransportBulkAction.TYPE, TransportBulkAction.class);
         actions.register(SimulateBulkAction.INSTANCE, TransportSimulateBulkAction.class);
         actions.register(TransportShardBulkAction.TYPE, TransportShardBulkAction.class);
+        actions.register(TransportSimulateShardBulkAction.TYPE, TransportSimulateShardBulkAction.class);
         actions.register(TransportSearchAction.TYPE, TransportSearchAction.class);
         actions.register(TransportSearchScrollAction.TYPE, TransportSearchScrollAction.class);
         actions.register(TransportOpenPointInTimeAction.TYPE, TransportOpenPointInTimeAction.class);

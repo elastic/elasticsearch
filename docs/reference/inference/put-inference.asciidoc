@@ -272,7 +272,7 @@ For "real-time" endpoints which are billed per hour of usage, specify `realtime`
 
 `rate_limit`:::
 (Optional, object)
-By default, the `azureaistudio` service sets a number of requests at `240` requests per minute.
+By default, the `azureaistudio` service sets the number of requests allowed per minute to `240`.
 This helps to minimize the number of rate limit errors returned from Azure AI Studio.
 To modify this, set the `requests_per_minute` setting of this object in your service settings:
 ```

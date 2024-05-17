@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.esql.plan.logical;
 import org.elasticsearch.xpack.ql.expression.Attribute;
 import org.elasticsearch.xpack.ql.expression.FieldAttribute;
 import org.elasticsearch.xpack.ql.index.EsIndex;
-import org.elasticsearch.xpack.ql.options.EsSourceOptions;
 import org.elasticsearch.xpack.ql.plan.logical.LeafPlan;
 import org.elasticsearch.xpack.ql.tree.NodeInfo;
 import org.elasticsearch.xpack.ql.tree.NodeUtils;
@@ -26,33 +25,26 @@ public class EsRelation extends LeafPlan {
 
     private final EsIndex index;
     private final List<Attribute> attrs;
-    private final EsSourceOptions esSourceOptions;
     private final boolean frozen;
 
     public EsRelation(Source source, EsIndex index, boolean frozen) {
-        this(source, index, flatten(source, index.mapping()), EsSourceOptions.NO_OPTIONS, frozen);
+        this(source, index, flatten(source, index.mapping()), frozen);
     }
 
     public EsRelation(Source source, EsIndex index, List<Attribute> attributes) {
-        this(source, index, attributes, EsSourceOptions.NO_OPTIONS, false);
+        this(source, index, attributes, false);
     }
 
-    public EsRelation(Source source, EsIndex index, List<Attribute> attributes, EsSourceOptions esSourceOptions) {
-        this(source, index, attributes, esSourceOptions, false);
-    }
-
-    public EsRelation(Source source, EsIndex index, List<Attribute> attributes, EsSourceOptions esSourceOptions, boolean frozen) {
+    public EsRelation(Source source, EsIndex index, List<Attribute> attributes, boolean frozen) {
         super(source);
         this.index = index;
         this.attrs = attributes;
-        Objects.requireNonNull(esSourceOptions);
-        this.esSourceOptions = esSourceOptions;
         this.frozen = frozen;
     }
 
     @Override
     protected NodeInfo<EsRelation> info() {
-        return NodeInfo.create(this, EsRelation::new, index, attrs, esSourceOptions, frozen);
+        return NodeInfo.create(this, EsRelation::new, index, attrs, frozen);
     }
 
     private static List<Attribute> flatten(Source source, Map<String, EsField> mapping) {
@@ -82,10 +74,6 @@ public class EsRelation extends LeafPlan {
         return index;
     }
 
-    public EsSourceOptions esSourceOptions() {
-        return esSourceOptions;
-    }
-
     public boolean frozen() {
         return frozen;
     }
@@ -102,7 +90,7 @@ public class EsRelation extends LeafPlan {
 
     @Override
     public int hashCode() {
-        return Objects.hash(index, esSourceOptions, frozen);
+        return Objects.hash(index, frozen);
     }
 
     @Override
@@ -116,7 +104,7 @@ public class EsRelation extends LeafPlan {
         }
 
         EsRelation other = (EsRelation) obj;
-        return Objects.equals(index, other.index) && Objects.equals(esSourceOptions, other.esSourceOptions) && frozen == other.frozen;
+        return Objects.equals(index, other.index) && frozen == other.frozen;
     }
 
     @Override

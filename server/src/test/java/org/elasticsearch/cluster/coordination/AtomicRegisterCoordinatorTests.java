@@ -143,8 +143,7 @@ public class AtomicRegisterCoordinatorTests extends CoordinatorTests {
             cluster.stabilise();
             final var clusterNode = cluster.getAnyLeader();
 
-            final var mockAppender = new MockLogAppender();
-            try (var ignored = mockAppender.capturing(Coordinator.class, Coordinator.CoordinatorPublication.class)) {
+            try (var mockAppender = MockLogAppender.capture(Coordinator.class, Coordinator.CoordinatorPublication.class)) {
 
                 clusterNode.disconnect();
                 mockAppender.addExpectation(

@@ -346,16 +346,15 @@ public class JoinHelperTests extends ESTestCase {
         joinAccumulator.handleJoinRequest(localNode, CompatibilityVersionsUtils.staticCurrent(), Set.of(), joinListener);
         assert joinListener.isDone() == false;
 
-        final var mockAppender = new MockLogAppender();
-        mockAppender.addExpectation(
-            new MockLogAppender.SeenEventExpectation(
-                "warning log",
-                JoinHelper.class.getCanonicalName(),
-                Level.WARN,
-                "failed to retrieve latest stored state after winning election in term [1]"
-            )
-        );
-        try (var ignored = mockAppender.capturing(JoinHelper.class)) {
+        try (var mockAppender = MockLogAppender.capture(JoinHelper.class)) {
+            mockAppender.addExpectation(
+                new MockLogAppender.SeenEventExpectation(
+                    "warning log",
+                    JoinHelper.class.getCanonicalName(),
+                    Level.WARN,
+                    "failed to retrieve latest stored state after winning election in term [1]"
+                )
+            );
             joinAccumulator.close(Coordinator.Mode.LEADER);
             mockAppender.assertAllExpectationsMatched();
         }

@@ -37,7 +37,7 @@ public class EsqlCapabilities {
      */
     public static final String LOOKUP_COMMAND = "lookup_command";
 
-    static final Set<String> CAPABILITIES = capabilities();
+    public static final Set<String> CAPABILITIES = capabilities();
 
     private static Set<String> capabilities() {
         List<String> caps = new ArrayList<>();

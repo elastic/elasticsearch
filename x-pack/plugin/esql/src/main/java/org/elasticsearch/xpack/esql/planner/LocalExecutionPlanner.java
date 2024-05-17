@@ -23,13 +23,13 @@ import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator.EvalOperatorFactory;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.FilterOperator.FilterOperatorFactory;
-import org.elasticsearch.compute.operator.HashLookupOperator;
 import org.elasticsearch.compute.operator.LocalSourceOperator;
 import org.elasticsearch.compute.operator.LocalSourceOperator.LocalSourceFactory;
 import org.elasticsearch.compute.operator.MvExpandOperator;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.operator.Operator.OperatorFactory;
 import org.elasticsearch.compute.operator.OutputOperator.OutputOperatorFactory;
+import org.elasticsearch.compute.operator.RowInTableLookupOperator;
 import org.elasticsearch.compute.operator.RowOperator.RowOperatorFactory;
 import org.elasticsearch.compute.operator.ShowOperator;
 import org.elasticsearch.compute.operator.SinkOperator;
@@ -505,17 +505,17 @@ public class LocalExecutionPlanner {
             fieldToLocalData.put(join.joinData().output().get(c).name(), localData[c]);
         }
 
-        HashLookupOperator.Key[] keys = new HashLookupOperator.Key[join.unionFields().size()];
+        RowInTableLookupOperator.Key[] keys = new RowInTableLookupOperator.Key[join.unionFields().size()];
         int[] blockMapping = new int[join.unionFields().size()];
         for (int k = 0; k < join.unionFields().size(); k++) {
             NamedExpression unionField = join.unionFields().get(k);
-            keys[k] = new HashLookupOperator.Key(unionField.name(), fieldToLocalData.get(unionField.name()));
+            keys[k] = new RowInTableLookupOperator.Key(unionField.name(), fieldToLocalData.get(unionField.name()));
             Layout.ChannelAndType input = source.layout.get(unionField.id());
             blockMapping[k] = input.channel();
         }
 
         // Load the "positions" of each match
-        source = source.with(new HashLookupOperator.Factory(keys, blockMapping), layout);
+        source = source.with(new RowInTableLookupOperator.Factory(keys, blockMapping), layout);
 
         // Load the "values" from each match
         for (Attribute f : join.addedFields()) {

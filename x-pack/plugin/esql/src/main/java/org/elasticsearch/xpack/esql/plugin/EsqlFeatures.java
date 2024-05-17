@@ -18,8 +18,6 @@ import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import java.util.Collections;
 import java.util.Map;
 import java.util.Set;
-import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 /**
  * {@link NodeFeature}s declared by ESQL. These should be used for fast checks

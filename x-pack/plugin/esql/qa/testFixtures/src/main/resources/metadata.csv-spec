@@ -120,7 +120,7 @@ required_capability: metadata_fields, metadata_field_ignored
 from employees metadata _ignored | stats count = COUNT(_ignored);
 
 count:long
-1
+0
 ;
 
 inAggsAndAsGroups

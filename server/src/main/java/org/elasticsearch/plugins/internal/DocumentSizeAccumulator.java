@@ -20,7 +20,7 @@ public interface DocumentSizeAccumulator {
         public void add(long size) {}
 
         @Override
-        public Map<String, String> totalDocSizeMap(Map<String, String> map) {
+        public Map<String, String> getAndReset(Map<String, String> map) {
             return map;
         }
     };
@@ -37,5 +37,5 @@ public interface DocumentSizeAccumulator {
      * @param map a map with previous value of size
      * @return an map with a new value of size
      */
-    Map<String, String> totalDocSizeMap(Map<String, String> map);
+    Map<String, String> getAndReset(Map<String, String> map);
 }

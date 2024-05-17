@@ -53,10 +53,26 @@ For a complete list of all functions, refer to <<esql-functions>>.
 
 include::../functions/predicates.asciidoc[tag=body]
 
-include::../functions/examples/like.asciidoc[tag=example]
+Use `LIKE` to filter data based on string patterns using wildcards.
 
-include::../functions/examples/rlike.asciidoc[tag=example]
+[source,esql]
+----
+include::{esql-specs}/docs.csv-spec[tag=like]
+----
 
-include::../functions/examples/in.asciidoc[tag=example]
+Use `RLIKE` to filter data based on string patterns using using <<regexp-syntax,regular expressions>>.
+
+[source,esql]
+----
+include::{esql-specs}/docs.csv-spec[tag=rlike]
+----
+
+The `IN` operator allows testing whether a field or expression equals
+an element in a list of literals, fields or expressions:
+
+[source,esql]
+----
+include::{esql-specs}/row.csv-spec[tag=in-with-expressions]
+----
 
 For a complete list of all operators, refer to <<esql-operators>>.

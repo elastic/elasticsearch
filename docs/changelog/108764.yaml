@@ -1,5 +1,6 @@
 pr: 108764
-summary: ES|QL ST_DISTANCE Function
-area: "ES|QL, Geo"
+summary: ST_DISTANCE Function
+area: "ES|QL"
 type: enhancement
-issues: []
+issues:
+  - 108212

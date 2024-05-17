@@ -229,8 +229,7 @@ public class InboundHandlerTests extends ESTestCase {
         // response so we must just close the connection on an error. To avoid the failure disappearing into a black hole we at least log
         // it.
 
-        final MockLogAppender mockAppender = new MockLogAppender();
-        try (var ignored = mockAppender.capturing(InboundHandler.class)) {
+        try (var mockAppender = MockLogAppender.capture(InboundHandler.class)) {
             mockAppender.addExpectation(
                 new MockLogAppender.SeenEventExpectation(
                     "expected message",
@@ -272,10 +271,9 @@ public class InboundHandlerTests extends ESTestCase {
     private static final String EXPECTED_LOGGER_NAME = "org.elasticsearch.transport.InboundHandler";
 
     public void testLogsSlowInboundProcessing() throws Exception {
-        final MockLogAppender mockAppender = new MockLogAppender();
 
         handler.setSlowLogThreshold(TimeValue.timeValueMillis(5L));
-        try (var ignored = mockAppender.capturing(InboundHandler.class)) {
+        try (var mockAppender = MockLogAppender.capture(InboundHandler.class)) {
             final TransportVersion remoteVersion = TransportVersion.current();
 
             mockAppender.addExpectation(

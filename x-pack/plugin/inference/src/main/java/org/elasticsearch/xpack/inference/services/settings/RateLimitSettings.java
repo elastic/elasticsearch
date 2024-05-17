@@ -19,7 +19,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.TimeUnit;
 
-import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalPositiveInteger;
+import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalPositiveLong;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeFromMapOrDefaultEmpty;
 
 public class RateLimitSettings implements Writeable, ToXContentFragment {
@@ -32,7 +32,7 @@ public class RateLimitSettings implements Writeable, ToXContentFragment {
 
     public static RateLimitSettings of(Map<String, Object> map, RateLimitSettings defaultValue, ValidationException validationException) {
         Map<String, Object> settings = removeFromMapOrDefaultEmpty(map, FIELD_NAME);
-        var requestsPerMinute = extractOptionalPositiveInteger(settings, REQUESTS_PER_MINUTE_FIELD, FIELD_NAME, validationException);
+        var requestsPerMinute = extractOptionalPositiveLong(settings, REQUESTS_PER_MINUTE_FIELD, FIELD_NAME, validationException);
 
         return requestsPerMinute == null ? defaultValue : new RateLimitSettings(requestsPerMinute);
     }

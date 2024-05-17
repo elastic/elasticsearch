@@ -275,7 +275,7 @@ public class CohereServiceSettingsTests extends AbstractWireSerializingTestCase<
 
     @Override
     protected CohereServiceSettings mutateInstance(CohereServiceSettings instance) throws IOException {
-        return null;
+        return randomValueOtherThan(instance, CohereServiceSettingsTests::createRandom);
     }
 
     public static Map<String, Object> getServiceSettingsMap(@Nullable String url, @Nullable String model) {

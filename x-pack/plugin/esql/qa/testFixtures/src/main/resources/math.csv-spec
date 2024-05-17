@@ -1304,6 +1304,68 @@ d:double | s:double
 -0.0     | -0.0
 ;
 
+cbrt
+required_capability: fn_cbrt
+// tag::cbrt[]
+ROW d = 1000.0
+| EVAL c = cbrt(d)
+// end::cbrt[]
+;
+
+// tag::cbrt-result[]
+d: double | c:double
+1000.0    | 10.0
+// end::cbrt-result[]
+;
+
+cbrtOfInteger
+required_capability: fn_cbrt
+row i = 27 | eval c = cbrt(i);
+
+i:integer | c:double
+27        | 3
+;
+
+cbrtOfLong
+required_capability: fn_cbrt
+row l = to_long(1000000000000) | eval c = cbrt(l);
+
+l:long            | c:double
+1000000000000     | 10000
+;
+
+cbrtOfUnsignedLong
+required_capability: fn_cbrt
+row l = to_ul(1000000000000000000) | eval c = cbrt(l);
+
+l:ul                  | c:double
+1000000000000000000   | 1000000
+;
+
+cbrtOfNegative
+required_capability: fn_cbrt
+row d = -1.0 | eval c = cbrt(d);
+
+d:double | c:double
+-1.0     | -1.0
+;
+
+cbrtOfZero
+required_capability: fn_cbrt
+row d = 0.0 | eval c = cbrt(d);
+
+d:double | c:double
+0.0      | 0.0
+;
+
+cbrtOfNegativeZero
+required_capability: fn_cbrt
+row d = -0.0 | eval c = cbrt(d);
+
+d:double | c:double
+-0.0     | -0.0
+;
+
 least
 // tag::least[]
 ROW a = 10, b = 20

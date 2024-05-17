@@ -180,6 +180,8 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
     private static Map<String, EsField> mapping;
     private static Map<String, EsField> mappingAirports;
     private static Analyzer analyzerAirports;
+    private static Map<String, EsField> mappingExtra;
+    private static Analyzer analyzerExtra;
     private static EnrichResolution enrichResolution;
 
     private static class SubstitutionOnlyOptimizer extends LogicalPlanOptimizer {
@@ -217,6 +219,15 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         IndexResolution getIndexResultAirports = IndexResolution.valid(airports);
         analyzerAirports = new Analyzer(
             new AnalyzerContext(EsqlTestUtils.TEST_CFG, new EsqlFunctionRegistry(), getIndexResultAirports, enrichResolution),
+            TEST_VERIFIER
+        );
+
+        // Some tests use mappings from mapping-extra.json to be able to test more types so we load it here
+        mappingExtra = loadMapping("mapping-extra.json");
+        EsIndex extra = new EsIndex("extra", mappingExtra, Set.of("extra"));
+        IndexResolution getIndexResultExtra = IndexResolution.valid(extra);
+        analyzerExtra = new Analyzer(
+            new AnalyzerContext(EsqlTestUtils.TEST_CFG, new EsqlFunctionRegistry(), getIndexResultExtra, enrichResolution),
             TEST_VERIFIER
         );
     }
@@ -3125,6 +3136,59 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
     /**
      * Expects
      * Limit[1000[INTEGER]]
+     * \_Aggregate[[],[SPATIALCENTROID(location{f}#9) AS centroid]]
+     *   \_EsRelation[airports][abbrev{f}#5, location{f}#9, name{f}#6, scalerank{f}..]
+     */
+    public void testSpatialTypesAndStatsUseDocValuesWithEval() {
+        var plan = planAirports("""
+            from test
+            | stats centroid = st_centroid_agg(to_geopoint(location))
+            """);
+
+        var limit = as(plan, Limit.class);
+        var agg = as(limit.child(), Aggregate.class);
+        assertThat(Expressions.names(agg.aggregates()), contains("centroid"));
+        assertTrue("Expected GEO_POINT aggregation for STATS", agg.aggregates().stream().allMatch(aggExp -> {
+            var alias = as(aggExp, Alias.class);
+            var aggFunc = as(alias.child(), AggregateFunction.class);
+            var aggField = as(aggFunc.field(), FieldAttribute.class);
+            return aggField.dataType() == GEO_POINT;
+        }));
+
+        as(agg.child(), EsRelation.class);
+    }
+
+    /**
+     * Expects:
+     * Eval[[types.type{f}#5 AS new_types.type]]
+     * \_Limit[1000[INTEGER]]
+     *   \_EsRelation[test][_meta_field{f}#11, emp_no{f}#5, first_name{f}#6, ge..]
+     * NOTE: The convert function to_type is removed, since the types match
+     * This does not work for to_string(text) since that converts text to keyword
+     */
+    public void testTrivialTypeConversionWrittenAway() {
+        for (String type : new String[] { "keyword", "float", "double", "long", "integer", "boolean", "geo_point" }) {
+            var func = switch (type) {
+                case "keyword", "text" -> "to_string";
+                case "double", "float" -> "to_double";
+                case "geo_point" -> "to_geopoint";
+                default -> "to_" + type;
+            };
+            var field = "types." + type;
+            var plan = planExtra("from test | eval new_" + field + " = " + func + "(" + field + ")");
+            var eval = as(plan, Eval.class);
+            var alias = as(eval.fields().get(0), Alias.class);
+            assertThat(func + "(" + field + ")", alias.name(), equalTo("new_" + field));
+            var fa = as(alias.child(), FieldAttribute.class);
+            assertThat(func + "(" + field + ")", fa.name(), equalTo(field));
+            var limit = as(eval.child(), Limit.class);
+            as(limit.child(), EsRelation.class);
+        }
+    }
+
+    /**
+     * Expects
+     * Limit[1000[INTEGER]]
      * \_Aggregate[[emp_no%2{r}#6],[COUNT(salary{f}#12) AS c, emp_no%2{r}#6]]
      *   \_Eval[[emp_no{f}#7 % 2[INTEGER] AS emp_no%2]]
      *     \_EsRelation[test][_meta_field{f}#13, emp_no{f}#7, first_name{f}#8, ge..]
@@ -4360,6 +4424,14 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
 
     private LogicalPlan planAirports(String query) {
         var analyzed = analyzerAirports.analyze(parser.createStatement(query));
+        // System.out.println(analyzed);
+        var optimized = logicalOptimizer.optimize(analyzed);
+        // System.out.println(optimized);
+        return optimized;
+    }
+
+    private LogicalPlan planExtra(String query) {
+        var analyzed = analyzerExtra.analyze(parser.createStatement(query));
         // System.out.println(analyzed);
         var optimized = logicalOptimizer.optimize(analyzed);
         // System.out.println(optimized);

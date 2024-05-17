@@ -613,8 +613,7 @@ public class HealthPeriodicLoggerTests extends ESTestCase {
     }
 
     public void testLoggingHappens() {
-        MockLogAppender mockAppender = new MockLogAppender();
-        try (var ignored = mockAppender.capturing(HealthPeriodicLogger.class)) {
+        try (var mockAppender = MockLogAppender.capture(HealthPeriodicLogger.class)) {
             mockAppender.addExpectation(
                 new MockLogAppender.SeenEventExpectation(
                     "overall",
@@ -674,8 +673,7 @@ public class HealthPeriodicLoggerTests extends ESTestCase {
     }
 
     public void testOutputModeNoLogging() {
-        MockLogAppender mockAppender = new MockLogAppender();
-        try (var ignored = mockAppender.capturing(HealthPeriodicLogger.class)) {
+        try (var mockAppender = MockLogAppender.capture(HealthPeriodicLogger.class)) {
             mockAppender.addExpectation(
                 new MockLogAppender.UnseenEventExpectation(
                     "overall",

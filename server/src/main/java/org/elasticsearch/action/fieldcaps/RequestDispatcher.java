@@ -94,18 +94,14 @@ final class RequestDispatcher {
         for (String index : indices) {
             final GroupShardsIterator<ShardIterator> shardIts;
             try {
-                shardIts = clusterService.operationRouting()
-                    .searchShards(clusterState, new String[]{index}, null, null, null, null);
+                shardIts = clusterService.operationRouting().searchShards(clusterState, new String[] { index }, null, null, null, null);
             } catch (Exception e) {
                 onIndexFailure.accept(index, e);
                 continue;
             }
             final IndexSelector indexResult = new IndexSelector(shardIts);
             if (indexResult.nodeToShards.isEmpty()) {
-                onIndexFailure.accept(
-                    index,
-                    new NoShardAvailableActionException(null, "index [" + index + "] has no active shard copy")
-                );
+                onIndexFailure.accept(index, new NoShardAvailableActionException(null, "index [" + index + "] has no active shard copy"));
             } else {
                 this.indexSelectors.put(index, indexResult);
             }

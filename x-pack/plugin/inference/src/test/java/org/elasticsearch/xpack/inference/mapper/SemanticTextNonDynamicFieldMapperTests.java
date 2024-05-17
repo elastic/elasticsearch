@@ -18,6 +18,7 @@ import org.junit.Before;
 
 import java.util.Collection;
 import java.util.List;
+import java.util.Locale;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
@@ -44,10 +45,10 @@ public class SemanticTextNonDynamicFieldMapperTests extends NonDynamicFieldMappe
 
     @Override
     protected String getMapping() {
-        return """
+        return String.format(Locale.ROOT, """
             "type": "%s",
             "inference_id": "%s"
-            """.formatted(SemanticTextFieldMapper.CONTENT_TYPE, TestSparseInferenceServiceExtension.TestInferenceService.NAME);
+            """, SemanticTextFieldMapper.CONTENT_TYPE, TestSparseInferenceServiceExtension.TestInferenceService.NAME);
     }
 
     private void storeSparseModel() throws Exception {

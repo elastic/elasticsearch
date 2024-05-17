@@ -26,6 +26,7 @@ import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 import static org.elasticsearch.rest.RestStatus.GONE;
+import static org.elasticsearch.rest.RestUtils.getAckTimeout;
 import static org.elasticsearch.rest.RestUtils.getMasterNodeTimeout;
 
 public final class RestFreezeIndexAction extends BaseRestHandler {
@@ -63,7 +64,7 @@ public final class RestFreezeIndexAction extends BaseRestHandler {
         }
 
         FreezeRequest freezeRequest = new FreezeRequest(Strings.splitStringByCommaToArray(request.param("index")));
-        freezeRequest.ackTimeout(request.paramAsTime("timeout", freezeRequest.ackTimeout()));
+        freezeRequest.ackTimeout(getAckTimeout(request));
         freezeRequest.masterNodeTimeout(getMasterNodeTimeout(request));
         freezeRequest.indicesOptions(IndicesOptions.fromRequest(request, freezeRequest.indicesOptions()));
         String waitForActiveShards = request.param("wait_for_active_shards");

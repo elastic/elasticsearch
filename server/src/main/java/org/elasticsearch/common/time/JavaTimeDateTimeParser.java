@@ -14,7 +14,6 @@ import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeFormatterBuilder;
 import java.time.temporal.TemporalAccessor;
 import java.util.Locale;
-import java.util.Optional;
 import java.util.function.Consumer;
 import java.util.function.UnaryOperator;
 
@@ -65,9 +64,9 @@ class JavaTimeDateTimeParser implements DateTimeParser {
     }
 
     @Override
-    public Optional<TemporalAccessor> tryParse(CharSequence str) {
+    public ParseResult tryParse(CharSequence str) {
         ParsePosition pos = new ParsePosition(0);
-        return Optional.ofNullable((TemporalAccessor) formatter.toFormat().parseObject(str.toString(), pos))
-            .filter(ta -> pos.getIndex() == str.length());
+        var result = (TemporalAccessor) formatter.toFormat().parseObject(str.toString(), pos);
+        return pos.getIndex() == str.length() ? new ParseResult(result) : ParseResult.error(Math.max(pos.getErrorIndex(), pos.getIndex()));
     }
 }

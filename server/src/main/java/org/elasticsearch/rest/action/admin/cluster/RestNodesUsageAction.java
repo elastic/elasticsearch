@@ -28,6 +28,7 @@ import java.util.Locale;
 import java.util.Set;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
+import static org.elasticsearch.rest.RestUtils.getTimeout;
 
 @ServerlessScope(Scope.INTERNAL)
 public class RestNodesUsageAction extends BaseRestHandler {
@@ -48,7 +49,7 @@ public class RestNodesUsageAction extends BaseRestHandler {
         Set<String> metrics = Strings.tokenizeByCommaToSet(request.param("metric", "_all"));
 
         NodesUsageRequest nodesUsageRequest = new NodesUsageRequest(nodesIds);
-        nodesUsageRequest.timeout(request.paramAsTime("timeout", null));
+        nodesUsageRequest.timeout(getTimeout(request));
 
         if (metrics.size() == 1 && metrics.contains("_all")) {
             nodesUsageRequest.all();

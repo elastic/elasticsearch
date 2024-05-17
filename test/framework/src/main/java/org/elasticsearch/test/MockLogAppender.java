@@ -343,9 +343,11 @@ public class MockLogAppender implements Releasable {
     /**
      * Executes an action and verifies expectations against the provided logger
      */
-    public static void assertThatLogger(Runnable action, Class<?> loggerOwner, MockLogAppender.LoggingExpectation expectation) {
+    public static void assertThatLogger(Runnable action, Class<?> loggerOwner, MockLogAppender.LoggingExpectation... expectations) {
         try (var mockAppender = MockLogAppender.capture(loggerOwner)) {
-            mockAppender.addExpectation(expectation);
+            for (var expectation : expectations) {
+                mockAppender.addExpectation(expectation);
+            }
             action.run();
             mockAppender.assertAllExpectationsMatched();
         }

@@ -751,12 +751,13 @@ public class XContentHelper {
 
     /**
      * Drains all data available via this parser into a provided builder.
+     * Provided parser is closed as a result.
      * @param parser
      * @param destination
      */
-    public static void drainParser(XContentParser parser, XContentBuilder destination) throws IOException {
+    public static void drainAndClose(XContentParser parser, XContentBuilder destination) throws IOException {
         if (parser.isClosed()) {
-            throw new IllegalStateException("Parser is closed");
+            throw new IllegalStateException("Can't drain a parser that is closed");
         }
 
         XContentParser.Token token;
@@ -764,5 +765,7 @@ public class XContentHelper {
             destination.copyCurrentStructure(parser);
             token = parser.nextToken();
         } while (token != null);
+
+        parser.close();
     }
 }

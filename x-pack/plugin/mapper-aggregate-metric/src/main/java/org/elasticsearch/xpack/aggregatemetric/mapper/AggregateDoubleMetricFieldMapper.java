@@ -593,7 +593,7 @@ public class AggregateDoubleMetricFieldMapper extends FieldMapper {
         EnumMap<Metric, Number> metricsParsed = new EnumMap<>(Metric.class);
         // Preserves the content of the field in order to be able to construct synthetic source
         // if field value is malformed.
-        XContentBuilder malformedContentForSyntheticSource = context.mappingLookup().isSourceSynthetic()
+        XContentBuilder malformedContentForSyntheticSource = context.mappingLookup().isSourceSynthetic() && ignoreMalformed
             ? XContentBuilder.builder(context.parser().contentType().xContent())
             : null;
 
@@ -680,7 +680,8 @@ public class AggregateDoubleMetricFieldMapper extends FieldMapper {
             if (ignoreMalformed) {
                 if (malformedContentForSyntheticSource != null) {
                     if (subParser != null) {
-                        XContentHelper.drainParser(subParser, malformedContentForSyntheticSource);
+                        // Remaining data in parser needs to be stored as is in order to provide it in synthetic source.
+                        XContentHelper.drainAndClose(subParser, malformedContentForSyntheticSource);
                     } else {
                         // We don't use DrainingXContentParser since we don't want to go beyond current field
                         malformedContentForSyntheticSource.copyCurrentStructure(context.parser());
@@ -693,8 +694,8 @@ public class AggregateDoubleMetricFieldMapper extends FieldMapper {
                         XContentDataHelper.encodeXContentBuilder(malformedContentForSyntheticSource)
                     );
                     context.addIgnoredField(nameValue);
-                } else {
-                    // close the subParser so we advance to the end of the object
+                } else if (subParser != null) {
+                    // close the subParser, so we advance to the end of the object
                     subParser.close();
                 }
 

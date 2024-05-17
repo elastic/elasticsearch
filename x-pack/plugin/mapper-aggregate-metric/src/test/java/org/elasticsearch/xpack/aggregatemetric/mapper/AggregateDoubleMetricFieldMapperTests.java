@@ -532,6 +532,21 @@ public class AggregateDoubleMetricFieldMapperTests extends MapperTestCase {
                     metrics.put(storedMetrics.stream().findFirst().get().name(), "boom");
                     return metrics;
                 },
+                // metric is an object
+                () -> {
+                    var metrics = validMetrics();
+                    metrics.put(storedMetrics.stream().findFirst().get().name(), Map.of("hello", "world"));
+                    return metrics;
+                },
+                // invalid metric value with additional data
+                () -> {
+                    var metrics = validMetrics();
+                    metrics.put(storedMetrics.stream().findFirst().get().name(), "boom");
+                    metrics.put("hello", "world");
+                    metrics.put("object", Map.of("hello", "world"));
+                    metrics.put("list", List.of("hello", "world"));
+                    return metrics;
+                },
                 // negative value count
                 () -> {
                     var metrics = validMetrics();
@@ -579,15 +594,7 @@ public class AggregateDoubleMetricFieldMapperTests extends MapperTestCase {
 
         @Override
         public List<SyntheticSourceInvalidExample> invalidExample() throws IOException {
-            return List.of(
-                new SyntheticSourceInvalidExample(
-                    matchesPattern("field \\[field] of type \\[.+] doesn't support synthetic source because it ignores malformed numbers"),
-                    b -> {
-                        mapping(b);
-                        b.field("ignore_malformed", true);
-                    }
-                )
-            );
+            return List.of();
         }
     }
 

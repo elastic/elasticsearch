@@ -18,6 +18,7 @@ import org.elasticsearch.xpack.core.slm.action.StopSLMAction;
 import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.POST;
+import static org.elasticsearch.rest.RestUtils.getAckTimeout;
 import static org.elasticsearch.rest.RestUtils.getMasterNodeTimeout;
 
 @ServerlessScope(Scope.INTERNAL)
@@ -36,7 +37,7 @@ public class RestStopSLMAction extends BaseRestHandler {
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) {
         StopSLMAction.Request request = new StopSLMAction.Request();
-        request.ackTimeout(restRequest.paramAsTime("timeout", request.ackTimeout()));
+        request.ackTimeout(getAckTimeout(restRequest));
         request.masterNodeTimeout(getMasterNodeTimeout(restRequest));
         return channel -> client.execute(StopSLMAction.INSTANCE, request, new RestToXContentListener<>(channel));
     }

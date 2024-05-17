@@ -20,6 +20,7 @@ import java.io.IOException;
 import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.POST;
+import static org.elasticsearch.rest.RestUtils.getAckTimeout;
 import static org.elasticsearch.rest.RestUtils.getMasterNodeTimeout;
 
 @ServerlessScope(Scope.INTERNAL)
@@ -40,7 +41,7 @@ public class RestVerifyRepositoryAction extends BaseRestHandler {
         String name = request.param("repository");
         VerifyRepositoryRequest verifyRepositoryRequest = new VerifyRepositoryRequest(name);
         verifyRepositoryRequest.masterNodeTimeout(getMasterNodeTimeout(request));
-        verifyRepositoryRequest.ackTimeout(request.paramAsTime("timeout", verifyRepositoryRequest.ackTimeout()));
+        verifyRepositoryRequest.ackTimeout(getAckTimeout(request));
         return channel -> client.admin().cluster().verifyRepository(verifyRepositoryRequest, new RestToXContentListener<>(channel));
     }
 }

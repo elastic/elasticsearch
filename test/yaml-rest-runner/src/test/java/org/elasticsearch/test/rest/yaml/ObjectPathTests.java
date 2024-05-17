@@ -29,6 +29,7 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.oneOf;
+import static org.hamcrest.Matchers.sameInstance;
 
 public class ObjectPathTests extends ESTestCase {
 
@@ -335,6 +336,8 @@ public class ObjectPathTests extends ESTestCase {
         assertThat(object, notNullValue());
         assertThat(object, instanceOf(String.class));
         assertThat(object, equalTo("test2"));
+        var lastObject = objectPath.evaluate("-1.index");
+        assertThat(lastObject, sameInstance(object));
     }
 
     public void testEvaluateArraySize() throws Exception {

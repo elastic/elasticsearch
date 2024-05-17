@@ -63,6 +63,7 @@ import org.elasticsearch.xpack.application.connector.syncjob.ConnectorSyncJob;
 import org.elasticsearch.xpack.application.connector.syncjob.ConnectorSyncJobIndexService;
 
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
@@ -76,6 +77,7 @@ import java.util.stream.Collectors;
 
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.xpack.application.connector.ConnectorFiltering.fromXContentBytesConnectorFiltering;
+import static org.elasticsearch.xpack.application.connector.ConnectorFiltering.sortFilteringRulesByOrder;
 
 /**
  * A service that manages persistent {@link Connector} configurations.
@@ -615,7 +617,13 @@ public class ConnectorIndexService {
                     ? connectorFilteringSingleton.getDraft().getAdvancedSnippet()
                     : advancedSnippet;
 
-                List<FilteringRule> newDraftRules = rules == null ? connectorFilteringSingleton.getDraft().getRules() : rules;
+                List<FilteringRule> newDraftRules = rules == null
+                    ? connectorFilteringSingleton.getDraft().getRules()
+                    : new ArrayList<>(rules);
+
+                if (rules != null) {
+                    newDraftRules = sortFilteringRulesByOrder(newDraftRules);
+                }
 
                 ConnectorFiltering connectorFilteringWithUpdatedDraft = connectorFilteringSingleton.setDraft(
                     new FilteringRules.Builder().setRules(newDraftRules)
@@ -823,7 +831,7 @@ public class ConnectorIndexService {
                             Connector.IS_NATIVE_FIELD.getPreferredName(),
                             request.isNative(),
                             Connector.STATUS_FIELD.getPreferredName(),
-                            ConnectorStatus.CONFIGURED
+                            ConnectorStatus.CONFIGURED.toString()
                         )
                     )
 
@@ -969,7 +977,7 @@ public class ConnectorIndexService {
                                 Connector.SERVICE_TYPE_FIELD.getPreferredName(),
                                 request.getServiceType(),
                                 Connector.STATUS_FIELD.getPreferredName(),
-                                newStatus
+                                newStatus.toString()
                             )
                         )
 

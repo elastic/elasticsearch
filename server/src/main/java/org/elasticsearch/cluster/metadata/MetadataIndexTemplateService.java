@@ -1864,7 +1864,7 @@ public class MetadataIndexTemplateService {
         CompressedXContent mappings = null;
         List<Alias> aliases = new ArrayList<>();
 
-        TimeValue masterTimeout = MasterNodeRequest.DEFAULT_MASTER_NODE_TIMEOUT;
+        TimeValue masterTimeout = MasterNodeRequest.TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT;
 
         public PutRequest(String cause, String name) {
             this.cause = cause;
@@ -1914,7 +1914,7 @@ public class MetadataIndexTemplateService {
 
     public static class RemoveRequest {
         final String name;
-        TimeValue masterTimeout = MasterNodeRequest.DEFAULT_MASTER_NODE_TIMEOUT;
+        TimeValue masterTimeout = MasterNodeRequest.TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT;
 
         public RemoveRequest(String name) {
             this.name = name;

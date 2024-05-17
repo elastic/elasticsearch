@@ -1294,7 +1294,7 @@ public final class InternalTestCluster extends TestCluster {
         assertNoPendingIndexOperations();
         assertAllPendingWriteLimitsReleased();
         assertOpenTranslogReferences();
-        assertNoSnapshottedIndexCommit();
+        assertNoAcquiredIndexCommit();
     }
 
     private void assertAllPendingWriteLimitsReleased() throws Exception {
@@ -1357,7 +1357,7 @@ public final class InternalTestCluster extends TestCluster {
         }, 60, TimeUnit.SECONDS);
     }
 
-    private void assertNoSnapshottedIndexCommit() throws Exception {
+    private void assertNoAcquiredIndexCommit() throws Exception {
         assertBusy(() -> {
             for (NodeAndClient nodeAndClient : nodes.values()) {
                 IndicesService indexServices = getInstance(IndicesService.class, nodeAndClient.name);
@@ -1368,7 +1368,7 @@ public final class InternalTestCluster extends TestCluster {
                             if (engine instanceof InternalEngine) {
                                 assertFalse(
                                     indexShard.routingEntry().toString() + " has unreleased snapshotted index commits",
-                                    EngineTestCase.hasSnapshottedCommits(engine)
+                                    EngineTestCase.hasAcquiredIndexCommits(engine)
                                 );
                             }
                         } catch (AlreadyClosedException ignored) {
@@ -2582,7 +2582,6 @@ public final class InternalTestCluster extends TestCluster {
     }
 
     public void awaitIndexShardCloseAsyncTasks() {
-        // ES-8334 TODO build this wait into the relevant APIs (especially, delete-index and close-index)
         final var latch = new CountDownLatch(1);
         try (var refs = new RefCountingRunnable(latch::countDown)) {
             for (final var nodeAndClient : nodes.values()) {

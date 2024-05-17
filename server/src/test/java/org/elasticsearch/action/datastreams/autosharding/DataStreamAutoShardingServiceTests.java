@@ -768,10 +768,10 @@ public class DataStreamAutoShardingServiceTests extends ESTestCase {
             builder.put(indexMetadata, false);
             backingIndices.add(indexMetadata.getIndex());
         }
-        return DataStream.builder(dataStreamName, backingIndices)
-            .setGeneration(backingIndicesCount)
-            .setAutoShardingEvent(autoShardingEvent)
-            .build();
+        return DataStream.builder(
+            dataStreamName,
+            DataStream.DataStreamIndices.backingIndicesBuilder(backingIndices).setAutoShardingEvent(autoShardingEvent).build()
+        ).setGeneration(backingIndicesCount).build();
     }
 
     private IndexMetadata createIndexMetadata(

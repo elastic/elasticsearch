@@ -786,13 +786,12 @@ public class SecurityTests extends ESTestCase {
     public void testSecurityRestHandlerInterceptorCanBeInstalled() throws IllegalAccessException {
         final Logger amLogger = LogManager.getLogger(ActionModule.class);
         Loggers.setLevel(amLogger, Level.DEBUG);
-        final MockLogAppender appender = new MockLogAppender();
 
         Settings settings = Settings.builder().put("xpack.security.enabled", false).put("path.home", createTempDir()).build();
         SettingsModule settingsModule = new SettingsModule(Settings.EMPTY);
         ThreadPool threadPool = new TestThreadPool(getTestName());
 
-        try (var ignored = appender.capturing(ActionModule.class)) {
+        try (var appender = MockLogAppender.capture(ActionModule.class)) {
             UsageService usageService = new UsageService();
             Security security = new Security(settings);
 
@@ -838,7 +837,6 @@ public class SecurityTests extends ESTestCase {
         final Logger mockLogger = LogManager.getLogger(Security.class);
         boolean securityEnabled = true;
         Loggers.setLevel(mockLogger, Level.INFO);
-        final MockLogAppender appender = new MockLogAppender();
 
         Settings.Builder settings = Settings.builder().put("path.home", createTempDir());
         if (randomBoolean()) {
@@ -847,7 +845,7 @@ public class SecurityTests extends ESTestCase {
             settings.put("xpack.security.enabled", securityEnabled);
         }
 
-        try (var ignored = appender.capturing(Security.class)) {
+        try (var appender = MockLogAppender.capture(Security.class)) {
             appender.addExpectation(
                 new MockLogAppender.SeenEventExpectation(
                     "message",

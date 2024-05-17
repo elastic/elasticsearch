@@ -14,8 +14,6 @@ import org.apache.http.conn.ssl.SSLConnectionSocketFactory;
 import org.apache.http.impl.client.CloseableHttpClient;
 import org.apache.http.impl.client.HttpClientBuilder;
 import org.apache.logging.log4j.Level;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.settings.Settings;
@@ -119,13 +117,10 @@ public class SSLErrorMessageCertificateVerificationTests extends ESTestCase {
         final SslConfiguration clientSslConfig = sslService.getSSLConfiguration(HTTP_CLIENT_SSL);
         final SSLSocketFactory clientSocketFactory = sslService.sslSocketFactory(clientSslConfig);
 
-        final Logger diagnosticLogger = LogManager.getLogger(DiagnosticTrustManager.class);
-        final MockLogAppender mockAppender = new MockLogAppender();
-
         // Apache clients implement their own hostname checking, but we don't want that.
         // We use a raw socket so we get the builtin JDK checking (which is what we use for transport protocol SSL checks)
         try (
-            var ignored = mockAppender.capturing(DiagnosticTrustManager.class);
+            var mockAppender = MockLogAppender.capture(DiagnosticTrustManager.class);
             MockWebServer webServer = initWebServer(sslService);
             SSLSocket clientSocket = (SSLSocket) clientSocketFactory.createSocket()
         ) {

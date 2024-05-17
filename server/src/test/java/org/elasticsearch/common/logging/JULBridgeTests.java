@@ -61,9 +61,8 @@ public class JULBridgeTests extends ESTestCase {
     private void assertLogged(Runnable loggingCode, LoggingExpectation... expectations) {
         Logger testLogger = LogManager.getLogger("");
         Level savedLevel = testLogger.getLevel();
-        MockLogAppender mockAppender = new MockLogAppender();
 
-        try (var ignored = mockAppender.capturing("")) {
+        try (var mockAppender = MockLogAppender.capture("")) {
             Loggers.setLevel(testLogger, Level.ALL);
             for (var expectation : expectations) {
                 mockAppender.addExpectation(expectation);

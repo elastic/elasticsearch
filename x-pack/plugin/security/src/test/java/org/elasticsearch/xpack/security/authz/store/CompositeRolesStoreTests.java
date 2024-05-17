@@ -296,8 +296,7 @@ public class CompositeRolesStoreTests extends ESTestCase {
             effectiveRoleDescriptors::set
         );
 
-        final MockLogAppender mockAppender = new MockLogAppender();
-        try (var ignored = mockAppender.capturing(RoleDescriptorStore.class)) {
+        try (var mockAppender = MockLogAppender.capture(RoleDescriptorStore.class)) {
             mockAppender.addExpectation(
                 new MockLogAppender.SeenEventExpectation(
                     "disabled role warning",

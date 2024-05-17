@@ -52,9 +52,6 @@ public class TransportGetPipelineActionTests extends ESTestCase {
      * a TransportGetPipelineAction.
      */
     public void testGetPipelineMultipleIDsPartialFailure() throws Exception {
-        // Set up a log appender for detecting log messages
-        final MockLogAppender mockLogAppender = new MockLogAppender();
-
         // Set up a MultiGetResponse
         GetResponse mockResponse = mock(GetResponse.class);
         when(mockResponse.getId()).thenReturn("1");
@@ -66,7 +63,7 @@ public class TransportGetPipelineActionTests extends ESTestCase {
             new MultiGetItemResponse[] { new MultiGetItemResponse(mockResponse, null), new MultiGetItemResponse(null, failure) }
         );
 
-        try (var threadPool = createThreadPool(); var ignored = mockLogAppender.capturing(TransportGetPipelineAction.class)) {
+        try (var threadPool = createThreadPool(); var mockLogAppender = MockLogAppender.capture(TransportGetPipelineAction.class)) {
             mockLogAppender.addExpectation(
                 new MockLogAppender.SeenEventExpectation(
                     "message",

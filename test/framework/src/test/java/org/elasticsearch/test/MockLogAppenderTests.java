@@ -25,9 +25,8 @@ public class MockLogAppenderTests extends ESTestCase {
         });
         logThread.start();
 
-        final var appender = new MockLogAppender();
         for (int i = 0; i < 1000; i++) {
-            try (var ignored = appender.capturing(MockLogAppenderTests.class)) {
+            try (var appender = MockLogAppender.capture(MockLogAppenderTests.class)) {
                 Thread.yield();
             }
         }

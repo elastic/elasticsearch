@@ -294,18 +294,6 @@ public class MockLogAppender implements Releasable {
         }
     }
 
-    public Releasable capturing(Class<?>... classes) {
-        this.loggers = Arrays.stream(classes).map(Class::getCanonicalName).toList();
-        addToMockAppenders(this, loggers);
-        return this;
-    }
-
-    public Releasable capturing(String... names) {
-        this.loggers = Arrays.asList(names);
-        addToMockAppenders(this, loggers);
-        return this;
-    }
-
     /**
      * Adds the list of class loggers to this {@link MockLogAppender}.
      *

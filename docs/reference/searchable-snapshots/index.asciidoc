@@ -303,7 +303,6 @@ Because {search-snap} indices are not regular indices, it is not possible to use
 a <<snapshots-source-only-repository,source-only repository>> to take snapshots
 of {search-snap} indices.
 
-[discrete]
 [[searchable-snapshots-reliability]]
 [WARNING]
 .Reliability of {search-snaps}

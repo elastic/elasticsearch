@@ -258,6 +258,38 @@ setup:
                 "metrics": ["min", "max", "sum"]
               }
             ]
+
+---
+"Deprecation validation failure":
+
+  - do:
+      indices.delete:
+        index: dummy-rollup-index
+
+  - do:
+      catch: /new rollup jobs are not allowed in clusters that don't have any rollup usage, since rollup has been deprecated/
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
+      rollup.put_job:
+        id: foo
+        body:  >
+          {
+            "index_pattern": "foo",
+            "rollup_index": "foo_rollup",
+            "cron": "*/30 * * * * ?",
+            "page_size" :10,
+            "groups" : {
+              "date_histogram": {
+                "field": "the_field",
+                "calendar_interval": "1h"
+              }
+            },
+            "metrics": [
+              {
+                "field": "field_doesnt_exist",
+                "metrics": ["min", "max", "sum"]
+              }
+            ]
           }
 
 ---

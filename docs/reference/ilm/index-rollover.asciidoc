@@ -39,7 +39,7 @@ On each rollover, the new index becomes the write index.
 
 [NOTE]
 ====
-When an index is rolled over, previous index's age is updated to reflect the rollover time. 
+When an index is rolled over, the previous index's age is updated to reflect the rollover time. 
 This date, rather than the index's `creation_date`, is used in {ilm} 
 `min_age` phase calculations. <<min-age-calculation,Learn more>>.
 ====

@@ -121,14 +121,14 @@ required_capability: metadata_fields, metadata_field_ignored
 from employees metadata _ignored | eval _i = _ignored | stats min = min(emp_no) by _i;
 
 min:integer |_i:keyword
-10001       |1
+10001       |null
 ;
 
 metaIgnoredInAggs
 required_capability: metadata_fields, metadata_field_ignored
 from employees metadata _ignored | stats count = COUNT(_ignored);
 
-count:integer
+count:long
 1
 ;
 

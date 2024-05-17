@@ -22,7 +22,7 @@ setup:
       headers:
         Authorization: "Basic dGVzdF91c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" #test_user credentials
       ml.put_trained_model:
-        model_id: "text_expansion_model"
+        model_id: "my-text_expansion_model"
         body: >
           {
             "description": "simple model for testing",
@@ -41,14 +41,14 @@ setup:
       headers:
         Authorization: "Basic dGVzdF91c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" #test_user credentials
       ml.put_trained_model_vocabulary:
-        model_id: "text_expansion_model"
+        model_id: "my-text_expansion_model"
         body: >
           { "vocabulary": ["[PAD]", "[UNK]", "these", "are", "my", "words", "the", "washing", "machine", "is", "leaking", "octopus", "comforter", "smells"] }
   - do:
       headers:
         Authorization: "Basic dGVzdF91c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" #test_user credentials
       ml.put_trained_model_definition_part:
-        model_id: "text_expansion_model"
+        model_id: "my-text_expansion_model"
         part: 0
         body: >
           {
@@ -82,7 +82,7 @@ setup:
         Authorization: "Basic dGVzdF91c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" #test_user credentials
         Content-Type: application/json
       ml.start_trained_model_deployment:
-        model_id: text_expansion_model
+        model_id: my-text_expansion_model
         wait_for: started
 
 ---
@@ -94,7 +94,7 @@ setup:
           query:
             sparse_vector:
               field: ml.tokens
-              inference_id: text_expansion_model
+              inference_id: my-text_expansion_model
               text: "octopus comforter smells"
   - match: { hits.total.value: 4 }
   - match: { hits.hits.0._source.source_text: "the octopus comforter smells" }
@@ -108,7 +108,7 @@ setup:
           query:
             sparse_vector:
               field: ml.tokens
-              inference_id: text_expansion_model
+              inference_id: my-text_expansion_model
               text: "octopus comforter smells"
               prune: true
               pruning_config:

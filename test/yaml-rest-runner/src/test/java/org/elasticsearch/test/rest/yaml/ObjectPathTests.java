@@ -130,6 +130,7 @@ public class ObjectPathTests extends ESTestCase {
         object = objectPath.evaluate("field1.array1.1");
         assertThat(object, instanceOf(String.class));
         assertThat(object, equalTo("value2"));
+        assertThat(object, sameInstance(objectPath.evaluate("field1.array1.-1")));
     }
 
     @SuppressWarnings("unchecked")
@@ -154,6 +155,7 @@ public class ObjectPathTests extends ESTestCase {
         Object object = objectPath.evaluate("field1.array1.1.element");
         assertThat(object, instanceOf(String.class));
         assertThat(object, equalTo("value2"));
+        assertThat(object, sameInstance(objectPath.evaluate("field1.array1.-1.element")));
         object = objectPath.evaluate("");
         assertThat(object, notNullValue());
         assertThat(object, instanceOf(Map.class));
@@ -329,15 +331,15 @@ public class ObjectPathTests extends ESTestCase {
         assertThat(object, instanceOf(List.class));
         assertThat(((List<Object>) object).size(), equalTo(2));
         object = objectPath.evaluate("0");
-        assertThat(objectPath.evaluate("-2"), sameInstance(object));
         assertThat(object, notNullValue());
         assertThat(object, instanceOf(Map.class));
+        assertThat(object, sameInstance(objectPath.evaluate("-2")));
         assertThat(((Map<String, Object>) object).get("alias"), equalTo("test_alias1"));
         object = objectPath.evaluate("1.index");
-        assertThat(objectPath.evaluate("-1.index"), sameInstance(object));
         assertThat(object, notNullValue());
         assertThat(object, instanceOf(String.class));
         assertThat(object, equalTo("test2"));
+        assertThat(object, sameInstance(objectPath.evaluate("-1.index")));
     }
 
     public void testEvaluateArraySize() throws Exception {

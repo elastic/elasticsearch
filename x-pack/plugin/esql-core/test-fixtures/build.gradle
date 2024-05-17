@@ -8,7 +8,7 @@
 apply plugin: 'elasticsearch.java'
 
 dependencies {
-  api project(xpackModule('ql'))
+  api project(xpackModule('esql-core'))
   api project(':test:framework')
 }
 

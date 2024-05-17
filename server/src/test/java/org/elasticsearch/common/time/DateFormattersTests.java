@@ -20,6 +20,7 @@ import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
+import java.time.format.DateTimeParseException;
 import java.time.temporal.ChronoField;
 import java.time.temporal.TemporalAccessor;
 import java.util.List;
@@ -38,11 +39,12 @@ import static org.hamcrest.Matchers.sameInstance;
 
 public class DateFormattersTests extends ESTestCase {
 
-    private void assertParseException(String input, String format) {
+    private IllegalArgumentException assertParseException(String input, String format) {
         DateFormatter javaTimeFormatter = DateFormatter.forPattern(format);
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> javaTimeFormatter.parse(input));
         assertThat(e.getMessage(), containsString(input));
         assertThat(e.getMessage(), containsString(format));
+        return e;
     }
 
     private void assertParses(String input, String format) {
@@ -1134,6 +1136,11 @@ public class DateFormattersTests extends ESTestCase {
 
     public void testExceptionWhenCompositeParsingFails() {
         assertParseException("2014-06-06T12:01:02.123", "yyyy-MM-dd'T'HH:mm:ss||yyyy-MM-dd'T'HH:mm:ss.SS");
+    }
+
+    public void testExceptionErrorIndex() {
+        Exception e = assertParseException("2024-01-01j", "iso8601||strict_date_optional_time");
+        assertThat(((DateTimeParseException) e.getCause()).getErrorIndex(), equalTo(10));
     }
 
     public void testStrictParsing() {

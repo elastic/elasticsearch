@@ -23,5 +23,10 @@ public interface DocumentSizeReporter {
     /**
      * An action to be performed upon finished indexing.
      */
+    default void onParsingCompleted(ParsedDocument parsedDocument) {}
+
+    /**
+     * An action to be performed upon finished indexing.
+     */
     default void onIndexingCompleted(ParsedDocument parsedDocument) {}
 }

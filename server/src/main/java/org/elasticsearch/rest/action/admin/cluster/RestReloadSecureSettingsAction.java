@@ -32,6 +32,7 @@ import java.util.List;
 import java.util.Set;
 
 import static org.elasticsearch.rest.RestRequest.Method.POST;
+import static org.elasticsearch.rest.RestUtils.getTimeout;
 
 public final class RestReloadSecureSettingsAction extends BaseRestHandler implements RestRequestFilter {
 
@@ -63,7 +64,7 @@ public final class RestReloadSecureSettingsAction extends BaseRestHandler implem
     public RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
         final NodesReloadSecureSettingsRequest reloadSecureSettingsRequest = new NodesReloadSecureSettingsRequest();
         reloadSecureSettingsRequest.nodesIds(Strings.splitStringByCommaToArray(request.param("nodeId")));
-        reloadSecureSettingsRequest.timeout(request.paramAsTime("timeout", null));
+        reloadSecureSettingsRequest.timeout(getTimeout(request));
         request.withContentOrSourceParamParserOrNull(parser -> {
             if (parser != null) {
                 final ParsedRequestBody parsedRequestBody = PARSER.parse(parser, null);

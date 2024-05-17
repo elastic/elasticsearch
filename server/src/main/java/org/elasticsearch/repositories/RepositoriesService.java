@@ -338,27 +338,25 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
     }
 
     private void validatePutRepositoryRequest(final PutRepositoryRequest request, final ActionListener<Void> validationListener) {
-        try {
-            final var metadata = new RepositoryMetadata(request.name(), request.type(), request.settings());
-            final var repository = createRepository(metadata);
-            threadPool.executor(ThreadPool.Names.SNAPSHOT).execute(new ActionRunnable<>(validationListener) {
-                @Override
-                protected void doRun() {
-                    try {
-                        final var token = repository.startVerification();
-                        if (token != null) {
-                            repository.verify(token, clusterService.localNode());
-                            repository.endVerification(token);
-                        }
-                        validationListener.onResponse(null);
-                    } finally {
-                        closeRepository(repository);
+        threadPool.executor(ThreadPool.Names.SNAPSHOT).execute(() -> {
+            try {
+                final var metadata = new RepositoryMetadata(request.name(), request.type(), request.settings());
+                final var repository = createRepository(metadata);
+                try {
+                    final var token = repository.startVerification();
+                    if (token != null) {
+                        repository.verify(token, clusterService.localNode());
+                        repository.endVerification(token);
                     }
+                } finally {
+                    closeRepository(repository);
                 }
-            });
-        } catch (Exception e) {
-            validationListener.onFailure(e);
-        }
+            } catch (Exception e) {
+                validationListener.onFailure(e);
+                return;
+            }
+            validationListener.onResponse(null);
+        });
     }
 
     /**

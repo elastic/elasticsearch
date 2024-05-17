@@ -39,6 +39,11 @@ The default template implements a simple search use case.
 
 To create a search application with the default template, issue a <<put-search-application, create or update Search Application>> request without specifying a template:
 
+// NOTE for test setup: The create search application command will return a warning
+// when a template is not specified. This will break docs tests.
+// Therefore the setup specifies the default search template
+// even though we're using the default template in examples.
+
 ////
 
 [source,console]

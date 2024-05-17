@@ -167,10 +167,10 @@ public Set<String> supportedCapabilities() {
 [[cluster_features]]
 === Require or skip cluster features
 
-Cluster features indicate a particular top-level functionality and are used for _internal_ checks and coordination
-within Elasticsearch to enable functionality once available on all nodes, e.g. usage of a new transport endpoint.
+Cluster features indicate a particular high-level _internal_ functionality and are used for coordination within
+the Elasticsearch cluster to enable functionality once supported on all nodes, e.g. usage of a new transport endpoint.
 
-Other than <<capabilities_check, capabilities>>, cluster features are strictly internal, though can also be used for
+In contrast to <<capabilities_check, capabilities>>, cluster features are strictly internal, though can also be used for
 skipping REST tests. Cluster features are not meant to be extremely fine-grained. In case you are not sure if you need
 a cluster feature, <<capabilities_check, capabilities>> might be the better choice.
 

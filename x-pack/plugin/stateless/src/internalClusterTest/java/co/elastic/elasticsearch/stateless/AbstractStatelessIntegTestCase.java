@@ -114,7 +114,9 @@ public abstract class AbstractStatelessIntegTestCase extends ESIntegTestCase {
 
     @Before
     public void initUploadMaxCommits() {
-        uploadMaxCommits = between(1, 10);
+        uploadMaxCommits = randomBoolean()
+            ? between(1, 10)
+            : StatelessCommitService.STATELESS_UPLOAD_MAX_AMOUNT_COMMITS.getDefault(Settings.EMPTY);
     }
 
     public int getUploadMaxCommits() {

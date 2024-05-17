@@ -122,13 +122,13 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
 
     public static final Setting<Boolean> STATELESS_UPLOAD_DELAYED = Setting.boolSetting(
         "stateless.upload.delayed",
-        false,
+        true,
         Setting.Property.NodeScope
     );
 
     public static final Setting<Integer> STATELESS_UPLOAD_MAX_AMOUNT_COMMITS = Setting.intSetting(
         "stateless.upload.max_commits",
-        0,
+        100, // 100 means the 300s below should always kick in - this is then just a safety net.
         0,
         Setting.Property.NodeScope
     );

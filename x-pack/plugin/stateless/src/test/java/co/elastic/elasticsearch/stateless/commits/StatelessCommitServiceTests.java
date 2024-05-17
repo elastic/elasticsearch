@@ -147,7 +147,7 @@ public class StatelessCommitServiceTests extends ESTestCase {
         final long primaryTerm = randomLongBetween(1L, 1000L);
         final boolean statelessUploadDelayed = randomBoolean();
         // Randomly leave the setting un-configured for its default value
-        final boolean explicitConfiguration = statelessUploadDelayed || randomBoolean();
+        final boolean explicitConfiguration = statelessUploadDelayed == false || randomBoolean();
         try (var testHarness = new FakeStatelessNode(this::newEnvironment, this::newNodeEnvironment, xContentRegistry(), primaryTerm) {
             @Override
             protected Settings nodeSettings() {
@@ -175,6 +175,7 @@ public class StatelessCommitServiceTests extends ESTestCase {
                 testHarness.commitService.onCommitCreation(commitRef);
             }
             for (StatelessCommitRef commitRef : commitRefs) {
+                testHarness.commitService.ensureMaxGenerationToUploadForFlush(testHarness.shardId, commitRef.getGeneration());
                 PlainActionFuture<Void> future = new PlainActionFuture<>();
                 testHarness.commitService.addListenerForUploadedGeneration(testHarness.shardId, commitRef.getGeneration(), future);
                 future.actionGet();
@@ -226,6 +227,7 @@ public class StatelessCommitServiceTests extends ESTestCase {
             );
             for (StatelessCommitRef commitRef : commitRefs) {
                 testHarness.commitService.onCommitCreation(commitRef);
+                testHarness.commitService.ensureMaxGenerationToUploadForFlush(testHarness.shardId, commitRef.getGeneration());
             }
             for (StatelessCommitRef commitRef : commitRefs) {
                 PlainActionFuture<Void> future = new PlainActionFuture<>();
@@ -293,6 +295,8 @@ public class StatelessCommitServiceTests extends ESTestCase {
 
             for (StatelessCommitRef commitRef : commitRefs) {
                 testHarness.commitService.onCommitCreation(commitRef);
+                // todo: reevaluate the need to upload every commit (this test assume max_commits=1)
+                testHarness.commitService.ensureMaxGenerationToUploadForFlush(testHarness.shardId, commitRef.getGeneration());
             }
             for (StatelessCommitRef commitRef : commitRefs) {
                 PlainActionFuture<Void> future = new PlainActionFuture<>();
@@ -362,6 +366,7 @@ public class StatelessCommitServiceTests extends ESTestCase {
             secondCommitFile.set(compoundCommitFiles.get(1));
 
             testHarness.commitService.onCommitCreation(firstCommit);
+            testHarness.commitService.ensureMaxGenerationToUploadForFlush(testHarness.shardId, firstCommit.getGeneration());
             safeAwait(startingUpload);
             assertThat(uploadedBlobs, not(hasItems(commitFileToBlock.get())));
             assertThat(uploadedBlobs, not(hasItems(firstCommitFile.get())));
@@ -519,11 +524,14 @@ public class StatelessCommitServiceTests extends ESTestCase {
             secondCommitFile.set(compoundCommitFiles.get(1));
 
             testHarness.commitService.onCommitCreation(firstCommit);
+            // todo: reevaluate the need to upload every commit.
+            testHarness.commitService.ensureMaxGenerationToUploadForFlush(testHarness.shardId, firstCommit.getGeneration());
             safeAwait(startingUpload);
             assertThat(uploadedBlobs, not(hasItems(commitFileToBlock.get())));
             assertThat(uploadedBlobs, not(hasItems(firstCommitFile.get())));
 
             testHarness.commitService.onCommitCreation(secondCommit);
+            testHarness.commitService.ensureMaxGenerationToUploadForFlush(testHarness.shardId, secondCommit.getGeneration());
 
             assertThat(uploadedBlobs, not(hasItems(secondCommitFile.get())));
 
@@ -531,6 +539,7 @@ public class StatelessCommitServiceTests extends ESTestCase {
             ActionListener<Void> handoffListener = testHarness.commitService.markRelocating(testHarness.shardId, 1, listener);
 
             testHarness.commitService.onCommitCreation(thirdCommit);
+            testHarness.commitService.ensureMaxGenerationToUploadForFlush(testHarness.shardId, thirdCommit.getGeneration());
 
             assertFalse(listener.isDone());
 
@@ -572,12 +581,14 @@ public class StatelessCommitServiceTests extends ESTestCase {
             StatelessCommitRef secondCommit = refs.get(1);
 
             testHarness.commitService.onCommitCreation(firstCommit);
+            testHarness.commitService.ensureMaxGenerationToUploadForFlush(testHarness.shardId, firstCommit.getGeneration());
 
             PlainActionFuture<Void> future = new PlainActionFuture<>();
             testHarness.commitService.addListenerForUploadedGeneration(testHarness.shardId, firstCommit.getGeneration(), future);
             future.actionGet();
 
             testHarness.commitService.onCommitCreation(secondCommit);
+            testHarness.commitService.ensureMaxGenerationToUploadForFlush(testHarness.shardId, secondCommit.getGeneration());
 
             PlainActionFuture<Void> future2 = new PlainActionFuture<>();
             testHarness.commitService.addListenerForUploadedGeneration(testHarness.shardId, firstCommit.getGeneration(), future2);
@@ -643,6 +654,7 @@ public class StatelessCommitServiceTests extends ESTestCase {
                 .toList();
 
             testHarness.commitService.onCommitCreation(commitRef);
+            testHarness.commitService.ensureMaxGenerationToUploadForFlush(testHarness.shardId, commitRef.getGeneration());
             PlainActionFuture<Void> future = new PlainActionFuture<>();
             testHarness.commitService.addListenerForUploadedGeneration(testHarness.shardId, commitRef.getGeneration(), future);
             future.actionGet();
@@ -739,6 +751,12 @@ public class StatelessCommitServiceTests extends ESTestCase {
             protected long getPrimaryTerm() {
                 return primaryTerm;
             }
+
+            @Override
+            protected Settings nodeSettings() {
+                // todo: reevaluate this
+                return delayedOff(super.nodeSettings());
+            }
         }) {
             var shardId = testHarness.shardId;
             var commitService = testHarness.commitService;
@@ -808,6 +826,11 @@ public class StatelessCommitServiceTests extends ESTestCase {
             @Override
             protected long getPrimaryTerm() {
                 return primaryTerm;
+            }
+
+            @Override
+            protected Settings nodeSettings() {
+                return delayedOff(super.nodeSettings());
             }
         }) {
             var shardId = testHarness.shardId;
@@ -879,6 +902,12 @@ public class StatelessCommitServiceTests extends ESTestCase {
             @Override
             protected long getPrimaryTerm() {
                 return primaryTerm;
+            }
+
+            @Override
+            protected Settings nodeSettings() {
+                // todo: reevalute the need for this
+                return delayedOff(super.nodeSettings());
             }
         }) {
             var shardId = testHarness.shardId;
@@ -958,6 +987,12 @@ public class StatelessCommitServiceTests extends ESTestCase {
             @Override
             protected long getPrimaryTerm() {
                 return primaryTerm;
+            }
+
+            @Override
+            protected Settings nodeSettings() {
+                // todo: reevaluate this
+                return delayedOff(super.nodeSettings());
             }
         }) {
             var shardId = testHarness.shardId;
@@ -1052,6 +1087,12 @@ public class StatelessCommitServiceTests extends ESTestCase {
             protected long getPrimaryTerm() {
                 return primaryTerm;
             }
+
+            @Override
+            protected Settings nodeSettings() {
+                // todo: reevaluate this
+                return delayedOff(super.nodeSettings());
+            }
         }) {
             var shardId = testHarness.shardId;
             var commitService = testHarness.commitService;
@@ -1138,6 +1179,12 @@ public class StatelessCommitServiceTests extends ESTestCase {
             protected long getPrimaryTerm() {
                 return primaryTerm;
             }
+
+            @Override
+            protected Settings nodeSettings() {
+                // todo: reevaluate this
+                return delayedOff(super.nodeSettings());
+            }
         }) {
             var shardId = testHarness.shardId;
             var commitService = testHarness.commitService;
@@ -1192,6 +1239,12 @@ public class StatelessCommitServiceTests extends ESTestCase {
                 ObjectStoreService objectStoreService
             ) {
                 return commitCleaner;
+            }
+
+            @Override
+            protected Settings nodeSettings() {
+                // todo: reevaluate this
+                return delayedOff(super.nodeSettings());
             }
         }) {
             var shardId = testHarness.shardId;
@@ -1300,6 +1353,11 @@ public class StatelessCommitServiceTests extends ESTestCase {
                 ObjectStoreService objectStoreService
             ) {
                 return commitCleaner;
+            }
+
+            @Override
+            protected Settings nodeSettings() {
+                return delayedOff(super.nodeSettings());
             }
         }) {
             var shardId = testHarness.shardId;
@@ -1418,6 +1476,12 @@ public class StatelessCommitServiceTests extends ESTestCase {
             ) {
                 return commitCleaner;
             }
+
+            @Override
+            protected Settings nodeSettings() {
+                // todo: reevaluate the need for this.
+                return Settings.builder().put(super.nodeSettings()).put(STATELESS_UPLOAD_MAX_AMOUNT_COMMITS.getKey(), 1).build();
+            }
         }) {
             var shardId = testHarness.shardId;
             var commitService = testHarness.commitService;
@@ -1431,6 +1495,7 @@ public class StatelessCommitServiceTests extends ESTestCase {
             }
 
             var commit = initialCommits.get(initialCommits.size() - 1);
+            commitService.ensureMaxGenerationToUploadForFlush(shardId, commit.getGeneration());
             PlainActionFuture<Void> future = new PlainActionFuture<>();
             testHarness.commitService.addListenerForUploadedGeneration(testHarness.shardId, commit.getGeneration(), future);
             future.actionGet();
@@ -1513,6 +1578,12 @@ public class StatelessCommitServiceTests extends ESTestCase {
             ) {
                 return commitCleaner;
             }
+
+            @Override
+            protected Settings nodeSettings() {
+                // todo: reevaluate the need for this
+                return delayedOff(super.nodeSettings());
+            }
         }) {
             var shardId = testHarness.shardId;
             var commitService = testHarness.commitService;
@@ -1582,6 +1653,13 @@ public class StatelessCommitServiceTests extends ESTestCase {
             ) {
                 return commitCleaner;
             }
+
+            @Override
+            protected Settings nodeSettings() {
+                // todo: reevaluate the need for this.
+                return delayedOff(super.nodeSettings());
+            }
+
         }) {
             var shardId = testHarness.shardId;
             var commitService = testHarness.commitService;
@@ -1735,6 +1813,7 @@ public class StatelessCommitServiceTests extends ESTestCase {
             for (StatelessCommitRef initialCommit : initialCommits) {
                 commitService.onCommitCreation(initialCommit);
             }
+            testHarness.commitService.ensureMaxGenerationToUploadForFlush(testHarness.shardId, commit.getGeneration());
             PlainActionFuture<Void> future = new PlainActionFuture<>();
             testHarness.commitService.addListenerForUploadedGeneration(testHarness.shardId, commit.getGeneration(), future);
             future.actionGet();
@@ -1742,7 +1821,7 @@ public class StatelessCommitServiceTests extends ESTestCase {
             commitService.registerCommitForUnpromotableRecovery(null, commitToRegister, shardId, nodeId, state, registerFuture);
             var registrationResponse = registerFuture.get();
             assertThat(registrationResponse, notNullValue());
-            assertThat(registrationResponse.getLatestUploadedBatchedCompoundCommitTermAndGen(), equalTo(commitToRegister));
+            assertThat(registrationResponse.getCompoundCommit().primaryTermAndGeneration(), equalTo(commitToRegister));
         }
     }
 
@@ -1851,8 +1930,12 @@ public class StatelessCommitServiceTests extends ESTestCase {
         }
     }
 
-    public void testShouldUploadVirtualBccByDefault() throws Exception {
+    public void testShouldUploadVirtualBccWhenNotDelayed() throws Exception {
         try (var testHarness = new FakeStatelessNode(this::newEnvironment, this::newNodeEnvironment, xContentRegistry(), primaryTerm) {
+            @Override
+            protected Settings nodeSettings() {
+                return delayedOff(super.nodeSettings());
+            }
         }) {
             for (StatelessCommitRef commitRef : testHarness.generateIndexCommits(randomIntBetween(1, 4))) {
                 testHarness.commitService.onCommitCreation(commitRef);
@@ -1867,11 +1950,16 @@ public class StatelessCommitServiceTests extends ESTestCase {
         }
     }
 
-    public void testShouldUploadVirtualBccWhenDelayedUploadAreEnabled() throws Exception {
+    public void testShouldUploadVirtualBccWhenDelayedUploadAreEnabledAndMaxCommitsExceeded() throws Exception {
         try (var testHarness = new FakeStatelessNode(this::newEnvironment, this::newNodeEnvironment, xContentRegistry(), primaryTerm) {
             @Override
             protected Settings nodeSettings() {
-                return Settings.builder().put(super.nodeSettings()).put("stateless.upload.delayed", "true").build();
+                return Settings.builder()
+                    .put(super.nodeSettings())
+                    .put("stateless.upload.delayed", "true")
+                    // todo: reevaluate this
+                    .put(STATELESS_UPLOAD_MAX_AMOUNT_COMMITS.getKey(), 1)
+                    .build();
             }
         }) {
             for (StatelessCommitRef commitRef : testHarness.generateIndexCommits(randomIntBetween(1, 4))) {
@@ -2093,6 +2181,7 @@ public class StatelessCommitServiceTests extends ESTestCase {
 
             for (StatelessCommitRef commitRef : commits) {
                 commitService.onCommitCreation(commitRef);
+                commitService.ensureMaxGenerationToUploadForFlush(shardId, commitRef.getGeneration());
 
                 PlainActionFuture<Void> future = new PlainActionFuture<>();
                 commitService.addListenerForUploadedGeneration(shardId, commitRef.getGeneration(), future);
@@ -2414,8 +2503,8 @@ public class StatelessCommitServiceTests extends ESTestCase {
             @Override
             protected Settings nodeSettings() {
                 Settings settings = super.nodeSettings();
-                if (delayed) {
-                    return Settings.builder().put(STATELESS_UPLOAD_DELAYED.getKey(), true).put(super.nodeSettings()).build();
+                if (delayed == false) {
+                    return Settings.builder().put(STATELESS_UPLOAD_DELAYED.getKey(), false).put(super.nodeSettings()).build();
                 }
                 return settings;
             }
@@ -2476,5 +2565,9 @@ public class StatelessCommitServiceTests extends ESTestCase {
             testHarness.commitService.unregister(testHarness.shardId);
             testHarness.commitService.register(testHarness.shardId, primaryTerm, () -> true);
         }
+    }
+
+    private static Settings delayedOff(Settings settings) {
+        return Settings.builder().put(settings).put(STATELESS_UPLOAD_DELAYED.getKey(), false).build();
     }
 }

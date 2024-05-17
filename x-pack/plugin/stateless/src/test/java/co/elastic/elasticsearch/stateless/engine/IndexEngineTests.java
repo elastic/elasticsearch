@@ -169,8 +169,11 @@ public class IndexEngineTests extends AbstractEngineTestCase {
         }
     }
 
-    public void testRefreshesWaitForUploadByDefault() throws IOException {
-        Settings nodeSettings = Settings.builder().put(Stateless.STATELESS_ENABLED.getKey(), true).build();
+    public void testRefreshesWaitForUploadWithoutDelayed() throws IOException {
+        Settings nodeSettings = Settings.builder()
+            .put(Stateless.STATELESS_ENABLED.getKey(), true)
+            .put(StatelessCommitService.STATELESS_UPLOAD_DELAYED.getKey(), false)
+            .build();
 
         try (
             var engine = newIndexEngine(

@@ -24,6 +24,7 @@ import co.elastic.elasticsearch.stateless.action.NewCommitNotificationResponse;
 import co.elastic.elasticsearch.stateless.action.TransportNewCommitNotificationAction;
 import co.elastic.elasticsearch.stateless.commits.BatchedCompoundCommit;
 import co.elastic.elasticsearch.stateless.commits.BlobLocation;
+import co.elastic.elasticsearch.stateless.commits.StatelessCommitService;
 import co.elastic.elasticsearch.stateless.commits.StatelessCompoundCommit;
 import co.elastic.elasticsearch.stateless.commits.VirtualBatchedCompoundCommit;
 import co.elastic.elasticsearch.stateless.lucene.SearchDirectory;
@@ -168,6 +169,15 @@ public class ObjectStoreServiceTests extends ESTestCase {
 
                 return new WrappedBlobContainer(innerContainer);
             }
+
+            @Override
+            protected Settings nodeSettings() {
+                // todo: the future wait below assumes every commit is released immediately, not true when delayed.
+                return Settings.builder()
+                    .put(super.nodeSettings())
+                    .put(StatelessCommitService.STATELESS_UPLOAD_DELAYED.getKey(), false)
+                    .build();
+            }
         }) {
             var commitCount = between(0, 5);
 
@@ -281,6 +291,15 @@ public class ObjectStoreServiceTests extends ESTestCase {
                         ((ActionListener<NewCommitNotificationResponse>) listener).onResponse(new NewCommitNotificationResponse(Set.of()));
                     }
                 };
+            }
+
+            @Override
+            protected Settings nodeSettings() {
+                // todo: expect 1 commit per bcc below, needs fixing to support delayed too.
+                return Settings.builder()
+                    .put(super.nodeSettings())
+                    .put(StatelessCommitService.STATELESS_UPLOAD_DELAYED.getKey(), false)
+                    .build();
             }
         }) {
             final BlobContainer shardBlobContainer = testHarness.objectStoreService.getBlobContainer(testHarness.shardId, primaryTerm);

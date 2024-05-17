@@ -278,7 +278,7 @@ setup:
           name: moose.jpg
           vector: [1, 1, 1, 1, 1]
 
-   # Flush in order to provoke a merge later
+  # Flush in order to provoke a merge later
   - do:
       indices.flush: { }
 

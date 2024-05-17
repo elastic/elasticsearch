@@ -163,7 +163,6 @@ public class MaxMindSupportTests extends ESTestCase {
         "country.name"
     );
     private static final Set<String> COUNTRY_UNSUPPORTED_FIELDS = Set.of(
-
         "continent.geoNameId",
         "continent.names",
         "country.confidence",

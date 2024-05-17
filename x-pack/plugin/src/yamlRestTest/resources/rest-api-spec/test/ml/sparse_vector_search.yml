@@ -276,6 +276,8 @@ setup:
             sparse_vector:
               field: text
 
+  - match: { status: 400 }
+
 ---
 "Test sparse_vector only allows one of inference_id or query_vector":
   - do:
@@ -293,6 +295,8 @@ setup:
                 smells: 1.0
                 bad: 1.0
 
+  - match: { status: 400 }
+
 ---
 "Test sparse_vector displays error for invalid queried field type":
   - do:
@@ -305,3 +309,5 @@ setup:
               field: source_text
               inference_id: text_expansion_model
               query: "octopus comforter smells"
+
+  - match: { status: 400 }

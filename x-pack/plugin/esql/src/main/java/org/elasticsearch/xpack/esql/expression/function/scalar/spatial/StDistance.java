@@ -55,7 +55,7 @@ public class StDistance extends BinarySpatialFunction implements EvaluatorMapper
 
         @Override
         protected double distance(Point left, Point right) {
-            return GeoUtils.planeDistance(left.getY(), left.getX(), right.getY(), right.getX());
+            return GeoUtils.arcDistance(left.getY(), left.getX(), right.getY(), right.getX());
         }
     }
 

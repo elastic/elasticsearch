@@ -883,10 +883,59 @@ ROW wkt = ["POINT(1 1)", "POINT(-1 -1)", "POINT(-1 1)", "POINT(1 -1)"]
 ;
 
 wkt:keyword    | pt:geo_point  | distance:double
-"POINT(1 1)"   | POINT(1 1)    | 157250.59599057745
-"POINT(-1 -1)" | POINT(-1 -1)  | 157250.59599057745
-"POINT(-1 1)"  | POINT(-1 1)   | 157250.59599057745
-"POINT(1 -1)"  | POINT(1 -1)   | 157250.59599057745
+"POINT(1 1)"   | POINT(1 1)    | 157249.59776811762
+"POINT(-1 -1)" | POINT(-1 -1)  | 157249.59776811762
+"POINT(-1 1)"  | POINT(-1 1)   | 157249.59776811762
+"POINT(1 -1)"  | POINT(1 -1)   | 157249.59776811762
+;
+
+airportCityLocationPointDistance
+required_capability: st_distance
+
+FROM airports
+| EVAL distance = ST_DISTANCE(location, city_location)
+| STATS distance=AVG(distance), count=COUNT()
+;
+
+distance:double    | count:long
+15869.987675939537 | 891
+;
+
+airportDistanceToCityCopenhagen
+required_capability: st_distance
+
+// tag::st_distance-airports[]
+FROM airports
+| WHERE abbrev == "CPH"
+| EVAL distance = ST_DISTANCE(location, city_location)
+| KEEP abbrev, name, location, city_location, distance
+// end::st_distance-airports[]
+;
+
+// tag::st_distance-airports-results[]
+abbrev:k | name:text   | location:geo_point                       | city_location:geo_point | distance:d
+CPH      | Copenhagen  | POINT(12.6493508684508 55.6285017221528) | POINT(12.5683 55.6761)  | 7339.57266575626
+// end::st_distance-airports-results[]
+;
+
+airportsWithinPolygonDistanceFromCopenhagenTrainStation
+required_capability: st_distance
+
+FROM airports
+| WHERE ST_WITHIN(location, TO_GEOSHAPE("POLYGON((12 40, 14 40, 14 60, 12 60, 12 40))"))
+| EVAL distance = ROUND(ST_DISTANCE(location, TO_GEOPOINT("POINT(12.565 55.673)"))/1000,2)
+| EVAL city_distance = ROUND(ST_DISTANCE(city_location, TO_GEOPOINT("POINT(12.565 55.673)"))/1000,2)
+| KEEP abbrev, name, location, country, city, city_location, distance, city_distance
+| SORT distance ASC
+;
+
+abbrev:k | name:text               | location:geo_point                       | country:k | city:k          | city_location:geo_point | distance:d | city_distance:d    
+CPH      | Copenhagen              | POINT(12.6493508684508 55.6285017221528) | Denmark   | Copenhagen      | POINT(12.5683 55.6761)  | 7.24       | 0.4
+GOT      | Gothenburg              | POINT(12.2938269092573 57.6857493534879) | Sweden    | Gothenburg      | POINT(11.9675 57.7075)  | 224.42     | 229.15
+TXL      | Berlin-Tegel Int'l      | POINT(13.2903090925074 52.5544287044101) | Germany   | Hohen Neuendorf | POINT(13.2833 52.6667)  | 349.97     | 337.53
+DRS      | Dresden                 | POINT(13.7649671440047 51.1250912428871) | Germany   | Dresden         | POINT(13.74 51.05)      | 511.9      | 519.91
+VCE      | Venice Marco Polo       | POINT(12.3410673004369 45.5048477588455) | Italy     | Mestre          | POINT(12.2381 45.4906)  | 1130.76    | 1132.46
+FCO      | Leonardo da Vinci Int'l | POINT(12.2501008973638 41.7950786307394) | Italy     | Fiumicino       | POINT(12.2333 41.7667)  | 1543.33    | 1546.5
 ;
 
 ###############################################
@@ -1712,8 +1761,59 @@ wkt:keyword    | pt:cartesian_point  | distance:double
 "POINT(1 -1)"  | POINT(1 -1)         | 1.4142135623730951
 ;
 
+airportCartesianCityLocationPointDistance
+required_capability: st_distance
+
+FROM airports_web
+| EVAL distance = ST_DISTANCE(location, TO_CARTESIANPOINT("POINT(1402900 7490000)"))
+| WHERE distance < 1000000
+| STATS distance=AVG(distance), min=min(distance), max=max(distance), count=COUNT()
+;
+
+distance:double    | min:double       | max:double        | count:long
+676858.3463435044  | 7358.02077507206 | 971112.9731194031 | 12
+;
+
+airportCartesianDistanceToCityCopenhagen
+required_capability: st_distance
+
+// tag::st_distance-airports_web[]
+FROM airports_web
+| WHERE abbrev == "CPH"
+| EVAL distance = ST_DISTANCE(location, TO_CARTESIANPOINT("POINT(1402900 7490000)"))
+| KEEP abbrev, name, location, distance
+// end::st_distance-airports_web[]
+;
+
+// tag::st_distance-airports_web-results[]
+abbrev:k | name:text   | location:cartesian_point                   | distance:d
+CPH      | Copenhagen  | POINT(1408119.2975413958 7484813.53657096) | 7358.02077507206
+// end::st_distance-airports_web-results[]
+;
+
+airportsWithinPolygonCartesianDistanceFromCopenhagenTrainStation
+required_capability: st_distance
+
+FROM airports_web
+| WHERE ST_WITHIN(location, TO_CARTESIANPOINT("POLYGON((1300000 5000000, 1550000 5000000, 1550000 8000000, 1300000 8000000, 1300000 5000000))"))
+| EVAL distance = ROUND(ST_DISTANCE(location, TO_CARTESIANPOINT("POINT(1402900 7490000)"))/1000,2)
+| KEEP abbrev, name, location, distance
+| SORT distance ASC
+;
+
+abbrev:k | name:text               | location:cartesian_point                    | distance:d    
+CPH      | Copenhagen              | POINT(1408119.2975413958 7484813.53657096)  | 7.36
+GOT      | Gothenburg              | POINT(1368542.5514391668 7901590.990691348) | 413.02
+TXL      | Berlin-Tegel Int'l      | POINT(1479470.4406631375 6901000.847325224) | 593.96
+DRS      | Dresden                 | POINT(1532309.1332567444 6643450.815136505) | 856.38
+MUC      | Franz-Josef-Strauss     | POINT(1312241.1393453805 6165923.947863139) | 1327.18
+MUCf     | Munich Freight Terminal | POINT(1310172.8388047176 6165247.042460089) | 1327.99
+VCE      | Venice Marco Polo       | POINT(1373801.3277301549 5701352.694091503) | 1788.88
+FCO      | Leonardo da Vinci Int'l | POINT(1363674.994060762 5130332.471894705)  | 2359.99
+;
+
 ###############################################
-# Tests for Equality and casting with GEO_POINT
+# Tests for Equality and casting with CARTESIAN_POINT
 
 cartesianPointEquals
 required_capability: spatial_points_from_source

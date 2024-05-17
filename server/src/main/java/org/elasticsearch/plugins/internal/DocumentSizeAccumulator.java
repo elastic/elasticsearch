@@ -8,6 +8,8 @@
 
 package org.elasticsearch.plugins.internal;
 
+import org.apache.lucene.index.SegmentInfos;
+
 import java.util.Map;
 
 /**
@@ -20,8 +22,8 @@ public interface DocumentSizeAccumulator {
         public void add(long size) {}
 
         @Override
-        public Map<String, String> getAndReset(Map<String, String> map) {
-            return map;
+        public Map<String, String> getAsCommitUserData(SegmentInfos segmentInfos) {
+            return Map.of();
         }
     };
 
@@ -32,10 +34,11 @@ public interface DocumentSizeAccumulator {
     void add(long size);
 
     /**
-     * Adds an entry to a map with a value being the current state of the accumulator.
+     * Returns a map with an entry being the current state of the accumulator + previously commited value for that key
      * Then resets the accumulator.
-     * @param map a map with previous value of size
+     *
+     * @param segmentInfos a shard's previously comited SegmentInfos
      * @return an map with a new value of size
      */
-    Map<String, String> getAndReset(Map<String, String> map);
+    Map<String, String> getAsCommitUserData(SegmentInfos segmentInfos);
 }

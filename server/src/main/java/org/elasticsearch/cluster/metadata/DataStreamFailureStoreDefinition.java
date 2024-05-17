@@ -15,7 +15,6 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.RoutingFieldMapper;
-import org.elasticsearch.ingest.IngestSettings;
 
 import java.io.IOException;
 

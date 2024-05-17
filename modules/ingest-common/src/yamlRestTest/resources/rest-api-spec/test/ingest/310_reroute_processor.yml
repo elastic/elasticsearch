@@ -165,6 +165,12 @@ teardown:
           {
             "processors": [
               {
+                "set" : {
+                  "field": "added-in-pipeline-before-reroute",
+                  "value": true
+                }
+              },
+              {
                 "reroute" : {
                   "destination": "index-2"
                 }
@@ -217,4 +223,5 @@ teardown:
         index: index-2
         id: "1"
   - match: { _source.existing-field : true }
+  - match: { _source.added-in-pipeline-before-reroute : true }
   - match: { _source.added-in-pipeline-after-reroute : true }

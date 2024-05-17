@@ -49,6 +49,7 @@ public class ClusterAllocationExplainRequest extends MasterNodeRequest<ClusterAl
      * Create a new allocation explain request to explain any unassigned shard in the cluster.
      */
     public ClusterAllocationExplainRequest() {
+        super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT);
         this.index = null;
         this.shard = null;
         this.primary = null;
@@ -73,6 +74,7 @@ public class ClusterAllocationExplainRequest extends MasterNodeRequest<ClusterAl
      * Package private for testing.
      */
     ClusterAllocationExplainRequest(String index, int shard, boolean primary, @Nullable String currentNode) {
+        super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT);
         this.index = index;
         this.shard = shard;
         this.primary = primary;

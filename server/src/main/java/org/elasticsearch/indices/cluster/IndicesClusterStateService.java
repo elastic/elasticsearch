@@ -245,8 +245,6 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
      *               thread, or on the thread that completed the closing of the last such shard.
      */
     public void onClusterStateShardsClosed(Runnable action) {
-        // In practice, must be called from the applier thread and we should validate the last-applied cluster state version too
-        // ES-8334 TODO validate this is called properly
         lastClusterStateShardsClosedListener.andThenAccept(ignored -> action.run());
     }
 
@@ -1067,27 +1065,30 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
             final ShardRouting shardRouting = shardFailure.routing();
             threadPool.generic().execute(() -> {
                 synchronized (IndicesClusterStateService.this) {
-                    try {
-                        CloseUtils.executeDirectly(
-                            l -> failAndRemoveShard(
-                                shardRouting,
-                                true,
-                                "shard failure, reason [" + shardFailure.reason() + "]",
-                                shardFailure.cause(),
-                                clusterService.state(),
-                                EsExecutors.DIRECT_EXECUTOR_SERVICE /* NB holding mutex while closing shard, ES-8334 TODO revisit this? */,
-                                l
-                            )
-                        );
-                    } catch (Exception e) {
-                        // should not be possible
-                        final var wrappedException = new IllegalStateException(
-                            "unexpected failure in FailedShardHandler on " + shardRouting,
-                            e
-                        );
-                        logger.error(wrappedException.getMessage(), e);
-                        assert false : e;
-                    }
+                    ActionListener.run(ActionListener.assertOnce(new ActionListener<Void>() {
+                        @Override
+                        public void onResponse(Void unused) {}
+
+                        @Override
+                        public void onFailure(Exception e) {
+                            final var wrappedException = new IllegalStateException(
+                                "unexpected failure in FailedShardHandler on " + shardRouting,
+                                e
+                            );
+                            logger.error(wrappedException.getMessage(), e);
+                            assert false : e;
+                        }
+                    }),
+                        l -> failAndRemoveShard(
+                            shardRouting,
+                            true,
+                            "shard failure, reason [" + shardFailure.reason() + "]",
+                            shardFailure.cause(),
+                            clusterService.state(),
+                            shardCloseExecutor,
+                            l
+                        )
+                    );
                 }
             });
         }

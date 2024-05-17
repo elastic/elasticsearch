@@ -24,6 +24,7 @@ import java.io.IOException;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicLong;
 
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.equalTo;
@@ -34,9 +35,10 @@ public class DocumentSizeObserverWithPipelinesIT extends ESIntegTestCase {
     private static String TEST_INDEX_NAME = "test-index-name";
     // the assertions are done in plugin which is static and will be created by ES server.
     // hence a static flag to make sure it is indeed used
-    public static boolean hasWrappedParser;
+    public static volatile boolean hasWrappedParser;
+    public static AtomicLong providedFixedSize = new AtomicLong();
 
-    public void testDocumentIsReportedWithPipelines() throws IOException {
+    public void testDocumentIsReportedWithPipelines() throws Exception {
         hasWrappedParser = false;
         // pipeline adding fields, changing destination is not affecting reporting
         final BytesReference pipelineBody = new BytesArray("""
@@ -64,8 +66,12 @@ public class DocumentSizeObserverWithPipelinesIT extends ESIntegTestCase {
                 .id("1")
                 .source(jsonBuilder().startObject().field("test", "I am sam i am").endObject())
         ).actionGet();
-        assertTrue(hasWrappedParser);
-        // there are more assertions in a TestDocumentSizeObserver
+        assertBusy(() -> {
+            // ingest node has used an observer that was counting #map operations
+            // and passed that info to newFixedSize observer in TransportShardBulkAction
+            assertTrue(hasWrappedParser);
+            assertThat(providedFixedSize.get(), equalTo(1L));
+        });
     }
 
     @Override
@@ -83,6 +89,7 @@ public class DocumentSizeObserverWithPipelinesIT extends ESIntegTestCase {
             return new DocumentParsingProvider() {
                 @Override
                 public DocumentSizeObserver newFixedSizeDocumentObserver(long normalisedBytesParsed) {
+                    providedFixedSize.set(normalisedBytesParsed);
                     return new TestDocumentSizeObserver(normalisedBytesParsed);
                 }
 
@@ -92,18 +99,10 @@ public class DocumentSizeObserverWithPipelinesIT extends ESIntegTestCase {
                 }
 
                 @Override
-                public DocumentSizeReporter getDocumentParsingReporter(String indexName) {
-                    return new TestDocumentSizeReporter();
+                public DocumentSizeReporter newDocumentSizeReporter(String indexName) {
+                    return DocumentSizeReporter.EMPTY_INSTANCE;
                 }
             };
-        }
-    }
-
-    public static class TestDocumentSizeReporter implements DocumentSizeReporter {
-        @Override
-        public void onCompleted(String indexName, long normalizedBytesParsed) {
-            assertThat(indexName, equalTo(TEST_INDEX_NAME));
-            assertThat(normalizedBytesParsed, equalTo(1L));
         }
     }
 

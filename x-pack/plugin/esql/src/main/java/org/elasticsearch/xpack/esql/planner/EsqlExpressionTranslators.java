@@ -65,11 +65,12 @@ import static org.elasticsearch.xpack.ql.type.DataTypes.VERSION;
 import static org.elasticsearch.xpack.ql.util.NumericUtils.unsignedLongAsNumber;
 
 public final class EsqlExpressionTranslators {
-
     public static final List<ExpressionTranslator<?>> QUERY_TRANSLATORS = List.of(
         new EqualsIgnoreCaseTranslator(),
         new BinaryComparisons(),
         new SpatialRelatesTranslator(),
+        // Ranges is redundant until we start combining binary comparisons (see CombineBinaryComparisons in ql's OptimizerRules)
+        // or introduce a BETWEEN keyword.
         new ExpressionTranslators.Ranges(),
         new ExpressionTranslators.BinaryLogic(),
         new ExpressionTranslators.IsNulls(),

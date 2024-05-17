@@ -103,7 +103,8 @@ public final class DocumentParser {
             context.reorderParentAndGetDocs(),
             context.sourceToParse().source(),
             context.sourceToParse().getXContentType(),
-            dynamicUpdate
+            dynamicUpdate,
+            documentSizeObserver
         ) {
             @Override
             public String documentDescription() {
@@ -838,7 +839,15 @@ public final class DocumentParser {
 
     private static class NoOpObjectMapper extends ObjectMapper {
         NoOpObjectMapper(String name, String fullPath) {
-            super(name, fullPath, Explicit.IMPLICIT_TRUE, Explicit.IMPLICIT_TRUE, Dynamic.RUNTIME, Collections.emptyMap());
+            super(
+                name,
+                fullPath,
+                Explicit.IMPLICIT_TRUE,
+                Explicit.IMPLICIT_TRUE,
+                Explicit.IMPLICIT_FALSE,
+                Dynamic.RUNTIME,
+                Collections.emptyMap()
+            );
         }
 
         @Override

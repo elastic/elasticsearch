@@ -8,18 +8,20 @@
 
 package org.elasticsearch.plugins.internal;
 
+import org.elasticsearch.index.mapper.ParsedDocument;
+
 /**
- * An interface to allow performing an action when parsing has been completed and successful
+ * An interface to allow performing an action when parsing and indexing has been completed
  */
 public interface DocumentSizeReporter {
     /**
      * a default noop implementation
      */
-    DocumentSizeReporter EMPTY_INSTANCE = (indexName, normalizedBytesParsed) -> {};
+    DocumentSizeReporter EMPTY_INSTANCE = new DocumentSizeReporter() {
+    };
 
     /**
-     * An action to be performed upon finished parsing.
+     * An action to be performed upon finished indexing.
      */
-    void onCompleted(String indexName, long normalizedBytesParsed);
-
+    default void onIndexingCompleted(ParsedDocument parsedDocument) {}
 }

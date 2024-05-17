@@ -59,6 +59,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.LongAdder;
 import java.util.function.IntConsumer;
+import java.util.function.LongSupplier;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
@@ -323,12 +324,25 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
 
     private final Runnable evictIncrementer;
 
+    private final LongSupplier relativeTimeInNanosSupplier;
+
     public SharedBlobCacheService(
         NodeEnvironment environment,
         Settings settings,
         ThreadPool threadPool,
         String ioExecutor,
         BlobCacheMetrics blobCacheMetrics
+    ) {
+        this(environment, settings, threadPool, ioExecutor, blobCacheMetrics, threadPool::relativeTimeInNanos);
+    }
+
+    public SharedBlobCacheService(
+        NodeEnvironment environment,
+        Settings settings,
+        ThreadPool threadPool,
+        String ioExecutor,
+        BlobCacheMetrics blobCacheMetrics,
+        LongSupplier relativeTimeInNanosSupplier
     ) {
         this.threadPool = threadPool;
         this.ioExecutor = threadPool.executor(ioExecutor);
@@ -370,6 +384,7 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
 
         this.blobCacheMetrics = blobCacheMetrics;
         this.evictIncrementer = blobCacheMetrics.getEvictedCountNonZeroFrequency()::increment;
+        this.relativeTimeInNanosSupplier = relativeTimeInNanosSupplier;
     }
 
     public static long calculateCacheSize(Settings settings, long totalFsSize) {
@@ -1068,7 +1083,7 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
             assert assertOffsetsWithinFileLength(rangeToRead.start(), rangeToRead.length(), length);
             // We are interested in the total time that the system spends when fetching a result (including time spent queuing), so we start
             // our measurement here.
-            final long startTime = threadPool.relativeTimeInNanos();
+            final long startTime = relativeTimeInNanosSupplier.getAsLong();
             RangeMissingHandler writerInstrumentationDecorator = (
                 SharedBytes.IO channel,
                 int channelPos,
@@ -1076,7 +1091,7 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
                 int length,
                 IntConsumer progressUpdater) -> {
                 writer.fillCacheRange(channel, channelPos, relativePos, length, progressUpdater);
-                var elapsedTime = TimeUnit.NANOSECONDS.toMicros(threadPool.relativeTimeInNanos() - startTime);
+                var elapsedTime = TimeUnit.NANOSECONDS.toMicros(relativeTimeInNanosSupplier.getAsLong() - startTime);
                 SharedBlobCacheService.this.blobCacheMetrics.getCacheMissLoadTimes().record(elapsedTime);
                 SharedBlobCacheService.this.blobCacheMetrics.getCacheMissCounter().increment();
             };

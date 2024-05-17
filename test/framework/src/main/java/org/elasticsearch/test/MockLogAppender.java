@@ -84,17 +84,13 @@ public class MockLogAppender implements Releasable {
         }
     }
 
-    public MockLogAppender() {
+    private MockLogAppender(List<String> loggers) {
         /*
          * We use a copy-on-write array list since log messages could be appended while we are setting up expectations. When that occurs,
          * we would run into a concurrent modification exception from the iteration over the expectations in #append, concurrent with a
          * modification from #addExpectation.
          */
         expectations = new CopyOnWriteArrayList<>();
-    }
-
-    private MockLogAppender(List<String> loggers) {
-        this();
         this.loggers = loggers;
     }
 

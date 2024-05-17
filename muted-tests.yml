@@ -5,7 +5,7 @@ tests:
   issue: "https://github.com/elastic/elasticsearch/issues/108649"
   method: "testManyRandomDocs"
 - class: "org.elasticsearch.cluster.coordination.CoordinatorVotingConfigurationTests"
-  issue: "https://github.com/elastic/elasticsearch/issues/108760"
+  issue: "https://github.com/elastic/elasticsearch/issues/108729"
   method: "testClusterUUIDLogging"
 # Examples:
 #

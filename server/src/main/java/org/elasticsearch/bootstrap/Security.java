@@ -16,6 +16,8 @@ import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.http.HttpTransportSettings;
 import org.elasticsearch.jdk.JarHell;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.plugins.PluginsUtils;
 import org.elasticsearch.secure_sm.SecureSM;
 import org.elasticsearch.transport.TcpTransport;
@@ -103,6 +105,8 @@ import static org.elasticsearch.reservedstate.service.FileSettingsService.SETTIN
  * Troubleshooting Security</a> for information.
  */
 final class Security {
+
+    private static final Logger Log = LogManager.getLogger(Security.class);
 
     static {
         prepopulateSecurityCaller();
@@ -205,12 +209,6 @@ final class Security {
     ) throws IOException {
         Map<String, Set<URL>> securedFiles = new HashMap<>();
 
-        // always add some config files as exclusive files that no one can access
-        // there's no reason for anyone to read these once the security manager is initialized
-        securedFiles.put(environment.configFile().resolve("elasticsearch.yml").toString(), new HashSet<>());
-        securedFiles.put(environment.configFile().resolve("jvm.options").toString(), new HashSet<>());
-        securedFiles.put(environment.configFile().resolve("jvm.options.d/-").toString(), new HashSet<>());
-
         for (URL url : mainCodebases) {
             PolicyUtil.getPolicyPermissions(url, template, environment.tmpFile())
                 .stream()
@@ -227,7 +225,21 @@ final class Security {
                 .forEach(f -> securedFiles.computeIfAbsent(f.toString(), k -> new HashSet<>()).add(pp.getKey()));
         }
 
-        return securedFiles;
+        // always add some config files as exclusive files that no one can access
+        // there's no reason for anyone to read these once the security manager is initialized
+        // so if something has tried to grant itself access, boot them out and log a warning
+        addSpeciallySecuredFile(securedFiles, environment.configFile().resolve("elasticsearch.yml").toString());
+        addSpeciallySecuredFile(securedFiles, environment.configFile().resolve("jvm.options").toString());
+        addSpeciallySecuredFile(securedFiles, environment.configFile().resolve("jvm.options.d/-").toString());
+
+        return Collections.unmodifiableMap(securedFiles);
+    }
+
+    private static void addSpeciallySecuredFile(Map<String, Set<URL>> securedFiles, String path) {
+        Set<URL> attemptedToGrant = securedFiles.put(path, Set.of());
+        if (attemptedToGrant != null) {
+            attemptedToGrant.forEach(u -> Log.warn("{} tried to grant itself access to special config file {}, denying grant", u, path));
+        }
     }
 
     private static Stream<String> extractSecuredFileName(Permission p) {

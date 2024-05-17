@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.spatial;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.geo.Orientation;
-import org.elasticsearch.compute.ann.ConvertEvaluator;
 import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.ann.Fixed;
 import org.elasticsearch.compute.operator.EvalOperator;
@@ -20,23 +19,24 @@ import org.elasticsearch.index.mapper.ShapeIndexer;
 import org.elasticsearch.lucene.spatial.CartesianShapeIndexer;
 import org.elasticsearch.lucene.spatial.CoordinateEncoder;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
+import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
+import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes;
 import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
 import org.elasticsearch.xpack.esql.expression.EsqlTypeResolutions;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
-import org.elasticsearch.xpack.ql.expression.Expression;
-import org.elasticsearch.xpack.ql.expression.TypeResolutions;
-import org.elasticsearch.xpack.ql.tree.NodeInfo;
-import org.elasticsearch.xpack.ql.tree.Source;
-import org.elasticsearch.xpack.ql.type.DataType;
-import org.elasticsearch.xpack.ql.util.SpatialCoordinateTypes;
 
 import java.io.IOException;
 import java.util.function.Function;
 
-import static org.elasticsearch.xpack.ql.type.DataTypes.DOUBLE;
-import static org.elasticsearch.xpack.ql.util.SpatialCoordinateTypes.UNSPECIFIED;
+import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
+import static org.elasticsearch.xpack.esql.core.type.DataType.DOUBLE;
+import static org.elasticsearch.xpack.esql.expression.function.scalar.spatial.SpatialRelatesUtils.makeGeometryFromLiteral;
 
 /**
  * Extracts the x-coordinate from a point geometry.
@@ -59,10 +59,15 @@ public class StDistance extends BinarySpatialFunction implements EvaluatorMapper
         new CartesianShapeIndexer("ST_Distance")
     );
 
-    protected static class DistanceCalculator extends BinarySpatialComparator {
+    protected static class DistanceCalculator extends BinarySpatialComparator<Double> {
 
         protected DistanceCalculator(SpatialCoordinateTypes spatialCoordinateType, CoordinateEncoder encoder, ShapeIndexer shapeIndexer) {
             super(spatialCoordinateType, encoder, shapeIndexer);
+        }
+
+        @Override
+        protected Double compare(BytesRef left, BytesRef right) throws IOException {
+            return distance(left, right);
         }
 
         protected double distance(Point left, Point right) {
@@ -121,6 +126,17 @@ public class StDistance extends BinarySpatialFunction implements EvaluatorMapper
     }
 
     @Override
+    protected TypeResolution isSameSpatialType(
+        DataType spatialDataType,
+        Expression expression,
+        String operationName,
+        TypeResolutions.ParamOrdinal paramOrd
+    ) {
+        // We currently only support points for ST_DISTANCE
+        return isType(expression, dt -> dt == spatialDataType, operationName, paramOrd, compatibleTypeNames(spatialDataType));
+    }
+
+    @Override
     public DataType dataType() {
         return DOUBLE;
     }
@@ -135,42 +151,37 @@ public class StDistance extends BinarySpatialFunction implements EvaluatorMapper
         return NodeInfo.create(this, StDistance::new, left(), right());
     }
 
-    @ConvertEvaluator(extraName = "FromWKB", warnExceptions = { IllegalArgumentException.class })
-    static double fromWellKnownBinary(BytesRef in) {
-        return UNSPECIFIED.wkbAsPoint(in).getX();
+    @Override
+    public Object fold() {
+        var leftGeom = makeGeometryFromLiteral(left());
+        var rightGeom = makeGeometryFromLiteral(right());
+        return (crsType == SpatialCrsType.GEO) ? GEO.distance(leftGeom, rightGeom) : CARTESIAN.distance(leftGeom, rightGeom);
     }
 
     @Override
     public EvalOperator.ExpressionEvaluator.Factory toEvaluator(
         Function<Expression, EvalOperator.ExpressionEvaluator.Factory> toEvaluator
     ) {
-        DataType type = left().dataType();
-        // if (leftDocValues) {
-        // // When the points are read as doc-values (eg. from the index), feed them into the doc-values aggregator
-        // if (crsType == SpatialCrsType.GEO) {
-        // return new SpatialCentroidGeoPointDocValuesAggregatorFunctionSupplier(inputChannels);
-        // }
-        // if (type == EsqlDataTypes.CARTESIAN_POINT) {
-        // return new SpatialCentroidCartesianPointDocValuesAggregatorFunctionSupplier(inputChannels);
-        // }
-        // } else if (rightDocValues) {
-        // // When the points are read as doc-values (eg. from the index), feed them into the doc-values aggregator
-        // if (type == EsqlDataTypes.GEO_POINT) {
-        // return new SpatialCentroidGeoPointDocValuesAggregatorFunctionSupplier(inputChannels);
-        // }
-        // if (type == EsqlDataTypes.CARTESIAN_POINT) {
-        // return new SpatialCentroidCartesianPointDocValuesAggregatorFunctionSupplier(inputChannels);
-        // }
-        // } else {
-        // // When the points are read as WKB from source or as point literals, feed them into the source-values aggregator
-        // if (type == EsqlDataTypes.GEO_POINT) {
-        // return new SpatialCentroidGeoPointSourceValuesAggregatorFunctionSupplier(inputChannels);
-        // }
-        // if (type == EsqlDataTypes.CARTESIAN_POINT) {
-        // return new SpatialCentroidCartesianPointSourceValuesAggregatorFunctionSupplier(inputChannels);
-        // }
-        // }
-        throw EsqlIllegalArgumentException.illegalDataType(type);
+        EvalOperator.ExpressionEvaluator.Factory leftE = toEvaluator.apply(left());
+        EvalOperator.ExpressionEvaluator.Factory rightE = toEvaluator.apply(right());
+        if (crsType == SpatialCrsType.GEO) {
+            if (leftDocValues) {
+                return new StDistanceGeoPointDocValuesAndSourceEvaluator.Factory(source(), leftE, rightE);
+            } else if (rightDocValues) {
+                return new StDistanceGeoPointDocValuesAndSourceEvaluator.Factory(source(), rightE, leftE);
+            } else {
+                return new StDistanceGeoSourceAndSourceEvaluator.Factory(source(), leftE, rightE);
+            }
+        } else if (crsType == SpatialCrsType.CARTESIAN) {
+            if (leftDocValues) {
+                return new StDistanceCartesianPointDocValuesAndSourceEvaluator.Factory(source(), leftE, rightE);
+            } else if (rightDocValues) {
+                return new StDistanceCartesianPointDocValuesAndSourceEvaluator.Factory(source(), rightE, leftE);
+            } else {
+                return new StDistanceCartesianSourceAndSourceEvaluator.Factory(source(), leftE, rightE);
+            }
+        }
+        throw EsqlIllegalArgumentException.illegalDataType(crsType.name());
     }
 
     @Evaluator(extraName = "GeoSourceAndConstant", warnExceptions = { IllegalArgumentException.class, IOException.class })

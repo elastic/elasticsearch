@@ -20,6 +20,8 @@ import org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes;
 import org.elasticsearch.xpack.esql.expression.EsqlTypeResolutions;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
 
+import java.io.IOException;
+
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.FIRST;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.SECOND;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
@@ -103,7 +105,7 @@ public abstract class BinarySpatialFunction extends BinaryScalarFunction impleme
         crsType = SpatialCrsType.fromDataType(dataType);
     }
 
-    public static TypeResolution isSameSpatialType(
+    protected TypeResolution isSameSpatialType(
         DataType spatialDataType,
         Expression expression,
         String operationName,
@@ -121,7 +123,7 @@ public abstract class BinarySpatialFunction extends BinaryScalarFunction impleme
     private static final String[] GEO_TYPE_NAMES = new String[] { GEO_POINT.typeName(), GEO_SHAPE.typeName() };
     private static final String[] CARTESIAN_TYPE_NAMES = new String[] { GEO_POINT.typeName(), GEO_SHAPE.typeName() };
 
-    private static boolean spatialCRSCompatible(DataType spatialDataType, DataType otherDataType) {
+    protected static boolean spatialCRSCompatible(DataType spatialDataType, DataType otherDataType) {
         return EsqlDataTypes.isSpatialGeo(spatialDataType) && EsqlDataTypes.isSpatialGeo(otherDataType)
             || EsqlDataTypes.isSpatialGeo(spatialDataType) == false && EsqlDataTypes.isSpatialGeo(otherDataType) == false;
     }
@@ -158,7 +160,7 @@ public abstract class BinarySpatialFunction extends BinaryScalarFunction impleme
         }
     }
 
-    protected static class BinarySpatialComparator {
+    protected abstract static class BinarySpatialComparator<T> {
         protected final SpatialCoordinateTypes spatialCoordinateType;
         protected final CoordinateEncoder coordinateEncoder;
         protected final ShapeIndexer shapeIndexer;
@@ -178,5 +180,7 @@ public abstract class BinarySpatialFunction extends BinaryScalarFunction impleme
         protected Geometry fromBytesRef(BytesRef bytesRef) {
             return SpatialCoordinateTypes.UNSPECIFIED.wkbToGeometry(bytesRef);
         }
+
+        protected abstract T compare(BytesRef left, BytesRef right) throws IOException;
     }
 }

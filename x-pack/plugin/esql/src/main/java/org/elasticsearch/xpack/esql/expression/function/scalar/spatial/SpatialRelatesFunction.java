@@ -126,7 +126,7 @@ public abstract class SpatialRelatesFunction extends BinarySpatialFunction
         return expression instanceof FieldAttribute field && foundAttributes.contains(field);
     }
 
-    protected static class SpatialRelations extends BinarySpatialComparator {
+    protected static class SpatialRelations extends BinarySpatialComparator<Boolean> {
         protected final ShapeField.QueryRelation queryRelation;
 
         protected SpatialRelations(
@@ -137,6 +137,11 @@ public abstract class SpatialRelatesFunction extends BinarySpatialFunction
         ) {
             super(spatialCoordinateType, encoder, shapeIndexer);
             this.queryRelation = queryRelation;
+        }
+
+        @Override
+        protected Boolean compare(BytesRef left, BytesRef right) throws IOException {
+            return geometryRelatesGeometry(left, right);
         }
 
         protected boolean geometryRelatesGeometry(BytesRef left, BytesRef right) throws IOException {

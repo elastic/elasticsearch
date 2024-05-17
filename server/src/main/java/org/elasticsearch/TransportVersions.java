@@ -165,6 +165,11 @@ public class TransportVersions {
     public static final TransportVersion JOIN_STATUS_AGE_SERIALIZATION = def(8_656_00_0);
     public static final TransportVersion ML_RERANK_DOC_OPTIONAL = def(8_657_00_0);
     public static final TransportVersion FAILURE_STORE_FIELD_PARITY = def(8_658_00_0);
+    public static final TransportVersion ML_INFERENCE_AZURE_AI_STUDIO = def(8_659_00_0);
+    public static final TransportVersion ML_INFERENCE_COHERE_COMPLETION_ADDED = def(8_660_00_0);
+    public static final TransportVersion ESQL_REMOVE_ES_SOURCE_OPTIONS = def(8_661_00_0);
+    public static final TransportVersion NODE_STATS_INGEST_BYTES = def(8_662_00_0);
+
     /*
      * STOP! READ THIS FIRST! No, really,
      *        ____ _____ ___  ____  _        ____  _____    _    ____    _____ _   _ ___ ____    _____ ___ ____  ____ _____ _

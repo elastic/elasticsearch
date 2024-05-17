@@ -169,23 +169,22 @@ public class BanFailureLoggingTests extends TaskManagerTestCase {
                 new ChildResponseHandler(() -> parentTransportService.getTaskManager().unregister(parentTask))
             );
 
-            MockLogAppender appender = new MockLogAppender();
-            resources.add(appender.capturing(TaskCancellationService.class));
+            try (MockLogAppender appender = MockLogAppender.capture(TaskCancellationService.class)) {
+                for (MockLogAppender.LoggingExpectation expectation : expectations.apply(childTransportService.getLocalDiscoNode())) {
+                    appender.addExpectation(expectation);
+                }
 
-            for (MockLogAppender.LoggingExpectation expectation : expectations.apply(childTransportService.getLocalDiscoNode())) {
-                appender.addExpectation(expectation);
+                final PlainActionFuture<Void> cancellationFuture = new PlainActionFuture<>();
+                parentTransportService.getTaskManager().cancelTaskAndDescendants(parentTask, "test", true, cancellationFuture);
+                try {
+                    cancellationFuture.actionGet(TimeValue.timeValueSeconds(10));
+                } catch (NodeDisconnectedException e) {
+                    // acceptable; we mostly ignore the result of cancellation anyway
+                }
+
+                // assert busy since failure to remove a ban may be logged after cancellation completed
+                assertBusy(appender::assertAllExpectationsMatched);
             }
-
-            final PlainActionFuture<Void> cancellationFuture = new PlainActionFuture<>();
-            parentTransportService.getTaskManager().cancelTaskAndDescendants(parentTask, "test", true, cancellationFuture);
-            try {
-                cancellationFuture.actionGet(TimeValue.timeValueSeconds(10));
-            } catch (NodeDisconnectedException e) {
-                // acceptable; we mostly ignore the result of cancellation anyway
-            }
-
-            // assert busy since failure to remove a ban may be logged after cancellation completed
-            assertBusy(appender::assertAllExpectationsMatched);
 
             assertTrue("child tasks did not finish in time", childTaskLock.tryLock(15, TimeUnit.SECONDS));
         } finally {

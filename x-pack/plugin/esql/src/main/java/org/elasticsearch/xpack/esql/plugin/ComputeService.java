@@ -694,8 +694,10 @@ public class ComputeService {
             ? Collections.synchronizedList(new ArrayList<>())
             : List.of();
         final var responseHeadersCollector = new ResponseHeadersCollector(transportService.getThreadPool().getThreadContext());
-        listener = ActionListener.runBefore(listener, responseHeadersCollector::finish);
-        try (RefCountingListener refs = new RefCountingListener(listener.map(i -> new ComputeResponse(collectedProfiles)))) {
+        final RefCountingListener listenerRefs = new RefCountingListener(
+            ActionListener.runBefore(listener.map(unused -> new ComputeResponse(collectedProfiles)), responseHeadersCollector::finish)
+        );
+        try (listenerRefs) {
             final AtomicBoolean cancelled = new AtomicBoolean();
             // run compute with target shards
             var internalSink = exchangeService.createSinkHandler(request.sessionId(), request.pragmas().exchangeBufferSize());
@@ -705,16 +707,16 @@ public class ComputeService {
                 internalSink,
                 request.configuration().pragmas().maxConcurrentShardsPerNode(),
                 collectedProfiles,
-                ActionListener.runBefore(cancelOnFailure(task, cancelled, refs.acquire()), responseHeadersCollector::collect)
+                ActionListener.runBefore(cancelOnFailure(task, cancelled, listenerRefs.acquire()), responseHeadersCollector::collect)
             );
             dataNodeRequestExecutor.start();
             // run the node-level reduction
             var externalSink = exchangeService.getSinkHandler(externalId);
             task.addListener(() -> exchangeService.finishSinkHandler(externalId, new TaskCancelledException(task.getReasonCancelled())));
             var exchangeSource = new ExchangeSourceHandler(1, esqlExecutor);
-            exchangeSource.addCompletionListener(refs.acquire());
+            exchangeSource.addCompletionListener(listenerRefs.acquire());
             exchangeSource.addRemoteSink(internalSink::fetchPageAsync, 1);
-            ActionListener<Void> reductionListener = cancelOnFailure(task, cancelled, refs.acquire());
+            ActionListener<Void> reductionListener = cancelOnFailure(task, cancelled, listenerRefs.acquire());
             runCompute(
                 task,
                 new ComputeContext(
@@ -743,7 +745,7 @@ public class ComputeService {
         } catch (Exception e) {
             exchangeService.finishSinkHandler(externalId, e);
             exchangeService.finishSinkHandler(request.sessionId(), e);
-            listener.onFailure(e);
+            listenerRefs.acquire().onFailure(e);
         }
     }
 

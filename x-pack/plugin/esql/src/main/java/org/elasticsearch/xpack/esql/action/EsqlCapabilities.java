@@ -25,12 +25,21 @@ public class EsqlCapabilities {
      * Support for function {@code CBRT}. Done in #108574.
      */
     private static final String FN_CBRT = "fn_cbrt";
+    
+    /**
+     * Support for {@code MV_APPEND} funciton. #107001
+     */
     private static final String FN_MV_APPEND = "fn_mv_append";
+
+    /**
+     * Optimization for ST_CENTROID changed some results in cartesian data. #108713
+     */
+    private static final String ST_CENTROID_AGG_OPTIMIZED = "st_centroid_agg_optimized";
 
     static final Set<String> CAPABILITIES = capabilities();
 
     private static Set<String> capabilities() {
-        List<String> caps = new ArrayList<>(List.of(FN_CBRT, FN_MV_APPEND));
+        List<String> caps = new ArrayList<>(List.of(FN_CBRT, ST_CENTROID_AGG_OPTIMIZED, FN_MV_APPEND));
 
         /*
          * Add all of our cluster features without the leading "esql."

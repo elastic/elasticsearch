@@ -353,8 +353,7 @@ public class NodeConnectionsServiceTests extends ESTestCase {
         for (DiscoveryNode disconnectedNode : disconnectedNodes) {
             transportService.disconnectFromNode(disconnectedNode);
         }
-        MockLogAppender appender = new MockLogAppender();
-        try (var ignored = appender.capturing(NodeConnectionsService.class)) {
+        try (var appender = MockLogAppender.capture(NodeConnectionsService.class)) {
             for (DiscoveryNode targetNode : targetNodes) {
                 if (disconnectedNodes.contains(targetNode)) {
                     appender.addExpectation(
@@ -406,8 +405,8 @@ public class NodeConnectionsServiceTests extends ESTestCase {
         for (DiscoveryNode disconnectedNode : disconnectedNodes) {
             transportService.disconnectFromNode(disconnectedNode);
         }
-        appender = new MockLogAppender();
-        try (var ignored = appender.capturing(NodeConnectionsService.class)) {
+
+        try (var appender = MockLogAppender.capture(NodeConnectionsService.class)) {
             for (DiscoveryNode targetNode : targetNodes) {
                 if (disconnectedNodes.contains(targetNode) && newTargetNodes.get(targetNode.getId()) != null) {
                     appender.addExpectation(

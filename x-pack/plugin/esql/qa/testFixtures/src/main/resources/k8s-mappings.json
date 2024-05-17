@@ -1,0 +1,43 @@
+{
+  "properties": {
+    "@timestamp": {
+      "type": "date"
+    },
+    "cluster": {
+      "type": "keyword",
+      "time_series_dimension": true
+    },
+    "pod": {
+      "type": "keyword",
+      "time_series_dimension": true
+    },
+    "client": {
+      "properties": {
+        "ip": {
+          "type": "ip"
+        }
+      }
+    },
+    "event": {
+      "type": "keyword"
+    },
+    "network": {
+      "properties": {
+        "bytes_in": {
+          "type": "long"
+        },
+        "total_bytes_in": {
+          "type": "long",
+          "time_series_metric": "counter"
+        },
+        "cost": {
+          "type": "double"
+        },
+        "total_cost": {
+          "type": "double",
+          "time_series_metric": "counter"
+        }
+      }
+    }
+  }
+}

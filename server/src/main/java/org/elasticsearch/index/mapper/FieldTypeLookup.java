@@ -14,6 +14,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
@@ -38,9 +39,14 @@ final class FieldTypeLookup {
 
     private final int maxParentPathDots;
 
+    FieldTypeLookup(Collection<FieldMapper> fieldMappers, Collection<FieldAliasMapper> fieldAliasMappers) {
+        this(fieldMappers, fieldAliasMappers, List.of(), List.of());
+    }
+
     FieldTypeLookup(
         Collection<FieldMapper> fieldMappers,
         Collection<FieldAliasMapper> fieldAliasMappers,
+        Collection<PassThroughObjectMapper> passThroughMappers,
         Collection<RuntimeField> runtimeFields
     ) {
 
@@ -83,6 +89,35 @@ final class FieldTypeLookup {
             fullNameToFieldType.put(aliasName, fieldType);
             if (fieldType instanceof DynamicFieldType) {
                 dynamicFieldTypes.put(aliasName, (DynamicFieldType) fieldType);
+            }
+        }
+
+        // Pass-though subfields can be referenced without the prefix corresponding to the
+        // PassThroughObjectMapper name. This is achieved by adding a second reference to their
+        // MappedFieldType using the remaining suffix.
+        Map<String, PassThroughObjectMapper> passThroughFieldAliases = new HashMap<>();
+        for (PassThroughObjectMapper passThroughMapper : passThroughMappers) {
+            for (Mapper subfield : passThroughMapper.mappers.values()) {
+                if (subfield instanceof FieldMapper fieldMapper) {
+                    String name = fieldMapper.simpleName();
+                    // Check for conflict between PassThroughObjectMapper subfields.
+                    PassThroughObjectMapper conflict = passThroughFieldAliases.put(name, passThroughMapper);
+                    if (conflict != null) {
+                        if (conflict.priority() > passThroughMapper.priority()) {
+                            // Keep the conflicting field if it has higher priority.
+                            passThroughFieldAliases.put(name, conflict);
+                            continue;
+                        }
+                    } else if (fullNameToFieldType.containsKey(name)) {
+                        // There's an existing field or alias for the same field.
+                        continue;
+                    }
+                    MappedFieldType fieldType = fieldMapper.fieldType();
+                    fullNameToFieldType.put(name, fieldType);
+                    if (fieldType instanceof DynamicFieldType) {
+                        dynamicFieldTypes.put(name, (DynamicFieldType) fieldType);
+                    }
+                }
             }
         }
 

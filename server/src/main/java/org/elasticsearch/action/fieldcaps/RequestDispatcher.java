@@ -117,11 +117,7 @@ final class RequestDispatcher {
                 for (String failedIndex : failedIndices) {
                     final IndexSelector removed = indexSelectors.remove(failedIndex);
                     assert removed != null;
-                    try {
-                        onIndexFailure.accept(failedIndex, e);
-                    } catch (Exception inner) {
-                        LOGGER.info("failed to handle index failure", inner);
-                    }
+                    onIndexFailure.accept(failedIndex, e);
                 }
                 onComplete.run();
             }

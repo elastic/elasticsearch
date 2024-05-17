@@ -258,6 +258,7 @@ setup:
                 "metrics": ["min", "max", "sum"]
               }
             ]
+          }
 
 ---
 "Deprecation validation failure":

@@ -66,6 +66,27 @@ public class TransportPutRollupJobActionTests extends ESTestCase {
                             "field1": {
                                 "type": "long"
                             }
+                        },
+                        "_meta": {
+                            "other_metadata": {},
+                            "_rollup": {
+                                "job_id": {}
+                            }
+                        }
+                    }
+                }
+                """;
+            var metadata = createMetadata(mappings);
+            assertTrue(TransportPutRollupJobAction.hasRollupIndices(metadata));
+        }
+        {
+            String mappings = """
+                {
+                    "_doc": {
+                        "properties": {
+                            "field1": {
+                                "type": "long"
+                            }
                         }
                     }
                 }
@@ -77,6 +98,24 @@ public class TransportPutRollupJobActionTests extends ESTestCase {
             String mappings = """
                 {
                     "_doc": {
+                    }
+                }
+                """;
+            var metadata = createMetadata(mappings);
+            assertFalse(TransportPutRollupJobAction.hasRollupIndices(metadata));
+        }
+        {
+            String mappings = """
+                {
+                    "_doc": {
+                        "properties": {
+                            "field1": {
+                                "type": "long"
+                            }
+                        },
+                        "_meta": {
+                            "other_metadata": {}
+                        }
                     }
                 }
                 """;

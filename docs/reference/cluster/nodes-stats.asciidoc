@@ -2643,14 +2643,14 @@ pipeline.
 (integer)
 Total number of failed operations for the ingest pipeline.
 
-`ingested_in_bytes`::
+`ingested_as_first_pipeline_in_bytes`::
 (Optional, integer)
 Total number of bytes of all documents ingested by the pipeline.
 This field is only present on pipelines which are the first to process a document.
 Thus, it is not present on pipelines which only serve as a final pipeline after a default pipeline, a pipeline run after
 a reroute processor, or pipelines in pipeline processors.
 
-`produced_in_bytes`::
+`produced_as_first_pipeline_in_bytes`::
 (Optional, integer)
 Total number of bytes of all documents produced by the pipeline.
 This field is only present on pipelines which are the first to process a document.

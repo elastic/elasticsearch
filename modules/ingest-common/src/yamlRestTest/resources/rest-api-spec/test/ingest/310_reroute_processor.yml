@@ -20,6 +20,22 @@ teardown:
       indices.delete_index_template:
         name: logs-nginx
         ignore: 404
+  - do:
+      indices.delete:
+        index: "index-1"
+        ignore_unavailable: true
+  - do:
+      indices.delete:
+        index: "index-2"
+        ignore_unavailable: true
+  - do:
+      ingest.delete_pipeline:
+        id: "pipeline-1"
+        ignore: 404
+  - do:
+      ingest.delete_pipeline:
+        id: "pipeline-2"
+        ignore: 404
 
 ---
 "Test first matching router terminates pipeline":

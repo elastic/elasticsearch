@@ -156,7 +156,10 @@ public class BigArrayVectorTests extends SerializationTestCase {
             EqualsHashCodeTestUtils.checkEqualsAndHashCode(origBlock, unused -> deserBlock);
             EqualsHashCodeTestUtils.checkEqualsAndHashCode(origBlock.asVector(), unused -> deserBlock.asVector());
             assertThat(deserBlock.asVector(), is(origBlock.asVector()));
-            assertThat(deserBlock.asVector().isConstant(), is(origBlock.asVector().isConstant()));
+            // We can optimize the vector by converting it into a constant vector during serialization.
+            if (origBlock.asVector().isConstant()) {
+                assertTrue(deserBlock.asVector().isConstant());
+            }
         }
     }
 }

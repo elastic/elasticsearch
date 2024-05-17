@@ -36,7 +36,7 @@ public class EsqlCapabilities {
      */
     private static final String METADATA_IGNORED_FIELD = "metadata_field_ignored";
 
-    static final Set<String> CAPABILITIES = capabilities();
+    public static final Set<String> CAPABILITIES = capabilities();
 
     private static Set<String> capabilities() {
         List<String> caps = new ArrayList<>(List.of(FN_CBRT, ST_CENTROID_AGG_OPTIMIZED, METADATA_IGNORED_FIELD));

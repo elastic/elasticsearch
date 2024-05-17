@@ -163,6 +163,9 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
             return;
         }
 
+        // Aggregated result of two asynchronous operations when the cluster acknowledged and state changed
+        record RegisterRepositoryTaskResult(AcknowledgedResponse ackResponse, boolean changed) {}
+
         SubscribableListener
 
             .<Void>newForked(validationStep -> {
@@ -172,6 +175,10 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
                     validationStep.onResponse(null);
                 }
             })
+
+            // When publication has completed (and all acks received or timed out) then verify the repository.
+            // (if acks timed out then acknowledgementStep completes before the master processes this cluster state, hence why we have
+            // to wait for the publication to be complete too)
             .<RegisterRepositoryTaskResult>andThen((clusterUpdateStep, ignored) -> {
                 final ListenableFuture<AcknowledgedResponse> acknowledgementStep = new ListenableFuture<>();
                 final ListenableFuture<Boolean> publicationStep = new ListenableFuture<>(); // Boolean==changed.
@@ -223,6 +230,7 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
                                 verifyRepositoryStep.onResponse(null);
                             }
                         })
+                        // When verification has completed, get the repository data for the first time
                         .<RepositoryData>andThen((getRepositoryDataStep, ignored) -> {
                             threadPool.generic()
                                 .execute(
@@ -236,19 +244,16 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
                                     )
                                 );
                         })
+                        // When the repository metadata is ready, update the repository UUID stored in the cluster state, if available
                         .<Void>andThen((updateRepoUuidStep, repositoryData) -> {
                             updateRepositoryUuidInMetadata(clusterService, request.name(), repositoryData, updateRepoUuidStep);
                         })
-                        .<AcknowledgedResponse>andThen(
-                            (endVerificationStep, ignored) -> { endVerificationStep.onResponse(taskResult.ackResponse); }
-                        )
+                        .andThenApply(uuidUpdated -> taskResult.ackResponse)
                         .addListener(verificationStep);
                 }
             })
             .addListener(responseListener);
     }
-
-    private record RegisterRepositoryTaskResult(AcknowledgedResponse ackResponse, boolean changed) {}
 
     /**
      * Task class that extracts the 'execute' part of the functionality for registering

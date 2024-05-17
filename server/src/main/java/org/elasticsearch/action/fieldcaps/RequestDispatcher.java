@@ -91,23 +91,24 @@ final class RequestDispatcher {
         this.onIndexFailure = onIndexFailure;
         this.onComplete = new RunOnce(onComplete);
         this.indexSelectors = ConcurrentCollections.newConcurrentMap();
-        try {
-            for (String index : indices) {
-                final GroupShardsIterator<ShardIterator> shardIts = clusterService.operationRouting()
-                    .searchShards(clusterState, new String[] { index }, null, null, null, null);
-                final IndexSelector indexResult = new IndexSelector(shardIts);
-                if (indexResult.nodeToShards.isEmpty()) {
-                    onIndexFailure.accept(
-                        index,
-                        new NoShardAvailableActionException(null, "index [" + index + "] has no active shard copy")
-                    );
-                } else {
-                    this.indexSelectors.put(index, indexResult);
-                }
+        for (String index : indices) {
+            final GroupShardsIterator<ShardIterator> shardIts;
+            try {
+                shardIts = clusterService.operationRouting()
+                    .searchShards(clusterState, new String[]{index}, null, null, null, null);
+            } catch (Exception e) {
+                onIndexFailure.accept(index, e);
+                continue;
             }
-        } catch (Exception e) {
-            this.onComplete.run();
-            throw e;
+            final IndexSelector indexResult = new IndexSelector(shardIts);
+            if (indexResult.nodeToShards.isEmpty()) {
+                onIndexFailure.accept(
+                    index,
+                    new NoShardAvailableActionException(null, "index [" + index + "] has no active shard copy")
+                );
+            } else {
+                this.indexSelectors.put(index, indexResult);
+            }
         }
     }
 

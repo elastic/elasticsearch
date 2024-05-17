@@ -9,7 +9,7 @@ setup:
       headers:
         Authorization: "Basic dGVzdF91c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" #test_user credentials
       indices.create:
-        index: index-with-sparse-vector
+        index: my-index-with-sparse-vector
         body:
           mappings:
             properties:
@@ -61,7 +61,7 @@ setup:
         Authorization: "Basic dGVzdF91c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" #test_user credentials
         Content-Type: application/json
       bulk:
-        index: index-with-sparse-vector
+        index: my-index-with-sparse-vector
         refresh: true
         body: |
           {"index": {}}
@@ -89,7 +89,7 @@ setup:
 "Test sparse_vector search":
   - do:
       search:
-        index: index-with-sparse-vector
+        index: my-index-with-sparse-vector
         body:
           query:
             sparse_vector:
@@ -103,7 +103,7 @@ setup:
 "Test sparse_vector search with pruning config":
   - do:
       search:
-        index: index-with-sparse-vector
+        index: my-index-with-sparse-vector
         body:
           query:
             sparse_vector:
@@ -121,7 +121,7 @@ setup:
 "Test sparse_vector search with query vector":
   - do:
       search:
-        index: index-with-sparse-vector
+        index: my-index-with-sparse-vector
         body:
           query:
             sparse_vector:
@@ -138,7 +138,7 @@ setup:
 "Test sparse_vector search with query vector and pruning config":
   - do:
       search:
-        index: index-with-sparse-vector
+        index: my-index-with-sparse-vector
         body:
           query:
             sparse_vector:

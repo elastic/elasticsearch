@@ -141,7 +141,7 @@ In this case, the response would be:
   }
 }
 ----
-// TEST[skip:Json formatting with mustasche templates returned in response is weird]
+// TESTRESPONSE[s/"updated_at_millis": 1715802354482/"updated_at_millis": $body.$_path/]
 
 The default template is very minimal:
 

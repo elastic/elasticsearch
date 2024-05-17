@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.searchablesnapshots;
 import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.ResourceNotFoundException;
-import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.admin.cluster.allocation.ClusterAllocationExplanation;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksRequest;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
@@ -1195,6 +1195,7 @@ public class SearchableSnapshotsIntegTests extends BaseSearchableSnapshotsIntegT
         // wait for master thread to be blocked
         safeAwait(cyclicBarrier);
 
+        ActionFuture<RestoreSnapshotResponse> response = null;
         try {
             final MountSearchableSnapshotRequest mountRequest = new MountSearchableSnapshotRequest(
                 indexName,
@@ -1203,11 +1204,11 @@ public class SearchableSnapshotsIntegTests extends BaseSearchableSnapshotsIntegT
                 indexName,
                 Settings.EMPTY,
                 Strings.EMPTY_ARRAY,
-                false,
+                true,
                 MountSearchableSnapshotRequest.Storage.FULL_COPY
             );
 
-            client().execute(MountSearchableSnapshotAction.INSTANCE, mountRequest, ActionListener.noop());
+            response = client().execute(MountSearchableSnapshotAction.INSTANCE, mountRequest);
             TaskInfo[] restoreSnapshotTask = new TaskInfo[1];
             waitUntil(() -> {
                 restoreSnapshotTask[0] = getTaskForActionFromMaster(TransportRestoreSnapshotAction.TYPE.name());
@@ -1217,7 +1218,11 @@ public class SearchableSnapshotsIntegTests extends BaseSearchableSnapshotsIntegT
             assertNotNull("No mount task found", mountSnapshotTask);
             assertEquals(mountSnapshotTask.taskId(), restoreSnapshotTask[0].parentTaskId());
         } finally {
-            safeAwait(cyclicBarrier);
+            safeAwait(cyclicBarrier);   // Unblock the master thread
+            if (response != null) {
+                response.actionGet();
+                assertAcked(indicesAdmin().prepareDelete(indexName));
+            }
         }
     }
 

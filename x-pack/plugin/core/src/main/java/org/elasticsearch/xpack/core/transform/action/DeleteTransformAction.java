@@ -34,7 +34,7 @@ public class DeleteTransformAction extends ActionType<AcknowledgedResponse> {
         private final boolean deleteDestIndex;
 
         public Request(String id, boolean force, boolean deleteDestIndex, TimeValue timeout) {
-            super(timeout);
+            super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT, timeout);
             this.id = ExceptionsHelper.requireNonNull(id, TransformField.ID.getPreferredName());
             this.force = force;
             this.deleteDestIndex = deleteDestIndex;

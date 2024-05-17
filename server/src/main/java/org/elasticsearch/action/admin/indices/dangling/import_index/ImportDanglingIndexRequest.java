@@ -32,7 +32,7 @@ public class ImportDanglingIndexRequest extends AcknowledgedRequest<ImportDangli
     }
 
     public ImportDanglingIndexRequest(String indexUUID, boolean acceptDataLoss) {
-        super();
+        super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT, DEFAULT_ACK_TIMEOUT);
         this.indexUUID = Objects.requireNonNull(indexUUID, "indexUUID cannot be null");
         this.acceptDataLoss = acceptDataLoss;
     }

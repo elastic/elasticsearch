@@ -128,6 +128,6 @@ public class ChunkedSparseEmbeddingResultsTests extends AbstractWireSerializingT
 
     @Override
     protected ChunkedSparseEmbeddingResults mutateInstance(ChunkedSparseEmbeddingResults instance) throws IOException {
-        return null;
+        return randomValueOtherThan(instance, ChunkedSparseEmbeddingResultsTests::createRandomResults);
     }
 }

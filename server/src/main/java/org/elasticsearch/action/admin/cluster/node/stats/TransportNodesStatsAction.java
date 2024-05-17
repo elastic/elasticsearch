@@ -8,6 +8,7 @@
 
 package org.elasticsearch.action.admin.cluster.node.stats;
 
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.FailedNodeException;
@@ -37,8 +38,6 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-
-import static org.elasticsearch.TransportVersions.NODE_STATS_REQUEST_SIMPLIFIED;
 
 public class TransportNodesStatsAction extends TransportNodesAction<
     NodesStatsRequest,
@@ -158,7 +157,7 @@ public class TransportNodesStatsAction extends TransportNodesAction<
 
         public NodeStatsRequest(StreamInput in) throws IOException {
             super(in);
-            if (in.getTransportVersion().onOrAfter(NODE_STATS_REQUEST_SIMPLIFIED)) {
+            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_13_0)) {
                 this.nodesStatsRequestParameters = new NodesStatsRequestParameters(in);
                 this.nodesIds = in.readStringArray();
             } else {
@@ -191,7 +190,7 @@ public class TransportNodesStatsAction extends TransportNodesAction<
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
-            if (out.getTransportVersion().onOrAfter(NODE_STATS_REQUEST_SIMPLIFIED)) {
+            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_13_0)) {
                 this.nodesStatsRequestParameters.writeTo(out);
                 out.writeStringArrayNullable(nodesIds);
             } else {

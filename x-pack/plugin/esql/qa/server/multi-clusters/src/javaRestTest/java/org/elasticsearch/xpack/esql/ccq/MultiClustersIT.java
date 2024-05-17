@@ -29,7 +29,6 @@ import org.junit.rules.TestRule;
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
@@ -157,34 +156,6 @@ public class MultiClustersIT extends ESRestTestCase {
         }
     }
 
-    public void testCountWithOptions() throws Exception {
-        assumeTrue("remote cluster requires FROM OPTIONS support", remoteFeaturesService().clusterHasFeature("esql.from_options"));
-        {
-            Map<String, Object> result = run(
-                "FROM test-local-index,*:test-remote-index,doesnotexist "
-                    + "OPTIONS \"ignore_unavailable\"=\"true\",\"preference\"=\"_local\" | STATS c = COUNT(*)"
-            );
-            var columns = List.of(Map.of("name", "c", "type", "long"));
-            var values = List.of(List.of(localDocs.size() + remoteDocs.size()));
-            assertMap(result, matchesMap().entry("columns", columns).entry("values", values));
-        }
-        {
-            Map<String, Object> result = run(
-                "FROM *:test-remote-index,doesnotexit OPTIONS \"ignore_unavailable\"=\"true\",\"preference\"=\"_local\" "
-                    + "| STATS c = COUNT(*)"
-            );
-            var columns = List.of(Map.of("name", "c", "type", "long"));
-            var values = List.of(List.of(remoteDocs.size()));
-            assertMap(result, matchesMap().entry("columns", columns).entry("values", values));
-        }
-        {
-            Map<String, Object> result = run("FROM *:test-remote-index OPTIONS \"preference\"=\"_shards:999\" | STATS c = COUNT(*)");
-            var columns = List.of(Map.of("name", "c", "type", "long"));
-            var values = List.of(List.of(0)); // shard with id 999 above (non-existent) yields count 0
-            assertMap(result, matchesMap().entry("columns", columns).entry("values", values));
-        }
-    }
-
     public void testUngroupedAggs() throws Exception {
         {
             Map<String, Object> result = run("FROM test-local-index,*:test-remote-index | STATS total = SUM(data)");
@@ -232,22 +203,5 @@ public class MultiClustersIT extends ESRestTestCase {
     private RestClient remoteClusterClient() throws IOException {
         var clusterHosts = parseClusterHosts(remoteCluster.getHttpAddresses());
         return buildClient(restClientSettings(), clusterHosts.toArray(new HttpHost[0]));
-    }
-
-    private TestFeatureService remoteFeaturesService() throws IOException {
-        if (remoteFeaturesService == null) {
-            try (var remoteFeaturesServiceClient = remoteClusterClient()) {
-                var remoteNodeVersions = readVersionsFromNodesInfo(remoteFeaturesServiceClient);
-                var semanticNodeVersions = remoteNodeVersions.stream()
-                    .map(ESRestTestCase::parseLegacyVersion)
-                    .flatMap(Optional::stream)
-                    .collect(Collectors.toSet());
-                remoteFeaturesService = createTestFeatureService(
-                    getClusterStateFeatures(remoteFeaturesServiceClient),
-                    semanticNodeVersions
-                );
-            }
-        }
-        return remoteFeaturesService;
     }
 }

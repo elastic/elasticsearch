@@ -34,8 +34,8 @@ public final class Int7Euclidean extends AbstractInt7ScalarQuantizedVectorScorer
         checkOrdinal(secondOrd);
 
         final int length = dims;
-        int firstByteOffset = firstOrd * (length + Float.BYTES);
-        int secondByteOffset = secondOrd * (length + Float.BYTES);
+        long firstByteOffset = (long) firstOrd * (length + Float.BYTES);
+        long secondByteOffset = (long) secondOrd * (length + Float.BYTES);
 
         MemorySegment firstSeg = segmentSlice(firstByteOffset, length);
         MemorySegment secondSeg = segmentSlice(secondByteOffset, length);

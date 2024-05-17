@@ -136,9 +136,7 @@ public class SnapshotThrottlingIT extends AbstractSnapshotIntegTestCase {
         }
         final String primaryNode = internalCluster().startNode(primaryNodeSettings);
 
-        final MockLogAppender mockLogAppender = new MockLogAppender();
-        try (var ignored = mockLogAppender.capturing(BlobStoreRepository.class)) {
-
+        try (var mockLogAppender = MockLogAppender.capture(BlobStoreRepository.class)) {
             MockLogAppender.EventuallySeenEventExpectation snapshotExpectation = new MockLogAppender.EventuallySeenEventExpectation(
                 "snapshot speed over recovery speed",
                 "org.elasticsearch.repositories.blobstore.BlobStoreRepository",

@@ -67,8 +67,8 @@ public class TransportResolveClusterActionTests extends ESTestCase {
                 @Override
                 public void writeTo(StreamOutput out) throws IOException {
                     throw new UnsupportedOperationException(
-                        "ResolveClusterAction requires at least Transport Version "
-                            + TransportVersions.RESOLVE_CLUSTER_ENDPOINT_ADDED.toReleaseVersion()
+                        "ResolveClusterAction requires at least version "
+                            + TransportVersions.V_8_13_0.toReleaseVersion()
                             + " but was "
                             + out.getTransportVersion().toReleaseVersion()
                     );
@@ -99,7 +99,7 @@ public class TransportResolveClusterActionTests extends ESTestCase {
 
             assertThat(ex.getMessage(), containsString("not compatible with version"));
             assertThat(ex.getMessage(), containsString("and the 'search.check_ccs_compatibility' setting is enabled."));
-            assertThat(ex.getCause().getMessage(), containsString("ResolveClusterAction requires at least Transport Version"));
+            assertThat(ex.getCause().getMessage(), containsString("ResolveClusterAction requires at least version"));
         } finally {
             assertTrue(ESTestCase.terminate(threadPool));
         }

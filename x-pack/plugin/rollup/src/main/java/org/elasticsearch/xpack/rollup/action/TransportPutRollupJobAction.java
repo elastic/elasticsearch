@@ -119,8 +119,7 @@ public class TransportPutRollupJobAction extends AcknowledgedTransportMasterNode
                 if (hasRollupIndices == false) {
                     listener.onFailure(
                         new IllegalArgumentException(
-                            "rollup has been deprecated and will be removed, therefor starting "
-                                + "from 8.15.0, creating new rollup jobs is no longer allowed in clusters that don't have any rollup usage."
+                            "new rollup jobs are not allowed in clusters that don't have any rollup usage, since rollup has been deprecated"
                         )
                     );
                     return;

@@ -20,66 +20,66 @@ public class TransportPutRollupJobActionTests extends ESTestCase {
     public void testHasRollupIndices() throws IOException {
         {
             String mappings = """
-            {
-                "_doc": {
-                    "properties": {
-                        "field1": {
-                            "type": "long"
-                        }
-                    },
-                    "_meta": {
-                        "_rollup": {
-                            "job_id": {}
+                {
+                    "_doc": {
+                        "properties": {
+                            "field1": {
+                                "type": "long"
+                            }
+                        },
+                        "_meta": {
+                            "_rollup": {
+                                "job_id": {}
+                            }
                         }
                     }
                 }
-            }
-            """;
+                """;
             var metadata = createMetadata(mappings);
             assertTrue(TransportPutRollupJobAction.hasRollupIndices(metadata));
         }
         {
             String mappings = """
-            {
-                "_doc": {
-                    "properties": {
-                        "field1": {
-                            "type": "long"
-                        }
-                    },
-                    "_meta": {
-                        "_rollup": {
-                            "job_id": {}
+                {
+                    "_doc": {
+                        "properties": {
+                            "field1": {
+                                "type": "long"
+                            }
+                        },
+                        "_meta": {
+                            "_rollup": {
+                                "job_id": {}
+                            }
                         }
                     }
                 }
-            }
-            """;
+                """;
             var metadata = createMetadata(mappings);
             assertTrue(TransportPutRollupJobAction.hasRollupIndices(metadata));
         }
         {
             String mappings = """
-            {
-                "_doc": {
-                    "properties": {
-                        "field1": {
-                            "type": "long"
+                {
+                    "_doc": {
+                        "properties": {
+                            "field1": {
+                                "type": "long"
+                            }
                         }
                     }
                 }
-            }
-            """;
+                """;
             var metadata = createMetadata(mappings);
             assertFalse(TransportPutRollupJobAction.hasRollupIndices(metadata));
         }
         {
             String mappings = """
-            {
-                "_doc": {
+                {
+                    "_doc": {
+                    }
                 }
-            }
-            """;
+                """;
             var metadata = createMetadata(mappings);
             assertFalse(TransportPutRollupJobAction.hasRollupIndices(metadata));
         }
@@ -92,6 +92,5 @@ public class TransportPutRollupJobActionTests extends ESTestCase {
             .build();
         return metadata;
     }
-
 
 }

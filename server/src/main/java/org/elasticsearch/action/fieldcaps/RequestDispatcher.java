@@ -120,7 +120,7 @@ final class RequestDispatcher {
                     try {
                         onIndexFailure.accept(failedIndex, e);
                     } catch (Exception inner) {
-                        LOGGER.info("failed to handle index failure ", inner);
+                        LOGGER.info("failed to handle index failure", inner);
                     }
                 }
                 onComplete.run();

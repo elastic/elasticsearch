@@ -271,7 +271,7 @@ public class SparseVectorQueryBuilder extends AbstractQueryBuilder<SparseVectorQ
                     if (inferenceResults.get(0) instanceof TextExpansionResults textExpansionResults) {
                         textExpansionResultsSupplier.set(textExpansionResults);
                         listener.onResponse(null);
-                    } else if (inferenceResponse.getInferenceResults().get(0) instanceof WarningInferenceResults warning) {
+                    } else if (inferenceResults.get(0) instanceof WarningInferenceResults warning) {
                         listener.onFailure(new IllegalStateException(warning.getWarning()));
                     } else {
                         listener.onFailure(
@@ -279,7 +279,7 @@ public class SparseVectorQueryBuilder extends AbstractQueryBuilder<SparseVectorQ
                                 "expected a result of type ["
                                     + TextExpansionResults.NAME
                                     + "] received ["
-                                    + inferenceResponse.getInferenceResults().get(0).getWriteableName()
+                                    + inferenceResults.get(0).getWriteableName()
                                     + "]. Is ["
                                     + inferenceId
                                     + "] a compatible model?"

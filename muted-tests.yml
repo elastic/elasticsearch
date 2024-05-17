@@ -4,6 +4,9 @@ tests:
 - class: "org.elasticsearch.xpack.inference.action.filter.ShardBulkInferenceActionFilterTests"
   issue: "https://github.com/elastic/elasticsearch/issues/108649"
   method: "testManyRandomDocs"
+- class: "org.elasticsearch.cluster.coordination.CoordinatorVotingConfigurationTests"
+  issue: "https://github.com/elastic/elasticsearch/issues/108760"
+  method: "testClusterUUIDLogging"
 # Examples:
 #
 #  Mute a single test case in a YAML test suite:

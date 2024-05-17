@@ -437,6 +437,9 @@ public class XContentHelperTests extends ESTestCase {
         var parser = XContentType.JSON.xContent().createParser(XContentParserConfiguration.EMPTY, "{}");
         parser.close();
 
-        assertThrows(IllegalStateException.class, () -> XContentHelper.drainAndClose(parser, XContentBuilder.builder(XContentType.JSON.xContent())));
+        assertThrows(
+            IllegalStateException.class,
+            () -> XContentHelper.drainAndClose(parser, XContentBuilder.builder(XContentType.JSON.xContent()))
+        );
     }
 }

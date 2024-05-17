@@ -12,12 +12,14 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.common.TriFunction;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.script.TermStatsReader;
 
 import java.io.IOException;
 import java.util.Collections;
 import java.util.LinkedHashSet;
 import java.util.Objects;
 import java.util.Set;
+import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
@@ -52,6 +54,8 @@ public class SearchLookup implements SourceProvider {
         IndexFieldData<?>> fieldDataLookup;
     private final Function<LeafReaderContext, LeafFieldLookupProvider> fieldLookupProvider;
 
+    private final BiFunction<LeafReaderContext, Supplier<Integer>, TermStatsReader> termStatsReaderFactory;
+
     /**
      * Create a new SearchLookup, using the default stored fields provider
      * @param fieldTypeLookup   defines how to look up field types
@@ -63,7 +67,7 @@ public class SearchLookup implements SourceProvider {
         TriFunction<MappedFieldType, Supplier<SearchLookup>, MappedFieldType.FielddataOperation, IndexFieldData<?>> fieldDataLookup,
         SourceProvider sourceProvider
     ) {
-        this(fieldTypeLookup, fieldDataLookup, sourceProvider, LeafFieldLookupProvider.fromStoredFields());
+        this(fieldTypeLookup, fieldDataLookup, sourceProvider, LeafFieldLookupProvider.fromStoredFields(), null);
     }
 
     /**
@@ -77,13 +81,15 @@ public class SearchLookup implements SourceProvider {
         Function<String, MappedFieldType> fieldTypeLookup,
         TriFunction<MappedFieldType, Supplier<SearchLookup>, MappedFieldType.FielddataOperation, IndexFieldData<?>> fieldDataLookup,
         SourceProvider sourceProvider,
-        Function<LeafReaderContext, LeafFieldLookupProvider> fieldLookupProvider
+        Function<LeafReaderContext, LeafFieldLookupProvider> fieldLookupProvider,
+        BiFunction<LeafReaderContext,  Supplier<Integer>, TermStatsReader> termStatsReaderFactory
     ) {
         this.fieldTypeLookup = fieldTypeLookup;
         this.fieldChain = Collections.emptySet();
         this.sourceProvider = sourceProvider;
         this.fieldDataLookup = fieldDataLookup;
         this.fieldLookupProvider = fieldLookupProvider;
+        this.termStatsReaderFactory = termStatsReaderFactory;
     }
 
     /**
@@ -99,6 +105,7 @@ public class SearchLookup implements SourceProvider {
         this.fieldTypeLookup = searchLookup.fieldTypeLookup;
         this.fieldDataLookup = searchLookup.fieldDataLookup;
         this.fieldLookupProvider = searchLookup.fieldLookupProvider;
+        this.termStatsReaderFactory = searchLookup.termStatsReaderFactory;
     }
 
     /**
@@ -142,5 +149,9 @@ public class SearchLookup implements SourceProvider {
     @Override
     public Source getSource(LeafReaderContext ctx, int doc) throws IOException {
         return sourceProvider.getSource(ctx, doc);
+    }
+
+    public TermStatsReader getTermStatsReader(LeafReaderContext leafReaderContext, Supplier<Integer> docIdSupplier) {
+        return termStatsReaderFactory.apply(leafReaderContext, docIdSupplier);
     }
 }

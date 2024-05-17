@@ -7,11 +7,10 @@
  */
 package org.elasticsearch.script;
 
-import org.apache.lucene.index.PostingsEnum;
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.Explanation;
 import org.apache.lucene.search.Scorable;
-import org.apache.lucene.search.TermStatistics;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.search.lookup.SearchLookup;
@@ -21,6 +20,7 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.DoubleSupplier;
 import java.util.function.Function;
 import java.util.function.Supplier;
@@ -85,6 +85,8 @@ public abstract class ScoreScript extends DocBasedScript {
     private int shardId = -1;
     private String indexName = null;
 
+    private final TermStatsReader termStatsReader;
+
     public ScoreScript(Map<String, Object> params, SearchLookup searchLookup, DocReader docReader) {
         // searchLookup parameter is ignored but part of the ScriptFactory contract. It is part of that contract because it's required
         // for expressions. Expressions should eventually be transitioned to using DocReader.
@@ -95,11 +97,15 @@ public abstract class ScoreScript extends DocBasedScript {
             this.params = null;
             ;
             this.docBase = 0;
+            this.termStatsReader = null;
         } else {
             params = new HashMap<>(params);
             params.putAll(docReader.docAsMap());
             this.params = new DynamicMap(params, PARAMS_FUNCTIONS);
-            this.docBase = ((DocValuesDocReader) docReader).getLeafReaderContext().docBase;
+            LeafReaderContext leafReaderContext = ((DocValuesDocReader) docReader).getLeafReaderContext();
+            this.docBase = leafReaderContext.docBase;
+            this.termStatsReader = searchLookup.getTermStatsReader(leafReaderContext, this::_getDocId);
+
         }
     }
 
@@ -192,13 +198,12 @@ public abstract class ScoreScript extends DocBasedScript {
         this.indexName = indexName;
     }
 
-
-    public Map<Term, TermStatistics> _termStatistics() {
-        return  this.docReader.termStatistics();
+    public void _setTerms(Set<Term> terms) {
+        this.termStatsReader._setTerms(terms);
     }
 
-    public Map<Term, PostingsEnum> _postings(int flags) {
-        return  this.docReader.postings(flags);
+    public TermStatsReader get_termStatistics() {
+        return termStatsReader;
     }
 
 
@@ -209,6 +214,8 @@ public abstract class ScoreScript extends DocBasedScript {
          * Return {@code true} if the script needs {@code _score} calculated, or {@code false} otherwise.
          */
         boolean needs_score();
+
+        boolean needs_termStatistics();
 
         ScoreScript newInstance(DocReader reader) throws IOException;
     }

@@ -6,11 +6,11 @@ teardown:
         ignore: 404
   - do:
       ingest.delete_pipeline:
-        id: "logs-router-default"
+        id: "logs-router"
         ignore: 404
   - do:
       ingest.delete_pipeline:
-        id: "logs-nginx-default"
+        id: "logs-nginx"
         ignore: 404
   - do:
       indices.delete_index_template:

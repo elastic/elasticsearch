@@ -35,8 +35,7 @@ public class MockLogAppender implements Releasable {
 
     private static final Map<String, List<MockLogAppender>> mockAppenders = new ConcurrentHashMap<>();
     private static final RealMockAppender parent = new RealMockAppender();
-    // TODO: this can become final once the ctor is made private
-    private List<String> loggers = List.of();
+    private final List<String> loggers;
     private final List<WrappedLoggingExpectation> expectations;
     private volatile boolean isAlive = true;
 

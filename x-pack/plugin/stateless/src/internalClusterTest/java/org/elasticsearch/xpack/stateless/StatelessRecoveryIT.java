@@ -2683,6 +2683,7 @@ public class StatelessRecoveryIT extends AbstractStatelessIntegTestCase {
         assertThat(searchingThread.isAlive(), is(false));
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch-serverless/issues/2036")
     public void testPreferredNodeIdsAreUsedDuringRelocation() {
         startMasterOnlyNode();
 

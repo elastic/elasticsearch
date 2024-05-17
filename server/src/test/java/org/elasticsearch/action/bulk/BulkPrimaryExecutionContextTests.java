@@ -31,7 +31,7 @@ import static org.mockito.Mockito.when;
 public class BulkPrimaryExecutionContextTests extends ESTestCase {
 
     public void testAbortedSkipped() {
-        BulkShardRequest shardRequest = generateRandomRequest();
+        BulkShardRequest shardRequest = generateRandomRequest(false);
 
         ArrayList<DocWriteRequest<?>> nonAbortedRequests = new ArrayList<>();
         for (BulkItemRequest request : shardRequest.items()) {
@@ -49,8 +49,7 @@ public class BulkPrimaryExecutionContextTests extends ESTestCase {
             context.setRequestToExecute(context.getCurrent());
             // using failures prevents caring about types
             context.markOperationAsExecuted(
-                new Engine.IndexResult(new ElasticsearchException("bla"), 1, context.getRequestToExecute().id()),
-                randomBoolean()
+                new Engine.IndexResult(new ElasticsearchException("bla"), 1, context.getRequestToExecute().id())
             );
             context.markAsCompleted(context.getExecutionResult());
         }
@@ -58,7 +57,7 @@ public class BulkPrimaryExecutionContextTests extends ESTestCase {
         assertThat(visitedRequests, equalTo(nonAbortedRequests));
     }
 
-    private BulkShardRequest generateRandomRequest() {
+    private BulkShardRequest generateRandomRequest(boolean isSimulated) {
         BulkItemRequest[] items = new BulkItemRequest[randomInt(20)];
         for (int i = 0; i < items.length; i++) {
             final DocWriteRequest<?> request = switch (randomFrom(DocWriteRequest.OpType.values())) {
@@ -69,12 +68,13 @@ public class BulkPrimaryExecutionContextTests extends ESTestCase {
             };
             items[i] = new BulkItemRequest(i, request);
         }
-        return new BulkShardRequest(new ShardId("index", "_na_", 0), randomFrom(WriteRequest.RefreshPolicy.values()), items);
+        return new BulkShardRequest(new ShardId("index", "_na_", 0), randomFrom(WriteRequest.RefreshPolicy.values()), items, isSimulated);
     }
 
     public void testTranslogLocation() {
 
-        BulkShardRequest shardRequest = generateRandomRequest();
+        boolean isSimulated = randomBoolean();
+        BulkShardRequest shardRequest = generateRandomRequest(isSimulated);
 
         Translog.Location expectedLocation = null;
         final IndexShard primary = mock(IndexShard.class);
@@ -82,7 +82,6 @@ public class BulkPrimaryExecutionContextTests extends ESTestCase {
 
         long translogGen = 0;
         long translogOffset = 0;
-        boolean isSimulated = randomBoolean();
 
         BulkPrimaryExecutionContext context = new BulkPrimaryExecutionContext(shardRequest, primary);
         while (context.hasMoreOperationsToExecute()) {
@@ -127,7 +126,7 @@ public class BulkPrimaryExecutionContextTests extends ESTestCase {
             if (failure == false) {
                 expectedLocation = location;
             }
-            context.markOperationAsExecuted(result, isSimulated);
+            context.markOperationAsExecuted(result);
             context.markAsCompleted(context.getExecutionResult());
         }
 

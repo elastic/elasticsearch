@@ -255,7 +255,7 @@ class BulkPrimaryExecutionContext {
     }
 
     /** the current operation has been executed on the primary with the specified result */
-    public void markOperationAsExecuted(Engine.Result result, boolean isSimulated) {
+    public void markOperationAsExecuted(Engine.Result result) {
         assert assertInvariants(ItemProcessingState.TRANSLATED);
         final BulkItemRequest current = getCurrentItem();
         DocWriteRequest<?> docWriteRequest = getRequestToExecute();
@@ -296,7 +296,7 @@ class BulkPrimaryExecutionContext {
                 executionResult = BulkItemResponse.success(current.id(), current.request().opType(), response);
                 // set a blank ShardInfo so we can safely send it to the replicas. We won't use it in the real response though.
                 executionResult.getResponse().setShardInfo(ReplicationResponse.ShardInfo.EMPTY);
-                if (isSimulated == false) {
+                if (getBulkShardRequest().isSimulated() == false) {
                     locationToSync = TransportWriteAction.locationToSync(locationToSync, result.getTranslogLocation());
                 }
             }

@@ -44,7 +44,7 @@ teardown:
   - do:
       ingest.put_pipeline:
         id: "pipeline-with-two-data-stream-processors"
-        body:  >
+        body: >
           {
             "processors": [
               {
@@ -87,7 +87,7 @@ teardown:
   - do:
       ingest.put_pipeline:
         id: "logs-router"
-        body:  >
+        body: >
           {
             "processors": [
               {
@@ -113,7 +113,7 @@ teardown:
   - do:
       ingest.put_pipeline:
         id: "logs-nginx"
-        body:  >
+        body: >
           {
             "processors": [
               {
@@ -161,7 +161,7 @@ teardown:
   - do:
       ingest.put_pipeline:
         id: "pipeline-1"
-        body:  >
+        body: >
           {
             "processors": [
               {

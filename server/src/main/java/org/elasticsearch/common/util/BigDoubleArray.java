@@ -8,8 +8,6 @@
 
 package org.elasticsearch.common.util;
 
-import org.apache.lucene.util.ArrayUtil;
-import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 
@@ -17,7 +15,6 @@ import java.io.IOException;
 import java.lang.invoke.MethodHandles;
 import java.lang.invoke.VarHandle;
 import java.nio.ByteOrder;
-import java.util.Arrays;
 
 import static org.elasticsearch.common.util.BigLongArray.readPages;
 import static org.elasticsearch.common.util.BigLongArray.writePages;
@@ -27,22 +24,15 @@ import static org.elasticsearch.common.util.PageCacheRecycler.DOUBLE_PAGE_SIZE;
  * Double array abstraction able to support more than 2B values. This implementation slices data into fixed-sized blocks of
  * configurable length.
  */
-final class BigDoubleArray extends AbstractBigArray implements DoubleArray {
+final class BigDoubleArray extends AbstractBigByteArray implements DoubleArray {
 
     private static final BigDoubleArray ESTIMATOR = new BigDoubleArray(0, BigArrays.NON_RECYCLING_INSTANCE, false);
 
     static final VarHandle VH_PLATFORM_NATIVE_DOUBLE = MethodHandles.byteArrayViewVarHandle(double[].class, ByteOrder.nativeOrder());
 
-    private byte[][] pages;
-
     /** Constructor. */
     BigDoubleArray(long size, BigArrays bigArrays, boolean clearOnResize) {
-        super(DOUBLE_PAGE_SIZE, bigArrays, clearOnResize);
-        this.size = size;
-        pages = new byte[numPages(size)][];
-        for (int i = 0; i < pages.length; ++i) {
-            pages[i] = newBytePage(i);
-        }
+        super(DOUBLE_PAGE_SIZE, bigArrays, clearOnResize, size);
     }
 
     @Override
@@ -75,23 +65,6 @@ final class BigDoubleArray extends AbstractBigArray implements DoubleArray {
     @Override
     protected int numBytesPerElement() {
         return Integer.BYTES;
-    }
-
-    /** Change the size of this array. Content between indexes <code>0</code> and <code>min(size(), newSize)</code> will be preserved. */
-    @Override
-    public void resize(long newSize) {
-        final int numPages = numPages(newSize);
-        if (numPages > pages.length) {
-            pages = Arrays.copyOf(pages, ArrayUtil.oversize(numPages, RamUsageEstimator.NUM_BYTES_OBJECT_REF));
-        }
-        for (int i = numPages - 1; i >= 0 && pages[i] == null; --i) {
-            pages[i] = newBytePage(i);
-        }
-        for (int i = numPages; i < pages.length && pages[i] != null; ++i) {
-            pages[i] = null;
-            releasePage(i);
-        }
-        this.size = newSize;
     }
 
     @Override

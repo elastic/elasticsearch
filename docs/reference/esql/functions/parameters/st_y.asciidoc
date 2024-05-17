@@ -3,4 +3,4 @@
 *Parameters*
 
 `point`::
-
+Expression of type `geo_point` or `cartesian_point`. If `null`, the function returns `null`.

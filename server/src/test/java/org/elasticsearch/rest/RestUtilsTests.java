@@ -202,4 +202,28 @@ public class RestUtilsTests extends ESTestCase {
             )
         );
     }
+
+    public void testGetTimeout() {
+        assertNull(RestUtils.getTimeout(new FakeRestRequest.Builder(xContentRegistry()).build()));
+
+        final var timeout = randomTimeValue();
+        assertEquals(
+            timeout,
+            RestUtils.getTimeout(
+                new FakeRestRequest.Builder(xContentRegistry()).withParams(Map.of("timeout", timeout.getStringRep())).build()
+            )
+        );
+    }
+
+    public void testGetAckTimeout() {
+        assertEquals(TimeValue.timeValueSeconds(30), RestUtils.getAckTimeout(new FakeRestRequest.Builder(xContentRegistry()).build()));
+
+        final var timeout = randomTimeValue();
+        assertEquals(
+            timeout,
+            RestUtils.getAckTimeout(
+                new FakeRestRequest.Builder(xContentRegistry()).withParams(Map.of("timeout", timeout.getStringRep())).build()
+            )
+        );
+    }
 }

@@ -106,8 +106,7 @@ public class ThreadPoolTests extends ESTestCase {
     }
 
     public void testTimerThreadWarningLogging() throws Exception {
-        final MockLogAppender appender = new MockLogAppender();
-        try (var ignored = appender.capturing(ThreadPool.class)) {
+        try (var appender = MockLogAppender.capture(ThreadPool.class)) {
             appender.addExpectation(
                 new MockLogAppender.SeenEventExpectation(
                     "expected warning for absolute clock",
@@ -136,8 +135,7 @@ public class ThreadPoolTests extends ESTestCase {
     }
 
     public void testTimeChangeChecker() throws Exception {
-        final MockLogAppender appender = new MockLogAppender();
-        try (var ignored = appender.capturing(ThreadPool.class)) {
+        try (var appender = MockLogAppender.capture(ThreadPool.class)) {
             long absoluteMillis = randomLong(); // overflow should still be handled correctly
             long relativeNanos = randomLong(); // overflow should still be handled correctly
 
@@ -272,8 +270,7 @@ public class ThreadPoolTests extends ESTestCase {
             "test",
             Settings.builder().put(ThreadPool.SLOW_SCHEDULER_TASK_WARN_THRESHOLD_SETTING.getKey(), "10ms").build()
         );
-        final MockLogAppender appender = new MockLogAppender();
-        try (var ignored = appender.capturing(ThreadPool.class)) {
+        try (var appender = MockLogAppender.capture(ThreadPool.class)) {
             appender.addExpectation(
                 new MockLogAppender.SeenEventExpectation(
                     "expected warning for slow task",

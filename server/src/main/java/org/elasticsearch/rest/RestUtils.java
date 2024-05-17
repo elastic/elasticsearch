@@ -289,7 +289,7 @@ public class RestUtils {
     }
 
     /**
-     * Extract the {@code ?master_timeout} parameter from the request, imposing the common default of {@code 30s} in case the parameter is
+     * Extract the {@code ?timeout} parameter from the request, imposing the common default of {@code 30s} in case the parameter is
      * missing.
      *
      * @param restRequest The request from which to extract the {@code ?timeout} parameter

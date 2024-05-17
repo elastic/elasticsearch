@@ -165,7 +165,17 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                     new String[] { "transport_client" },
                     null,
                     null,
-                    MetadataUtils.DEFAULT_RESERVED_METADATA
+                    null,
+                    null,
+                    MetadataUtils.DEFAULT_RESERVED_METADATA,
+                    null,
+                    null,
+                    null,
+                    null,
+                    "Grants the privileges required to access the cluster through the Java Transport Client. "
+                        + "The Java Transport Client fetches information about the nodes in the cluster using "
+                        + "the Node Liveness API and the Cluster State API (when sniffing is enabled). "
+                        + "Assign your users this role if they use the Transport Client."
                 )
             ),
             entry("kibana_admin", kibanaAdminUser("kibana_admin", MetadataUtils.DEFAULT_RESERVED_METADATA)),

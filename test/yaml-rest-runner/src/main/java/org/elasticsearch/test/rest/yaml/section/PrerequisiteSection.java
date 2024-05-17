@@ -26,6 +26,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
+import java.util.stream.Stream;
 
 import static java.util.Collections.emptyList;
 import static java.util.stream.Collectors.joining;
@@ -506,5 +507,10 @@ public class PrerequisiteSection {
             messageBuilder.append(" unsupported features ").append(yamlRunnerFeatures);
         }
         return messageBuilder.toString();
+    }
+
+    boolean hasCapabilitiesCheck() {
+        return Stream.concat(skipCriteriaList.stream(), requiresCriteriaList.stream())
+            .anyMatch(p -> p instanceof Prerequisites.CapabilitiesPredicate);
     }
 }

@@ -448,6 +448,12 @@ public final class CsvTestUtils {
             LOOKUP.put("SHORT", INTEGER);
             LOOKUP.put("BYTE", INTEGER);
 
+            // counter types
+            LOOKUP.put("COUNTER_INTEGER", INTEGER);
+            LOOKUP.put("COUNTER_LONG", LONG);
+            LOOKUP.put("COUNTER_DOUBLE", DOUBLE);
+            LOOKUP.put("COUNTER_FLOAT", FLOAT);
+
             // add also the types with short names
             LOOKUP.put("BOOL", BOOLEAN);
             LOOKUP.put("I", INTEGER);

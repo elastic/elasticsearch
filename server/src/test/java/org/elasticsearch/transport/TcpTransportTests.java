@@ -574,9 +574,7 @@ public class TcpTransportTests extends ESTestCase {
         MockLogAppender.LoggingExpectation... expectations
     ) {
         final TestThreadPool testThreadPool = new TestThreadPool("test");
-        MockLogAppender appender = new MockLogAppender();
-
-        try (var ignored = appender.capturing(TcpTransport.class)) {
+        try (var appender = MockLogAppender.capture(TcpTransport.class)) {
             for (MockLogAppender.LoggingExpectation expectation : expectations) {
                 appender.addExpectation(expectation);
             }

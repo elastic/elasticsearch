@@ -40,6 +40,7 @@ import org.elasticsearch.action.get.TransportShardMultiGetFomTranslogAction;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.ChannelActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.action.support.RefCountingListener;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.cluster.routing.allocation.command.MoveAllocationCommand;
 import org.elasticsearch.common.Strings;
@@ -91,6 +92,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFa
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.nullValue;
 
 public class StatelessRealTimeGetIT extends AbstractStatelessIntegTestCase {
 
@@ -407,35 +409,40 @@ public class StatelessRealTimeGetIT extends AbstractStatelessIntegTestCase {
         createIndex(indexName, indexSettings(numOfShards, numOfReplicas).build());
         ensureGreen(indexName);
         var parallelRuns = randomIntBetween(1, 3);
-        Runnable singleRun = () -> {
-            var docs = randomIntBetween(500, 1000);
-            for (int write = 0; write < docs; write++) {
-                if (randomBoolean()) {
-                    // Parallel async refreshes randomly
-                    indicesAdmin().prepareRefresh(indexName).execute(ActionListener.noop());
+        final PlainActionFuture<Void> finalRefreshFuture = new PlainActionFuture<>();
+        try (var listeners = new RefCountingListener(finalRefreshFuture)) {
+            Runnable singleRun = () -> {
+                var docs = randomIntBetween(500, 1000);
+                for (int write = 0; write < docs; write++) {
+                    if (randomBoolean()) {
+                        // Parallel async refreshes randomly
+                        indicesAdmin().prepareRefresh(indexName).execute(listeners.acquire(ElasticsearchAssertions::assertNoFailures));
+                    }
+                    var indexResponse = client().prepareIndex(indexName)
+                        .setSource("date", randomPositiveTimeValue(), "value", randomInt())
+                        .get(timeValueSeconds(10));
+                    var id = indexResponse.getId();
+                    assertNotEquals(id, "");
+                    var gets = randomIntBetween(20, 50);
+                    for (int read = 0; read < gets; read++) {
+                        var getResponse = client().prepareGet(indexName, id).setRealtime(true).get(timeValueSeconds(10));
+                        assertTrue(Strings.format("(write %d): failed to get '%s' at read %s", write, id, read), getResponse.isExists());
+                    }
                 }
-                var indexResponse = client().prepareIndex(indexName)
-                    .setSource("date", randomPositiveTimeValue(), "value", randomInt())
-                    .get(timeValueSeconds(10));
-                var id = indexResponse.getId();
-                assertNotEquals(id, "");
-                var gets = randomIntBetween(20, 50);
-                for (int read = 0; read < gets; read++) {
-                    var getResponse = client().prepareGet(indexName, id).setRealtime(true).get(timeValueSeconds(10));
-                    assertTrue(Strings.format("(write %d): failed to get '%s' at read %s", write, id, read), getResponse.isExists());
-                }
+            };
+            var threads = new ArrayList<Thread>(parallelRuns);
+            for (int i = 0; i < parallelRuns; i++) {
+                threads.add(new Thread(singleRun));
             }
-        };
-        var threads = new ArrayList<Thread>(parallelRuns);
-        for (int i = 0; i < parallelRuns; i++) {
-            threads.add(new Thread(singleRun));
+            threads.forEach(Thread::start);
+            for (Thread thread : threads) {
+                thread.join();
+            }
+        } finally {
+            assertThat(finalRefreshFuture.actionGet(), nullValue()); // ensure all refreshes completed with no exception
+            // TODO: Actively deleting the index until ES-8407 is resolved
+            assertAcked(client().admin().indices().prepareDelete(indexName).get(TimeValue.timeValueSeconds(10)));
         }
-        threads.forEach(Thread::start);
-        for (Thread thread : threads) {
-            thread.join();
-        }
-        // TODO: Actively deleting the index until ES-8407 is resolved
-        assertAcked(client().admin().indices().prepareDelete(indexName).get(TimeValue.timeValueSeconds(10)));
     }
 
     public void testStress() throws Exception {

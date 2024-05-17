@@ -1540,41 +1540,40 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
                 writer.writeFullStateAndCommit(randomNonNegativeLong(), ClusterState.EMPTY_STATE);
             }
 
-            MockLogAppender mockAppender = new MockLogAppender();
-            mockAppender.addExpectation(
-                new MockLogAppender.SeenEventExpectation(
-                    "should see checkindex message",
-                    PersistedClusterStateService.class.getCanonicalName(),
-                    Level.DEBUG,
-                    "checking cluster state integrity"
-                )
-            );
-            mockAppender.addExpectation(
-                new MockLogAppender.SeenEventExpectation(
-                    "should see commit message including timestamps",
-                    PersistedClusterStateService.class.getCanonicalName(),
-                    Level.DEBUG,
-                    "loading cluster state from commit [*] in [*creationTime*"
-                )
-            );
-            mockAppender.addExpectation(
-                new MockLogAppender.SeenEventExpectation(
-                    "should see user data",
-                    PersistedClusterStateService.class.getCanonicalName(),
-                    Level.DEBUG,
-                    "cluster state commit user data: *" + PersistedClusterStateService.NODE_VERSION_KEY + "*"
-                )
-            );
-            mockAppender.addExpectation(
-                new MockLogAppender.SeenEventExpectation(
-                    "should see segment message including timestamp",
-                    PersistedClusterStateService.class.getCanonicalName(),
-                    Level.DEBUG,
-                    "loading cluster state from segment: *timestamp=*"
-                )
-            );
+            try (var mockAppender = MockLogAppender.capture(PersistedClusterStateService.class)) {
+                mockAppender.addExpectation(
+                    new MockLogAppender.SeenEventExpectation(
+                        "should see checkindex message",
+                        PersistedClusterStateService.class.getCanonicalName(),
+                        Level.DEBUG,
+                        "checking cluster state integrity"
+                    )
+                );
+                mockAppender.addExpectation(
+                    new MockLogAppender.SeenEventExpectation(
+                        "should see commit message including timestamps",
+                        PersistedClusterStateService.class.getCanonicalName(),
+                        Level.DEBUG,
+                        "loading cluster state from commit [*] in [*creationTime*"
+                    )
+                );
+                mockAppender.addExpectation(
+                    new MockLogAppender.SeenEventExpectation(
+                        "should see user data",
+                        PersistedClusterStateService.class.getCanonicalName(),
+                        Level.DEBUG,
+                        "cluster state commit user data: *" + PersistedClusterStateService.NODE_VERSION_KEY + "*"
+                    )
+                );
+                mockAppender.addExpectation(
+                    new MockLogAppender.SeenEventExpectation(
+                        "should see segment message including timestamp",
+                        PersistedClusterStateService.class.getCanonicalName(),
+                        Level.DEBUG,
+                        "loading cluster state from segment: *timestamp=*"
+                    )
+                );
 
-            try (var ignored = mockAppender.capturing(PersistedClusterStateService.class)) {
                 persistedClusterStateService.loadBestOnDiskState();
                 mockAppender.assertAllExpectationsMatched();
             }
@@ -1882,9 +1881,9 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
         PersistedClusterStateService.Writer writer,
         MockLogAppender.LoggingExpectation expectation
     ) throws IOException {
-        MockLogAppender mockAppender = new MockLogAppender();
-        mockAppender.addExpectation(expectation);
-        try (var ignored = mockAppender.capturing(PersistedClusterStateService.class)) {
+        try (var mockAppender = MockLogAppender.capture(PersistedClusterStateService.class)) {
+            mockAppender.addExpectation(expectation);
+
             if (previousState == null) {
                 writer.writeFullStateAndCommit(currentTerm, clusterState);
             } else {

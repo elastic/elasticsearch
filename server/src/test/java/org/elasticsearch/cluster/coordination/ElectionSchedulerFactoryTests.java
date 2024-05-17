@@ -50,10 +50,8 @@ public class ElectionSchedulerFactoryTests extends ESTestCase {
         final TimeValue initialGracePeriod = randomGracePeriod();
         final AtomicBoolean electionStarted = new AtomicBoolean();
 
-        final MockLogAppender appender = new MockLogAppender();
-
         try (
-            var ignored0 = appender.capturing(ElectionSchedulerFactory.class);
+            var appender = MockLogAppender.capture(ElectionSchedulerFactory.class);
             var ignored1 = electionSchedulerFactory.startElectionScheduler(
                 initialGracePeriod,
                 () -> assertTrue(electionStarted.compareAndSet(false, true))

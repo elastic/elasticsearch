@@ -25,6 +25,7 @@ import co.elastic.elasticsearch.stateless.engine.translog.TranslogReplicator;
 import co.elastic.elasticsearch.stateless.objectstore.ObjectStoreService;
 
 import org.apache.lucene.index.NoMergePolicy;
+import org.apache.lucene.index.SegmentInfos;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -37,11 +38,13 @@ import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.plugins.internal.DocumentParsingProvider;
+import org.elasticsearch.plugins.internal.DocumentSizeAccumulator;
 import org.elasticsearch.plugins.internal.DocumentSizeReporter;
 import org.mockito.stubbing.Answer;
 
 import java.io.IOException;
 import java.util.HashSet;
+import java.util.Map;
 import java.util.NavigableMap;
 import java.util.Set;
 import java.util.TreeMap;
@@ -446,10 +449,12 @@ public class IndexEngineTests extends AbstractEngineTestCase {
         }
     }
 
-    public void testDocSizeIsReportedUponSuccessfulIndex() throws IOException {
+    public void testDocSizeIsReportedUponSuccessfulIndexAndAlwaysWhenParsingFinished() throws IOException {
         TranslogReplicator mockTranslogReplicator = mock(TranslogReplicator.class);
         StatelessCommitService mockCommitService = mockCommitService(Settings.EMPTY);
         DocumentParsingProvider documentParsingProvider = mock(DocumentParsingProvider.class);
+        when(documentParsingProvider.createDocumentSizeAccumulator()).thenReturn(DocumentSizeAccumulator.EMPTY_INSTANCE);
+
         EngineConfig indexConfig = indexConfig();
         try (
             var engine = newIndexEngine(
@@ -462,24 +467,66 @@ public class IndexEngineTests extends AbstractEngineTestCase {
         ) {
             Engine.Index index = randomDoc("id");
             DocumentSizeReporter documentSizeReporter = mock(DocumentSizeReporter.class);
-            when(documentParsingProvider.newDocumentSizeReporter(eq(indexConfig.getShardId().getIndexName()))).thenReturn(
-                documentSizeReporter
-            );
+            when(
+                documentParsingProvider.newDocumentSizeReporter(
+                    eq(indexConfig.getShardId().getIndexName()),
+                    any(DocumentSizeAccumulator.class)
+                )
+            ).thenReturn(documentSizeReporter);
 
             Engine.IndexResult result = engine.index(index);
             assertThat(result.getResultType(), equalTo(Engine.Result.Type.SUCCESS));
+            verify(documentSizeReporter).onParsingCompleted(eq(index.parsedDoc()));
             verify(documentSizeReporter).onIndexingCompleted(eq(index.parsedDoc()));
 
             Engine.Index newIndex = randomDoc("id");
-            var failIndex = versionConflictingIndexOperation(index, newIndex);
+            var failIndex = versionConflictingIndexOperation(newIndex);
             result = engine.index(failIndex);
 
             assertThat(result.getResultType(), equalTo(Engine.Result.Type.FAILURE));
+            verify(documentSizeReporter).onParsingCompleted(eq(index.parsedDoc())); // we report parsing before indexing
             verify(documentSizeReporter, times(0)).onIndexingCompleted(eq(newIndex.parsedDoc()));
         }
     }
 
-    private static Engine.Index versionConflictingIndexOperation(Engine.Index index, Engine.Index indexOp) throws IOException {
+    public void testCommitUserDataIsEnrichedByAccumulatorData() throws IOException {
+        TranslogReplicator mockTranslogReplicator = mock(TranslogReplicator.class);
+        when(mockTranslogReplicator.getMaxUploadedFile()).thenReturn(456L);
+
+        StatelessCommitService mockCommitService = mockCommitService(Settings.EMPTY);
+        DocumentParsingProvider documentParsingProvider = mock(DocumentParsingProvider.class);
+        DocumentSizeAccumulator documentSizeAccumulator = mock(DocumentSizeAccumulator.class);
+        when(documentSizeAccumulator.getAsCommitUserData(any(SegmentInfos.class))).thenReturn(Map.of("accumulator_field", "123"));
+        when(documentParsingProvider.createDocumentSizeAccumulator()).thenReturn(documentSizeAccumulator);
+
+        EngineConfig indexConfig = indexConfig();
+        try (
+            var engine = newIndexEngine(
+                indexConfig,
+                mockTranslogReplicator,
+                mock(ObjectStoreService.class),
+                mockCommitService,
+                documentParsingProvider
+            )
+        ) {
+            DocumentSizeReporter documentSizeReporter = mock(DocumentSizeReporter.class);
+            when(documentParsingProvider.newDocumentSizeReporter(eq(indexConfig.getShardId().getIndexName()), eq(documentSizeAccumulator)))
+                .thenReturn(documentSizeReporter);
+
+            engine.index(randomDoc(String.valueOf(0)));
+            engine.flush();
+
+            try (Engine.IndexCommitRef indexCommitRef = engine.acquireLastIndexCommit(false)) {
+                assertEquals(123L, Long.parseLong(indexCommitRef.getIndexCommit().getUserData().get("accumulator_field")));
+                assertEquals(
+                    457L,
+                    Long.parseLong(indexCommitRef.getIndexCommit().getUserData().get(IndexEngine.TRANSLOG_RECOVERY_START_FILE))
+                );
+            }
+        }
+    }
+
+    private static Engine.Index versionConflictingIndexOperation(Engine.Index indexOp) throws IOException {
         return new Engine.Index(
             newUid(indexOp.parsedDoc()),
             indexOp.parsedDoc(),

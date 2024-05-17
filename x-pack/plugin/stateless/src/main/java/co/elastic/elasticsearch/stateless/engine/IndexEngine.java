@@ -39,6 +39,7 @@ import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.index.engine.ElasticsearchReaderManager;
@@ -48,9 +49,11 @@ import org.elasticsearch.index.engine.EngineCreationFailureException;
 import org.elasticsearch.index.engine.EngineException;
 import org.elasticsearch.index.engine.InternalEngine;
 import org.elasticsearch.index.engine.LiveVersionMapArchive;
+import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.seqno.LocalCheckpointTracker;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.plugins.internal.DocumentParsingProvider;
+import org.elasticsearch.plugins.internal.DocumentSizeAccumulator;
 import org.elasticsearch.plugins.internal.DocumentSizeReporter;
 import org.elasticsearch.threadpool.ThreadPool;
 
@@ -86,6 +89,7 @@ public class IndexEngine extends InternalEngine {
     private final IndexEngineLocalReaderListener localReaderListener;
     private final CommitBCCResolver commitBCCResolver;
     private final DocumentParsingProvider documentParsingProvider;
+    private final DocumentSizeAccumulator documentSizeAccumulator;
     // This is written and then accessed on the same thread under the flush lock. So not need for volatile
     private long translogStartFileForNextCommit = 0;
 
@@ -114,7 +118,7 @@ public class IndexEngine extends InternalEngine {
         this.localReaderListener = localReaderListener;
         this.commitBCCResolver = commitBCCResolver;
         this.documentParsingProvider = documentParsingProvider;
-
+        this.documentSizeAccumulator = documentParsingProvider.createDocumentSizeAccumulator();
         // We have to track the initial BCC references held by local readers at this point instead of doing it in
         // #createInternalReaderManager because that method is called from the super constructor and at that point,
         // commitBCCResolver field is not set yet.
@@ -273,19 +277,25 @@ public class IndexEngine extends InternalEngine {
 
     @Override
     public IndexResult index(Index index) throws IOException {
-        DocumentSizeReporter documentParsingReporter = documentParsingProvider.newDocumentSizeReporter(shardId.getIndexName());
+        DocumentSizeReporter documentParsingReporter = documentParsingProvider.newDocumentSizeReporter(
+            shardId.getIndexName(),
+            documentSizeAccumulator
+        );
+        ParsedDocument parsedDocument = index.parsedDoc();
 
+        documentParsingReporter.onParsingCompleted(parsedDocument);
         IndexResult result = super.index(index);
 
         if (result.getResultType() == Result.Type.SUCCESS) {
-            documentParsingReporter.onIndexingCompleted(index.parsedDoc());
+            documentParsingReporter.onIndexingCompleted(parsedDocument);
         }
         return result;
     }
 
     @Override
     protected Map<String, String> getCommitExtraUserData() {
-        return Map.of(TRANSLOG_RECOVERY_START_FILE, Long.toString(translogStartFileForNextCommit));
+        var accumulatorUserData = documentSizeAccumulator.getAsCommitUserData(getLastCommittedSegmentInfos());
+        return Maps.copyMapWithAddedEntry(accumulatorUserData, TRANSLOG_RECOVERY_START_FILE, Long.toString(translogStartFileForNextCommit));
     }
 
     @Override

@@ -19,6 +19,7 @@ import java.io.IOException;
 import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.PUT;
+import static org.elasticsearch.rest.RestUtils.getAckTimeout;
 import static org.elasticsearch.rest.RestUtils.getMasterNodeTimeout;
 
 public class RestPutLifecycleAction extends BaseRestHandler {
@@ -38,7 +39,7 @@ public class RestPutLifecycleAction extends BaseRestHandler {
         String lifecycleName = restRequest.param("name");
         try (XContentParser parser = restRequest.contentParser()) {
             PutLifecycleRequest putLifecycleRequest = PutLifecycleRequest.parseRequest(lifecycleName, parser);
-            putLifecycleRequest.ackTimeout(restRequest.paramAsTime("timeout", putLifecycleRequest.ackTimeout()));
+            putLifecycleRequest.ackTimeout(getAckTimeout(restRequest));
             putLifecycleRequest.masterNodeTimeout(getMasterNodeTimeout(restRequest));
 
             return channel -> client.execute(ILMActions.PUT, putLifecycleRequest, new RestToXContentListener<>(channel));

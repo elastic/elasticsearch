@@ -307,6 +307,8 @@ of {search-snap} indices.
 [[searchable-snapshots-reliability]]
 === Reliability of {search-snaps}
 
+WARNING: Searchable snapshot is not a backup of frozen / cold index data. Therefore, deleting searchable snapshot will result in permanent data loss.
+
 The sole copy of the data in a {search-snap} index is the underlying snapshot,
 stored in the repository. For example:
 

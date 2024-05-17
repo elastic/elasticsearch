@@ -15,13 +15,13 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.IOException;
 import java.math.BigDecimal;
 import java.math.BigInteger;
+import java.util.Base64;
 import java.util.List;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -110,9 +110,9 @@ public class XContentDataHelperTests extends ESTestCase {
         CompressedXContent embedded = new CompressedXContent("{\"field\":\"value\"}");
         builder.field("bytes", embedded.compressed());
         builder.endObject();
-        BytesReference bytes = BytesReference.bytes(builder);
+        var originalBytes = BytesReference.bytes(builder);
 
-        try (XContentParser parser = XContentType.CBOR.xContent().createParser(XContentParserConfiguration.EMPTY, bytes.streamInput())) {
+        try (XContentParser parser = createParser(builder)) {
             assertEquals(XContentParser.Token.START_OBJECT, parser.nextToken());
             assertEquals(XContentParser.Token.FIELD_NAME, parser.nextToken());
             parser.nextToken();
@@ -120,9 +120,8 @@ public class XContentDataHelperTests extends ESTestCase {
 
             var decoded = XContentFactory.jsonBuilder();
             XContentDataHelper.decodeAndWrite(decoded, encoded);
-            var decodedBytes = BytesReference.bytes(builder);
 
-            assertEquals(bytes, decodedBytes);
+            assertEquals("\"" + Base64.getEncoder().encodeToString(embedded.compressed()) + "\"", Strings.toString(decoded));
         }
 
         var encoded = XContentDataHelper.encodeXContentBuilder(builder);
@@ -131,7 +130,7 @@ public class XContentDataHelperTests extends ESTestCase {
         XContentDataHelper.decodeAndWrite(decoded, encoded);
         var decodedBytes = BytesReference.bytes(builder);
 
-        assertEquals(bytes, decodedBytes);
+        assertEquals(originalBytes, decodedBytes);
     }
 
     public void testObject() throws IOException {

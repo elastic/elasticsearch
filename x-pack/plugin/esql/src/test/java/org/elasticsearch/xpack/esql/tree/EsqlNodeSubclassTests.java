@@ -142,8 +142,8 @@ public class EsqlNodeSubclassTests<T extends B, B extends Node<B>> extends NodeS
         Class<? extends Expression> asNodeSubclass = (Class<? extends Expression>) argClass;
         if (Modifier.isAbstract(argClass.getModifiers())) {
             while (true) {
-                var candidate = randomFrom(subclassesOf(asNodeSubclass));
-                if (UNRESOLVED_CLASSES.contains(candidate) == false) {
+                var candidate = randomFrom(subclassesOf(asNodeSubclass, CLASSNAME_FILTER));
+                if (UNRESOLVED_CLASSES.stream().allMatch(unresolved -> unresolved.isAssignableFrom(candidate) == false)) {
                     asNodeSubclass = candidate;
                     break;
                 }

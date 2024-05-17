@@ -824,7 +824,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
 
     /**
      * Returns the non-write backing indices and failure store indices that are older than the provided age,
-     * excluding the write index*. The index age is calculated from the rollover or index creation date (or
+     * excluding the write indices. The index age is calculated from the rollover or index creation date (or
      * the origination date if present). If an indices predicate is provided the returned list of indices will
      * be filtered according to the predicate definition. This is useful for things like "return only
      * the backing indices that are managed by the data stream lifecycle".
@@ -982,27 +982,6 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
      */
     private static String getDefaultIndexName(String prefix, String dataStreamName, long generation, long epochMillis) {
         return String.format(Locale.ROOT, prefix + "%s-%s-%06d", dataStreamName, DATE_FORMATTER.formatMillis(epochMillis), generation);
-    }
-
-    public DataStream(StreamInput in) throws IOException {
-        this(
-            readName(in),
-            readIndices(in),
-            in.readVLong(),
-            in.readGenericMap(),
-            in.readBoolean(),
-            in.readBoolean(),
-            in.readBoolean(),
-            in.getTransportVersion().onOrAfter(TransportVersions.V_8_0_0) ? in.readBoolean() : false,
-            in.getTransportVersion().onOrAfter(TransportVersions.V_8_1_0) ? in.readOptionalEnum(IndexMode.class) : null,
-            in.getTransportVersion().onOrAfter(TransportVersions.V_8_9_X) ? in.readOptionalWriteable(DataStreamLifecycle::new) : null,
-            in.getTransportVersion().onOrAfter(DataStream.ADDED_FAILURE_STORE_TRANSPORT_VERSION) ? in.readBoolean() : false,
-            in.getTransportVersion().onOrAfter(DataStream.ADDED_FAILURE_STORE_TRANSPORT_VERSION) ? readIndices(in) : List.of(),
-            in.getTransportVersion().onOrAfter(TransportVersions.V_8_13_0) ? in.readBoolean() : false,
-            in.getTransportVersion().onOrAfter(DataStream.ADDED_AUTO_SHARDING_EVENT_VERSION)
-                ? in.readOptionalWriteable(DataStreamAutoShardingEvent::new)
-                : null
-        );
     }
 
     static String readName(StreamInput in) throws IOException {

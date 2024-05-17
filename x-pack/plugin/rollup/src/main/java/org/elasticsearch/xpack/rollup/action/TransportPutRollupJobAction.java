@@ -30,6 +30,7 @@ import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.logging.DeprecationCategory;
@@ -114,7 +115,7 @@ public class TransportPutRollupJobAction extends AcknowledgedTransportMasterNode
         int numberOfCurrentRollupJobs = RollupUsageTransportAction.findNumberOfRollupJobs(clusterState);
         if (numberOfCurrentRollupJobs == 0) {
             try {
-                boolean hasRollupIndices = hasRollupIndices(clusterState);
+                boolean hasRollupIndices = hasRollupIndices(clusterState.getMetadata());
                 if (hasRollupIndices == false) {
                     listener.onFailure(
                         new IllegalArgumentException(
@@ -208,7 +209,7 @@ public class TransportPutRollupJobAction extends AcknowledgedTransportMasterNode
         );
     }
 
-    private static XContentBuilder createMappings(RollupJobConfig config) throws IOException {
+    static XContentBuilder createMappings(RollupJobConfig config) throws IOException {
         return XContentBuilder.builder(XContentType.JSON.xContent())
             .startObject()
             .startObject("mappings")
@@ -367,9 +368,9 @@ public class TransportPutRollupJobAction extends AcknowledgedTransportMasterNode
         );
     }
 
-    private static boolean hasRollupIndices(ClusterState state) throws IOException {
+    static boolean hasRollupIndices(Metadata metadata) throws IOException {
         // Sniffing logic instead of invoking sourceAsMap(), which would materialize the entire mapping as map of maps.
-        for (var imd : state.metadata()) {
+        for (var imd : metadata) {
             if (imd.mapping() == null) {
                 continue;
             }

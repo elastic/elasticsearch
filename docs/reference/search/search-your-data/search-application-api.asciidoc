@@ -166,7 +166,7 @@ The default template is very minimal:
   }
 }
 ----
-// NOTCONSOLE
+// TEST[skip:This is not a console result but NOTCONSOLE annotation by itself still fails the test]
 
 This may be useful for initial exploration of search templates, but you'll likely want to update this.
 

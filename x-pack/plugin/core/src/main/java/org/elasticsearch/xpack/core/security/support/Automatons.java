@@ -73,8 +73,8 @@ public final class Automatons {
     static final char WILDCARD_CHAR = '?';       // Char equality with support for wildcards
     static final char WILDCARD_ESCAPE = '\\';    // Escape character
 
-    // for testing only
-    public static boolean recordPatterns = false;
+    // for testing only -Dtests.jvm.argline="-Dtests.automaton.record.patterns=true"
+    public static boolean recordPatterns = System.getProperty("tests.automaton.record.patterns", "false").equals("true");
     private static final Map<Automaton, List<String>> patternsMap = new HashMap<>();
 
     private Automatons() {}
@@ -360,7 +360,8 @@ public final class Automatons {
         return automaton;
     }
 
-    public static List<String> getPatterns(Automaton automaton) {
+    // test only
+    static List<String> getPatterns(Automaton automaton) {
         if (recordPatterns) {
             return patternsMap.get(automaton);
         } else {

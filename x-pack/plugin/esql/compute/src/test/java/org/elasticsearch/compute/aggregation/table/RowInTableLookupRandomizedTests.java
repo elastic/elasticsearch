@@ -37,6 +37,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.TreeSet;
 import java.util.stream.IntStream;
@@ -44,6 +45,7 @@ import java.util.stream.IntStream;
 import static org.elasticsearch.compute.data.BlockTestUtils.append;
 import static org.hamcrest.Matchers.any;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
@@ -51,7 +53,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 //@TestLogging(value = "org.elasticsearch.compute:TRACE", reason = "debug")
-public class RowInTableRandomizedTests extends ESTestCase {
+public class RowInTableLookupRandomizedTests extends ESTestCase {
     private static final int TRIES = 100;
     private static final int ROW_COUNT = 1000;
 
@@ -68,7 +70,7 @@ public class RowInTableRandomizedTests extends ESTestCase {
                         IntStream.range(0, groups).mapToObj(i -> RANDOM_KEY_ELEMENT).toList(),
                         keysPerPosition,
                         1000,
-                        any(RowInTable.class) }
+                        any(RowInTableLookup.class) }
                 );
             }
             params.add(
@@ -78,7 +80,7 @@ public class RowInTableRandomizedTests extends ESTestCase {
                     List.of(ASCENDING),
                     keysPerPosition,
                     1000,
-                    any(AscendingSequenceRowInTable.class) }
+                    any(AscendingSequenceRowInTableLookup.class) }
             );
         }
         return params;
@@ -93,15 +95,15 @@ public class RowInTableRandomizedTests extends ESTestCase {
     private final List<Generator> generators;
     private final int keysPerPosition;
     private final int maxTableSize;
-    private final Matcher<RowInTable> expectedImplementation;
+    private final Matcher<RowInTableLookup> expectedImplementation;
 
-    public RowInTableRandomizedTests(
+    public RowInTableLookupRandomizedTests(
         @Name("groups") int groups,
         @Name("allowedTypes") List<ElementType> allowedTypes,
         @Name("generator") List<Generator> generators,
         @Name("keysPerPosition") int keysPerPosition,
         @Name("maxTableSize") int maxTableSize,
-        @Name("expectedImplementation") Matcher<RowInTable> expectedImplementation
+        @Name("expectedImplementation") Matcher<RowInTableLookup> expectedImplementation
 
     ) {
         this.groups = groups;
@@ -132,7 +134,7 @@ public class RowInTableRandomizedTests extends ESTestCase {
     }
 
     private void test(MockBlockFactory blockFactory) {
-        try (Table table = randomTable(blockFactory); RowInTable offsetInTable = RowInTable.build(blockFactory, table.blocks)) {
+        try (Table table = randomTable(blockFactory); RowInTableLookup offsetInTable = RowInTableLookup.build(blockFactory, table.blocks)) {
             assertThat(offsetInTable, expectedImplementation);
             for (int t = 0; t < TRIES; t++) {
                 ByteSizeValue target = ByteSizeValue.ofKb(between(1, 100));
@@ -222,6 +224,28 @@ public class RowInTableRandomizedTests extends ESTestCase {
                 builders[g] = table.blocks[g].elementType().newBlockBuilder(ROW_COUNT, blockFactory);
             }
             for (int r = 0; r < ROW_COUNT; r++) {
+                /*
+                 * Pick some number of "generatorKeys" to be seed this position.
+                 * We then populate this position with all the values for every column
+                 * in this position. So if the seed values are `(1, a)`, `(2, b)`, and `(3, c)`
+                 * then the values in the positions will be:
+                 * <code>
+                 *   n=[1, 2, 3], s=[a, b, c]
+                 * </code>
+                 *
+                 * Lookup will combinatorially explode those into something like
+                 * `(1, a)`, `(1, b)`, `(1, c)`, ... `(3, c)`. Which contains *at least*
+                 * the seed keys. We calculate the expected value based on the combinatorial
+                 * explosion.
+                 *
+                 * `null` in a key is funky because it means "no value" - so it doesn't
+                 * participate in combinatorial explosions. We just don't add that value to
+                 * the list. So the further combinatorial explosion *won't* contain the
+                 * seed key that contained null. In fact, you can only match seed keys containing
+                 * null if all values are null. That only happens if all the values for
+                 * that column are null. That's certainly possible with `null` typed columns
+                 * or if you get very lucky.
+                 */
                 List<List<Object>> generatorKeys = IntStream.range(0, keysPerPosition)
                     .mapToObj(k -> table.keys.get(between(0, table.keys.size() - 1)))
                     .toList();
@@ -235,9 +259,20 @@ public class RowInTableRandomizedTests extends ESTestCase {
                     }
                     append(builders[g], values);
                 }
-
+                List<List<Object>> explosion = combinatorialExplosion(generatorKeys);
+                for (List<Object> generatorKey : generatorKeys) {
+                    /*
+                     * All keys should be in the explosion of values. Except keys
+                     * containing `null`. *Except except* if those keys are the
+                     * only column. In that case there really aren't any values
+                     * for this column - so null "shines through".
+                     */
+                    if (explosion.size() == 1 || generatorKey.stream().noneMatch(Objects::isNull)) {
+                        assertThat(explosion, hasItem(generatorKey));
+                    }
+                }
                 Set<Integer> expectedAtPosition = new TreeSet<>();
-                for (List<Object> v : combinatorialExplosion(generatorKeys)) {
+                for (List<Object> v : explosion) {
                     Integer row = table.keyToRow.get(v);
                     if (row != null) {
                         expectedAtPosition.add(row);

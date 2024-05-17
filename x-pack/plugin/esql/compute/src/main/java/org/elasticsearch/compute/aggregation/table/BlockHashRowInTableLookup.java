@@ -20,10 +20,10 @@ import org.elasticsearch.core.ReleasableIterator;
 import java.util.ArrayList;
 import java.util.List;
 
-final class BlockHashRowInTable extends RowInTable {
+final class BlockHashRowInTableLookup extends RowInTableLookup {
     private final BlockHash hash;
 
-    BlockHashRowInTable(BlockFactory blockFactory, Block[] keys) {
+    BlockHashRowInTableLookup(BlockFactory blockFactory, Block[] keys) {
         List<BlockHash.GroupSpec> groups = new ArrayList<>(keys.length);
         for (int k = 0; k < keys.length; k++) {
             groups.add(new BlockHash.GroupSpec(k, keys[k].elementType()));
@@ -36,8 +36,9 @@ final class BlockHashRowInTable extends RowInTable {
         );
         boolean success = false;
         try {
-            final int[] lastOrd = new int[] { -1 };
             hash.add(new Page(keys), new GroupingAggregatorFunction.AddInput() {
+                private int lastOrd = -1;
+
                 @Override
                 public void add(int positionOffset, IntBlock groupIds) {
                     for (int p = 0; p < groupIds.getPositionCount(); p++) {
@@ -45,11 +46,11 @@ final class BlockHashRowInTable extends RowInTable {
                         int end = groupIds.getValueCount(p) + first;
                         for (int i = first; i < end; i++) {
                             int ord = groupIds.getInt(i);
-                            if (ord != lastOrd[0] + 1) {
+                            if (ord != lastOrd + 1) {
                                 // TODO double check these errors over REST once we have LOOKUP
                                 throw new IllegalArgumentException("found a duplicate row");
                             }
-                            lastOrd[0] = ord;
+                            lastOrd = ord;
                         }
                     }
                 }
@@ -58,10 +59,10 @@ final class BlockHashRowInTable extends RowInTable {
                 public void add(int positionOffset, IntVector groupIds) {
                     for (int p = 0; p < groupIds.getPositionCount(); p++) {
                         int ord = groupIds.getInt(p);
-                        if (ord != lastOrd[0] + 1) {
+                        if (ord != lastOrd + 1) {
                             throw new IllegalArgumentException("found a duplicate row");
                         }
-                        lastOrd[0] = ord;
+                        lastOrd = ord;
                     }
                 }
             });

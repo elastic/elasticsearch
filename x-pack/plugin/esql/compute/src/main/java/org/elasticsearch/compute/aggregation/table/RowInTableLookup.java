@@ -21,7 +21,8 @@ import org.elasticsearch.core.ReleasableIterator;
  * Consumes {@link Page}s and looks up each row in a pre-built table, and returns the
  * offsets of each row in the table.
  */
-public abstract sealed class RowInTable implements Releasable permits EmptyRowInTable, AscendingSequenceRowInTable, BlockHashRowInTable {
+public abstract sealed class RowInTableLookup implements Releasable permits EmptyRowInTableLookup, AscendingSequenceRowInTableLookup,
+    BlockHashRowInTableLookup {
     /**
      * Lookup the values in the {@link Page} and, for each row, return the offset in the
      * table that was provided when building the lookup.
@@ -35,7 +36,7 @@ public abstract sealed class RowInTable implements Releasable permits EmptyRowIn
     @Override
     public abstract String toString();
 
-    public static RowInTable build(BlockFactory blockFactory, Block[] keys) {
+    public static RowInTableLookup build(BlockFactory blockFactory, Block[] keys) {
         int positions = keys[0].getPositionCount();
         for (int k = 0; k < keys.length; k++) {
             if (positions != keys[k].getPositionCount()) {
@@ -44,30 +45,32 @@ public abstract sealed class RowInTable implements Releasable permits EmptyRowIn
                     "keys must have the same number of positions but [" + positions + "] != [" + keys[k].getPositionCount() + "]"
                 );
             }
-            for (int p = 0; p < keys[k].getPositionCount(); p++) {
-                if (keys[k].getValueCount(p) > 1) {
-                    // TODO double check these errors over REST once we have LOOKUP
-                    throw new IllegalArgumentException("only single valued keys are supported");
+            if (keys[k].mayHaveMultivaluedFields()) {
+                for (int p = 0; p < keys[k].getPositionCount(); p++) {
+                    if (keys[k].getValueCount(p) > 1) {
+                        // TODO double check these errors over REST once we have LOOKUP
+                        throw new IllegalArgumentException("only single valued keys are supported");
+                    }
                 }
             }
         }
         if (positions == 0) {
-            return new EmptyRowInTable(blockFactory);
+            return new EmptyRowInTableLookup(blockFactory);
         }
         if (keys.length == 1) {
-            RowInTable lookup = single(blockFactory, keys[0]);
+            RowInTableLookup lookup = single(blockFactory, keys[0]);
             if (lookup != null) {
                 return lookup;
             }
         }
-        return new BlockHashRowInTable(blockFactory, keys);
+        return new BlockHashRowInTableLookup(blockFactory, keys);
     }
 
     /**
-     * Build a {@link RowInTable} for a single {@link Block} or returns {@code null}
+     * Build a {@link RowInTableLookup} for a single {@link Block} or returns {@code null}
      * if we don't have a special implementation for this single block.
      */
-    private static RowInTable single(BlockFactory blockFactory, Block b) {
+    private static RowInTableLookup single(BlockFactory blockFactory, Block b) {
         if (b.elementType() != ElementType.INT) {
             return null;
         }
@@ -81,6 +84,6 @@ public abstract sealed class RowInTable implements Releasable permits EmptyRowIn
                 return null;
             }
         }
-        return new AscendingSequenceRowInTable(blockFactory, first, first + v.getPositionCount());
+        return new AscendingSequenceRowInTableLookup(blockFactory, first, first + v.getPositionCount());
     }
 }

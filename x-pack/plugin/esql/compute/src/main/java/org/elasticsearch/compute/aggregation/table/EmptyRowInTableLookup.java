@@ -14,12 +14,12 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.core.ReleasableIterator;
 
 /**
- * {@link RowInTable} for an empty table.
+ * {@link RowInTableLookup} for an empty table.
  */
-public final class EmptyRowInTable extends RowInTable {
+public final class EmptyRowInTableLookup extends RowInTableLookup {
     private final BlockFactory blockFactory;
 
-    public EmptyRowInTable(BlockFactory blockFactory) {
+    public EmptyRowInTableLookup(BlockFactory blockFactory) {
         this.blockFactory = blockFactory;
     }
 

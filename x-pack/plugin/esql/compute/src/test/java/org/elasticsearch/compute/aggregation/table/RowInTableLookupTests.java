@@ -26,7 +26,7 @@ import static org.hamcrest.Matchers.is;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-public class RowInTableTests extends ESTestCase {
+public class RowInTableLookupTests extends ESTestCase {
     final CircuitBreaker breaker = new MockBigArrays.LimitedBreaker("esql-test-breaker", ByteSizeValue.ofGb(1));
     final BigArrays bigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, mockBreakerService(breaker));
     final MockBlockFactory blockFactory = new MockBlockFactory(breaker, bigArrays);
@@ -36,7 +36,7 @@ public class RowInTableTests extends ESTestCase {
             builder.appendInt(1);
             builder.appendInt(1);
             try (Block b = builder.build()) {
-                Exception e = expectThrows(IllegalArgumentException.class, () -> RowInTable.build(blockFactory, new Block[] { b }));
+                Exception e = expectThrows(IllegalArgumentException.class, () -> RowInTableLookup.build(blockFactory, new Block[] { b }));
                 assertThat(e.getMessage(), equalTo("found a duplicate row"));
             }
         }
@@ -49,7 +49,7 @@ public class RowInTableTests extends ESTestCase {
             builder.appendInt(2);
             builder.endPositionEntry();
             try (Block b = builder.build()) {
-                Exception e = expectThrows(IllegalArgumentException.class, () -> RowInTable.build(blockFactory, new Block[] { b }));
+                Exception e = expectThrows(IllegalArgumentException.class, () -> RowInTableLookup.build(blockFactory, new Block[] { b }));
                 assertThat(e.getMessage(), equalTo("only single valued keys are supported"));
             }
         }
@@ -60,7 +60,7 @@ public class RowInTableTests extends ESTestCase {
             builder.appendBytesRef(new BytesRef("foo"));
             builder.appendBytesRef(new BytesRef("foo"));
             try (Block b = builder.build()) {
-                Exception e = expectThrows(IllegalArgumentException.class, () -> RowInTable.build(blockFactory, new Block[] { b }));
+                Exception e = expectThrows(IllegalArgumentException.class, () -> RowInTableLookup.build(blockFactory, new Block[] { b }));
                 assertThat(e.getMessage(), equalTo("found a duplicate row"));
             }
         }
@@ -73,7 +73,7 @@ public class RowInTableTests extends ESTestCase {
             builder.appendBytesRef(new BytesRef("bar"));
             builder.endPositionEntry();
             try (Block b = builder.build()) {
-                Exception e = expectThrows(IllegalArgumentException.class, () -> RowInTable.build(blockFactory, new Block[] { b }));
+                Exception e = expectThrows(IllegalArgumentException.class, () -> RowInTableLookup.build(blockFactory, new Block[] { b }));
                 assertThat(e.getMessage(), equalTo("only single valued keys are supported"));
             }
         }

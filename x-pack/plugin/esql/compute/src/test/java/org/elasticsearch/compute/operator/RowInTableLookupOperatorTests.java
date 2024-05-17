@@ -22,7 +22,7 @@ import java.util.stream.LongStream;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.matchesRegex;
 
-public class RowInTableOperatorTests extends OperatorTestCase {
+public class RowInTableLookupOperatorTests extends OperatorTestCase {
     @Override
     protected SourceOperator simpleInput(BlockFactory blockFactory, int size) {
         return new SequenceLongBlockSourceOperator(blockFactory, LongStream.range(0, size).map(l -> randomFrom(1, 7, 14, 20)));
@@ -77,9 +77,9 @@ public class RowInTableOperatorTests extends OperatorTestCase {
 
     @Override
     protected Operator.OperatorFactory simple() {
-        return new RowInTableOperator.Factory(
-            new RowInTableOperator.Key[] {
-                new RowInTableOperator.Key(
+        return new RowInTableLookupOperator.Factory(
+            new RowInTableLookupOperator.Key[] {
+                new RowInTableLookupOperator.Key(
                     "foo",
                     TestBlockFactory.getNonBreakingInstance().newLongArrayVector(new long[] { 1, 7, 14, 20 }, 4).asBlock()
                 ) },
@@ -89,12 +89,12 @@ public class RowInTableOperatorTests extends OperatorTestCase {
 
     @Override
     protected Matcher<String> expectedDescriptionOfSimple() {
-        return matchesRegex("RowInTable\\[keys=\\[\\{name=foo, type=LONG, positions=4, size=\\d+b}], mapping=\\[0]]");
+        return matchesRegex("RowInTableLookup\\[keys=\\[\\{name=foo, type=LONG, positions=4, size=\\d+b}], mapping=\\[0]]");
     }
 
     @Override
     protected Matcher<String> expectedToStringOfSimple() {
-        return matchesRegex("RowInTable\\[PackedValuesBlockHash\\{groups=\\[0:LONG], entries=4, size=\\d+b}, keys=\\[foo], mapping=\\[0]]");
+        return matchesRegex("RowInTableLookup\\[PackedValuesBlockHash\\{groups=\\[0:LONG], entries=4, size=\\d+b}, keys=\\[foo], mapping=\\[0]]");
     }
 
     public void testSelectBlocks() {
@@ -107,9 +107,9 @@ public class RowInTableOperatorTests extends OperatorTestCase {
         );
         List<Page> clonedInput = BlockTestUtils.deepCopyOf(input, TestBlockFactory.getNonBreakingInstance());
         List<Page> results = drive(
-            new RowInTableOperator.Factory(
-                new RowInTableOperator.Key[] {
-                    new RowInTableOperator.Key(
+            new RowInTableLookupOperator.Factory(
+                new RowInTableLookupOperator.Key[] {
+                    new RowInTableLookupOperator.Key(
                         "foo",
                         TestBlockFactory.getNonBreakingInstance().newLongArrayVector(new long[] { 1, 7, 14, 20 }, 4).asBlock()
                     ) },

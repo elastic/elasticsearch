@@ -8,7 +8,7 @@
 package org.elasticsearch.compute.operator;
 
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.compute.aggregation.table.RowInTable;
+import org.elasticsearch.compute.aggregation.table.RowInTableLookup;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.Page;
@@ -19,7 +19,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 
-public class RowInTableOperator extends AbstractPageMappingToIteratorOperator {
+public class RowInTableLookupOperator extends AbstractPageMappingToIteratorOperator {
     public record Key(String name, Block block) {
         @Override
         public String toString() {
@@ -36,26 +36,26 @@ public class RowInTableOperator extends AbstractPageMappingToIteratorOperator {
     }
 
     /**
-     * Factory for {@link RowInTableOperator}. It's received {@link Block}s
+     * Factory for {@link RowInTableLookupOperator}. It's received {@link Block}s
      * are never closed, so we need to build them from a non-tracking factory.
      */
     public record Factory(Key[] keys, int[] blockMapping) implements Operator.OperatorFactory {
         @Override
         public Operator get(DriverContext driverContext) {
-            return new RowInTableOperator(driverContext.blockFactory(), keys, blockMapping);
+            return new RowInTableLookupOperator(driverContext.blockFactory(), keys, blockMapping);
         }
 
         @Override
         public String describe() {
-            return "RowInTable[keys=" + Arrays.toString(keys) + ", mapping=" + Arrays.toString(blockMapping) + "]";
+            return "RowInTableLookup[keys=" + Arrays.toString(keys) + ", mapping=" + Arrays.toString(blockMapping) + "]";
         }
     }
 
     private final List<String> keys;
-    private final RowInTable lookup;
+    private final RowInTableLookup lookup;
     private final int[] blockMapping;
 
-    public RowInTableOperator(BlockFactory blockFactory, Key[] keys, int[] blockMapping) {
+    public RowInTableLookupOperator(BlockFactory blockFactory, Key[] keys, int[] blockMapping) {
         this.blockMapping = blockMapping;
         this.keys = new ArrayList<>(keys.length);
         Block[] blocks = new Block[keys.length];
@@ -63,7 +63,7 @@ public class RowInTableOperator extends AbstractPageMappingToIteratorOperator {
             this.keys.add(keys[k].name);
             blocks[k] = keys[k].block;
         }
-        this.lookup = RowInTable.build(blockFactory, blocks);
+        this.lookup = RowInTableLookup.build(blockFactory, blocks);
     }
 
     @Override
@@ -79,7 +79,7 @@ public class RowInTableOperator extends AbstractPageMappingToIteratorOperator {
 
     @Override
     public String toString() {
-        return "RowInTable[" + lookup + ", keys=" + keys + ", mapping=" + Arrays.toString(blockMapping) + "]";
+        return "RowInTableLookup[" + lookup + ", keys=" + keys + ", mapping=" + Arrays.toString(blockMapping) + "]";
     }
 
     @Override

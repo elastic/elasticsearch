@@ -15,14 +15,14 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.core.ReleasableIterator;
 
 /**
- * {@link RowInTable} that models an increasing sequence of integers.
+ * {@link RowInTableLookup} that models an increasing sequence of integers.
  */
-public final class AscendingSequenceRowInTable extends RowInTable {
+public final class AscendingSequenceRowInTableLookup extends RowInTableLookup {
     private final BlockFactory blockFactory;
     private final int min;
     private final int max;
 
-    public AscendingSequenceRowInTable(BlockFactory blockFactory, int min, int max) {
+    public AscendingSequenceRowInTableLookup(BlockFactory blockFactory, int min, int max) {
         this.blockFactory = blockFactory;
         this.min = min;
         this.max = max;
@@ -34,23 +34,23 @@ public final class AscendingSequenceRowInTable extends RowInTable {
         IntVector vector = block.asVector();
         int target = Math.toIntExact(targetBlockSize.getBytes());
         if (vector != null && vector.getPositionCount() * Integer.BYTES < target) {
-            return ReleasableIterator.single(lookup(vector));
+            return ReleasableIterator.single(lookupVector(vector));
         }
         return new Lookup(block, target);
     }
 
-    private IntBlock lookup(IntVector vector) {
+    private IntBlock lookupVector(IntVector vector) {
         if (vector.min() >= min && vector.max() < max) {
             if (min == 0) {
                 vector.incRef();
                 return vector.asBlock();
             }
-            return lookupVector(vector).asBlock();
+            return lookupVectorInRange(vector).asBlock();
         }
-        return lookupBlock(vector);
+        return lookupVectorMaybeInRange(vector);
     }
 
-    private IntVector lookupVector(IntVector vector) {
+    private IntVector lookupVectorInRange(IntVector vector) {
         try (IntVector.Builder builder = blockFactory.newIntVectorFixedBuilder(vector.getPositionCount())) {
             for (int i = 0; i < vector.getPositionCount(); i++) {
                 builder.appendInt(vector.getInt(i) - min);
@@ -59,7 +59,7 @@ public final class AscendingSequenceRowInTable extends RowInTable {
         }
     }
 
-    private IntBlock lookupBlock(IntVector vector) {
+    private IntBlock lookupVectorMaybeInRange(IntVector vector) {
         try (IntBlock.Builder builder = blockFactory.newIntBlockBuilder(vector.getPositionCount())) {
             for (int i = 0; i < vector.getPositionCount(); i++) {
                 int v = vector.getInt(i);
@@ -75,7 +75,7 @@ public final class AscendingSequenceRowInTable extends RowInTable {
 
     @Override
     public String toString() {
-        return "DirectLookup[" + min + "-" + max + "]";
+        return "AscendingSequence[" + min + "-" + max + "]";
     }
 
     private class Lookup implements ReleasableIterator<IntBlock> {

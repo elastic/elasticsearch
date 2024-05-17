@@ -60,7 +60,7 @@ import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.operator.OperatorTestCase;
 import org.elasticsearch.compute.operator.OrdinalsGroupingOperator;
 import org.elasticsearch.compute.operator.PageConsumerOperator;
-import org.elasticsearch.compute.operator.RowInTableOperator;
+import org.elasticsearch.compute.operator.RowInTableLookupOperator;
 import org.elasticsearch.compute.operator.SequenceLongBlockSourceOperator;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.Releasables;
@@ -371,9 +371,9 @@ public class OperatorTests extends MapperServiceTestCase {
                     driverContext,
                     new SequenceLongBlockSourceOperator(driverContext.blockFactory(), values, 100),
                     List.of(
-                        new RowInTableOperator(
+                        new RowInTableLookupOperator(
                             driverContext.blockFactory(),
-                            new RowInTableOperator.Key[] { new RowInTableOperator.Key("primes", primesBlock) },
+                            new RowInTableLookupOperator.Key[] { new RowInTableLookupOperator.Key("primes", primesBlock) },
                             new int[] { 0 }
                         )
                     ),

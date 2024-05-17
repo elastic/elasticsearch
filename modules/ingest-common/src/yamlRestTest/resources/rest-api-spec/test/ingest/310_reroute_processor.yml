@@ -107,6 +107,8 @@ teardown:
         name: logs-router
         body:
           index_patterns: [ "logs-router-*" ]
+          priority: 500
+          data_stream: { }
           template:
             settings:
               index.default_pipeline: "logs-router"
@@ -133,13 +135,24 @@ teardown:
             ]
           }
   - match: { acknowledged: true }
+  - do:
+      allowed_warnings:
+        - "index template [logs-nginx] has index patterns [logs-nginx-*] matching patterns from existing older templates [global] with patterns (global => [*]); this template [logs-nginx] will take precedence during new index creation"
+      indices.put_index_template:
+        name: logs-nginx
+        body:
+          index_patterns: [ "logs-nginx-*" ]
+          priority: 500
+          data_stream: { }
+          template:
+            settings:
+              index.default_pipeline: "logs-nginx"
 
   - do:
       index:
         refresh: true
         index: logs-router-default
         id: "example-log"
-        pipeline: "logs-nginx"
         op_type: create
         body:
           "@timestamp": "2022-04-13"

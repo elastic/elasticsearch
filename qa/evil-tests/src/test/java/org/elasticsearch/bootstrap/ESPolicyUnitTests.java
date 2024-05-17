@@ -106,7 +106,7 @@ public class ESPolicyUnitTests extends ESTestCase {
     }
 
     @SuppressForbidden(reason = "to create FilePermission object")
-    public void testExclusiveAccess() {
+    public void testSecuredAccess() {
         assumeTrue("test cannot run with security manager", System.getSecurityManager() == null);
 
         String file1 = "/home/elasticsearch/config/pluginFile1.yml";

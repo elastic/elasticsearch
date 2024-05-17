@@ -45,8 +45,8 @@ final class ESPolicy extends Policy {
     final PermissionCollection dynamic;
     final PermissionCollection dataPathPermission;
     final Map<URL, Policy> plugins;
-    final PermissionCollection allExclusiveFiles;
-    final Map<FilePermission, Set<URL>> exclusiveFiles;
+    final PermissionCollection allSecuredFiles;
+    final Map<FilePermission, Set<URL>> securedFiles;
 
     @SuppressForbidden(reason = "Need to access and check file permissions directly")
     ESPolicy(
@@ -55,7 +55,7 @@ final class ESPolicy extends Policy {
         Map<URL, Policy> plugins,
         boolean filterBadDefaults,
         List<FilePermission> dataPathPermissions,
-        Map<String, Set<URL>> exclusiveFiles
+        Map<String, Set<URL>> securedFiles
     ) {
         this.template = template;
         this.dataPathPermission = createPermission(dataPathPermissions);
@@ -68,10 +68,10 @@ final class ESPolicy extends Policy {
         this.dynamic = dynamic;
         this.plugins = plugins;
 
-        this.exclusiveFiles = exclusiveFiles.entrySet()
+        this.securedFiles = securedFiles.entrySet()
             .stream()
             .collect(Collectors.toUnmodifiableMap(e -> new FilePermission(e.getKey(), ALL_FILE_MASK), e -> Set.copyOf(e.getValue())));
-        this.allExclusiveFiles = createPermission(this.exclusiveFiles.keySet());
+        this.allSecuredFiles = createPermission(this.securedFiles.keySet());
     }
 
     private static PermissionCollection createPermission(Collection<FilePermission> permissions) {
@@ -115,15 +115,15 @@ final class ESPolicy extends Policy {
         }
 
         URL location = codeSource.getLocation();
-        if (allExclusiveFiles.implies(permission)) {
+        if (allSecuredFiles.implies(permission)) {
             /*
-             * Check if location can access this exclusive file
-             * The permission this is generated from, ExclusiveFileAccessPermission, doesn't have a mask,
+             * Check if location can access this secured file
+             * The permission this is generated from, SecuredFileAccessPermission, doesn't have a mask,
              * it just grants all access (and so disallows all access from others)
              * It's helpful to use the infrastructure around FilePermission here to do the directory structure check with implies
              * so we use ALL_FILE_MASK mask to check if we can do something with this file, whatever the actual operation we're requesting
              */
-            return canAccessExclusiveFile(location, new FilePermission(permission.getName(), ALL_FILE_MASK));
+            return canAccessSecuredFile(location, new FilePermission(permission.getName(), ALL_FILE_MASK));
         }
 
         if (location != null) {
@@ -156,21 +156,22 @@ final class ESPolicy extends Policy {
     }
 
     @SuppressForbidden(reason = "We get given an URL by the security infrastructure")
-    private boolean canAccessExclusiveFile(URL location, FilePermission permission) {
+    private boolean canAccessSecuredFile(URL location, FilePermission permission) {
         if (location == null) {
             return false;
         }
 
         // check the source
-        Set<URL> accessibleSources = exclusiveFiles.get(permission);
+        Set<URL> accessibleSources = securedFiles.get(permission);
         if (accessibleSources != null) {
             // simple case - single-file referenced directly
             return accessibleSources.contains(location);
         } else {
             // there's a directory reference in there somewhere
             // do a manual search :(
-            // there may be several permissions that potentially match
-            return exclusiveFiles.entrySet()
+            // there may be several permissions that potentially match,
+            // grant access if any of them cover this file
+            return securedFiles.entrySet()
                 .stream()
                 .filter(e -> e.getKey().implies(permission))
                 .anyMatch(e -> e.getValue().contains(location));

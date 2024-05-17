@@ -9,7 +9,7 @@
 package org.elasticsearch.bootstrap;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.ExclusiveFileAccessPermission;
+import org.elasticsearch.SecuredFileAccessPermission;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.core.SuppressForbidden;
@@ -134,7 +134,7 @@ final class Security {
                 pluginPolicies,
                 filterBadDefaults,
                 createRecursiveDataPathPermission(environment),
-                readExclusiveFiles(environment, mainPolicy, codebases.values(), pluginPolicies)
+                readSecuredFiles(environment, mainPolicy, codebases.values(), pluginPolicies)
             )
         );
 
@@ -197,42 +197,44 @@ final class Security {
         return toFilePermissions(policy);
     }
 
-    private static Map<String, Set<URL>> readExclusiveFiles(
+    private static Map<String, Set<URL>> readSecuredFiles(
         Environment environment,
         Policy template,
         Collection<URL> mainCodebases,
         Map<URL, Policy> pluginPolicies
     ) throws IOException {
-        Map<String, Set<URL>> exclusiveFiles = new HashMap<>();
+        Map<String, Set<URL>> securedFiles = new HashMap<>();
 
         // always add some config files as exclusive files that no one can access
         // there's no reason for anyone to read these once the security manager is initialized
-        exclusiveFiles.put(environment.configFile().resolve("elasticsearch.yml").toString(), new HashSet<>());
-        exclusiveFiles.put(environment.configFile().resolve("jvm.options").toString(), new HashSet<>());
-        exclusiveFiles.put(environment.configFile().resolve("jvm.options.d/-").toString(), new HashSet<>());
+        securedFiles.put(environment.configFile().resolve("elasticsearch.yml").toString(), new HashSet<>());
+        securedFiles.put(environment.configFile().resolve("jvm.options").toString(), new HashSet<>());
+        securedFiles.put(environment.configFile().resolve("jvm.options.d/-").toString(), new HashSet<>());
 
         for (URL url : mainCodebases) {
             PolicyUtil.getPolicyPermissions(url, template, environment.tmpFile())
                 .stream()
-                .flatMap(Security::extractExclusiveFileName)
-                .forEach(f -> exclusiveFiles.computeIfAbsent(f, k -> new HashSet<>()).add(url));
+                .flatMap(Security::extractSecuredFileName)
+                .map(environment.configFile()::resolve)
+                .forEach(f -> securedFiles.computeIfAbsent(f.toString(), k -> new HashSet<>()).add(url));
         }
 
         for (var pp : pluginPolicies.entrySet()) {
             PolicyUtil.getPolicyPermissions(pp.getKey(), pp.getValue(), environment.tmpFile())
                 .stream()
-                .flatMap(Security::extractExclusiveFileName)
-                .forEach(f -> exclusiveFiles.computeIfAbsent(f, k -> new HashSet<>()).add(pp.getKey()));
+                .flatMap(Security::extractSecuredFileName)
+                .map(environment.configFile()::resolve)
+                .forEach(f -> securedFiles.computeIfAbsent(f.toString(), k -> new HashSet<>()).add(pp.getKey()));
         }
 
-        return exclusiveFiles;
+        return securedFiles;
     }
 
-    private static Stream<String> extractExclusiveFileName(Permission p) {
-        if (p instanceof ExclusiveFileAccessPermission) {
+    private static Stream<String> extractSecuredFileName(Permission p) {
+        if (p instanceof SecuredFileAccessPermission) {
             return Stream.of(p.getName());
         }
-        if (p instanceof UnresolvedPermission up && up.getUnresolvedType().equals(ExclusiveFileAccessPermission.class.getCanonicalName())) {
+        if (p instanceof UnresolvedPermission up && up.getUnresolvedType().equals(SecuredFileAccessPermission.class.getCanonicalName())) {
             return Stream.of(up.getUnresolvedName());
         }
         return Stream.empty();

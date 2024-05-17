@@ -11,15 +11,15 @@ package org.elasticsearch;
 import java.security.BasicPermission;
 
 /**
- * A permission granted to ensure exclusive access to a file.
+ * A permission granted to ensure secured access to a file in the config directory.
  * <p>
  * By granting this permission, all code that does not have the same permission on the same file
  * will be denied all read/write access to that file.
- * Note that you also need to wrap any access to the exclusive files in an {@code AccessController.doPrivileged()} block
- * as Elasticsearch itself is denied access to plugin exclusive files.
+ * Note that you also need to wrap any access to the secured files in an {@code AccessController.doPrivileged()} block
+ * as Elasticsearch itself is denied access to files secured by plugins.
  */
-public class ExclusiveFileAccessPermission extends BasicPermission {
-    public ExclusiveFileAccessPermission(String path) {
+public class SecuredFileAccessPermission extends BasicPermission {
+    public SecuredFileAccessPermission(String path) {
         super(path, "");
     }
 }

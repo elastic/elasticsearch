@@ -91,6 +91,12 @@ teardown:
           {
             "processors": [
               {
+                 "set" : {
+                   "field": "added-in-pipeline-before-first-reroute",
+                   "value": true
+                 }
+              },
+              {
                 "reroute" : {
                   "tag": "nginx",
                   "if" : "ctx?.log?.file?.path?.contains('nginx')",
@@ -118,6 +124,12 @@ teardown:
         body: >
           {
             "processors": [
+              {
+                 "set" : {
+                   "field": "added-in-pipeline-before-second-reroute",
+                   "value": true
+                 }
+              },
               {
                 "reroute": {
                   "tag": "nginx.access",
@@ -168,6 +180,8 @@ teardown:
           query:
             match: {"_id": "example-log"}
   - match: { hits.hits.0._source.message: "this is an error log" }
+  - match: { hits.hits.0._source.added-in-pipeline-before-first-reroute: true }
+  - match: { hits.hits.0._source.added-in-pipeline-before-second-reroute: true }
 
 ---
 "Test pipeline run after reroute":

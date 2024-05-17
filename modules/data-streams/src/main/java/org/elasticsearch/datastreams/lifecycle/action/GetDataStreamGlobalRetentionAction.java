@@ -47,10 +47,6 @@ public class GetDataStreamGlobalRetentionAction {
 
     public static final class Request extends MasterNodeReadRequest<Request> {
 
-        public Request() {
-            super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT);
-        }
-
         public Request(StreamInput in) throws IOException {
             super(in);
         }

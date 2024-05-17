@@ -31,8 +31,11 @@ import org.elasticsearch.xpack.application.connector.filtering.FilteringValidati
 import java.io.IOException;
 import java.time.Instant;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Objects;
+import java.util.Optional;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 
@@ -194,21 +197,53 @@ public class ConnectorFiltering implements Writeable, ToXContentObject {
         }
     }
 
-    public static boolean isDefaultRulePresentInFilteringRules(List<FilteringRule> rules) {
-        FilteringRule defaultRule = getDefaultFilteringRule(null);
-        return rules.stream().anyMatch(rule -> rule.equalsExceptForTimestampsAndOrder(defaultRule));
-    }
-
-    public static FilteringRule getDefaultFilteringRule(Instant timestamp) {
+    public static FilteringRule getDefaultFilteringRule(Instant timestamp, Integer order) {
         return new FilteringRule.Builder().setCreatedAt(timestamp)
             .setField("_")
             .setId("DEFAULT")
-            .setOrder(0)
+            .setOrder(order)
             .setPolicy(FilteringPolicy.INCLUDE)
             .setRule(FilteringRuleCondition.REGEX)
             .setUpdatedAt(timestamp)
             .setValue(".*")
             .build();
+    }
+
+    public static FilteringRule getDefaultFilteringRuleWithOrder(Integer order) {
+        return getDefaultFilteringRule(null, order);
+    }
+
+    public static boolean isDefaultFilteringRule(FilteringRule rule) {
+        return rule.equalsExceptForTimestampsAndOrder(ConnectorFiltering.getDefaultFilteringRuleWithOrder(0));
+    }
+
+    /**
+     * Sorts the list of {@link List<FilteringRule> } by order, ensuring that the default rule is always the last one.
+     * If the rules list is empty, a default rule is added with order 0, otherwise default rule is added with order
+     * equal to the last rule's order + 1.
+     *
+     * @param rules The list of filtering rules to be sorted.
+     * @return The sorted list of filtering rules.
+     */
+    public static List<FilteringRule> sortFilteringRulesByOrder(List<FilteringRule> rules) {
+        if (rules.isEmpty()) {
+            return List.of(getDefaultFilteringRuleWithOrder(0));
+        }
+
+        Optional<FilteringRule> defaultRuleTimeStamp = rules.stream().filter(ConnectorFiltering::isDefaultFilteringRule).findFirst();
+
+        List<FilteringRule> sortedRules = rules.stream()
+            .filter(rule -> ConnectorFiltering.isDefaultFilteringRule(rule) == false)
+            .sorted(Comparator.comparingInt(FilteringRule::getOrder))
+            .collect(Collectors.toList());
+
+        sortedRules.add(
+            getDefaultFilteringRule(
+                defaultRuleTimeStamp.map(FilteringRule::getCreatedAt).orElse(null),
+                sortedRules.isEmpty() ? 0 : sortedRules.get(sortedRules.size() - 1).getOrder() + 1
+            )
+        );
+        return sortedRules;
     }
 
     public static ConnectorFiltering getDefaultConnectorFilteringConfig() {
@@ -222,7 +257,7 @@ public class ConnectorFiltering implements Writeable, ToXContentObject {
                     .setAdvancedSnippetValue(Collections.emptyMap())
                     .build()
             )
-                .setRules(List.of(getDefaultFilteringRule(currentTimestamp)))
+                .setRules(List.of(getDefaultFilteringRule(currentTimestamp, 0)))
                 .setFilteringValidationInfo(
                     new FilteringValidationInfo.Builder().setValidationErrors(Collections.emptyList())
                         .setValidationState(FilteringValidationState.VALID)
@@ -237,7 +272,7 @@ public class ConnectorFiltering implements Writeable, ToXContentObject {
                         .setAdvancedSnippetValue(Collections.emptyMap())
                         .build()
                 )
-                    .setRules(List.of(getDefaultFilteringRule(currentTimestamp)))
+                    .setRules(List.of(getDefaultFilteringRule(currentTimestamp, 0)))
                     .setFilteringValidationInfo(
                         new FilteringValidationInfo.Builder().setValidationErrors(Collections.emptyList())
                             .setValidationState(FilteringValidationState.VALID)

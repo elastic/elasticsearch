@@ -650,8 +650,7 @@ public class ClusterBootstrapServiceTests extends ESTestCase {
     }
 
     public void testBootstrapStateLogging() {
-        final var mockAppender = new MockLogAppender();
-        try (var ignored = mockAppender.capturing(ClusterBootstrapService.class)) {
+        try (var mockAppender = MockLogAppender.capture(ClusterBootstrapService.class)) {
             mockAppender.addExpectation(
                 new MockLogAppender.SeenEventExpectation(
                     "fresh node message",

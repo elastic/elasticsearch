@@ -30,6 +30,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.EsqlUnresolvedRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
+import org.elasticsearch.xpack.esql.plan.logical.Lookup;
 import org.elasticsearch.xpack.esql.plan.logical.Row;
 import org.elasticsearch.xpack.esql.plan.logical.local.EsqlProject;
 import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
@@ -64,6 +65,8 @@ import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
+import static org.elasticsearch.test.ListMatcher.matchesList;
+import static org.elasticsearch.test.MapMatcher.assertMap;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_VERIFIER;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.configuration;
@@ -77,8 +80,11 @@ import static org.elasticsearch.xpack.ql.tree.Source.EMPTY;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.matchesRegex;
+import static org.hamcrest.Matchers.startsWith;
 
 //@TestLogging(value = "org.elasticsearch.xpack.esql.analysis:TRACE", reason = "debug")
 public class AnalyzerTests extends ESTestCase {
@@ -1876,12 +1882,44 @@ public class AnalyzerTests extends ESTestCase {
             """, "mapping-multi-field-variation.json", "text");
     }
 
+    public void testLookup() {
+        LogicalPlan plan = analyze("""
+              FROM test
+            | RENAME languages AS int
+            | LOOKUP int_number_names ON int
+            """);
+        var limit = as(plan, Limit.class);
+        assertThat(limit.limit().fold(), equalTo(1000));
+
+        var lookup = as(limit.child(), Lookup.class);
+        assertThat(lookup.tableName().fold(), equalTo("int_number_names"));
+        assertMap(lookup.matchFields().stream().map(Object::toString).toList(), matchesList().item(startsWith("int{r}")));
+        assertThat(
+            lookup.localRelation().output().stream().map(Object::toString).toList(),
+            matchesList().item(startsWith("int{f}")).item(startsWith("name{f}"))
+        );
+
+        var project = as(lookup.child(), EsqlProject.class);
+        assertThat(project.projections().stream().map(Object::toString).toList(), hasItem(matchesRegex("languages\\{f}#\\d+ AS int#\\d+")));
+
+        var esRelation = as(project.child(), EsRelation.class);
+        assertThat(esRelation.index().name(), equalTo("test"));
+    }
+
     public void testLookupMissingField() {
         var e = expectThrows(VerificationException.class, () -> analyze("""
               FROM test
             | LOOKUP int_number_names ON garbage
             """));
         assertThat(e.getMessage(), containsString("Unknown column in lookup target [garbage]"));
+    }
+
+    public void testLookupMissingTable() {
+        var e = expectThrows(VerificationException.class, () -> analyze("""
+              FROM test
+            | LOOKUP garbage ON a
+            """));
+        assertThat(e.getMessage(), containsString("Unknown table [garbage]"));
     }
 
     private void verifyUnsupported(String query, String errorMessage) {

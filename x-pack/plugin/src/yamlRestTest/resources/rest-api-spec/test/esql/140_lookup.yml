@@ -120,23 +120,20 @@ basic:
   - do:
       esql.query:
         body:
-          query: 'FROM test | LOOKUP color_associations ON color | SORT time | KEEP color, association | LIMIT 2'
+          query: 'FROM test | LOOKUP colors ON color | SORT time | KEEP color, rgb | LIMIT 2'
           columnar: true
           version: 2024.04.01
           tables:
-            color_associations:
+            colors:
               "color:keyword": ["red", "green", "blue"]
-              "association:keyword":
-                - ["love", "passion", "blood", "happiness"]
-                - ["nature", "healing", "health", "youth"]
-                - ["serenity", "wisdom", "ocean", "sky"]
+              "rgb:integer": [16711680,   65280,    255]
 
   - match: {columns.0.name: "color"}
   - match: {columns.0.type: "keyword"}
-  - match: {columns.1.name: "association"}
-  - match: {columns.1.type: "keyword"}
+  - match: {columns.1.name: "rgb"}
+  - match: {columns.1.type: "integer"}
   - match: {values.0: ["red", "blue"]}
-  - match: {values.1: [["love", "passion", "blood", "happiness"], ["serenity", "wisdom", "ocean", "sky"]]}
+  - match: {values.1: [16711680, 255]}
 
 ---
 read multivalue keyword:
@@ -152,20 +149,23 @@ read multivalue keyword:
   - do:
       esql.query:
         body:
-          query: 'FROM test | LOOKUP colors ON color | SORT time | KEEP color, rgb | LIMIT 2'
+          query: 'FROM test | LOOKUP color_associations ON color | SORT time | KEEP color, association | LIMIT 2'
           columnar: true
           version: 2024.04.01
           tables:
-            colors:
+            color_associations:
               "color:keyword":  ["red", "green", "blue"]
-              "rgb:integer": [16711680,   65280,    255]
+              "association:keyword":
+                - ["love", "passion", "blood", "happiness"]
+                - ["nature", "healing", "health", "youth"]
+                - ["serenity", "wisdom", "ocean", "sky"]
 
   - match: {columns.0.name: "color"}
   - match: {columns.0.type: "keyword"}
-  - match: {columns.1.name: "rgb"}
-  - match: {columns.1.type: "integer"}
+  - match: {columns.1.name: "association"}
+  - match: {columns.1.type: "keyword"}
   - match: {values.0: ["red", "blue"]}
-  - match: {values.1: [16711680, 255]}
+  - match: {values.1: [["love", "passion", "blood", "happiness"], ["serenity", "wisdom", "ocean", "sky"]]}
 
 ---
 duplicate column names in table:

@@ -329,15 +329,15 @@ public class ObjectPathTests extends ESTestCase {
         assertThat(object, instanceOf(List.class));
         assertThat(((List<Object>) object).size(), equalTo(2));
         object = objectPath.evaluate("0");
+        assertThat(objectPath.evaluate("-2"), sameInstance(object));
         assertThat(object, notNullValue());
         assertThat(object, instanceOf(Map.class));
         assertThat(((Map<String, Object>) object).get("alias"), equalTo("test_alias1"));
         object = objectPath.evaluate("1.index");
+        assertThat(objectPath.evaluate("-1.index"), sameInstance(object));
         assertThat(object, notNullValue());
         assertThat(object, instanceOf(String.class));
         assertThat(object, equalTo("test2"));
-        var lastObject = objectPath.evaluate("-1.index");
-        assertThat(lastObject, sameInstance(object));
     }
 
     public void testEvaluateArraySize() throws Exception {

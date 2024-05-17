@@ -286,8 +286,8 @@ public record IngestStats(Stats totalStats, List<PipelineStat> pipelineStats, Ma
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             if (bytesIngested > 0 || bytesProduced > 0) {
-                builder.field("ingested_in_bytes", bytesIngested);
-                builder.field("produced_in_bytes", bytesProduced);
+                builder.field("ingested_as_first_pipeline_in_bytes", bytesIngested);
+                builder.field("produced_as_first_pipeline_in_bytes", bytesProduced);
             }
             return builder;
         }

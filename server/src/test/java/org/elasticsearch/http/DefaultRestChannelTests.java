@@ -587,8 +587,7 @@ public class DefaultRestChannelTests extends ESTestCase {
             tracer
         );
 
-        final MockLogAppender sendingResponseMockLog = new MockLogAppender();
-        try (var ignored = sendingResponseMockLog.capturing(HttpTracer.class)) {
+        try (var sendingResponseMockLog = MockLogAppender.capture(HttpTracer.class)) {
             sendingResponseMockLog.addExpectation(
                 new MockLogAppender.UnseenEventExpectation(
                     "no response should be logged",
@@ -604,8 +603,7 @@ public class DefaultRestChannelTests extends ESTestCase {
             sendingResponseMockLog.assertAllExpectationsMatched();
         }
 
-        final MockLogAppender sendingResponseCompleteMockLog = new MockLogAppender();
-        try (var ignored = sendingResponseCompleteMockLog.capturing(HttpTracer.class)) {
+        try (var sendingResponseCompleteMockLog = MockLogAppender.capture(HttpTracer.class)) {
             sendingResponseCompleteMockLog.addExpectation(
                 new MockLogAppender.SeenEventExpectation(
                     "response should be logged",
@@ -649,8 +647,7 @@ public class DefaultRestChannelTests extends ESTestCase {
             tracer
         );
 
-        MockLogAppender mockLogAppender = new MockLogAppender();
-        try (var ignored = mockLogAppender.capturing(HttpTracer.class)) {
+        try (var mockLogAppender = MockLogAppender.capture(HttpTracer.class)) {
             mockLogAppender.addExpectation(
                 new MockLogAppender.SeenEventExpectation(
                     "response should be logged with success = false",

@@ -31,7 +31,6 @@ import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.core.Releasable;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
@@ -649,8 +648,7 @@ public class FieldCapabilitiesIT extends ESIntegTestCase {
         reason = "verify the log output on cancelled"
     )
     public void testCancel() throws Exception {
-        MockLogAppender logAppender = new MockLogAppender();
-        try (Releasable ignored = logAppender.capturing(TransportFieldCapabilitiesAction.class)) {
+        try (var logAppender = MockLogAppender.capture(TransportFieldCapabilitiesAction.class)) {
             logAppender.addExpectation(
                 new MockLogAppender.SeenEventExpectation(
                     "clear resources",

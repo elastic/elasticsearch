@@ -53,7 +53,6 @@ import org.elasticsearch.index.VersionType;
 import org.elasticsearch.plugins.IngestPlugin;
 import org.elasticsearch.plugins.internal.DocumentParsingProvider;
 import org.elasticsearch.plugins.internal.DocumentSizeObserver;
-import org.elasticsearch.plugins.internal.DocumentSizeReporter;
 import org.elasticsearch.script.MockScriptEngine;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptModule;
@@ -1190,16 +1189,6 @@ public class IngestServiceTests extends ESTestCase {
                         return 0;
                     }
                 };
-            }
-
-            @Override
-            public DocumentSizeReporter getDocumentParsingReporter(String indexName) {
-                return null;
-            }
-
-            @Override
-            public DocumentSizeObserver newFixedSizeDocumentObserver(long normalisedBytesParsed) {
-                return null;
             }
         };
         IngestService ingestService = createWithProcessors(

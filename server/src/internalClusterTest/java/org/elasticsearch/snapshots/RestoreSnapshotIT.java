@@ -162,8 +162,7 @@ public class RestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
         value = "org.elasticsearch.snapshots.RestoreService:INFO"
     )
     public void testRestoreLogging() throws IllegalAccessException {
-        final MockLogAppender mockLogAppender = new MockLogAppender();
-        try (var ignored = mockLogAppender.capturing(RestoreService.class)) {
+        try (var mockLogAppender = MockLogAppender.capture(RestoreService.class)) {
             String indexName = "testindex";
             String repoName = "test-restore-snapshot-repo";
             String snapshotName = "test-restore-snapshot";
@@ -899,8 +898,7 @@ public class RestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
         index(indexName, "some_id", Map.of("foo", "bar"));
         assertAcked(indicesAdmin().prepareClose(indexName).get());
 
-        final MockLogAppender mockAppender = new MockLogAppender();
-        try (var ignored = mockAppender.capturing(FileRestoreContext.class)) {
+        try (var mockAppender = MockLogAppender.capture(FileRestoreContext.class)) {
             mockAppender.addExpectation(
                 new MockLogAppender.UnseenEventExpectation("no warnings", FileRestoreContext.class.getCanonicalName(), Level.WARN, "*")
             );

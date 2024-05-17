@@ -241,8 +241,7 @@ public class BatchedRerouteServiceTests extends ESTestCase {
     @TestLogging(reason = "testing log output", value = "org.elasticsearch.cluster.routing.BatchedRerouteService:DEBUG")
     public void testExceptionFidelity() {
 
-        final var mockLogAppender = new MockLogAppender();
-        try (var ignored = mockLogAppender.capturing(BatchedRerouteService.class)) {
+        try (var mockLogAppender = MockLogAppender.capture(BatchedRerouteService.class)) {
 
             clusterService.getMasterService()
                 .setClusterStatePublisher(

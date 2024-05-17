@@ -101,6 +101,7 @@ public class TransportSimulateShardBulkAction extends TransportReplicationAction
         IndexShard primary,
         ActionListener<PrimaryResult<BulkShardRequest, BulkShardResponse>> listener
     ) {
+        assert request.isSimulated();
         TransportShardBulkAction.dispatchedShardOperationOnPrimary(
             request,
             primary,
@@ -120,6 +121,7 @@ public class TransportSimulateShardBulkAction extends TransportReplicationAction
     @Override
     protected void shardOperationOnReplica(BulkShardRequest request, IndexShard replica, ActionListener<ReplicaResult> listener) {
         // We don't need to do anything on replicas since this is just a simulation
+        assert request.isSimulated();
         listener.onResponse(new ReplicaResult());
     }
 }

@@ -14,6 +14,7 @@ import org.elasticsearch.plugins.Plugin;
 import java.io.IOException;
 import java.util.Collection;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 
 public class NonDynamicFieldMapperTests extends NonDynamicFieldMapperTestCase {
@@ -27,9 +28,9 @@ public class NonDynamicFieldMapperTests extends NonDynamicFieldMapperTestCase {
     }
 
     protected String getMapping() {
-        return """
-           "type": "%s"
-           """.formatted(NonDynamicFieldMapper.NAME);
+        return String.format(Locale.ROOT, """
+            "type": "%s"
+            """, NonDynamicFieldMapper.NAME);
     }
 
     public static class NonDynamicFieldPlugin extends Plugin implements MapperPlugin {

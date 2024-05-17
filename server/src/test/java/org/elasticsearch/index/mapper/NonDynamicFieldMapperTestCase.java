@@ -29,9 +29,7 @@ public abstract class NonDynamicFieldMapperTestCase extends ESSingleNodeTestCase
     protected abstract String getMapping();
 
     public void testCreateExplicitMappingSucceeds() throws Exception {
-        String mapping = String.format(
-            Locale.ROOT,
-            """
+        String mapping = String.format(Locale.ROOT, """
             {
               "_doc": {
                 "properties": {
@@ -51,8 +49,7 @@ public abstract class NonDynamicFieldMapperTestCase extends ESSingleNodeTestCase
     }
 
     public void testCreateDynamicMappingFails() throws Exception {
-        String mapping =  String.format(
-            Locale.ROOT,"""
+        String mapping = String.format(Locale.ROOT, """
             {
               "_doc": {
                   "dynamic_templates": [
@@ -72,14 +69,13 @@ public abstract class NonDynamicFieldMapperTestCase extends ESSingleNodeTestCase
         Exception exc = expectThrows(Exception.class, () -> req.get());
         assertThat(exc.getCause(), instanceOf(IllegalArgumentException.class));
         assertThat(exc.getCause().getCause(), instanceOf(MapperParsingException.class));
-        assertThat(exc.getCause().getCause().getMessage(), containsString("["+getTypeName()+"] can't be used in dynamic templates"));
+        assertThat(exc.getCause().getCause().getMessage(), containsString("[" + getTypeName() + "] can't be used in dynamic templates"));
     }
 
     public void testUpdateDynamicMappingFails() throws Exception {
         var resp = client().admin().indices().prepareCreate("test").get();
         assertTrue(resp.isAcknowledged());
-        String mapping =  String.format(
-            Locale.ROOT,"""
+        String mapping = String.format(Locale.ROOT, """
             {
               "_doc": {
                   "dynamic_templates": [
@@ -99,12 +95,11 @@ public abstract class NonDynamicFieldMapperTestCase extends ESSingleNodeTestCase
         Exception exc = expectThrows(Exception.class, () -> req.get());
         assertThat(exc.getCause(), instanceOf(IllegalArgumentException.class));
         assertThat(exc.getCause().getCause(), instanceOf(MapperParsingException.class));
-        assertThat(exc.getCause().getCause().getMessage(), containsString("["+getTypeName()+"] can't be used in dynamic templates"));
+        assertThat(exc.getCause().getCause().getMessage(), containsString("[" + getTypeName() + "] can't be used in dynamic templates"));
     }
 
     public void testCreateDynamicMappingInIndexTemplateFails() throws Exception {
-        String mapping = String.format(
-            Locale.ROOT,"""
+        String mapping = String.format(Locale.ROOT, """
             {
               "_doc": {
                 "dynamic_templates": [
@@ -128,12 +123,11 @@ public abstract class NonDynamicFieldMapperTestCase extends ESSingleNodeTestCase
         Exception exc = expectThrows(Exception.class, () -> req.get());
         assertThat(exc.getCause(), instanceOf(IllegalArgumentException.class));
         assertThat(exc.getCause().getCause(), instanceOf(MapperParsingException.class));
-        assertThat(exc.getCause().getCause().getMessage(), containsString("["+getTypeName()+"] can't be used in dynamic templates"));
+        assertThat(exc.getCause().getCause().getMessage(), containsString("[" + getTypeName() + "] can't be used in dynamic templates"));
     }
 
     public void testCreateExplicitMappingInIndexTemplateSucceeds() throws Exception {
-        String mapping =  String.format(
-            Locale.ROOT,"""
+        String mapping = String.format(Locale.ROOT, """
             {
               "_doc": {
                 "properties": {

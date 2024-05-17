@@ -39,11 +39,11 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.DOUBLE;
 import static org.elasticsearch.xpack.esql.expression.function.scalar.spatial.SpatialRelatesUtils.makeGeometryFromLiteral;
 
 /**
- * Extracts the x-coordinate from a point geometry.
- * For cartesian geometries, the x-coordinate is the first coordinate.
- * For geographic geometries, the x-coordinate is the longitude.
- * The function `st_x` is defined in the <a href="https://www.ogc.org/standard/sfs/">OGC Simple Feature Access</a> standard.
- * Alternatively it is well described in PostGIS documentation at <a href="https://postgis.net/docs/ST_X.html">PostGIS:ST_X</a>.
+ * Computes the distance between two points.
+ * For cartesian geometries, this is the pythagorean distance in the same units as the original coordinates.
+ * For geographic geometries, this is the circular distance along the grand circle in meters.
+ * The function `st_distance` is defined in the <a href="https://www.ogc.org/standard/sfs/">OGC Simple Feature Access</a> standard.
+ * Alternatively it is described in PostGIS documentation at <a href="https://postgis.net/docs/ST_Distance.html">PostGIS:ST_Distance</a>.
  */
 public class StDistance extends BinarySpatialFunction implements EvaluatorMapper, SpatialEvaluatorFactory.SpatialSourceSupplier {
     // public for test access with reflection
@@ -95,22 +95,22 @@ public class StDistance extends BinarySpatialFunction implements EvaluatorMapper
 
     @FunctionInfo(
         returnType = "double",
-        description = "Extracts the `x` coordinate from the supplied point.\n"
-            + "If the points is of type `geo_point` this is equivalent to extracting the `longitude` value.",
-        examples = @Example(file = "spatial", tag = "st_x_y")
+        description = """
+            Computes the distance between two points.
+            For cartesian geometries, this is the pythagorean distance in the same units as the original coordinates.
+            For geographic geometries, this is the circular distance along the grand circle in meters.""",
+        examples = @Example(file = "spatial", tag = "st_distance-airports")
     )
     public StDistance(
         Source source,
-        @Param(
-            name = "left",
-            type = { "geo_point", "cartesian_point" },
-            description = "Expression of type `geo_point` or `cartesian_point`. If `null`, the function returns `null`."
-        ) Expression left,
-        @Param(
-            name = "right",
-            type = { "geo_point", "cartesian_point" },
-            description = "Expression of type `geo_point` or `cartesian_point`. If `null`, the function returns `null`."
-        ) Expression right
+        @Param(name = "geomA", type = { "geo_point", "cartesian_point" }, description = """
+            Expression of type `geo_point` or `cartesian_point`.
+            If `null`, the function returns `null`.""") Expression left,
+        @Param(name = "geomB", type = { "geo_point", "cartesian_point" }, description = """
+            Expression of type `geo_point` or `cartesian_point`.
+            If `null`, the function returns `null`.
+            The second parameter must also have the same coordinate system as the first.
+            This means it is not possible to combine `geo_point` and `cartesian_point` parameters.""") Expression right
     ) {
         super(source, left, right, false, false);
     }

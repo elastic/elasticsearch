@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.esql.analysis;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.EsqlUnresolvedRelation;
 import org.elasticsearch.xpack.ql.analyzer.TableInfo;
-import org.elasticsearch.xpack.ql.options.EsSourceOptions;
 import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
 
 import java.util.ArrayList;
@@ -21,15 +20,13 @@ import static java.util.Collections.emptyList;
 public class PreAnalyzer {
 
     public static class PreAnalysis {
-        public static final PreAnalysis EMPTY = new PreAnalysis(emptyList(), emptyList(), emptyList());
+        public static final PreAnalysis EMPTY = new PreAnalysis(emptyList(), emptyList());
 
         public final List<TableInfo> indices;
-        public final List<EsSourceOptions> esSourceOptions;
         public final List<Enrich> enriches;
 
-        public PreAnalysis(List<TableInfo> indices, List<EsSourceOptions> esSourceOptions, List<Enrich> enriches) {
+        public PreAnalysis(List<TableInfo> indices, List<Enrich> enriches) {
             this.indices = indices;
-            this.esSourceOptions = esSourceOptions;
             this.enriches = enriches;
         }
     }
@@ -44,18 +41,14 @@ public class PreAnalyzer {
 
     protected PreAnalysis doPreAnalyze(LogicalPlan plan) {
         List<TableInfo> indices = new ArrayList<>();
-        List<EsSourceOptions> esSourceOptions = new ArrayList<>();
         List<Enrich> unresolvedEnriches = new ArrayList<>();
 
-        plan.forEachUp(EsqlUnresolvedRelation.class, p -> {
-            indices.add(new TableInfo(p.table(), p.frozen()));
-            esSourceOptions.add(p.esSourceOptions());
-        });
+        plan.forEachUp(EsqlUnresolvedRelation.class, p -> { indices.add(new TableInfo(p.table(), p.frozen())); });
         plan.forEachUp(Enrich.class, unresolvedEnriches::add);
 
         // mark plan as preAnalyzed (if it were marked, there would be no analysis)
         plan.forEachUp(LogicalPlan::setPreAnalyzed);
 
-        return new PreAnalysis(indices, esSourceOptions, unresolvedEnriches);
+        return new PreAnalysis(indices, unresolvedEnriches);
     }
 }

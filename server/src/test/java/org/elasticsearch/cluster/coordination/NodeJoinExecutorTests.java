@@ -799,10 +799,9 @@ public class NodeJoinExecutorTests extends ESTestCase {
             .nodes(DiscoveryNodes.builder().add(masterNode).localNodeId(masterNode.getId()).masterNodeId(masterNode.getId()))
             .build();
 
-        final MockLogAppender appender = new MockLogAppender();
         final ThreadPool threadPool = new TestThreadPool("test");
         try (
-            var ignored = appender.capturing(NodeJoinExecutor.class);
+            var appender = MockLogAppender.capture(NodeJoinExecutor.class);
             var clusterService = ClusterServiceUtils.createClusterService(clusterState, threadPool)
         ) {
             final var node1 = DiscoveryNodeUtils.create(UUIDs.base64UUID());

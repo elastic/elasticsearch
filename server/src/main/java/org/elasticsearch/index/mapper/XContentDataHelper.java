@@ -13,7 +13,9 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefIterator;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.util.ByteUtils;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.CheckedFunction;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
@@ -52,6 +54,14 @@ final class XContentDataHelper {
     }
 
     /**
+     * Build a {@link BytesRef} wrapping a byte array containing an encoded form
+     * of the passed XContentBuilder contents.
+     */
+    static BytesRef encodeXContentBuilder(XContentBuilder builder) throws IOException {
+        return new BytesRef(TypeUtils.encode(builder));
+    }
+
+    /**
      * Decode the value in the passed {@link BytesRef} and add it as a value to the
      * passed build. The assumption is that the passed value has encoded using the function
      * {@link #encodeToken(XContentParser)} above.
@@ -73,6 +83,58 @@ final class XContentDataHelper {
             case NULL_ENCODING -> TypeUtils.NULL.decodeAndWrite(b, r);
             default -> throw new IllegalArgumentException("Can't decode " + r);
         }
+    }
+
+    /**
+     * Stores the current parser structure (subtree) to an {@link XContentBuilder} and returns it, along with a
+     * {@link DocumentParserContext} wrapping it that can be used to reparse the subtree.
+     * The parser of the original context is also advanced to the end of the current structure (subtree) as a side effect.
+     */
+    static Tuple<DocumentParserContext, XContentBuilder> cloneSubContext(DocumentParserContext context) throws IOException {
+        var tuple = cloneSubContextParserConfiguration(context);
+        return Tuple.tuple(cloneDocumentParserContext(context, tuple.v1(), tuple.v2()), tuple.v2());
+    }
+
+    /**
+     * Initializes a {@link XContentParser} with the current parser structure (subtree) and returns it, along with a
+     * {@link DocumentParserContext} wrapping the subtree that can be used to reparse it.
+     * The parser of the original context is also advanced to the end of the current structure (subtree) as a side effect.
+     */
+    static Tuple<DocumentParserContext, XContentParser> cloneSubContextWithParser(DocumentParserContext context) throws IOException {
+        Tuple<XContentParserConfiguration, XContentBuilder> tuple = cloneSubContextParserConfiguration(context);
+        XContentParser parser = XContentHelper.createParserNotCompressed(
+            tuple.v1(),
+            BytesReference.bytes(tuple.v2()),
+            context.parser().contentType()
+        );
+        assert parser.currentToken() == null;
+        parser.nextToken();
+        return Tuple.tuple(cloneDocumentParserContext(context, tuple.v1(), tuple.v2()), parser);
+    }
+
+    private static Tuple<XContentParserConfiguration, XContentBuilder> cloneSubContextParserConfiguration(DocumentParserContext context)
+        throws IOException {
+        XContentParser parser = context.parser();
+        XContentBuilder builder = XContentBuilder.builder(parser.contentType().xContent());
+        builder.copyCurrentStructure(parser);
+
+        XContentParserConfiguration configuration = XContentParserConfiguration.EMPTY.withRegistry(parser.getXContentRegistry())
+            .withDeprecationHandler(parser.getDeprecationHandler())
+            .withRestApiVersion(parser.getRestApiVersion());
+        return Tuple.tuple(configuration, builder);
+    }
+
+    private static DocumentParserContext cloneDocumentParserContext(
+        DocumentParserContext context,
+        XContentParserConfiguration configuration,
+        XContentBuilder builder
+    ) throws IOException {
+        DocumentParserContext subcontext = context.switchParser(
+            XContentHelper.createParserNotCompressed(configuration, BytesReference.bytes(builder), context.parser().contentType())
+        );
+        subcontext.setClonedSource();  // Avoids double-storing parts of the source for the same parser subtree.
+        subcontext.parser().nextToken();
+        return subcontext;
     }
 
     private static Object processToken(XContentParser parser, CheckedFunction<TypeUtils, Object, IOException> visitor) throws IOException {

@@ -358,7 +358,7 @@ public class CohereEmbeddingsServiceSettingsTests extends AbstractWireSerializin
 
     @Override
     protected CohereEmbeddingsServiceSettings mutateInstance(CohereEmbeddingsServiceSettings instance) throws IOException {
-        return null;
+        return randomValueOtherThan(instance, CohereEmbeddingsServiceSettingsTests::createRandom);
     }
 
     @Override

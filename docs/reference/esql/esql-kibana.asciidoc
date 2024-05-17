@@ -14,6 +14,17 @@ data* from the {kib} Home, selecting *Other sample data sets*, and clicking *Add
 data* on the *Sample web logs* card.
 
 [discrete]
+[[esql-kibana-enable]]
+=== Enable or disable {esql}
+
+{esql} is enabled by default in {kib}. It can be
+disabled using the `enableESQL` setting from the
+{kibana-ref}/advanced-options.html[Advanced Settings].
+
+This will hide the {esql} user interface from various applications.
+However, users will be able to access existing {esql} artifacts like saved searches and visualizations.
+
+[discrete]
 [[esql-kibana-get-started]]
 === Get started with {esql}
 
@@ -23,10 +34,6 @@ To get started with {esql} in Discover, open the main menu and select
 
 image::images/esql/esql-data-view-menu.png[align="center",width=33%]
 // end::esql-mode[]
-
-The ability to select {esql} from the Data views menu can be enabled and
-disabled using the `discover:enableESQL` setting from
-{kibana-ref}/advanced-options.html[Advanced Settings].
 
 [discrete]
 [[esql-kibana-query-bar]]

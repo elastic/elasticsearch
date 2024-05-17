@@ -246,11 +246,11 @@ the same name and the updated API key.
 `target`:::
 (Required, string)
 The target URL of your Azure AI Studio model deployment.
-This can also be found on the overview page for your deployment in the management section of your https://ai.azure.com/[Azure AI Studio] account.
+This can be found on the overview page for your deployment in the management section of your https://ai.azure.com/[Azure AI Studio] account.
 
 `provider`:::
 (Required, string)
-You must provide the model provider for your deployment.
+The model provider for your deployment.
 Note that some providers may support only certain task types.
 Supported providers include:
 
@@ -264,16 +264,17 @@ Supported providers include:
 `endpoint_type`:::
 (Required, string)
 One of `token` or `realtime`.
-This specifies the type of endpoint that is used in your model deployment.
+Specifies the type of endpoint that is used in your model deployment.
 There are https://learn.microsoft.com/en-us/azure/ai-studio/concepts/deployments-overview#billing-for-deploying-and-inferencing-llms-in-azure-ai-studio[two endpoint types available] for deployment through Azure AI Studio.
 "Pay as you go" endpoints are billed per token.
-For these you will need to specify `token` for your `endpoint_type`.
+For these, you must specify `token` for your `endpoint_type`.
 For "real-time" endpoints which are billed per hour of usage, specify `realtime`.
 
 `rate_limit`:::
-(Optional, object) By default, the `azureaistudio` service sets a number of requests per minute rate limit at `240` requests per minute.
+(Optional, object)
+By default, the `azureaistudio` service sets a number of requests at `240` requests per minute.
 This helps to minimize the number of rate limit errors returned from Azure AI Studio.
-If you wish to modify this, set the `requests_per_minute` setting of this object in your service settings:
+To modify this, set the `requests_per_minute` setting of this object in your service settings:
 ```
 "rate_limit": {
     "requests_per_minute": <<number_of_requests>>

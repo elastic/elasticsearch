@@ -44,6 +44,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexModule;
@@ -1207,24 +1208,27 @@ public class SearchableSnapshotsIntegTests extends BaseSearchableSnapshotsIntegT
             );
 
             client().execute(MountSearchableSnapshotAction.INSTANCE, mountRequest, ActionListener.noop());
-            assertBusy(() -> {
-                // only asks for tasks on the master node
-                var response = listTasks(internalCluster().getMasterName());
-                TaskInfo restoreSnapshotTask = response.getTasks()
-                    .stream()
-                    .filter(t -> t.action().equals(TransportRestoreSnapshotAction.TYPE.name()))
-                    .findAny()
-                    .orElseThrow(() -> new AssertionError("No restore snapshot task found"));
-                TaskInfo mountSnapshotTask = response.getTasks()
-                    .stream()
-                    .filter(t -> t.action().equals(MountSearchableSnapshotAction.NAME))
-                    .findAny()
-                    .orElseThrow(() -> new AssertionError("No mount snapshot task found"));
-                assertEquals(mountSnapshotTask.taskId(), restoreSnapshotTask.parentTaskId());
+            TaskInfo[] restoreSnapshotTask = new TaskInfo[1];
+            waitUntil(() -> {
+                restoreSnapshotTask[0] = getTaskForActionFromMaster(TransportRestoreSnapshotAction.TYPE.name());
+                return restoreSnapshotTask[0] != null;
             });
+            TaskInfo mountSnapshotTask = getTaskForActionFromMaster(MountSearchableSnapshotAction.NAME);
+            assertNotNull("No mount task found", mountSnapshotTask);
+            assertEquals(mountSnapshotTask.taskId(), restoreSnapshotTask[0].parentTaskId());
         } finally {
             safeAwait(cyclicBarrier);
         }
+    }
+
+    @Nullable
+    private TaskInfo getTaskForActionFromMaster(String action) {
+        var ltr = new ListTasksRequest().setDetailed(true).setNodes(internalCluster().getMasterName()).setActions(action);
+        ListTasksResponse response = client().execute(TransportListTasksAction.TYPE, ltr).actionGet();
+        if (response.getTasks().isEmpty()) {
+            return null;
+        }
+        return response.getTasks().get(0);
     }
 
     private ListTasksResponse listTasks(String... nodes) {

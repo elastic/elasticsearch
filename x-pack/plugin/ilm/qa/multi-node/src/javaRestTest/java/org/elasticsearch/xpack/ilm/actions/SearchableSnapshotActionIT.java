@@ -851,13 +851,12 @@ public class SearchableSnapshotActionIT extends ESRestTestCase {
             )
         );
 
+        // rollover the data stream so searchable_snapshot can complete
         indexDocument(client(), dataStream, true);
-        String firstGenIndex = DataStream.getDefaultBackingIndexName(dataStream, 1L);
+        var backingIndices = getBackingIndices(client(), dataStream);
+        String firstGenIndex = backingIndices.get(0);
         Map<String, Object> indexSettings = getIndexSettingsAsMap(firstGenIndex);
         assertThat(indexSettings.get(DataTier.TIER_PREFERENCE), is("data_hot"));
-
-        // rollover the data stream so searchable_snapshot can complete
-        rolloverMaxOneDocCondition(client(), dataStream);
 
         final String restoredIndex = SearchableSnapshotAction.FULL_RESTORED_INDEX_PREFIX + firstGenIndex;
         assertBusy(() -> {

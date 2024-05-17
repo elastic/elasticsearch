@@ -40,9 +40,8 @@ import java.util.Set;
 // TODO implement better diffable logic so that whole diff does not need to be serialized if only one part changes
 /**
  * Trained model assignment object that contains assignment options and the assignment routing table
- * Should be treated as final; not-final for testing
  */
-public class TrainedModelAssignment implements SimpleDiffable<TrainedModelAssignment>, ToXContentObject {
+public final class TrainedModelAssignment implements SimpleDiffable<TrainedModelAssignment>, ToXContentObject {
 
     private static final ParseField REASON = new ParseField("reason");
     private static final ParseField ASSIGNMENT_STATE = new ParseField("assignment_state");

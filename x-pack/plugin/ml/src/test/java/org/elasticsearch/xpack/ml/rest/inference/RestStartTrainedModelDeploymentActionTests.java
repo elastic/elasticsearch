@@ -14,34 +14,44 @@ import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.test.rest.RestActionTestCase;
 import org.elasticsearch.xpack.core.ml.action.CreateTrainedModelAssignmentAction;
 import org.elasticsearch.xpack.core.ml.action.StartTrainedModelDeploymentAction;
-import org.elasticsearch.xpack.core.ml.inference.assignment.TrainedModelAssignment;
-import org.junit.Before;
+import org.elasticsearch.xpack.core.ml.inference.assignment.TrainedModelAssignmentTests;
 
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
-import static org.mockito.Mockito.mock;
 
 public class RestStartTrainedModelDeploymentActionTests extends RestActionTestCase {
 
-    boolean disableInferenceProcessCache = randomBoolean();
-
-    @Before
-    public void setUpAction() {
+    public void testCacheDisabled() {
+        final boolean disableInferenceProcessCache = true;
         controller().registerHandler(new RestStartTrainedModelDeploymentAction(disableInferenceProcessCache));
-    }
-
-    public void testUsesDefaultTimeout() {
         SetOnce<Boolean> executeCalled = new SetOnce<>();
         verifyingClient.setExecuteVerifier(((actionType, actionRequest) -> {
             assertThat(actionRequest, instanceOf(StartTrainedModelDeploymentAction.Request.class));
 
             var request = (StartTrainedModelDeploymentAction.Request) actionRequest;
-            if (disableInferenceProcessCache) {
-                assertThat(request.getCacheSize(), is(ByteSizeValue.ZERO));
-            } else {
-                assertNull(request.getCacheSize());
-            }
+            assertThat(request.getCacheSize(), is(ByteSizeValue.ZERO));
+
+            executeCalled.set(true);
+            return createResponse();
+        }));
+
+        RestRequest inferenceRequest = new FakeRestRequest.Builder(xContentRegistry()).withMethod(RestRequest.Method.POST)
+            .withPath("_ml/trained_models/test_id/deployment/_start")
+            .build();
+        dispatchRequest(inferenceRequest);
+        assertThat(executeCalled.get(), equalTo(true));
+    }
+
+    public void testCacheEnabled() {
+        final boolean disableInferenceProcessCache = false;
+        controller().registerHandler(new RestStartTrainedModelDeploymentAction(disableInferenceProcessCache));
+        SetOnce<Boolean> executeCalled = new SetOnce<>();
+        verifyingClient.setExecuteVerifier(((actionType, actionRequest) -> {
+            assertThat(actionRequest, instanceOf(StartTrainedModelDeploymentAction.Request.class));
+
+            var request = (StartTrainedModelDeploymentAction.Request) actionRequest;
+            assertNull(request.getCacheSize());
 
             executeCalled.set(true);
             return createResponse();
@@ -55,6 +65,6 @@ public class RestStartTrainedModelDeploymentActionTests extends RestActionTestCa
     }
 
     private static CreateTrainedModelAssignmentAction.Response createResponse() {
-        return new CreateTrainedModelAssignmentAction.Response(mock(TrainedModelAssignment.class));
+        return new CreateTrainedModelAssignmentAction.Response(TrainedModelAssignmentTests.randomInstance());
     }
 }

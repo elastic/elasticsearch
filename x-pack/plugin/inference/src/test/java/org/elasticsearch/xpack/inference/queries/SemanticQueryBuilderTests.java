@@ -23,12 +23,15 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressedXContent;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SourceToParse;
+import org.elasticsearch.index.query.MatchNoneQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.search.ESToParentBlockJoinQuery;
 import org.elasticsearch.inference.InputType;
@@ -42,6 +45,7 @@ import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.core.inference.results.SparseEmbeddingResults;
+import org.elasticsearch.xpack.core.ml.inference.MlInferenceNamedXContentProvider;
 import org.elasticsearch.xpack.core.ml.inference.results.TextEmbeddingResults;
 import org.elasticsearch.xpack.core.ml.inference.results.TextExpansionResults;
 import org.elasticsearch.xpack.inference.InferencePlugin;
@@ -98,7 +102,7 @@ public class SemanticQueryBuilderTests extends AbstractQueryTestCase<SemanticQue
 
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
-        return List.of(InferencePlugin.class);
+        return List.of(InferencePlugin.class, FakeMlPlugin.class);
     }
 
     @Override
@@ -292,6 +296,20 @@ public class SemanticQueryBuilderTests extends AbstractQueryTestCase<SemanticQue
             }""", queryBuilder);
     }
 
+    public void testSerializingQueryWhenNoInferenceId() throws IOException {
+        // Test serializing the query after rewriting on the coordinator node when no inference ID could be resolved for the field
+        SemanticQueryBuilder builder = new SemanticQueryBuilder(SEMANTIC_TEXT_FIELD + "_missing", "query text");
+
+        QueryRewriteContext queryRewriteContext = createQueryRewriteContext();
+        queryRewriteContext.setAllowUnmappedFields(true);
+
+        SearchExecutionContext searchExecutionContext = createSearchExecutionContext();
+        searchExecutionContext.setAllowUnmappedFields(true);
+
+        QueryBuilder rewritten = rewriteQuery(builder, queryRewriteContext, searchExecutionContext);
+        assertThat(rewritten, instanceOf(MatchNoneQueryBuilder.class));
+    }
+
     private static SourceToParse buildSemanticTextFieldWithInferenceResults(InferenceResultType inferenceResultType) throws IOException {
         SemanticTextField.ModelSettings modelSettings = switch (inferenceResultType) {
             case NONE -> null;
@@ -320,5 +338,12 @@ public class SemanticQueryBuilderTests extends AbstractQueryTestCase<SemanticQue
         }
 
         return sourceToParse;
+    }
+
+    public static class FakeMlPlugin extends Plugin {
+        @Override
+        public List<NamedWriteableRegistry.Entry> getNamedWriteables() {
+            return new MlInferenceNamedXContentProvider().getNamedWriteables();
+        }
     }
 }

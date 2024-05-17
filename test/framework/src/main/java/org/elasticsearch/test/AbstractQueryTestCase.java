@@ -570,6 +570,8 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
         // The first rewriteAndFetch call simulates rewriting on the coordinator node
         // The second rewriteAndFetch call simulates rewriting on the shard
         QueryBuilder rewritten = rewriteAndFetch(queryBuilder, coordinatorRewriteContext);
+        // extra safety to fail fast - serialize the rewritten version to ensure it's serializable.
+        assertSerialization(rewritten);
         rewritten = rewriteAndFetch(rewritten, shardRewriteContext);
         // extra safety to fail fast - serialize the rewritten version to ensure it's serializable.
         assertSerialization(rewritten);

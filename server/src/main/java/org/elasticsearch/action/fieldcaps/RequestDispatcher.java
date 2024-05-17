@@ -113,16 +113,17 @@ final class RequestDispatcher {
             @Override
             public void onFailure(Exception e) {
                 // If we get rejected, mark pending indices as failed and complete
-                try {
-                    final List<String> failedIndices = new ArrayList<>(indexSelectors.keySet());
-                    for (String failedIndex : failedIndices) {
-                        final IndexSelector removed = indexSelectors.remove(failedIndex);
-                        assert removed != null;
+                final List<String> failedIndices = new ArrayList<>(indexSelectors.keySet());
+                for (String failedIndex : failedIndices) {
+                    final IndexSelector removed = indexSelectors.remove(failedIndex);
+                    assert removed != null;
+                    try {
                         onIndexFailure.accept(failedIndex, e);
+                    } catch (Exception inner) {
+                        LOGGER.info("failed to handle index failure ", inner);
                     }
-                } finally {
-                    onComplete.run();
                 }
+                onComplete.run();
             }
 
             @Override

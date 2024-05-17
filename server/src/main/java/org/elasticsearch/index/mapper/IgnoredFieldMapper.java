@@ -64,6 +64,11 @@ public final class IgnoredFieldMapper extends MetadataFieldMapper {
         }
 
         @Override
+        public BlockLoader blockLoader(BlockLoaderContext blContext) {
+            return new BlockStoredFieldsReader.BytesFromStringsBlockLoader(NAME);
+        }
+
+        @Override
         public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
             return new StoredValueFetcher(context.lookup(), NAME);
         }

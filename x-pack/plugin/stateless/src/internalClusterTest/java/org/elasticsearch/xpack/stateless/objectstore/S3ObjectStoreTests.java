@@ -308,7 +308,7 @@ public class S3ObjectStoreTests extends AbstractMockObjectStoreIntegTestCase {
 
                             @Override
                             public void sendResponse(Exception exception) {
-                                fail("new uploaded commit notification should not fail");
+                                fail(exception, "new uploaded commit notification should not fail");
                             }
                         }, task);
                     } else {

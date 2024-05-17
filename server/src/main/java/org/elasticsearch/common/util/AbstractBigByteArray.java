@@ -55,7 +55,7 @@ abstract class AbstractBigByteArray extends AbstractBigArray {
         this.size = newSize;
     }
 
-    protected final byte[] newBytePage(int page) {
+    private byte[] newBytePage(int page) {
         if (recycler != null) {
             final Recycler.V<byte[]> v = recycler.bytePage(clearOnResize);
             return registerNewPage(v, page, PageCacheRecycler.BYTE_PAGE_SIZE);

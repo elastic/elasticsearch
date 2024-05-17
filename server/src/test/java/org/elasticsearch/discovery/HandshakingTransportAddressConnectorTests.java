@@ -153,22 +153,22 @@ public class HandshakingTransportAddressConnectorTests extends ESTestCase {
 
         FailureListener failureListener = new FailureListener();
 
-        MockLogAppender mockAppender = new MockLogAppender();
-        mockAppender.addExpectation(
-            new MockLogAppender.SeenEventExpectation(
-                "message",
-                HandshakingTransportAddressConnector.class.getCanonicalName(),
-                Level.WARN,
-                "completed handshake with ["
-                    + remoteNode.descriptionWithoutAttributes()
-                    + "] at ["
-                    + discoveryAddress
-                    + "] but followup connection to ["
-                    + remoteNodeAddress
-                    + "] failed"
-            )
-        );
-        try (var ignored = mockAppender.capturing(HandshakingTransportAddressConnector.class)) {
+        try (var mockAppender = MockLogAppender.capture(HandshakingTransportAddressConnector.class)) {
+            mockAppender.addExpectation(
+                new MockLogAppender.SeenEventExpectation(
+                    "message",
+                    HandshakingTransportAddressConnector.class.getCanonicalName(),
+                    Level.WARN,
+                    "completed handshake with ["
+                        + remoteNode.descriptionWithoutAttributes()
+                        + "] at ["
+                        + discoveryAddress
+                        + "] but followup connection to ["
+                        + remoteNodeAddress
+                        + "] failed"
+                )
+            );
+
             handshakingTransportAddressConnector.connectToRemoteMasterNode(discoveryAddress, failureListener);
             assertThat(failureListener.getFailureMessage(), containsString("simulated"));
             mockAppender.assertAllExpectationsMatched();

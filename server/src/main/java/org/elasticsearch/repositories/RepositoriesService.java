@@ -161,10 +161,10 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
         SubscribableListener
 
             // Trying to create the new repository on master to make sure it works
-            .<Void>newForked(validationStep -> {
+            .<Void>newForked(validationStep -> ActionListener.completeWith(validationStep, () -> {
                 validateRepositoryCanBeCreated(request);
-                validationStep.onResponse(null);
-            })
+                return null;
+            }))
 
             // When publication has completed (and all acks received or timed out) then verify the repository.
             // (if acks timed out then acknowledgementStep completes before the master processes this cluster state, hence why we have
@@ -201,11 +201,13 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
                         }
                     }
                 );
-                publicationStep.addListener(clusterUpdateStep.delegateFailureAndWrap((ignored1, changed) -> {
-                    acknowledgementStep.addListener(clusterUpdateStep.delegateFailureAndWrap((ignored2, ack) -> {
-                        clusterUpdateStep.onResponse(new RegisterRepositoryTaskResult(ack, changed));
-                    }));
-                }));
+                publicationStep.addListener(
+                    clusterUpdateStep.delegateFailureAndWrap(
+                        (stateChangeListener, changed) -> acknowledgementStep.addListener(
+                            stateChangeListener.map(acknowledgedResponse -> new RegisterRepositoryTaskResult(acknowledgedResponse, changed))
+                        )
+                    )
+                );
             })
             .<AcknowledgedResponse>andThen((verificationStep, taskResult) -> {
                 if (request.verify() == false) {
@@ -221,8 +223,8 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
                             }
                         })
                         // When verification has completed, get the repository data for the first time
-                        .<RepositoryData>andThen((getRepositoryDataStep, ignored) -> {
-                            threadPool.generic()
+                        .<RepositoryData>andThen(
+                            (getRepositoryDataStep, ignored) -> threadPool.generic()
                                 .execute(
                                     ActionRunnable.wrap(
                                         getRepositoryDataStep,
@@ -232,12 +234,17 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
                                             ll
                                         )
                                     )
-                                );
-                        })
+                                )
+                        )
                         // When the repository metadata is ready, update the repository UUID stored in the cluster state, if available
-                        .<Void>andThen((updateRepoUuidStep, repositoryData) -> {
-                            updateRepositoryUuidInMetadata(clusterService, request.name(), repositoryData, updateRepoUuidStep);
-                        })
+                        .<Void>andThen(
+                            (updateRepoUuidStep, repositoryData) -> updateRepositoryUuidInMetadata(
+                                clusterService,
+                                request.name(),
+                                repositoryData,
+                                updateRepoUuidStep
+                            )
+                        )
                         .andThenApply(uuidUpdated -> taskResult.ackResponse)
                         .addListener(verificationStep);
                 }

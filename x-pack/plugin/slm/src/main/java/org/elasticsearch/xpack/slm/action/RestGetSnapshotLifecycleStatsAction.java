@@ -19,6 +19,7 @@ import org.elasticsearch.xpack.core.slm.action.GetSnapshotLifecycleStatsAction;
 import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
+import static org.elasticsearch.rest.RestUtils.getAckTimeout;
 import static org.elasticsearch.rest.RestUtils.getMasterNodeTimeout;
 
 @ServerlessScope(Scope.INTERNAL)
@@ -37,7 +38,7 @@ public class RestGetSnapshotLifecycleStatsAction extends BaseRestHandler {
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) {
         AcknowledgedRequest.Plain req = new AcknowledgedRequest.Plain();
-        req.ackTimeout(request.paramAsTime("timeout", req.ackTimeout()));
+        req.ackTimeout(getAckTimeout(request));
         req.masterNodeTimeout(getMasterNodeTimeout(request));
 
         return channel -> client.execute(GetSnapshotLifecycleStatsAction.INSTANCE, req, new RestToXContentListener<>(channel));

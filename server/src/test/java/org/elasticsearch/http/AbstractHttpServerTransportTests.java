@@ -28,7 +28,6 @@ import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.MockPageCacheRecycler;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.plugins.ActionPlugin;
@@ -582,8 +581,7 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
                     .put(HttpTransportSettings.SETTING_HTTP_TRACE_LOG_EXCLUDE.getKey(), excludeSettings)
                     .build()
             );
-            MockLogAppender appender = new MockLogAppender();
-            try (var ignored = appender.capturing(HttpTracer.class)) {
+            try (var appender = MockLogAppender.capture(HttpTracer.class)) {
 
                 final String opaqueId = UUIDs.randomBase64UUID(random());
                 appender.addExpectation(
@@ -665,24 +663,15 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
     }
 
     public void testLogsSlowInboundProcessing() throws Exception {
-        final MockLogAppender mockAppender = new MockLogAppender();
         final String opaqueId = UUIDs.randomBase64UUID(random());
         final String path = "/internal/test";
         final RestRequest.Method method = randomFrom(RestRequest.Method.values());
-        mockAppender.addExpectation(
-            new MockLogAppender.SeenEventExpectation(
-                "expected message",
-                AbstractHttpServerTransport.class.getCanonicalName(),
-                Level.WARN,
-                "handling request [" + opaqueId + "][" + method + "][" + path + "]"
-            )
-        );
         final ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
         final Settings settings = Settings.builder()
             .put(TransportSettings.SLOW_OPERATION_THRESHOLD_SETTING.getKey(), TimeValue.timeValueMillis(5))
             .build();
         try (
-            var ignored = mockAppender.capturing(AbstractHttpServerTransport.class);
+            var mockAppender = MockLogAppender.capture(AbstractHttpServerTransport.class);
             AbstractHttpServerTransport transport = new AbstractHttpServerTransport(
                 settings,
                 networkService,
@@ -729,6 +718,14 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
                 }
             }
         ) {
+            mockAppender.addExpectation(
+                new MockLogAppender.SeenEventExpectation(
+                    "expected message",
+                    AbstractHttpServerTransport.class.getCanonicalName(),
+                    Level.WARN,
+                    "handling request [" + opaqueId + "][" + method + "][" + path + "]"
+                )
+            );
 
             final FakeRestRequest fakeRestRequest = new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY).withMethod(method)
                 .withPath(path)
@@ -1354,14 +1351,12 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
     private static class LogExpectation implements AutoCloseable {
         private final Logger mockLogger;
         private final MockLogAppender appender;
-        private final Releasable appenderRelease;
         private final int grace;
 
         private LogExpectation(int grace) {
             mockLogger = LogManager.getLogger(AbstractHttpServerTransport.class);
             Loggers.setLevel(mockLogger, Level.DEBUG);
-            appender = new MockLogAppender();
-            appenderRelease = appender.capturing(AbstractHttpServerTransport.class);
+            appender = MockLogAppender.capture(AbstractHttpServerTransport.class);
             this.grace = grace;
         }
 
@@ -1422,7 +1417,7 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
 
         @Override
         public void close() {
-            appenderRelease.close();
+            appender.close();
         }
     }
 

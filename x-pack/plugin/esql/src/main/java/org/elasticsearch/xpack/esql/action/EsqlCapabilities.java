@@ -28,6 +28,11 @@ public class EsqlCapabilities {
     private static final String FN_CBRT = "fn_cbrt";
 
     /**
+     * Optimization for ST_CENTROID changed some results in cartesian data. #108713
+     */
+    private static final String ST_CENTROID_AGG_OPTIMIZED = "st_centroid_agg_optimized";
+
+    /**
      * Support for {@code LOOKUP} command.
      */
     public static final String LOOKUP_COMMAND = "lookup_command";
@@ -37,6 +42,7 @@ public class EsqlCapabilities {
     private static Set<String> capabilities() {
         List<String> caps = new ArrayList<>();
         caps.add(FN_CBRT);
+        caps.add(ST_CENTROID_AGG_OPTIMIZED);
         if (Build.current().isSnapshot()) {
             caps.add(LOOKUP_COMMAND);
         }

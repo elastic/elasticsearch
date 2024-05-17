@@ -10,6 +10,7 @@ package org.elasticsearch.bootstrap;
 
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.test.ESTestCase;
+import org.junit.BeforeClass;
 
 import java.io.FilePermission;
 import java.net.SocketPermission;
@@ -36,7 +37,13 @@ import static org.elasticsearch.bootstrap.ESPolicy.POLICY_RESOURCE;
 public class ESPolicyUnitTests extends ESTestCase {
 
     static final Map<String, URL> TEST_CODEBASES = BootstrapForTesting.getCodebases();
-    static final Policy DEFAULT_POLICY = PolicyUtil.readPolicy(ESPolicy.class.getResource(POLICY_RESOURCE), TEST_CODEBASES);
+    static Policy DEFAULT_POLICY;
+
+    @BeforeClass
+    public static void setupPolicy() {
+        assumeTrue("test cannot run with security manager", System.getSecurityManager() == null);
+        DEFAULT_POLICY = PolicyUtil.readPolicy(ESPolicy.class.getResource(POLICY_RESOURCE), TEST_CODEBASES);
+    }
 
     /**
      * Test policy with null codesource.
@@ -47,7 +54,6 @@ public class ESPolicyUnitTests extends ESTestCase {
      */
     @SuppressForbidden(reason = "to create FilePermission object")
     public void testNullCodeSource() throws Exception {
-        assumeTrue("test cannot run with security manager", System.getSecurityManager() == null);
         // create a policy with AllPermission
         Permission all = new AllPermission();
         PermissionCollection allCollection = all.newPermissionCollection();
@@ -63,7 +69,6 @@ public class ESPolicyUnitTests extends ESTestCase {
      */
     @SuppressForbidden(reason = "to create FilePermission object")
     public void testNullLocation() throws Exception {
-        assumeTrue("test cannot run with security manager", System.getSecurityManager() == null);
         PermissionCollection noPermissions = new Permissions();
         ESPolicy policy = new ESPolicy(DEFAULT_POLICY, noPermissions, Map.of(), true, List.of(), Map.of());
         assertFalse(
@@ -75,7 +80,6 @@ public class ESPolicyUnitTests extends ESTestCase {
     }
 
     public void testListen() {
-        assumeTrue("test cannot run with security manager", System.getSecurityManager() == null);
         final PermissionCollection noPermissions = new Permissions();
         final ESPolicy policy = new ESPolicy(DEFAULT_POLICY, noPermissions, Map.of(), true, List.of(), Map.of());
         assertFalse(
@@ -88,7 +92,6 @@ public class ESPolicyUnitTests extends ESTestCase {
 
     @SuppressForbidden(reason = "to create FilePermission object")
     public void testDataPathPermissionIsChecked() {
-        assumeTrue("test cannot run with security manager", System.getSecurityManager() == null);
         final ESPolicy policy = new ESPolicy(
             DEFAULT_POLICY,
             new Permissions(),
@@ -107,8 +110,6 @@ public class ESPolicyUnitTests extends ESTestCase {
 
     @SuppressForbidden(reason = "to create FilePermission object")
     public void testSecuredAccess() {
-        assumeTrue("test cannot run with security manager", System.getSecurityManager() == null);
-
         String file1 = "/home/elasticsearch/config/pluginFile1.yml";
         URL codebase1 = randomFrom(TEST_CODEBASES.values());
         String file2 = "/home/elasticsearch/config/pluginFile2.yml";

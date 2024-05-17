@@ -169,7 +169,8 @@ entry to the list of capabilities in `EsqlCapabilities` for your change.
 Then you can skip it by adding a `required_capability` to your test like so:
 ```csv-spec
 mvSlice
-required_capability: mv_sort, mv_slice
+required_capability: mv_sort
+required_capability: mv_slice
 
 row a = [true, false, false, true]
 | eval a1 = mv_slice(a, 1), a2 = mv_slice(a, 2, 3);

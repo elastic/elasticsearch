@@ -65,7 +65,8 @@ min:integer |_v:long
 ;
 
 metaIgnoredSimpleKeep
-required_capability: metadata_fields, metadata_field_ignored
+required_capability: metadata_fields
+required_capability: metadata_field_ignored
 from employees metadata _ignored | sort emp_no | limit 2 | keep emp_no, _ignored;
 
 emp_no:integer |_ignored:keyword
@@ -74,7 +75,8 @@ emp_no:integer |_ignored:keyword
 ;
 
 metaIgnoredAliasWithSameName
-required_capability: metadata_fields, metadata_field_ignored
+required_capability: metadata_fields
+required_capability: metadata_field_ignored
 from employees metadata _ignored
 | sort emp_no
 | limit 2
@@ -87,7 +89,8 @@ emp_no:integer |_ignored:keyword
 ;
 
 metaIgnoredInComparison
-required_capability: metadata_fields, metadata_field_ignored
+required_capability: metadata_fields
+required_capability: metadata_field_ignored
 from employees metadata _ignored
 | sort emp_no
 | where _ignored is null
@@ -100,7 +103,8 @@ emp_no:integer
 ;
 
 metaIgnoredInGroup
-required_capability: metadata_fields, metadata_field_ignored
+required_capability: metadata_fields
+required_capability: metadata_field_ignored
 from employees metadata _ignored | stats min = min(emp_no) by _ignored;
 
 min:integer |_ignored:keyword
@@ -108,7 +112,8 @@ min:integer |_ignored:keyword
 ;
 
 metaIgnoredAliasedInGroup
-required_capability: metadata_fields, metadata_field_ignored
+required_capability: metadata_fields
+required_capability: metadata_field_ignored
 from employees metadata _ignored | eval _i = _ignored | stats min = min(emp_no) by _i;
 
 min:integer |_i:keyword
@@ -116,7 +121,8 @@ min:integer |_i:keyword
 ;
 
 metaIgnoredInAggs
-required_capability: metadata_fields, metadata_field_ignored
+required_capability: metadata_fields
+required_capability: metadata_field_ignored
 from employees metadata _ignored | stats count = COUNT(_ignored);
 
 count:long

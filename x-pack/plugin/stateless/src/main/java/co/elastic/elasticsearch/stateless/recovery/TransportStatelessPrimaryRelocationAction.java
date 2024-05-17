@@ -51,6 +51,7 @@ import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardState;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.recovery.PeerRecoverySourceClusterStateDelay;
 import org.elasticsearch.indices.recovery.PeerRecoveryTargetService;
@@ -386,7 +387,9 @@ public class TransportStatelessPrimaryRelocationAction extends TransportAction<
         ReplicationTracker.CheckpointState sourceCheckpoints,
         boolean flushFirst
     ) {
-        if (Randomness.get().nextBoolean()) {
+        // cannot use persisted seqnos for validation when durability is async, since then the durability happens outside the
+        // operation permit.
+        if (indexShard.indexSettings().getTranslogDurability() == Translog.Durability.REQUEST && Randomness.get().nextBoolean()) {
             // don't acquire a commit every time, lest it disturb something else
             final var engine = indexShard.getEngineOrNull();
             if (engine == null) {

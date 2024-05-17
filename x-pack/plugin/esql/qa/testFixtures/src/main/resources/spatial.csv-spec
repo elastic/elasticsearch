@@ -841,10 +841,10 @@ FROM airports
 // end::st_within-airports[]
 ;
 
-// tag::st_within-airports-results[]
+// tag::st_within-airports-result[]
 abbrev:keyword  |  city:keyword    |  city_location:geo_point |  country:keyword  |  location:geo_point                         |  name:text                    |  scalerank:i  |  type:k
 HOD             |  Al Ḩudaydah     |  POINT(42.9511 14.8022)  |  Yemen            |  POINT(42.97109630194 14.7552534413725)     |  Hodeidah Int'l               |  9            |  mid
-// end::st_within-airports-results[]
+// end::st_within-airports-result[]
 ;
 
 airportCityLocationPointWithin
@@ -912,10 +912,10 @@ FROM airports
 // end::st_distance-airports[]
 ;
 
-// tag::st_distance-airports-results[]
+// tag::st_distance-airports-result[]
 abbrev:k | name:text   | location:geo_point                       | city_location:geo_point | distance:d
 CPH      | Copenhagen  | POINT(12.6493508684508 55.6285017221528) | POINT(12.5683 55.6761)  | 7339.57266575626
-// end::st_distance-airports-results[]
+// end::st_distance-airports-result[]
 ;
 
 airportsWithinPolygonDistanceFromCopenhagenTrainStation
@@ -1785,10 +1785,10 @@ FROM airports_web
 // end::st_distance-airports_web[]
 ;
 
-// tag::st_distance-airports_web-results[]
+// tag::st_distance-airports_web-result[]
 abbrev:k | name:text   | location:cartesian_point                   | distance:d
 CPH      | Copenhagen  | POINT(1408119.2975413958 7484813.53657096) | 7358.02077507206
-// end::st_distance-airports_web-results[]
+// end::st_distance-airports_web-result[]
 ;
 
 airportsWithinPolygonCartesianDistanceFromCopenhagenTrainStation

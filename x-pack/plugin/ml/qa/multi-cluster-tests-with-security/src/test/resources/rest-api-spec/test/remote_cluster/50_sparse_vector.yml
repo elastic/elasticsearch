@@ -9,7 +9,7 @@ setup:
       headers:
         Authorization: "Basic dGVzdF91c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" #test_user credentials
       indices.create:
-        index: my-index-with-sparse-vector
+        index: index-with-sparse-vector
         body:
           mappings:
             properties:
@@ -22,7 +22,7 @@ setup:
       headers:
         Authorization: "Basic dGVzdF91c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" #test_user credentials
       ml.put_trained_model:
-        model_id: "my-text_expansion_model"
+        model_id: "text_expansion_model"
         body: >
           {
             "description": "simple model for testing",
@@ -41,14 +41,14 @@ setup:
       headers:
         Authorization: "Basic dGVzdF91c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" #test_user credentials
       ml.put_trained_model_vocabulary:
-        model_id: "my-text_expansion_model"
+        model_id: "text_expansion_model"
         body: >
           { "vocabulary": ["[PAD]", "[UNK]", "these", "are", "my", "words", "the", "washing", "machine", "is", "leaking", "octopus", "comforter", "smells"] }
   - do:
       headers:
         Authorization: "Basic dGVzdF91c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" #test_user credentials
       ml.put_trained_model_definition_part:
-        model_id: "my-text_expansion_model"
+        model_id: "text_expansion_model"
         part: 0
         body: >
           {
@@ -61,7 +61,7 @@ setup:
         Authorization: "Basic dGVzdF91c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" #test_user credentials
         Content-Type: application/json
       bulk:
-        index: my-index-with-sparse-vector
+        index: index-with-sparse-vector
         refresh: true
         body: |
           {"index": {}}
@@ -82,19 +82,45 @@ setup:
         Authorization: "Basic dGVzdF91c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" #test_user credentials
         Content-Type: application/json
       ml.start_trained_model_deployment:
-        model_id: my-text_expansion_model
+        model_id: text_expansion_model
         wait_for: started
+
+---
+teardown:
+  - skip:
+      features: headers
+
+  - do:
+      headers:
+        Authorization: "Basic dGVzdF91c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk"
+      indices.delete:
+        index: index-with-sparse-vector
+        ignore: 404
+
+  - do:
+      headers:
+        Authorization: "Basic dGVzdF91c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk"
+      ml.stop_trained_model_deployment:
+        model_id: text_expansion_model
+        ignore: 404
+
+  - do:
+      headers:
+        Authorization: "Basic dGVzdF91c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk"
+      ml.delete_trained_model:
+        model_id: "text_expansion_model"
+        ignore: 404
 
 ---
 "Test sparse_vector search":
   - do:
       search:
-        index: my-index-with-sparse-vector
+        index: index-with-sparse-vector
         body:
           query:
             sparse_vector:
               field: ml.tokens
-              inference_id: my-text_expansion_model
+              inference_id: text_expansion_model
               text: "octopus comforter smells"
   - match: { hits.total.value: 4 }
   - match: { hits.hits.0._source.source_text: "the octopus comforter smells" }
@@ -103,12 +129,12 @@ setup:
 "Test sparse_vector search with pruning config":
   - do:
       search:
-        index: my-index-with-sparse-vector
+        index: index-with-sparse-vector
         body:
           query:
             sparse_vector:
               field: ml.tokens
-              inference_id: my-text_expansion_model
+              inference_id: text_expansion_model
               text: "octopus comforter smells"
               prune: true
               pruning_config:
@@ -121,7 +147,7 @@ setup:
 "Test sparse_vector search with query vector":
   - do:
       search:
-        index: my-index-with-sparse-vector
+        index: index-with-sparse-vector
         body:
           query:
             sparse_vector:
@@ -138,7 +164,7 @@ setup:
 "Test sparse_vector search with query vector and pruning config":
   - do:
       search:
-        index: my-index-with-sparse-vector
+        index: index-with-sparse-vector
         body:
           query:
             sparse_vector:

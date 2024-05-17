@@ -25,7 +25,7 @@ public class EsqlCapabilities {
      * Support for function {@code CBRT}. Done in #108574.
      */
     private static final String FN_CBRT = "fn_cbrt";
-    
+
     /**
      * Support for {@code MV_APPEND} funciton. #107001
      */

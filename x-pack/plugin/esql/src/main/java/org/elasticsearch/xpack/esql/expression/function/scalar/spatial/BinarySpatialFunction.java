@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.spatial;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.geometry.Geometry;
-import org.elasticsearch.index.mapper.ShapeIndexer;
 import org.elasticsearch.lucene.spatial.CoordinateEncoder;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
@@ -163,17 +162,11 @@ public abstract class BinarySpatialFunction extends BinaryScalarFunction impleme
     protected abstract static class BinarySpatialComparator<T> {
         protected final SpatialCoordinateTypes spatialCoordinateType;
         protected final CoordinateEncoder coordinateEncoder;
-        protected final ShapeIndexer shapeIndexer;
         protected final SpatialCrsType crsType;
 
-        protected BinarySpatialComparator(
-            SpatialCoordinateTypes spatialCoordinateType,
-            CoordinateEncoder encoder,
-            ShapeIndexer shapeIndexer
-        ) {
+        protected BinarySpatialComparator(SpatialCoordinateTypes spatialCoordinateType, CoordinateEncoder encoder) {
             this.spatialCoordinateType = spatialCoordinateType;
             this.coordinateEncoder = encoder;
-            this.shapeIndexer = shapeIndexer;
             this.crsType = spatialCoordinateType.equals(SpatialCoordinateTypes.GEO) ? SpatialCrsType.GEO : SpatialCrsType.CARTESIAN;
         }
 

@@ -128,6 +128,7 @@ public abstract class SpatialRelatesFunction extends BinarySpatialFunction
 
     protected static class SpatialRelations extends BinarySpatialComparator<Boolean> {
         protected final ShapeField.QueryRelation queryRelation;
+        protected final ShapeIndexer shapeIndexer;
 
         protected SpatialRelations(
             ShapeField.QueryRelation queryRelation,
@@ -135,8 +136,9 @@ public abstract class SpatialRelatesFunction extends BinarySpatialFunction
             CoordinateEncoder encoder,
             ShapeIndexer shapeIndexer
         ) {
-            super(spatialCoordinateType, encoder, shapeIndexer);
+            super(spatialCoordinateType, encoder);
             this.queryRelation = queryRelation;
+            this.shapeIndexer = shapeIndexer;
         }
 
         @Override

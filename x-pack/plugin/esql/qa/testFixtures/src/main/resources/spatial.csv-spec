@@ -146,7 +146,7 @@ c:long  | x:double  | y:double
 ;
 
 ###############################################
-# Tests for ST_CENTROID on GEO_POINT type
+# Tests for ST_CENTROID_AGG on GEO_POINT type
 
 centroidFromAirports
 required_capability: st_centroid_agg
@@ -871,6 +871,25 @@ POINT (0 0)         | POINT (0 0)              |  1
 ;
 
 ###############################################
+# Tests for ST_DISTANCE with GEO_POINT
+
+literalGeoPointDistanceLiteralPoint
+required_capability: st_distance
+
+ROW wkt = ["POINT(1 1)", "POINT(-1 -1)", "POINT(-1 1)", "POINT(1 -1)"]
+| MV_EXPAND wkt
+| EVAL pt = TO_GEOPOINT(wkt)
+| EVAL distance = ST_DISTANCE(pt, TO_GEOPOINT("POINT(0 0)"))
+;
+
+wkt:keyword    | pt:geo_point  | distance:double
+"POINT(1 1)"   | POINT(1 1)    | 157250.59599057745
+"POINT(-1 -1)" | POINT(-1 -1)  | 157250.59599057745
+"POINT(-1 1)"  | POINT(-1 1)   | 157250.59599057745
+"POINT(1 -1)"  | POINT(1 -1)   | 157250.59599057745
+;
+
+###############################################
 # Tests for Equality and casting with GEO_POINT
 
 geoPointEquals
@@ -1036,7 +1055,7 @@ ZAH            | POINT (6779435.866395892 3436280.545331025)   | Zahedan Int'l  
 ;
 
 ###############################################
-# Tests for ST_CENTROID on CARTESIAN_POINT type
+# Tests for ST_CENTROID_AGG on CARTESIAN_POINT type
 
 cartesianCentroidFromAirports
 required_capability: st_centroid_agg
@@ -1672,6 +1691,25 @@ FROM airports_web
 
 centroid:cartesian_point    | count:long
 POINT (4783520.5 1661010.0) | 1
+;
+
+###############################################
+# Tests for ST_DISTANCE with CARTESIAN_POINT
+
+literalCartesianPointDistanceLiteralPoint
+required_capability: st_distance
+
+ROW wkt = ["POINT(1 1)", "POINT(-1 -1)", "POINT(-1 1)", "POINT(1 -1)"]
+| MV_EXPAND wkt
+| EVAL pt = TO_CARTESIANPOINT(wkt)
+| EVAL distance = ST_DISTANCE(pt, TO_CARTESIANPOINT("POINT(0 0)"))
+;
+
+wkt:keyword    | pt:cartesian_point  | distance:double
+"POINT(1 1)"   | POINT(1 1)          | 1.4142135623730951
+"POINT(-1 -1)" | POINT(-1 -1)        | 1.4142135623730951
+"POINT(-1 1)"  | POINT(-1 1)         | 1.4142135623730951
+"POINT(1 -1)"  | POINT(1 -1)         | 1.4142135623730951
 ;
 
 ###############################################

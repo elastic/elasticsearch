@@ -87,6 +87,11 @@ public class EsqlCapabilities {
      */
     private static final String NAMED_POSITIONAL_PARAMETER = "named_positional_parameter";
 
+    /**
+     * Support for function {@code CBRT}. Done in #108574.
+     */
+    private static final String ST_DISTANCE = "st_distance";
+
     public static final Set<String> CAPABILITIES = capabilities();
 
     private static Set<String> capabilities() {
@@ -101,6 +106,7 @@ public class EsqlCapabilities {
         caps.add(REPEAT);
         caps.add(UNION_TYPES);
         caps.add(NAMED_POSITIONAL_PARAMETER);
+        caps.add(ST_DISTANCE);
 
         if (Build.current().isSnapshot()) {
             caps.add(LOOKUP_COMMAND);

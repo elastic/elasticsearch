@@ -8,15 +8,12 @@
 package org.elasticsearch.xpack.esql.expression.function.scalar.spatial;
 
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.geo.Orientation;
+import org.elasticsearch.common.geo.GeoUtils;
 import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.ann.Fixed;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.geometry.Point;
-import org.elasticsearch.index.mapper.GeoShapeIndexer;
-import org.elasticsearch.index.mapper.ShapeIndexer;
-import org.elasticsearch.lucene.spatial.CartesianShapeIndexer;
 import org.elasticsearch.lucene.spatial.CoordinateEncoder;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -47,22 +44,41 @@ import static org.elasticsearch.xpack.esql.expression.function.scalar.spatial.Sp
  */
 public class StDistance extends BinarySpatialFunction implements EvaluatorMapper, SpatialEvaluatorFactory.SpatialSourceSupplier {
     // public for test access with reflection
-    public static final DistanceCalculator GEO = new DistanceCalculator(
-        SpatialCoordinateTypes.GEO,
-        CoordinateEncoder.GEO,
-        new GeoShapeIndexer(Orientation.CCW, "ST_Distance")
-    );
+    public static final DistanceCalculator GEO = new GeoDistanceCalculator();
     // public for test access with reflection
-    public static final DistanceCalculator CARTESIAN = new DistanceCalculator(
-        SpatialCoordinateTypes.CARTESIAN,
-        CoordinateEncoder.CARTESIAN,
-        new CartesianShapeIndexer("ST_Distance")
-    );
+    public static final DistanceCalculator CARTESIAN = new CartesianDistanceCalculator();
 
-    protected static class DistanceCalculator extends BinarySpatialComparator<Double> {
+    protected static class GeoDistanceCalculator extends DistanceCalculator {
+        protected GeoDistanceCalculator() {
+            super(SpatialCoordinateTypes.GEO, CoordinateEncoder.GEO);
+        }
 
-        protected DistanceCalculator(SpatialCoordinateTypes spatialCoordinateType, CoordinateEncoder encoder, ShapeIndexer shapeIndexer) {
-            super(spatialCoordinateType, encoder, shapeIndexer);
+        @Override
+        protected double distance(Point left, Point right) {
+            return GeoUtils.planeDistance(left.getY(), left.getX(), right.getY(), right.getX());
+        }
+    }
+
+    protected static class CartesianDistanceCalculator extends DistanceCalculator {
+
+        protected CartesianDistanceCalculator() {
+            super(SpatialCoordinateTypes.CARTESIAN, CoordinateEncoder.CARTESIAN);
+        }
+
+        @Override
+        protected double distance(Point left, Point right) {
+            return Math.sqrt(Math.pow(left.getX() - right.getX(), 2) + Math.pow(left.getY() - right.getY(), 2));
+        }
+    }
+
+    /**
+     * This class is a CRS specific interface for generalizing distance calculations for the various possible ways
+     * that the geometries can be provided, from source, from evals, from literals and from doc values.
+     */
+    public abstract static class DistanceCalculator extends BinarySpatialComparator<Double> {
+
+        protected DistanceCalculator(SpatialCoordinateTypes spatialCoordinateType, CoordinateEncoder encoder) {
+            super(spatialCoordinateType, encoder);
         }
 
         @Override
@@ -70,10 +86,7 @@ public class StDistance extends BinarySpatialFunction implements EvaluatorMapper
             return distance(left, right);
         }
 
-        protected double distance(Point left, Point right) {
-            // TODO differentiate between GEO and CARTESIAN
-            return Math.sqrt(Math.pow(left.getX() - right.getX(), 2) + Math.pow(left.getY() - right.getY(), 2));
-        }
+        protected abstract double distance(Point left, Point right);
 
         protected double distance(long encoded, Geometry right) {
             Point point = spatialCoordinateType.longAsPoint(encoded);

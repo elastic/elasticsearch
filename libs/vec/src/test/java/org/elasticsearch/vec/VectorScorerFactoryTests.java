@@ -113,8 +113,8 @@ public class VectorScorerFactoryTests extends AbstractVectorTestCase {
             }
             try (IndexInput in = dir.openInput(fileName, IOContext.DEFAULT)) {
                 // dot product
-                float expected = 0f; // TODO fix in Lucene: https://github.com/apache/lucene/pull/13356 luceneScore(DOT_PRODUCT, vec1, vec2,
-                                     // 1, -5, -5);
+                float expected = 0f;
+                assertThat(luceneScore(DOT_PRODUCT, vec1, vec2, 1, -5, -5), equalTo(expected));
                 var scorer = factory.getInt7ScalarQuantizedVectorScorer(32, 2, 1, DOT_PRODUCT, in).get();
                 assertThat(scorer.score(0, 1), equalTo(expected));
                 assertThat(scorer.score(0, 1), greaterThanOrEqualTo(0f));
@@ -126,8 +126,8 @@ public class VectorScorerFactoryTests extends AbstractVectorTestCase {
                 assertThat(scorer.score(0, 1), equalTo(expected));
                 assertThat((new VectorScorerSupplierAdapter(scorer)).scorer(0).score(1), equalTo(expected));
                 // cosine
-                expected = 0f; // TODO fix in Lucene: https://github.com/apache/lucene/pull/13356 luceneScore(COSINE, vec1, vec2, 1, -5,
-                               // -5);
+                expected = 0f;
+                assertThat(luceneScore(COSINE, vec1, vec2, 1, -5, -5), equalTo(expected));
                 scorer = factory.getInt7ScalarQuantizedVectorScorer(32, 2, 1, COSINE, in).get();
                 assertThat(scorer.score(0, 1), equalTo(expected));
                 assertThat(scorer.score(0, 1), greaterThanOrEqualTo(0f));

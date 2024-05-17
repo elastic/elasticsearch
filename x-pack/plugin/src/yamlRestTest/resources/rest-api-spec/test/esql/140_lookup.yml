@@ -120,6 +120,38 @@ basic:
   - do:
       esql.query:
         body:
+          query: 'FROM test | LOOKUP color_associations ON color | SORT time | KEEP color, association | LIMIT 2'
+          columnar: true
+          version: 2024.04.01
+          tables:
+            color_associations:
+              "color:keyword": ["red", "green", "blue"]
+              "association:keyword":
+                - ["love", "passion", "blood", "happiness"]
+                - ["nature", "healing", "health", "youth"]
+                - ["serenity", "wisdom", "ocean", "sky"]
+
+  - match: {columns.0.name: "color"}
+  - match: {columns.0.type: "keyword"}
+  - match: {columns.1.name: "association"}
+  - match: {columns.1.type: "keyword"}
+  - match: {values.0: ["red", "blue"]}
+  - match: {values.1: [["love", "passion", "blood", "happiness"], ["serenity", "wisdom", "ocean", "sky"]]}
+
+---
+read multivalue keyword:
+  - requires:
+      test_runner_features: [capabilities]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: []
+          capabilities: [lookup_command]
+      reason: "uses LOOKUP"
+
+  - do:
+      esql.query:
+        body:
           query: 'FROM test | LOOKUP colors ON color | SORT time | KEEP color, rgb | LIMIT 2'
           columnar: true
           version: 2024.04.01

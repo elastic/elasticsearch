@@ -16,6 +16,16 @@ emp_no:integer | languages:integer | lang_name:keyword
          10004 |                 5 | five
 ;
 
+keywordByMvInt
+required_capability: lookup_command
+ROW int=[1, 2, 3]
+| LOOKUP int_number_names ON int
+;
+
+   name:keyword   | int:integer
+[one, two, three] | [1, 2, 3]
+;
+
 intByKeyword
 required_capability: lookup_command
 ROW name="two"

@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.ql;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
 import java.util.function.Function;
@@ -44,7 +45,9 @@ public final class CsvSpecReader {
                     assertThat("Early schema already declared " + earlySchema, earlySchema.length(), is(0));
                     earlySchema.append(line.substring(SCHEMA_PREFIX.length()).trim());
                 } else if (line.toLowerCase(Locale.ROOT).startsWith("required_capability:")) {
-                    requiredCapabilities.add(line.substring("required_capability:".length()).trim());
+                    Arrays.stream(line.substring("required_capability:".length()).split(","))
+                        .map(String::trim)
+                        .forEach(requiredCapabilities::add);
                 } else {
                     if (line.endsWith(";")) {
                         // pick up the query

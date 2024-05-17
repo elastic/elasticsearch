@@ -29,10 +29,10 @@ public class MetadataAttribute extends TypedAttribute {
         tuple(DataTypes.KEYWORD, true),
         IdFieldMapper.NAME,
         tuple(DataTypes.KEYWORD, false), // actually searchable, but fielddata access on the _id field is disallowed by default
-        SourceFieldMapper.NAME,
-        tuple(DataTypes.SOURCE, false),
         IgnoredFieldMapper.NAME,
-        tuple(DataTypes.KEYWORD, false)
+        tuple(DataTypes.KEYWORD, false),
+        SourceFieldMapper.NAME,
+        tuple(DataTypes.SOURCE, false)
     );
 
     private final boolean searchable;

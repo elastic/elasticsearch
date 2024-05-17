@@ -25,11 +25,15 @@ public class EsqlCapabilities {
      * Support for function {@code CBRT}. Done in #108574.
      */
     private static final String FN_CBRT = "fn_cbrt";
+    /**
+     * Support for requesting the "_ignored" metadata field.
+     */
+    private static final String METADATA_IGNORED_FIELD = "metadata_field_ignored";
 
     static final Set<String> CAPABILITIES = capabilities();
 
     private static Set<String> capabilities() {
-        List<String> caps = new ArrayList<>(List.of(FN_CBRT));
+        List<String> caps = new ArrayList<>(List.of(FN_CBRT, METADATA_IGNORED_FIELD));
 
         /*
          * Add all of our cluster features without the leading "esql."

@@ -9,7 +9,11 @@ emp_no:integer |_index:keyword |_version:long
 
 aliasWithSameName
 required_capability: metadata_fields
-from employees metadata _index, _version | sort emp_no | limit 2 | eval _index = _index, _version = _version | keep emp_no, _index, _version;
+from employees metadata _index, _version
+| sort emp_no
+| limit 2
+| eval _index = _index, _version = _version
+| keep emp_no, _index, _version;
 
 emp_no:integer |_index:keyword |_version:long
 10001          |employees      |1
@@ -18,7 +22,12 @@ emp_no:integer |_index:keyword |_version:long
 
 inComparison
 required_capability: metadata_fields
-from employees metadata _index, _version | sort emp_no | where _index == "employees" | where _version == 1 | keep emp_no | limit 2;
+from employees metadata _index, _version
+| sort emp_no
+| where _index == "employees"
+| where _version == 1
+| keep emp_no
+| limit 2;
 
 emp_no:integer
 10001
@@ -64,6 +73,66 @@ min:integer |_v:long
 10001       |1
 ;
 
+metaIgnoredSimpleKeep
+required_capability: metadata_fields, metadata_field_ignored
+from employees metadata _ignored | sort emp_no | limit 2 | keep emp_no, _ignored;
+
+emp_no:integer |_ignored:keyword
+10001          |null
+10002          |null
+;
+
+metaIgnoredAliasWithSameName
+required_capability: metadata_fields, metadata_field_ignored
+from employees metadata _ignored
+| sort emp_no
+| limit 2
+| eval _ignored = _ignored
+| keep emp_no, _ignored;
+
+emp_no:integer |_ignored:keyword
+10001          |null
+10002          |null
+;
+
+metaIgnoredInComparison
+required_capability: metadata_fields, metadata_field_ignored
+from employees metadata _ignored
+| sort emp_no
+| where _ignored is null
+| keep emp_no
+| limit 2;
+
+emp_no:integer
+10001
+10002
+;
+
+metaIgnoredInGroup
+required_capability: metadata_fields, metadata_field_ignored
+from employees metadata _ignored | stats min = min(emp_no) by _ignored;
+
+min:integer |_ignored:keyword
+10001       |null
+;
+
+metaIgnoredAliasedInGroup
+required_capability: metadata_fields, metadata_field_ignored
+from employees metadata _ignored | eval _i = _ignored | stats min = min(emp_no) by _i;
+
+min:integer |_i:keyword
+10001       |1
+;
+
+metaIgnoredInAggs
+required_capability: metadata_fields, metadata_field_ignored
+from employees metadata _ignored | stats count = COUNT(_ignored);
+
+count:integer
+1
+;
+
+// TODO: Test here
 inAggsAndAsGroups
 required_capability: metadata_fields
 from employees metadata _index, _version | stats max = max(_version) by _index;
@@ -72,6 +141,7 @@ max:long |_index:keyword
 1        |employees
 ;
 
+// TODO: Test here
 inAggsAndAsGroupsAliased
 required_capability: metadata_fields
 from employees metadata _index, _version | eval _i = _index, _v = _version | stats max = max(_v) by _i;
@@ -124,6 +194,7 @@ emp_no:integer |_index:integer |_version:keyword
 10003          |3              |version
 ;
 
+// TODO: Test here?
 multipleIndices
 required_capability: metadata_fields
 // tag::multipleIndices[]

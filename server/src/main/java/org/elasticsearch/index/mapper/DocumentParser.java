@@ -15,6 +15,7 @@ import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.fielddata.FieldDataContext;
@@ -595,9 +596,9 @@ public final class DocumentParser {
         // Check if we need to record the array source. This only applies to synthetic source.
         if (context.mappingLookup().isSourceSynthetic()
             && (mapper instanceof ObjectMapper objectMapper && objectMapper.storeArraySource())
-            && context.getSourceStored() == false) {
+            && context.getClonedSource() == false) {
             // Clone the DocumentParserContext to parse its subtree twice.
-            var tuple = XContentDataHelper.cloneSubContext(context);
+            Tuple<DocumentParserContext, XContentBuilder> tuple = XContentDataHelper.cloneSubContext(context);
             boolean isRoot = context.parent() instanceof RootObjectMapper;
             context.addIgnoredField(
                 new IgnoredSourceFieldMapper.NameValue(

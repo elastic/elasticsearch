@@ -120,8 +120,8 @@ public abstract class DocumentParserContext {
     private final Set<String> fieldsAppliedFromTemplates;
     private final Set<String> copyToFields;
 
-    // Indicates if the source for the current parsing position has been stored in IgnoredSourceFieldMapper.
-    private boolean sourceStored = false;
+    // Indicates if the source for this context has been cloned and gets parsed multiple times.
+    private boolean clonedSource = false;
 
     private DocumentParserContext(
         MappingLookup mappingLookup,
@@ -265,7 +265,7 @@ public abstract class DocumentParserContext {
      * Add the given ignored values to the corresponding list.
      */
     public final void addIgnoredField(IgnoredSourceFieldMapper.NameValue values) {
-        if (sourceStored == false) {
+        if (clonedSource == false) {
             // Skip tracking the source for this field twice, it's already tracked for the entire parsing subcontext.
             ignoredFieldValues.add(values);
         }
@@ -315,12 +315,12 @@ public abstract class DocumentParserContext {
         return this.seqID;
     }
 
-    final void setSourceStored() {
-        this.sourceStored = true;
+    final void setClonedSource() {
+        this.clonedSource = true;
     }
 
-    final boolean getSourceStored() {
-        return sourceStored;
+    final boolean getClonedSource() {
+        return clonedSource;
     }
 
     /**

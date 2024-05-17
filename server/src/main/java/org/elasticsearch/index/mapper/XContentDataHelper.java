@@ -100,7 +100,7 @@ final class XContentDataHelper {
      * The parser of the original context is also advanced to the end of the current structure (subtree) as a side effect.
      */
     static Tuple<DocumentParserContext, XContentParser> cloneSubContextWithParser(DocumentParserContext context) throws IOException {
-        var tuple = cloneSubContextParserConfiguration(context);
+        Tuple<XContentParserConfiguration, XContentBuilder> tuple = cloneSubContextParserConfiguration(context);
         XContentParser parser = XContentHelper.createParserNotCompressed(
             tuple.v1(),
             BytesReference.bytes(tuple.v2()),
@@ -131,7 +131,7 @@ final class XContentDataHelper {
         DocumentParserContext subcontext = context.switchParser(
             XContentHelper.createParserNotCompressed(configuration, BytesReference.bytes(builder), context.parser().contentType())
         );
-        subcontext.setSourceStored();  // Avoids double-storing parts of the source for the same parser subtree.
+        subcontext.setClonedSource();  // Avoids double-storing parts of the source for the same parser subtree.
         subcontext.parser().nextToken();
         return subcontext;
     }

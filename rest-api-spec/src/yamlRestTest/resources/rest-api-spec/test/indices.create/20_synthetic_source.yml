@@ -492,7 +492,7 @@ no object array:
 
 
 ---
-field ordering:
+field ordering in object array:
   - requires:
       cluster_features: ["mapper.track_ignored_source"]
       reason: requires tracking ignored source
@@ -538,3 +538,59 @@ field ordering:
 
   - length: { hits.hits.0._source: 4 }
   - match: { hits.hits.0._source: { "a": "2", "b": [ { "bb": 100, "aa": 200 }, { "aa": 300, "bb": 400 } ], "c": "1", "d": [ { "bb": 10, "aa": 20 }, { "aa": 30, "bb": 40 } ] } }
+
+
+---
+nested object array next to other fields:
+  - requires:
+      cluster_features: ["mapper.track_ignored_source"]
+      reason: requires tracking ignored source
+
+  - do:
+      indices.create:
+        index: test
+        body:
+          mappings:
+            _source:
+              mode: synthetic
+            properties:
+              a:
+                type: keyword
+              b:
+                properties:
+                  c:
+                    store_array_source: true
+                    properties:
+                      aa:
+                        type: keyword
+                      bb:
+                        type: keyword
+                  d:
+                    properties:
+                      aa:
+                        type: keyword
+                      bb:
+                        type: keyword
+                  e:
+                    type: keyword
+              f:
+                type: keyword
+
+  - do:
+      bulk:
+        index: test
+        refresh: true
+        body:
+          - '{ "create": { } }'
+          - '{ "a": 1, "b": { "c": [ { "bb": 10, "aa": 20 }, { "aa": 30, "bb": 40 } ], "d": [ { "bb": 100, "aa": 200 }, { "aa": 300, "bb": 400 } ], "e": 1000 }, "f": 2000 }'
+
+  - do:
+      search:
+        index: test
+
+  - match: { hits.hits.0._source.a: "1" }
+  - match: { hits.hits.0._source.b.c:  [{ "bb": 10, "aa": 20 }, { "aa": 30, "bb": 40 }] }
+  - match: { hits.hits.0._source.b.d.aa: [ "200", "300" ] }
+  - match: { hits.hits.0._source.b.d.bb: [ "100", "400" ] }
+  - match: { hits.hits.0._source.b.e: "1000" }
+  - match: { hits.hits.0._source.f: "2000" }

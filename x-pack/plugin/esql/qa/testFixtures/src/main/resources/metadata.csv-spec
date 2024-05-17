@@ -9,11 +9,7 @@ emp_no:integer |_index:keyword |_version:long
 
 aliasWithSameName
 required_capability: metadata_fields
-from employees metadata _index, _version
-| sort emp_no
-| limit 2
-| eval _index = _index, _version = _version
-| keep emp_no, _index, _version;
+from employees metadata _index, _version | sort emp_no | limit 2 | eval _index = _index, _version = _version | keep emp_no, _index, _version;
 
 emp_no:integer |_index:keyword |_version:long
 10001          |employees      |1
@@ -22,12 +18,7 @@ emp_no:integer |_index:keyword |_version:long
 
 inComparison
 required_capability: metadata_fields
-from employees metadata _index, _version
-| sort emp_no
-| where _index == "employees"
-| where _version == 1
-| keep emp_no
-| limit 2;
+from employees metadata _index, _version | sort emp_no | where _index == "employees" | where _version == 1 | keep emp_no | limit 2;
 
 emp_no:integer
 10001
@@ -132,7 +123,6 @@ count:long
 1
 ;
 
-// TODO: Test here
 inAggsAndAsGroups
 required_capability: metadata_fields
 from employees metadata _index, _version | stats max = max(_version) by _index;
@@ -141,7 +131,6 @@ max:long |_index:keyword
 1        |employees
 ;
 
-// TODO: Test here
 inAggsAndAsGroupsAliased
 required_capability: metadata_fields
 from employees metadata _index, _version | eval _i = _index, _v = _version | stats max = max(_v) by _i;
@@ -194,7 +183,6 @@ emp_no:integer |_index:integer |_version:keyword
 10003          |3              |version
 ;
 
-// TODO: Test here?
 multipleIndices
 required_capability: metadata_fields
 // tag::multipleIndices[]

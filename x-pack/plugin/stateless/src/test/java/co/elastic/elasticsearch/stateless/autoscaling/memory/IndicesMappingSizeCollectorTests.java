@@ -77,17 +77,11 @@ public class IndicesMappingSizeCollectorTests extends ESTestCase {
 
     private IndexMetadata indexMetadata;
 
-    private IndicesMappingSizePublisher publisher;
-
-    private IndicesMappingSizeCollector collector;
-
     @Before
     public void setup() {
 
         indicesService = mock(IndicesService.class);
         when(indicesService.iterator()).thenReturn(List.<IndexService>of().iterator());
-        publisher = mock(IndicesMappingSizePublisher.class);
-        collector = spy(new IndicesMappingSizeCollector(IS_INDEX_NODE, indicesService, publisher, testThreadPool, TEST_SETTINGS));
 
         indexService = mock(IndexService.class);
         indexMetadata = mock(IndexMetadata.class);
@@ -116,6 +110,9 @@ public class IndicesMappingSizeCollectorTests extends ESTestCase {
         final long testIndexMappingSizeInBytes = 1024;
         when(indexService.getNodeMappingStats()).thenReturn(new NodeMappingStats(1, testIndexMappingSizeInBytes));
 
+        var publisher = mock(IndicesMappingSizePublisher.class);
+        var collector = spy(new IndicesMappingSizeCollector(IS_INDEX_NODE, indicesService, publisher, testThreadPool, TEST_SETTINGS));
+
         // simulate event
         collector.afterIndexShardStarted(indexShard);
 
@@ -134,7 +131,7 @@ public class IndicesMappingSizeCollectorTests extends ESTestCase {
     public void testIndexMappingRequestAreRetried() {
         CountDownLatch published = new CountDownLatch(1);
         AtomicInteger attempts = new AtomicInteger(randomIntBetween(2, 5));
-        publisher = new IndicesMappingSizePublisher(new NoOpNodeClient(testThreadPool)) {
+        var publisher = new IndicesMappingSizePublisher(new NoOpNodeClient(testThreadPool)) {
             @Override
             public void publishIndicesMappingSize(HeapMemoryUsage heapMemoryUsage, ActionListener<ActionResponse.Empty> listener) {
                 if (attempts.decrementAndGet() == 0) {
@@ -150,14 +147,19 @@ public class IndicesMappingSizeCollectorTests extends ESTestCase {
                 }
             }
         };
-        collector = new IndicesMappingSizeCollector(IS_INDEX_NODE, indicesService, publisher, testThreadPool, TEST_SETTINGS);
+        // Use a higher CUT_OFF_TIMEOUT since this serves as the retry timeout
+        var setting = Settings.builder()
+            .put(CUT_OFF_TIMEOUT_SETTING.getKey(), TimeValue.timeValueSeconds(5))
+            .put(RETRY_INITIAL_DELAY_SETTING.getKey(), TimeValue.timeValueMillis(50))
+            .build();
+        var collector = new IndicesMappingSizeCollector(IS_INDEX_NODE, indicesService, publisher, testThreadPool, setting);
         collector.publishIndicesMappingSize(Map.of(TEST_INDEX, new IndexMappingSize(randomNonNegativeInt(), "newTestShardNodeId")));
         safeAwait(published);
     }
 
     public void testIndexMappingRetryRequestAreCancelledAfterTimeout() {
         var unableToPublishMetricsLatch = new CountDownLatch(1);
-        publisher = new IndicesMappingSizePublisher(new NoOpNodeClient(testThreadPool)) {
+        var publisher = new IndicesMappingSizePublisher(new NoOpNodeClient(testThreadPool)) {
             @Override
             public void publishIndicesMappingSize(HeapMemoryUsage heapMemoryUsage, ActionListener<ActionResponse.Empty> listener) {
                 logger.info("Publishing {}", heapMemoryUsage);
@@ -169,7 +171,7 @@ public class IndicesMappingSizeCollectorTests extends ESTestCase {
                 );
             }
         };
-        collector = new IndicesMappingSizeCollector(IS_INDEX_NODE, indicesService, publisher, testThreadPool, TEST_SETTINGS);
+        var collector = new IndicesMappingSizeCollector(IS_INDEX_NODE, indicesService, publisher, testThreadPool, TEST_SETTINGS);
         collector.publishIndicesMappingSize(
             Map.of(TEST_INDEX, new IndexMappingSize(randomNonNegativeInt(), "newTestShardNodeId")),
             TimeValue.timeValueMillis(500),

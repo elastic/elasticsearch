@@ -90,8 +90,8 @@ teardown:
   - gte: { ingest.pipelines.ingest_info_pipeline.time_in_millis: 0 }
   - match: { ingest.pipelines.ingest_info_pipeline.current: 0 }
   - match: { ingest.pipelines.ingest_info_pipeline.failed: 0 }
-  - gt: { ingest.pipelines.ingest_info_pipeline.ingested_in_bytes: 0 }
-  - gt: { ingest.pipelines.ingest_info_pipeline.produced_in_bytes: 0 }
+  - gt: { ingest.pipelines.ingest_info_pipeline.ingested_as_first_pipeline_in_bytes: 0 }
+  - gt: { ingest.pipelines.ingest_info_pipeline.produced_as_first_pipeline_in_bytes: 0 }
 
   # Processors section
   - is_true: ingest.pipelines.ingest_info_pipeline.processors.0.set
@@ -129,8 +129,8 @@ teardown:
       cluster.info:
         target: [ ingest ]
   - match: { ingest.pipelines.pipeline-1.failed: 1 }
-  - gt: { ingest.pipelines.pipeline-1.ingested_in_bytes: 0 }
-  - match: { ingest.pipelines.pipeline-1.produced_in_bytes: 0 }
+  - gt: { ingest.pipelines.pipeline-1.ingested_as_first_pipeline_in_bytes: 0 }
+  - match: { ingest.pipelines.pipeline-1.produced_as_first_pipeline_in_bytes: 0 }
 
 ---
 "Test drop processor":
@@ -156,8 +156,8 @@ teardown:
   - do:
       cluster.info:
         target: [ ingest ]
-  - gt: { ingest.pipelines.pipeline-1.ingested_in_bytes: 0 }
-  - match: { ingest.pipelines.pipeline-1.produced_in_bytes: 0 }
+  - gt: { ingest.pipelines.pipeline-1.ingested_as_first_pipeline_in_bytes: 0 }
+  - match: { ingest.pipelines.pipeline-1.produced_as_first_pipeline_in_bytes: 0 }
 
 ---
 "Test that pipeline processor has byte stats recorded in first pipeline":
@@ -211,11 +211,11 @@ teardown:
   - do:
       cluster.info:
         target: [ ingest ]
-  - gt: { ingest.pipelines.pipeline-1.ingested_in_bytes: 0 }
-  - set: { ingest.pipelines.pipeline-1.ingested_in_bytes: ingest_bytes }
-  - gt: { ingest.pipelines.pipeline-1.produced_in_bytes: $ingest_bytes }
-  - match: { ingest.pipelines.pipeline-2.ingested_in_bytes: null }
-  - match: { ingest.pipelines.pipeline-2.produced_in_bytes: null }
+  - gt: { ingest.pipelines.pipeline-1.ingested_as_first_pipeline_in_bytes: 0 }
+  - set: { ingest.pipelines.pipeline-1.ingested_as_first_pipeline_in_bytes: ingest_bytes }
+  - gt: { ingest.pipelines.pipeline-1.produced_as_first_pipeline_in_bytes: $ingest_bytes }
+  - match: { ingest.pipelines.pipeline-2.ingested_as_first_pipeline_in_bytes: null }
+  - match: { ingest.pipelines.pipeline-2.produced_as_first_pipeline_in_bytes: null }
 
 ---
 "Test that final pipeline has byte stats recorded in first pipeline":
@@ -264,11 +264,11 @@ teardown:
   - do:
       cluster.info:
         target: [ ingest ]
-  - gt: { ingest.pipelines.pipeline-1.ingested_in_bytes: 0 }
-  - set: { ingest.pipelines.pipeline-1.ingested_in_bytes: ingest_bytes }
-  - gt: { ingest.pipelines.pipeline-1.produced_in_bytes: $ingest_bytes }
-  - match: { ingest.pipelines.pipeline-2.ingested_in_bytes: null }
-  - match: { ingest.pipelines.pipeline-2.produced_in_bytes: null }
+  - gt: { ingest.pipelines.pipeline-1.ingested_as_first_pipeline_in_bytes: 0 }
+  - set: { ingest.pipelines.pipeline-1.ingested_as_first_pipeline_in_bytes: ingest_bytes }
+  - gt: { ingest.pipelines.pipeline-1.produced_as_first_pipeline_in_bytes: $ingest_bytes }
+  - match: { ingest.pipelines.pipeline-2.ingested_as_first_pipeline_in_bytes: null }
+  - match: { ingest.pipelines.pipeline-2.produced_as_first_pipeline_in_bytes: null }
 
 
 ---
@@ -330,8 +330,8 @@ teardown:
   - do:
       cluster.info:
         target: [ ingest ]
-  - gt: { ingest.pipelines.pipeline-1.ingested_in_bytes: 0 }
-  - set: { ingest.pipelines.pipeline-1.ingested_in_bytes: ingest_bytes }
-  - gt: { ingest.pipelines.pipeline-1.produced_in_bytes: $ingest_bytes }
-  - match: { ingest.pipelines.pipeline-2.ingested_in_bytes: null }
-  - match: { ingest.pipelines.pipeline-2.produced_in_bytes: null }
+  - gt: { ingest.pipelines.pipeline-1.ingested_as_first_pipeline_in_bytes: 0 }
+  - set: { ingest.pipelines.pipeline-1.ingested_as_first_pipeline_in_bytes: ingest_bytes }
+  - gt: { ingest.pipelines.pipeline-1.produced_as_first_pipeline_in_bytes: $ingest_bytes }
+  - match: { ingest.pipelines.pipeline-2.ingested_as_first_pipeline_in_bytes: null }
+  - match: { ingest.pipelines.pipeline-2.produced_as_first_pipeline_in_bytes: null }

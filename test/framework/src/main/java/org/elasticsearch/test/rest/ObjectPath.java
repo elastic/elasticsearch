@@ -105,7 +105,7 @@ public class ObjectPath {
             List<Object> list = (List<Object>) objectToEvaluate;
             try {
                 int i = Integer.parseInt(key);
-                return i < 0 ? list.get(list.size() + i) : list.get(i);
+                return i >= 0 ? list.get(i) : list.get(list.size() + i);
             } catch (NumberFormatException e) {
                 throw new IllegalArgumentException("element was a list, but [" + key + "] was not numeric", e);
             } catch (IndexOutOfBoundsException e) {

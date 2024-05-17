@@ -306,7 +306,7 @@ of {search-snap} indices.
 [discrete]
 [[searchable-snapshots-reliability]]
 [WARNING]
-. Reliability of {search-snaps}
+.Reliability of {search-snaps}
 ====
 The sole copy of the data in a {search-snap} index is the underlying snapshot,
 stored in the repository. If you remove this snapshot, the data will be

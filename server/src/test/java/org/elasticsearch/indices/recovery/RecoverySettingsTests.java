@@ -490,8 +490,7 @@ public class RecoverySettingsTests extends ESTestCase {
         final ClusterSettings clusterSettings = new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
         final RecoverySettings recoverySettings = new RecoverySettings(settings, clusterSettings);
 
-        final MockLogAppender mockAppender = new MockLogAppender();
-        try (var ignored = mockAppender.capturing(RecoverySettings.class)) {
+        try (var mockAppender = MockLogAppender.capture(RecoverySettings.class)) {
             mockAppender.addExpectation(
                 new MockLogAppender.UnseenEventExpectation("no warnings", RecoverySettings.class.getCanonicalName(), Level.WARN, "*")
             );

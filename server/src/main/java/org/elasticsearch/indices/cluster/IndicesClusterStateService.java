@@ -245,8 +245,6 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
      *               thread, or on the thread that completed the closing of the last such shard.
      */
     public void onClusterStateShardsClosed(Runnable action) {
-        // In practice, must be called from the applier thread and we should validate the last-applied cluster state version too
-        // ES-8334 TODO validate this is called properly
         lastClusterStateShardsClosedListener.andThenAccept(ignored -> action.run());
     }
 

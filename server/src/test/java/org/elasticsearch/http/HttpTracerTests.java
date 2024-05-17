@@ -36,8 +36,7 @@ public class HttpTracerTests extends ESTestCase {
 
     @TestLogging(reason = "testing trace logging", value = HTTP_TRACER_LOGGER + ":TRACE," + HTTP_BODY_TRACER_LOGGER + ":INFO")
     public void testLogging() {
-        MockLogAppender appender = new MockLogAppender();
-        try (var ignored = appender.capturing(HttpTracer.class)) {
+        try (var appender = MockLogAppender.capture(HttpTracer.class)) {
 
             appender.addExpectation(
                 new MockLogAppender.PatternSeenEventExpectation(

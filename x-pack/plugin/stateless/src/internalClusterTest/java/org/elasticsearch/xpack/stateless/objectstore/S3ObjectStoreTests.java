@@ -51,6 +51,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CyclicBarrier;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -291,6 +292,7 @@ public class S3ObjectStoreTests extends AbstractMockObjectStoreIntegTestCase {
             ensureGreen(indexName);
 
             final CyclicBarrier uploadedCommitNotificationBarrier = new CyclicBarrier(2);
+            final AtomicBoolean completed = new AtomicBoolean(false);
             MockTransportService.getInstance(searchNode)
                 .addRequestHandlingBehavior(TransportNewCommitNotificationAction.NAME + "[u]", (handler, request, channel, task) -> {
                     if (((NewCommitNotificationRequest) request).isUploaded()) {
@@ -308,7 +310,11 @@ public class S3ObjectStoreTests extends AbstractMockObjectStoreIntegTestCase {
 
                             @Override
                             public void sendResponse(Exception exception) {
-                                fail(exception, "new uploaded commit notification should not fail");
+                                if (completed.get() == false) {
+                                    fail(exception, "new uploaded commit notification should not fail");
+                                }
+                                // Exceptions can happen when the test ends which closes the index engine. They are innocuous
+                                channel.sendResponse(exception);
                             }
                         }, task);
                     } else {
@@ -328,6 +334,7 @@ public class S3ObjectStoreTests extends AbstractMockObjectStoreIntegTestCase {
             }
 
             mockLogAppender.assertAllExpectationsMatched();
+            completed.set(true);
         } finally {
             // Stop the node otherwise the test can fail because node tries to publish cluster state to a closed HTTP handler
             internalCluster().stopNode(searchNode);

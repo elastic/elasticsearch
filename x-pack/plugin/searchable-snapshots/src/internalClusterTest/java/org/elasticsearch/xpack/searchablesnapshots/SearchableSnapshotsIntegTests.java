@@ -1231,11 +1231,6 @@ public class SearchableSnapshotsIntegTests extends BaseSearchableSnapshotsIntegT
         return response.getTasks().get(0);
     }
 
-    private ListTasksResponse listTasks(String... nodes) {
-        var ltr = new ListTasksRequest().setDetailed(true).setNodes(nodes);
-        return client().execute(TransportListTasksAction.TYPE, ltr).actionGet();
-    }
-
     private static long max(long... values) {
         return Arrays.stream(values).max().orElseThrow(() -> new AssertionError("no values"));
     }

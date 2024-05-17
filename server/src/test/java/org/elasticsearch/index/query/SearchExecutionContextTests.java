@@ -296,7 +296,7 @@ public class SearchExecutionContextTests extends ESTestCase {
             new MetadataFieldMapper[0],
             Collections.emptyMap()
         );
-        return MappingLookup.fromMappers(mapping, mappers, Collections.emptyList(), Collections.emptyList());
+        return MappingLookup.fromMappers(mapping, mappers, Collections.emptyList());
     }
 
     public void testSearchRequestRuntimeFields() {

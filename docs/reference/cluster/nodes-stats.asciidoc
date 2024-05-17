@@ -147,7 +147,7 @@ include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=level]
     (Optional, string) A comma-separated list of document types for the
     `indexing` index metric.
 
-include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=timeout-nodes-request]
 
 include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=include-segment-file-sizes]
 
@@ -2642,6 +2642,22 @@ pipeline.
 `failed`::
 (integer)
 Total number of failed operations for the ingest pipeline.
+
+`ingested_in_bytes`::
+(Optional, integer)
+Total number of bytes of all documents ingested by the pipeline.
+This field is only present on pipelines which are the first to process a document.
+Thus, it is not present on pipelines which only serve as a final pipeline after a default pipeline, a pipeline run after
+a reroute processor, or pipelines in pipeline processors.
+
+`produced_in_bytes`::
+(Optional, integer)
+Total number of bytes of all documents produced by the pipeline.
+This field is only present on pipelines which are the first to process a document.
+Thus, it is not present on pipelines which only serve as a final pipeline after a default pipeline, a pipeline run after
+a reroute processor, or pipelines in pipeline processors.
+In situations where there are subsequent pipelines, the value represents the size of the document after all pipelines
+have run.
 
 `processors`::
 (array of objects)

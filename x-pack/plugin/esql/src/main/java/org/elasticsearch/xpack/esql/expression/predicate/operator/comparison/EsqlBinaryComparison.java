@@ -86,6 +86,10 @@ public abstract class EsqlBinaryComparison extends BinaryComparison implements E
             throw new IOException("No BinaryComparisonOperation found for id [" + id + "]");
         }
 
+        public String symbol() {
+            return symbol;
+        }
+
         public EsqlBinaryComparison buildNewInstance(Source source, Expression lhs, Expression rhs) {
             return constructor.apply(source, lhs, rhs);
         }

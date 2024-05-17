@@ -1,0 +1,5 @@
+pr: 108726
+summary: Allow RA metrics to be reported upon parsing completed or accumulated
+area: Infra/Metrics
+type: enhancement
+issues: []

@@ -11,6 +11,7 @@ package org.elasticsearch.ingest.geoip;
 import com.maxmind.geoip2.DatabaseReader;
 
 import org.elasticsearch.common.CheckedSupplier;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.RandomDocumentPicks;
@@ -29,6 +30,7 @@ import java.util.function.Supplier;
 
 import static org.elasticsearch.ingest.IngestDocumentMatcher.assertIngestDocument;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.is;
@@ -37,6 +39,24 @@ import static org.hamcrest.Matchers.nullValue;
 public class GeoIpProcessorTests extends ESTestCase {
 
     private static final Set<Property> ALL_PROPERTIES = Set.of(Property.values());
+
+    public void testDatabasePropertyInvariants() {
+        // the city database is like a specialization of the country database
+        assertThat(Sets.difference(Database.Country.properties(), Database.City.properties()), is(empty()));
+        assertThat(Sets.difference(Database.Country.defaultProperties(), Database.City.defaultProperties()), is(empty()));
+
+        // the isp database is like a specialization of the asn database
+        assertThat(Sets.difference(Database.Asn.properties(), Database.Isp.properties()), is(empty()));
+        assertThat(Sets.difference(Database.Asn.defaultProperties(), Database.Isp.defaultProperties()), is(empty()));
+
+        // the enterprise database is like everything joined together
+        for (Database type : Database.values()) {
+            assertThat(Sets.difference(type.properties(), Database.Enterprise.properties()), is(empty()));
+        }
+        // but in terms of the default fields, it's like a drop-in replacement for the city database
+        // n.b. this is just a choice we decided to make here at Elastic
+        assertThat(Database.Enterprise.defaultProperties(), equalTo(Database.City.defaultProperties()));
+    }
 
     public void testCity() throws Exception {
         GeoIpProcessor processor = new GeoIpProcessor(
@@ -336,6 +356,34 @@ public class GeoIpProcessorTests extends ESTestCase {
         assertThat(geoData.get("residential_proxy"), equalTo(true));
     }
 
+    public void testConnectionType() throws Exception {
+        String ip = "214.78.120.5";
+        GeoIpProcessor processor = new GeoIpProcessor(
+            randomAlphaOfLength(10),
+            null,
+            "source_field",
+            loader("/GeoIP2-Connection-Type-Test.mmdb"),
+            () -> true,
+            "target_field",
+            ALL_PROPERTIES,
+            false,
+            false,
+            "filename"
+        );
+
+        Map<String, Object> document = new HashMap<>();
+        document.put("source_field", ip);
+        IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), document);
+        processor.execute(ingestDocument);
+
+        assertThat(ingestDocument.getSourceAndMetadata().get("source_field"), equalTo(ip));
+        @SuppressWarnings("unchecked")
+        Map<String, Object> geoData = (Map<String, Object>) ingestDocument.getSourceAndMetadata().get("target_field");
+        assertThat(geoData.size(), equalTo(2));
+        assertThat(geoData.get("ip"), equalTo(ip));
+        assertThat(geoData.get("connection_type"), equalTo("Satellite"));
+    }
+
     public void testDomain() throws Exception {
         String ip = "69.219.64.2";
         GeoIpProcessor processor = new GeoIpProcessor(
@@ -387,7 +435,7 @@ public class GeoIpProcessorTests extends ESTestCase {
         assertThat(ingestDocument.getSourceAndMetadata().get("source_field"), equalTo(ip));
         @SuppressWarnings("unchecked")
         Map<String, Object> geoData = (Map<String, Object>) ingestDocument.getSourceAndMetadata().get("target_field");
-        assertThat(geoData.size(), equalTo(22));
+        assertThat(geoData.size(), equalTo(23));
         assertThat(geoData.get("ip"), equalTo(ip));
         assertThat(geoData.get("country_iso_code"), equalTo("US"));
         assertThat(geoData.get("country_name"), equalTo("United States"));
@@ -413,6 +461,7 @@ public class GeoIpProcessorTests extends ESTestCase {
         assertThat(geoData.get("isp"), equalTo("Fairpoint Communications"));
         assertThat(geoData.get("isp_organization"), equalTo("Fairpoint Communications"));
         assertThat(geoData.get("user_type"), equalTo("residential"));
+        assertThat(geoData.get("connection_type"), equalTo("Cable/DSL"));
     }
 
     public void testIsp() throws Exception {

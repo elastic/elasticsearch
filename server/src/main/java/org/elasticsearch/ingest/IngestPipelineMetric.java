@@ -16,9 +16,9 @@ import org.elasticsearch.common.metrics.CounterMetric;
 public class IngestPipelineMetric extends IngestMetric {
 
     /**
-     * The amount of bytes received by a pipeline.
+     * The amount of bytes ingested by a pipeline.
      */
-    private final CounterMetric bytesReceived = new CounterMetric();
+    private final CounterMetric bytesIngested = new CounterMetric();
 
     /**
      * The amount of bytes produced by a pipeline.
@@ -27,20 +27,20 @@ public class IngestPipelineMetric extends IngestMetric {
 
     void add(IngestPipelineMetric metrics) {
         super.add(metrics);
-        bytesReceived.inc(metrics.bytesReceived.count());
+        bytesIngested.inc(metrics.bytesIngested.count());
         bytesProduced.inc(metrics.bytesProduced.count());
     }
 
     /**
      * Call this prior to the ingest action.
-     * @param bytesReceived The number of bytes received by the pipeline.
+     * @param bytesIngested The number of bytes ingested by the pipeline.
      */
-    void preIngestBytes(long bytesReceived) {
-        this.bytesReceived.inc(bytesReceived);
+    void preIngestBytes(long bytesIngested) {
+        this.bytesIngested.inc(bytesIngested);
     }
 
     /**
-     * Call this after performing the ingest action, even if the action failed.
+     * Call this after performing the ingest action.
      * @param bytesProduced The number of bytes resulting from running a request in the pipeline.
      */
     void postIngestBytes(long bytesProduced) {
@@ -51,7 +51,7 @@ public class IngestPipelineMetric extends IngestMetric {
      * Creates a serializable representation for these metrics.
      */
     IngestStats.ByteStats createByteStats() {
-        return new IngestStats.ByteStats(this.bytesReceived.count(), this.bytesProduced.count());
+        return new IngestStats.ByteStats(this.bytesIngested.count(), this.bytesProduced.count());
     }
 
 }

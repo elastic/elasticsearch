@@ -16,6 +16,31 @@ teardown:
         index: "ingest_info_index"
         ignore_unavailable: true
 
+  - do:
+      indices.delete:
+        index: "index-1"
+        ignore_unavailable: true
+
+  - do:
+      indices.delete:
+        index: "index-2"
+        ignore_unavailable: true
+
+  - do:
+      indices.delete:
+        index: "an-index"
+        ignore_unavailable: true
+
+  - do:
+      ingest.delete_pipeline:
+        id: "pipeline-1"
+        ignore: 404
+
+  - do:
+      ingest.delete_pipeline:
+        id: "pipeline-2"
+        ignore: 404
+
 ---
 "Cluster ingest information":
   - do:
@@ -81,7 +106,7 @@ teardown:
 "Test bytes_produced not increased when pipeline fails":
   - do:
       ingest.put_pipeline:
-        id: "failing-pipeline"
+        id: "pipeline-1"
         body:  >
           {
             "processors": [
@@ -97,21 +122,21 @@ teardown:
         refresh: true
         index: an-index
         body:
-          - '{"create": {"pipeline" : "failing-pipeline"}}'
+          - '{"create": {"pipeline" : "pipeline-1"}}'
           - '{"some-field": "some-value"}'
 
   - do:
       cluster.info:
         target: [ ingest ]
-  - match: { ingest.pipelines.failing-pipeline.failed: 1 }
-  - gt: { ingest.pipelines.failing-pipeline.ingested_in_bytes: 0 }
-  - match: { ingest.pipelines.failing-pipeline.produced_in_bytes: 0 }
+  - match: { ingest.pipelines.pipeline-1.failed: 1 }
+  - gt: { ingest.pipelines.pipeline-1.ingested_in_bytes: 0 }
+  - match: { ingest.pipelines.pipeline-1.produced_in_bytes: 0 }
 
 ---
 "Test drop processor":
   - do:
       ingest.put_pipeline:
-        id: "dropping-pipeline"
+        id: "pipeline-1"
         body:  >
           {
             "processors": [
@@ -125,14 +150,14 @@ teardown:
         refresh: true
         index: an-index
         body:
-          - '{"create": {"pipeline" : "dropping-pipeline"}}'
+          - '{"create": {"pipeline" : "pipeline-1"}}'
           - '{"some-field": "some-value"}'
 
   - do:
       cluster.info:
         target: [ ingest ]
-  - gt: { ingest.pipelines.dropping-pipeline.ingested_in_bytes: 0 }
-  - match: { ingest.pipelines.dropping-pipeline.produced_in_bytes: 0 }
+  - gt: { ingest.pipelines.pipeline-1.ingested_in_bytes: 0 }
+  - match: { ingest.pipelines.pipeline-1.produced_in_bytes: 0 }
 
 ---
 "Test that pipeline processor has byte stats recorded in first pipeline":

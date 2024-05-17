@@ -275,7 +275,7 @@ public class SparseVectorQueryBuilder extends AbstractQueryBuilder<SparseVectorQ
                         listener.onFailure(new IllegalStateException(warning.getWarning()));
                     } else {
                         listener.onFailure(
-                            new IllegalStateException(
+                            new IllegalArgumentException(
                                 "expected a result of type ["
                                     + TextExpansionResults.NAME
                                     + "] received ["

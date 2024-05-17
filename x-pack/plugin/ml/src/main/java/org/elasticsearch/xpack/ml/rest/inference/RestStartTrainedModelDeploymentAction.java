@@ -40,10 +40,13 @@ public class RestStartTrainedModelDeploymentAction extends BaseRestHandler {
         super();
         if (disableInferenceProcessCache) {
             this.defaultCacheSize = ByteSizeValue.ZERO;
+        } else {
+            // Don't set the default cache size yet
+            defaultCacheSize = null;
         }
     }
 
-    private ByteSizeValue defaultCacheSize;
+    private final ByteSizeValue defaultCacheSize;
 
     @Override
     public String getName() {

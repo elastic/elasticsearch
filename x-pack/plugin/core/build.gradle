@@ -49,7 +49,7 @@ dependencies {
 
   // security deps
   api 'com.unboundid:unboundid-ldapsdk:6.0.3'
-  api "com.nimbusds:nimbus-jose-jwt:9.23"
+  api "com.nimbusds:nimbus-jose-jwt:9.39"
 
   implementation project(":x-pack:plugin:core:template-resources")
 
@@ -145,11 +145,11 @@ tasks.named("thirdPartyAudit").configure {
           'org.bouncycastle.asn1.x509.SubjectPublicKeyInfo',
           'org.bouncycastle.cert.X509CertificateHolder',
           'org.bouncycastle.cert.jcajce.JcaX509CertificateHolder',
-          'org.bouncycastle.crypto.InvalidCipherTextException',
-          'org.bouncycastle.crypto.engines.AESEngine',
-          'org.bouncycastle.crypto.modes.GCMBlockCipher',
-          'org.bouncycastle.jcajce.provider.BouncyCastleFipsProvider',
-          'org.bouncycastle.jce.provider.BouncyCastleProvider',
+//          'org.bouncycastle.crypto.InvalidCipherTextException',
+//          'org.bouncycastle.crypto.engines.AESEngine',
+//          'org.bouncycastle.crypto.modes.GCMBlockCipher',
+//          'org.bouncycastle.jcajce.provider.BouncyCastleFipsProvider',
+//          'org.bouncycastle.jce.provider.BouncyCastleProvider',
           'org.bouncycastle.openssl.PEMKeyPair',
           'org.bouncycastle.openssl.PEMParser',
           'org.bouncycastle.openssl.jcajce.JcaPEMKeyConverter'

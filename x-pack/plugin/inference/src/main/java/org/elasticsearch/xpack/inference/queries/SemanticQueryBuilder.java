@@ -31,8 +31,11 @@ import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
-import org.elasticsearch.xpack.core.inference.results.SparseEmbeddingResults;
 import org.elasticsearch.xpack.core.ml.action.InferModelAction;
+import org.elasticsearch.xpack.core.ml.inference.results.ErrorInferenceResults;
+import org.elasticsearch.xpack.core.ml.inference.results.TextEmbeddingResults;
+import org.elasticsearch.xpack.core.ml.inference.results.TextExpansionResults;
+import org.elasticsearch.xpack.core.ml.inference.results.WarningInferenceResults;
 import org.elasticsearch.xpack.inference.mapper.SemanticTextFieldMapper;
 
 import java.io.IOException;
@@ -66,7 +69,8 @@ public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuil
     private final String fieldName;
     private final String query;
     private final SetOnce<InferenceServiceResults> inferenceResultsSupplier;
-    private final InferenceServiceResults inferenceResults;
+    private final InferenceResults inferenceResults;
+    private final boolean noInferenceResults;
 
     public SemanticQueryBuilder(String fieldName, String query) {
         if (fieldName == null) {
@@ -79,13 +83,15 @@ public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuil
         this.query = query;
         this.inferenceResults = null;
         this.inferenceResultsSupplier = null;
+        this.noInferenceResults = false;
     }
 
     public SemanticQueryBuilder(StreamInput in) throws IOException {
         super(in);
         this.fieldName = in.readString();
         this.query = in.readString();
-        this.inferenceResults = in.readOptionalNamedWriteable(InferenceServiceResults.class);
+        this.inferenceResults = in.readOptionalNamedWriteable(InferenceResults.class);
+        this.noInferenceResults = in.readBoolean();
         this.inferenceResultsSupplier = null;
     }
 
@@ -97,12 +103,14 @@ public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuil
         out.writeString(fieldName);
         out.writeString(query);
         out.writeOptionalNamedWriteable(inferenceResults);
+        out.writeBoolean(noInferenceResults);
     }
 
     private SemanticQueryBuilder(
         SemanticQueryBuilder other,
         SetOnce<InferenceServiceResults> inferenceResultsSupplier,
-        InferenceServiceResults inferenceResults
+        InferenceResults inferenceResults,
+        boolean noInferenceResults
     ) {
         this.fieldName = other.fieldName;
         this.query = other.query;
@@ -110,6 +118,7 @@ public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuil
         this.queryName = other.queryName;
         this.inferenceResultsSupplier = inferenceResultsSupplier;
         this.inferenceResults = inferenceResults;
+        this.noInferenceResults = noInferenceResults;
     }
 
     @Override
@@ -146,25 +155,17 @@ public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuil
     }
 
     private QueryBuilder doRewriteBuildSemanticQuery(SearchExecutionContext searchExecutionContext) {
-        if (inferenceResults == null) {
-            throw new IllegalStateException("Query builder must have inference results before rewriting to another query type");
-        }
-
         MappedFieldType fieldType = searchExecutionContext.getFieldType(fieldName);
         if (fieldType == null) {
             return new MatchNoneQueryBuilder();
         } else if (fieldType instanceof SemanticTextFieldMapper.SemanticTextFieldType semanticTextFieldType) {
-            List<? extends InferenceResults> inferenceResultsList = inferenceResults.transformToCoordinationFormat();
-            if (inferenceResultsList.isEmpty()) {
-                throw new IllegalArgumentException("No inference results retrieved for field [" + fieldName + "]");
-            } else if (inferenceResultsList.size() > 1) {
-                // TODO: How to handle multiple inference results?
-                throw new IllegalArgumentException(
-                    inferenceResultsList.size() + " inference results retrieved for field [" + fieldName + "]"
+            if (inferenceResults == null) {
+                // This should never happen, but throw on it in case it ever does
+                throw new IllegalStateException(
+                    "No inference results set for [" + semanticTextFieldType.typeName() + "] field [" + fieldName + "]"
                 );
             }
 
-            InferenceResults inferenceResults = inferenceResultsList.get(0);
             return semanticTextFieldType.semanticQuery(inferenceResults, boost(), queryName());
         } else {
             throw new IllegalArgumentException(
@@ -174,13 +175,13 @@ public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuil
     }
 
     private SemanticQueryBuilder doRewriteGetInferenceResults(QueryRewriteContext queryRewriteContext) {
-        if (inferenceResults != null) {
+        if (inferenceResults != null || noInferenceResults) {
             return this;
         }
 
         if (inferenceResultsSupplier != null) {
-            InferenceServiceResults inferenceResults = inferenceResultsSupplier.get();
-            return inferenceResults != null ? new SemanticQueryBuilder(this, null, inferenceResults) : this;
+            InferenceResults inferenceResults = validateAndConvertInferenceResults(inferenceResultsSupplier, fieldName);
+            return inferenceResults != null ? new SemanticQueryBuilder(this, null, inferenceResults, noInferenceResults) : this;
         }
 
         ResolvedIndices resolvedIndices = queryRewriteContext.getResolvedIndices();
@@ -193,7 +194,8 @@ public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuil
         }
 
         String inferenceId = getInferenceIdForForField(resolvedIndices.getConcreteLocalIndicesMetadata().values(), fieldName);
-        SetOnce<InferenceServiceResults> inferenceResultsSupplier;
+        SetOnce<InferenceServiceResults> inferenceResultsSupplier = new SetOnce<>();
+        boolean noInferenceResults = false;
         if (inferenceId != null) {
             InferenceAction.Request inferenceRequest = new InferenceAction.Request(
                 TaskType.ANY,
@@ -205,7 +207,6 @@ public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuil
                 InferModelAction.Request.DEFAULT_TIMEOUT_FOR_API
             );
 
-            inferenceResultsSupplier = new SetOnce<>();
             queryRewriteContext.registerAsyncAction(
                 (client, listener) -> executeAsyncWithOrigin(
                     client,
@@ -219,14 +220,57 @@ public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuil
                 )
             );
         } else {
-            // The most likely reason for a null inference ID is an invalid field name, invalid index name(s), or a combination of both.
-            // Set the inference results to an empty list so that query rewriting can continue.
-            // Invalid index names will be handled in TransportSearchAction, which will throw IndexNotFoundException.
-            // Invalid field names will be handled later in the rewrite process.
-            inferenceResultsSupplier = new SetOnce<>(new SparseEmbeddingResults(List.of()));
+            // The inference ID can be null if either the field name or index name(s) are invalid (or both).
+            // If this happens, we set the "no inference results" flag to true so the rewrite process can continue.
+            // Invalid index names will be handled in the transport layer, when the query is sent to the shard.
+            // Invalid field names will be handled when the query is re-written on the shard, where we have access to the index mappings.
+            noInferenceResults = true;
         }
 
-        return new SemanticQueryBuilder(this, inferenceResultsSupplier, null);
+        return new SemanticQueryBuilder(this, noInferenceResults ? null : inferenceResultsSupplier, null, noInferenceResults);
+    }
+
+    private static InferenceResults validateAndConvertInferenceResults(
+        SetOnce<InferenceServiceResults> inferenceResultsSupplier,
+        String fieldName
+    ) {
+        InferenceServiceResults inferenceServiceResults = inferenceResultsSupplier.get();
+        if (inferenceServiceResults == null) {
+            return null;
+        }
+
+        List<? extends InferenceResults> inferenceResultsList = inferenceServiceResults.transformToCoordinationFormat();
+        if (inferenceResultsList.isEmpty()) {
+            throw new IllegalArgumentException("No inference results retrieved for field [" + fieldName + "]");
+        } else if (inferenceResultsList.size() > 1) {
+            // The inference call should truncate if the query is too large.
+            // Thus, if we receive more than one inference result, it is a server-side error.
+            throw new IllegalStateException(inferenceResultsList.size() + " inference results retrieved for field [" + fieldName + "]");
+        }
+
+        InferenceResults inferenceResults = inferenceResultsList.get(0);
+        if (inferenceResults instanceof ErrorInferenceResults errorInferenceResults) {
+            throw new IllegalStateException(
+                "Field [" + fieldName + "] query inference error: " + errorInferenceResults.getException().getMessage(),
+                errorInferenceResults.getException()
+            );
+        } else if (inferenceResults instanceof WarningInferenceResults warningInferenceResults) {
+            throw new IllegalStateException("Field [" + fieldName + "] query inference warning: " + warningInferenceResults.getWarning());
+        } else if (inferenceResults instanceof TextExpansionResults == false && inferenceResults instanceof TextEmbeddingResults == false) {
+            throw new IllegalArgumentException(
+                "Field ["
+                    + fieldName
+                    + "] expected query inference results to be of type ["
+                    + TextExpansionResults.NAME
+                    + "] or ["
+                    + TextEmbeddingResults.NAME
+                    + "], got ["
+                    + inferenceResults.getWriteableName()
+                    + "]. Has the inference endpoint configuration changed?"
+            );
+        }
+
+        return inferenceResults;
     }
 
     @Override

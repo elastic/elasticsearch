@@ -31,6 +31,7 @@ import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.plugins.internal.DocumentSizeObserver;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentParseException;
 import org.elasticsearch.xcontent.XContentType;
@@ -210,7 +211,8 @@ public class IndexingSlowLogTests extends ESTestCase {
             null,
             source,
             XContentType.JSON,
-            null
+            null,
+            DocumentSizeObserver.EMPTY_INSTANCE
         );
         Index index = new Index("foo", "123");
         // Turning off document logging doesn't log source[]
@@ -238,7 +240,8 @@ public class IndexingSlowLogTests extends ESTestCase {
             null,
             source,
             XContentType.JSON,
-            null
+            null,
+            DocumentSizeObserver.EMPTY_INSTANCE
         );
         Index index = new Index("foo", "123");
         // Turning off document logging doesn't log source[]
@@ -267,7 +270,8 @@ public class IndexingSlowLogTests extends ESTestCase {
             null,
             source,
             XContentType.JSON,
-            null
+            null,
+            DocumentSizeObserver.EMPTY_INSTANCE
         );
         Index index = new Index("foo", "123");
 
@@ -285,7 +289,8 @@ public class IndexingSlowLogTests extends ESTestCase {
             null,
             source,
             XContentType.JSON,
-            null
+            null,
+            DocumentSizeObserver.EMPTY_INSTANCE
         );
         Index index = new Index("foo", "123");
         // Turning off document logging doesn't log source[]
@@ -316,7 +321,8 @@ public class IndexingSlowLogTests extends ESTestCase {
             null,
             source,
             XContentType.JSON,
-            null
+            null,
+            DocumentSizeObserver.EMPTY_INSTANCE
         );
 
         final XContentParseException e = expectThrows(

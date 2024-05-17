@@ -250,17 +250,16 @@ public class RolloverIT extends ESIntegTestCase {
         ensureGreen();
         Logger allocationServiceLogger = LogManager.getLogger(AllocationService.class);
 
-        MockLogAppender appender = new MockLogAppender();
-        appender.addExpectation(
-            new MockLogAppender.UnseenEventExpectation(
-                "no related message logged on dry run",
-                AllocationService.class.getName(),
-                Level.INFO,
-                "*test_index*"
-            )
-        );
         final RolloverResponse response;
-        try (var ignored = appender.capturing(AllocationService.class)) {
+        try (var appender = MockLogAppender.capture(AllocationService.class)) {
+            appender.addExpectation(
+                new MockLogAppender.UnseenEventExpectation(
+                    "no related message logged on dry run",
+                    AllocationService.class.getName(),
+                    Level.INFO,
+                    "*test_index*"
+                )
+            );
             response = indicesAdmin().prepareRolloverIndex("test_alias").dryRun(true).get();
             appender.assertAllExpectationsMatched();
         }

@@ -543,6 +543,7 @@ public class ObjectMapperTests extends MapperServiceTestCase {
         DocumentMapper mapper = createDocumentMapper(syntheticSourceMapping(b -> {
             b.startObject("o").field("type", "object").field(ObjectMapper.STORE_ARRAY_SOURCE_PARAM, true).endObject();
         }));
+        assertNotNull(mapper.mapping().getRoot().getMapper("o"));
     }
 
     public void testStoreArraySourceThrowsInNonSyntheticSourceMode() {

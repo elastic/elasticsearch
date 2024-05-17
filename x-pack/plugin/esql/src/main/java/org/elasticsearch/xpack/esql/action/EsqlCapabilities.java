@@ -26,10 +26,15 @@ public class EsqlCapabilities {
      */
     private static final String FN_CBRT = "fn_cbrt";
 
+    /**
+     * Optimization for ST_CENTROID changed some results in cartesian data. #108713
+     */
+    private static final String ST_CENTROID_AGG_OPTIMIZED = "st_centroid_agg_optimized";
+
     static final Set<String> CAPABILITIES = capabilities();
 
     private static Set<String> capabilities() {
-        List<String> caps = new ArrayList<>(List.of(FN_CBRT));
+        List<String> caps = new ArrayList<>(List.of(FN_CBRT, ST_CENTROID_AGG_OPTIMIZED));
 
         /*
          * Add all of our cluster features without the leading "esql."

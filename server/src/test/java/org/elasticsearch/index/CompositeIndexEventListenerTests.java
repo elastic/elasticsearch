@@ -17,7 +17,7 @@ import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.index.shard.IndexEventListener;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardTestCase;
-import org.elasticsearch.test.MockLogAppender;
+import org.elasticsearch.test.MockLog;
 import org.hamcrest.Matchers;
 
 import java.util.concurrent.TimeUnit;
@@ -39,7 +39,7 @@ public class CompositeIndexEventListenerTests extends IndexShardTestCase {
 
     public void testBeforeIndexShardRecoveryInOrder() throws Exception {
         var shard = newShard(randomBoolean());
-        try (var appender = MockLogAppender.capture(CompositeIndexEventListener.class)) {
+        try (var appender = MockLog.capture(CompositeIndexEventListener.class)) {
             final var stepNumber = new AtomicInteger();
             final var stepCount = between(0, 20);
             final var failAtStep = new AtomicInteger(-1);
@@ -86,7 +86,7 @@ public class CompositeIndexEventListenerTests extends IndexShardTestCase {
 
             if (stepCount > 0) {
                 appender.addExpectation(
-                    new MockLogAppender.SeenEventExpectation(
+                    new MockLog.SeenEventExpectation(
                         "warning",
                         CompositeIndexEventListener.class.getCanonicalName(),
                         Level.WARN,
@@ -108,7 +108,7 @@ public class CompositeIndexEventListenerTests extends IndexShardTestCase {
 
     public void testAfterIndexShardRecoveryInOrder() throws Exception {
         var shard = newShard(randomBoolean());
-        try (var appender = MockLogAppender.capture(CompositeIndexEventListener.class)) {
+        try (var appender = MockLog.capture(CompositeIndexEventListener.class)) {
             final var stepNumber = new AtomicInteger();
             final var stepCount = between(0, 20);
             final var failAtStep = new AtomicInteger(-1);
@@ -148,7 +148,7 @@ public class CompositeIndexEventListenerTests extends IndexShardTestCase {
 
             if (stepCount > 0) {
                 appender.addExpectation(
-                    new MockLogAppender.SeenEventExpectation(
+                    new MockLog.SeenEventExpectation(
                         "warning",
                         CompositeIndexEventListener.class.getCanonicalName(),
                         Level.WARN,

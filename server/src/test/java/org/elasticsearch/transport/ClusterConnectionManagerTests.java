@@ -27,7 +27,7 @@ import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.MockLogAppender;
+import org.elasticsearch.test.MockLog;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.junit.After;
@@ -173,9 +173,9 @@ public class ClusterConnectionManagerTests extends ESTestCase {
         final Releasable localConnectionRef = toClose.getAndSet(null);
         assertThat(localConnectionRef, notNullValue());
 
-        try (var appender = MockLogAppender.capture(ClusterConnectionManager.class)) {
+        try (var appender = MockLog.capture(ClusterConnectionManager.class)) {
             appender.addExpectation(
-                new MockLogAppender.SeenEventExpectation(
+                new MockLog.SeenEventExpectation(
                     "locally-triggered close message",
                     ClusterConnectionManager.class.getCanonicalName(),
                     Level.DEBUG,
@@ -183,7 +183,7 @@ public class ClusterConnectionManagerTests extends ESTestCase {
                 )
             );
             appender.addExpectation(
-                new MockLogAppender.SeenEventExpectation(
+                new MockLog.SeenEventExpectation(
                     "remotely-triggered close message",
                     ClusterConnectionManager.class.getCanonicalName(),
                     Level.INFO,
@@ -191,7 +191,7 @@ public class ClusterConnectionManagerTests extends ESTestCase {
                 )
             );
             appender.addExpectation(
-                new MockLogAppender.SeenEventExpectation(
+                new MockLog.SeenEventExpectation(
                     "shutdown-triggered close message",
                     ClusterConnectionManager.class.getCanonicalName(),
                     Level.TRACE,

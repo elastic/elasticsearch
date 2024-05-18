@@ -22,7 +22,7 @@ import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.test.MockLogAppender;
+import org.elasticsearch.test.MockLog;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 
 import java.util.concurrent.CountDownLatch;
@@ -70,11 +70,11 @@ public class ShardLockFailureIT extends ESIntegTestCase {
 
         try (
             var ignored1 = internalCluster().getInstance(NodeEnvironment.class, node).shardLock(shardId, "blocked for test");
-            var mockLogAppender = MockLogAppender.capture(IndicesClusterStateService.class);
+            var mockLogAppender = MockLog.capture(IndicesClusterStateService.class);
         ) {
             final CountDownLatch countDownLatch = new CountDownLatch(1);
 
-            mockLogAppender.addExpectation(new MockLogAppender.LoggingExpectation() {
+            mockLogAppender.addExpectation(new MockLog.LoggingExpectation() {
                 int debugMessagesSeen = 0;
                 int warnMessagesSeen = 0;
 
@@ -139,10 +139,10 @@ public class ShardLockFailureIT extends ESIntegTestCase {
 
         try (
             var ignored1 = internalCluster().getInstance(NodeEnvironment.class, node).shardLock(shardId, "blocked for test");
-            var mockLogAppender = MockLogAppender.capture(IndicesClusterStateService.class);
+            var mockLogAppender = MockLog.capture(IndicesClusterStateService.class);
         ) {
             mockLogAppender.addExpectation(
-                new MockLogAppender.SeenEventExpectation(
+                new MockLog.SeenEventExpectation(
                     "timeout message",
                     "org.elasticsearch.indices.cluster.IndicesClusterStateService",
                     Level.WARN,

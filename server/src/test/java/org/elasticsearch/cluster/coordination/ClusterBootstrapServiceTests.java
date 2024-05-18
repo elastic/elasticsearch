@@ -19,7 +19,7 @@ import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.discovery.DiscoveryModule;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.MockLogAppender;
+import org.elasticsearch.test.MockLog;
 import org.elasticsearch.test.transport.MockTransport;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportService;
@@ -650,9 +650,9 @@ public class ClusterBootstrapServiceTests extends ESTestCase {
     }
 
     public void testBootstrapStateLogging() {
-        try (var mockAppender = MockLogAppender.capture(ClusterBootstrapService.class)) {
+        try (var mockAppender = MockLog.capture(ClusterBootstrapService.class)) {
             mockAppender.addExpectation(
-                new MockLogAppender.SeenEventExpectation(
+                new MockLog.SeenEventExpectation(
                     "fresh node message",
                     ClusterBootstrapService.class.getCanonicalName(),
                     Level.INFO,
@@ -679,7 +679,7 @@ public class ClusterBootstrapServiceTests extends ESTestCase {
             final String infoMessagePattern = """
                 this node is locked into cluster UUID [test-uuid] and will not attempt further cluster bootstrapping""";
             mockAppender.addExpectation(
-                new MockLogAppender.SeenEventExpectation(
+                new MockLog.SeenEventExpectation(
                     "bootstrapped node message",
                     ClusterBootstrapService.class.getCanonicalName(),
                     Level.INFO,
@@ -700,7 +700,7 @@ public class ClusterBootstrapServiceTests extends ESTestCase {
                 https://www.elastic.co/guide/en/elasticsearch/reference/*/important-settings.html#initial_master_nodes""";
 
             mockAppender.addExpectation(
-                new MockLogAppender.SeenEventExpectation(
+                new MockLog.SeenEventExpectation(
                     "bootstrapped node message if bootstrapping still configured",
                     ClusterBootstrapService.class.getCanonicalName(),
                     Level.WARN,
@@ -721,7 +721,7 @@ public class ClusterBootstrapServiceTests extends ESTestCase {
             mockAppender.assertAllExpectationsMatched();
 
             mockAppender.addExpectation(
-                new MockLogAppender.SeenEventExpectation(
+                new MockLog.SeenEventExpectation(
                     "bootstrapped node message if bootstrapping still configured",
                     ClusterBootstrapService.class.getCanonicalName(),
                     Level.WARN,
@@ -738,7 +738,7 @@ public class ClusterBootstrapServiceTests extends ESTestCase {
             mockAppender.assertAllExpectationsMatched();
 
             mockAppender.addExpectation(
-                new MockLogAppender.SeenEventExpectation(
+                new MockLog.SeenEventExpectation(
                     "bootstrapped node message if discovery type is single node ",
                     ClusterBootstrapService.class.getCanonicalName(),
                     Level.INFO,

@@ -33,7 +33,7 @@ import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.http.HttpStats;
 import org.elasticsearch.reservedstate.service.FileSettingsService;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.MockLogAppender;
+import org.elasticsearch.test.MockLog;
 import org.elasticsearch.test.readiness.ReadinessClientProbe;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -266,9 +266,9 @@ public class ReadinessServiceTests extends ESTestCase implements ReadinessClient
             )
             .build();
         event = new ClusterChangedEvent("test", nodeShuttingDownState, completeState);
-        try (var mockAppender = MockLogAppender.capture(ReadinessService.class)) {
+        try (var mockAppender = MockLog.capture(ReadinessService.class)) {
             mockAppender.addExpectation(
-                new MockLogAppender.SeenEventExpectation(
+                new MockLog.SeenEventExpectation(
                     "node shutting down logged",
                     ReadinessService.class.getCanonicalName(),
                     Level.INFO,
@@ -279,7 +279,7 @@ public class ReadinessServiceTests extends ESTestCase implements ReadinessClient
             mockAppender.assertAllExpectationsMatched();
 
             mockAppender.addExpectation(
-                new MockLogAppender.UnseenEventExpectation(
+                new MockLog.UnseenEventExpectation(
                     "node shutting down not logged twice",
                     ReadinessService.class.getCanonicalName(),
                     Level.INFO,

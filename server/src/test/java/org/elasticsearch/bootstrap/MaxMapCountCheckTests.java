@@ -18,7 +18,7 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.test.AbstractBootstrapCheckTestCase;
-import org.elasticsearch.test.MockLogAppender;
+import org.elasticsearch.test.MockLog;
 
 import java.io.BufferedReader;
 import java.io.IOException;
@@ -131,7 +131,7 @@ public class MaxMapCountCheckTests extends AbstractBootstrapCheckTestCase {
             final IOException ioException = new IOException("fatal");
             when(reader.readLine()).thenThrow(ioException);
             final Logger logger = LogManager.getLogger("testGetMaxMapCountIOException");
-            try (var appender = MockLogAppender.capture("testGetMaxMapCountIOException")) {
+            try (var appender = MockLog.capture("testGetMaxMapCountIOException")) {
                 appender.addExpectation(
                     new MessageLoggingExpectation(
                         "expected logged I/O exception",
@@ -151,7 +151,7 @@ public class MaxMapCountCheckTests extends AbstractBootstrapCheckTestCase {
             reset(reader);
             when(reader.readLine()).thenReturn("eof");
             final Logger logger = LogManager.getLogger("testGetMaxMapCountNumberFormatException");
-            try (var appender = MockLogAppender.capture("testGetMaxMapCountNumberFormatException")) {
+            try (var appender = MockLog.capture("testGetMaxMapCountNumberFormatException")) {
                 appender.addExpectation(
                     new MessageLoggingExpectation(
                         "expected logged number format exception",
@@ -169,7 +169,7 @@ public class MaxMapCountCheckTests extends AbstractBootstrapCheckTestCase {
 
     }
 
-    private static class MessageLoggingExpectation implements MockLogAppender.LoggingExpectation {
+    private static class MessageLoggingExpectation implements MockLog.LoggingExpectation {
 
         private boolean saw = false;
 

@@ -16,7 +16,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.snapshots.mockstore.MockRepository;
 import org.elasticsearch.test.ClusterServiceUtils;
-import org.elasticsearch.test.MockLogAppender;
+import org.elasticsearch.test.MockLog;
 
 import java.util.List;
 import java.util.concurrent.TimeUnit;
@@ -31,9 +31,9 @@ public class SnapshotsServiceIT extends AbstractSnapshotIntegTestCase {
         createIndexWithRandomDocs("test-index", randomIntBetween(1, 42));
         createSnapshot("test-repo", "test-snapshot", List.of("test-index"));
 
-        try (var mockLogAppender = MockLogAppender.capture(SnapshotsService.class)) {
+        try (var mockLogAppender = MockLog.capture(SnapshotsService.class)) {
             mockLogAppender.addExpectation(
-                new MockLogAppender.UnseenEventExpectation(
+                new MockLog.UnseenEventExpectation(
                     "[does-not-exist]",
                     SnapshotsService.class.getName(),
                     Level.INFO,
@@ -42,7 +42,7 @@ public class SnapshotsServiceIT extends AbstractSnapshotIntegTestCase {
             );
 
             mockLogAppender.addExpectation(
-                new MockLogAppender.SeenEventExpectation(
+                new MockLog.SeenEventExpectation(
                     "[deleting test-snapshot]",
                     SnapshotsService.class.getName(),
                     Level.INFO,
@@ -51,7 +51,7 @@ public class SnapshotsServiceIT extends AbstractSnapshotIntegTestCase {
             );
 
             mockLogAppender.addExpectation(
-                new MockLogAppender.SeenEventExpectation(
+                new MockLog.SeenEventExpectation(
                     "[test-snapshot deleted]",
                     SnapshotsService.class.getName(),
                     Level.INFO,
@@ -78,9 +78,9 @@ public class SnapshotsServiceIT extends AbstractSnapshotIntegTestCase {
         createIndexWithRandomDocs("test-index", randomIntBetween(1, 42));
         createSnapshot("test-repo", "test-snapshot", List.of("test-index"));
 
-        try (var mockLogAppender = MockLogAppender.capture(SnapshotsService.class)) {
+        try (var mockLogAppender = MockLog.capture(SnapshotsService.class)) {
             mockLogAppender.addExpectation(
-                new MockLogAppender.SeenEventExpectation(
+                new MockLog.SeenEventExpectation(
                     "[test-snapshot]",
                     SnapshotsService.class.getName(),
                     Level.WARN,

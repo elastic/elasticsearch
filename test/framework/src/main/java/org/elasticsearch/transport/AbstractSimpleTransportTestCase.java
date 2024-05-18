@@ -52,7 +52,7 @@ import org.elasticsearch.mocksocket.MockServerSocket;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.MockLogAppender;
+import org.elasticsearch.test.MockLog;
 import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.transport.MockTransportService;
@@ -1319,7 +1319,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
                 .build()
         );
 
-        try (var appender = MockLogAppender.capture("org.elasticsearch.transport.TransportService.tracer")) {
+        try (var appender = MockLog.capture("org.elasticsearch.transport.TransportService.tracer")) {
 
             ////////////////////////////////////////////////////////////////////////
             // tests for included action type "internal:test"
@@ -1327,7 +1327,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
 
             // serviceA logs the request was sent
             appender.addExpectation(
-                new MockLogAppender.PatternSeenEventExpectation(
+                new MockLog.PatternSeenEventExpectation(
                     "sent request",
                     "org.elasticsearch.transport.TransportService.tracer",
                     Level.TRACE,
@@ -1336,7 +1336,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
             );
             // serviceB logs the request was received
             appender.addExpectation(
-                new MockLogAppender.PatternSeenEventExpectation(
+                new MockLog.PatternSeenEventExpectation(
                     "received request",
                     "org.elasticsearch.transport.TransportService.tracer",
                     Level.TRACE,
@@ -1345,7 +1345,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
             );
             // serviceB logs the response was sent
             appender.addExpectation(
-                new MockLogAppender.PatternSeenEventExpectation(
+                new MockLog.PatternSeenEventExpectation(
                     "sent response",
                     "org.elasticsearch.transport.TransportService.tracer",
                     Level.TRACE,
@@ -1354,7 +1354,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
             );
             // serviceA logs the response was received
             appender.addExpectation(
-                new MockLogAppender.PatternSeenEventExpectation(
+                new MockLog.PatternSeenEventExpectation(
                     "received response",
                     "org.elasticsearch.transport.TransportService.tracer",
                     Level.TRACE,
@@ -1374,7 +1374,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
 
             // serviceA logs the request was sent
             appender.addExpectation(
-                new MockLogAppender.PatternSeenEventExpectation(
+                new MockLog.PatternSeenEventExpectation(
                     "sent request",
                     "org.elasticsearch.transport.TransportService.tracer",
                     Level.TRACE,
@@ -1383,7 +1383,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
             );
             // serviceB logs the request was received
             appender.addExpectation(
-                new MockLogAppender.PatternSeenEventExpectation(
+                new MockLog.PatternSeenEventExpectation(
                     "received request",
                     "org.elasticsearch.transport.TransportService.tracer",
                     Level.TRACE,
@@ -1392,7 +1392,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
             );
             // serviceB logs the error response was sent
             appender.addExpectation(
-                new MockLogAppender.PatternSeenEventExpectation(
+                new MockLog.PatternSeenEventExpectation(
                     "sent error response",
                     "org.elasticsearch.transport.TransportService.tracer",
                     Level.TRACE,
@@ -1401,7 +1401,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
             );
             // serviceA logs the error response was sent
             appender.addExpectation(
-                new MockLogAppender.PatternSeenEventExpectation(
+                new MockLog.PatternSeenEventExpectation(
                     "received error response",
                     "org.elasticsearch.transport.TransportService.tracer",
                     Level.TRACE,
@@ -1421,7 +1421,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
 
             // serviceA does not log that it sent the message
             appender.addExpectation(
-                new MockLogAppender.UnseenEventExpectation(
+                new MockLog.UnseenEventExpectation(
                     "not seen request sent",
                     "org.elasticsearch.transport.TransportService.tracer",
                     Level.TRACE,
@@ -1430,7 +1430,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
             );
             // serviceB does log that it received the request
             appender.addExpectation(
-                new MockLogAppender.PatternSeenEventExpectation(
+                new MockLog.PatternSeenEventExpectation(
                     "not seen request received",
                     "org.elasticsearch.transport.TransportService.tracer",
                     Level.TRACE,
@@ -1439,7 +1439,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
             );
             // serviceB does log that it sent the response
             appender.addExpectation(
-                new MockLogAppender.PatternSeenEventExpectation(
+                new MockLog.PatternSeenEventExpectation(
                     "not seen request received",
                     "org.elasticsearch.transport.TransportService.tracer",
                     Level.TRACE,
@@ -1448,7 +1448,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
             );
             // serviceA does not log that it received the response
             appender.addExpectation(
-                new MockLogAppender.UnseenEventExpectation(
+                new MockLog.UnseenEventExpectation(
                     "not seen request sent",
                     "org.elasticsearch.transport.TransportService.tracer",
                     Level.TRACE,

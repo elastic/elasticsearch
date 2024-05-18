@@ -16,7 +16,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.MockLogAppender;
+import org.elasticsearch.test.MockLog;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.ResourceWatcherService;
@@ -178,11 +178,11 @@ public class FileOperatorUsersStoreTests extends ESTestCase {
         Loggers.setLevel(logger, Level.TRACE);
 
         try (
-            var appender = MockLogAppender.capture(FileOperatorUsersStore.class);
-            ResourceWatcherService watcherService = new ResourceWatcherService(settings, threadPool)
+                var appender = MockLog.capture(FileOperatorUsersStore.class);
+                ResourceWatcherService watcherService = new ResourceWatcherService(settings, threadPool)
         ) {
             appender.addExpectation(
-                new MockLogAppender.SeenEventExpectation(
+                new MockLog.SeenEventExpectation(
                     "1st file parsing",
                     logger.getName(),
                     Level.INFO,
@@ -220,7 +220,7 @@ public class FileOperatorUsersStoreTests extends ESTestCase {
 
             // Add one more entry
             appender.addExpectation(
-                new MockLogAppender.SeenEventExpectation(
+                new MockLog.SeenEventExpectation(
                     "updating",
                     logger.getName(),
                     Level.INFO,
@@ -239,7 +239,7 @@ public class FileOperatorUsersStoreTests extends ESTestCase {
 
             // Add mal-formatted entry
             appender.addExpectation(
-                new MockLogAppender.ExceptionSeenEventExpectation(
+                new MockLog.ExceptionSeenEventExpectation(
                     "mal-formatted",
                     logger.getName(),
                     Level.ERROR,
@@ -257,7 +257,7 @@ public class FileOperatorUsersStoreTests extends ESTestCase {
 
             // Delete the file will remove all the operator users
             appender.addExpectation(
-                new MockLogAppender.SeenEventExpectation(
+                new MockLog.SeenEventExpectation(
                     "file not exist warning",
                     logger.getName(),
                     Level.WARN,

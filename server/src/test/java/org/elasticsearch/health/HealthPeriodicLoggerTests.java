@@ -31,7 +31,7 @@ import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.telemetry.metric.LongGaugeMetric;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.MockLogAppender;
+import org.elasticsearch.test.MockLog;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.junit.After;
@@ -613,9 +613,9 @@ public class HealthPeriodicLoggerTests extends ESTestCase {
     }
 
     public void testLoggingHappens() {
-        try (var mockAppender = MockLogAppender.capture(HealthPeriodicLogger.class)) {
+        try (var mockAppender = MockLog.capture(HealthPeriodicLogger.class)) {
             mockAppender.addExpectation(
-                new MockLogAppender.SeenEventExpectation(
+                new MockLog.SeenEventExpectation(
                     "overall",
                     HealthPeriodicLogger.class.getCanonicalName(),
                     Level.INFO,
@@ -623,7 +623,7 @@ public class HealthPeriodicLoggerTests extends ESTestCase {
                 )
             );
             mockAppender.addExpectation(
-                new MockLogAppender.SeenEventExpectation(
+                new MockLog.SeenEventExpectation(
                     "master_is_stable",
                     HealthPeriodicLogger.class.getCanonicalName(),
                     Level.INFO,
@@ -631,7 +631,7 @@ public class HealthPeriodicLoggerTests extends ESTestCase {
                 )
             );
             mockAppender.addExpectation(
-                new MockLogAppender.SeenEventExpectation(
+                new MockLog.SeenEventExpectation(
                     "disk",
                     HealthPeriodicLogger.class.getCanonicalName(),
                     Level.INFO,
@@ -639,7 +639,7 @@ public class HealthPeriodicLoggerTests extends ESTestCase {
                 )
             );
             mockAppender.addExpectation(
-                new MockLogAppender.UnseenEventExpectation(
+                new MockLog.UnseenEventExpectation(
                     "ilm",
                     HealthPeriodicLogger.class.getCanonicalName(),
                     Level.INFO,
@@ -673,9 +673,9 @@ public class HealthPeriodicLoggerTests extends ESTestCase {
     }
 
     public void testOutputModeNoLogging() {
-        try (var mockAppender = MockLogAppender.capture(HealthPeriodicLogger.class)) {
+        try (var mockAppender = MockLog.capture(HealthPeriodicLogger.class)) {
             mockAppender.addExpectation(
-                new MockLogAppender.UnseenEventExpectation(
+                new MockLog.UnseenEventExpectation(
                     "overall",
                     HealthPeriodicLogger.class.getCanonicalName(),
                     Level.INFO,
@@ -683,7 +683,7 @@ public class HealthPeriodicLoggerTests extends ESTestCase {
                 )
             );
             mockAppender.addExpectation(
-                new MockLogAppender.UnseenEventExpectation(
+                new MockLog.UnseenEventExpectation(
                     "master_is_stable",
                     HealthPeriodicLogger.class.getCanonicalName(),
                     Level.INFO,
@@ -691,7 +691,7 @@ public class HealthPeriodicLoggerTests extends ESTestCase {
                 )
             );
             mockAppender.addExpectation(
-                new MockLogAppender.UnseenEventExpectation(
+                new MockLog.UnseenEventExpectation(
                     "disk",
                     HealthPeriodicLogger.class.getCanonicalName(),
                     Level.INFO,

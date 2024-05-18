@@ -21,7 +21,7 @@ import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.MockLogAppender;
+import org.elasticsearch.test.MockLog;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationField;
@@ -103,9 +103,9 @@ public class DefaultOperatorPrivilegesTests extends ESTestCase {
         final Logger logger = LogManager.getLogger(OperatorPrivileges.class);
         Loggers.setLevel(logger, Level.DEBUG);
 
-        try (var appender = MockLogAppender.capture(OperatorPrivileges.class)) {
+        try (var appender = MockLog.capture(OperatorPrivileges.class)) {
             appender.addExpectation(
-                new MockLogAppender.SeenEventExpectation(
+                new MockLog.SeenEventExpectation(
                     "marking",
                     logger.getName(),
                     Level.DEBUG,
@@ -211,10 +211,10 @@ public class DefaultOperatorPrivilegesTests extends ESTestCase {
         final Logger logger = LogManager.getLogger(OperatorPrivileges.class);
         Loggers.setLevel(logger, Level.DEBUG);
 
-        try (var appender = MockLogAppender.capture(OperatorPrivileges.class)) {
+        try (var appender = MockLog.capture(OperatorPrivileges.class)) {
             final RestoreSnapshotRequest restoreSnapshotRequest = mock(RestoreSnapshotRequest.class);
             appender.addExpectation(
-                new MockLogAppender.SeenEventExpectation(
+                new MockLog.SeenEventExpectation(
                     "intercepting",
                     logger.getName(),
                     Level.DEBUG,

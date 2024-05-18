@@ -124,7 +124,7 @@ import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.test.CorruptionUtils;
 import org.elasticsearch.test.DummyShardLock;
 import org.elasticsearch.test.FieldMaskingReader;
-import org.elasticsearch.test.MockLogAppender;
+import org.elasticsearch.test.MockLog;
 import org.elasticsearch.test.junit.annotations.TestIssueLogging;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.store.MockFSDirectoryFactory;
@@ -3527,9 +3527,9 @@ public class IndexShardTests extends IndexShardTestCase {
             EMPTY_EVENT_LISTENER
         );
 
-        try (var appender = MockLogAppender.capture(IndexShard.class)) {
+        try (var appender = MockLog.capture(IndexShard.class)) {
             appender.addExpectation(
-                new MockLogAppender.SeenEventExpectation(
+                new MockLog.SeenEventExpectation(
                     "expensive checks warning",
                     "org.elasticsearch.index.shard.IndexShard",
                     Level.WARN,
@@ -3539,7 +3539,7 @@ public class IndexShardTests extends IndexShardTestCase {
             );
 
             appender.addExpectation(
-                new MockLogAppender.SeenEventExpectation(
+                new MockLog.SeenEventExpectation(
                     "failure message",
                     "org.elasticsearch.index.shard.IndexShard",
                     Level.WARN,
@@ -4061,7 +4061,7 @@ public class IndexShardTests extends IndexShardTestCase {
 
     @TestLogging(reason = "testing traces of concurrent flushes", value = "org.elasticsearch.index.engine.Engine:TRACE")
     public void testFlushOnIdleConcurrentFlushDoesNotWait() throws Exception {
-        try (var mockLogAppender = MockLogAppender.capture(Engine.class)) {
+        try (var mockLogAppender = MockLog.capture(Engine.class)) {
             CountDownLatch readyToCompleteFlushLatch = new CountDownLatch(1);
             IndexShard shard = newStartedShard(false, Settings.EMPTY, config -> new InternalEngine(config) {
                 @Override
@@ -4078,7 +4078,7 @@ public class IndexShardTests extends IndexShardTestCase {
             // Issue the first flushOnIdle request. The flush happens in the background using the flush threadpool.
             // Then wait for log message that flush acquired lock immediately
             mockLogAppender.addExpectation(
-                new MockLogAppender.SeenEventExpectation(
+                new MockLog.SeenEventExpectation(
                     "should see first flush getting lock immediately",
                     Engine.class.getCanonicalName(),
                     Level.TRACE,
@@ -4094,7 +4094,7 @@ public class IndexShardTests extends IndexShardTestCase {
             indexDoc(shard, "_doc", Integer.toString(3));
             assertTrue(shard.isActive());
             mockLogAppender.addExpectation(
-                new MockLogAppender.SeenEventExpectation(
+                new MockLog.SeenEventExpectation(
                     "should see second flush returning since it will not wait for the ongoing flush",
                     Engine.class.getCanonicalName(),
                     Level.TRACE,
@@ -4112,7 +4112,7 @@ public class IndexShardTests extends IndexShardTestCase {
 
             // Wait for first flushOnIdle to log a message that it released the flush lock
             mockLogAppender.addExpectation(
-                new MockLogAppender.SeenEventExpectation(
+                new MockLog.SeenEventExpectation(
                     "should see first flush releasing lock",
                     Engine.class.getCanonicalName(),
                     Level.TRACE,

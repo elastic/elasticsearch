@@ -21,7 +21,7 @@ import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.MockLogAppender;
+import org.elasticsearch.test.MockLog;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -241,7 +241,7 @@ public class BatchedRerouteServiceTests extends ESTestCase {
     @TestLogging(reason = "testing log output", value = "org.elasticsearch.cluster.routing.BatchedRerouteService:DEBUG")
     public void testExceptionFidelity() {
 
-        try (var mockLogAppender = MockLogAppender.capture(BatchedRerouteService.class)) {
+        try (var mockLogAppender = MockLog.capture(BatchedRerouteService.class)) {
 
             clusterService.getMasterService()
                 .setClusterStatePublisher(
@@ -251,7 +251,7 @@ public class BatchedRerouteServiceTests extends ESTestCase {
             // Case 1: an exception thrown from within the reroute itself
 
             mockLogAppender.addExpectation(
-                new MockLogAppender.SeenEventExpectation(
+                new MockLog.SeenEventExpectation(
                     "failure within reroute",
                     BatchedRerouteService.class.getCanonicalName(),
                     Level.ERROR,
@@ -274,13 +274,13 @@ public class BatchedRerouteServiceTests extends ESTestCase {
             // None of the other cases should yield any log messages by default
 
             mockLogAppender.addExpectation(
-                new MockLogAppender.UnseenEventExpectation("no errors", BatchedRerouteService.class.getCanonicalName(), Level.ERROR, "*")
+                new MockLog.UnseenEventExpectation("no errors", BatchedRerouteService.class.getCanonicalName(), Level.ERROR, "*")
             );
             mockLogAppender.addExpectation(
-                new MockLogAppender.UnseenEventExpectation("no warnings", BatchedRerouteService.class.getCanonicalName(), Level.WARN, "*")
+                new MockLog.UnseenEventExpectation("no warnings", BatchedRerouteService.class.getCanonicalName(), Level.WARN, "*")
             );
             mockLogAppender.addExpectation(
-                new MockLogAppender.UnseenEventExpectation("no info", BatchedRerouteService.class.getCanonicalName(), Level.INFO, "*")
+                new MockLog.UnseenEventExpectation("no info", BatchedRerouteService.class.getCanonicalName(), Level.INFO, "*")
             );
 
             // Case 2: a FailedToCommitClusterStateException (see the call to setClusterStatePublisher above)
@@ -291,7 +291,7 @@ public class BatchedRerouteServiceTests extends ESTestCase {
             });
 
             mockLogAppender.addExpectation(
-                new MockLogAppender.SeenEventExpectation(
+                new MockLog.SeenEventExpectation(
                     "publish failure",
                     BatchedRerouteService.class.getCanonicalName(),
                     Level.DEBUG,
@@ -318,7 +318,7 @@ public class BatchedRerouteServiceTests extends ESTestCase {
             }, 10, TimeUnit.SECONDS);
 
             mockLogAppender.addExpectation(
-                new MockLogAppender.SeenEventExpectation(
+                new MockLog.SeenEventExpectation(
                     "not-master failure",
                     BatchedRerouteService.class.getCanonicalName(),
                     Level.DEBUG,

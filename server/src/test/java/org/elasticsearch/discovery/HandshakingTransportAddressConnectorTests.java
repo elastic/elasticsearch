@@ -23,7 +23,7 @@ import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.MockLogAppender;
+import org.elasticsearch.test.MockLog;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.transport.MockTransport;
 import org.elasticsearch.threadpool.TestThreadPool;
@@ -153,9 +153,9 @@ public class HandshakingTransportAddressConnectorTests extends ESTestCase {
 
         FailureListener failureListener = new FailureListener();
 
-        try (var mockAppender = MockLogAppender.capture(HandshakingTransportAddressConnector.class)) {
+        try (var mockAppender = MockLog.capture(HandshakingTransportAddressConnector.class)) {
             mockAppender.addExpectation(
-                new MockLogAppender.SeenEventExpectation(
+                new MockLog.SeenEventExpectation(
                     "message",
                     HandshakingTransportAddressConnector.class.getCanonicalName(),
                     Level.WARN,

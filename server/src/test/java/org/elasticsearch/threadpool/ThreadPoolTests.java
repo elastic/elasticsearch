@@ -20,7 +20,7 @@ import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.common.util.concurrent.TaskExecutionTimeTrackingEsThreadPoolExecutor;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.MockLogAppender;
+import org.elasticsearch.test.MockLog;
 
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
@@ -106,9 +106,9 @@ public class ThreadPoolTests extends ESTestCase {
     }
 
     public void testTimerThreadWarningLogging() throws Exception {
-        try (var appender = MockLogAppender.capture(ThreadPool.class)) {
+        try (var appender = MockLog.capture(ThreadPool.class)) {
             appender.addExpectation(
-                new MockLogAppender.SeenEventExpectation(
+                new MockLog.SeenEventExpectation(
                     "expected warning for absolute clock",
                     ThreadPool.class.getName(),
                     Level.WARN,
@@ -116,7 +116,7 @@ public class ThreadPoolTests extends ESTestCase {
                 )
             );
             appender.addExpectation(
-                new MockLogAppender.SeenEventExpectation(
+                new MockLog.SeenEventExpectation(
                     "expected warning for relative clock",
                     ThreadPool.class.getName(),
                     Level.WARN,
@@ -135,14 +135,14 @@ public class ThreadPoolTests extends ESTestCase {
     }
 
     public void testTimeChangeChecker() throws Exception {
-        try (var appender = MockLogAppender.capture(ThreadPool.class)) {
+        try (var appender = MockLog.capture(ThreadPool.class)) {
             long absoluteMillis = randomLong(); // overflow should still be handled correctly
             long relativeNanos = randomLong(); // overflow should still be handled correctly
 
             final ThreadPool.TimeChangeChecker timeChangeChecker = new ThreadPool.TimeChangeChecker(100, absoluteMillis, relativeNanos);
 
             appender.addExpectation(
-                new MockLogAppender.SeenEventExpectation(
+                new MockLog.SeenEventExpectation(
                     "expected warning for absolute clock",
                     ThreadPool.class.getName(),
                     Level.WARN,
@@ -155,7 +155,7 @@ public class ThreadPoolTests extends ESTestCase {
             appender.assertAllExpectationsMatched();
 
             appender.addExpectation(
-                new MockLogAppender.SeenEventExpectation(
+                new MockLog.SeenEventExpectation(
                     "expected warning for relative clock",
                     ThreadPool.class.getName(),
                     Level.WARN,
@@ -168,7 +168,7 @@ public class ThreadPoolTests extends ESTestCase {
             appender.assertAllExpectationsMatched();
 
             appender.addExpectation(
-                new MockLogAppender.SeenEventExpectation(
+                new MockLog.SeenEventExpectation(
                     "expected warning for absolute clock",
                     ThreadPool.class.getName(),
                     Level.WARN,
@@ -181,7 +181,7 @@ public class ThreadPoolTests extends ESTestCase {
             appender.assertAllExpectationsMatched();
 
             appender.addExpectation(
-                new MockLogAppender.SeenEventExpectation(
+                new MockLog.SeenEventExpectation(
                     "expected warning for relative clock",
                     ThreadPool.class.getName(),
                     Level.ERROR,
@@ -270,9 +270,9 @@ public class ThreadPoolTests extends ESTestCase {
             "test",
             Settings.builder().put(ThreadPool.SLOW_SCHEDULER_TASK_WARN_THRESHOLD_SETTING.getKey(), "10ms").build()
         );
-        try (var appender = MockLogAppender.capture(ThreadPool.class)) {
+        try (var appender = MockLog.capture(ThreadPool.class)) {
             appender.addExpectation(
-                new MockLogAppender.SeenEventExpectation(
+                new MockLog.SeenEventExpectation(
                     "expected warning for slow task",
                     ThreadPool.class.getName(),
                     Level.WARN,

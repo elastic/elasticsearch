@@ -22,7 +22,7 @@ import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.MockLogAppender;
+import org.elasticsearch.test.MockLog;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.Transport;
@@ -215,9 +215,9 @@ public class SeedHostsResolverTests extends ESTestCase {
         closeables.push(transportService);
         recreateSeedHostsResolver(transportService);
 
-        try (var appender = MockLogAppender.capture(SeedHostsResolver.class)) {
+        try (var appender = MockLog.capture(SeedHostsResolver.class)) {
             appender.addExpectation(
-                new MockLogAppender.ExceptionSeenEventExpectation(
+                new MockLog.ExceptionSeenEventExpectation(
                     getTestName(),
                     SeedHostsResolver.class.getCanonicalName(),
                     Level.WARN,
@@ -285,9 +285,9 @@ public class SeedHostsResolverTests extends ESTestCase {
         closeables.push(transportService);
         recreateSeedHostsResolver(transportService);
 
-        try (var appender = MockLogAppender.capture(SeedHostsResolver.class)) {
+        try (var appender = MockLog.capture(SeedHostsResolver.class)) {
             appender.addExpectation(
-                new MockLogAppender.SeenEventExpectation(
+                new MockLog.SeenEventExpectation(
                     getTestName(),
                     SeedHostsResolver.class.getCanonicalName(),
                     Level.WARN,
@@ -402,9 +402,9 @@ public class SeedHostsResolverTests extends ESTestCase {
         closeables.push(transportService);
         recreateSeedHostsResolver(transportService);
 
-        try (var appender = MockLogAppender.capture(SeedHostsResolver.class)) {
+        try (var appender = MockLog.capture(SeedHostsResolver.class)) {
             appender.addExpectation(
-                new MockLogAppender.SeenEventExpectation(
+                new MockLog.SeenEventExpectation(
                     getTestName(),
                     SeedHostsResolver.class.getCanonicalName(),
                     Level.WARN,

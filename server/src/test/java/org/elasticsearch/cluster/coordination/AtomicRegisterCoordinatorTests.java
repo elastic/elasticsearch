@@ -26,7 +26,7 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.gateway.ClusterStateUpdaters;
-import org.elasticsearch.test.MockLogAppender;
+import org.elasticsearch.test.MockLog;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.threadpool.ThreadPool;
 
@@ -143,11 +143,11 @@ public class AtomicRegisterCoordinatorTests extends CoordinatorTests {
             cluster.stabilise();
             final var clusterNode = cluster.getAnyLeader();
 
-            try (var mockAppender = MockLogAppender.capture(Coordinator.class, Coordinator.CoordinatorPublication.class)) {
+            try (var mockAppender = MockLog.capture(Coordinator.class, Coordinator.CoordinatorPublication.class)) {
 
                 clusterNode.disconnect();
                 mockAppender.addExpectation(
-                    new MockLogAppender.SeenEventExpectation(
+                    new MockLog.SeenEventExpectation(
                         "write heartbeat failure",
                         Coordinator.class.getCanonicalName(),
                         Level.WARN,
@@ -160,7 +160,7 @@ public class AtomicRegisterCoordinatorTests extends CoordinatorTests {
 
                 coordinatorStrategy.disruptElections = true;
                 mockAppender.addExpectation(
-                    new MockLogAppender.SeenEventExpectation(
+                    new MockLog.SeenEventExpectation(
                         "acquire term failure",
                         Coordinator.class.getCanonicalName(),
                         Level.WARN,
@@ -173,7 +173,7 @@ public class AtomicRegisterCoordinatorTests extends CoordinatorTests {
 
                 coordinatorStrategy.disruptPublications = true;
                 mockAppender.addExpectation(
-                    new MockLogAppender.SeenEventExpectation(
+                    new MockLog.SeenEventExpectation(
                         "verify term failure",
                         Coordinator.CoordinatorPublication.class.getCanonicalName(),
                         Level.WARN,

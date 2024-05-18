@@ -29,7 +29,7 @@ import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.blobstore.FileRestoreContext;
 import org.elasticsearch.repositories.fs.FsRepository;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.test.MockLogAppender;
+import org.elasticsearch.test.MockLog;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.xcontent.XContentFactory;
 
@@ -162,7 +162,7 @@ public class RestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
         value = "org.elasticsearch.snapshots.RestoreService:INFO"
     )
     public void testRestoreLogging() throws IllegalAccessException {
-        try (var mockLogAppender = MockLogAppender.capture(RestoreService.class)) {
+        try (var mockLogAppender = MockLog.capture(RestoreService.class)) {
             String indexName = "testindex";
             String repoName = "test-restore-snapshot-repo";
             String snapshotName = "test-restore-snapshot";
@@ -172,7 +172,7 @@ public class RestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
             String expectedValue = "expected";
 
             mockLogAppender.addExpectation(
-                new MockLogAppender.PatternSeenEventExpectation(
+                new MockLog.PatternSeenEventExpectation(
                     "not seen start of snapshot restore",
                     "org.elasticsearch.snapshots.RestoreService",
                     Level.INFO,
@@ -181,7 +181,7 @@ public class RestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
             );
 
             mockLogAppender.addExpectation(
-                new MockLogAppender.PatternSeenEventExpectation(
+                new MockLog.PatternSeenEventExpectation(
                     "not seen completion of snapshot restore",
                     "org.elasticsearch.snapshots.RestoreService",
                     Level.INFO,
@@ -898,9 +898,9 @@ public class RestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
         index(indexName, "some_id", Map.of("foo", "bar"));
         assertAcked(indicesAdmin().prepareClose(indexName).get());
 
-        try (var mockAppender = MockLogAppender.capture(FileRestoreContext.class)) {
+        try (var mockAppender = MockLog.capture(FileRestoreContext.class)) {
             mockAppender.addExpectation(
-                new MockLogAppender.UnseenEventExpectation("no warnings", FileRestoreContext.class.getCanonicalName(), Level.WARN, "*")
+                new MockLog.UnseenEventExpectation("no warnings", FileRestoreContext.class.getCanonicalName(), Level.WARN, "*")
             );
 
             final RestoreSnapshotResponse restoreSnapshotResponse = clusterAdmin().prepareRestoreSnapshot(repoName, snapshotName)

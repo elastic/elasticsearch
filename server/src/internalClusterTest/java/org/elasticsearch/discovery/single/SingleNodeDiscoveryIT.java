@@ -18,7 +18,7 @@ import org.elasticsearch.node.Node;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.MockHttpTransport;
-import org.elasticsearch.test.MockLogAppender;
+import org.elasticsearch.test.MockLog;
 import org.elasticsearch.test.NodeConfigurationSource;
 import org.elasticsearch.transport.RemoteTransportException;
 import org.elasticsearch.transport.TransportService;
@@ -138,9 +138,9 @@ public class SingleNodeDiscoveryIT extends ESIntegTestCase {
             Arrays.asList(getTestTransportPlugin(), MockHttpTransport.TestPlugin.class),
             Function.identity()
         );
-        try (var mockAppender = MockLogAppender.capture(JoinHelper.class)) {
+        try (var mockAppender = MockLog.capture(JoinHelper.class)) {
             mockAppender.addExpectation(
-                new MockLogAppender.SeenEventExpectation("test", JoinHelper.class.getCanonicalName(), Level.INFO, "failed to join") {
+                new MockLog.SeenEventExpectation("test", JoinHelper.class.getCanonicalName(), Level.INFO, "failed to join") {
 
                     @Override
                     public boolean innerMatch(final LogEvent event) {

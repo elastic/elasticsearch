@@ -18,7 +18,7 @@ import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.MockLogAppender;
+import org.elasticsearch.test.MockLog;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
@@ -36,10 +36,10 @@ public class HttpTracerTests extends ESTestCase {
 
     @TestLogging(reason = "testing trace logging", value = HTTP_TRACER_LOGGER + ":TRACE," + HTTP_BODY_TRACER_LOGGER + ":INFO")
     public void testLogging() {
-        try (var appender = MockLogAppender.capture(HttpTracer.class)) {
+        try (var appender = MockLog.capture(HttpTracer.class)) {
 
             appender.addExpectation(
-                new MockLogAppender.PatternSeenEventExpectation(
+                new MockLog.PatternSeenEventExpectation(
                     "request log",
                     HTTP_TRACER_LOGGER,
                     Level.TRACE,
@@ -47,7 +47,7 @@ public class HttpTracerTests extends ESTestCase {
                 )
             );
             appender.addExpectation(
-                new MockLogAppender.PatternSeenEventExpectation(
+                new MockLog.PatternSeenEventExpectation(
                     "response log",
                     HTTP_TRACER_LOGGER,
                     Level.TRACE,

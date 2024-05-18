@@ -28,7 +28,7 @@ import org.elasticsearch.monitor.StatusInfo;
 import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.telemetry.tracing.Tracer;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.MockLogAppender;
+import org.elasticsearch.test.MockLog;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.transport.CapturingTransport;
 import org.elasticsearch.test.transport.CapturingTransport.CapturedRequest;
@@ -346,9 +346,9 @@ public class JoinHelperTests extends ESTestCase {
         joinAccumulator.handleJoinRequest(localNode, CompatibilityVersionsUtils.staticCurrent(), Set.of(), joinListener);
         assert joinListener.isDone() == false;
 
-        try (var mockAppender = MockLogAppender.capture(JoinHelper.class)) {
+        try (var mockAppender = MockLog.capture(JoinHelper.class)) {
             mockAppender.addExpectation(
-                new MockLogAppender.SeenEventExpectation(
+                new MockLog.SeenEventExpectation(
                     "warning log",
                     JoinHelper.class.getCanonicalName(),
                     Level.WARN,

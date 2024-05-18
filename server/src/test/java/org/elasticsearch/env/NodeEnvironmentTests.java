@@ -38,7 +38,7 @@ import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
-import org.elasticsearch.test.MockLogAppender;
+import org.elasticsearch.test.MockLog;
 import org.elasticsearch.test.NodeRoles;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.hamcrest.Matchers;
@@ -132,9 +132,9 @@ public class NodeEnvironmentTests extends ESTestCase {
 
             Index index = new Index("foo", "fooUUID");
 
-            try (var appender = MockLogAppender.capture(NodeEnvironment.class); var lock = env.shardLock(new ShardId(index, 0), "1")) {
+            try (var appender = MockLog.capture(NodeEnvironment.class); var lock = env.shardLock(new ShardId(index, 0), "1")) {
                 appender.addExpectation(
-                    new MockLogAppender.SeenEventExpectation(
+                    new MockLog.SeenEventExpectation(
                         "hot threads logging",
                         NODE_ENVIRONMENT_LOGGER_NAME,
                         Level.DEBUG,
@@ -142,7 +142,7 @@ public class NodeEnvironmentTests extends ESTestCase {
                     )
                 );
                 appender.addExpectation(
-                    new MockLogAppender.UnseenEventExpectation(
+                    new MockLog.UnseenEventExpectation(
                         "second attempt should be suppressed due to throttling",
                         NODE_ENVIRONMENT_LOGGER_NAME,
                         Level.DEBUG,

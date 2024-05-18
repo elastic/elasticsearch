@@ -17,7 +17,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.MockLogAppender;
+import org.elasticsearch.test.MockLog;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 
 import java.io.IOException;
@@ -35,7 +35,7 @@ public class TransportLoggerTests extends ESTestCase {
             + ", header size: \\d+B"
             + ", action: cluster:monitor/stats]"
             + " WRITE: \\d+B";
-        final MockLogAppender.LoggingExpectation writeExpectation = new MockLogAppender.PatternSeenEventExpectation(
+        final MockLog.LoggingExpectation writeExpectation = new MockLog.PatternSeenEventExpectation(
             "hot threads request",
             TransportLogger.class.getCanonicalName(),
             Level.TRACE,
@@ -50,14 +50,14 @@ public class TransportLoggerTests extends ESTestCase {
             + ", action: cluster:monitor/stats]"
             + " READ: \\d+B";
 
-        final MockLogAppender.LoggingExpectation readExpectation = new MockLogAppender.PatternSeenEventExpectation(
+        final MockLog.LoggingExpectation readExpectation = new MockLog.PatternSeenEventExpectation(
             "cluster monitor request",
             TransportLogger.class.getCanonicalName(),
             Level.TRACE,
             readPattern
         );
 
-        try (var appender = MockLogAppender.capture(TransportLogger.class)) {
+        try (var appender = MockLog.capture(TransportLogger.class)) {
             appender.addExpectation(writeExpectation);
             appender.addExpectation(readExpectation);
             BytesReference bytesReference = buildRequest();

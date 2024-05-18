@@ -65,7 +65,7 @@ import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.MockLogAppender;
+import org.elasticsearch.test.MockLog;
 import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.test.XContentTestUtils;
 import org.elasticsearch.threadpool.FixedExecutorBuilder;
@@ -1499,9 +1499,9 @@ public class ApiKeyServiceTests extends ESTestCase {
         final Logger logger = LogManager.getLogger(ApiKeyService.class);
         Loggers.setLevel(logger, Level.TRACE);
 
-        try (var appender = MockLogAppender.capture(ApiKeyService.class)) {
+        try (var appender = MockLog.capture(ApiKeyService.class)) {
             appender.addExpectation(
-                new MockLogAppender.PatternSeenEventExpectation(
+                new MockLog.PatternSeenEventExpectation(
                     "evict",
                     ApiKeyService.class.getName(),
                     Level.TRACE,
@@ -1509,7 +1509,7 @@ public class ApiKeyServiceTests extends ESTestCase {
                 )
             );
             appender.addExpectation(
-                new MockLogAppender.UnseenEventExpectation(
+                new MockLog.UnseenEventExpectation(
                     "no-thrashing",
                     ApiKeyService.class.getName(),
                     Level.WARN,
@@ -1520,7 +1520,7 @@ public class ApiKeyServiceTests extends ESTestCase {
             appender.assertAllExpectationsMatched();
 
             appender.addExpectation(
-                new MockLogAppender.UnseenEventExpectation(
+                new MockLog.UnseenEventExpectation(
                     "replace",
                     ApiKeyService.class.getName(),
                     Level.TRACE,
@@ -1531,7 +1531,7 @@ public class ApiKeyServiceTests extends ESTestCase {
             appender.assertAllExpectationsMatched();
 
             appender.addExpectation(
-                new MockLogAppender.UnseenEventExpectation(
+                new MockLog.UnseenEventExpectation(
                     "invalidate",
                     ApiKeyService.class.getName(),
                     Level.TRACE,
@@ -1559,9 +1559,9 @@ public class ApiKeyServiceTests extends ESTestCase {
         final Logger logger = LogManager.getLogger(ApiKeyService.class);
         Loggers.setLevel(logger, Level.TRACE);
 
-        try (var appender = MockLogAppender.capture(ApiKeyService.class)) {
+        try (var appender = MockLog.capture(ApiKeyService.class)) {
             appender.addExpectation(
-                new MockLogAppender.UnseenEventExpectation(
+                new MockLog.UnseenEventExpectation(
                     "evict",
                     ApiKeyService.class.getName(),
                     Level.TRACE,
@@ -1591,7 +1591,7 @@ public class ApiKeyServiceTests extends ESTestCase {
         final Logger logger = LogManager.getLogger(ApiKeyService.class);
         Loggers.setLevel(logger, Level.TRACE);
 
-        try (var appender = MockLogAppender.capture(ApiKeyService.class)) {
+        try (var appender = MockLog.capture(ApiKeyService.class)) {
             // Prepare the warning logging to trigger
             service.getEvictionCounter().add(4500);
             final long thrashingCheckIntervalInSeconds = 300L;
@@ -1604,7 +1604,7 @@ public class ApiKeyServiceTests extends ESTestCase {
             // Ensure the counter is updated
             assertBusy(() -> assertThat(service.getEvictionCounter().longValue() >= 4500, is(true)));
             appender.addExpectation(
-                new MockLogAppender.SeenEventExpectation(
+                new MockLog.SeenEventExpectation(
                     "evict",
                     ApiKeyService.class.getName(),
                     Level.TRACE,
@@ -1612,7 +1612,7 @@ public class ApiKeyServiceTests extends ESTestCase {
                 )
             );
             appender.addExpectation(
-                new MockLogAppender.SeenEventExpectation(
+                new MockLog.SeenEventExpectation(
                     "thrashing",
                     ApiKeyService.class.getName(),
                     Level.WARN,
@@ -1628,7 +1628,7 @@ public class ApiKeyServiceTests extends ESTestCase {
 
             // Will not log warning again for the next eviction because of throttling
             appender.addExpectation(
-                new MockLogAppender.SeenEventExpectation(
+                new MockLog.SeenEventExpectation(
                     "evict-again",
                     ApiKeyService.class.getName(),
                     Level.TRACE,
@@ -1636,7 +1636,7 @@ public class ApiKeyServiceTests extends ESTestCase {
                 )
             );
             appender.addExpectation(
-                new MockLogAppender.UnseenEventExpectation(
+                new MockLog.UnseenEventExpectation(
                     "throttling",
                     ApiKeyService.class.getName(),
                     Level.WARN,

@@ -14,7 +14,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.MockLogAppender;
+import org.elasticsearch.test.MockLog;
 import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonXContent;
@@ -93,9 +93,9 @@ public class SettingsFilterTests extends ESTestCase {
         Setting<String> filteredSetting = Setting.simpleString("key", Property.Filtered);
         assertExpectedLogMessages(
             (testLogger) -> Setting.logSettingUpdate(filteredSetting, newSettings, oldSettings, testLogger),
-            new MockLogAppender.SeenEventExpectation("secure logging", "org.elasticsearch.test", Level.INFO, "updating [key]"),
-            new MockLogAppender.UnseenEventExpectation("unwanted old setting name", "org.elasticsearch.test", Level.INFO, "*old*"),
-            new MockLogAppender.UnseenEventExpectation("unwanted new setting name", "org.elasticsearch.test", Level.INFO, "*new*")
+            new MockLog.SeenEventExpectation("secure logging", "org.elasticsearch.test", Level.INFO, "updating [key]"),
+            new MockLog.UnseenEventExpectation("unwanted old setting name", "org.elasticsearch.test", Level.INFO, "*old*"),
+            new MockLog.UnseenEventExpectation("unwanted new setting name", "org.elasticsearch.test", Level.INFO, "*new*")
         );
     }
 
@@ -106,7 +106,7 @@ public class SettingsFilterTests extends ESTestCase {
         Setting<String> regularSetting = Setting.simpleString("key");
         assertExpectedLogMessages(
             (testLogger) -> Setting.logSettingUpdate(regularSetting, newSettings, oldSettings, testLogger),
-            new MockLogAppender.SeenEventExpectation(
+            new MockLog.SeenEventExpectation(
                 "regular logging",
                 "org.elasticsearch.test",
                 Level.INFO,
@@ -115,9 +115,9 @@ public class SettingsFilterTests extends ESTestCase {
         );
     }
 
-    private void assertExpectedLogMessages(Consumer<Logger> consumer, MockLogAppender.LoggingExpectation... expectations) {
+    private void assertExpectedLogMessages(Consumer<Logger> consumer, MockLog.LoggingExpectation... expectations) {
         Logger testLogger = LogManager.getLogger("org.elasticsearch.test");
-        try (var appender = MockLogAppender.capture("org.elasticsearch.test")) {
+        try (var appender = MockLog.capture("org.elasticsearch.test")) {
             Arrays.stream(expectations).forEach(appender::addExpectation);
             consumer.accept(testLogger);
             appender.assertAllExpectationsMatched();

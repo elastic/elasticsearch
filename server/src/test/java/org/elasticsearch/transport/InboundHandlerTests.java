@@ -31,7 +31,7 @@ import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.telemetry.tracing.Tracer;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.MockLogAppender;
+import org.elasticsearch.test.MockLog;
 import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -229,9 +229,9 @@ public class InboundHandlerTests extends ESTestCase {
         // response so we must just close the connection on an error. To avoid the failure disappearing into a black hole we at least log
         // it.
 
-        try (var mockAppender = MockLogAppender.capture(InboundHandler.class)) {
+        try (var mockAppender = MockLog.capture(InboundHandler.class)) {
             mockAppender.addExpectation(
-                new MockLogAppender.SeenEventExpectation(
+                new MockLog.SeenEventExpectation(
                     "expected message",
                     EXPECTED_LOGGER_NAME,
                     Level.WARN,
@@ -273,11 +273,11 @@ public class InboundHandlerTests extends ESTestCase {
     public void testLogsSlowInboundProcessing() throws Exception {
 
         handler.setSlowLogThreshold(TimeValue.timeValueMillis(5L));
-        try (var mockAppender = MockLogAppender.capture(InboundHandler.class)) {
+        try (var mockAppender = MockLog.capture(InboundHandler.class)) {
             final TransportVersion remoteVersion = TransportVersion.current();
 
             mockAppender.addExpectation(
-                new MockLogAppender.SeenEventExpectation("expected slow request", EXPECTED_LOGGER_NAME, Level.WARN, "handling request ")
+                new MockLog.SeenEventExpectation("expected slow request", EXPECTED_LOGGER_NAME, Level.WARN, "handling request ")
             );
 
             final long requestId = randomNonNegativeLong();
@@ -304,7 +304,7 @@ public class InboundHandlerTests extends ESTestCase {
             mockAppender.assertAllExpectationsMatched();
 
             mockAppender.addExpectation(
-                new MockLogAppender.SeenEventExpectation("expected slow response", EXPECTED_LOGGER_NAME, Level.WARN, "handling response ")
+                new MockLog.SeenEventExpectation("expected slow response", EXPECTED_LOGGER_NAME, Level.WARN, "handling response ")
             );
 
             final long responseId = randomNonNegativeLong();

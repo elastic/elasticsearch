@@ -63,7 +63,7 @@ import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.telemetry.tracing.Tracer;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
-import org.elasticsearch.test.MockLogAppender;
+import org.elasticsearch.test.MockLog;
 import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.test.index.IndexVersionUtils;
 import org.elasticsearch.test.rest.FakeRestRequest;
@@ -127,7 +127,7 @@ import java.util.stream.Collectors;
 import static java.util.Collections.emptyMap;
 import static org.elasticsearch.test.LambdaMatchers.falseWith;
 import static org.elasticsearch.test.LambdaMatchers.trueWith;
-import static org.elasticsearch.test.MockLogAppender.assertThatLogger;
+import static org.elasticsearch.test.MockLog.assertThatLogger;
 import static org.elasticsearch.xpack.core.security.authc.RealmSettings.getFullSettingKey;
 import static org.elasticsearch.xpack.security.operator.OperatorPrivileges.NOOP_OPERATOR_PRIVILEGES_SERVICE;
 import static org.elasticsearch.xpack.security.operator.OperatorPrivileges.OPERATOR_PRIVILEGES_ENABLED;
@@ -791,14 +791,14 @@ public class SecurityTests extends ESTestCase {
         SettingsModule settingsModule = new SettingsModule(Settings.EMPTY);
         ThreadPool threadPool = new TestThreadPool(getTestName());
 
-        try (var appender = MockLogAppender.capture(ActionModule.class)) {
+        try (var appender = MockLog.capture(ActionModule.class)) {
             UsageService usageService = new UsageService();
             Security security = new Security(settings);
 
             // Verify Security rest interceptor is about to be installed
             // We will throw later if another interceptor is already installed
             appender.addExpectation(
-                new MockLogAppender.SeenEventExpectation(
+                new MockLog.SeenEventExpectation(
                     "Security rest interceptor",
                     ActionModule.class.getName(),
                     Level.DEBUG,
@@ -845,9 +845,9 @@ public class SecurityTests extends ESTestCase {
             settings.put("xpack.security.enabled", securityEnabled);
         }
 
-        try (var appender = MockLogAppender.capture(Security.class)) {
+        try (var appender = MockLog.capture(Security.class)) {
             appender.addExpectation(
-                new MockLogAppender.SeenEventExpectation(
+                new MockLog.SeenEventExpectation(
                     "message",
                     Security.class.getName(),
                     Level.INFO,
@@ -1130,8 +1130,8 @@ public class SecurityTests extends ESTestCase {
         );
     }
 
-    private MockLogAppender.SeenEventExpectation logEventForNonCompliantCacheHash(String settingKey) {
-        return new MockLogAppender.SeenEventExpectation(
+    private MockLog.SeenEventExpectation logEventForNonCompliantCacheHash(String settingKey) {
+        return new MockLog.SeenEventExpectation(
             "cache hash not fips compliant",
             Security.class.getName(),
             Level.WARN,
@@ -1142,8 +1142,8 @@ public class SecurityTests extends ESTestCase {
         );
     }
 
-    private MockLogAppender.SeenEventExpectation logEventForNonCompliantStoredHash(String settingKey) {
-        return new MockLogAppender.SeenEventExpectation(
+    private MockLog.SeenEventExpectation logEventForNonCompliantStoredHash(String settingKey) {
+        return new MockLog.SeenEventExpectation(
             "stored hash not fips compliant",
             Security.class.getName(),
             Level.WARN,

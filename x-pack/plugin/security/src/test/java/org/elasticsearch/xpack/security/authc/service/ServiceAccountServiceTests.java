@@ -20,7 +20,7 @@ import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.MockLogAppender;
+import org.elasticsearch.test.MockLog;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.security.action.service.CreateServiceAccountTokenRequest;
@@ -112,12 +112,12 @@ public class ServiceAccountServiceTests extends ESTestCase {
         Loggers.setLevel(sasLogger, Level.TRACE);
 
         try (
-            var satAppender = MockLogAppender.capture(ServiceAccountToken.class);
-            var sasAppender = MockLogAppender.capture(ServiceAccountService.class)
+                var satAppender = MockLog.capture(ServiceAccountToken.class);
+                var sasAppender = MockLog.capture(ServiceAccountService.class)
         ) {
             // Less than 4 bytes
             satAppender.addExpectation(
-                new MockLogAppender.SeenEventExpectation(
+                new MockLog.SeenEventExpectation(
                     "less than 4 bytes",
                     ServiceAccountToken.class.getName(),
                     Level.TRACE,
@@ -130,7 +130,7 @@ public class ServiceAccountServiceTests extends ESTestCase {
 
             // Prefix mismatch
             satAppender.addExpectation(
-                new MockLogAppender.SeenEventExpectation(
+                new MockLog.SeenEventExpectation(
                     "prefix mismatch",
                     ServiceAccountToken.class.getName(),
                     Level.TRACE,
@@ -148,7 +148,7 @@ public class ServiceAccountServiceTests extends ESTestCase {
 
             // No colon
             satAppender.addExpectation(
-                new MockLogAppender.SeenEventExpectation(
+                new MockLog.SeenEventExpectation(
                     "no colon",
                     ServiceAccountToken.class.getName(),
                     Level.TRACE,
@@ -163,7 +163,7 @@ public class ServiceAccountServiceTests extends ESTestCase {
 
             // Invalid delimiter for qualified name
             satAppender.addExpectation(
-                new MockLogAppender.SeenEventExpectation(
+                new MockLog.SeenEventExpectation(
                     "invalid delimiter for qualified name",
                     ServiceAccountToken.class.getName(),
                     Level.TRACE,
@@ -195,7 +195,7 @@ public class ServiceAccountServiceTests extends ESTestCase {
 
             // Invalid token name
             sasAppender.addExpectation(
-                new MockLogAppender.SeenEventExpectation(
+                new MockLog.SeenEventExpectation(
                     "invalid token name",
                     ServiceAccountService.class.getName(),
                     Level.TRACE,
@@ -240,7 +240,7 @@ public class ServiceAccountServiceTests extends ESTestCase {
 
             // Invalid magic byte
             satAppender.addExpectation(
-                new MockLogAppender.SeenEventExpectation(
+                new MockLog.SeenEventExpectation(
                     "invalid magic byte again",
                     ServiceAccountToken.class.getName(),
                     Level.TRACE,
@@ -254,7 +254,7 @@ public class ServiceAccountServiceTests extends ESTestCase {
 
             // No colon
             satAppender.addExpectation(
-                new MockLogAppender.SeenEventExpectation(
+                new MockLog.SeenEventExpectation(
                     "no colon again",
                     ServiceAccountToken.class.getName(),
                     Level.TRACE,
@@ -268,7 +268,7 @@ public class ServiceAccountServiceTests extends ESTestCase {
 
             // Invalid qualified name
             satAppender.addExpectation(
-                new MockLogAppender.SeenEventExpectation(
+                new MockLog.SeenEventExpectation(
                     "invalid delimiter for qualified name again",
                     ServiceAccountToken.class.getName(),
                     Level.TRACE,
@@ -282,7 +282,7 @@ public class ServiceAccountServiceTests extends ESTestCase {
 
             // Invalid token name
             sasAppender.addExpectation(
-                new MockLogAppender.SeenEventExpectation(
+                new MockLog.SeenEventExpectation(
                     "invalid token name again",
                     ServiceAccountService.class.getName(),
                     Level.TRACE,
@@ -363,14 +363,14 @@ public class ServiceAccountServiceTests extends ESTestCase {
         final Logger sasLogger = LogManager.getLogger(ServiceAccountService.class);
         Loggers.setLevel(sasLogger, Level.TRACE);
 
-        try (var appender = MockLogAppender.capture(ServiceAccountService.class)) {
+        try (var appender = MockLog.capture(ServiceAccountService.class)) {
             // non-elastic service account
             final ServiceAccountId accountId1 = new ServiceAccountId(
                 randomValueOtherThan(ElasticServiceAccounts.NAMESPACE, () -> randomAlphaOfLengthBetween(3, 8)),
                 randomAlphaOfLengthBetween(3, 8)
             );
             appender.addExpectation(
-                new MockLogAppender.SeenEventExpectation(
+                new MockLog.SeenEventExpectation(
                     "non-elastic service account",
                     ServiceAccountService.class.getName(),
                     Level.DEBUG,
@@ -401,7 +401,7 @@ public class ServiceAccountServiceTests extends ESTestCase {
                 randomValueOtherThan("fleet-server", () -> randomAlphaOfLengthBetween(3, 8))
             );
             appender.addExpectation(
-                new MockLogAppender.SeenEventExpectation(
+                new MockLog.SeenEventExpectation(
                     "unknown elastic service name",
                     ServiceAccountService.class.getName(),
                     Level.DEBUG,
@@ -430,7 +430,7 @@ public class ServiceAccountServiceTests extends ESTestCase {
             final SecureString secret3 = new SecureString(randomAlphaOfLengthBetween(1, 9).toCharArray());
             final ServiceAccountToken token3 = new ServiceAccountToken(accountId3, randomAlphaOfLengthBetween(3, 8), secret3);
             appender.addExpectation(
-                new MockLogAppender.SeenEventExpectation(
+                new MockLog.SeenEventExpectation(
                     "secret value too short",
                     ServiceAccountService.class.getName(),
                     Level.DEBUG,
@@ -521,7 +521,7 @@ public class ServiceAccountServiceTests extends ESTestCase {
             );
 
             appender.addExpectation(
-                new MockLogAppender.SeenEventExpectation(
+                new MockLog.SeenEventExpectation(
                     "invalid credential",
                     ServiceAccountService.class.getName(),
                     Level.DEBUG,

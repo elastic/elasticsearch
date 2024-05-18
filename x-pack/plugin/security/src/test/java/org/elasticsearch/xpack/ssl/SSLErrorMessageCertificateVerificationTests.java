@@ -24,7 +24,7 @@ import org.elasticsearch.common.ssl.SslVerificationMode;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.MockLogAppender;
+import org.elasticsearch.test.MockLog;
 import org.elasticsearch.test.http.MockResponse;
 import org.elasticsearch.test.http.MockWebServer;
 import org.elasticsearch.xpack.core.common.socket.SocketAccess;
@@ -120,15 +120,15 @@ public class SSLErrorMessageCertificateVerificationTests extends ESTestCase {
         // Apache clients implement their own hostname checking, but we don't want that.
         // We use a raw socket so we get the builtin JDK checking (which is what we use for transport protocol SSL checks)
         try (
-            var mockAppender = MockLogAppender.capture(DiagnosticTrustManager.class);
-            MockWebServer webServer = initWebServer(sslService);
-            SSLSocket clientSocket = (SSLSocket) clientSocketFactory.createSocket()
+                var mockAppender = MockLog.capture(DiagnosticTrustManager.class);
+                MockWebServer webServer = initWebServer(sslService);
+                SSLSocket clientSocket = (SSLSocket) clientSocketFactory.createSocket()
         ) {
 
             String fileName = "/x-pack/plugin/security/build/resources/test/org/elasticsearch/xpack/ssl/SSLErrorMessageTests/ca1.crt"
                 .replace('/', platformFileSeparator());
             mockAppender.addExpectation(
-                new MockLogAppender.PatternSeenEventExpectation(
+                new MockLog.PatternSeenEventExpectation(
                     "ssl diagnostic",
                     DiagnosticTrustManager.class.getName(),
                     Level.WARN,

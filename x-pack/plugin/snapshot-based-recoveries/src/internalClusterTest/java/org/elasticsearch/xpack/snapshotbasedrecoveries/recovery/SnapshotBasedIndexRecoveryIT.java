@@ -67,7 +67,7 @@ import org.elasticsearch.snapshots.RestoreInfo;
 import org.elasticsearch.snapshots.SnapshotInfo;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalSettingsPlugin;
-import org.elasticsearch.test.MockLogAppender;
+import org.elasticsearch.test.MockLog;
 import org.elasticsearch.test.junit.annotations.TestIssueLogging;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.transport.MockTransportService;
@@ -376,9 +376,9 @@ public class SnapshotBasedIndexRecoveryIT extends AbstractSnapshotIntegTestCase 
         createSnapshot(repoName, "snap", Collections.singletonList(indexName));
 
         String targetNode;
-        try (var mockLogAppender = MockLogAppender.capture(RecoverySourceHandler.class)) {
+        try (var mockLogAppender = MockLog.capture(RecoverySourceHandler.class)) {
             mockLogAppender.addExpectation(
-                new MockLogAppender.SeenEventExpectation(
+                new MockLog.SeenEventExpectation(
                     "expected warn log about restore failure",
                     RecoverySourceHandler.class.getName(),
                     Level.WARN,
@@ -610,9 +610,9 @@ public class SnapshotBasedIndexRecoveryIT extends AbstractSnapshotIntegTestCase 
 
             recoverSnapshotFileRequestReceived.await();
 
-            try (var mockLogAppender = MockLogAppender.capture(RecoverySourceHandler.class)) {
+            try (var mockLogAppender = MockLog.capture(RecoverySourceHandler.class)) {
                 mockLogAppender.addExpectation(
-                    new MockLogAppender.SeenEventExpectation(
+                    new MockLog.SeenEventExpectation(
                         "expected debug log about restore cancellation",
                         RecoverySourceHandler.class.getName(),
                         Level.DEBUG,
@@ -620,7 +620,7 @@ public class SnapshotBasedIndexRecoveryIT extends AbstractSnapshotIntegTestCase 
                     )
                 );
                 mockLogAppender.addExpectation(
-                    new MockLogAppender.UnseenEventExpectation(
+                    new MockLog.UnseenEventExpectation(
                         "expected no WARN logs",
                         RecoverySourceHandler.class.getName(),
                         Level.WARN,

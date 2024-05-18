@@ -63,7 +63,7 @@ import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.test.CorruptionUtils;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.MockLogAppender;
+import org.elasticsearch.test.MockLog;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 
 import java.io.IOError;
@@ -1186,7 +1186,7 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
                     null,
                     clusterState,
                     writer,
-                    new MockLogAppender.SeenEventExpectation(
+                    new MockLog.SeenEventExpectation(
                         "should see warning at threshold",
                         PersistedClusterStateService.class.getCanonicalName(),
                         Level.WARN,
@@ -1202,7 +1202,7 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
                     null,
                     clusterState,
                     writer,
-                    new MockLogAppender.SeenEventExpectation(
+                    new MockLog.SeenEventExpectation(
                         "should see warning above threshold",
                         PersistedClusterStateService.class.getCanonicalName(),
                         Level.WARN,
@@ -1218,7 +1218,7 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
                     null,
                     clusterState,
                     writer,
-                    new MockLogAppender.UnseenEventExpectation(
+                    new MockLog.UnseenEventExpectation(
                         "should not see warning below threshold",
                         PersistedClusterStateService.class.getCanonicalName(),
                         Level.WARN,
@@ -1236,7 +1236,7 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
                     null,
                     clusterState,
                     writer,
-                    new MockLogAppender.SeenEventExpectation(
+                    new MockLog.SeenEventExpectation(
                         "should see warning at reduced threshold",
                         PersistedClusterStateService.class.getCanonicalName(),
                         Level.WARN,
@@ -1270,7 +1270,7 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
                     clusterState,
                     newClusterState,
                     writer,
-                    new MockLogAppender.SeenEventExpectation(
+                    new MockLog.SeenEventExpectation(
                         "should see warning at threshold",
                         PersistedClusterStateService.class.getCanonicalName(),
                         Level.WARN,
@@ -1289,7 +1289,7 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
                     null,
                     clusterState,
                     writer,
-                    new MockLogAppender.UnseenEventExpectation(
+                    new MockLog.UnseenEventExpectation(
                         "should not see warning below threshold",
                         PersistedClusterStateService.class.getCanonicalName(),
                         Level.WARN,
@@ -1302,7 +1302,7 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
                     clusterState,
                     newClusterState,
                     writer,
-                    new MockLogAppender.UnseenEventExpectation(
+                    new MockLog.UnseenEventExpectation(
                         "should not see warning below threshold",
                         PersistedClusterStateService.class.getCanonicalName(),
                         Level.WARN,
@@ -1540,9 +1540,9 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
                 writer.writeFullStateAndCommit(randomNonNegativeLong(), ClusterState.EMPTY_STATE);
             }
 
-            try (var mockAppender = MockLogAppender.capture(PersistedClusterStateService.class)) {
+            try (var mockAppender = MockLog.capture(PersistedClusterStateService.class)) {
                 mockAppender.addExpectation(
-                    new MockLogAppender.SeenEventExpectation(
+                    new MockLog.SeenEventExpectation(
                         "should see checkindex message",
                         PersistedClusterStateService.class.getCanonicalName(),
                         Level.DEBUG,
@@ -1550,7 +1550,7 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
                     )
                 );
                 mockAppender.addExpectation(
-                    new MockLogAppender.SeenEventExpectation(
+                    new MockLog.SeenEventExpectation(
                         "should see commit message including timestamps",
                         PersistedClusterStateService.class.getCanonicalName(),
                         Level.DEBUG,
@@ -1558,7 +1558,7 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
                     )
                 );
                 mockAppender.addExpectation(
-                    new MockLogAppender.SeenEventExpectation(
+                    new MockLog.SeenEventExpectation(
                         "should see user data",
                         PersistedClusterStateService.class.getCanonicalName(),
                         Level.DEBUG,
@@ -1566,7 +1566,7 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
                     )
                 );
                 mockAppender.addExpectation(
-                    new MockLogAppender.SeenEventExpectation(
+                    new MockLog.SeenEventExpectation(
                         "should see segment message including timestamp",
                         PersistedClusterStateService.class.getCanonicalName(),
                         Level.DEBUG,
@@ -1879,9 +1879,9 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
         ClusterState previousState,
         ClusterState clusterState,
         PersistedClusterStateService.Writer writer,
-        MockLogAppender.LoggingExpectation expectation
+        MockLog.LoggingExpectation expectation
     ) throws IOException {
-        try (var mockAppender = MockLogAppender.capture(PersistedClusterStateService.class)) {
+        try (var mockAppender = MockLog.capture(PersistedClusterStateService.class)) {
             mockAppender.addExpectation(expectation);
 
             if (previousState == null) {

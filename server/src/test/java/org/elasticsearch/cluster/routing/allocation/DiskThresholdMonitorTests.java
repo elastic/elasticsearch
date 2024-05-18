@@ -38,7 +38,7 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.test.MockLogAppender;
+import org.elasticsearch.test.MockLog;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 
 import java.util.Arrays;
@@ -1363,9 +1363,9 @@ public class DiskThresholdMonitorTests extends ESAllocationTestCase {
     }
 
     private void assertNoLogging(DiskThresholdMonitor monitor, Map<String, DiskUsage> diskUsages) throws IllegalAccessException {
-        try (var mockAppender = MockLogAppender.capture(DiskThresholdMonitor.class)) {
+        try (var mockAppender = MockLog.capture(DiskThresholdMonitor.class)) {
             mockAppender.addExpectation(
-                new MockLogAppender.UnseenEventExpectation(
+                new MockLog.UnseenEventExpectation(
                     "any INFO message",
                     DiskThresholdMonitor.class.getCanonicalName(),
                     Level.INFO,
@@ -1373,7 +1373,7 @@ public class DiskThresholdMonitorTests extends ESAllocationTestCase {
                 )
             );
             mockAppender.addExpectation(
-                new MockLogAppender.UnseenEventExpectation(
+                new MockLog.UnseenEventExpectation(
                     "any WARN message",
                     DiskThresholdMonitor.class.getCanonicalName(),
                     Level.WARN,
@@ -1409,12 +1409,12 @@ public class DiskThresholdMonitorTests extends ESAllocationTestCase {
     }
 
     private void assertLogging(DiskThresholdMonitor monitor, Map<String, DiskUsage> diskUsages, Level level, String message) {
-        try (var mockAppender = MockLogAppender.capture(DiskThresholdMonitor.class)) {
+        try (var mockAppender = MockLog.capture(DiskThresholdMonitor.class)) {
             mockAppender.addExpectation(
-                new MockLogAppender.SeenEventExpectation("expected message", DiskThresholdMonitor.class.getCanonicalName(), level, message)
+                new MockLog.SeenEventExpectation("expected message", DiskThresholdMonitor.class.getCanonicalName(), level, message)
             );
             mockAppender.addExpectation(
-                new MockLogAppender.UnseenEventExpectation(
+                new MockLog.UnseenEventExpectation(
                     "any message of another level",
                     DiskThresholdMonitor.class.getCanonicalName(),
                     level == Level.INFO ? Level.WARN : Level.INFO,

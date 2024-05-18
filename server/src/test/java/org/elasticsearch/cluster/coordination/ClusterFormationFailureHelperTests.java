@@ -26,7 +26,7 @@ import org.elasticsearch.gateway.GatewayMetaState;
 import org.elasticsearch.monitor.StatusInfo;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.EqualsHashCodeTestUtils;
-import org.elasticsearch.test.MockLogAppender;
+import org.elasticsearch.test.MockLog;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -109,12 +109,12 @@ public class ClusterFormationFailureHelperTests extends ESTestCase {
         final long startTimeMillis = deterministicTaskQueue.getCurrentTimeMillis();
         clusterFormationFailureHelper.start();
 
-        try (var mockLogAppender = MockLogAppender.capture(ClusterFormationFailureHelper.class)) {
+        try (var mockLogAppender = MockLog.capture(ClusterFormationFailureHelper.class)) {
             mockLogAppender.addExpectation(
-                new MockLogAppender.SeenEventExpectation("master not discovered", LOGGER_NAME, Level.WARN, "master not discovered")
+                new MockLog.SeenEventExpectation("master not discovered", LOGGER_NAME, Level.WARN, "master not discovered")
             );
             mockLogAppender.addExpectation(
-                new MockLogAppender.SeenEventExpectation(
+                new MockLog.SeenEventExpectation(
                     "troubleshooting link",
                     LOGGER_NAME,
                     Level.WARN,

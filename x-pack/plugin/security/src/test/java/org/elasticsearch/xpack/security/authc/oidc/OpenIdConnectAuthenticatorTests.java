@@ -77,7 +77,7 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.mocksocket.MockHttpServer;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.test.MockLogAppender;
+import org.elasticsearch.test.MockLog;
 import org.elasticsearch.test.TestMatchers;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.authc.oidc.OpenIdConnectRealmSettings;
@@ -996,12 +996,12 @@ public class OpenIdConnectAuthenticatorTests extends OpenIdConnectTestCase {
 
         final Nonce expectedNonce = new Nonce(randomAlphaOfLength(10));
 
-        try (var appender = MockLogAppender.capture(OpenIdConnectAuthenticator.class)) {
+        try (var appender = MockLog.capture(OpenIdConnectAuthenticator.class)) {
             appender.addExpectation(
-                new MockLogAppender.SeenEventExpectation("JWT header", logger.getName(), Level.DEBUG, "ID Token Header: " + headerString)
+                new MockLog.SeenEventExpectation("JWT header", logger.getName(), Level.DEBUG, "ID Token Header: " + headerString)
             );
             appender.addExpectation(
-                new MockLogAppender.SeenEventExpectation(
+                new MockLog.SeenEventExpectation(
                     "JWT exception",
                     logger.getName(),
                     Level.DEBUG,
@@ -1059,9 +1059,9 @@ public class OpenIdConnectAuthenticatorTests extends OpenIdConnectTestCase {
         final Logger logger = LogManager.getLogger(PoolingNHttpClientConnectionManager.class);
         // Note: Setting an org.apache.http logger to DEBUG requires es.insecure_network_trace_enabled=true
         Loggers.setLevel(logger, Level.DEBUG);
-        try (var appender = MockLogAppender.capture(PoolingNHttpClientConnectionManager.class)) {
+        try (var appender = MockLog.capture(PoolingNHttpClientConnectionManager.class)) {
             appender.addExpectation(
-                new MockLogAppender.PatternSeenEventExpectation(
+                new MockLog.PatternSeenEventExpectation(
                     "log",
                     logger.getName(),
                     Level.DEBUG,
@@ -1201,9 +1201,9 @@ public class OpenIdConnectAuthenticatorTests extends OpenIdConnectTestCase {
 
         final Logger logger = LogManager.getLogger(OpenIdConnectAuthenticator.class);
         Loggers.setLevel(logger, Level.DEBUG);
-        try (var appender = MockLogAppender.capture(OpenIdConnectAuthenticator.class)) {
+        try (var appender = MockLog.capture(OpenIdConnectAuthenticator.class)) {
             appender.addExpectation(
-                new MockLogAppender.SeenEventExpectation(
+                new MockLog.SeenEventExpectation(
                     "log",
                     logger.getName(),
                     Level.DEBUG,

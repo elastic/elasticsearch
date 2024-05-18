@@ -42,7 +42,7 @@ import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
-import org.elasticsearch.test.MockLogAppender;
+import org.elasticsearch.test.MockLog;
 import org.hamcrest.Matchers;
 import org.junit.After;
 import org.junit.Before;
@@ -192,9 +192,9 @@ public class DocumentSubsetBitsetCacheTests extends ESTestCase {
         assertThat(cache.entryCount(), equalTo(0));
         assertThat(cache.ramBytesUsed(), equalTo(0L));
 
-        try (var mockAppender = MockLogAppender.capture(cache.getClass())) {
+        try (var mockAppender = MockLog.capture(cache.getClass())) {
             mockAppender.addExpectation(
-                new MockLogAppender.SeenEventExpectation(
+                new MockLog.SeenEventExpectation(
                     "[bitset too big]",
                     cache.getClass().getName(),
                     Level.WARN,
@@ -229,9 +229,9 @@ public class DocumentSubsetBitsetCacheTests extends ESTestCase {
         assertThat(cache.entryCount(), equalTo(0));
         assertThat(cache.ramBytesUsed(), equalTo(0L));
 
-        try (var mockAppender = MockLogAppender.capture(cache.getClass())) {
+        try (var mockAppender = MockLog.capture(cache.getClass())) {
             mockAppender.addExpectation(
-                new MockLogAppender.SeenEventExpectation(
+                new MockLog.SeenEventExpectation(
                     "[cache full]",
                     cache.getClass().getName(),
                     Level.INFO,

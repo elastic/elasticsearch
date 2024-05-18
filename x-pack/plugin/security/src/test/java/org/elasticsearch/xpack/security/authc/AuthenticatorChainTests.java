@@ -20,7 +20,7 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.MockLogAppender;
+import org.elasticsearch.test.MockLog;
 import org.elasticsearch.xpack.core.security.action.apikey.ApiKey;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationResult;
@@ -481,9 +481,9 @@ public class AuthenticatorChainTests extends ESTestCase {
         final Logger logger = LogManager.getLogger(AuthenticatorChain.class);
         Loggers.setLevel(logger, Level.INFO);
 
-        try (var appender = MockLogAppender.capture(AuthenticatorChain.class)) {
+        try (var appender = MockLog.capture(AuthenticatorChain.class)) {
             appender.addExpectation(
-                new MockLogAppender.SeenEventExpectation(
+                new MockLog.SeenEventExpectation(
                     "run-as",
                     AuthenticatorChain.class.getName(),
                     Level.INFO,

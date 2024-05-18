@@ -11,7 +11,7 @@ import org.apache.logging.log4j.Level;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.monitor.os.OsProbe;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.test.MockLogAppender;
+import org.elasticsearch.test.MockLog;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.xpack.autoscaling.AutoscalingIntegTestCase;
 import org.elasticsearch.xpack.autoscaling.capacity.AutoscalingCapacity;
@@ -47,9 +47,9 @@ public class TransportGetAutoscalingCapacityActionIT extends AutoscalingIntegTes
     }
 
     public void assertCurrentCapacity(long memory, long storage, int nodes) {
-        try (var appender = MockLogAppender.capture(TransportGetAutoscalingCapacityAction.class)) {
+        try (var appender = MockLog.capture(TransportGetAutoscalingCapacityAction.class)) {
             appender.addExpectation(
-                new MockLogAppender.SeenEventExpectation(
+                new MockLog.SeenEventExpectation(
                     "autoscaling capacity response message with " + storage,
                     TransportGetAutoscalingCapacityAction.class.getName(),
                     Level.DEBUG,

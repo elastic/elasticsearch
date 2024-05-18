@@ -198,7 +198,6 @@ teardown:
   - do:
       bulk:
         refresh: true
-        index: index-foo
         body:
           - '{"index": { "_index": "an-index", "_id": 1 }}'
           - '{"some-field": 1 }'
@@ -251,7 +250,6 @@ teardown:
   - do:
       bulk:
         refresh: true
-        index: index-foo
         body:
           - '{"index": { "_index": "an-index", "_id": 1 }}'
           - '{"some-field": 1 }'

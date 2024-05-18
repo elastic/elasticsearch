@@ -53,10 +53,10 @@ public class EsqlConfigurationSerializationTests extends AbstractWireSerializing
 
     public static EsqlConfiguration randomConfiguration() {
         int len = randomIntBetween(1, 300) + (frequently() ? 0 : QUERY_COMPRESS_THRESHOLD_CHARS);
-        return randomConfiguration(randomRealisticUnicodeOfLength(len));
+        return randomConfiguration(randomRealisticUnicodeOfLength(len), randomTables());
     }
 
-    public static EsqlConfiguration randomConfiguration(String query) {
+    public static EsqlConfiguration randomConfiguration(String query, Map<String, Map<String, Column>> tables) {
         var zoneId = randomZone();
         var locale = randomLocale(random());
         var username = randomAlphaOfLengthBetween(1, 10);
@@ -75,11 +75,11 @@ public class EsqlConfigurationSerializationTests extends AbstractWireSerializing
             defaultTruncation,
             query,
             profile,
-            randomTables()
+            tables
         );
     }
 
-    static Map<String, Map<String, Column>> randomTables() {
+    public static Map<String, Map<String, Column>> randomTables() {
         if (randomBoolean()) {
             return Map.of();
         }

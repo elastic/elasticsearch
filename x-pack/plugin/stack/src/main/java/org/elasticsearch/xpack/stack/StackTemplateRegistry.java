@@ -47,7 +47,7 @@ public class StackTemplateRegistry extends IndexTemplateRegistry {
 
     // The stack template registry version. This number must be incremented when we make changes
     // to built-in templates.
-    public static final int REGISTRY_VERSION = 9;
+    public static final int REGISTRY_VERSION = 10;
 
     public static final String TEMPLATE_VERSION_VARIABLE = "xpack.stack.template.version";
     public static final Setting<Boolean> STACK_TEMPLATES_ENABLED = Setting.boolSetting(
@@ -107,6 +107,7 @@ public class StackTemplateRegistry extends IndexTemplateRegistry {
     // Kibana reporting template
     ///////////////////////////////////
     public static final String KIBANA_REPORTING_INDEX_TEMPLATE_NAME = ".kibana-reporting";
+    public static final String KIBANA_REPORTING_COMPONENT_TEMPLATE_NAME = "kibana-reporting@settings";
 
     public StackTemplateRegistry(
         Settings nodeSettings,
@@ -226,6 +227,13 @@ public class StackTemplateRegistry extends IndexTemplateRegistry {
             new IndexTemplateConfig(
                 SYNTHETICS_SETTINGS_COMPONENT_TEMPLATE_NAME,
                 "/synthetics@settings.json",
+                REGISTRY_VERSION,
+                TEMPLATE_VERSION_VARIABLE,
+                ADDITIONAL_TEMPLATE_VARIABLES
+            ),
+            new IndexTemplateConfig(
+                KIBANA_REPORTING_COMPONENT_TEMPLATE_NAME,
+                "/kibana-reporting@settings.json",
                 REGISTRY_VERSION,
                 TEMPLATE_VERSION_VARIABLE,
                 ADDITIONAL_TEMPLATE_VARIABLES

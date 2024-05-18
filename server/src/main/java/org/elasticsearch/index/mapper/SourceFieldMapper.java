@@ -134,10 +134,11 @@ public class SourceFieldMapper extends MetadataFieldMapper {
 
         private final boolean supportsNonDefaultParameterValues;
 
-        public Builder(IndexMode indexMode, final Settings settings) {
+        public Builder(IndexMode indexMode, final Settings settings, boolean supportsCheckForNonDefaultParams) {
             super(Defaults.NAME);
             this.indexMode = indexMode;
-            this.supportsNonDefaultParameterValues = settings.getAsBoolean(LOSSY_PARAMETERS_ALLOWED_SETTING_NAME, true);
+            this.supportsNonDefaultParameterValues = supportsCheckForNonDefaultParams == false
+                || settings.getAsBoolean(LOSSY_PARAMETERS_ALLOWED_SETTING_NAME, true);
         }
 
         public Builder setSynthetic() {
@@ -212,7 +213,11 @@ public class SourceFieldMapper extends MetadataFieldMapper {
         c -> c.getIndexSettings().getMode() == IndexMode.TIME_SERIES
             ? c.getIndexSettings().getIndexVersionCreated().onOrAfter(IndexVersions.V_8_7_0) ? TSDB_DEFAULT : TSDB_LEGACY_DEFAULT
             : DEFAULT,
-        c -> new Builder(c.getIndexSettings().getMode(), c.getSettings())
+        c -> new Builder(
+            c.getIndexSettings().getMode(),
+            c.getSettings(),
+            c.indexVersionCreated().onOrAfter(IndexVersions.SOURCE_MAPPER_LOSSY_PARAMS_CHECK)
+        )
     );
 
     static final class SourceFieldType extends MappedFieldType {
@@ -347,15 +352,15 @@ public class SourceFieldMapper extends MetadataFieldMapper {
 
     @Override
     public FieldMapper.Builder getMergeBuilder() {
-        return new Builder(indexMode, Settings.EMPTY).init(this);
+        return new Builder(indexMode, Settings.EMPTY, false).init(this);
     }
 
     /**
      * Build something to load source {@code _source}.
      */
-    public SourceLoader newSourceLoader(Mapping mapping) {
+    public SourceLoader newSourceLoader(Mapping mapping, SourceFieldMetrics metrics) {
         if (mode == Mode.SYNTHETIC) {
-            return new SourceLoader.Synthetic(mapping);
+            return new SourceLoader.Synthetic(mapping, metrics);
         }
         return SourceLoader.FROM_STORED_SOURCE;
     }

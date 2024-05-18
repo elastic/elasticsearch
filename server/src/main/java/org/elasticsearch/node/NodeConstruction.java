@@ -111,6 +111,8 @@ import org.elasticsearch.index.IndexSettingProvider;
 import org.elasticsearch.index.IndexSettingProviders;
 import org.elasticsearch.index.IndexingPressure;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
+import org.elasticsearch.index.mapper.MapperMetrics;
+import org.elasticsearch.index.mapper.SourceFieldMetrics;
 import org.elasticsearch.indices.ExecutorSelector;
 import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.indices.IndicesService;
@@ -257,7 +259,7 @@ class NodeConstruction {
             ThreadPool threadPool = constructor.createThreadPool(settings, telemetryProvider.getMeterRegistry());
             SettingsModule settingsModule = constructor.validateSettings(initialEnvironment.settings(), settings, threadPool);
 
-            SearchModule searchModule = constructor.createSearchModule(settingsModule.getSettings(), threadPool);
+            SearchModule searchModule = constructor.createSearchModule(settingsModule.getSettings(), threadPool, telemetryProvider);
             constructor.createClientAndRegistries(settingsModule.getSettings(), threadPool, searchModule);
             DocumentParsingProvider documentParsingProvider = constructor.getDocumentParsingProvider();
 
@@ -525,9 +527,9 @@ class NodeConstruction {
         return settingsModule;
     }
 
-    private SearchModule createSearchModule(Settings settings, ThreadPool threadPool) {
+    private SearchModule createSearchModule(Settings settings, ThreadPool threadPool, TelemetryProvider telemetryProvider) {
         IndexSearcher.setMaxClauseCount(SearchUtils.calculateMaxClauseValue(threadPool));
-        return new SearchModule(settings, pluginsService.filterPlugins(SearchPlugin.class).toList());
+        return new SearchModule(settings, pluginsService.filterPlugins(SearchPlugin.class).toList(), telemetryProvider);
     }
 
     /**
@@ -740,6 +742,12 @@ class NodeConstruction {
             );
         }
 
+        SourceFieldMetrics sourceFieldMetrics = new SourceFieldMetrics(
+            telemetryProvider.getMeterRegistry(),
+            threadPool::relativeTimeInMillis
+        );
+        MapperMetrics mapperMetrics = new MapperMetrics(sourceFieldMetrics);
+
         IndicesService indicesService = new IndicesServiceBuilder().settings(settings)
             .pluginsService(pluginsService)
             .nodeEnvironment(nodeEnvironment)
@@ -759,6 +767,7 @@ class NodeConstruction {
             .metaStateService(metaStateService)
             .valuesSourceRegistry(searchModule.getValuesSourceRegistry())
             .requestCacheKeyDifferentiator(searchModule.getRequestCacheKeyDifferentiator())
+            .mapperMetrics(mapperMetrics)
             .build();
 
         final var parameters = new IndexSettingProvider.Parameters(indicesService::createIndexMapperServiceForValidation);
@@ -817,7 +826,8 @@ class NodeConstruction {
             IndicesService indicesService,
             FeatureService featureService,
             SystemIndices systemIndices,
-            DataStreamGlobalRetentionResolver dataStreamGlobalRetentionResolver
+            DataStreamGlobalRetentionResolver dataStreamGlobalRetentionResolver,
+            DocumentParsingProvider documentParsingProvider
         ) implements Plugin.PluginServices {}
         PluginServiceInstances pluginServices = new PluginServiceInstances(
             client,
@@ -837,7 +847,8 @@ class NodeConstruction {
             indicesService,
             featureService,
             systemIndices,
-            dataStreamGlobalRetentionResolver
+            dataStreamGlobalRetentionResolver,
+            documentParsingProvider
         );
 
         Collection<?> pluginComponents = pluginsService.flatMap(p -> p.createComponents(pluginServices)).toList();
@@ -907,7 +918,8 @@ class NodeConstruction {
             xContentRegistry,
             indicesModule.getMapperRegistry(),
             settingsModule.getIndexScopedSettings(),
-            scriptService
+            scriptService,
+            mapperMetrics
         );
         if (DiscoveryNode.isMasterNode(settings)) {
             clusterService.addListener(new SystemIndexMetadataUpgradeService(systemIndices, clusterService));

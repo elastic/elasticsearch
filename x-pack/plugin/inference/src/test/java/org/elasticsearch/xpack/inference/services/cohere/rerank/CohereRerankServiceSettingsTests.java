@@ -77,7 +77,7 @@ public class CohereRerankServiceSettingsTests extends AbstractWireSerializingTes
 
     @Override
     protected CohereRerankServiceSettings mutateInstance(CohereRerankServiceSettings instance) throws IOException {
-        return null;
+        return randomValueOtherThan(instance, CohereRerankServiceSettingsTests::createRandom);
     }
 
     @Override

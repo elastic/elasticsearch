@@ -116,8 +116,7 @@ public class SetStepInfoUpdateTaskTests extends ESTestCase {
 
         SetStepInfoUpdateTask task = new SetStepInfoUpdateTask(index, policy, currentStepKey, stepInfo);
 
-        final MockLogAppender mockAppender = new MockLogAppender();
-        try (var ignored = mockAppender.capturing(SetStepInfoUpdateTask.class)) {
+        try (var mockAppender = MockLogAppender.capture(SetStepInfoUpdateTask.class)) {
             mockAppender.addExpectation(
                 new MockLogAppender.SeenEventExpectation(
                     "warning",

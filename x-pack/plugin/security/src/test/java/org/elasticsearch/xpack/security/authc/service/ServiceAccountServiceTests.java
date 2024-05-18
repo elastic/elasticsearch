@@ -111,12 +111,9 @@ public class ServiceAccountServiceTests extends ESTestCase {
         final Logger sasLogger = LogManager.getLogger(ServiceAccountService.class);
         Loggers.setLevel(sasLogger, Level.TRACE);
 
-        final MockLogAppender satAppender = new MockLogAppender();
-        final MockLogAppender sasAppender = new MockLogAppender();
-
         try (
-            var ignored1 = satAppender.capturing(ServiceAccountToken.class);
-            var ignored2 = sasAppender.capturing(ServiceAccountService.class)
+            var satAppender = MockLogAppender.capture(ServiceAccountToken.class);
+            var sasAppender = MockLogAppender.capture(ServiceAccountService.class)
         ) {
             // Less than 4 bytes
             satAppender.addExpectation(
@@ -366,8 +363,7 @@ public class ServiceAccountServiceTests extends ESTestCase {
         final Logger sasLogger = LogManager.getLogger(ServiceAccountService.class);
         Loggers.setLevel(sasLogger, Level.TRACE);
 
-        final MockLogAppender appender = new MockLogAppender();
-        try (var ignored = appender.capturing(ServiceAccountService.class)) {
+        try (var appender = MockLogAppender.capture(ServiceAccountService.class)) {
             // non-elastic service account
             final ServiceAccountId accountId1 = new ServiceAccountId(
                 randomValueOtherThan(ElasticServiceAccounts.NAMESPACE, () -> randomAlphaOfLengthBetween(3, 8)),

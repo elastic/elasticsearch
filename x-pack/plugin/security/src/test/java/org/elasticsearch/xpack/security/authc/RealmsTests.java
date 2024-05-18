@@ -935,10 +935,9 @@ public class RealmsTests extends ESTestCase {
         verify(licenseState).enableUsageTracking(Security.CUSTOM_REALMS_FEATURE, "custom_realm_2");
 
         final Logger realmsLogger = LogManager.getLogger(Realms.class);
-        final MockLogAppender appender = new MockLogAppender();
 
         when(licenseState.statusDescription()).thenReturn("mock license");
-        try (var ignored = appender.capturing(Realms.class)) {
+        try (var appender = MockLogAppender.capture(Realms.class)) {
             for (String realmId : List.of("kerberos.kerberos_realm", "type_0.custom_realm_1", "type_1.custom_realm_2")) {
                 appender.addExpectation(
                     new MockLogAppender.SeenEventExpectation(

@@ -215,8 +215,7 @@ public class SamlAuthenticatorTests extends SamlResponseHandlerTests {
             .add(getAttribute(attributeName, attributeFriendlyName, null, List.of("daredevil")));
         SamlToken token = token(signResponse(response));
 
-        final MockLogAppender mockAppender = new MockLogAppender();
-        try (var ignored = mockAppender.capturing(authenticator.getClass())) {
+        try (var mockAppender = MockLogAppender.capture(authenticator.getClass())) {
             mockAppender.addExpectation(
                 new MockLogAppender.SeenEventExpectation(
                     "attribute name warning",
@@ -240,8 +239,7 @@ public class SamlAuthenticatorTests extends SamlResponseHandlerTests {
         assertion.getAttributeStatements().get(0).getAttributes().add(getAttribute(UID_OID, "friendly", null, List.of("daredevil")));
         SamlToken token = token(signResponse(response));
 
-        final MockLogAppender mockAppender = new MockLogAppender();
-        try (var ignored = mockAppender.capturing(authenticator.getClass())) {
+        try (var mockAppender = MockLogAppender.capture(authenticator.getClass())) {
             final SamlAttributes attributes = authenticator.authenticate(token);
             assertThat(attributes, notNullValue());
             mockAppender.assertAllExpectationsMatched();
@@ -261,8 +259,7 @@ public class SamlAuthenticatorTests extends SamlResponseHandlerTests {
         SamlToken token = token(signResponse(response));
 
         final Logger samlLogger = LogManager.getLogger(authenticator.getClass());
-        final MockLogAppender mockAppender = new MockLogAppender();
-        try (var ignored = mockAppender.capturing(authenticator.getClass())) {
+        try (var mockAppender = MockLogAppender.capture(authenticator.getClass())) {
             mockAppender.addExpectation(
                 new MockLogAppender.SeenEventExpectation(
                     "attribute name warning",
@@ -866,8 +863,7 @@ public class SamlAuthenticatorTests extends SamlResponseHandlerTests {
         String xml = SamlUtils.getXmlContent(response, false);
         final SamlToken token = token(signResponse(xml));
 
-        final MockLogAppender mockAppender = new MockLogAppender();
-        try (var ignored = mockAppender.capturing(authenticator.getClass())) {
+        try (var mockAppender = MockLogAppender.capture(authenticator.getClass())) {
             mockAppender.addExpectation(
                 new MockLogAppender.SeenEventExpectation(
                     "similar audience",

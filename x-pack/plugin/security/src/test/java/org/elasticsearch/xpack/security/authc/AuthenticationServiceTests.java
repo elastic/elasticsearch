@@ -417,9 +417,7 @@ public class AuthenticationServiceTests extends ESTestCase {
     }
 
     public void testTokenMissing() throws Exception {
-        final MockLogAppender mockAppender = new MockLogAppender();
-
-        try (var ignored = mockAppender.capturing(RealmsAuthenticator.class)) {
+        try (var mockAppender = MockLogAppender.capture(RealmsAuthenticator.class)) {
             mockAppender.addExpectation(
                 new MockLogAppender.SeenEventExpectation(
                     "unlicensed realms",

@@ -173,8 +173,8 @@ public class ClusterConnectionManagerTests extends ESTestCase {
         final Releasable localConnectionRef = toClose.getAndSet(null);
         assertThat(localConnectionRef, notNullValue());
 
-        try (var appender = MockLog.capture(ClusterConnectionManager.class)) {
-            appender.addExpectation(
+        try (var mockLog = MockLog.capture(ClusterConnectionManager.class)) {
+            mockLog.addExpectation(
                 new MockLog.SeenEventExpectation(
                     "locally-triggered close message",
                     ClusterConnectionManager.class.getCanonicalName(),
@@ -182,7 +182,7 @@ public class ClusterConnectionManagerTests extends ESTestCase {
                     "closing unused transport connection to [" + localClose + "]"
                 )
             );
-            appender.addExpectation(
+            mockLog.addExpectation(
                 new MockLog.SeenEventExpectation(
                     "remotely-triggered close message",
                     ClusterConnectionManager.class.getCanonicalName(),
@@ -190,7 +190,7 @@ public class ClusterConnectionManagerTests extends ESTestCase {
                     "transport connection to [" + remoteClose.descriptionWithoutAttributes() + "] closed by remote"
                 )
             );
-            appender.addExpectation(
+            mockLog.addExpectation(
                 new MockLog.SeenEventExpectation(
                     "shutdown-triggered close message",
                     ClusterConnectionManager.class.getCanonicalName(),
@@ -203,7 +203,7 @@ public class ClusterConnectionManagerTests extends ESTestCase {
             connectionManager.disconnectFromNode(remoteClose);
             connectionManager.close();
 
-            appender.assertAllExpectationsMatched();
+            mockLog.assertAllExpectationsMatched();
         }
     }
 

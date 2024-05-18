@@ -229,8 +229,8 @@ public class InboundHandlerTests extends ESTestCase {
         // response so we must just close the connection on an error. To avoid the failure disappearing into a black hole we at least log
         // it.
 
-        try (var mockAppender = MockLog.capture(InboundHandler.class)) {
-            mockAppender.addExpectation(
+        try (var mockLog = MockLog.capture(InboundHandler.class)) {
+            mockLog.addExpectation(
                 new MockLog.SeenEventExpectation(
                     "expected message",
                     EXPECTED_LOGGER_NAME,
@@ -260,7 +260,7 @@ public class InboundHandlerTests extends ESTestCase {
             handler.inboundMessage(channel, requestMessage);
             assertTrue(isClosed.get());
             assertNull(channel.getMessageCaptor().get());
-            mockAppender.assertAllExpectationsMatched();
+            mockLog.assertAllExpectationsMatched();
         }
     }
 
@@ -273,10 +273,10 @@ public class InboundHandlerTests extends ESTestCase {
     public void testLogsSlowInboundProcessing() throws Exception {
 
         handler.setSlowLogThreshold(TimeValue.timeValueMillis(5L));
-        try (var mockAppender = MockLog.capture(InboundHandler.class)) {
+        try (var mockLog = MockLog.capture(InboundHandler.class)) {
             final TransportVersion remoteVersion = TransportVersion.current();
 
-            mockAppender.addExpectation(
+            mockLog.addExpectation(
                 new MockLog.SeenEventExpectation("expected slow request", EXPECTED_LOGGER_NAME, Level.WARN, "handling request ")
             );
 
@@ -301,9 +301,9 @@ public class InboundHandlerTests extends ESTestCase {
             requestHeader.headers = Tuple.tuple(Map.of(), Map.of());
             handler.inboundMessage(channel, requestMessage);
             // expect no response - channel just closed on exception
-            mockAppender.assertAllExpectationsMatched();
+            mockLog.assertAllExpectationsMatched();
 
-            mockAppender.addExpectation(
+            mockLog.addExpectation(
                 new MockLog.SeenEventExpectation("expected slow response", EXPECTED_LOGGER_NAME, Level.WARN, "handling response ")
             );
 
@@ -324,7 +324,7 @@ public class InboundHandlerTests extends ESTestCase {
             });
             handler.inboundMessage(channel, new InboundMessage(responseHeader, ReleasableBytesReference.empty(), () -> {}));
 
-            mockAppender.assertAllExpectationsMatched();
+            mockLog.assertAllExpectationsMatched();
         }
     }
 

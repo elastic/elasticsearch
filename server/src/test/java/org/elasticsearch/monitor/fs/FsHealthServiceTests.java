@@ -127,11 +127,11 @@ public class FsHealthServiceTests extends ESTestCase {
         PathUtilsForTesting.installMock(fileSystem);
         final ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
 
-        try (NodeEnvironment env = newNodeEnvironment(); var mockAppender = MockLog.capture(FsHealthService.class)) {
+        try (NodeEnvironment env = newNodeEnvironment(); var mockLog = MockLog.capture(FsHealthService.class)) {
             FsHealthService fsHealthService = new FsHealthService(settings, clusterSettings, testThreadPool, env);
             int counter = 0;
             for (Path path : env.nodeDataPaths()) {
-                mockAppender.addExpectation(
+                mockLog.addExpectation(
                     new MockLog.SeenEventExpectation(
                         "test" + ++counter,
                         FsHealthService.class.getCanonicalName(),
@@ -145,7 +145,7 @@ public class FsHealthServiceTests extends ESTestCase {
             disruptFileSystemProvider.injectIOException.set(true);
             fsHealthService.new FsHealthMonitor().run();
             assertEquals(env.nodeDataPaths().length, disruptFileSystemProvider.getInjectedPathCount());
-            assertBusy(mockAppender::assertAllExpectationsMatched);
+            assertBusy(mockLog::assertAllExpectationsMatched);
         } finally {
             PathUtilsForTesting.teardown();
             ThreadPool.terminate(testThreadPool, 500, TimeUnit.MILLISECONDS);

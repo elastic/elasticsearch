@@ -132,8 +132,8 @@ public class NodeEnvironmentTests extends ESTestCase {
 
             Index index = new Index("foo", "fooUUID");
 
-            try (var appender = MockLog.capture(NodeEnvironment.class); var lock = env.shardLock(new ShardId(index, 0), "1")) {
-                appender.addExpectation(
+            try (var mockLog = MockLog.capture(NodeEnvironment.class); var lock = env.shardLock(new ShardId(index, 0), "1")) {
+                mockLog.addExpectation(
                     new MockLog.SeenEventExpectation(
                         "hot threads logging",
                         NODE_ENVIRONMENT_LOGGER_NAME,
@@ -141,7 +141,7 @@ public class NodeEnvironmentTests extends ESTestCase {
                         "hot threads while failing to obtain shard lock for [foo][0]: obtaining shard lock for [2] timed out after *"
                     )
                 );
-                appender.addExpectation(
+                mockLog.addExpectation(
                     new MockLog.UnseenEventExpectation(
                         "second attempt should be suppressed due to throttling",
                         NODE_ENVIRONMENT_LOGGER_NAME,
@@ -163,7 +163,7 @@ public class NodeEnvironmentTests extends ESTestCase {
                     () -> env.lockAllForIndex(index, idxSettings, "3", randomIntBetween(0, 10))
                 );
 
-                appender.assertAllExpectationsMatched();
+                mockLog.assertAllExpectationsMatched();
             }
 
             // can lock again?

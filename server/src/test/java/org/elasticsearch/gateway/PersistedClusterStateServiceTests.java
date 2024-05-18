@@ -1540,8 +1540,8 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
                 writer.writeFullStateAndCommit(randomNonNegativeLong(), ClusterState.EMPTY_STATE);
             }
 
-            try (var mockAppender = MockLog.capture(PersistedClusterStateService.class)) {
-                mockAppender.addExpectation(
+            try (var mockLog = MockLog.capture(PersistedClusterStateService.class)) {
+                mockLog.addExpectation(
                     new MockLog.SeenEventExpectation(
                         "should see checkindex message",
                         PersistedClusterStateService.class.getCanonicalName(),
@@ -1549,7 +1549,7 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
                         "checking cluster state integrity"
                     )
                 );
-                mockAppender.addExpectation(
+                mockLog.addExpectation(
                     new MockLog.SeenEventExpectation(
                         "should see commit message including timestamps",
                         PersistedClusterStateService.class.getCanonicalName(),
@@ -1557,7 +1557,7 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
                         "loading cluster state from commit [*] in [*creationTime*"
                     )
                 );
-                mockAppender.addExpectation(
+                mockLog.addExpectation(
                     new MockLog.SeenEventExpectation(
                         "should see user data",
                         PersistedClusterStateService.class.getCanonicalName(),
@@ -1565,7 +1565,7 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
                         "cluster state commit user data: *" + PersistedClusterStateService.NODE_VERSION_KEY + "*"
                     )
                 );
-                mockAppender.addExpectation(
+                mockLog.addExpectation(
                     new MockLog.SeenEventExpectation(
                         "should see segment message including timestamp",
                         PersistedClusterStateService.class.getCanonicalName(),
@@ -1575,7 +1575,7 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
                 );
 
                 persistedClusterStateService.loadBestOnDiskState();
-                mockAppender.assertAllExpectationsMatched();
+                mockLog.assertAllExpectationsMatched();
             }
         }
     }
@@ -1881,15 +1881,15 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
         PersistedClusterStateService.Writer writer,
         MockLog.LoggingExpectation expectation
     ) throws IOException {
-        try (var mockAppender = MockLog.capture(PersistedClusterStateService.class)) {
-            mockAppender.addExpectation(expectation);
+        try (var mockLog = MockLog.capture(PersistedClusterStateService.class)) {
+            mockLog.addExpectation(expectation);
 
             if (previousState == null) {
                 writer.writeFullStateAndCommit(currentTerm, clusterState);
             } else {
                 writer.writeIncrementalStateAndCommit(currentTerm, previousState, clusterState);
             }
-            mockAppender.assertAllExpectationsMatched();
+            mockLog.assertAllExpectationsMatched();
         }
     }
 

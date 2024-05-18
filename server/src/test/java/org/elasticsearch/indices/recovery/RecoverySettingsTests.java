@@ -490,8 +490,8 @@ public class RecoverySettingsTests extends ESTestCase {
         final ClusterSettings clusterSettings = new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
         final RecoverySettings recoverySettings = new RecoverySettings(settings, clusterSettings);
 
-        try (var mockAppender = MockLog.capture(RecoverySettings.class)) {
-            mockAppender.addExpectation(
+        try (var mockLog = MockLog.capture(RecoverySettings.class)) {
+            mockLog.addExpectation(
                 new MockLog.UnseenEventExpectation("no warnings", RecoverySettings.class.getCanonicalName(), Level.WARN, "*")
             );
 
@@ -507,7 +507,7 @@ public class RecoverySettingsTests extends ESTestCase {
             assertThat(releasable, is(notNullValue()));
             releasable.close();
 
-            mockAppender.assertAllExpectationsMatched();
+            mockLog.assertAllExpectationsMatched();
         }
     }
 

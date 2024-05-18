@@ -327,12 +327,12 @@ public class MockLog implements Releasable {
      * Executes an action and verifies expectations against the provided logger
      */
     public static void assertThatLogger(Runnable action, Class<?> loggerOwner, MockLog.LoggingExpectation... expectations) {
-        try (var mockAppender = MockLog.capture(loggerOwner)) {
+        try (var mockLog = MockLog.capture(loggerOwner)) {
             for (var expectation : expectations) {
-                mockAppender.addExpectation(expectation);
+                mockLog.addExpectation(expectation);
             }
             action.run();
-            mockAppender.assertAllExpectationsMatched();
+            mockLog.assertAllExpectationsMatched();
         }
     }
 }

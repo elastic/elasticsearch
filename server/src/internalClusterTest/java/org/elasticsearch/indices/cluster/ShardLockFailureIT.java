@@ -70,11 +70,11 @@ public class ShardLockFailureIT extends ESIntegTestCase {
 
         try (
             var ignored1 = internalCluster().getInstance(NodeEnvironment.class, node).shardLock(shardId, "blocked for test");
-            var mockLogAppender = MockLog.capture(IndicesClusterStateService.class);
+            var mockLog = MockLog.capture(IndicesClusterStateService.class);
         ) {
             final CountDownLatch countDownLatch = new CountDownLatch(1);
 
-            mockLogAppender.addExpectation(new MockLog.LoggingExpectation() {
+            mockLog.addExpectation(new MockLog.LoggingExpectation() {
                 int debugMessagesSeen = 0;
                 int warnMessagesSeen = 0;
 
@@ -108,7 +108,7 @@ public class ShardLockFailureIT extends ESIntegTestCase {
             ensureYellow(indexName);
             assertTrue(countDownLatch.await(30, TimeUnit.SECONDS));
             assertEquals(ClusterHealthStatus.YELLOW, clusterAdmin().prepareHealth(indexName).get().getStatus());
-            mockLogAppender.assertAllExpectationsMatched();
+            mockLog.assertAllExpectationsMatched();
         }
 
         ensureGreen(indexName);
@@ -139,9 +139,9 @@ public class ShardLockFailureIT extends ESIntegTestCase {
 
         try (
             var ignored1 = internalCluster().getInstance(NodeEnvironment.class, node).shardLock(shardId, "blocked for test");
-            var mockLogAppender = MockLog.capture(IndicesClusterStateService.class);
+            var mockLog = MockLog.capture(IndicesClusterStateService.class);
         ) {
-            mockLogAppender.addExpectation(
+            mockLog.addExpectation(
                 new MockLog.SeenEventExpectation(
                     "timeout message",
                     "org.elasticsearch.indices.cluster.IndicesClusterStateService",
@@ -153,7 +153,7 @@ public class ShardLockFailureIT extends ESIntegTestCase {
             );
 
             updateIndexSettings(Settings.builder().putNull(IndexMetadata.INDEX_ROUTING_EXCLUDE_GROUP_PREFIX + "._name"), indexName);
-            assertBusy(mockLogAppender::assertAllExpectationsMatched);
+            assertBusy(mockLog::assertAllExpectationsMatched);
             final var clusterHealthResponse = clusterAdmin().prepareHealth(indexName)
                 .setWaitForEvents(Priority.LANGUID)
                 .setTimeout(TimeValue.timeValueSeconds(10))

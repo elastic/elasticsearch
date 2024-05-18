@@ -574,9 +574,9 @@ public class TcpTransportTests extends ESTestCase {
         MockLog.LoggingExpectation... expectations
     ) {
         final TestThreadPool testThreadPool = new TestThreadPool("test");
-        try (var appender = MockLog.capture(TcpTransport.class)) {
+        try (var mockLog = MockLog.capture(TcpTransport.class)) {
             for (MockLog.LoggingExpectation expectation : expectations) {
-                appender.addExpectation(expectation);
+                mockLog.addExpectation(expectation);
             }
 
             final Lifecycle lifecycle = new Lifecycle();
@@ -611,7 +611,7 @@ public class TcpTransportTests extends ESTestCase {
                 assertFalse(listener.isDone());
             }
 
-            appender.assertAllExpectationsMatched();
+            mockLog.assertAllExpectationsMatched();
 
         } finally {
             ThreadPool.terminate(testThreadPool, 30, TimeUnit.SECONDS);

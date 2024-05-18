@@ -296,8 +296,8 @@ public class CompositeRolesStoreTests extends ESTestCase {
             effectiveRoleDescriptors::set
         );
 
-        try (var mockAppender = MockLog.capture(RoleDescriptorStore.class)) {
-            mockAppender.addExpectation(
+        try (var mockLog = MockLog.capture(RoleDescriptorStore.class)) {
+            mockLog.addExpectation(
                 new MockLog.SeenEventExpectation(
                     "disabled role warning",
                     RoleDescriptorStore.class.getName(),
@@ -310,7 +310,7 @@ public class CompositeRolesStoreTests extends ESTestCase {
             getRoleForRoleNames(compositeRolesStore, Collections.singleton("dls"), roleFuture);
             assertEquals(Role.EMPTY, roleFuture.actionGet());
             assertThat(effectiveRoleDescriptors.get(), empty());
-            mockAppender.assertAllExpectationsMatched();
+            mockLog.assertAllExpectationsMatched();
         }
     }
 

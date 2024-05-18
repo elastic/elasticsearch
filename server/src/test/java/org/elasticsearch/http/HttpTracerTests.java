@@ -36,9 +36,9 @@ public class HttpTracerTests extends ESTestCase {
 
     @TestLogging(reason = "testing trace logging", value = HTTP_TRACER_LOGGER + ":TRACE," + HTTP_BODY_TRACER_LOGGER + ":INFO")
     public void testLogging() {
-        try (var appender = MockLog.capture(HttpTracer.class)) {
+        try (var mockLog = MockLog.capture(HttpTracer.class)) {
 
-            appender.addExpectation(
+            mockLog.addExpectation(
                 new MockLog.PatternSeenEventExpectation(
                     "request log",
                     HTTP_TRACER_LOGGER,
@@ -46,7 +46,7 @@ public class HttpTracerTests extends ESTestCase {
                     "\\[\\d+]\\[idHeader]\\[GET]\\[uri] received request from \\[.*] trace.id: 4bf92f3577b34da6a3ce929d0e0e4736"
                 )
             );
-            appender.addExpectation(
+            mockLog.addExpectation(
                 new MockLog.PatternSeenEventExpectation(
                     "response log",
                     HTTP_TRACER_LOGGER,
@@ -80,7 +80,7 @@ public class HttpTracerTests extends ESTestCase {
                 true
             );
 
-            appender.assertAllExpectationsMatched();
+            mockLog.assertAllExpectationsMatched();
         }
     }
 

@@ -346,8 +346,8 @@ public class JoinHelperTests extends ESTestCase {
         joinAccumulator.handleJoinRequest(localNode, CompatibilityVersionsUtils.staticCurrent(), Set.of(), joinListener);
         assert joinListener.isDone() == false;
 
-        try (var mockAppender = MockLog.capture(JoinHelper.class)) {
-            mockAppender.addExpectation(
+        try (var mockLog = MockLog.capture(JoinHelper.class)) {
+            mockLog.addExpectation(
                 new MockLog.SeenEventExpectation(
                     "warning log",
                     JoinHelper.class.getCanonicalName(),
@@ -356,7 +356,7 @@ public class JoinHelperTests extends ESTestCase {
                 )
             );
             joinAccumulator.close(Coordinator.Mode.LEADER);
-            mockAppender.assertAllExpectationsMatched();
+            mockLog.assertAllExpectationsMatched();
         }
 
         assertEquals("simulated", expectThrows(ElasticsearchException.class, () -> FutureUtils.get(joinListener)).getMessage());

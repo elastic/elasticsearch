@@ -103,8 +103,8 @@ public class DefaultOperatorPrivilegesTests extends ESTestCase {
         final Logger logger = LogManager.getLogger(OperatorPrivileges.class);
         Loggers.setLevel(logger, Level.DEBUG);
 
-        try (var appender = MockLog.capture(OperatorPrivileges.class)) {
-            appender.addExpectation(
+        try (var mockLog = MockLog.capture(OperatorPrivileges.class)) {
+            mockLog.addExpectation(
                 new MockLog.SeenEventExpectation(
                     "marking",
                     logger.getName(),
@@ -117,7 +117,7 @@ public class DefaultOperatorPrivilegesTests extends ESTestCase {
                 AuthenticationField.PRIVILEGE_CATEGORY_VALUE_OPERATOR,
                 threadContext.getHeader(AuthenticationField.PRIVILEGE_CATEGORY_KEY)
             );
-            appender.assertAllExpectationsMatched();
+            mockLog.assertAllExpectationsMatched();
         } finally {
             Loggers.setLevel(logger, (Level) null);
         }
@@ -211,9 +211,9 @@ public class DefaultOperatorPrivilegesTests extends ESTestCase {
         final Logger logger = LogManager.getLogger(OperatorPrivileges.class);
         Loggers.setLevel(logger, Level.DEBUG);
 
-        try (var appender = MockLog.capture(OperatorPrivileges.class)) {
+        try (var mockLog = MockLog.capture(OperatorPrivileges.class)) {
             final RestoreSnapshotRequest restoreSnapshotRequest = mock(RestoreSnapshotRequest.class);
-            appender.addExpectation(
+            mockLog.addExpectation(
                 new MockLog.SeenEventExpectation(
                     "intercepting",
                     logger.getName(),
@@ -223,7 +223,7 @@ public class DefaultOperatorPrivilegesTests extends ESTestCase {
             );
             operatorPrivilegesService.maybeInterceptRequest(new ThreadContext(Settings.EMPTY), restoreSnapshotRequest);
             verify(restoreSnapshotRequest).skipOperatorOnlyState(licensed);
-            appender.assertAllExpectationsMatched();
+            mockLog.assertAllExpectationsMatched();
         } finally {
             Loggers.setLevel(logger, (Level) null);
         }

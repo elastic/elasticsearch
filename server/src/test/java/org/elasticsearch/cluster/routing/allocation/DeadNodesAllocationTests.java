@@ -97,10 +97,10 @@ public class DeadNodesAllocationTests extends ESAllocationTestCase {
 
         assertTrue(initialState.toString(), initialState.getRoutingNodes().unassigned().isEmpty());
 
-        try (var appender = MockLog.capture(AllocationService.class)) {
+        try (var mockLog = MockLog.capture(AllocationService.class)) {
             final String dissociationReason = "node left " + randomAlphaOfLength(10);
 
-            appender.addExpectation(
+            mockLog.addExpectation(
                 new MockLog.SeenEventExpectation(
                     "health change log message",
                     AllocationService.class.getName(),
@@ -117,7 +117,7 @@ public class DeadNodesAllocationTests extends ESAllocationTestCase {
                 dissociationReason
             );
 
-            appender.assertAllExpectationsMatched();
+            mockLog.assertAllExpectationsMatched();
         }
     }
 

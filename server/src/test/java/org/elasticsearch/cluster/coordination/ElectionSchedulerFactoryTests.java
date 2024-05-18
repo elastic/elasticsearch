@@ -51,14 +51,14 @@ public class ElectionSchedulerFactoryTests extends ESTestCase {
         final AtomicBoolean electionStarted = new AtomicBoolean();
 
         try (
-            var appender = MockLog.capture(ElectionSchedulerFactory.class);
+            var mockLog = MockLog.capture(ElectionSchedulerFactory.class);
             var ignored1 = electionSchedulerFactory.startElectionScheduler(
                 initialGracePeriod,
                 () -> assertTrue(electionStarted.compareAndSet(false, true))
             )
         ) {
 
-            appender.addExpectation(
+            mockLog.addExpectation(
                 new MockLog.UnseenEventExpectation(
                     "no zero retries message",
                     ElectionSchedulerFactory.class.getName(),
@@ -68,7 +68,7 @@ public class ElectionSchedulerFactoryTests extends ESTestCase {
             );
             for (int i : new int[] { 10, 20, 990 }) {
                 // the test may stop after 1000 attempts, so might not report the 1000th failure; it definitely reports the 990th tho.
-                appender.addExpectation(
+                mockLog.addExpectation(
                     new MockLog.SeenEventExpectation(
                         i + " retries message",
                         ElectionSchedulerFactory.class.getName(),
@@ -123,7 +123,7 @@ public class ElectionSchedulerFactoryTests extends ESTestCase {
                 lastElectionFinishTime = thisElectionStartTime + duration;
             }
 
-            appender.assertAllExpectationsMatched();
+            mockLog.assertAllExpectationsMatched();
         }
         deterministicTaskQueue.runAllTasks();
         assertFalse(electionStarted.get());

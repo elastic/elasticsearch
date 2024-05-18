@@ -1319,14 +1319,14 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
                 .build()
         );
 
-        try (var appender = MockLog.capture("org.elasticsearch.transport.TransportService.tracer")) {
+        try (var mockLog = MockLog.capture("org.elasticsearch.transport.TransportService.tracer")) {
 
             ////////////////////////////////////////////////////////////////////////
             // tests for included action type "internal:test"
             //
 
             // serviceA logs the request was sent
-            appender.addExpectation(
+            mockLog.addExpectation(
                 new MockLog.PatternSeenEventExpectation(
                     "sent request",
                     "org.elasticsearch.transport.TransportService.tracer",
@@ -1335,7 +1335,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
                 )
             );
             // serviceB logs the request was received
-            appender.addExpectation(
+            mockLog.addExpectation(
                 new MockLog.PatternSeenEventExpectation(
                     "received request",
                     "org.elasticsearch.transport.TransportService.tracer",
@@ -1344,7 +1344,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
                 )
             );
             // serviceB logs the response was sent
-            appender.addExpectation(
+            mockLog.addExpectation(
                 new MockLog.PatternSeenEventExpectation(
                     "sent response",
                     "org.elasticsearch.transport.TransportService.tracer",
@@ -1353,7 +1353,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
                 )
             );
             // serviceA logs the response was received
-            appender.addExpectation(
+            mockLog.addExpectation(
                 new MockLog.PatternSeenEventExpectation(
                     "received response",
                     "org.elasticsearch.transport.TransportService.tracer",
@@ -1364,7 +1364,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
 
             serviceA.sendRequest(nodeB, "internal:test", new StringMessageRequest("", 10), noopResponseHandler);
 
-            assertBusy(appender::assertAllExpectationsMatched);
+            assertBusy(mockLog::assertAllExpectationsMatched);
 
             ////////////////////////////////////////////////////////////////////////
             // tests for included action type "internal:testError" which returns an error
@@ -1373,7 +1373,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
             // appender down. The logging happens after messages are sent so might happen out of order.
 
             // serviceA logs the request was sent
-            appender.addExpectation(
+            mockLog.addExpectation(
                 new MockLog.PatternSeenEventExpectation(
                     "sent request",
                     "org.elasticsearch.transport.TransportService.tracer",
@@ -1382,7 +1382,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
                 )
             );
             // serviceB logs the request was received
-            appender.addExpectation(
+            mockLog.addExpectation(
                 new MockLog.PatternSeenEventExpectation(
                     "received request",
                     "org.elasticsearch.transport.TransportService.tracer",
@@ -1391,7 +1391,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
                 )
             );
             // serviceB logs the error response was sent
-            appender.addExpectation(
+            mockLog.addExpectation(
                 new MockLog.PatternSeenEventExpectation(
                     "sent error response",
                     "org.elasticsearch.transport.TransportService.tracer",
@@ -1400,7 +1400,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
                 )
             );
             // serviceA logs the error response was sent
-            appender.addExpectation(
+            mockLog.addExpectation(
                 new MockLog.PatternSeenEventExpectation(
                     "received error response",
                     "org.elasticsearch.transport.TransportService.tracer",
@@ -1411,7 +1411,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
 
             serviceA.sendRequest(nodeB, "internal:testError", new StringMessageRequest(""), noopResponseHandler);
 
-            assertBusy(appender::assertAllExpectationsMatched);
+            assertBusy(mockLog::assertAllExpectationsMatched);
 
             ////////////////////////////////////////////////////////////////////////
             // tests for excluded action type "internal:testNotSeen"
@@ -1420,7 +1420,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
             // The logging happens after messages are sent so might happen after the response future is completed.
 
             // serviceA does not log that it sent the message
-            appender.addExpectation(
+            mockLog.addExpectation(
                 new MockLog.UnseenEventExpectation(
                     "not seen request sent",
                     "org.elasticsearch.transport.TransportService.tracer",
@@ -1429,7 +1429,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
                 )
             );
             // serviceB does log that it received the request
-            appender.addExpectation(
+            mockLog.addExpectation(
                 new MockLog.PatternSeenEventExpectation(
                     "not seen request received",
                     "org.elasticsearch.transport.TransportService.tracer",
@@ -1438,7 +1438,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
                 )
             );
             // serviceB does log that it sent the response
-            appender.addExpectation(
+            mockLog.addExpectation(
                 new MockLog.PatternSeenEventExpectation(
                     "not seen request received",
                     "org.elasticsearch.transport.TransportService.tracer",
@@ -1447,7 +1447,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
                 )
             );
             // serviceA does not log that it received the response
-            appender.addExpectation(
+            mockLog.addExpectation(
                 new MockLog.UnseenEventExpectation(
                     "not seen request sent",
                     "org.elasticsearch.transport.TransportService.tracer",
@@ -1458,7 +1458,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
 
             submitRequest(serviceA, nodeB, "internal:testNotSeen", new StringMessageRequest(""), noopResponseHandler).get();
 
-            assertBusy(appender::assertAllExpectationsMatched);
+            assertBusy(mockLog::assertAllExpectationsMatched);
         }
     }
 

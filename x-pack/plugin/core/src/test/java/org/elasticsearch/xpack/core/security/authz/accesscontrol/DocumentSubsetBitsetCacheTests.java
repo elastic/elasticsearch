@@ -192,8 +192,8 @@ public class DocumentSubsetBitsetCacheTests extends ESTestCase {
         assertThat(cache.entryCount(), equalTo(0));
         assertThat(cache.ramBytesUsed(), equalTo(0L));
 
-        try (var mockAppender = MockLog.capture(cache.getClass())) {
-            mockAppender.addExpectation(
+        try (var mockLog = MockLog.capture(cache.getClass())) {
+            mockLog.addExpectation(
                 new MockLog.SeenEventExpectation(
                     "[bitset too big]",
                     cache.getClass().getName(),
@@ -215,7 +215,7 @@ public class DocumentSubsetBitsetCacheTests extends ESTestCase {
                 assertThat(bitSet.ramBytesUsed(), equalTo(EXPECTED_BYTES_PER_BIT_SET));
             });
 
-            mockAppender.assertAllExpectationsMatched();
+            mockLog.assertAllExpectationsMatched();
         }
     }
 
@@ -229,8 +229,8 @@ public class DocumentSubsetBitsetCacheTests extends ESTestCase {
         assertThat(cache.entryCount(), equalTo(0));
         assertThat(cache.ramBytesUsed(), equalTo(0L));
 
-        try (var mockAppender = MockLog.capture(cache.getClass())) {
-            mockAppender.addExpectation(
+        try (var mockLog = MockLog.capture(cache.getClass())) {
+            mockLog.addExpectation(
                 new MockLog.SeenEventExpectation(
                     "[cache full]",
                     cache.getClass().getName(),
@@ -250,7 +250,7 @@ public class DocumentSubsetBitsetCacheTests extends ESTestCase {
                 }
             });
 
-            mockAppender.assertAllExpectationsMatched();
+            mockLog.assertAllExpectationsMatched();
         }
     }
 

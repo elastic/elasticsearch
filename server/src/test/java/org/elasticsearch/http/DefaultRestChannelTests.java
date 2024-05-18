@@ -647,8 +647,8 @@ public class DefaultRestChannelTests extends ESTestCase {
             tracer
         );
 
-        try (var mockLogAppender = MockLog.capture(HttpTracer.class)) {
-            mockLogAppender.addExpectation(
+        try (var mockLog = MockLog.capture(HttpTracer.class)) {
+            mockLog.addExpectation(
                 new MockLog.SeenEventExpectation(
                     "response should be logged with success = false",
                     HttpTracer.class.getName(),
@@ -658,7 +658,7 @@ public class DefaultRestChannelTests extends ESTestCase {
             );
 
             expectThrows(RuntimeException.class, () -> channel.sendResponse(new RestResponse(RestStatus.OK, "ignored")));
-            mockLogAppender.assertAllExpectationsMatched();
+            mockLog.assertAllExpectationsMatched();
         }
     }
 

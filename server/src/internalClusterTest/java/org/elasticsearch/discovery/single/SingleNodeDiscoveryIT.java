@@ -138,8 +138,8 @@ public class SingleNodeDiscoveryIT extends ESIntegTestCase {
             Arrays.asList(getTestTransportPlugin(), MockHttpTransport.TestPlugin.class),
             Function.identity()
         );
-        try (var mockAppender = MockLog.capture(JoinHelper.class)) {
-            mockAppender.addExpectation(
+        try (var mockLog = MockLog.capture(JoinHelper.class)) {
+            mockLog.addExpectation(
                 new MockLog.SeenEventExpectation("test", JoinHelper.class.getCanonicalName(), Level.INFO, "failed to join") {
 
                     @Override
@@ -159,7 +159,7 @@ public class SingleNodeDiscoveryIT extends ESIntegTestCase {
             other.beforeTest(random());
             final ClusterState first = internalCluster().getInstance(ClusterService.class).state();
             assertThat(first.nodes().getSize(), equalTo(1));
-            assertBusy(mockAppender::assertAllExpectationsMatched);
+            assertBusy(mockLog::assertAllExpectationsMatched);
         } finally {
             other.close();
         }

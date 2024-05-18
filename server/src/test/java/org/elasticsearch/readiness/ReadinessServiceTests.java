@@ -266,8 +266,8 @@ public class ReadinessServiceTests extends ESTestCase implements ReadinessClient
             )
             .build();
         event = new ClusterChangedEvent("test", nodeShuttingDownState, completeState);
-        try (var mockAppender = MockLog.capture(ReadinessService.class)) {
-            mockAppender.addExpectation(
+        try (var mockLog = MockLog.capture(ReadinessService.class)) {
+            mockLog.addExpectation(
                 new MockLog.SeenEventExpectation(
                     "node shutting down logged",
                     ReadinessService.class.getCanonicalName(),
@@ -276,9 +276,9 @@ public class ReadinessServiceTests extends ESTestCase implements ReadinessClient
                 )
             );
             readinessService.clusterChanged(event);
-            mockAppender.assertAllExpectationsMatched();
+            mockLog.assertAllExpectationsMatched();
 
-            mockAppender.addExpectation(
+            mockLog.addExpectation(
                 new MockLog.UnseenEventExpectation(
                     "node shutting down not logged twice",
                     ReadinessService.class.getCanonicalName(),
@@ -287,7 +287,7 @@ public class ReadinessServiceTests extends ESTestCase implements ReadinessClient
                 )
             );
             readinessService.clusterChanged(event);
-            mockAppender.assertAllExpectationsMatched();
+            mockLog.assertAllExpectationsMatched();
         }
         assertFalse(readinessService.ready());
         tcpReadinessProbeFalse(readinessService);

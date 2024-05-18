@@ -205,8 +205,8 @@ public class RealmsAuthenticatorTests extends AbstractAuthenticatorTests {
         final ElasticsearchSecurityException e = new ElasticsearchSecurityException("fail");
         when(request.authenticationFailed(authenticationToken)).thenReturn(e);
 
-        try (var mockAppender = MockLog.capture(RealmsAuthenticator.class)) {
-            mockAppender.addExpectation(
+        try (var mockLog = MockLog.capture(RealmsAuthenticator.class)) {
+            mockLog.addExpectation(
                 new MockLog.SeenEventExpectation(
                     "unlicensed realms",
                     RealmsAuthenticator.class.getName(),
@@ -218,7 +218,7 @@ public class RealmsAuthenticatorTests extends AbstractAuthenticatorTests {
             final PlainActionFuture<AuthenticationResult<Authentication>> future = new PlainActionFuture<>();
             realmsAuthenticator.authenticate(context, future);
             assertThat(expectThrows(ElasticsearchSecurityException.class, future::actionGet), is(e));
-            mockAppender.assertAllExpectationsMatched();
+            mockLog.assertAllExpectationsMatched();
         }
     }
 

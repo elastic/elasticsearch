@@ -169,9 +169,9 @@ public class BanFailureLoggingTests extends TaskManagerTestCase {
                 new ChildResponseHandler(() -> parentTransportService.getTaskManager().unregister(parentTask))
             );
 
-            try (MockLog appender = MockLog.capture(TaskCancellationService.class)) {
+            try (MockLog mockLog = MockLog.capture(TaskCancellationService.class)) {
                 for (MockLog.LoggingExpectation expectation : expectations.apply(childTransportService.getLocalDiscoNode())) {
-                    appender.addExpectation(expectation);
+                    mockLog.addExpectation(expectation);
                 }
 
                 final PlainActionFuture<Void> cancellationFuture = new PlainActionFuture<>();
@@ -183,7 +183,7 @@ public class BanFailureLoggingTests extends TaskManagerTestCase {
                 }
 
                 // assert busy since failure to remove a ban may be logged after cancellation completed
-                assertBusy(appender::assertAllExpectationsMatched);
+                assertBusy(mockLog::assertAllExpectationsMatched);
             }
 
             assertTrue("child tasks did not finish in time", childTaskLock.tryLock(15, TimeUnit.SECONDS));

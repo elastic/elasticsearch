@@ -215,8 +215,8 @@ public class SeedHostsResolverTests extends ESTestCase {
         closeables.push(transportService);
         recreateSeedHostsResolver(transportService);
 
-        try (var appender = MockLog.capture(SeedHostsResolver.class)) {
-            appender.addExpectation(
+        try (var mockLog = MockLog.capture(SeedHostsResolver.class)) {
+            mockLog.addExpectation(
                 new MockLog.ExceptionSeenEventExpectation(
                     getTestName(),
                     SeedHostsResolver.class.getCanonicalName(),
@@ -228,7 +228,7 @@ public class SeedHostsResolverTests extends ESTestCase {
             );
 
             assertThat(seedHostsResolver.resolveHosts(Collections.singletonList(hostname)), empty());
-            appender.assertAllExpectationsMatched();
+            mockLog.assertAllExpectationsMatched();
         }
     }
 
@@ -285,8 +285,8 @@ public class SeedHostsResolverTests extends ESTestCase {
         closeables.push(transportService);
         recreateSeedHostsResolver(transportService);
 
-        try (var appender = MockLog.capture(SeedHostsResolver.class)) {
-            appender.addExpectation(
+        try (var mockLog = MockLog.capture(SeedHostsResolver.class)) {
+            mockLog.addExpectation(
                 new MockLog.SeenEventExpectation(
                     getTestName(),
                     SeedHostsResolver.class.getCanonicalName(),
@@ -297,7 +297,7 @@ public class SeedHostsResolverTests extends ESTestCase {
                 )
             );
             assertThat(seedHostsResolver.resolveHosts(Arrays.asList("hostname1", "hostname2")), hasSize(1));
-            appender.assertAllExpectationsMatched();
+            mockLog.assertAllExpectationsMatched();
         } finally {
             latch.countDown();
         }
@@ -402,8 +402,8 @@ public class SeedHostsResolverTests extends ESTestCase {
         closeables.push(transportService);
         recreateSeedHostsResolver(transportService);
 
-        try (var appender = MockLog.capture(SeedHostsResolver.class)) {
-            appender.addExpectation(
+        try (var mockLog = MockLog.capture(SeedHostsResolver.class)) {
+            mockLog.addExpectation(
                 new MockLog.SeenEventExpectation(
                     getTestName(),
                     SeedHostsResolver.class.getCanonicalName(),
@@ -417,7 +417,7 @@ public class SeedHostsResolverTests extends ESTestCase {
             assertThat(transportAddresses, hasSize(1)); // only one of the two is valid and will be used
             assertThat(transportAddresses.get(0).getAddress(), equalTo("127.0.0.1"));
             assertThat(transportAddresses.get(0).getPort(), equalTo(9301));
-            appender.assertAllExpectationsMatched();
+            mockLog.assertAllExpectationsMatched();
         }
     }
 }

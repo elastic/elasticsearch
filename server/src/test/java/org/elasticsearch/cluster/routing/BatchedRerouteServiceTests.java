@@ -241,7 +241,7 @@ public class BatchedRerouteServiceTests extends ESTestCase {
     @TestLogging(reason = "testing log output", value = "org.elasticsearch.cluster.routing.BatchedRerouteService:DEBUG")
     public void testExceptionFidelity() {
 
-        try (var mockLogAppender = MockLog.capture(BatchedRerouteService.class)) {
+        try (var mockLog = MockLog.capture(BatchedRerouteService.class)) {
 
             clusterService.getMasterService()
                 .setClusterStatePublisher(
@@ -250,7 +250,7 @@ public class BatchedRerouteServiceTests extends ESTestCase {
 
             // Case 1: an exception thrown from within the reroute itself
 
-            mockLogAppender.addExpectation(
+            mockLog.addExpectation(
                 new MockLog.SeenEventExpectation(
                     "failure within reroute",
                     BatchedRerouteService.class.getCanonicalName(),
@@ -269,17 +269,17 @@ public class BatchedRerouteServiceTests extends ESTestCase {
                     .getMessage(),
                 equalTo("simulated")
             );
-            mockLogAppender.assertAllExpectationsMatched();
+            mockLog.assertAllExpectationsMatched();
 
             // None of the other cases should yield any log messages by default
 
-            mockLogAppender.addExpectation(
+            mockLog.addExpectation(
                 new MockLog.UnseenEventExpectation("no errors", BatchedRerouteService.class.getCanonicalName(), Level.ERROR, "*")
             );
-            mockLogAppender.addExpectation(
+            mockLog.addExpectation(
                 new MockLog.UnseenEventExpectation("no warnings", BatchedRerouteService.class.getCanonicalName(), Level.WARN, "*")
             );
-            mockLogAppender.addExpectation(
+            mockLog.addExpectation(
                 new MockLog.UnseenEventExpectation("no info", BatchedRerouteService.class.getCanonicalName(), Level.INFO, "*")
             );
 
@@ -290,7 +290,7 @@ public class BatchedRerouteServiceTests extends ESTestCase {
                 return ClusterState.builder(s).build();
             });
 
-            mockLogAppender.addExpectation(
+            mockLog.addExpectation(
                 new MockLog.SeenEventExpectation(
                     "publish failure",
                     BatchedRerouteService.class.getCanonicalName(),
@@ -306,7 +306,7 @@ public class BatchedRerouteServiceTests extends ESTestCase {
                 FailedToCommitClusterStateException.class,
                 () -> publishFailureFuture.get(10, TimeUnit.SECONDS)
             );
-            mockLogAppender.assertAllExpectationsMatched();
+            mockLog.assertAllExpectationsMatched();
 
             // Case 3: a NotMasterException
 
@@ -317,7 +317,7 @@ public class BatchedRerouteServiceTests extends ESTestCase {
                 }, future);
             }, 10, TimeUnit.SECONDS);
 
-            mockLogAppender.addExpectation(
+            mockLog.addExpectation(
                 new MockLog.SeenEventExpectation(
                     "not-master failure",
                     BatchedRerouteService.class.getCanonicalName(),
@@ -329,7 +329,7 @@ public class BatchedRerouteServiceTests extends ESTestCase {
             batchedRerouteService.reroute("not-master failure", randomFrom(EnumSet.allOf(Priority.class)), notMasterFuture);
             expectThrows(ExecutionException.class, NotMasterException.class, () -> notMasterFuture.get(10, TimeUnit.SECONDS));
 
-            mockLogAppender.assertAllExpectationsMatched();
+            mockLog.assertAllExpectationsMatched();
         }
     }
 }

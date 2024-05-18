@@ -1499,8 +1499,8 @@ public class ApiKeyServiceTests extends ESTestCase {
         final Logger logger = LogManager.getLogger(ApiKeyService.class);
         Loggers.setLevel(logger, Level.TRACE);
 
-        try (var appender = MockLog.capture(ApiKeyService.class)) {
-            appender.addExpectation(
+        try (var mockLog = MockLog.capture(ApiKeyService.class)) {
+            mockLog.addExpectation(
                 new MockLog.PatternSeenEventExpectation(
                     "evict",
                     ApiKeyService.class.getName(),
@@ -1508,7 +1508,7 @@ public class ApiKeyServiceTests extends ESTestCase {
                     "API key with ID \\[" + idPrefix + "[0-9]+\\] was evicted from the authentication cache.*"
                 )
             );
-            appender.addExpectation(
+            mockLog.addExpectation(
                 new MockLog.UnseenEventExpectation(
                     "no-thrashing",
                     ApiKeyService.class.getName(),
@@ -1517,9 +1517,9 @@ public class ApiKeyServiceTests extends ESTestCase {
                 )
             );
             apiKeyAuthCache.put(idPrefix + count.incrementAndGet(), new ListenableFuture<>());
-            appender.assertAllExpectationsMatched();
+            mockLog.assertAllExpectationsMatched();
 
-            appender.addExpectation(
+            mockLog.addExpectation(
                 new MockLog.UnseenEventExpectation(
                     "replace",
                     ApiKeyService.class.getName(),
@@ -1528,9 +1528,9 @@ public class ApiKeyServiceTests extends ESTestCase {
                 )
             );
             apiKeyAuthCache.put(idPrefix + count.get(), new ListenableFuture<>());
-            appender.assertAllExpectationsMatched();
+            mockLog.assertAllExpectationsMatched();
 
-            appender.addExpectation(
+            mockLog.addExpectation(
                 new MockLog.UnseenEventExpectation(
                     "invalidate",
                     ApiKeyService.class.getName(),
@@ -1540,7 +1540,7 @@ public class ApiKeyServiceTests extends ESTestCase {
             );
             apiKeyAuthCache.invalidate(idPrefix + count.get(), new ListenableFuture<>());
             apiKeyAuthCache.invalidateAll();
-            appender.assertAllExpectationsMatched();
+            mockLog.assertAllExpectationsMatched();
         } finally {
             Loggers.setLevel(logger, Level.INFO);
         }
@@ -1559,8 +1559,8 @@ public class ApiKeyServiceTests extends ESTestCase {
         final Logger logger = LogManager.getLogger(ApiKeyService.class);
         Loggers.setLevel(logger, Level.TRACE);
 
-        try (var appender = MockLog.capture(ApiKeyService.class)) {
-            appender.addExpectation(
+        try (var mockLog = MockLog.capture(ApiKeyService.class)) {
+            mockLog.addExpectation(
                 new MockLog.UnseenEventExpectation(
                     "evict",
                     ApiKeyService.class.getName(),
@@ -1575,7 +1575,7 @@ public class ApiKeyServiceTests extends ESTestCase {
             // Cache a new entry
             apiKeyAuthCache.put(randomValueOtherThan(apiKeyId, () -> randomAlphaOfLength(22)), new ListenableFuture<>());
             assertEquals(1, apiKeyAuthCache.count());
-            appender.assertAllExpectationsMatched();
+            mockLog.assertAllExpectationsMatched();
         } finally {
             Loggers.setLevel(logger, Level.INFO);
         }
@@ -1591,7 +1591,7 @@ public class ApiKeyServiceTests extends ESTestCase {
         final Logger logger = LogManager.getLogger(ApiKeyService.class);
         Loggers.setLevel(logger, Level.TRACE);
 
-        try (var appender = MockLog.capture(ApiKeyService.class)) {
+        try (var mockLog = MockLog.capture(ApiKeyService.class)) {
             // Prepare the warning logging to trigger
             service.getEvictionCounter().add(4500);
             final long thrashingCheckIntervalInSeconds = 300L;
@@ -1603,7 +1603,7 @@ public class ApiKeyServiceTests extends ESTestCase {
             service.getLastEvictionCheckedAt().set(lastCheckedAt);
             // Ensure the counter is updated
             assertBusy(() -> assertThat(service.getEvictionCounter().longValue() >= 4500, is(true)));
-            appender.addExpectation(
+            mockLog.addExpectation(
                 new MockLog.SeenEventExpectation(
                     "evict",
                     ApiKeyService.class.getName(),
@@ -1611,7 +1611,7 @@ public class ApiKeyServiceTests extends ESTestCase {
                     "API key with ID [*] was evicted from the authentication cache*"
                 )
             );
-            appender.addExpectation(
+            mockLog.addExpectation(
                 new MockLog.SeenEventExpectation(
                     "thrashing",
                     ApiKeyService.class.getName(),
@@ -1620,14 +1620,14 @@ public class ApiKeyServiceTests extends ESTestCase {
                 )
             );
             apiKeyAuthCache.put(randomAlphaOfLength(22), new ListenableFuture<>());
-            appender.assertAllExpectationsMatched();
+            mockLog.assertAllExpectationsMatched();
 
             // Counter and timer should be reset
             assertThat(service.getLastEvictionCheckedAt().get(), lessThanOrEqualTo(System.nanoTime()));
             assertBusy(() -> assertThat(service.getEvictionCounter().longValue(), equalTo(0L)));
 
             // Will not log warning again for the next eviction because of throttling
-            appender.addExpectation(
+            mockLog.addExpectation(
                 new MockLog.SeenEventExpectation(
                     "evict-again",
                     ApiKeyService.class.getName(),
@@ -1635,7 +1635,7 @@ public class ApiKeyServiceTests extends ESTestCase {
                     "API key with ID [*] was evicted from the authentication cache*"
                 )
             );
-            appender.addExpectation(
+            mockLog.addExpectation(
                 new MockLog.UnseenEventExpectation(
                     "throttling",
                     ApiKeyService.class.getName(),
@@ -1644,7 +1644,7 @@ public class ApiKeyServiceTests extends ESTestCase {
                 )
             );
             apiKeyAuthCache.put(randomAlphaOfLength(23), new ListenableFuture<>());
-            appender.assertAllExpectationsMatched();
+            mockLog.assertAllExpectationsMatched();
         } finally {
             Loggers.setLevel(logger, Level.INFO);
         }

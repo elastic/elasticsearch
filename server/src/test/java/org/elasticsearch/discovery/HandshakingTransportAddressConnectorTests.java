@@ -153,8 +153,8 @@ public class HandshakingTransportAddressConnectorTests extends ESTestCase {
 
         FailureListener failureListener = new FailureListener();
 
-        try (var mockAppender = MockLog.capture(HandshakingTransportAddressConnector.class)) {
-            mockAppender.addExpectation(
+        try (var mockLog = MockLog.capture(HandshakingTransportAddressConnector.class)) {
+            mockLog.addExpectation(
                 new MockLog.SeenEventExpectation(
                     "message",
                     HandshakingTransportAddressConnector.class.getCanonicalName(),
@@ -171,7 +171,7 @@ public class HandshakingTransportAddressConnectorTests extends ESTestCase {
 
             handshakingTransportAddressConnector.connectToRemoteMasterNode(discoveryAddress, failureListener);
             assertThat(failureListener.getFailureMessage(), containsString("simulated"));
-            mockAppender.assertAllExpectationsMatched();
+            mockLog.assertAllExpectationsMatched();
         }
     }
 

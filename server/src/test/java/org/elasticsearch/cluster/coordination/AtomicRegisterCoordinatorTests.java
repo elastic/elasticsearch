@@ -143,10 +143,10 @@ public class AtomicRegisterCoordinatorTests extends CoordinatorTests {
             cluster.stabilise();
             final var clusterNode = cluster.getAnyLeader();
 
-            try (var mockAppender = MockLog.capture(Coordinator.class, Coordinator.CoordinatorPublication.class)) {
+            try (var mockLog = MockLog.capture(Coordinator.class, Coordinator.CoordinatorPublication.class)) {
 
                 clusterNode.disconnect();
-                mockAppender.addExpectation(
+                mockLog.addExpectation(
                     new MockLog.SeenEventExpectation(
                         "write heartbeat failure",
                         Coordinator.class.getCanonicalName(),
@@ -155,11 +155,11 @@ public class AtomicRegisterCoordinatorTests extends CoordinatorTests {
                     )
                 );
                 cluster.runFor(HEARTBEAT_FREQUENCY.get(Settings.EMPTY).millis(), "warnings");
-                mockAppender.assertAllExpectationsMatched();
+                mockLog.assertAllExpectationsMatched();
                 clusterNode.heal();
 
                 coordinatorStrategy.disruptElections = true;
-                mockAppender.addExpectation(
+                mockLog.addExpectation(
                     new MockLog.SeenEventExpectation(
                         "acquire term failure",
                         Coordinator.class.getCanonicalName(),
@@ -168,11 +168,11 @@ public class AtomicRegisterCoordinatorTests extends CoordinatorTests {
                     )
                 );
                 cluster.runFor(DEFAULT_ELECTION_DELAY, "warnings");
-                mockAppender.assertAllExpectationsMatched();
+                mockLog.assertAllExpectationsMatched();
                 coordinatorStrategy.disruptElections = false;
 
                 coordinatorStrategy.disruptPublications = true;
-                mockAppender.addExpectation(
+                mockLog.addExpectation(
                     new MockLog.SeenEventExpectation(
                         "verify term failure",
                         Coordinator.CoordinatorPublication.class.getCanonicalName(),
@@ -181,7 +181,7 @@ public class AtomicRegisterCoordinatorTests extends CoordinatorTests {
                     )
                 );
                 cluster.runFor(DEFAULT_ELECTION_DELAY + DEFAULT_CLUSTER_STATE_UPDATE_DELAY, "publication warnings");
-                mockAppender.assertAllExpectationsMatched();
+                mockLog.assertAllExpectationsMatched();
                 coordinatorStrategy.disruptPublications = false;
             }
 

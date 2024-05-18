@@ -133,8 +133,8 @@ public class CcrLicenseIT extends CcrSingleNodeTestCase {
 
     public void testAutoFollowCoordinatorLogsSkippingAutoFollowCoordinationWithNonCompliantLicense() throws Exception {
         final Logger logger = LogManager.getLogger(AutoFollowCoordinator.class);
-        try (var appender = MockLog.capture(AutoFollowCoordinator.class)) {
-            appender.addExpectation(
+        try (var mockLog = MockLog.capture(AutoFollowCoordinator.class)) {
+            mockLog.addExpectation(
                 new MockLog.ExceptionSeenEventExpectation(
                     getTestName(),
                     logger.getName(),
@@ -195,7 +195,7 @@ public class CcrLicenseIT extends CcrSingleNodeTestCase {
                 }
             });
             latch.await();
-            appender.assertAllExpectationsMatched();
+            mockLog.assertAllExpectationsMatched();
         }
     }
 

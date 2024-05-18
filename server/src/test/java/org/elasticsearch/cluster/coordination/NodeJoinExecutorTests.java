@@ -801,11 +801,11 @@ public class NodeJoinExecutorTests extends ESTestCase {
 
         final ThreadPool threadPool = new TestThreadPool("test");
         try (
-            var appender = MockLog.capture(NodeJoinExecutor.class);
+            var mockLog = MockLog.capture(NodeJoinExecutor.class);
             var clusterService = ClusterServiceUtils.createClusterService(clusterState, threadPool)
         ) {
             final var node1 = DiscoveryNodeUtils.create(UUIDs.base64UUID());
-            appender.addExpectation(
+            mockLog.addExpectation(
                 new MockLog.SeenEventExpectation(
                     "info message",
                     LOGGER_NAME,
@@ -826,11 +826,11 @@ public class NodeJoinExecutorTests extends ESTestCase {
                     TimeUnit.SECONDS
                 )
             );
-            appender.assertAllExpectationsMatched();
+            mockLog.assertAllExpectationsMatched();
 
             final var node2 = DiscoveryNodeUtils.create(UUIDs.base64UUID());
             final var testReasonWithLink = new JoinReason("test", ReferenceDocs.UNSTABLE_CLUSTER_TROUBLESHOOTING);
-            appender.addExpectation(
+            mockLog.addExpectation(
                 new MockLog.SeenEventExpectation(
                     "warn message with troubleshooting link",
                     LOGGER_NAME,
@@ -862,7 +862,7 @@ public class NodeJoinExecutorTests extends ESTestCase {
                     TimeUnit.SECONDS
                 )
             );
-            appender.assertAllExpectationsMatched();
+            mockLog.assertAllExpectationsMatched();
         } finally {
             TestThreadPool.terminate(threadPool, 10, TimeUnit.SECONDS);
         }

@@ -808,8 +808,8 @@ public class PeerFinderTests extends ESTestCase {
         final long endTime = deterministicTaskQueue.getCurrentTimeMillis() + VERBOSITY_INCREASE_TIMEOUT_SETTING.get(Settings.EMPTY)
             .millis();
 
-        try (var appender = MockLog.capture(PeerFinder.class)) {
-            appender.addExpectation(
+        try (var mockLog = MockLog.capture(PeerFinder.class)) {
+            mockLog.addExpectation(
                 new MockLog.SeenEventExpectation(
                     "discovery result",
                     "org.elasticsearch.discovery.PeerFinder",
@@ -826,7 +826,7 @@ public class PeerFinderTests extends ESTestCase {
                 deterministicTaskQueue.advanceTime();
                 runAllRunnableTasks();
             }
-            appender.assertAllExpectationsMatched();
+            mockLog.assertAllExpectationsMatched();
         }
     }
 
@@ -841,8 +841,8 @@ public class PeerFinderTests extends ESTestCase {
         final long endTime = deterministicTaskQueue.getCurrentTimeMillis() + VERBOSITY_INCREASE_TIMEOUT_SETTING.get(Settings.EMPTY)
             .millis();
 
-        try (var appender = MockLog.capture(PeerFinder.class)) {
-            appender.addExpectation(
+        try (var mockLog = MockLog.capture(PeerFinder.class)) {
+            mockLog.addExpectation(
                 new MockLog.SeenEventExpectation(
                     "discovery result",
                     "org.elasticsearch.discovery.PeerFinder",
@@ -858,9 +858,9 @@ public class PeerFinderTests extends ESTestCase {
 
             deterministicTaskQueue.advanceTime();
             runAllRunnableTasks();
-            appender.assertAllExpectationsMatched();
+            mockLog.assertAllExpectationsMatched();
 
-            appender.addExpectation(
+            mockLog.addExpectation(
                 new MockLog.SeenEventExpectation(
                     "discovery result",
                     "org.elasticsearch.discovery.PeerFinder",
@@ -877,7 +877,7 @@ public class PeerFinderTests extends ESTestCase {
                 deterministicTaskQueue.advanceTime();
                 runAllRunnableTasks();
             }
-            appender.assertAllExpectationsMatched();
+            mockLog.assertAllExpectationsMatched();
         }
     }
 

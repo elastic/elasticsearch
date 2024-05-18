@@ -109,11 +109,11 @@ public class ClusterFormationFailureHelperTests extends ESTestCase {
         final long startTimeMillis = deterministicTaskQueue.getCurrentTimeMillis();
         clusterFormationFailureHelper.start();
 
-        try (var mockLogAppender = MockLog.capture(ClusterFormationFailureHelper.class)) {
-            mockLogAppender.addExpectation(
+        try (var mockLog = MockLog.capture(ClusterFormationFailureHelper.class)) {
+            mockLog.addExpectation(
                 new MockLog.SeenEventExpectation("master not discovered", LOGGER_NAME, Level.WARN, "master not discovered")
             );
-            mockLogAppender.addExpectation(
+            mockLog.addExpectation(
                 new MockLog.SeenEventExpectation(
                     "troubleshooting link",
                     LOGGER_NAME,
@@ -133,7 +133,7 @@ public class ClusterFormationFailureHelperTests extends ESTestCase {
             }
             assertThat(warningCount.get(), is(1L));
             assertThat(deterministicTaskQueue.getCurrentTimeMillis() - startTimeMillis, is(expectedDelayMillis));
-            mockLogAppender.assertAllExpectationsMatched();
+            mockLog.assertAllExpectationsMatched();
         }
 
         while (warningCount.get() < 5) {

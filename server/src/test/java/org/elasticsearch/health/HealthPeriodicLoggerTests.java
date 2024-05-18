@@ -613,8 +613,8 @@ public class HealthPeriodicLoggerTests extends ESTestCase {
     }
 
     public void testLoggingHappens() {
-        try (var mockAppender = MockLog.capture(HealthPeriodicLogger.class)) {
-            mockAppender.addExpectation(
+        try (var mockLog = MockLog.capture(HealthPeriodicLogger.class)) {
+            mockLog.addExpectation(
                 new MockLog.SeenEventExpectation(
                     "overall",
                     HealthPeriodicLogger.class.getCanonicalName(),
@@ -622,7 +622,7 @@ public class HealthPeriodicLoggerTests extends ESTestCase {
                     String.format(Locale.ROOT, "%s=\"yellow\"", makeHealthStatusString("overall"))
                 )
             );
-            mockAppender.addExpectation(
+            mockLog.addExpectation(
                 new MockLog.SeenEventExpectation(
                     "master_is_stable",
                     HealthPeriodicLogger.class.getCanonicalName(),
@@ -630,7 +630,7 @@ public class HealthPeriodicLoggerTests extends ESTestCase {
                     String.format(Locale.ROOT, "%s=\"green\"", makeHealthStatusString("master_is_stable"))
                 )
             );
-            mockAppender.addExpectation(
+            mockLog.addExpectation(
                 new MockLog.SeenEventExpectation(
                     "disk",
                     HealthPeriodicLogger.class.getCanonicalName(),
@@ -638,7 +638,7 @@ public class HealthPeriodicLoggerTests extends ESTestCase {
                     String.format(Locale.ROOT, "%s=\"yellow\"", makeHealthStatusString("disk"))
                 )
             );
-            mockAppender.addExpectation(
+            mockLog.addExpectation(
                 new MockLog.UnseenEventExpectation(
                     "ilm",
                     HealthPeriodicLogger.class.getCanonicalName(),
@@ -668,13 +668,13 @@ public class HealthPeriodicLoggerTests extends ESTestCase {
 
             SchedulerEngine.Event event = new SchedulerEngine.Event(HealthPeriodicLogger.HEALTH_PERIODIC_LOGGER_JOB_NAME, 0, 0);
             testHealthPeriodicLogger.triggered(event);
-            mockAppender.assertAllExpectationsMatched();
+            mockLog.assertAllExpectationsMatched();
         }
     }
 
     public void testOutputModeNoLogging() {
-        try (var mockAppender = MockLog.capture(HealthPeriodicLogger.class)) {
-            mockAppender.addExpectation(
+        try (var mockLog = MockLog.capture(HealthPeriodicLogger.class)) {
+            mockLog.addExpectation(
                 new MockLog.UnseenEventExpectation(
                     "overall",
                     HealthPeriodicLogger.class.getCanonicalName(),
@@ -682,7 +682,7 @@ public class HealthPeriodicLoggerTests extends ESTestCase {
                     String.format(Locale.ROOT, "%s=\"yellow\"", makeHealthStatusString("overall"))
                 )
             );
-            mockAppender.addExpectation(
+            mockLog.addExpectation(
                 new MockLog.UnseenEventExpectation(
                     "master_is_stable",
                     HealthPeriodicLogger.class.getCanonicalName(),
@@ -690,7 +690,7 @@ public class HealthPeriodicLoggerTests extends ESTestCase {
                     String.format(Locale.ROOT, "%s=\"green\"", makeHealthStatusString("master_is_stable"))
                 )
             );
-            mockAppender.addExpectation(
+            mockLog.addExpectation(
                 new MockLog.UnseenEventExpectation(
                     "disk",
                     HealthPeriodicLogger.class.getCanonicalName(),
@@ -721,7 +721,7 @@ public class HealthPeriodicLoggerTests extends ESTestCase {
             SchedulerEngine.Event event = new SchedulerEngine.Event(HealthPeriodicLogger.HEALTH_PERIODIC_LOGGER_JOB_NAME, 0, 0);
             testHealthPeriodicLogger.triggered(event);
 
-            mockAppender.assertAllExpectationsMatched();
+            mockLog.assertAllExpectationsMatched();
         }
     }
 

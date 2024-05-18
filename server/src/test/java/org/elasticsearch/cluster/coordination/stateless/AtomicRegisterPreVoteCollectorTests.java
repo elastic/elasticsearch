@@ -83,8 +83,8 @@ public class AtomicRegisterPreVoteCollectorTests extends ESTestCase {
         final var heartbeatFrequency = TimeValue.timeValueSeconds(randomIntBetween(15, 30));
         final var maxTimeSinceLastHeartbeat = TimeValue.timeValueSeconds(2 * heartbeatFrequency.seconds());
         DiscoveryNodeUtils.create("master");
-        try (var appender = MockLog.capture(AtomicRegisterPreVoteCollector.class)) {
-            appender.addExpectation(
+        try (var mockLog = MockLog.capture(AtomicRegisterPreVoteCollector.class)) {
+            mockLog.addExpectation(
                 new MockLog.SeenEventExpectation(
                     "log emitted when skipping election",
                     AtomicRegisterPreVoteCollector.class.getCanonicalName(),
@@ -116,7 +116,7 @@ public class AtomicRegisterPreVoteCollectorTests extends ESTestCase {
             preVoteCollector.start(ClusterState.EMPTY_STATE, Collections.emptyList());
 
             assertThat(startElection.get(), is(false));
-            appender.assertAllExpectationsMatched();
+            mockLog.assertAllExpectationsMatched();
         }
     }
 

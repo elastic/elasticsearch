@@ -251,8 +251,8 @@ public class RolloverIT extends ESIntegTestCase {
         Logger allocationServiceLogger = LogManager.getLogger(AllocationService.class);
 
         final RolloverResponse response;
-        try (var appender = MockLog.capture(AllocationService.class)) {
-            appender.addExpectation(
+        try (var mockLog = MockLog.capture(AllocationService.class)) {
+            mockLog.addExpectation(
                 new MockLog.UnseenEventExpectation(
                     "no related message logged on dry run",
                     AllocationService.class.getName(),
@@ -261,7 +261,7 @@ public class RolloverIT extends ESIntegTestCase {
                 )
             );
             response = indicesAdmin().prepareRolloverIndex("test_alias").dryRun(true).get();
-            appender.assertAllExpectationsMatched();
+            mockLog.assertAllExpectationsMatched();
         }
 
         assertThat(response.getOldIndex(), equalTo("test_index-1"));

@@ -1433,8 +1433,8 @@ public class SettingTests extends ESTestCase {
         );
         final IndexSettings settings = new IndexSettings(metadata, Settings.EMPTY);
 
-        try (var mockLogAppender = MockLog.capture(IndexScopedSettings.class)) {
-            mockLogAppender.addExpectation(
+        try (var mockLog = MockLog.capture(IndexScopedSettings.class)) {
+            mockLog.addExpectation(
                 new MockLog.SeenEventExpectation(
                     "message",
                     "org.elasticsearch.common.settings.IndexScopedSettings",
@@ -1451,7 +1451,7 @@ public class SettingTests extends ESTestCase {
                 newIndexMeta("index1", Settings.builder().put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), "10s").build())
             );
 
-            mockLogAppender.assertAllExpectationsMatched();
+            mockLog.assertAllExpectationsMatched();
         }
     }
 

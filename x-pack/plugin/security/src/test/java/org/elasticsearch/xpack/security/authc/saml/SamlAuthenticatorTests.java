@@ -215,8 +215,8 @@ public class SamlAuthenticatorTests extends SamlResponseHandlerTests {
             .add(getAttribute(attributeName, attributeFriendlyName, null, List.of("daredevil")));
         SamlToken token = token(signResponse(response));
 
-        try (var mockAppender = MockLog.capture(authenticator.getClass())) {
-            mockAppender.addExpectation(
+        try (var mockLog = MockLog.capture(authenticator.getClass())) {
+            mockLog.addExpectation(
                 new MockLog.SeenEventExpectation(
                     "attribute name warning",
                     authenticator.getClass().getName(),
@@ -226,7 +226,7 @@ public class SamlAuthenticatorTests extends SamlResponseHandlerTests {
             );
             final SamlAttributes attributes = authenticator.authenticate(token);
             assertThat(attributes, notNullValue());
-            mockAppender.assertAllExpectationsMatched();
+            mockLog.assertAllExpectationsMatched();
         }
     }
 
@@ -239,10 +239,10 @@ public class SamlAuthenticatorTests extends SamlResponseHandlerTests {
         assertion.getAttributeStatements().get(0).getAttributes().add(getAttribute(UID_OID, "friendly", null, List.of("daredevil")));
         SamlToken token = token(signResponse(response));
 
-        try (var mockAppender = MockLog.capture(authenticator.getClass())) {
+        try (var mockLog = MockLog.capture(authenticator.getClass())) {
             final SamlAttributes attributes = authenticator.authenticate(token);
             assertThat(attributes, notNullValue());
-            mockAppender.assertAllExpectationsMatched();
+            mockLog.assertAllExpectationsMatched();
         }
     }
 
@@ -259,8 +259,8 @@ public class SamlAuthenticatorTests extends SamlResponseHandlerTests {
         SamlToken token = token(signResponse(response));
 
         final Logger samlLogger = LogManager.getLogger(authenticator.getClass());
-        try (var mockAppender = MockLog.capture(authenticator.getClass())) {
-            mockAppender.addExpectation(
+        try (var mockLog = MockLog.capture(authenticator.getClass())) {
+            mockLog.addExpectation(
                 new MockLog.SeenEventExpectation(
                     "attribute name warning",
                     authenticator.getClass().getName(),
@@ -268,7 +268,7 @@ public class SamlAuthenticatorTests extends SamlResponseHandlerTests {
                     SPECIAL_ATTRIBUTE_LOG_MESSAGE
                 )
             );
-            mockAppender.addExpectation(
+            mockLog.addExpectation(
                 new MockLog.SeenEventExpectation(
                     "attribute friendly name warning",
                     authenticator.getClass().getName(),
@@ -278,7 +278,7 @@ public class SamlAuthenticatorTests extends SamlResponseHandlerTests {
             );
             final SamlAttributes attributes = authenticator.authenticate(token);
             assertThat(attributes, notNullValue());
-            mockAppender.assertAllExpectationsMatched();
+            mockLog.assertAllExpectationsMatched();
         }
     }
 
@@ -863,8 +863,8 @@ public class SamlAuthenticatorTests extends SamlResponseHandlerTests {
         String xml = SamlUtils.getXmlContent(response, false);
         final SamlToken token = token(signResponse(xml));
 
-        try (var mockAppender = MockLog.capture(authenticator.getClass())) {
-            mockAppender.addExpectation(
+        try (var mockLog = MockLog.capture(authenticator.getClass())) {
+            mockLog.addExpectation(
                 new MockLog.SeenEventExpectation(
                     "similar audience",
                     authenticator.getClass().getName(),
@@ -878,7 +878,7 @@ public class SamlAuthenticatorTests extends SamlResponseHandlerTests {
                         + "] [:80/] vs [/])"
                 )
             );
-            mockAppender.addExpectation(
+            mockLog.addExpectation(
                 new MockLog.SeenEventExpectation(
                     "not similar audience",
                     authenticator.getClass().getName(),
@@ -888,7 +888,7 @@ public class SamlAuthenticatorTests extends SamlResponseHandlerTests {
             );
             final ElasticsearchSecurityException exception = expectSamlException(() -> authenticator.authenticate(token));
             assertThat(exception.getMessage(), containsString("required audience"));
-            mockAppender.assertAllExpectationsMatched();
+            mockLog.assertAllExpectationsMatched();
         }
     }
 

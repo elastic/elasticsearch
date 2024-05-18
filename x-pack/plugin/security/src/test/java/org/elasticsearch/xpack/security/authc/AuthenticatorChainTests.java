@@ -481,8 +481,8 @@ public class AuthenticatorChainTests extends ESTestCase {
         final Logger logger = LogManager.getLogger(AuthenticatorChain.class);
         Loggers.setLevel(logger, Level.INFO);
 
-        try (var appender = MockLog.capture(AuthenticatorChain.class)) {
-            appender.addExpectation(
+        try (var mockLog = MockLog.capture(AuthenticatorChain.class)) {
+            mockLog.addExpectation(
                 new MockLog.SeenEventExpectation(
                     "run-as",
                     AuthenticatorChain.class.getName(),
@@ -493,7 +493,7 @@ public class AuthenticatorChainTests extends ESTestCase {
             final PlainActionFuture<Authentication> future = new PlainActionFuture<>();
             authenticatorChain.maybeLookupRunAsUser(context, authentication, future);
             assertThat(future.actionGet(), equalTo(authentication));
-            appender.assertAllExpectationsMatched();
+            mockLog.assertAllExpectationsMatched();
         } finally {
             Loggers.setLevel(logger, Level.INFO);
         }

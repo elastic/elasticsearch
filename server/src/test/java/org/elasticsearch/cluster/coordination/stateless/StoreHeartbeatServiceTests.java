@@ -262,8 +262,8 @@ public class StoreHeartbeatServiceTests extends ESTestCase {
             fakeClock.set(maxTimeSinceLastHeartbeat.millis() + 1);
             failReadingHeartbeat.set(true);
 
-            try (var mockAppender = MockLog.capture(StoreHeartbeatService.class)) {
-                mockAppender.addExpectation(
+            try (var mockLog = MockLog.capture(StoreHeartbeatService.class)) {
+                mockLog.addExpectation(
                     new MockLog.SeenEventExpectation(
                         "warning log",
                         StoreHeartbeatService.class.getCanonicalName(),
@@ -272,7 +272,7 @@ public class StoreHeartbeatServiceTests extends ESTestCase {
                     )
                 );
                 heartbeatService.checkLeaderHeartbeatAndRun(() -> fail("should not be called"), hb -> {});
-                mockAppender.assertAllExpectationsMatched();
+                mockLog.assertAllExpectationsMatched();
             }
         }
     }

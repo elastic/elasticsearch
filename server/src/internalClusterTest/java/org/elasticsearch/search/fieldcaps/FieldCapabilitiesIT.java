@@ -648,8 +648,8 @@ public class FieldCapabilitiesIT extends ESIntegTestCase {
         reason = "verify the log output on cancelled"
     )
     public void testCancel() throws Exception {
-        try (var logAppender = MockLog.capture(TransportFieldCapabilitiesAction.class)) {
-            logAppender.addExpectation(
+        try (var mockLog = MockLog.capture(TransportFieldCapabilitiesAction.class)) {
+            mockLog.addExpectation(
                 new MockLog.SeenEventExpectation(
                     "clear resources",
                     TransportFieldCapabilitiesAction.class.getCanonicalName(),
@@ -681,7 +681,7 @@ public class FieldCapabilitiesIT extends ESIntegTestCase {
                 }
             }, 30, TimeUnit.SECONDS);
             cancellable.cancel();
-            assertBusy(logAppender::assertAllExpectationsMatched);
+            assertBusy(mockLog::assertAllExpectationsMatched);
             logger.info("--> waiting for field-caps tasks to be cancelled");
             assertBusy(() -> {
                 List<TaskInfo> tasks = clusterAdmin().prepareListTasks()

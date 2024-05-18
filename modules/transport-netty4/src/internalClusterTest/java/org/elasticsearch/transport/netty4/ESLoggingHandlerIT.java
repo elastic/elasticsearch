@@ -22,15 +22,15 @@ import java.io.IOException;
 @ESIntegTestCase.ClusterScope(numDataNodes = 2, scope = ESIntegTestCase.Scope.TEST)
 public class ESLoggingHandlerIT extends ESNetty4IntegTestCase {
 
-    private MockLog appender;
+    private MockLog mockLog;
 
     public void setUp() throws Exception {
         super.setUp();
-        appender = MockLog.capture(ESLoggingHandler.class, TransportLogger.class, TcpTransport.class);
+        mockLog = MockLog.capture(ESLoggingHandler.class, TransportLogger.class, TcpTransport.class);
     }
 
     public void tearDown() throws Exception {
-        appender.close();
+        mockLog.close();
         super.tearDown();
     }
 
@@ -73,16 +73,16 @@ public class ESLoggingHandlerIT extends ESNetty4IntegTestCase {
             readPattern
         );
 
-        appender.addExpectation(writeExpectation);
-        appender.addExpectation(flushExpectation);
-        appender.addExpectation(readExpectation);
+        mockLog.addExpectation(writeExpectation);
+        mockLog.addExpectation(flushExpectation);
+        mockLog.addExpectation(readExpectation);
         client().admin().cluster().prepareNodesStats().get(TimeValue.timeValueSeconds(10));
-        appender.assertAllExpectationsMatched();
+        mockLog.assertAllExpectationsMatched();
     }
 
     @TestLogging(value = "org.elasticsearch.transport.TcpTransport:DEBUG", reason = "to ensure we log connection events on DEBUG level")
     public void testConnectionLogging() throws IOException {
-        appender.addExpectation(
+        mockLog.addExpectation(
             new MockLog.PatternSeenEventExpectation(
                 "open connection log",
                 TcpTransport.class.getCanonicalName(),
@@ -90,7 +90,7 @@ public class ESLoggingHandlerIT extends ESNetty4IntegTestCase {
                 ".*opened transport connection \\[[1-9][0-9]*\\] to .*"
             )
         );
-        appender.addExpectation(
+        mockLog.addExpectation(
             new MockLog.PatternSeenEventExpectation(
                 "close connection log",
                 TcpTransport.class.getCanonicalName(),
@@ -102,6 +102,6 @@ public class ESLoggingHandlerIT extends ESNetty4IntegTestCase {
         final String nodeName = internalCluster().startNode();
         internalCluster().stopNode(nodeName);
 
-        appender.assertAllExpectationsMatched();
+        mockLog.assertAllExpectationsMatched();
     }
 }

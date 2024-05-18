@@ -31,8 +31,8 @@ public class SnapshotsServiceIT extends AbstractSnapshotIntegTestCase {
         createIndexWithRandomDocs("test-index", randomIntBetween(1, 42));
         createSnapshot("test-repo", "test-snapshot", List.of("test-index"));
 
-        try (var mockLogAppender = MockLog.capture(SnapshotsService.class)) {
-            mockLogAppender.addExpectation(
+        try (var mockLog = MockLog.capture(SnapshotsService.class)) {
+            mockLog.addExpectation(
                 new MockLog.UnseenEventExpectation(
                     "[does-not-exist]",
                     SnapshotsService.class.getName(),
@@ -41,7 +41,7 @@ public class SnapshotsServiceIT extends AbstractSnapshotIntegTestCase {
                 )
             );
 
-            mockLogAppender.addExpectation(
+            mockLog.addExpectation(
                 new MockLog.SeenEventExpectation(
                     "[deleting test-snapshot]",
                     SnapshotsService.class.getName(),
@@ -50,7 +50,7 @@ public class SnapshotsServiceIT extends AbstractSnapshotIntegTestCase {
                 )
             );
 
-            mockLogAppender.addExpectation(
+            mockLog.addExpectation(
                 new MockLog.SeenEventExpectation(
                     "[test-snapshot deleted]",
                     SnapshotsService.class.getName(),
@@ -67,7 +67,7 @@ public class SnapshotsServiceIT extends AbstractSnapshotIntegTestCase {
             assertThat(startDeleteSnapshot("test-repo", "test-snapshot").actionGet().isAcknowledged(), is(true));
 
             awaitNoMoreRunningOperations(); // ensure background file deletion is completed
-            mockLogAppender.assertAllExpectationsMatched();
+            mockLog.assertAllExpectationsMatched();
         } finally {
             deleteRepository("test-repo");
         }
@@ -78,8 +78,8 @@ public class SnapshotsServiceIT extends AbstractSnapshotIntegTestCase {
         createIndexWithRandomDocs("test-index", randomIntBetween(1, 42));
         createSnapshot("test-repo", "test-snapshot", List.of("test-index"));
 
-        try (var mockLogAppender = MockLog.capture(SnapshotsService.class)) {
-            mockLogAppender.addExpectation(
+        try (var mockLog = MockLog.capture(SnapshotsService.class)) {
+            mockLog.addExpectation(
                 new MockLog.SeenEventExpectation(
                     "[test-snapshot]",
                     SnapshotsService.class.getName(),
@@ -105,7 +105,7 @@ public class SnapshotsServiceIT extends AbstractSnapshotIntegTestCase {
                 assertThat(e.getCause().getMessage(), containsString("exception after block"));
             }
 
-            mockLogAppender.assertAllExpectationsMatched();
+            mockLog.assertAllExpectationsMatched();
         } finally {
             deleteRepository("test-repo");
         }

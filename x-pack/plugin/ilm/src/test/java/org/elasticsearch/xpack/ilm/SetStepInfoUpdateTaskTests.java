@@ -116,8 +116,8 @@ public class SetStepInfoUpdateTaskTests extends ESTestCase {
 
         SetStepInfoUpdateTask task = new SetStepInfoUpdateTask(index, policy, currentStepKey, stepInfo);
 
-        try (var mockAppender = MockLog.capture(SetStepInfoUpdateTask.class)) {
-            mockAppender.addExpectation(
+        try (var mockLog = MockLog.capture(SetStepInfoUpdateTask.class)) {
+            mockLog.addExpectation(
                 new MockLog.SeenEventExpectation(
                     "warning",
                     SetStepInfoUpdateTask.class.getCanonicalName(),
@@ -127,7 +127,7 @@ public class SetStepInfoUpdateTaskTests extends ESTestCase {
             );
 
             task.onFailure(new RuntimeException("test exception"));
-            mockAppender.assertAllExpectationsMatched();
+            mockLog.assertAllExpectationsMatched();
         }
     }
 

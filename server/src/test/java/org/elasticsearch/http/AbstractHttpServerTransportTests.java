@@ -581,10 +581,10 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
                     .put(HttpTransportSettings.SETTING_HTTP_TRACE_LOG_EXCLUDE.getKey(), excludeSettings)
                     .build()
             );
-            try (var appender = MockLog.capture(HttpTracer.class)) {
+            try (var mockLog = MockLog.capture(HttpTracer.class)) {
 
                 final String opaqueId = UUIDs.randomBase64UUID(random());
-                appender.addExpectation(
+                mockLog.addExpectation(
                     new MockLog.PatternSeenEventExpectation(
                         "received request",
                         HttpTracerTests.HTTP_TRACER_LOGGER,
@@ -595,7 +595,7 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
 
                 final boolean badRequest = randomBoolean();
 
-                appender.addExpectation(
+                mockLog.addExpectation(
                     new MockLog.PatternSeenEventExpectation(
                         "sent response",
                         HttpTracerTests.HTTP_TRACER_LOGGER,
@@ -610,7 +610,7 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
                     )
                 );
 
-                appender.addExpectation(
+                mockLog.addExpectation(
                     new MockLog.UnseenEventExpectation(
                         "received other request",
                         HttpTracerTests.HTTP_TRACER_LOGGER,
@@ -657,7 +657,7 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
                 try (var httpChannel = fakeRestRequestExcludedPath.getHttpChannel()) {
                     transport.incomingRequest(fakeRestRequestExcludedPath.getHttpRequest(), httpChannel);
                 }
-                appender.assertAllExpectationsMatched();
+                mockLog.assertAllExpectationsMatched();
             }
         }
     }
@@ -671,7 +671,7 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
             .put(TransportSettings.SLOW_OPERATION_THRESHOLD_SETTING.getKey(), TimeValue.timeValueMillis(5))
             .build();
         try (
-            var mockAppender = MockLog.capture(AbstractHttpServerTransport.class);
+            var mockLog = MockLog.capture(AbstractHttpServerTransport.class);
             AbstractHttpServerTransport transport = new AbstractHttpServerTransport(
                 settings,
                 networkService,
@@ -718,7 +718,7 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
                 }
             }
         ) {
-            mockAppender.addExpectation(
+            mockLog.addExpectation(
                 new MockLog.SeenEventExpectation(
                     "expected message",
                     AbstractHttpServerTransport.class.getCanonicalName(),
@@ -733,7 +733,7 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
                 .build();
             transport.serverAcceptedChannel(fakeRestRequest.getHttpChannel());
             transport.incomingRequest(fakeRestRequest.getHttpRequest(), fakeRestRequest.getHttpChannel());
-            mockAppender.assertAllExpectationsMatched();
+            mockLog.assertAllExpectationsMatched();
         }
     }
 
@@ -1350,13 +1350,13 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
 
     private static class LogExpectation implements AutoCloseable {
         private final Logger mockLogger;
-        private final MockLog appender;
+        private final MockLog mockLog;
         private final int grace;
 
         private LogExpectation(int grace) {
             mockLogger = LogManager.getLogger(AbstractHttpServerTransport.class);
             Loggers.setLevel(mockLogger, Level.DEBUG);
-            appender = MockLog.capture(AbstractHttpServerTransport.class);
+            mockLog = MockLog.capture(AbstractHttpServerTransport.class);
             this.grace = grace;
         }
 
@@ -1382,9 +1382,9 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
             var logger = AbstractHttpServerTransport.class.getName();
             var level = Level.WARN;
             if (expected) {
-                appender.addExpectation(new MockLog.SeenEventExpectation(name, logger, level, message));
+                mockLog.addExpectation(new MockLog.SeenEventExpectation(name, logger, level, message));
             } else {
-                appender.addExpectation(new MockLog.UnseenEventExpectation(name, logger, level, message));
+                mockLog.addExpectation(new MockLog.UnseenEventExpectation(name, logger, level, message));
             }
             return this;
         }
@@ -1395,9 +1395,9 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
             var logger = AbstractHttpServerTransport.class.getName();
             var level = Level.DEBUG;
             if (expected) {
-                appender.addExpectation(new MockLog.SeenEventExpectation(name, logger, level, message));
+                mockLog.addExpectation(new MockLog.SeenEventExpectation(name, logger, level, message));
             } else {
-                appender.addExpectation(new MockLog.UnseenEventExpectation(name, logger, level, message));
+                mockLog.addExpectation(new MockLog.UnseenEventExpectation(name, logger, level, message));
             }
             return this;
         }
@@ -1407,17 +1407,17 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
             var name = "update message";
             var logger = AbstractHttpServerTransport.class.getName();
             var level = Level.INFO;
-            appender.addExpectation(new MockLog.SeenEventExpectation(name, logger, level, message));
+            mockLog.addExpectation(new MockLog.SeenEventExpectation(name, logger, level, message));
             return this;
         }
 
         public void assertExpectationsMatched() {
-            appender.assertAllExpectationsMatched();
+            mockLog.assertAllExpectationsMatched();
         }
 
         @Override
         public void close() {
-            appender.close();
+            mockLog.close();
         }
     }
 

@@ -210,10 +210,10 @@ public class SpawnerNoBootstrapTests extends LuceneTestCase {
         Loggers.setLevel(LogManager.getLogger(stderrLoggerName), Level.TRACE);
         CountDownLatch messagesLoggedLatch = new CountDownLatch(2);
 
-        try (var appender = MockLog.capture(stdoutLoggerName, stderrLoggerName)) {
+        try (var mockLog = MockLog.capture(stdoutLoggerName, stderrLoggerName)) {
             if (expectSpawn) {
-                appender.addExpectation(new ExpectedStreamMessage(stdoutLoggerName, "I am alive", messagesLoggedLatch));
-                appender.addExpectation(new ExpectedStreamMessage(stderrLoggerName, "I am an error", messagesLoggedLatch));
+                mockLog.addExpectation(new ExpectedStreamMessage(stdoutLoggerName, "I am alive", messagesLoggedLatch));
+                mockLog.addExpectation(new ExpectedStreamMessage(stderrLoggerName, "I am an error", messagesLoggedLatch));
             }
 
             Spawner spawner = new Spawner();
@@ -233,7 +233,7 @@ public class SpawnerNoBootstrapTests extends LuceneTestCase {
             } else {
                 assertThat(processes, is(empty()));
             }
-            appender.assertAllExpectationsMatched();
+            mockLog.assertAllExpectationsMatched();
         }
     }
 

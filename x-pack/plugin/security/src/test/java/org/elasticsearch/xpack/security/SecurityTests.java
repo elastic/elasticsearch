@@ -791,13 +791,13 @@ public class SecurityTests extends ESTestCase {
         SettingsModule settingsModule = new SettingsModule(Settings.EMPTY);
         ThreadPool threadPool = new TestThreadPool(getTestName());
 
-        try (var appender = MockLog.capture(ActionModule.class)) {
+        try (var mockLog = MockLog.capture(ActionModule.class)) {
             UsageService usageService = new UsageService();
             Security security = new Security(settings);
 
             // Verify Security rest interceptor is about to be installed
             // We will throw later if another interceptor is already installed
-            appender.addExpectation(
+            mockLog.addExpectation(
                 new MockLog.SeenEventExpectation(
                     "Security rest interceptor",
                     ActionModule.class.getName(),
@@ -827,7 +827,7 @@ public class SecurityTests extends ESTestCase {
             );
             actionModule.initRestHandlers(null, null);
 
-            appender.assertAllExpectationsMatched();
+            mockLog.assertAllExpectationsMatched();
         } finally {
             threadPool.shutdown();
         }
@@ -845,8 +845,8 @@ public class SecurityTests extends ESTestCase {
             settings.put("xpack.security.enabled", securityEnabled);
         }
 
-        try (var appender = MockLog.capture(Security.class)) {
-            appender.addExpectation(
+        try (var mockLog = MockLog.capture(Security.class)) {
+            mockLog.addExpectation(
                 new MockLog.SeenEventExpectation(
                     "message",
                     Security.class.getName(),
@@ -855,7 +855,7 @@ public class SecurityTests extends ESTestCase {
                 )
             );
             createComponents(settings.build());
-            appender.assertAllExpectationsMatched();
+            mockLog.assertAllExpectationsMatched();
         }
     }
 

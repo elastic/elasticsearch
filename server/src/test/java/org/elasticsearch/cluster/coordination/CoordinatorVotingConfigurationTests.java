@@ -458,8 +458,8 @@ public class CoordinatorVotingConfigurationTests extends AbstractCoordinatorTest
         value = "org.elasticsearch.cluster.coordination.ClusterBootstrapService:INFO"
     )
     public void testClusterUUIDLogging() {
-        try (var mockAppender = MockLog.capture(ClusterBootstrapService.class); var cluster = new Cluster(randomIntBetween(1, 3))) {
-            mockAppender.addExpectation(
+        try (var mockLog = MockLog.capture(ClusterBootstrapService.class); var cluster = new Cluster(randomIntBetween(1, 3))) {
+            mockLog.addExpectation(
                 new MockLog.SeenEventExpectation(
                     "fresh node message",
                     ClusterBootstrapService.class.getCanonicalName(),
@@ -470,10 +470,10 @@ public class CoordinatorVotingConfigurationTests extends AbstractCoordinatorTest
 
             cluster.runRandomly();
             cluster.stabilise();
-            mockAppender.assertAllExpectationsMatched();
+            mockLog.assertAllExpectationsMatched();
 
             final var restartingNode = cluster.getAnyNode();
-            mockAppender.addExpectation(
+            mockLog.addExpectation(
                 new MockLog.SeenEventExpectation(
                     "restarted node message",
                     ClusterBootstrapService.class.getCanonicalName(),
@@ -486,7 +486,7 @@ public class CoordinatorVotingConfigurationTests extends AbstractCoordinatorTest
             restartingNode.close();
             cluster.clusterNodes.replaceAll(cn -> cn == restartingNode ? cn.restartedNode() : cn);
             cluster.stabilise();
-            mockAppender.assertAllExpectationsMatched();
+            mockLog.assertAllExpectationsMatched();
         }
     }
 

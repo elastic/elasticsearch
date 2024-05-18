@@ -120,14 +120,14 @@ public class SSLErrorMessageCertificateVerificationTests extends ESTestCase {
         // Apache clients implement their own hostname checking, but we don't want that.
         // We use a raw socket so we get the builtin JDK checking (which is what we use for transport protocol SSL checks)
         try (
-                var mockAppender = MockLog.capture(DiagnosticTrustManager.class);
+                var mockLog = MockLog.capture(DiagnosticTrustManager.class);
                 MockWebServer webServer = initWebServer(sslService);
                 SSLSocket clientSocket = (SSLSocket) clientSocketFactory.createSocket()
         ) {
 
             String fileName = "/x-pack/plugin/security/build/resources/test/org/elasticsearch/xpack/ssl/SSLErrorMessageTests/ca1.crt"
                 .replace('/', platformFileSeparator());
-            mockAppender.addExpectation(
+            mockLog.addExpectation(
                 new MockLog.PatternSeenEventExpectation(
                     "ssl diagnostic",
                     DiagnosticTrustManager.class.getName(),
@@ -163,7 +163,7 @@ public class SSLErrorMessageCertificateVerificationTests extends ESTestCase {
 
             // Logging message failures are tricky to debug because you just get a "didn't find match" assertion failure.
             // You should be able to check the log output for the text that was logged and compare to the regex above.
-            mockAppender.assertAllExpectationsMatched();
+            mockLog.assertAllExpectationsMatched();
         }
     }
 

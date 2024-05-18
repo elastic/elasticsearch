@@ -996,11 +996,11 @@ public class OpenIdConnectAuthenticatorTests extends OpenIdConnectTestCase {
 
         final Nonce expectedNonce = new Nonce(randomAlphaOfLength(10));
 
-        try (var appender = MockLog.capture(OpenIdConnectAuthenticator.class)) {
-            appender.addExpectation(
+        try (var mockLog = MockLog.capture(OpenIdConnectAuthenticator.class)) {
+            mockLog.addExpectation(
                 new MockLog.SeenEventExpectation("JWT header", logger.getName(), Level.DEBUG, "ID Token Header: " + headerString)
             );
-            appender.addExpectation(
+            mockLog.addExpectation(
                 new MockLog.SeenEventExpectation(
                     "JWT exception",
                     logger.getName(),
@@ -1013,7 +1013,7 @@ public class OpenIdConnectAuthenticatorTests extends OpenIdConnectTestCase {
             final ElasticsearchSecurityException e = expectThrows(ElasticsearchSecurityException.class, future::actionGet);
             assertThat(e.getCause(), is(joseException));
             // The logging message assertion is the only thing we actually care in this test
-            appender.assertAllExpectationsMatched();
+            mockLog.assertAllExpectationsMatched();
         } finally {
             Loggers.setLevel(logger, (Level) null);
             openIdConnectAuthenticator.close();
@@ -1059,8 +1059,8 @@ public class OpenIdConnectAuthenticatorTests extends OpenIdConnectTestCase {
         final Logger logger = LogManager.getLogger(PoolingNHttpClientConnectionManager.class);
         // Note: Setting an org.apache.http logger to DEBUG requires es.insecure_network_trace_enabled=true
         Loggers.setLevel(logger, Level.DEBUG);
-        try (var appender = MockLog.capture(PoolingNHttpClientConnectionManager.class)) {
-            appender.addExpectation(
+        try (var mockLog = MockLog.capture(PoolingNHttpClientConnectionManager.class)) {
+            mockLog.addExpectation(
                 new MockLog.PatternSeenEventExpectation(
                     "log",
                     logger.getName(),
@@ -1090,7 +1090,7 @@ public class OpenIdConnectAuthenticatorTests extends OpenIdConnectTestCase {
                 latch.await();
                 Thread.sleep(1500);
             }
-            appender.assertAllExpectationsMatched();
+            mockLog.assertAllExpectationsMatched();
             assertThat(portTested.get(), is(true));
         } finally {
             Loggers.setLevel(logger, (Level) null);
@@ -1201,8 +1201,8 @@ public class OpenIdConnectAuthenticatorTests extends OpenIdConnectTestCase {
 
         final Logger logger = LogManager.getLogger(OpenIdConnectAuthenticator.class);
         Loggers.setLevel(logger, Level.DEBUG);
-        try (var appender = MockLog.capture(OpenIdConnectAuthenticator.class)) {
-            appender.addExpectation(
+        try (var mockLog = MockLog.capture(OpenIdConnectAuthenticator.class)) {
+            mockLog.addExpectation(
                 new MockLog.SeenEventExpectation(
                     "log",
                     logger.getName(),
@@ -1212,7 +1212,7 @@ public class OpenIdConnectAuthenticatorTests extends OpenIdConnectTestCase {
             );
             final ConnectionKeepAliveStrategy keepAliveStrategy = authenticator.getKeepAliveStrategy();
             assertThat(keepAliveStrategy.getKeepAliveDuration(httpResponse, null), equalTo(effectiveTtlInMs));
-            appender.assertAllExpectationsMatched();
+            mockLog.assertAllExpectationsMatched();
         } finally {
             Loggers.setLevel(logger, (Level) null);
             authenticator.close();

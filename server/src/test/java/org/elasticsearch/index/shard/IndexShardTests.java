@@ -3527,8 +3527,8 @@ public class IndexShardTests extends IndexShardTestCase {
             EMPTY_EVENT_LISTENER
         );
 
-        try (var appender = MockLog.capture(IndexShard.class)) {
-            appender.addExpectation(
+        try (var mockLog = MockLog.capture(IndexShard.class)) {
+            mockLog.addExpectation(
                 new MockLog.SeenEventExpectation(
                     "expensive checks warning",
                     "org.elasticsearch.index.shard.IndexShard",
@@ -3538,7 +3538,7 @@ public class IndexShardTests extends IndexShardTestCase {
                 )
             );
 
-            appender.addExpectation(
+            mockLog.addExpectation(
                 new MockLog.SeenEventExpectation(
                     "failure message",
                     "org.elasticsearch.index.shard.IndexShard",
@@ -3557,7 +3557,7 @@ public class IndexShardTests extends IndexShardTestCase {
                 containsString("Recovery failed")
             );
 
-            appender.assertAllExpectationsMatched();
+            mockLog.assertAllExpectationsMatched();
         }
 
         // check that corrupt marker is there
@@ -4061,7 +4061,7 @@ public class IndexShardTests extends IndexShardTestCase {
 
     @TestLogging(reason = "testing traces of concurrent flushes", value = "org.elasticsearch.index.engine.Engine:TRACE")
     public void testFlushOnIdleConcurrentFlushDoesNotWait() throws Exception {
-        try (var mockLogAppender = MockLog.capture(Engine.class)) {
+        try (var mockLog = MockLog.capture(Engine.class)) {
             CountDownLatch readyToCompleteFlushLatch = new CountDownLatch(1);
             IndexShard shard = newStartedShard(false, Settings.EMPTY, config -> new InternalEngine(config) {
                 @Override
@@ -4077,7 +4077,7 @@ public class IndexShardTests extends IndexShardTestCase {
 
             // Issue the first flushOnIdle request. The flush happens in the background using the flush threadpool.
             // Then wait for log message that flush acquired lock immediately
-            mockLogAppender.addExpectation(
+            mockLog.addExpectation(
                 new MockLog.SeenEventExpectation(
                     "should see first flush getting lock immediately",
                     Engine.class.getCanonicalName(),
@@ -4087,13 +4087,13 @@ public class IndexShardTests extends IndexShardTestCase {
             );
             shard.flushOnIdle(0);
             assertFalse(shard.isActive());
-            assertBusy(mockLogAppender::assertAllExpectationsMatched);
+            assertBusy(mockLog::assertAllExpectationsMatched);
 
             // While the first flush is happening, index one more doc (to turn the shard's active flag to true),
             // and issue a second flushOnIdle request which should not wait for the ongoing flush
             indexDoc(shard, "_doc", Integer.toString(3));
             assertTrue(shard.isActive());
-            mockLogAppender.addExpectation(
+            mockLog.addExpectation(
                 new MockLog.SeenEventExpectation(
                     "should see second flush returning since it will not wait for the ongoing flush",
                     Engine.class.getCanonicalName(),
@@ -4102,7 +4102,7 @@ public class IndexShardTests extends IndexShardTestCase {
                 )
             );
             shard.flushOnIdle(0);
-            assertBusy(mockLogAppender::assertAllExpectationsMatched);
+            assertBusy(mockLog::assertAllExpectationsMatched);
 
             // A direct call to flush (with waitIfOngoing=false) should not wait and return false immediately
             assertFalse(shard.flush(new FlushRequest().waitIfOngoing(false).force(false)));
@@ -4111,7 +4111,7 @@ public class IndexShardTests extends IndexShardTestCase {
             readyToCompleteFlushLatch.countDown();
 
             // Wait for first flushOnIdle to log a message that it released the flush lock
-            mockLogAppender.addExpectation(
+            mockLog.addExpectation(
                 new MockLog.SeenEventExpectation(
                     "should see first flush releasing lock",
                     Engine.class.getCanonicalName(),
@@ -4119,7 +4119,7 @@ public class IndexShardTests extends IndexShardTestCase {
                     "released flush lock"
                 )
             );
-            assertBusy(mockLogAppender::assertAllExpectationsMatched);
+            assertBusy(mockLog::assertAllExpectationsMatched);
 
             // The second flushOnIdle (that did not happen) should have turned the active flag to true
             assertTrue(shard.isActive());

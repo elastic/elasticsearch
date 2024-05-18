@@ -26,7 +26,7 @@ public class MockLogTests extends ESTestCase {
         logThread.start();
 
         for (int i = 0; i < 1000; i++) {
-            try (var appender = MockLog.capture(MockLogTests.class)) {
+            try (var mockLog = MockLog.capture(MockLogTests.class)) {
                 Thread.yield();
             }
         }

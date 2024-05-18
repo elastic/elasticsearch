@@ -116,11 +116,11 @@ public class NodeLeftExecutorTests extends ESTestCase {
 
         final ThreadPool threadPool = new TestThreadPool("test");
         try (
-            var appender = MockLog.capture(NodeLeftExecutor.class);
+            var mockLog = MockLog.capture(NodeLeftExecutor.class);
             var clusterService = ClusterServiceUtils.createClusterService(clusterState, threadPool)
         ) {
             final var nodeToRemove = clusterState.nodes().get("other");
-            appender.addExpectation(
+            mockLog.addExpectation(
                 new MockLog.SeenEventExpectation(
                     "info message",
                     LOGGER_NAME,
@@ -135,7 +135,7 @@ public class NodeLeftExecutorTests extends ESTestCase {
                         .submitTask("test", new NodeLeftExecutor.Task(nodeToRemove, "test reason", () -> future.onResponse(null)), null)
                 )
             );
-            appender.assertAllExpectationsMatched();
+            mockLog.assertAllExpectationsMatched();
         } finally {
             TestThreadPool.terminate(threadPool, 10, TimeUnit.SECONDS);
         }

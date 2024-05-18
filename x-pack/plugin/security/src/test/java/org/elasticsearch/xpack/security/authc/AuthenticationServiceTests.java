@@ -417,8 +417,8 @@ public class AuthenticationServiceTests extends ESTestCase {
     }
 
     public void testTokenMissing() throws Exception {
-        try (var mockAppender = MockLog.capture(RealmsAuthenticator.class)) {
-            mockAppender.addExpectation(
+        try (var mockLog = MockLog.capture(RealmsAuthenticator.class)) {
+            mockLog.addExpectation(
                 new MockLog.SeenEventExpectation(
                     "unlicensed realms",
                     RealmsAuthenticator.class.getName(),
@@ -454,7 +454,7 @@ public class AuthenticationServiceTests extends ESTestCase {
                     verify(auditTrail).anonymousAccessDenied(reqId.get(), "_action", transportRequest);
                 }
                 verifyNoMoreInteractions(auditTrail);
-                mockAppender.assertAllExpectationsMatched();
+                mockLog.assertAllExpectationsMatched();
                 setCompletedToTrue(completed);
             });
 

@@ -47,8 +47,8 @@ public class TransportGetAutoscalingCapacityActionIT extends AutoscalingIntegTes
     }
 
     public void assertCurrentCapacity(long memory, long storage, int nodes) {
-        try (var appender = MockLog.capture(TransportGetAutoscalingCapacityAction.class)) {
-            appender.addExpectation(
+        try (var mockLog = MockLog.capture(TransportGetAutoscalingCapacityAction.class)) {
+            mockLog.addExpectation(
                 new MockLog.SeenEventExpectation(
                     "autoscaling capacity response message with " + storage,
                     TransportGetAutoscalingCapacityAction.class.getName(),
@@ -67,7 +67,7 @@ public class TransportGetAutoscalingCapacityActionIT extends AutoscalingIntegTes
             assertThat(currentCapacity.total().memory().getBytes(), Matchers.equalTo(memory * nodes));
             assertThat(currentCapacity.node().storage().getBytes(), Matchers.equalTo(storage));
             assertThat(currentCapacity.total().storage().getBytes(), Matchers.equalTo(storage * nodes));
-            appender.assertAllExpectationsMatched();
+            mockLog.assertAllExpectationsMatched();
         }
     }
 

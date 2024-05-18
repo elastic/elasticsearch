@@ -1264,8 +1264,8 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
         final String repoName = "test-repo";
         createRepository(repoName, "fs");
 
-        try (var mockAppender = MockLog.capture(BlobStoreRepository.class)) {
-            mockAppender.addExpectation(
+        try (var mockLog = MockLog.capture(BlobStoreRepository.class)) {
+            mockLog.addExpectation(
                 new MockLog.UnseenEventExpectation("no warnings", BlobStoreRepository.class.getCanonicalName(), Level.WARN, "*")
             );
             final String index1 = "index-1";
@@ -1279,7 +1279,7 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
             createSnapshot(repoName, snapshot2, List.of(index2));
 
             clusterAdmin().prepareDeleteSnapshot(repoName, snapshot1, snapshot2).get();
-            mockAppender.assertAllExpectationsMatched();
+            mockLog.assertAllExpectationsMatched();
         }
     }
 

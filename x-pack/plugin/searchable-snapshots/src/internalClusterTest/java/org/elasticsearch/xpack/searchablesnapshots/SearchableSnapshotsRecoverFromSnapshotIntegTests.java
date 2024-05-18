@@ -64,8 +64,8 @@ public class SearchableSnapshotsRecoverFromSnapshotIntegTests extends BaseSearch
 
         final var newNode = internalCluster().startDataOnlyNode();
 
-        try (var mockAppender = MockLog.capture(ShardSnapshotsService.class)) {
-            mockAppender.addExpectation(
+        try (var mockLog = MockLog.capture(ShardSnapshotsService.class)) {
+            mockLog.addExpectation(
                 new MockLog.UnseenEventExpectation(
                     "Error fetching segments file",
                     ShardSnapshotsService.class.getCanonicalName(),
@@ -81,7 +81,7 @@ public class SearchableSnapshotsRecoverFromSnapshotIntegTests extends BaseSearch
 
             assertHitCount(prepareSearch(restoredIndexName).setTrackTotalHits(true), totalHits.value);
 
-            mockAppender.assertAllExpectationsMatched();
+            mockLog.assertAllExpectationsMatched();
         }
     }
 }

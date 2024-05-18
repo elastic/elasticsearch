@@ -1363,8 +1363,8 @@ public class DiskThresholdMonitorTests extends ESAllocationTestCase {
     }
 
     private void assertNoLogging(DiskThresholdMonitor monitor, Map<String, DiskUsage> diskUsages) throws IllegalAccessException {
-        try (var mockAppender = MockLog.capture(DiskThresholdMonitor.class)) {
-            mockAppender.addExpectation(
+        try (var mockLog = MockLog.capture(DiskThresholdMonitor.class)) {
+            mockLog.addExpectation(
                 new MockLog.UnseenEventExpectation(
                     "any INFO message",
                     DiskThresholdMonitor.class.getCanonicalName(),
@@ -1372,7 +1372,7 @@ public class DiskThresholdMonitorTests extends ESAllocationTestCase {
                     "*"
                 )
             );
-            mockAppender.addExpectation(
+            mockLog.addExpectation(
                 new MockLog.UnseenEventExpectation(
                     "any WARN message",
                     DiskThresholdMonitor.class.getCanonicalName(),
@@ -1385,7 +1385,7 @@ public class DiskThresholdMonitorTests extends ESAllocationTestCase {
                 monitor.onNewInfo(clusterInfo(diskUsages));
             }
 
-            mockAppender.assertAllExpectationsMatched();
+            mockLog.assertAllExpectationsMatched();
         }
     }
 
@@ -1409,11 +1409,11 @@ public class DiskThresholdMonitorTests extends ESAllocationTestCase {
     }
 
     private void assertLogging(DiskThresholdMonitor monitor, Map<String, DiskUsage> diskUsages, Level level, String message) {
-        try (var mockAppender = MockLog.capture(DiskThresholdMonitor.class)) {
-            mockAppender.addExpectation(
+        try (var mockLog = MockLog.capture(DiskThresholdMonitor.class)) {
+            mockLog.addExpectation(
                 new MockLog.SeenEventExpectation("expected message", DiskThresholdMonitor.class.getCanonicalName(), level, message)
             );
-            mockAppender.addExpectation(
+            mockLog.addExpectation(
                 new MockLog.UnseenEventExpectation(
                     "any message of another level",
                     DiskThresholdMonitor.class.getCanonicalName(),
@@ -1423,7 +1423,7 @@ public class DiskThresholdMonitorTests extends ESAllocationTestCase {
             );
 
             monitor.onNewInfo(clusterInfo(diskUsages));
-            mockAppender.assertAllExpectationsMatched();
+            mockLog.assertAllExpectationsMatched();
         }
     }
 

@@ -63,8 +63,8 @@ public class TransportGetPipelineActionTests extends ESTestCase {
             new MultiGetItemResponse[] { new MultiGetItemResponse(mockResponse, null), new MultiGetItemResponse(null, failure) }
         );
 
-        try (var threadPool = createThreadPool(); var mockLogAppender = MockLog.capture(TransportGetPipelineAction.class)) {
-            mockLogAppender.addExpectation(
+        try (var threadPool = createThreadPool(); var mockLog = MockLog.capture(TransportGetPipelineAction.class)) {
+            mockLog.addExpectation(
                 new MockLog.SeenEventExpectation(
                     "message",
                     "org.elasticsearch.xpack.logstash.action.TransportGetPipelineAction",
@@ -86,7 +86,7 @@ public class TransportGetPipelineActionTests extends ESTestCase {
                     assertThat(getPipelineResponse.pipelines().size(), equalTo(1));
 
                     // check that failed pipeline get is logged
-                    mockLogAppender.assertAllExpectationsMatched();
+                    mockLog.assertAllExpectationsMatched();
                 }
 
                 @Override

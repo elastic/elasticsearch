@@ -536,8 +536,8 @@ public class OutboundHandlerTests extends ESTestCase {
     public void testSlowLogOutboundMessage() throws Exception {
         handler.setSlowLogThreshold(TimeValue.timeValueMillis(5L));
 
-        try (var mockAppender = MockLog.capture(OutboundHandler.class)) {
-            mockAppender.addExpectation(
+        try (var mockLog = MockLog.capture(OutboundHandler.class)) {
+            mockLog.addExpectation(
                 new MockLog.SeenEventExpectation("expected message", EXPECTED_LOGGER_NAME, Level.WARN, "sending transport message ")
             );
 
@@ -555,7 +555,7 @@ public class OutboundHandlerTests extends ESTestCase {
                 }
             }, new BytesArray(randomByteArrayOfLength(length)), f);
             f.get();
-            mockAppender.assertAllExpectationsMatched();
+            mockLog.assertAllExpectationsMatched();
         }
     }
 

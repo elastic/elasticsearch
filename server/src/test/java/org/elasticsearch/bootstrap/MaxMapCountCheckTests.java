@@ -131,8 +131,8 @@ public class MaxMapCountCheckTests extends AbstractBootstrapCheckTestCase {
             final IOException ioException = new IOException("fatal");
             when(reader.readLine()).thenThrow(ioException);
             final Logger logger = LogManager.getLogger("testGetMaxMapCountIOException");
-            try (var appender = MockLog.capture("testGetMaxMapCountIOException")) {
-                appender.addExpectation(
+            try (var mockLog = MockLog.capture("testGetMaxMapCountIOException")) {
+                mockLog.addExpectation(
                     new MessageLoggingExpectation(
                         "expected logged I/O exception",
                         "testGetMaxMapCountIOException",
@@ -142,7 +142,7 @@ public class MaxMapCountCheckTests extends AbstractBootstrapCheckTestCase {
                     )
                 );
                 assertThat(check.getMaxMapCount(logger), equalTo(-1L));
-                appender.assertAllExpectationsMatched();
+                mockLog.assertAllExpectationsMatched();
             }
             verify(reader).close();
         }
@@ -151,8 +151,8 @@ public class MaxMapCountCheckTests extends AbstractBootstrapCheckTestCase {
             reset(reader);
             when(reader.readLine()).thenReturn("eof");
             final Logger logger = LogManager.getLogger("testGetMaxMapCountNumberFormatException");
-            try (var appender = MockLog.capture("testGetMaxMapCountNumberFormatException")) {
-                appender.addExpectation(
+            try (var mockLog = MockLog.capture("testGetMaxMapCountNumberFormatException")) {
+                mockLog.addExpectation(
                     new MessageLoggingExpectation(
                         "expected logged number format exception",
                         "testGetMaxMapCountNumberFormatException",
@@ -162,7 +162,7 @@ public class MaxMapCountCheckTests extends AbstractBootstrapCheckTestCase {
                     )
                 );
                 assertThat(check.getMaxMapCount(logger), equalTo(-1L));
-                appender.assertAllExpectationsMatched();
+                mockLog.assertAllExpectationsMatched();
             }
             verify(reader).close();
         }

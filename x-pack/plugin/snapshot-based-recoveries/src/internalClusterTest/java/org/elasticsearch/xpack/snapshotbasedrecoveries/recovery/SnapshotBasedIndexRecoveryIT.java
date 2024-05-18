@@ -376,8 +376,8 @@ public class SnapshotBasedIndexRecoveryIT extends AbstractSnapshotIntegTestCase 
         createSnapshot(repoName, "snap", Collections.singletonList(indexName));
 
         String targetNode;
-        try (var mockLogAppender = MockLog.capture(RecoverySourceHandler.class)) {
-            mockLogAppender.addExpectation(
+        try (var mockLog = MockLog.capture(RecoverySourceHandler.class)) {
+            mockLog.addExpectation(
                 new MockLog.SeenEventExpectation(
                     "expected warn log about restore failure",
                     RecoverySourceHandler.class.getName(),
@@ -391,7 +391,7 @@ public class SnapshotBasedIndexRecoveryIT extends AbstractSnapshotIntegTestCase 
 
             ensureGreen();
 
-            mockLogAppender.assertAllExpectationsMatched();
+            mockLog.assertAllExpectationsMatched();
         }
 
         RecoveryState recoveryState = getLatestPeerRecoveryStateForShard(indexName, 0);
@@ -610,8 +610,8 @@ public class SnapshotBasedIndexRecoveryIT extends AbstractSnapshotIntegTestCase 
 
             recoverSnapshotFileRequestReceived.await();
 
-            try (var mockLogAppender = MockLog.capture(RecoverySourceHandler.class)) {
-                mockLogAppender.addExpectation(
+            try (var mockLog = MockLog.capture(RecoverySourceHandler.class)) {
+                mockLog.addExpectation(
                     new MockLog.SeenEventExpectation(
                         "expected debug log about restore cancellation",
                         RecoverySourceHandler.class.getName(),
@@ -619,7 +619,7 @@ public class SnapshotBasedIndexRecoveryIT extends AbstractSnapshotIntegTestCase 
                         "cancelled while recovering file [*] from snapshot"
                     )
                 );
-                mockLogAppender.addExpectation(
+                mockLog.addExpectation(
                     new MockLog.UnseenEventExpectation(
                         "expected no WARN logs",
                         RecoverySourceHandler.class.getName(),
@@ -630,7 +630,7 @@ public class SnapshotBasedIndexRecoveryIT extends AbstractSnapshotIntegTestCase 
 
                 assertAcked(indicesAdmin().prepareDelete(indexName).get());
 
-                assertBusy(mockLogAppender::assertAllExpectationsMatched);
+                assertBusy(mockLog::assertAllExpectationsMatched);
             }
 
             respondToRecoverSnapshotFile.countDown();

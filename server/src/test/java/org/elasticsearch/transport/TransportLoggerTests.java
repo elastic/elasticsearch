@@ -57,13 +57,13 @@ public class TransportLoggerTests extends ESTestCase {
             readPattern
         );
 
-        try (var appender = MockLog.capture(TransportLogger.class)) {
-            appender.addExpectation(writeExpectation);
-            appender.addExpectation(readExpectation);
+        try (var mockLog = MockLog.capture(TransportLogger.class)) {
+            mockLog.addExpectation(writeExpectation);
+            mockLog.addExpectation(readExpectation);
             BytesReference bytesReference = buildRequest();
             TransportLogger.logInboundMessage(mock(TcpChannel.class), bytesReference.slice(6, bytesReference.length() - 6));
             TransportLogger.logOutboundMessage(mock(TcpChannel.class), bytesReference);
-            appender.assertAllExpectationsMatched();
+            mockLog.assertAllExpectationsMatched();
         }
     }
 

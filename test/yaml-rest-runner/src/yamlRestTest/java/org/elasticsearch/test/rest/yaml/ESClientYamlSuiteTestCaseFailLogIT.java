@@ -33,8 +33,8 @@ public class ESClientYamlSuiteTestCaseFailLogIT extends ESClientYamlSuiteTestCas
     )
     @Override
     public void test() throws IOException {
-        try (var mockLogAppender = MockLog.capture(ESClientYamlSuiteTestCaseFailLogIT.class)) {
-            mockLogAppender.addExpectation(
+        try (var mockLog = MockLog.capture(ESClientYamlSuiteTestCaseFailLogIT.class)) {
+            mockLog.addExpectation(
                 new MockLog.SeenEventExpectation(
                     "message with dump of the test yaml",
                     ESClientYamlSuiteTestCaseFailLogIT.class.getCanonicalName(),
@@ -43,7 +43,7 @@ public class ESClientYamlSuiteTestCaseFailLogIT extends ESClientYamlSuiteTestCas
                 )
             );
 
-            mockLogAppender.addExpectation(
+            mockLog.addExpectation(
                 new MockLog.SeenEventExpectation(
                     "message with stash dump of response",
                     ESClientYamlSuiteTestCaseFailLogIT.class.getCanonicalName(),
@@ -61,7 +61,7 @@ public class ESClientYamlSuiteTestCaseFailLogIT extends ESClientYamlSuiteTestCas
                 }
             }
 
-            mockLogAppender.assertAllExpectationsMatched();
+            mockLog.assertAllExpectationsMatched();
         }
     }
 }

@@ -2252,9 +2252,7 @@ public class MasterServiceTests extends ESTestCase {
             var mockLog = MockLog.capture(MasterService.class);
             var masterService = createMasterService(true, null, threadPool, threadPoolExecutor)
         ) {
-            mockLog.addExpectation(
-                new MockLog.UnseenEventExpectation("warning", MasterService.class.getCanonicalName(), Level.WARN, "*")
-            );
+            mockLog.addExpectation(new MockLog.UnseenEventExpectation("warning", MasterService.class.getCanonicalName(), Level.WARN, "*"));
             mockLog.addExpectation(
                 new MockLog.SeenEventExpectation(
                     "debug",

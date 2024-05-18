@@ -110,30 +110,15 @@ public class CppLogMessageHandlerTests extends ESTestCase {
             is,
             Level.INFO,
             "test_throttling",
-            new MockLog.SeenEventExpectation(
-                "test1",
-                CppLogMessageHandler.class.getName(),
-                Level.INFO,
-                "[test_throttling] * message 1"
-            ),
+            new MockLog.SeenEventExpectation("test1", CppLogMessageHandler.class.getName(), Level.INFO, "[test_throttling] * message 1"),
             new MockLog.SeenEventExpectation(
                 "test2",
                 CppLogMessageHandler.class.getName(),
                 Level.INFO,
                 "[test_throttling] * message 1 | repeated [5]"
             ),
-            new MockLog.SeenEventExpectation(
-                "test3",
-                CppLogMessageHandler.class.getName(),
-                Level.INFO,
-                "[test_throttling] * message 4"
-            ),
-            new MockLog.SeenEventExpectation(
-                "test4",
-                CppLogMessageHandler.class.getName(),
-                Level.INFO,
-                "[test_throttling] * message 5"
-            )
+            new MockLog.SeenEventExpectation("test3", CppLogMessageHandler.class.getName(), Level.INFO, "[test_throttling] * message 4"),
+            new MockLog.SeenEventExpectation("test4", CppLogMessageHandler.class.getName(), Level.INFO, "[test_throttling] * message 5")
         );
     }
 
@@ -154,30 +139,15 @@ public class CppLogMessageHandlerTests extends ESTestCase {
             is,
             Level.INFO,
             "test_throttling",
-            new MockLog.SeenEventExpectation(
-                "test1",
-                CppLogMessageHandler.class.getName(),
-                Level.INFO,
-                "[test_throttling] * message 1"
-            ),
+            new MockLog.SeenEventExpectation("test1", CppLogMessageHandler.class.getName(), Level.INFO, "[test_throttling] * message 1"),
             new MockLog.UnseenEventExpectation(
                 "test2",
                 CppLogMessageHandler.class.getName(),
                 Level.INFO,
                 "[test_throttling] * message 1 | repeated [1]"
             ),
-            new MockLog.SeenEventExpectation(
-                "test1",
-                CppLogMessageHandler.class.getName(),
-                Level.INFO,
-                "[test_throttling] * message 4"
-            ),
-            new MockLog.SeenEventExpectation(
-                "test2",
-                CppLogMessageHandler.class.getName(),
-                Level.INFO,
-                "[test_throttling] * message 5"
-            )
+            new MockLog.SeenEventExpectation("test1", CppLogMessageHandler.class.getName(), Level.INFO, "[test_throttling] * message 4"),
+            new MockLog.SeenEventExpectation("test2", CppLogMessageHandler.class.getName(), Level.INFO, "[test_throttling] * message 5")
         );
     }
 
@@ -204,42 +174,22 @@ public class CppLogMessageHandlerTests extends ESTestCase {
             is,
             Level.INFO,
             "test_throttling",
-            new MockLog.SeenEventExpectation(
-                "test1",
-                CppLogMessageHandler.class.getName(),
-                Level.INFO,
-                "[test_throttling] * message 1"
-            ),
+            new MockLog.SeenEventExpectation("test1", CppLogMessageHandler.class.getName(), Level.INFO, "[test_throttling] * message 1"),
             new MockLog.SeenEventExpectation(
                 "test2",
                 CppLogMessageHandler.class.getName(),
                 Level.INFO,
                 "[test_throttling] * message 1 | repeated [2]"
             ),
-            new MockLog.SeenEventExpectation(
-                "test3",
-                CppLogMessageHandler.class.getName(),
-                Level.ERROR,
-                "[test_throttling] * message 3"
-            ),
+            new MockLog.SeenEventExpectation("test3", CppLogMessageHandler.class.getName(), Level.ERROR, "[test_throttling] * message 3"),
             new MockLog.SeenEventExpectation(
                 "test4",
                 CppLogMessageHandler.class.getName(),
                 Level.INFO,
                 "[test_throttling] * message 1 | repeated [3]"
             ),
-            new MockLog.SeenEventExpectation(
-                "test5",
-                CppLogMessageHandler.class.getName(),
-                Level.INFO,
-                "[test_throttling] * message 4"
-            ),
-            new MockLog.SeenEventExpectation(
-                "test6",
-                CppLogMessageHandler.class.getName(),
-                Level.INFO,
-                "[test_throttling] * message 5"
-            )
+            new MockLog.SeenEventExpectation("test5", CppLogMessageHandler.class.getName(), Level.INFO, "[test_throttling] * message 4"),
+            new MockLog.SeenEventExpectation("test6", CppLogMessageHandler.class.getName(), Level.INFO, "[test_throttling] * message 5")
         );
     }
 
@@ -261,12 +211,7 @@ public class CppLogMessageHandlerTests extends ESTestCase {
             is,
             Level.INFO,
             "test_throttling",
-            new MockLog.SeenEventExpectation(
-                "test1",
-                CppLogMessageHandler.class.getName(),
-                Level.INFO,
-                "[test_throttling] * message 1"
-            ),
+            new MockLog.SeenEventExpectation("test1", CppLogMessageHandler.class.getName(), Level.INFO, "[test_throttling] * message 1"),
             new MockLog.SeenEventExpectation(
                 "test2",
                 CppLogMessageHandler.class.getName(),
@@ -295,18 +240,8 @@ public class CppLogMessageHandlerTests extends ESTestCase {
             is,
             Level.DEBUG,
             "test_throttling",
-            new MockLog.SeenEventExpectation(
-                "test1",
-                CppLogMessageHandler.class.getName(),
-                Level.INFO,
-                "[test_throttling] * message 1"
-            ),
-            new MockLog.SeenEventExpectation(
-                "test2",
-                CppLogMessageHandler.class.getName(),
-                Level.DEBUG,
-                "[test_throttling] * message 6"
-            ),
+            new MockLog.SeenEventExpectation("test1", CppLogMessageHandler.class.getName(), Level.INFO, "[test_throttling] * message 1"),
+            new MockLog.SeenEventExpectation("test2", CppLogMessageHandler.class.getName(), Level.DEBUG, "[test_throttling] * message 6"),
             new MockLog.UnseenEventExpectation(
                 "test3",
                 CppLogMessageHandler.class.getName(),

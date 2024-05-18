@@ -166,12 +166,7 @@ public class ClusterApplierRecordingServiceTests extends ESTestCase {
         MockLog.assertThatLogger(
             deterministicTaskQueue::runAllTasksInTimeOrder,
             ClusterApplierRecordingService.class,
-            new MockLog.UnseenEventExpectation(
-                "hot threads",
-                ClusterApplierRecordingService.class.getCanonicalName(),
-                Level.DEBUG,
-                "*"
-            )
+            new MockLog.UnseenEventExpectation("hot threads", ClusterApplierRecordingService.class.getCanonicalName(), Level.DEBUG, "*")
         );
     }
 

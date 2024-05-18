@@ -562,8 +562,7 @@ public class TcpTransportTests extends ESTestCase {
         );
     }
 
-    private void testExceptionHandling(Exception exception, MockLog.LoggingExpectation... expectations)
-        throws IllegalAccessException {
+    private void testExceptionHandling(Exception exception, MockLog.LoggingExpectation... expectations) throws IllegalAccessException {
         testExceptionHandling(true, exception, true, expectations);
     }
 

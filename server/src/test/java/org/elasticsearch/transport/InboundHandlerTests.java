@@ -231,12 +231,7 @@ public class InboundHandlerTests extends ESTestCase {
 
         try (var mockLog = MockLog.capture(InboundHandler.class)) {
             mockLog.addExpectation(
-                new MockLog.SeenEventExpectation(
-                    "expected message",
-                    EXPECTED_LOGGER_NAME,
-                    Level.WARN,
-                    "error processing handshake version"
-                )
+                new MockLog.SeenEventExpectation("expected message", EXPECTED_LOGGER_NAME, Level.WARN, "error processing handshake version")
             );
 
             final AtomicBoolean isClosed = new AtomicBoolean();

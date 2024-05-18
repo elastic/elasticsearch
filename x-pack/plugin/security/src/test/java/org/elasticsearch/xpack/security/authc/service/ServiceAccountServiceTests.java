@@ -111,10 +111,7 @@ public class ServiceAccountServiceTests extends ESTestCase {
         final Logger sasLogger = LogManager.getLogger(ServiceAccountService.class);
         Loggers.setLevel(sasLogger, Level.TRACE);
 
-        try (
-                var satMockLog = MockLog.capture(ServiceAccountToken.class);
-                var sasMockLog = MockLog.capture(ServiceAccountService.class)
-        ) {
+        try (var satMockLog = MockLog.capture(ServiceAccountToken.class); var sasMockLog = MockLog.capture(ServiceAccountService.class)) {
             // Less than 4 bytes
             satMockLog.addExpectation(
                 new MockLog.SeenEventExpectation(

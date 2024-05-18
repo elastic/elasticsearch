@@ -178,8 +178,8 @@ public class FileOperatorUsersStoreTests extends ESTestCase {
         Loggers.setLevel(logger, Level.TRACE);
 
         try (
-                var mockLog = MockLog.capture(FileOperatorUsersStore.class);
-                ResourceWatcherService watcherService = new ResourceWatcherService(settings, threadPool)
+            var mockLog = MockLog.capture(FileOperatorUsersStore.class);
+            ResourceWatcherService watcherService = new ResourceWatcherService(settings, threadPool)
         ) {
             mockLog.addExpectation(
                 new MockLog.SeenEventExpectation(

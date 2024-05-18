@@ -620,12 +620,7 @@ public class SnapshotBasedIndexRecoveryIT extends AbstractSnapshotIntegTestCase 
                     )
                 );
                 mockLog.addExpectation(
-                    new MockLog.UnseenEventExpectation(
-                        "expected no WARN logs",
-                        RecoverySourceHandler.class.getName(),
-                        Level.WARN,
-                        "*"
-                    )
+                    new MockLog.UnseenEventExpectation("expected no WARN logs", RecoverySourceHandler.class.getName(), Level.WARN, "*")
                 );
 
                 assertAcked(indicesAdmin().prepareDelete(indexName).get());

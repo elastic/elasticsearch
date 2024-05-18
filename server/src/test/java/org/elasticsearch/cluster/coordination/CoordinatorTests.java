@@ -1228,12 +1228,7 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
 
             try (var mockLog = MockLog.capture(JoinHelper.class, Coordinator.class)) {
                 mockLog.addExpectation(
-                    new MockLog.SeenEventExpectation(
-                        "failed to join",
-                        JoinHelper.class.getCanonicalName(),
-                        Level.INFO,
-                        "*failed to join*"
-                    )
+                    new MockLog.SeenEventExpectation("failed to join", JoinHelper.class.getCanonicalName(), Level.INFO, "*failed to join*")
                 );
                 mockLog.addExpectation(
                     new MockLog.SeenEventExpectation(

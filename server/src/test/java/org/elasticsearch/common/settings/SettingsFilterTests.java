@@ -106,12 +106,7 @@ public class SettingsFilterTests extends ESTestCase {
         Setting<String> regularSetting = Setting.simpleString("key");
         assertExpectedLogMessages(
             (testLogger) -> Setting.logSettingUpdate(regularSetting, newSettings, oldSettings, testLogger),
-            new MockLog.SeenEventExpectation(
-                "regular logging",
-                "org.elasticsearch.test",
-                Level.INFO,
-                "updating [key] from [old] to [new]"
-            )
+            new MockLog.SeenEventExpectation("regular logging", "org.elasticsearch.test", Level.INFO, "updating [key] from [old] to [new]")
         );
     }
 

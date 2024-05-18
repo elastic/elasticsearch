@@ -120,9 +120,9 @@ public class SSLErrorMessageCertificateVerificationTests extends ESTestCase {
         // Apache clients implement their own hostname checking, but we don't want that.
         // We use a raw socket so we get the builtin JDK checking (which is what we use for transport protocol SSL checks)
         try (
-                var mockLog = MockLog.capture(DiagnosticTrustManager.class);
-                MockWebServer webServer = initWebServer(sslService);
-                SSLSocket clientSocket = (SSLSocket) clientSocketFactory.createSocket()
+            var mockLog = MockLog.capture(DiagnosticTrustManager.class);
+            MockWebServer webServer = initWebServer(sslService);
+            SSLSocket clientSocket = (SSLSocket) clientSocketFactory.createSocket()
         ) {
 
             String fileName = "/x-pack/plugin/security/build/resources/test/org/elasticsearch/xpack/ssl/SSLErrorMessageTests/ca1.crt"

@@ -462,23 +462,17 @@ public class DefaultCheckpointProviderTests extends ESTestCase {
     }
 
     private void assertExpectation(LoggingExpectation loggingExpectation, AuditExpectation auditExpectation, Runnable codeBlock) {
-        MockLogAppender mockLogAppender = new MockLogAppender();
-        mockLogAppender.start();
-
         Loggers.setLevel(checkpointProviderLogger, Level.DEBUG);
-        mockLogAppender.addExpectation(loggingExpectation);
 
         // always start fresh
         transformAuditor.reset();
         transformAuditor.addExpectation(auditExpectation);
-        try {
-            Loggers.addAppender(checkpointProviderLogger, mockLogAppender);
+
+        try (var mockLogAppender = MockLogAppender.capture(checkpointProviderLogger.getName())) {
+            mockLogAppender.addExpectation(loggingExpectation);
             codeBlock.run();
             mockLogAppender.assertAllExpectationsMatched();
             transformAuditor.assertAllExpectationsMatched();
-        } finally {
-            Loggers.removeAppender(checkpointProviderLogger, mockLogAppender);
-            mockLogAppender.stop();
         }
     }
 

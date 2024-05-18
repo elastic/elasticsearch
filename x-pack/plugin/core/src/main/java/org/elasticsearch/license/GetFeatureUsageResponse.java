@@ -97,7 +97,7 @@ public class GetFeatureUsageResponse extends ActionResponse implements ToXConten
         }
     }
 
-    private List<FeatureUsageInfo> features;
+    private final List<FeatureUsageInfo> features;
 
     public GetFeatureUsageResponse(List<FeatureUsageInfo> features) {
         this.features = Collections.unmodifiableList(features);

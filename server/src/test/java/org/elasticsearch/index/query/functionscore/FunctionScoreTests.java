@@ -242,6 +242,11 @@ public class FunctionScoreTests extends ESTestCase {
         protected boolean sortRequiresCustomComparator() {
             return false;
         }
+
+        @Override
+        protected boolean isIndexed() {
+            return false;
+        }
     }
 
     private static final ScoreFunction RANDOM_SCORE_FUNCTION = new RandomScoreFunction(0, 0, new IndexFieldDataStub());

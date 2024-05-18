@@ -16,6 +16,7 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.InferenceResults;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.InputType;
@@ -48,16 +49,18 @@ public class InferenceAction extends ActionType<InferenceAction.Response> {
 
     public static class Request extends ActionRequest {
 
+        public static final TimeValue DEFAULT_TIMEOUT = TimeValue.timeValueSeconds(30);
         public static final ParseField INPUT = new ParseField("input");
         public static final ParseField TASK_SETTINGS = new ParseField("task_settings");
         public static final ParseField QUERY = new ParseField("query");
+        public static final ParseField TIMEOUT = new ParseField("timeout");
 
         static final ObjectParser<Request.Builder, Void> PARSER = new ObjectParser<>(NAME, Request.Builder::new);
         static {
-            // TODO timeout
             PARSER.declareStringArray(Request.Builder::setInput, INPUT);
             PARSER.declareObject(Request.Builder::setTaskSettings, (p, c) -> p.mapOrdered(), TASK_SETTINGS);
             PARSER.declareString(Request.Builder::setQuery, QUERY);
+            PARSER.declareString(Builder::setInferenceTimeout, TIMEOUT);
         }
 
         private static final EnumSet<InputType> validEnumsBeforeUnspecifiedAdded = EnumSet.of(InputType.INGEST, InputType.SEARCH);
@@ -66,13 +69,13 @@ public class InferenceAction extends ActionType<InferenceAction.Response> {
             InputType.UNSPECIFIED
         );
 
-        public static Request parseRequest(String inferenceEntityId, TaskType taskType, XContentParser parser) throws IOException {
+        public static Builder parseRequest(String inferenceEntityId, TaskType taskType, XContentParser parser) throws IOException {
             Request.Builder builder = PARSER.apply(parser, null);
             builder.setInferenceEntityId(inferenceEntityId);
             builder.setTaskType(taskType);
             // For rest requests we won't know what the input type is
             builder.setInputType(InputType.UNSPECIFIED);
-            return builder.build();
+            return builder;
         }
 
         private final TaskType taskType;
@@ -81,6 +84,7 @@ public class InferenceAction extends ActionType<InferenceAction.Response> {
         private final List<String> input;
         private final Map<String, Object> taskSettings;
         private final InputType inputType;
+        private final TimeValue inferenceTimeout;
 
         public Request(
             TaskType taskType,
@@ -88,7 +92,8 @@ public class InferenceAction extends ActionType<InferenceAction.Response> {
             String query,
             List<String> input,
             Map<String, Object> taskSettings,
-            InputType inputType
+            InputType inputType,
+            TimeValue inferenceTimeout
         ) {
             this.taskType = taskType;
             this.inferenceEntityId = inferenceEntityId;
@@ -96,6 +101,7 @@ public class InferenceAction extends ActionType<InferenceAction.Response> {
             this.input = input;
             this.taskSettings = taskSettings;
             this.inputType = inputType;
+            this.inferenceTimeout = inferenceTimeout;
         }
 
         public Request(StreamInput in) throws IOException {
@@ -108,7 +114,7 @@ public class InferenceAction extends ActionType<InferenceAction.Response> {
                 this.input = List.of(in.readString());
             }
             this.taskSettings = in.readGenericMap();
-            if (in.getTransportVersion().onOrAfter(TransportVersions.ML_INFERENCE_REQUEST_INPUT_TYPE_ADDED)) {
+            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_13_0)) {
                 this.inputType = in.readEnum(InputType.class);
             } else {
                 this.inputType = InputType.UNSPECIFIED;
@@ -118,6 +124,12 @@ public class InferenceAction extends ActionType<InferenceAction.Response> {
                 this.query = in.readOptionalString();
             } else {
                 this.query = null;
+            }
+
+            if (in.getTransportVersion().onOrAfter(TransportVersions.ML_INFERENCE_TIMEOUT_ADDED)) {
+                this.inferenceTimeout = in.readTimeValue();
+            } else {
+                this.inferenceTimeout = DEFAULT_TIMEOUT;
             }
         }
 
@@ -143,6 +155,10 @@ public class InferenceAction extends ActionType<InferenceAction.Response> {
 
         public InputType getInputType() {
             return inputType;
+        }
+
+        public TimeValue getInferenceTimeout() {
+            return inferenceTimeout;
         }
 
         @Override
@@ -171,26 +187,29 @@ public class InferenceAction extends ActionType<InferenceAction.Response> {
                 out.writeString(input.get(0));
             }
             out.writeGenericMap(taskSettings);
-            // in version ML_INFERENCE_REQUEST_INPUT_TYPE_ADDED the input type enum was added, so we only want to write the enum if we're
-            // at that version or later
-            if (out.getTransportVersion().onOrAfter(TransportVersions.ML_INFERENCE_REQUEST_INPUT_TYPE_ADDED)) {
+
+            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_13_0)) {
                 out.writeEnum(getInputTypeToWrite(inputType, out.getTransportVersion()));
             }
 
             if (out.getTransportVersion().onOrAfter(TransportVersions.ML_INFERENCE_COHERE_RERANK)) {
                 out.writeOptionalString(query);
             }
+
+            if (out.getTransportVersion().onOrAfter(TransportVersions.ML_INFERENCE_TIMEOUT_ADDED)) {
+                out.writeTimeValue(inferenceTimeout);
+            }
         }
 
         // default for easier testing
         static InputType getInputTypeToWrite(InputType inputType, TransportVersion version) {
-            if (version.before(TransportVersions.ML_INFERENCE_REQUEST_INPUT_TYPE_UNSPECIFIED_ADDED)
-                && validEnumsBeforeUnspecifiedAdded.contains(inputType) == false) {
-                return InputType.INGEST;
-            } else if (version.before(TransportVersions.ML_INFERENCE_REQUEST_INPUT_TYPE_CLASS_CLUSTER_ADDED)
-                && validEnumsBeforeClassificationClusteringAdded.contains(inputType) == false) {
+            if (version.before(TransportVersions.V_8_13_0)) {
+                if (validEnumsBeforeUnspecifiedAdded.contains(inputType) == false) {
+                    return InputType.INGEST;
+                } else if (validEnumsBeforeClassificationClusteringAdded.contains(inputType) == false) {
                     return InputType.UNSPECIFIED;
                 }
+            }
 
             return inputType;
         }
@@ -205,12 +224,13 @@ public class InferenceAction extends ActionType<InferenceAction.Response> {
                 && Objects.equals(input, request.input)
                 && Objects.equals(taskSettings, request.taskSettings)
                 && Objects.equals(inputType, request.inputType)
-                && Objects.equals(query, request.query);
+                && Objects.equals(query, request.query)
+                && Objects.equals(inferenceTimeout, request.inferenceTimeout);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(taskType, inferenceEntityId, input, taskSettings, inputType, query);
+            return Objects.hash(taskType, inferenceEntityId, input, taskSettings, inputType, query, inferenceTimeout);
         }
 
         public static class Builder {
@@ -221,6 +241,7 @@ public class InferenceAction extends ActionType<InferenceAction.Response> {
             private InputType inputType = InputType.UNSPECIFIED;
             private Map<String, Object> taskSettings = Map.of();
             private String query;
+            private TimeValue timeout = DEFAULT_TIMEOUT;
 
             private Builder() {}
 
@@ -254,8 +275,17 @@ public class InferenceAction extends ActionType<InferenceAction.Response> {
                 return this;
             }
 
+            public Builder setInferenceTimeout(TimeValue inferenceTimeout) {
+                this.timeout = inferenceTimeout;
+                return this;
+            }
+
+            private Builder setInferenceTimeout(String inferenceTimeout) {
+                return setInferenceTimeout(TimeValue.parseTimeValue(inferenceTimeout, TIMEOUT.getPreferredName()));
+            }
+
             public Request build() {
-                return new Request(taskType, inferenceEntityId, query, input, taskSettings, inputType);
+                return new Request(taskType, inferenceEntityId, query, input, taskSettings, inputType, timeout);
             }
         }
 
@@ -272,6 +302,8 @@ public class InferenceAction extends ActionType<InferenceAction.Response> {
                 + this.getTaskSettings()
                 + ", inputType="
                 + this.getInputType()
+                + ", timeout="
+                + this.getInferenceTimeout()
                 + ")";
         }
     }

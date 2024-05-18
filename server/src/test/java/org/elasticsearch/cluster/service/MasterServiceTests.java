@@ -80,6 +80,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
 import static java.util.Collections.emptySet;
+import static org.elasticsearch.action.support.ActionTestUtils.assertNoSuccessListener;
 import static org.elasticsearch.cluster.service.MasterService.MAX_TASK_DESCRIPTION_CHARS;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.contains;
@@ -372,100 +373,100 @@ public class MasterServiceTests extends ESTestCase {
 
     @TestLogging(value = "org.elasticsearch.cluster.service:TRACE", reason = "to ensure that we log cluster state events on TRACE level")
     public void testClusterStateUpdateLogging() throws Exception {
-        MockLogAppender mockAppender = new MockLogAppender();
-        mockAppender.addExpectation(
-            new MockLogAppender.SeenEventExpectation(
-                "test1 start",
-                MasterService.class.getCanonicalName(),
-                Level.DEBUG,
-                "executing cluster state update for [test1]"
-            )
-        );
-        mockAppender.addExpectation(
-            new MockLogAppender.SeenEventExpectation(
-                "test1 computation",
-                MasterService.class.getCanonicalName(),
-                Level.DEBUG,
-                "took [1s] to compute cluster state update for [test1]"
-            )
-        );
-        mockAppender.addExpectation(
-            new MockLogAppender.SeenEventExpectation(
-                "test1 notification",
-                MasterService.class.getCanonicalName(),
-                Level.DEBUG,
-                "took [0s] to notify listeners on unchanged cluster state for [test1]"
-            )
-        );
 
-        mockAppender.addExpectation(
-            new MockLogAppender.SeenEventExpectation(
-                "test2 start",
-                MasterService.class.getCanonicalName(),
-                Level.DEBUG,
-                "executing cluster state update for [test2]"
-            )
-        );
-        mockAppender.addExpectation(
-            new MockLogAppender.SeenEventExpectation(
-                "test2 failure",
-                MasterService.class.getCanonicalName(),
-                Level.TRACE,
-                "failed to execute cluster state update (on version: [*], uuid: [*]) for [test2]*"
-            )
-        );
-        mockAppender.addExpectation(
-            new MockLogAppender.SeenEventExpectation(
-                "test2 computation",
-                MasterService.class.getCanonicalName(),
-                Level.DEBUG,
-                "took [2s] to compute cluster state update for [test2]"
-            )
-        );
-        mockAppender.addExpectation(
-            new MockLogAppender.SeenEventExpectation(
-                "test2 notification",
-                MasterService.class.getCanonicalName(),
-                Level.DEBUG,
-                "took [0s] to notify listeners on unchanged cluster state for [test2]"
-            )
-        );
+        try (var mockAppender = MockLogAppender.capture(MasterService.class); var masterService = createMasterService(true)) {
+            mockAppender.addExpectation(
+                new MockLogAppender.SeenEventExpectation(
+                    "test1 start",
+                    MasterService.class.getCanonicalName(),
+                    Level.DEBUG,
+                    "executing cluster state update for [test1]"
+                )
+            );
+            mockAppender.addExpectation(
+                new MockLogAppender.SeenEventExpectation(
+                    "test1 computation",
+                    MasterService.class.getCanonicalName(),
+                    Level.DEBUG,
+                    "took [1s] to compute cluster state update for [test1]"
+                )
+            );
+            mockAppender.addExpectation(
+                new MockLogAppender.SeenEventExpectation(
+                    "test1 notification",
+                    MasterService.class.getCanonicalName(),
+                    Level.DEBUG,
+                    "took [0s] to notify listeners on unchanged cluster state for [test1]"
+                )
+            );
 
-        mockAppender.addExpectation(
-            new MockLogAppender.SeenEventExpectation(
-                "test3 start",
-                MasterService.class.getCanonicalName(),
-                Level.DEBUG,
-                "executing cluster state update for [test3]"
-            )
-        );
-        mockAppender.addExpectation(
-            new MockLogAppender.SeenEventExpectation(
-                "test3 computation",
-                MasterService.class.getCanonicalName(),
-                Level.DEBUG,
-                "took [3s] to compute cluster state update for [test3]"
-            )
-        );
-        mockAppender.addExpectation(
-            new MockLogAppender.SeenEventExpectation(
-                "test3 notification",
-                MasterService.class.getCanonicalName(),
-                Level.DEBUG,
-                "took [4s] to notify listeners on successful publication of cluster state (version: *, uuid: *) for [test3]"
-            )
-        );
+            mockAppender.addExpectation(
+                new MockLogAppender.SeenEventExpectation(
+                    "test2 start",
+                    MasterService.class.getCanonicalName(),
+                    Level.DEBUG,
+                    "executing cluster state update for [test2]"
+                )
+            );
+            mockAppender.addExpectation(
+                new MockLogAppender.SeenEventExpectation(
+                    "test2 failure",
+                    MasterService.class.getCanonicalName(),
+                    Level.TRACE,
+                    "failed to execute cluster state update (on version: [*], uuid: [*]) for [test2]*"
+                )
+            );
+            mockAppender.addExpectation(
+                new MockLogAppender.SeenEventExpectation(
+                    "test2 computation",
+                    MasterService.class.getCanonicalName(),
+                    Level.DEBUG,
+                    "took [2s] to compute cluster state update for [test2]"
+                )
+            );
+            mockAppender.addExpectation(
+                new MockLogAppender.SeenEventExpectation(
+                    "test2 notification",
+                    MasterService.class.getCanonicalName(),
+                    Level.DEBUG,
+                    "took [0s] to notify listeners on unchanged cluster state for [test2]"
+                )
+            );
 
-        mockAppender.addExpectation(
-            new MockLogAppender.SeenEventExpectation(
-                "test4",
-                MasterService.class.getCanonicalName(),
-                Level.DEBUG,
-                "executing cluster state update for [test4]"
-            )
-        );
+            mockAppender.addExpectation(
+                new MockLogAppender.SeenEventExpectation(
+                    "test3 start",
+                    MasterService.class.getCanonicalName(),
+                    Level.DEBUG,
+                    "executing cluster state update for [test3]"
+                )
+            );
+            mockAppender.addExpectation(
+                new MockLogAppender.SeenEventExpectation(
+                    "test3 computation",
+                    MasterService.class.getCanonicalName(),
+                    Level.DEBUG,
+                    "took [3s] to compute cluster state update for [test3]"
+                )
+            );
+            mockAppender.addExpectation(
+                new MockLogAppender.SeenEventExpectation(
+                    "test3 notification",
+                    MasterService.class.getCanonicalName(),
+                    Level.DEBUG,
+                    "took [4s] to notify listeners on successful publication of cluster state (version: *, uuid: *) for [test3]"
+                )
+            );
 
-        try (var ignored = mockAppender.capturing(MasterService.class); var masterService = createMasterService(true)) {
+            mockAppender.addExpectation(
+                new MockLogAppender.SeenEventExpectation(
+                    "test4",
+                    MasterService.class.getCanonicalName(),
+                    Level.DEBUG,
+                    "executing cluster state update for [test4]"
+                )
+            );
+
             masterService.submitUnbatchedStateUpdateTask("test1", new ClusterStateUpdateTask() {
                 @Override
                 public ClusterState execute(ClusterState currentState) {
@@ -1041,30 +1042,22 @@ public class MasterServiceTests extends ESTestCase {
                     threadContext.putHeader(testContextHeaderName, testContextHeaderValue);
                     final var expectFailure = randomBoolean();
                     final var taskComplete = new AtomicBoolean();
-                    final var task = new Task(expectFailure, testResponseHeaderValue, new ActionListener<>() {
-                        @Override
-                        public void onResponse(ClusterState clusterState) {
-                            throw new AssertionError("should not succeed");
+                    final var task = new Task(expectFailure, testResponseHeaderValue, assertNoSuccessListener(e -> {
+                        assertEquals(testContextHeaderValue, threadContext.getHeader(testContextHeaderName));
+                        assertEquals(List.of(testResponseHeaderValue), threadContext.getResponseHeaders().get(testResponseHeaderName));
+                        assertThat(e, instanceOf(FailedToCommitClusterStateException.class));
+                        assertThat(e.getMessage(), equalTo(publicationFailedExceptionMessage));
+                        if (expectFailure) {
+                            assertThat(e.getSuppressed().length, greaterThan(0));
+                            var suppressed = e.getSuppressed()[0];
+                            assertThat(suppressed, instanceOf(ElasticsearchException.class));
+                            assertThat(suppressed.getMessage(), equalTo(taskFailedExceptionMessage));
                         }
-
-                        @Override
-                        public void onFailure(Exception e) {
-                            assertEquals(testContextHeaderValue, threadContext.getHeader(testContextHeaderName));
-                            assertEquals(List.of(testResponseHeaderValue), threadContext.getResponseHeaders().get(testResponseHeaderName));
-                            assertThat(e, instanceOf(FailedToCommitClusterStateException.class));
-                            assertThat(e.getMessage(), equalTo(publicationFailedExceptionMessage));
-                            if (expectFailure) {
-                                assertThat(e.getSuppressed().length, greaterThan(0));
-                                var suppressed = e.getSuppressed()[0];
-                                assertThat(suppressed, instanceOf(ElasticsearchException.class));
-                                assertThat(suppressed.getMessage(), equalTo(taskFailedExceptionMessage));
-                            }
-                            assertNotNull(publishedState.get());
-                            assertNotSame(stateBeforeFailure, publishedState.get());
-                            assertTrue(taskComplete.compareAndSet(false, true));
-                            publishFailureCountdown.countDown();
-                        }
-                    });
+                        assertNotNull(publishedState.get());
+                        assertNotSame(stateBeforeFailure, publishedState.get());
+                        assertTrue(taskComplete.compareAndSet(false, true));
+                        publishFailureCountdown.countDown();
+                    }));
 
                     queue.submitTask("test", task, null);
                 }
@@ -1110,62 +1103,13 @@ public class MasterServiceTests extends ESTestCase {
 
     @TestLogging(value = "org.elasticsearch.cluster.service:WARN", reason = "to ensure that we log cluster state events on WARN level")
     public void testLongClusterStateUpdateLogging() throws Exception {
-        MockLogAppender mockAppender = new MockLogAppender();
-        mockAppender.addExpectation(
-            new MockLogAppender.UnseenEventExpectation(
-                "test1 shouldn't log because it was fast enough",
-                MasterService.class.getCanonicalName(),
-                Level.WARN,
-                "*took*test1*"
-            )
-        );
-        mockAppender.addExpectation(
-            new MockLogAppender.SeenEventExpectation(
-                "test2",
-                MasterService.class.getCanonicalName(),
-                Level.WARN,
-                "*took [*] to compute cluster state update for [test2], which exceeds the warn threshold of [10s]"
-            )
-        );
-        mockAppender.addExpectation(
-            new MockLogAppender.SeenEventExpectation(
-                "test3",
-                MasterService.class.getCanonicalName(),
-                Level.WARN,
-                "*took [*] to compute cluster state update for [test3], which exceeds the warn threshold of [10s]"
-            )
-        );
-        mockAppender.addExpectation(
-            new MockLogAppender.SeenEventExpectation(
-                "test4",
-                MasterService.class.getCanonicalName(),
-                Level.WARN,
-                "*took [*] to compute cluster state update for [test4], which exceeds the warn threshold of [10s]"
-            )
-        );
-        mockAppender.addExpectation(
-            new MockLogAppender.UnseenEventExpectation(
-                "test5 should not log despite publishing slowly",
-                MasterService.class.getCanonicalName(),
-                Level.WARN,
-                "*took*test5*"
-            )
-        );
-        mockAppender.addExpectation(
-            new MockLogAppender.SeenEventExpectation(
-                "test6 should log due to slow and failing publication",
-                MasterService.class.getCanonicalName(),
-                Level.WARN,
-                "took [*] and then failed to publish updated cluster state (version: *, uuid: *) for [test6]:*"
-            )
-        );
 
         final Settings settings = Settings.builder()
             .put(ClusterName.CLUSTER_NAME_SETTING.getKey(), MasterServiceTests.class.getSimpleName())
             .put(Node.NODE_NAME_SETTING.getKey(), "test_node")
             .build();
         try (
-            var ignored = mockAppender.capturing(MasterService.class);
+            var mockAppender = MockLogAppender.capture(MasterService.class);
             MasterService masterService = new MasterService(
                 settings,
                 new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
@@ -1179,6 +1123,55 @@ public class MasterServiceTests extends ESTestCase {
                 }
             }
         ) {
+            mockAppender.addExpectation(
+                new MockLogAppender.UnseenEventExpectation(
+                    "test1 shouldn't log because it was fast enough",
+                    MasterService.class.getCanonicalName(),
+                    Level.WARN,
+                    "*took*test1*"
+                )
+            );
+            mockAppender.addExpectation(
+                new MockLogAppender.SeenEventExpectation(
+                    "test2",
+                    MasterService.class.getCanonicalName(),
+                    Level.WARN,
+                    "*took [*] to compute cluster state update for [test2], which exceeds the warn threshold of [10s]"
+                )
+            );
+            mockAppender.addExpectation(
+                new MockLogAppender.SeenEventExpectation(
+                    "test3",
+                    MasterService.class.getCanonicalName(),
+                    Level.WARN,
+                    "*took [*] to compute cluster state update for [test3], which exceeds the warn threshold of [10s]"
+                )
+            );
+            mockAppender.addExpectation(
+                new MockLogAppender.SeenEventExpectation(
+                    "test4",
+                    MasterService.class.getCanonicalName(),
+                    Level.WARN,
+                    "*took [*] to compute cluster state update for [test4], which exceeds the warn threshold of [10s]"
+                )
+            );
+            mockAppender.addExpectation(
+                new MockLogAppender.UnseenEventExpectation(
+                    "test5 should not log despite publishing slowly",
+                    MasterService.class.getCanonicalName(),
+                    Level.WARN,
+                    "*took*test5*"
+                )
+            );
+            mockAppender.addExpectation(
+                new MockLogAppender.SeenEventExpectation(
+                    "test6 should log due to slow and failing publication",
+                    MasterService.class.getCanonicalName(),
+                    Level.WARN,
+                    "took [*] and then failed to publish updated cluster state (version: *, uuid: *) for [test6]:*"
+                )
+            );
+
             final DiscoveryNode localNode = DiscoveryNodeUtils.builder("node1").roles(emptySet()).build();
             final ClusterState initialClusterState = ClusterState.builder(new ClusterName(MasterServiceTests.class.getSimpleName()))
                 .nodes(DiscoveryNodes.builder().add(localNode).localNodeId(localNode.getId()).masterNodeId(localNode.getId()))
@@ -1336,7 +1329,7 @@ public class MasterServiceTests extends ESTestCase {
         }
     }
 
-    public void testAcking() throws InterruptedException {
+    public void testAcking() {
         final DiscoveryNode node1 = DiscoveryNodeUtils.builder("node1").roles(emptySet()).build();
         final DiscoveryNode node2 = DiscoveryNodeUtils.builder("node2").roles(emptySet()).build();
         final DiscoveryNode node3 = DiscoveryNodeUtils.builder("node3").roles(emptySet()).build();
@@ -1344,12 +1337,15 @@ public class MasterServiceTests extends ESTestCase {
             .put(ClusterName.CLUSTER_NAME_SETTING.getKey(), MasterServiceTests.class.getSimpleName())
             .put(Node.NODE_NAME_SETTING.getKey(), "test_node")
             .build();
+        final var deterministicTaskQueue = new DeterministicTaskQueue();
+        final var threadPool = deterministicTaskQueue.getThreadPool();
+        threadPool.getThreadContext().markAsSystemContext();
         try (
-            MasterService masterService = new MasterService(
-                settings,
-                new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
+            var masterService = createMasterService(
+                true,
+                new TaskManager(settings, threadPool, emptySet()),
                 threadPool,
-                new TaskManager(settings, threadPool, emptySet())
+                new StoppableExecutorServiceWrapper(threadPool.generic())
             )
         ) {
 
@@ -1365,7 +1361,6 @@ public class MasterServiceTests extends ESTestCase {
                 publisherRef.get().publish(e, pl, al);
             });
             masterService.setClusterStateSupplier(() -> initialClusterState);
-            masterService.start();
 
             class LatchAckListener implements ClusterStateAckListener {
                 private final CountDownLatch latch;
@@ -1442,7 +1437,8 @@ public class MasterServiceTests extends ESTestCase {
                         : ClusterState.builder(batchExecutionContext.initialState()).build();
                 }).submitTask("success-test", new Task(), null);
 
-                assertTrue(latch.await(10, TimeUnit.SECONDS));
+                deterministicTaskQueue.runAllTasksInTimeOrder();
+                safeAwait(latch);
             }
 
             // check that we complete a dynamic ack listener supplied by the task
@@ -1473,7 +1469,8 @@ public class MasterServiceTests extends ESTestCase {
                         : ClusterState.builder(batchExecutionContext.initialState()).build();
                 }).submitTask("success-test", new Task(), null);
 
-                assertTrue(latch.await(10, TimeUnit.SECONDS));
+                deterministicTaskQueue.runAllTasksInTimeOrder();
+                safeAwait(latch);
             }
 
             // check that we supply a no-op publish listener if we only care about acking
@@ -1504,7 +1501,8 @@ public class MasterServiceTests extends ESTestCase {
                         : ClusterState.builder(batchExecutionContext.initialState()).build();
                 }).submitTask("success-test", new Task(), null);
 
-                assertTrue(latch.await(10, TimeUnit.SECONDS));
+                deterministicTaskQueue.runAllTasksInTimeOrder();
+                safeAwait(latch);
             }
 
             // check that exception from acking is passed to listener
@@ -1553,7 +1551,8 @@ public class MasterServiceTests extends ESTestCase {
                     return ClusterState.builder(batchExecutionContext.initialState()).build();
                 }).submitTask("node-ack-fail-test", new Task(), null);
 
-                assertTrue(latch.await(10, TimeUnit.SECONDS));
+                deterministicTaskQueue.runAllTasksInTimeOrder();
+                safeAwait(latch);
             }
 
             // check that we don't time out before even committing the cluster state
@@ -1587,6 +1586,7 @@ public class MasterServiceTests extends ESTestCase {
 
                         @Override
                         public void onFailure(Exception e) {
+                            assertEquals("mock exception", asInstanceOf(FailedToCommitClusterStateException.class, e).getMessage());
                             latch.countDown();
                         }
 
@@ -1597,14 +1597,15 @@ public class MasterServiceTests extends ESTestCase {
                     }
                 );
 
-                latch.await();
+                deterministicTaskQueue.runAllTasksInTimeOrder();
+                safeAwait(latch);
             }
 
             // check that we timeout if commit took too long
             {
                 final CountDownLatch latch = new CountDownLatch(2);
 
-                final TimeValue ackTimeout = TimeValue.timeValueMillis(randomInt(100));
+                final TimeValue ackTimeout = TimeValue.timeValueMillis(scaledRandomIntBetween(0, 100000));
 
                 publisherRef.set((clusterChangedEvent, publishListener, ackListener) -> {
                     publishListener.onResponse(null);
@@ -1652,7 +1653,59 @@ public class MasterServiceTests extends ESTestCase {
                     }
                 );
 
-                latch.await();
+                deterministicTaskQueue.runAllTasksInTimeOrder();
+                safeAwait(latch);
+            }
+
+            // check that -1 means an infinite ack timeout
+            {
+                final CountDownLatch latch = new CountDownLatch(2);
+
+                publisherRef.set((clusterChangedEvent, publishListener, ackListener) -> {
+                    publishListener.onResponse(null);
+                    ackListener.onCommit(TimeValue.timeValueMillis(randomLongBetween(0, TimeValue.timeValueDays(1).millis())));
+                    for (final var node : new DiscoveryNode[] { node1, node2, node3 }) {
+                        deterministicTaskQueue.scheduleAt(
+                            deterministicTaskQueue.getCurrentTimeMillis() + randomLongBetween(0, TimeValue.timeValueDays(1).millis()),
+                            () -> ackListener.onNodeAck(node, null)
+                        );
+                    }
+                });
+
+                masterService.submitUnbatchedStateUpdateTask(
+                    "test2",
+                    new AckedClusterStateUpdateTask(ackedRequest(TimeValue.MINUS_ONE, null), null) {
+                        @Override
+                        public ClusterState execute(ClusterState currentState) {
+                            return ClusterState.builder(currentState).build();
+                        }
+
+                        @Override
+                        public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
+                            latch.countDown();
+                        }
+
+                        @Override
+                        protected AcknowledgedResponse newResponse(boolean acknowledged) {
+                            assertTrue(acknowledged);
+                            latch.countDown();
+                            return AcknowledgedResponse.TRUE;
+                        }
+
+                        @Override
+                        public void onFailure(Exception e) {
+                            fail();
+                        }
+
+                        @Override
+                        public void onAckTimeout() {
+                            fail();
+                        }
+                    }
+                );
+
+                deterministicTaskQueue.runAllTasks(); // NB not in time order, there's no timeout to avoid
+                safeAwait(latch);
             }
         }
     }
@@ -1664,8 +1717,7 @@ public class MasterServiceTests extends ESTestCase {
         final long startTimeMillis = relativeTimeInMillis;
         final long taskDurationMillis = TimeValue.timeValueSeconds(1).millis();
 
-        MockLogAppender mockAppender = new MockLogAppender();
-        try (MasterService masterService = createMasterService(true); var ignored = mockAppender.capturing(MasterService.class)) {
+        try (MasterService masterService = createMasterService(true); var mockAppender = MockLogAppender.capture(MasterService.class)) {
             final AtomicBoolean keepRunning = new AtomicBoolean(true);
             final CyclicBarrier cyclicBarrier = new CyclicBarrier(2);
             final Runnable awaitNextTask = () -> {
@@ -1763,8 +1815,7 @@ public class MasterServiceTests extends ESTestCase {
         reason = "to ensure that we log the right batch description, which only happens at DEBUG level"
     )
     public void testBatchedUpdateSummaryLogging() throws Exception {
-        MockLogAppender mockAppender = new MockLogAppender();
-        try (var ignored = mockAppender.capturing(MasterService.class); var masterService = createMasterService(true)) {
+        try (var mockAppender = MockLogAppender.capture(MasterService.class); var masterService = createMasterService(true)) {
 
             final var barrier = new CyclicBarrier(2);
             final var blockingTask = new ClusterStateUpdateTask() {
@@ -2197,23 +2248,21 @@ public class MasterServiceTests extends ESTestCase {
             }
         };
 
-        final var appender = new MockLogAppender();
-        appender.addExpectation(
-            new MockLogAppender.UnseenEventExpectation("warning", MasterService.class.getCanonicalName(), Level.WARN, "*")
-        );
-        appender.addExpectation(
-            new MockLogAppender.SeenEventExpectation(
-                "debug",
-                MasterService.class.getCanonicalName(),
-                Level.DEBUG,
-                "shut down during publication of cluster state version*"
-            )
-        );
-
         try (
-            var ignored = appender.capturing(MasterService.class);
+            var appender = MockLogAppender.capture(MasterService.class);
             var masterService = createMasterService(true, null, threadPool, threadPoolExecutor)
         ) {
+            appender.addExpectation(
+                new MockLogAppender.UnseenEventExpectation("warning", MasterService.class.getCanonicalName(), Level.WARN, "*")
+            );
+            appender.addExpectation(
+                new MockLogAppender.SeenEventExpectation(
+                    "debug",
+                    MasterService.class.getCanonicalName(),
+                    Level.DEBUG,
+                    "shut down during publication of cluster state version*"
+                )
+            );
 
             final var testHeader = "test-header";
 

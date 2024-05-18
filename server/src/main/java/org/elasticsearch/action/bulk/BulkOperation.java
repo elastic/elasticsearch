@@ -49,6 +49,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
@@ -74,16 +75,16 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
     private final long startTimeNanos;
     private final ClusterStateObserver observer;
     private final Map<String, IndexNotFoundException> indicesThatCannotBeCreated;
-    private final String executorName;
+    private final Executor executor;
     private final LongSupplier relativeTimeProvider;
     private final FailureStoreDocumentConverter failureStoreDocumentConverter;
-    private IndexNameExpressionResolver indexNameExpressionResolver;
-    private NodeClient client;
+    private final IndexNameExpressionResolver indexNameExpressionResolver;
+    private final NodeClient client;
 
     BulkOperation(
         Task task,
         ThreadPool threadPool,
-        String executorName,
+        Executor executor,
         ClusterService clusterService,
         BulkRequest bulkRequest,
         NodeClient client,
@@ -97,7 +98,7 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
         this(
             task,
             threadPool,
-            executorName,
+            executor,
             clusterService,
             bulkRequest,
             client,
@@ -115,7 +116,7 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
     BulkOperation(
         Task task,
         ThreadPool threadPool,
-        String executorName,
+        Executor executor,
         ClusterService clusterService,
         BulkRequest bulkRequest,
         NodeClient client,
@@ -137,7 +138,7 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
         this.listener = listener;
         this.startTimeNanos = startTimeNanos;
         this.indicesThatCannotBeCreated = indicesThatCannotBeCreated;
-        this.executorName = executorName;
+        this.executor = executor;
         this.relativeTimeProvider = relativeTimeProvider;
         this.indexNameExpressionResolver = indexNameExpressionResolver;
         this.client = client;
@@ -160,7 +161,11 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
         assert failureStoreRedirects.isEmpty() != true : "Attempting to redirect failures, but none were present in the queue";
         final ClusterState clusterState = observer.setAndGetObservedState();
         // If the cluster is blocked at this point, discard the failure store redirects and complete the response with the original failures
-        if (handleBlockExceptions(clusterState, ActionRunnable.run(listener, this::doRedirectFailures), this::discardRedirectsAndFinish)) {
+        if (handleBlockExceptions(
+            clusterState,
+            ActionRunnable.wrap(listener, (l) -> this.doRedirectFailures()),
+            this::discardRedirectsAndFinish
+        )) {
             return;
         }
         Map<ShardId, List<BulkItemRequest>> requestsByShard = drainAndGroupRedirectsByShards(clusterState);
@@ -293,6 +298,10 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
                     bulkRequest.getRefreshPolicy(),
                     requests.toArray(new BulkItemRequest[0])
                 );
+                var indexMetadata = clusterState.getMetadata().index(shardId.getIndexName());
+                if (indexMetadata != null && indexMetadata.getInferenceFields().isEmpty() == false) {
+                    bulkShardRequest.setInferenceFieldMap(indexMetadata.getInferenceFields());
+                }
                 bulkShardRequest.waitForActiveShards(bulkRequest.waitForActiveShards());
                 bulkShardRequest.timeout(bulkRequest.timeout());
                 bulkShardRequest.routedBasedOnClusterVersion(clusterState.version());
@@ -305,7 +314,7 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
     }
 
     private void redirectFailuresOrCompleteBulkOperation() {
-        if (DataStream.isFailureStoreEnabled() && failureStoreRedirects.isEmpty() == false) {
+        if (DataStream.isFailureStoreFeatureFlagEnabled() && failureStoreRedirects.isEmpty() == false) {
             doRedirectFailures();
         } else {
             completeBulkOperation();
@@ -411,7 +420,7 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
      */
     private static String getRedirectTarget(DocWriteRequest<?> docWriteRequest, Metadata metadata) {
         // Feature flag guard
-        if (DataStream.isFailureStoreEnabled() == false) {
+        if (DataStream.isFailureStoreFeatureFlagEnabled() == false) {
             return null;
         }
         // Do not resolve a failure store for documents that were already headed to one
@@ -430,7 +439,7 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
             Index concreteIndex = ia.getWriteIndex();
             IndexAbstraction writeIndexAbstraction = metadata.getIndicesLookup().get(concreteIndex.getName());
             DataStream parentDataStream = writeIndexAbstraction.getParentDataStream();
-            if (parentDataStream != null && parentDataStream.isFailureStore()) {
+            if (parentDataStream != null && parentDataStream.isFailureStoreEnabled()) {
                 // Keep the data stream name around to resolve the redirect to failure store if the shard level request fails.
                 return parentDataStream.getName();
             }
@@ -543,7 +552,7 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
             }
 
             private void dispatchRetry() {
-                threadPool.executor(executorName).submit(operation);
+                executor.execute(operation);
             }
         });
     }

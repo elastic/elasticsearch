@@ -1,0 +1,5 @@
+pr: 107253
+summary: "[Connector API] Support cleaning up sync jobs when deleting a connector"
+area: Application
+type: feature
+issues: []

@@ -39,7 +39,7 @@ public class StartTransformAction extends ActionType<StartTransformAction.Respon
         private final Instant from;
 
         public Request(String id, Instant from, TimeValue timeout) {
-            super(timeout);
+            super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT, timeout);
             this.id = ExceptionsHelper.requireNonNull(id, TransformField.ID.getPreferredName());
             this.from = from;
         }
@@ -74,7 +74,7 @@ public class StartTransformAction extends ActionType<StartTransformAction.Respon
         @Override
         public int hashCode() {
             // the base class does not implement hashCode, therefore we need to hash timeout ourselves
-            return Objects.hash(timeout(), id, from);
+            return Objects.hash(ackTimeout(), id, from);
         }
 
         @Override
@@ -87,7 +87,7 @@ public class StartTransformAction extends ActionType<StartTransformAction.Respon
             }
             Request other = (Request) obj;
             // the base class does not implement equals, therefore we need to check timeout ourselves
-            return Objects.equals(id, other.id) && Objects.equals(from, other.from) && timeout().equals(other.timeout());
+            return Objects.equals(id, other.id) && Objects.equals(from, other.from) && ackTimeout().equals(other.ackTimeout());
         }
     }
 

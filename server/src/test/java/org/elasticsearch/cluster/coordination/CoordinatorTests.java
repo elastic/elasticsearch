@@ -1226,8 +1226,7 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
             List<ClusterNode> addedNodes = cluster.addNodes(randomIntBetween(1, 2));
             final long previousClusterStateVersion = cluster.getAnyLeader().getLastAppliedClusterState().version();
 
-            MockLogAppender mockAppender = new MockLogAppender();
-            try (var ignored = mockAppender.capturing(JoinHelper.class, Coordinator.class)) {
+            try (var mockAppender = MockLogAppender.capture(JoinHelper.class, Coordinator.class)) {
                 mockAppender.addExpectation(
                     new MockLogAppender.SeenEventExpectation(
                         "failed to join",
@@ -1363,11 +1362,10 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
 
             cluster1.clusterNodes.add(newNode);
 
-            MockLogAppender mockAppender = new MockLogAppender();
-            mockAppender.addExpectation(
-                new MockLogAppender.SeenEventExpectation("test1", JoinHelper.class.getCanonicalName(), Level.INFO, "*failed to join*")
-            );
-            try (var ignored = mockAppender.capturing(JoinHelper.class)) {
+            try (var mockAppender = MockLogAppender.capture(JoinHelper.class)) {
+                mockAppender.addExpectation(
+                    new MockLogAppender.SeenEventExpectation("test1", JoinHelper.class.getCanonicalName(), Level.INFO, "*failed to join*")
+                );
                 cluster1.runFor(DEFAULT_STABILISATION_TIME, "failing join validation");
                 mockAppender.assertAllExpectationsMatched();
             }
@@ -1402,59 +1400,59 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
             final var leader = cluster.getAnyLeader();
             leader.addActionBlock(TransportService.HANDSHAKE_ACTION_NAME);
 
-            final var mockAppender = new MockLogAppender();
-            mockAppender.addExpectation(
-                new MockLogAppender.SeenEventExpectation(
-                    "connect-back failure",
-                    Coordinator.class.getCanonicalName(),
-                    Level.WARN,
-                    "*received join request from ["
-                        + partitionedNode.getLocalNode().descriptionWithoutAttributes()
-                        + "] but could not connect back to the joining node"
-                )
-            );
-            mockAppender.addExpectation(new MockLogAppender.LoggingExpectation() {
-                boolean matched = false;
-
-                @Override
-                public void match(LogEvent event) {
-                    if (event.getLevel() != Level.INFO) {
-                        return;
-                    }
-                    if (event.getLoggerName().equals(JoinHelper.class.getCanonicalName()) == false) {
-                        return;
-                    }
-
-                    var cause = event.getThrown();
-                    if (cause == null) {
-                        return;
-                    }
-                    cause = cause.getCause();
-                    if (cause == null) {
-                        return;
-                    }
-                    if (Regex.simpleMatch(
-                        "* failure when opening connection back from ["
-                            + leader.getLocalNode().descriptionWithoutAttributes()
-                            + "] to ["
+            try (var mockAppender = MockLogAppender.capture(Coordinator.class, JoinHelper.class)) {
+                mockAppender.addExpectation(
+                    new MockLogAppender.SeenEventExpectation(
+                        "connect-back failure",
+                        Coordinator.class.getCanonicalName(),
+                        Level.WARN,
+                        "*received join request from ["
                             + partitionedNode.getLocalNode().descriptionWithoutAttributes()
-                            + "]",
-                        cause.getMessage()
-                    ) == false) {
-                        return;
-                    }
-                    if (cause.getStackTrace() != null && cause.getStackTrace().length != 0) {
-                        return;
-                    }
-                    matched = true;
-                }
+                            + "] but could not connect back to the joining node"
+                    )
+                );
+                mockAppender.addExpectation(new MockLogAppender.LoggingExpectation() {
+                    boolean matched = false;
 
-                @Override
-                public void assertMatched() {
-                    assertTrue(matched);
-                }
-            });
-            try (var ignored = mockAppender.capturing(Coordinator.class, JoinHelper.class)) {
+                    @Override
+                    public void match(LogEvent event) {
+                        if (event.getLevel() != Level.INFO) {
+                            return;
+                        }
+                        if (event.getLoggerName().equals(JoinHelper.class.getCanonicalName()) == false) {
+                            return;
+                        }
+
+                        var cause = event.getThrown();
+                        if (cause == null) {
+                            return;
+                        }
+                        cause = cause.getCause();
+                        if (cause == null) {
+                            return;
+                        }
+                        if (Regex.simpleMatch(
+                            "* failure when opening connection back from ["
+                                + leader.getLocalNode().descriptionWithoutAttributes()
+                                + "] to ["
+                                + partitionedNode.getLocalNode().descriptionWithoutAttributes()
+                                + "]",
+                            cause.getMessage()
+                        ) == false) {
+                            return;
+                        }
+                        if (cause.getStackTrace() != null && cause.getStackTrace().length != 0) {
+                            return;
+                        }
+                        matched = true;
+                    }
+
+                    @Override
+                    public void assertMatched() {
+                        assertTrue(matched);
+                    }
+                });
+
                 cluster.runFor(
                     // This expects 8 tasks to be executed after PeerFinder handling wakeup:
                     //
@@ -1694,8 +1692,7 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
             }
 
             for (int i = scaledRandomIntBetween(1, 10); i >= 0; i--) {
-                final MockLogAppender mockLogAppender = new MockLogAppender();
-                try (var ignored = mockLogAppender.capturing(ClusterFormationFailureHelper.class)) {
+                try (var mockLogAppender = MockLogAppender.capture(ClusterFormationFailureHelper.class)) {
                     mockLogAppender.addExpectation(new MockLogAppender.LoggingExpectation() {
                         final Set<DiscoveryNode> nodesLogged = new HashSet<>();
 
@@ -1763,8 +1760,7 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
             cluster.stabilise();
 
             for (int i = scaledRandomIntBetween(1, 10); i >= 0; i--) {
-                final MockLogAppender mockLogAppender = new MockLogAppender();
-                try (var ignored = mockLogAppender.capturing(Coordinator.class)) {
+                try (var mockLogAppender = MockLogAppender.capture(Coordinator.class)) {
                     mockLogAppender.addExpectation(new MockLogAppender.LoggingExpectation() {
                         String loggedClusterUuid;
 
@@ -1807,8 +1803,7 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
             cluster.stabilise();
             final ClusterNode brokenNode = cluster.getAnyNodeExcept(cluster.getAnyLeader());
 
-            final MockLogAppender mockLogAppender = new MockLogAppender();
-            try (var ignored = mockLogAppender.capturing(Coordinator.CoordinatorPublication.class, LagDetector.class)) {
+            try (var mockLogAppender = MockLogAppender.capture(Coordinator.CoordinatorPublication.class, LagDetector.class)) {
 
                 mockLogAppender.addExpectation(
                     new MockLogAppender.SeenEventExpectation(

@@ -1,7 +1,7 @@
 ---
 setup:
-  - skip:
-      version: " - 8.12.99"
+  - requires:
+      cluster_features: ["gte_v8.13.0"]
       reason: "Universal Profiling test infrastructure is available in 8.12+"
 
   - do:
@@ -139,6 +139,62 @@ teardown:
   - match: {resources.has_data: true}
 
 ---
+"Test stacktraces agg":
+  # This test mimics the behavior of the first query of the get stacktraces API. In certain environments we have
+  # observed that the stacktrace API returns a count of 2, although we only ever add one document with a count of 1.
+  # As these failures are very rare we start by adding a minimal reproduction that only relies on core ES features
+  # and eliminates any use of profiling-related APIs.
+  - do:
+      search:
+        index: profiling-events-all
+        body:
+          "query": {
+            "bool": {
+              "filter": [
+                {
+                  "range": {
+                    "@timestamp": {
+                      "gte": "2023-11-20",
+                      "lt": "2023-11-21",
+                      "format": "yyyy-MM-dd"
+                    }
+                  }
+                }
+              ]
+            }
+          }
+          size: 0
+          track_total_hits: false
+          aggs:
+            group_by:
+              terms:
+                field: host.id
+                execution_hint: map
+                size: 150000
+              aggs:
+                group_by:
+                  terms:
+                    field: Stacktrace.id
+                    execution_hint: map
+                    size: 150000
+                  aggs:
+                    count:
+                      sum:
+                        field: Stacktrace.count
+            total_count:
+              sum:
+                field: Stacktrace.count
+            min_time:
+              min:
+                field: "@timestamp"
+            max_time:
+              max:
+                field: "@timestamp"
+
+  - match: { aggregations.group_by.buckets.0.group_by.buckets.0.key: "S07KmaoGhvNte78xwwRbZQ" }
+  - match: { aggregations.group_by.buckets.0.group_by.buckets.0.count.value: 1 }
+
+---
 "Test get stacktraces":
   - do:
       profiling.stacktraces:
@@ -220,8 +276,8 @@ teardown:
 
 ---
 "Test topN functions from profiling-events":
-  - skip:
-      version: "- 8.13.99"
+  - requires:
+      cluster_features: "gte_v8.14.0"
       reason: "the topN functions API was added in 8.14.0"
 
   - do:
@@ -251,8 +307,8 @@ teardown:
 
 ---
 "Test topN functions from test-events":
-  - skip:
-      version: "- 8.13.99"
+  - requires:
+      cluster_features: "gte_v8.14.0"
       reason: "the topN functions API was added in 8.14.0"
 
   - do:

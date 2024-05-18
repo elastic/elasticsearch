@@ -110,8 +110,8 @@ setup:
 
 ---
 "fetch multiple stored fields":
-  - skip:
-      version: " - 8.13.99"
+  - requires:
+      cluster_features: ["gte_v8.14.0"]
       reason: "bug fixed in 8.14"
 
   - do:

@@ -111,8 +111,8 @@ public class MetadataCreateDataStreamService {
                     );
                     DataStream createdDataStream = clusterState.metadata().dataStreams().get(request.name);
                     firstBackingIndexRef.set(createdDataStream.getIndices().get(0).getName());
-                    if (createdDataStream.getFailureIndices().isEmpty() == false) {
-                        firstFailureStoreRef.set(createdDataStream.getFailureIndices().get(0).getName());
+                    if (createdDataStream.getFailureIndices().getIndices().isEmpty() == false) {
+                        firstFailureStoreRef.set(createdDataStream.getFailureIndices().getIndices().get(0).getName());
                     }
                     return clusterState;
                 }
@@ -339,6 +339,7 @@ public class MetadataCreateDataStreamService {
             lifecycle == null && isDslOnlyMode ? DataStreamLifecycle.DEFAULT : lifecycle,
             template.getDataStreamTemplate().hasFailureStore(),
             failureIndices,
+            false,
             null
         );
         Metadata.Builder builder = Metadata.builder(currentState.metadata()).put(newDataStream);
@@ -417,7 +418,7 @@ public class MetadataCreateDataStreamService {
         String failureStoreIndexName,
         @Nullable BiConsumer<Metadata.Builder, IndexMetadata> metadataTransformer
     ) throws Exception {
-        if (DataStream.isFailureStoreEnabled() == false) {
+        if (DataStream.isFailureStoreFeatureFlagEnabled() == false) {
             return currentState;
         }
 

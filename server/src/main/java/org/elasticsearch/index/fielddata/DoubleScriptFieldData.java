@@ -89,6 +89,11 @@ public final class DoubleScriptFieldData extends IndexNumericFieldData {
         return true;
     }
 
+    @Override
+    protected boolean isIndexed() {
+        return false;
+    }
+
     public static class DoubleScriptLeafFieldData extends LeafDoubleFieldData {
         private final DoubleScriptDocValues doubleScriptDocValues;
         protected final ToScriptFieldFactory<SortedNumericDoubleValues> toScriptFieldFactory;

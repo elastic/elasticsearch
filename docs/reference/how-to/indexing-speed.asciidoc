@@ -43,7 +43,7 @@ The operation that consists of making changes visible to search - called a
 <<indices-refresh,refresh>> - is costly, and calling it often while there is
 ongoing indexing activity can hurt indexing speed.
 
-include::{es-repo-dir}/indices/refresh.asciidoc[tag=refresh-interval-default]
+include::{es-ref-dir}/indices/refresh.asciidoc[tag=refresh-interval-default]
 This is the optimal configuration if you have no or very little search traffic
 (e.g. less than one search request every 5 minutes) and want to optimize for
 indexing speed. This behavior aims to automatically optimize bulk indexing in

@@ -23,6 +23,7 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.compute.data.BlockFactory;
+import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.operator.SourceOperator;
 import org.elasticsearch.core.TimeValue;
@@ -34,6 +35,7 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Objects;
 import java.util.Set;
 import java.util.TreeSet;
@@ -72,9 +74,45 @@ public abstract class LuceneOperator extends SourceOperator {
         this.sliceQueue = sliceQueue;
     }
 
-    public interface Factory extends SourceOperator.SourceOperatorFactory {
-        int taskConcurrency();
+    public abstract static class Factory implements SourceOperator.SourceOperatorFactory {
+        protected final DataPartitioning dataPartitioning;
+        protected final int taskConcurrency;
+        protected final int limit;
+        protected final LuceneSliceQueue sliceQueue;
+
+        protected Factory(
+            List<? extends ShardContext> contexts,
+            Function<ShardContext, Query> queryFunction,
+            DataPartitioning dataPartitioning,
+            int taskConcurrency,
+            int limit
+        ) {
+            this.limit = limit;
+            this.dataPartitioning = dataPartitioning;
+            var weightFunction = weightFunction(queryFunction, ScoreMode.COMPLETE_NO_SCORES);
+            this.sliceQueue = LuceneSliceQueue.create(contexts, weightFunction, dataPartitioning, taskConcurrency);
+            this.taskConcurrency = Math.min(sliceQueue.totalSlices(), taskConcurrency);
+        }
+
+        public final int taskConcurrency() {
+            return taskConcurrency;
+        }
+
+        public final int limit() {
+            return limit;
+        }
     }
+
+    @Override
+    public final Page getOutput() {
+        try {
+            return getCheckedOutput();
+        } catch (IOException ioe) {
+            throw new UncheckedIOException(ioe);
+        }
+    }
+
+    protected abstract Page getCheckedOutput() throws IOException;
 
     @Override
     public void close() {}
@@ -175,7 +213,7 @@ public abstract class LuceneOperator extends SourceOperator {
     public String toString() {
         StringBuilder sb = new StringBuilder();
         sb.append(this.getClass().getSimpleName()).append("[");
-        sb.append("maxPageSize=").append(maxPageSize);
+        sb.append("maxPageSize = ").append(maxPageSize);
         describe(sb);
         sb.append("]");
         return sb.toString();
@@ -257,7 +295,7 @@ public abstract class LuceneOperator extends SourceOperator {
 
         Status(StreamInput in) throws IOException {
             processedSlices = in.readVInt();
-            if (in.getTransportVersion().onOrAfter(TransportVersions.ESQL_STATUS_INCLUDE_LUCENE_QUERIES)) {
+            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_13_0)) {
                 processedQueries = in.readCollectionAsSet(StreamInput::readString);
                 processedShards = in.readCollectionAsSet(StreamInput::readString);
             } else {
@@ -276,7 +314,7 @@ public abstract class LuceneOperator extends SourceOperator {
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeVInt(processedSlices);
-            if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_STATUS_INCLUDE_LUCENE_QUERIES)) {
+            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_13_0)) {
                 out.writeCollection(processedQueries, StreamOutput::writeString);
                 out.writeCollection(processedShards, StreamOutput::writeString);
             }

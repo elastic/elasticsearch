@@ -11,7 +11,6 @@ package org.elasticsearch.upgrades;
 import com.carrotsearch.randomizedtesting.annotations.Name;
 
 import org.apache.http.util.EntityUtils;
-import org.apache.lucene.tests.util.LuceneTestCase.AwaitsFix;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.hamcrest.Matchers;
@@ -21,8 +20,7 @@ import java.util.Map;
 
 import static org.hamcrest.CoreMatchers.equalTo;
 
-@AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/106933")
-public class HealthNodeUpgradeIT extends ParameterizedRollingUpgradeTestCase {
+public class HealthNodeUpgradeIT extends AbstractRollingUpgradeTestCase {
 
     public HealthNodeUpgradeIT(@Name("upgradedNodes") int upgradedNodes) {
         super(upgradedNodes);
@@ -36,7 +34,8 @@ public class HealthNodeUpgradeIT extends ParameterizedRollingUpgradeTestCase {
                 assertThat(tasks, Matchers.containsString("health-node"));
             });
             assertBusy(() -> {
-                Response response = client().performRequest(new Request("GET", "_health_report"));
+                String path = clusterHasFeature("health.supports_health_report_api") ? "_health_report" : "_internal/_health";
+                Response response = client().performRequest(new Request("GET", path));
                 Map<String, Object> health_report = entityAsMap(response.getEntity());
                 assertThat(health_report.get("status"), equalTo("green"));
             });

@@ -31,7 +31,6 @@ import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.core.Releasable;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
@@ -83,6 +82,7 @@ import java.util.stream.IntStream;
 
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.action.support.ActionTestUtils.wrapAsRestResponseListener;
+import static org.elasticsearch.index.shard.IndexShardTestCase.closeShardNoCheck;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.aMapWithSize;
 import static org.hamcrest.Matchers.array;
@@ -526,7 +526,7 @@ public class FieldCapabilitiesIT extends ESIntegTestCase {
         for (IndexService indexService : indicesService) {
             for (IndexShard indexShard : indexService) {
                 if (randomBoolean()) {
-                    indexShard.close("test", randomBoolean());
+                    closeShardNoCheck(indexShard, randomBoolean());
                 } else if (randomBoolean()) {
                     final ShardId shardId = indexShard.shardId();
                     final String[] nodeNames = internalCluster().getNodeNames();
@@ -648,8 +648,7 @@ public class FieldCapabilitiesIT extends ESIntegTestCase {
         reason = "verify the log output on cancelled"
     )
     public void testCancel() throws Exception {
-        MockLogAppender logAppender = new MockLogAppender();
-        try (Releasable ignored = logAppender.capturing(TransportFieldCapabilitiesAction.class)) {
+        try (var logAppender = MockLogAppender.capture(TransportFieldCapabilitiesAction.class)) {
             logAppender.addExpectation(
                 new MockLogAppender.SeenEventExpectation(
                     "clear resources",

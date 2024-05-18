@@ -132,25 +132,24 @@ public class NodeEnvironmentTests extends ESTestCase {
 
             Index index = new Index("foo", "fooUUID");
 
-            var appender = new MockLogAppender();
-            appender.addExpectation(
-                new MockLogAppender.SeenEventExpectation(
-                    "hot threads logging",
-                    NODE_ENVIRONMENT_LOGGER_NAME,
-                    Level.DEBUG,
-                    "hot threads while failing to obtain shard lock for [foo][0]: obtaining shard lock for [2] timed out after *"
-                )
-            );
-            appender.addExpectation(
-                new MockLogAppender.UnseenEventExpectation(
-                    "second attempt should be suppressed due to throttling",
-                    NODE_ENVIRONMENT_LOGGER_NAME,
-                    Level.DEBUG,
-                    "hot threads while failing to obtain shard lock for [foo][0]: obtaining shard lock for [3] timed out after *"
-                )
-            );
+            try (var appender = MockLogAppender.capture(NodeEnvironment.class); var lock = env.shardLock(new ShardId(index, 0), "1")) {
+                appender.addExpectation(
+                    new MockLogAppender.SeenEventExpectation(
+                        "hot threads logging",
+                        NODE_ENVIRONMENT_LOGGER_NAME,
+                        Level.DEBUG,
+                        "hot threads while failing to obtain shard lock for [foo][0]: obtaining shard lock for [2] timed out after *"
+                    )
+                );
+                appender.addExpectation(
+                    new MockLogAppender.UnseenEventExpectation(
+                        "second attempt should be suppressed due to throttling",
+                        NODE_ENVIRONMENT_LOGGER_NAME,
+                        Level.DEBUG,
+                        "hot threads while failing to obtain shard lock for [foo][0]: obtaining shard lock for [3] timed out after *"
+                    )
+                );
 
-            try (var ignored = appender.capturing(NodeEnvironment.class); var lock = env.shardLock(new ShardId(index, 0), "1")) {
                 assertEquals(new ShardId(index, 0), lock.getShardId());
 
                 expectThrows(ShardLockObtainFailedException.class, () -> env.shardLock(new ShardId(index, 0), "2"));
@@ -601,7 +600,7 @@ public class NodeEnvironmentTests extends ESTestCase {
                 ex.getMessage(),
                 allOf(
                     containsString("Cannot start this node"),
-                    containsString("it holds metadata for indices with version [" + oldIndexVersion + "]"),
+                    containsString("it holds metadata for indices with version [" + oldIndexVersion.toReleaseVersion() + "]"),
                     containsString(
                         "Revert this node to version ["
                             + (previousNodeVersion.major == Version.V_8_0_0.major ? Version.V_7_17_0 : previousNodeVersion)

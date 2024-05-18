@@ -10,7 +10,6 @@ package org.elasticsearch.action.ingest;
 
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.master.MasterNodeReadRequest;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 
@@ -18,10 +17,11 @@ import java.io.IOException;
 
 public class GetPipelineRequest extends MasterNodeReadRequest<GetPipelineRequest> {
 
-    private String[] ids;
+    private final String[] ids;
     private final boolean summary;
 
     public GetPipelineRequest(boolean summary, String... ids) {
+        super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT);
         if (ids == null) {
             throw new IllegalArgumentException("ids cannot be null");
         }
@@ -31,10 +31,6 @@ public class GetPipelineRequest extends MasterNodeReadRequest<GetPipelineRequest
 
     public GetPipelineRequest(String... ids) {
         this(false, ids);
-    }
-
-    GetPipelineRequest() {
-        this(false, Strings.EMPTY_ARRAY);
     }
 
     public GetPipelineRequest(StreamInput in) throws IOException {

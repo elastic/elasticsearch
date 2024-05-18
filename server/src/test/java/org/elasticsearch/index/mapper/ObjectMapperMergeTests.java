@@ -75,10 +75,7 @@ public final class ObjectMapperMergeTests extends ESTestCase {
             new ObjectMapper.Builder("disabled", Explicit.IMPLICIT_TRUE)
         ).build(MapperBuilderContext.root(false, false));
 
-        RootObjectMapper merged = (RootObjectMapper) rootObjectMapper.merge(
-            mergeWith,
-            MapperMergeContext.root(false, false, Long.MAX_VALUE)
-        );
+        RootObjectMapper merged = rootObjectMapper.merge(mergeWith, MapperMergeContext.root(false, false, Long.MAX_VALUE));
         assertFalse(((ObjectMapper) merged.getMapper("disabled")).isEnabled());
     }
 
@@ -93,8 +90,7 @@ public final class ObjectMapperMergeTests extends ESTestCase {
 
         ObjectMapper result = rootObjectMapper.merge(
             mergeWith,
-            MapperService.MergeReason.INDEX_TEMPLATE,
-            MapperMergeContext.root(false, false, Long.MAX_VALUE)
+            MapperMergeContext.root(false, false, MapperService.MergeReason.INDEX_TEMPLATE, Long.MAX_VALUE)
         );
         assertTrue(result.isEnabled());
     }
@@ -115,8 +111,7 @@ public final class ObjectMapperMergeTests extends ESTestCase {
 
         ObjectMapper result = firstMapper.merge(
             secondMapper,
-            MapperService.MergeReason.INDEX_TEMPLATE,
-            MapperMergeContext.root(false, false, Long.MAX_VALUE)
+            MapperMergeContext.root(false, false, MapperService.MergeReason.INDEX_TEMPLATE, Long.MAX_VALUE)
         );
         assertFalse(result.isEnabled());
     }
@@ -131,10 +126,7 @@ public final class ObjectMapperMergeTests extends ESTestCase {
             Collections.singletonMap("test", new TestRuntimeField("test", "long"))
         ).build(MapperBuilderContext.root(false, false));
 
-        RootObjectMapper merged = (RootObjectMapper) rootObjectMapper.merge(
-            mergeWith,
-            MapperMergeContext.root(false, false, Long.MAX_VALUE)
-        );
+        RootObjectMapper merged = rootObjectMapper.merge(mergeWith, MapperMergeContext.root(false, false, Long.MAX_VALUE));
         assertFalse(merged.isEnabled());
         assertEquals(1, merged.runtimeFields().size());
         assertEquals("test", merged.runtimeFields().iterator().next().name());

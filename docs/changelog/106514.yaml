@@ -1,0 +1,6 @@
+pr: 106514
+summary: Add granular error list to alias action response
+area: Indices APIs
+type: feature
+issues:
+ - 94478

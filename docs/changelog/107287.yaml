@@ -1,0 +1,6 @@
+pr: 107287
+summary: Add support for the 'Anonymous IP' database to the geoip processor
+area: Ingest Node
+type: enhancement
+issues:
+ - 90789

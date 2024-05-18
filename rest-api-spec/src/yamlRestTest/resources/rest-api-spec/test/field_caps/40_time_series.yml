@@ -1,8 +1,13 @@
 ---
 setup:
+  - requires:
+      cluster_features: "gte_v8.1.0"
+      reason: "Introduced in 8.1.0"
   - skip:
-      version: " - 8.0.99, 8.7.00 - 8.9.99"
-      reason: introduced in 8.1.0, synthetic source shows up in the mapping in 8.10 and on, may trigger assert failures in mixed cluster tests
+      known_issues:
+        - cluster_feature: "gte_v8.7.0"
+          fixed_by: "gte_v8.10.0"
+      reason: "Synthetic source shows up in the mapping in 8.10 and on, may trigger assert failures in mixed cluster tests"
 
   - do:
       indices.create:
@@ -105,8 +110,8 @@ setup:
 ---
 "Get simple time series field caps":
 
-  - skip:
-      version: " - 8.0.99"
+  - requires:
+      cluster_features: ["gte_v8.1.0"]
       reason: introduced in 8.1.0
 
   - do:
@@ -167,8 +172,8 @@ setup:
 ---
 "Get time series field caps with conflicts":
 
-  - skip:
-      version: " - 8.0.99"
+  - requires:
+      cluster_features: ["gte_v8.1.0"]
       reason: introduced in 8.1.0
 
   - do:

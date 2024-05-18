@@ -70,6 +70,29 @@ emp_no:integer | last_name:keyword | gender:keyword | f_l:boolean
 10010 | Piveteau  | null | null
 ;
 
+stringCast
+required_capability: string_literal_auto_casting
+
+ROW a = 1 | eval ss = substring("abcd", "2"), l = left("abcd", "2"), r = right("abcd", "2");
+
+a:integer | ss:keyword | l:keyword | r:keyword
+1         | bcd        | ab        | cd
+;
+
+stringCastEmp
+required_capability: string_literal_auto_casting
+
+from employees
+| eval ss = substring(first_name, "2")
+| sort emp_no
+| keep emp_no, first_name, ss
+| limit 2;
+
+emp_no: integer | first_name:keyword | ss:keyword
+10001           | Georgi             | eorgi
+10002           | Bezalel            | ezalel
+;
+
 substring
 from employees | where emp_no <= 10010 | eval f_l = substring(last_name, 3) | keep emp_no, last_name, f_l;
 ignoreOrder:true
@@ -170,6 +193,13 @@ emp_no:integer | last_name:keyword | x:keyword | z:keyword
 10008 | Kalloufi  | K | a
 10009 | Peac      | P | a
 10010 | Piveteau  | P | a
+;
+
+substring Emoji#[skip:-8.13.99,reason:bug fix in 8.14]
+row a = "🐱Meow!🐶Woof!" | eval sub1 = substring(a, 2) | eval sub2 = substring(a, 2, 100);
+
+a:keyword | sub1:keyword | sub2:keyword
+🐱Meow!🐶Woof! | Meow!🐶Woof! | Meow!🐶Woof!
 ;
 
 ltrim
@@ -300,7 +330,7 @@ emp_no:integer | name:keyword
 
 // Note: no matches in MV returned
 in
-required_feature: esql.mv_warn
+required_capability: mv_warn
 
 from employees | where job_positions in ("Internship", first_name) | keep emp_no, job_positions;
 ignoreOrder:true
@@ -492,7 +522,7 @@ emp_no:integer |positions:keyword                                               
 ;
 
 lessThanMultivalue
-required_feature: esql.mv_warn
+required_capability: mv_warn
 
 from employees | where job_positions < "C" | keep emp_no, job_positions | sort emp_no;
 warning:Line 1:24: evaluation of [job_positions < \"C\"] failed, treating result as null. Only first 20 failures recorded.
@@ -505,7 +535,7 @@ emp_no:integer |job_positions:keyword
 ;
 
 greaterThanMultivalue
-required_feature: esql.mv_warn
+required_capability: mv_warn
 
 from employees | where job_positions > "C" | keep emp_no, job_positions | sort emp_no | limit 6;
 warning:Line 1:24: evaluation of [job_positions > \"C\"] failed, treating result as null. Only first 20 failures recorded.
@@ -522,7 +552,7 @@ emp_no:integer |job_positions:keyword
 ;
 
 equalToMultivalue
-required_feature: esql.mv_warn
+required_capability: mv_warn
 
 from employees | where job_positions == "Accountant" | keep emp_no, job_positions | sort emp_no;
 warning:Line 1:24: evaluation of [job_positions == \"Accountant\"] failed, treating result as null. Only first 20 failures recorded.
@@ -534,7 +564,7 @@ emp_no:integer |job_positions:keyword
 ;
 
 equalToOrEqualToMultivalue
-required_feature: esql.mv_warn
+required_capability: mv_warn
 
 from employees | where job_positions == "Accountant" or job_positions == "Tech Lead" | keep emp_no, job_positions | sort emp_no;
 warning:Line 1:24: evaluation of [job_positions] failed, treating result as null. Only first 20 failures recorded.
@@ -547,7 +577,7 @@ emp_no:integer |job_positions:keyword
 ;
 
 inMultivalue
-required_feature: esql.mv_warn
+required_capability: mv_warn
 
 from employees | where job_positions in ("Accountant", "Tech Lead") | keep emp_no, job_positions | sort emp_no;
 warning:Line 1:24: evaluation of [job_positions in (\"Accountant\", \"Tech Lead\")] failed, treating result as null. Only first 20 failures recorded.
@@ -560,7 +590,7 @@ emp_no:integer |job_positions:keyword
 ;
 
 notLessThanMultivalue
-required_feature: esql.mv_warn
+required_capability: mv_warn
 
 from employees | where not(job_positions < "C") | keep emp_no, job_positions | sort emp_no | limit 6;
 warning:Line 1:24: evaluation of [not(job_positions < \"C\")] failed, treating result as null. Only first 20 failures recorded.#[Emulated:Line 1:28: evaluation of [job_positions < \"C\"] failed, treating result as null. Only first 20 failures recorded.]
@@ -577,7 +607,7 @@ emp_no:integer |job_positions:keyword
 ;
 
 notGreaterThanMultivalue
-required_feature: esql.mv_warn
+required_capability: mv_warn
 
 from employees | where not(job_positions > "C") | keep emp_no, job_positions | sort emp_no | limit 6;
 warning:Line 1:24: evaluation of [not(job_positions > \"C\")] failed, treating result as null. Only first 20 failures recorded.#[Emulated:Line 1:28: evaluation of [job_positions > \"C\"] failed, treating result as null. Only first 20 failures recorded.]
@@ -590,7 +620,7 @@ emp_no:integer |job_positions:keyword
 ;
 
 notEqualToMultivalue
-required_feature: esql.mv_warn
+required_capability: mv_warn
 
 from employees | where not(job_positions == "Accountant") | keep emp_no, job_positions | sort emp_no | limit 6;
 warning:Line 1:24: evaluation of [not(job_positions == \"Accountant\")] failed, treating result as null. Only first 20 failures recorded.#[Emulated:Line 1:28: evaluation of [job_positions == \"Accountant\"] failed, treating result as null. Only first 20 failures recorded.]
@@ -715,7 +745,7 @@ ROW a=[10, 9, 8]
 ;
 
 mvSort
-required_feature: esql.mv_sort
+required_capability: mv_sort
 
 row a = ["Mon", "Tues", "Wed", "Thu", "Fri"] | eval sa = mv_sort(a), sd = mv_sort(a, "DESC");
 
@@ -724,7 +754,7 @@ a:keyword                            | sa:keyword                 | sd:keyword
 ;
 
 mvSortEmp
-required_feature: esql.mv_sort
+required_capability: mv_sort
 
 FROM employees
 | eval sd = mv_sort(job_positions, "DESC"), sa = mv_sort(job_positions)
@@ -741,8 +771,18 @@ emp_no:integer | job_positions:keyword                                          
 10005          | null                                                                   | null                                                                   | null
 ;
 
+mvSliceCast
+required_capability: string_literal_auto_casting
+
+ROW a = ["1", "2", "3", "4"]
+| eval a1 = mv_slice(a, "0", "1");
+
+a:keyword            | a1:keyword
+["1", "2", "3", "4"] | ["1", "2"]
+;
+
 mvSliceEmp
-required_feature: esql.mv_sort
+required_capability: mv_sort
 
 from employees
 | eval a1 = mv_slice(salary_change.keyword, 0, 1)
@@ -759,7 +799,7 @@ emp_no:integer | salary_change.keyword:keyword | a1:keyword
 ;
 
 mvZip
-required_feature: esql.mv_sort
+required_capability: mv_sort
 
 // tag::mv_zip[]
 ROW a = ["x", "y", "z"], b = ["1", "2"]
@@ -775,7 +815,7 @@ a:keyword | b:keyword | c:keyword
 ;
 
 mvZipEmp
-required_feature: esql.mv_sort
+required_capability: mv_sort
 
 from employees
 | eval full_name = mv_zip(first_name, last_name, " "), full_name_2 = mv_zip(last_name, first_name), jobs = mv_zip(job_positions, salary_change.keyword, "#")
@@ -792,7 +832,7 @@ emp_no:integer | full_name:keyword | full_name_2:keyword | job_positions:keyword
 ;
 
 showTextFields
-from hosts | where host == "beta" | keep host, host_group, description;
+from hosts | sort description, card, ip0, ip1 | where host == "beta" | keep host, host_group, description;
 ignoreOrder:true
 
 host:keyword     | host_group:text          | description:text
@@ -802,7 +842,7 @@ beta             | Kubernetes cluster       | [beta k8s server, beta k8s server2
 ;
 
 lengthOfText
-required_feature: esql.mv_warn
+required_capability: mv_warn
 
 from hosts | where host=="epsilon" | eval l1 = length(host_group), l2 = length(description) | keep l1, l2;
 ignoreOrder:true
@@ -816,7 +856,7 @@ null                   | 19
 ;
 
 startsWithText
-required_feature: esql.mv_warn
+required_capability: mv_warn
 
 from hosts | where host=="epsilon" | eval l1 = starts_with(host_group, host), l2 = starts_with(description, host) | keep l1, l2;
 ignoreOrder:true
@@ -830,7 +870,7 @@ false                  | null
 ;
 
 substringOfText
-required_feature: esql.mv_warn
+required_capability: mv_warn
 
 from hosts | where host=="epsilon" | eval l1 = substring(host_group, 0, 5), l2 = substring(description, 0, 5) | keep l1, l2;
 ignoreOrder:true
@@ -844,7 +884,7 @@ Gatew                  | null
 ;
 
 concatOfText
-required_feature: esql.mv_warn
+required_capability: mv_warn
 
 from hosts | where host == "epsilon" | eval l1 = concat(host, "/", host_group), l2 = concat(host_group, "/", description) | sort l1 |  keep l1, l2;
 warning:Line 1:86: evaluation of [concat(host_group, \"/\", description)] failed, treating result as null. Only first 20 failures recorded.
@@ -1110,7 +1150,7 @@ a:keyword           | upper:keyword         | lower:keyword
 ;
 
 values
-required_feature: esql.agg_values
+required_capability: agg_values
 
   FROM employees
 | WHERE emp_no <= 10009
@@ -1122,7 +1162,7 @@ required_feature: esql.agg_values
 ;
 
 valuesGrouped
-required_feature: esql.agg_values
+required_capability: agg_values
 
 // tag::values-grouped[]
   FROM employees
@@ -1170,10 +1210,16 @@ M              | [foo, bar]
 ;
 
 locate#[skip:-8.13.99,reason:new string function added in 8.14]
-row a = "hello" | eval a_ll = locate(a, "ll");
+// tag::locate[]
+row a = "hello"
+| eval a_ll = locate(a, "ll")
+// end::locate[]
+;
 
+// tag::locate-result[]
 a:keyword | a_ll:integer
-hello | 3
+hello     | 3
+// end::locate-result[]
 ;
 
 locateFail#[skip:-8.13.99,reason:new string function added in 8.14]
@@ -1236,10 +1282,10 @@ emp_no:integer | last_name:keyword | f_s:keyword | f_l:integer
 ;
 
 locateUtf16Emoji#[skip:-8.13.99,reason:new string function added in 8.14]
-row a = "🐱Meow!🐶Woof!" | eval f_s = substring(a, 3) | eval f_l = locate(a, f_s);
+row a = "🐱Meow!🐶Woof!" | eval f_s = substring(a, 2) | eval f_l = locate(a, f_s);
 
 a:keyword | f_s:keyword | f_l:integer
-🐱Meow!🐶Woof! | Meow!🐶Woof! | 3
+🐱Meow!🐶Woof! | Meow!🐶Woof! | 2
 ;
 
 locateNestedSubstring#[skip:-8.13.99,reason:new string function added in 8.14]
@@ -1268,7 +1314,7 @@ min(f_l):integer | max(f_l):integer | job_positions:keyword
 ;
 
 locateWarnings#[skip:-8.13.99,reason:new string function added in 8.14]
-required_feature: esql.mv_warn
+required_capability: mv_warn
 
 from hosts | where host=="epsilon" | eval l1 = locate(host_group, "ate"), l2 = locate(description, "ate") | keep l1, l2;
 ignoreOrder:true
@@ -1279,4 +1325,51 @@ l1:integer | l2:integer
 2          | null
 2          | null
 null       | 0
+;
+
+base64Encode#[skip:-8.13.99,reason:new base64 function added in 8.14]
+required_capability: base64_decode_encode
+
+// tag::to_base64[]
+row a = "elastic" 
+| eval e = to_base64(a)
+// end::to_base64[]
+;
+
+// tag::to_base64-result[]
+a:keyword | e:keyword
+elastic   | ZWxhc3RpYw==
+// end::to_base64-result[]
+;
+
+base64Decode#[skip:-8.13.99,reason:new base64 function added in 8.14]
+required_capability: base64_decode_encode
+
+// tag::from_base64[]
+row a = "ZWxhc3RpYw==" 
+| eval d = from_base64(a)
+// end::from_base64[]
+;
+
+// tag::from_base64-result[]
+a:keyword    | d:keyword
+ZWxhc3RpYw== | elastic
+// end::from_base64-result[]
+;
+
+base64EncodeDecodeEmp#[skip:-8.13.99,reason:new base64 function added in 8.14]
+required_capability: base64_decode_encode
+
+from employees
+| where emp_no < 10032 and emp_no > 10027
+| eval e = to_base64(first_name), d = from_base64(e)
+| keep emp_no, first_name, e, d
+| sort emp_no
+;
+
+emp_no:integer | first_name:keyword | e:keyword    | d:keyword
+10028          | Domenick           | RG9tZW5pY2s= | Domenick
+10029          | Otmar              | T3RtYXI=     | Otmar
+10030          | null               | null         | null
+10031          | null               | null         | null
 ;

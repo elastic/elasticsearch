@@ -14,6 +14,7 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.NodesShutdownMetadata;
+import org.elasticsearch.cluster.metadata.ReservedStateErrorMetadata;
 import org.elasticsearch.cluster.metadata.ReservedStateMetadata;
 import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -44,7 +45,11 @@ import java.net.InetSocketAddress;
 import java.net.UnknownHostException;
 import java.nio.channels.ServerSocketChannel;
 import java.util.Collections;
+import java.util.List;
 import java.util.Set;
+
+import static org.elasticsearch.cluster.metadata.ReservedStateErrorMetadata.ErrorKind.TRANSIENT;
+import static org.elasticsearch.cluster.metadata.ReservedStateMetadata.EMPTY_VERSION;
 
 public class ReadinessServiceTests extends ESTestCase implements ReadinessClientProbe {
     private ClusterService clusterService;
@@ -55,7 +60,7 @@ public class ReadinessServiceTests extends ESTestCase implements ReadinessClient
 
     private static Metadata emptyReservedStateMetadata;
     static {
-        var fileSettingsState = new ReservedStateMetadata.Builder(FileSettingsService.NAMESPACE).version(-1L);
+        var fileSettingsState = new ReservedStateMetadata.Builder(FileSettingsService.NAMESPACE).version(EMPTY_VERSION);
         emptyReservedStateMetadata = new Metadata.Builder().put(fileSettingsState.build()).build();
     }
 
@@ -261,8 +266,7 @@ public class ReadinessServiceTests extends ESTestCase implements ReadinessClient
             )
             .build();
         event = new ClusterChangedEvent("test", nodeShuttingDownState, completeState);
-        var mockAppender = new MockLogAppender();
-        try (var ignored = mockAppender.capturing(ReadinessService.class)) {
+        try (var mockAppender = MockLogAppender.capture(ReadinessService.class)) {
             mockAppender.addExpectation(
                 new MockLogAppender.SeenEventExpectation(
                     "node shutting down logged",
@@ -287,6 +291,35 @@ public class ReadinessServiceTests extends ESTestCase implements ReadinessClient
         }
         assertFalse(readinessService.ready());
         tcpReadinessProbeFalse(readinessService);
+
+        readinessService.stop();
+        readinessService.close();
+    }
+
+    public void testFileSettingsUpdateError() throws Exception {
+        // ensure an update to file settings that results in an error state doesn't cause readiness to fail
+        // since the current file settings already applied cleanly
+        readinessService.start();
+
+        // initially the service isn't ready because initial cluster state has not been applied yet
+        assertFalse(readinessService.ready());
+
+        var fileSettingsState = new ReservedStateMetadata.Builder(FileSettingsService.NAMESPACE).version(21L)
+            .errorMetadata(new ReservedStateErrorMetadata(22L, TRANSIENT, List.of("dummy error")));
+        ClusterState state = ClusterState.builder(new ClusterName("cluster"))
+            .nodes(
+                DiscoveryNodes.builder()
+                    .add(DiscoveryNodeUtils.create("node2", new TransportAddress(TransportAddress.META_ADDRESS, 9201)))
+                    .add(httpTransport.node)
+                    .masterNodeId(httpTransport.node.getId())
+                    .localNodeId(httpTransport.node.getId())
+            )
+            .metadata(new Metadata.Builder().put(fileSettingsState.build()))
+            .build();
+
+        ClusterChangedEvent event = new ClusterChangedEvent("test", state, ClusterState.EMPTY_STATE);
+        readinessService.clusterChanged(event);
+        assertTrue(readinessService.ready());
 
         readinessService.stop();
         readinessService.close();

@@ -261,7 +261,6 @@ public class TransportTasksActionTests extends TaskManagerTestCase {
                 transportService,
                 new ActionFilters(new HashSet<>()),
                 TestTasksRequest::new,
-                TestTasksResponse::new,
                 TestTaskResponse::new,
                 transportService.getThreadPool().executor(ThreadPool.Names.MANAGEMENT)
             );
@@ -563,7 +562,6 @@ public class TransportTasksActionTests extends TaskManagerTestCase {
         responseLatch.await(10, TimeUnit.SECONDS);
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/107043")
     public void testFailedTasksCount() throws Exception {
         Settings settings = Settings.builder().put(MockTaskManager.USE_MOCK_TASK_MANAGER_SETTING.getKey(), true).build();
         setupTestNodes(settings);
@@ -605,14 +603,14 @@ public class TransportTasksActionTests extends TaskManagerTestCase {
 
         // Make sure that actions are still registered in the task manager on all nodes
         // Twice on the coordinating node and once on all other nodes.
-        assertEquals(4, listeners[0].getEvents().size());
-        assertEquals(2, listeners[0].getRegistrationEvents().size());
-        assertEquals(2, listeners[0].getUnregistrationEvents().size());
-        for (int i = 1; i < listeners.length; i++) {
-            assertEquals(2, listeners[i].getEvents().size());
-            assertEquals(1, listeners[i].getRegistrationEvents().size());
-            assertEquals(1, listeners[i].getUnregistrationEvents().size());
-        }
+        assertBusy(() -> {
+            assertEquals(2, listeners[0].getRegistrationEvents().size());
+            assertEquals(2, listeners[0].getUnregistrationEvents().size());
+            for (int i = 1; i < listeners.length; i++) {
+                assertEquals(1, listeners[i].getRegistrationEvents().size());
+                assertEquals(1, listeners[i].getUnregistrationEvents().size());
+            }
+        });
     }
 
     private List<String> getAllTaskDescriptions() {

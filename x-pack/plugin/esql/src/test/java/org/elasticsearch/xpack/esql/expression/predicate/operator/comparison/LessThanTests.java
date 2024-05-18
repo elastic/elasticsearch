@@ -10,54 +10,133 @@ package org.elasticsearch.xpack.esql.expression.predicate.operator.comparison;
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
-import org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.LessThan;
+import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.xpack.esql.expression.function.AbstractFunctionTestCase;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 import org.elasticsearch.xpack.ql.expression.Expression;
-import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.BinaryComparison;
 import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataTypes;
-import org.hamcrest.Matcher;
+import org.elasticsearch.xpack.ql.util.NumericUtils;
 
-import java.time.ZoneOffset;
+import java.math.BigInteger;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Supplier;
 
-import static org.hamcrest.Matchers.equalTo;
-
-public class LessThanTests extends AbstractBinaryComparisonTestCase {
+public class LessThanTests extends AbstractFunctionTestCase {
     public LessThanTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
         this.testCase = testCaseSupplier.get();
     }
 
     @ParametersFactory
     public static Iterable<Object[]> parameters() {
-        return parameterSuppliersFromTypedData(List.of(new TestCaseSupplier("Int < Int", () -> {
-            int rhs = randomInt();
-            int lhs = randomInt();
-            return new TestCaseSupplier.TestCase(
-                List.of(
-                    new TestCaseSupplier.TypedData(lhs, DataTypes.INTEGER, "lhs"),
-                    new TestCaseSupplier.TypedData(rhs, DataTypes.INTEGER, "rhs")
+        List<TestCaseSupplier> suppliers = new ArrayList<>();
+        suppliers.addAll(
+            TestCaseSupplier.forBinaryComparisonWithWidening(
+                new TestCaseSupplier.NumericTypeTestConfigs<>(
+                    new TestCaseSupplier.NumericTypeTestConfig<>(
+                        (Integer.MIN_VALUE >> 1) - 1,
+                        (Integer.MAX_VALUE >> 1) - 1,
+                        (l, r) -> l.intValue() < r.intValue(),
+                        "LessThanIntsEvaluator"
+                    ),
+                    new TestCaseSupplier.NumericTypeTestConfig<>(
+                        (Long.MIN_VALUE >> 1) - 1,
+                        (Long.MAX_VALUE >> 1) - 1,
+                        (l, r) -> l.longValue() < r.longValue(),
+                        "LessThanLongsEvaluator"
+                    ),
+                    new TestCaseSupplier.NumericTypeTestConfig<>(
+                        Double.NEGATIVE_INFINITY,
+                        Double.POSITIVE_INFINITY,
+                        // NB: this has different behavior than Double::equals
+                        (l, r) -> l.doubleValue() < r.doubleValue(),
+                        "LessThanDoublesEvaluator"
+                    )
                 ),
-                "LessThanIntsEvaluator[lhs=Attribute[channel=0], rhs=Attribute[channel=1]]",
+                "lhs",
+                "rhs",
+                (lhs, rhs) -> List.of(),
+                false
+            )
+        );
+
+        // Unsigned Long cases
+        // TODO: These should be integrated into the type cross product above, but are currently broken
+        // see https://github.com/elastic/elasticsearch/issues/102935
+        suppliers.addAll(
+            TestCaseSupplier.forBinaryNotCasting(
+                "LessThanLongsEvaluator",
+                "lhs",
+                "rhs",
+                (l, r) -> ((BigInteger) l).compareTo((BigInteger) r) < 0,
                 DataTypes.BOOLEAN,
-                equalTo(lhs < rhs)
-            );
-        })));
+                TestCaseSupplier.ulongCases(BigInteger.ZERO, NumericUtils.UNSIGNED_LONG_MAX, true),
+                TestCaseSupplier.ulongCases(BigInteger.ZERO, NumericUtils.UNSIGNED_LONG_MAX, true),
+                List.of(),
+                false
+            )
+        );
+
+        suppliers.addAll(
+            TestCaseSupplier.forBinaryNotCasting(
+                "LessThanKeywordsEvaluator",
+                "lhs",
+                "rhs",
+                (l, r) -> ((BytesRef) l).compareTo((BytesRef) r) < 0,
+                DataTypes.BOOLEAN,
+                TestCaseSupplier.ipCases(),
+                TestCaseSupplier.ipCases(),
+                List.of(),
+                false
+            )
+        );
+
+        suppliers.addAll(
+            TestCaseSupplier.forBinaryNotCasting(
+                "LessThanKeywordsEvaluator",
+                "lhs",
+                "rhs",
+                (l, r) -> ((BytesRef) l).compareTo((BytesRef) r) < 0,
+                DataTypes.BOOLEAN,
+                TestCaseSupplier.versionCases(""),
+                TestCaseSupplier.versionCases(""),
+                List.of(),
+                false
+            )
+        );
+        // Datetime
+        // TODO: I'm surprised this passes. Shouldn't there be a cast from DateTime to Long?
+        suppliers.addAll(
+            TestCaseSupplier.forBinaryNotCasting(
+                "LessThanLongsEvaluator",
+                "lhs",
+                "rhs",
+                (l, r) -> ((Number) l).longValue() < ((Number) r).longValue(),
+                DataTypes.BOOLEAN,
+                TestCaseSupplier.dateCases(),
+                TestCaseSupplier.dateCases(),
+                List.of(),
+                false
+            )
+        );
+
+        suppliers.addAll(
+            TestCaseSupplier.stringCases(
+                (l, r) -> ((BytesRef) l).compareTo((BytesRef) r) < 0,
+                (lhsType, rhsType) -> "LessThanKeywordsEvaluator[lhs=Attribute[channel=0], rhs=Attribute[channel=1]]",
+                List.of(),
+                DataTypes.BOOLEAN
+            )
+        );
+
+        return parameterSuppliersFromTypedData(
+            errorsForCasesWithoutExamples(anyNullIsNull(true, suppliers), AbstractFunctionTestCase::errorMessageStringForBinaryOperators)
+        );
     }
 
     @Override
-    protected <T extends Comparable<T>> Matcher<Object> resultMatcher(T lhs, T rhs) {
-        return equalTo(lhs.compareTo(rhs) < 0);
-    }
-
-    @Override
-    protected BinaryComparison build(Source source, Expression lhs, Expression rhs) {
-        return new LessThan(source, lhs, rhs, ZoneOffset.UTC);
-    }
-
-    @Override
-    protected boolean isEquality() {
-        return false;
+    protected Expression build(Source source, List<Expression> args) {
+        return new LessThan(source, args.get(0), args.get(1), null);
     }
 }

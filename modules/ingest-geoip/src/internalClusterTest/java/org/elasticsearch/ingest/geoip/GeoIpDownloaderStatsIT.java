@@ -11,7 +11,7 @@ package org.elasticsearch.ingest.geoip;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.ingest.geoip.stats.GeoIpDownloaderStatsAction;
+import org.elasticsearch.ingest.geoip.stats.GeoIpStatsAction;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.reindex.ReindexPlugin;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -65,8 +65,8 @@ public class GeoIpDownloaderStatsIT extends AbstractGeoIpIT {
          * slowly to pass.
          */
         assumeTrue("only test with fixture to have stable results", getEndpoint() != null);
-        GeoIpDownloaderStatsAction.Request req = new GeoIpDownloaderStatsAction.Request();
-        GeoIpDownloaderStatsAction.Response response = client().execute(GeoIpDownloaderStatsAction.INSTANCE, req).actionGet();
+        GeoIpStatsAction.Request req = new GeoIpStatsAction.Request();
+        GeoIpStatsAction.Response response = client().execute(GeoIpStatsAction.INSTANCE, req).actionGet();
         XContentTestUtils.JsonMapView jsonMapView = new XContentTestUtils.JsonMapView(convertToMap(response));
         assertThat(jsonMapView.get("stats.successful_downloads"), equalTo(0));
         assertThat(jsonMapView.get("stats.failed_downloads"), equalTo(0));
@@ -78,7 +78,7 @@ public class GeoIpDownloaderStatsIT extends AbstractGeoIpIT {
         updateClusterSettings(Settings.builder().put(GeoIpDownloaderTaskExecutor.ENABLED_SETTING.getKey(), true));
 
         assertBusy(() -> {
-            GeoIpDownloaderStatsAction.Response res = client().execute(GeoIpDownloaderStatsAction.INSTANCE, req).actionGet();
+            GeoIpStatsAction.Response res = client().execute(GeoIpStatsAction.INSTANCE, req).actionGet();
             XContentTestUtils.JsonMapView view = new XContentTestUtils.JsonMapView(convertToMap(res));
             assertThat(view.get("stats.successful_downloads"), equalTo(4));
             assertThat(view.get("stats.failed_downloads"), equalTo(0));

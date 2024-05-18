@@ -9,9 +9,7 @@
 package org.elasticsearch.snapshots;
 
 import org.apache.logging.log4j.Level;
-import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.core.Tuple;
@@ -138,11 +136,7 @@ public class SnapshotThrottlingIT extends AbstractSnapshotIntegTestCase {
         }
         final String primaryNode = internalCluster().startNode(primaryNodeSettings);
 
-        final MockLogAppender mockLogAppender = new MockLogAppender();
-        try {
-            mockLogAppender.start();
-            Loggers.addAppender(LogManager.getLogger(BlobStoreRepository.class), mockLogAppender);
-
+        try (var mockLogAppender = MockLogAppender.capture(BlobStoreRepository.class)) {
             MockLogAppender.EventuallySeenEventExpectation snapshotExpectation = new MockLogAppender.EventuallySeenEventExpectation(
                 "snapshot speed over recovery speed",
                 "org.elasticsearch.repositories.blobstore.BlobStoreRepository",
@@ -175,9 +169,6 @@ public class SnapshotThrottlingIT extends AbstractSnapshotIntegTestCase {
 
             deleteRepository("test-repo");
             mockLogAppender.assertAllExpectationsMatched();
-        } finally {
-            Loggers.removeAppender(LogManager.getLogger(BlobStoreRepository.class), mockLogAppender);
-            mockLogAppender.stop();
         }
     }
 

@@ -9,8 +9,6 @@
 package org.elasticsearch.transport;
 
 import org.apache.logging.log4j.Level;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
@@ -23,7 +21,6 @@ import org.elasticsearch.common.io.stream.InputStreamStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.RecyclerBytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.network.HandlingTimeTracker;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.PageCacheRecycler;
@@ -232,20 +229,16 @@ public class InboundHandlerTests extends ESTestCase {
         // response so we must just close the connection on an error. To avoid the failure disappearing into a black hole we at least log
         // it.
 
-        final MockLogAppender mockAppender = new MockLogAppender();
-        mockAppender.start();
-        mockAppender.addExpectation(
-            new MockLogAppender.SeenEventExpectation(
-                "expected message",
-                EXPECTED_LOGGER_NAME,
-                Level.WARN,
-                "error processing handshake version"
-            )
-        );
-        final Logger inboundHandlerLogger = LogManager.getLogger(InboundHandler.class);
-        Loggers.addAppender(inboundHandlerLogger, mockAppender);
+        try (var mockAppender = MockLogAppender.capture(InboundHandler.class)) {
+            mockAppender.addExpectation(
+                new MockLogAppender.SeenEventExpectation(
+                    "expected message",
+                    EXPECTED_LOGGER_NAME,
+                    Level.WARN,
+                    "error processing handshake version"
+                )
+            );
 
-        try {
             final AtomicBoolean isClosed = new AtomicBoolean();
             channel.addCloseListener(ActionListener.running(() -> assertTrue(isClosed.compareAndSet(false, true))));
 
@@ -268,9 +261,6 @@ public class InboundHandlerTests extends ESTestCase {
             assertTrue(isClosed.get());
             assertNull(channel.getMessageCaptor().get());
             mockAppender.assertAllExpectationsMatched();
-        } finally {
-            Loggers.removeAppender(inboundHandlerLogger, mockAppender);
-            mockAppender.stop();
         }
     }
 
@@ -281,13 +271,9 @@ public class InboundHandlerTests extends ESTestCase {
     private static final String EXPECTED_LOGGER_NAME = "org.elasticsearch.transport.InboundHandler";
 
     public void testLogsSlowInboundProcessing() throws Exception {
-        final MockLogAppender mockAppender = new MockLogAppender();
-        mockAppender.start();
-        final Logger inboundHandlerLogger = LogManager.getLogger(InboundHandler.class);
-        Loggers.addAppender(inboundHandlerLogger, mockAppender);
 
         handler.setSlowLogThreshold(TimeValue.timeValueMillis(5L));
-        try {
+        try (var mockAppender = MockLogAppender.capture(InboundHandler.class)) {
             final TransportVersion remoteVersion = TransportVersion.current();
 
             mockAppender.addExpectation(
@@ -339,9 +325,6 @@ public class InboundHandlerTests extends ESTestCase {
             handler.inboundMessage(channel, new InboundMessage(responseHeader, ReleasableBytesReference.empty(), () -> {}));
 
             mockAppender.assertAllExpectationsMatched();
-        } finally {
-            Loggers.removeAppender(inboundHandlerLogger, mockAppender);
-            mockAppender.stop();
         }
     }
 

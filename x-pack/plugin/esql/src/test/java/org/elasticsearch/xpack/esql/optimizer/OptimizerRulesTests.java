@@ -8,14 +8,13 @@
 package org.elasticsearch.xpack.esql.optimizer;
 
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.Equals;
-import org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.GreaterThan;
-import org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.GreaterThanOrEqual;
-import org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.LessThan;
-import org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.LessThanOrEqual;
-import org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.NotEquals;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThan;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThanOrEqual;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.In;
-import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.NullEquals;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThan;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThanOrEqual;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.NotEquals;
 import org.elasticsearch.xpack.ql.TestUtils;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.FieldAttribute;
@@ -63,10 +62,6 @@ public class OptimizerRulesTests extends ESTestCase {
 
     public static NotEquals notEqualsOf(Expression left, Expression right) {
         return new NotEquals(EMPTY, left, right, randomZone());
-    }
-
-    public static NullEquals nullEqualsOf(Expression left, Expression right) {
-        return new NullEquals(EMPTY, left, right, randomZone());
     }
 
     public static LessThanOrEqual lessThanOrEqualOf(Expression left, Expression right) {
@@ -227,32 +222,10 @@ public class OptimizerRulesTests extends ESTestCase {
         assertEquals(FALSE, exp);
     }
 
-    // a <=> 1 AND a <=> 2 -> FALSE
-    public void testDualNullEqualsConjunction() {
-        FieldAttribute fa = getFieldAttribute();
-        NullEquals eq1 = nullEqualsOf(fa, ONE);
-        NullEquals eq2 = nullEqualsOf(fa, TWO);
-
-        OptimizerRules.PropagateEquals rule = new OptimizerRules.PropagateEquals();
-        Expression exp = rule.rule(new And(EMPTY, eq1, eq2));
-        assertEquals(FALSE, exp);
-    }
-
     // 1 < a < 10 AND a == 10 -> FALSE
     public void testEliminateRangeByEqualsOutsideInterval() {
         FieldAttribute fa = getFieldAttribute();
         Equals eq1 = equalsOf(fa, new Literal(EMPTY, 10, DataTypes.INTEGER));
-        Range r = rangeOf(fa, ONE, false, new Literal(EMPTY, 10, DataTypes.INTEGER), false);
-
-        OptimizerRules.PropagateEquals rule = new OptimizerRules.PropagateEquals();
-        Expression exp = rule.rule(new And(EMPTY, eq1, r));
-        assertEquals(FALSE, exp);
-    }
-
-    // 1 < a < 10 AND a <=> 10 -> FALSE
-    public void testEliminateRangeByNullEqualsOutsideInterval() {
-        FieldAttribute fa = getFieldAttribute();
-        NullEquals eq1 = nullEqualsOf(fa, new Literal(EMPTY, 10, DataTypes.INTEGER));
         Range r = rangeOf(fa, ONE, false, new Literal(EMPTY, 10, DataTypes.INTEGER), false);
 
         OptimizerRules.PropagateEquals rule = new OptimizerRules.PropagateEquals();
@@ -521,17 +494,6 @@ public class OptimizerRulesTests extends ESTestCase {
     public void testEliminateRangeByEqualsInInterval() {
         FieldAttribute fa = getFieldAttribute();
         Equals eq1 = equalsOf(fa, ONE);
-        Range r = rangeOf(fa, ONE, true, new Literal(EMPTY, 10, DataTypes.INTEGER), false);
-
-        OptimizerRules.PropagateEquals rule = new OptimizerRules.PropagateEquals();
-        Expression exp = rule.rule(new And(EMPTY, eq1, r));
-        assertEquals(eq1, exp);
-    }
-
-    // 1 <= a < 10 AND a <=> 1 -> a <=> 1
-    public void testEliminateRangeByNullEqualsInInterval() {
-        FieldAttribute fa = getFieldAttribute();
-        NullEquals eq1 = nullEqualsOf(fa, ONE);
         Range r = rangeOf(fa, ONE, true, new Literal(EMPTY, 10, DataTypes.INTEGER), false);
 
         OptimizerRules.PropagateEquals rule = new OptimizerRules.PropagateEquals();

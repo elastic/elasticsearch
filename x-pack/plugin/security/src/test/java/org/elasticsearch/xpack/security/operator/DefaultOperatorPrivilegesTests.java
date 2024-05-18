@@ -101,12 +101,9 @@ public class DefaultOperatorPrivilegesTests extends ESTestCase {
 
         // Will mark for the operator user
         final Logger logger = LogManager.getLogger(OperatorPrivileges.class);
-        final MockLogAppender appender = new MockLogAppender();
-        appender.start();
-        Loggers.addAppender(logger, appender);
         Loggers.setLevel(logger, Level.DEBUG);
 
-        try {
+        try (var appender = MockLogAppender.capture(OperatorPrivileges.class)) {
             appender.addExpectation(
                 new MockLogAppender.SeenEventExpectation(
                     "marking",
@@ -122,8 +119,6 @@ public class DefaultOperatorPrivilegesTests extends ESTestCase {
             );
             appender.assertAllExpectationsMatched();
         } finally {
-            Loggers.removeAppender(logger, appender);
-            appender.stop();
             Loggers.setLevel(logger, (Level) null);
         }
 
@@ -214,12 +209,9 @@ public class DefaultOperatorPrivilegesTests extends ESTestCase {
         when(xPackLicenseState.isAllowed(Security.OPERATOR_PRIVILEGES_FEATURE)).thenReturn(licensed);
 
         final Logger logger = LogManager.getLogger(OperatorPrivileges.class);
-        final MockLogAppender appender = new MockLogAppender();
-        appender.start();
-        Loggers.addAppender(logger, appender);
         Loggers.setLevel(logger, Level.DEBUG);
 
-        try {
+        try (var appender = MockLogAppender.capture(OperatorPrivileges.class)) {
             final RestoreSnapshotRequest restoreSnapshotRequest = mock(RestoreSnapshotRequest.class);
             appender.addExpectation(
                 new MockLogAppender.SeenEventExpectation(
@@ -233,8 +225,6 @@ public class DefaultOperatorPrivilegesTests extends ESTestCase {
             verify(restoreSnapshotRequest).skipOperatorOnlyState(licensed);
             appender.assertAllExpectationsMatched();
         } finally {
-            Loggers.removeAppender(logger, appender);
-            appender.stop();
             Loggers.setLevel(logger, (Level) null);
         }
     }

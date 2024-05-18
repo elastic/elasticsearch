@@ -1,0 +1,21 @@
+metricsWithoutAggs
+required_capability: metrics_syntax
+METRICS k8s | sort @timestamp DESC, cluster, pod | keep @timestamp,cluster,pod,network.bytes_in,network.cost | limit 5;
+
+@timestamp:datetime      | cluster:keyword | pod: keyword| network.bytes_in:long | network.cost:double
+2024-05-10T00:22:59.000Z | qa              | one         | 206                   | 6.25
+2024-05-10T00:22:54.000Z | qa              | three       | 972                   | 10.875
+2024-05-10T00:22:53.000Z | prod            | two         | 812                   | 10.75
+2024-05-10T00:22:53.000Z | staging         | one         | 238                   | 4.625
+2024-05-10T00:22:49.000Z | staging         | two         | 3                     | 1.75
+;
+
+metricsWithAggs
+required_capability: metrics_syntax
+METRICS k8s max_bytes=max(to_long(network.total_bytes_in)) BY cluster | SORT max_bytes DESC;
+
+max_bytes:long | cluster: keyword
+10797          | qa        
+10277          | prod
+7403           | staging
+;

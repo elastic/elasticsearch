@@ -581,8 +581,7 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
                     .put(HttpTransportSettings.SETTING_HTTP_TRACE_LOG_EXCLUDE.getKey(), excludeSettings)
                     .build()
             );
-            MockLogAppender appender = new MockLogAppender();
-            try (var ignored = appender.capturing(HttpTracer.class)) {
+            try (var appender = MockLogAppender.capture(HttpTracer.class)) {
 
                 final String opaqueId = UUIDs.randomBase64UUID(random());
                 appender.addExpectation(
@@ -664,26 +663,15 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
     }
 
     public void testLogsSlowInboundProcessing() throws Exception {
-        final MockLogAppender mockAppender = new MockLogAppender();
-        mockAppender.start();
         final String opaqueId = UUIDs.randomBase64UUID(random());
         final String path = "/internal/test";
         final RestRequest.Method method = randomFrom(RestRequest.Method.values());
-        mockAppender.addExpectation(
-            new MockLogAppender.SeenEventExpectation(
-                "expected message",
-                AbstractHttpServerTransport.class.getCanonicalName(),
-                Level.WARN,
-                "handling request [" + opaqueId + "][" + method + "][" + path + "]"
-            )
-        );
-        final Logger inboundHandlerLogger = LogManager.getLogger(AbstractHttpServerTransport.class);
-        Loggers.addAppender(inboundHandlerLogger, mockAppender);
         final ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
         final Settings settings = Settings.builder()
             .put(TransportSettings.SLOW_OPERATION_THRESHOLD_SETTING.getKey(), TimeValue.timeValueMillis(5))
             .build();
         try (
+            var mockAppender = MockLogAppender.capture(AbstractHttpServerTransport.class);
             AbstractHttpServerTransport transport = new AbstractHttpServerTransport(
                 settings,
                 networkService,
@@ -730,6 +718,14 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
                 }
             }
         ) {
+            mockAppender.addExpectation(
+                new MockLogAppender.SeenEventExpectation(
+                    "expected message",
+                    AbstractHttpServerTransport.class.getCanonicalName(),
+                    Level.WARN,
+                    "handling request [" + opaqueId + "][" + method + "][" + path + "]"
+                )
+            );
 
             final FakeRestRequest fakeRestRequest = new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY).withMethod(method)
                 .withPath(path)
@@ -738,9 +734,6 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
             transport.serverAcceptedChannel(fakeRestRequest.getHttpChannel());
             transport.incomingRequest(fakeRestRequest.getHttpRequest(), fakeRestRequest.getHttpChannel());
             mockAppender.assertAllExpectationsMatched();
-        } finally {
-            Loggers.removeAppender(inboundHandlerLogger, mockAppender);
-            mockAppender.stop();
         }
     }
 
@@ -1358,15 +1351,12 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
     private static class LogExpectation implements AutoCloseable {
         private final Logger mockLogger;
         private final MockLogAppender appender;
-        private boolean checked = false;
         private final int grace;
 
         private LogExpectation(int grace) {
             mockLogger = LogManager.getLogger(AbstractHttpServerTransport.class);
             Loggers.setLevel(mockLogger, Level.DEBUG);
-            appender = new MockLogAppender();
-            Loggers.addAppender(mockLogger, appender);
-            appender.start();
+            appender = MockLogAppender.capture(AbstractHttpServerTransport.class);
             this.grace = grace;
         }
 
@@ -1423,16 +1413,11 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
 
         public void assertExpectationsMatched() {
             appender.assertAllExpectationsMatched();
-            checked = true;
         }
 
         @Override
         public void close() {
-            Loggers.removeAppender(mockLogger, appender);
-            appender.stop();
-            if (checked == false) {
-                fail("did not check expectations matched in TimedOutLogExpectation");
-            }
+            appender.close();
         }
     }
 

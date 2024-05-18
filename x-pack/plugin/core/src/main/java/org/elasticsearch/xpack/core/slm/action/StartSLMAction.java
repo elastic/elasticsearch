@@ -28,7 +28,9 @@ public class StartSLMAction extends ActionType<AcknowledgedResponse> {
             super(in);
         }
 
-        public Request() {}
+        public Request() {
+            super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT, DEFAULT_ACK_TIMEOUT);
+        }
 
         @Override
         public int hashCode() {

@@ -8,8 +8,6 @@
 package org.elasticsearch.xpack.core.security.authz.accesscontrol;
 
 import org.apache.logging.log4j.Level;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
@@ -29,12 +27,12 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BitSet;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.CheckedBiConsumer;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
+import org.elasticsearch.index.mapper.MapperMetrics;
 import org.elasticsearch.index.mapper.Mapping;
 import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.MockFieldMapper;
@@ -194,11 +192,7 @@ public class DocumentSubsetBitsetCacheTests extends ESTestCase {
         assertThat(cache.entryCount(), equalTo(0));
         assertThat(cache.ramBytesUsed(), equalTo(0L));
 
-        final Logger cacheLogger = LogManager.getLogger(cache.getClass());
-        final MockLogAppender mockAppender = new MockLogAppender();
-        mockAppender.start();
-        try {
-            Loggers.addAppender(cacheLogger, mockAppender);
+        try (var mockAppender = MockLogAppender.capture(cache.getClass())) {
             mockAppender.addExpectation(
                 new MockLogAppender.SeenEventExpectation(
                     "[bitset too big]",
@@ -222,9 +216,6 @@ public class DocumentSubsetBitsetCacheTests extends ESTestCase {
             });
 
             mockAppender.assertAllExpectationsMatched();
-        } finally {
-            Loggers.removeAppender(cacheLogger, mockAppender);
-            mockAppender.stop();
         }
     }
 
@@ -238,11 +229,7 @@ public class DocumentSubsetBitsetCacheTests extends ESTestCase {
         assertThat(cache.entryCount(), equalTo(0));
         assertThat(cache.ramBytesUsed(), equalTo(0L));
 
-        final Logger cacheLogger = LogManager.getLogger(cache.getClass());
-        final MockLogAppender mockAppender = new MockLogAppender();
-        mockAppender.start();
-        try {
-            Loggers.addAppender(cacheLogger, mockAppender);
+        try (var mockAppender = MockLogAppender.capture(cache.getClass())) {
             mockAppender.addExpectation(
                 new MockLogAppender.SeenEventExpectation(
                     "[cache full]",
@@ -264,9 +251,6 @@ public class DocumentSubsetBitsetCacheTests extends ESTestCase {
             });
 
             mockAppender.assertAllExpectationsMatched();
-        } finally {
-            Loggers.removeAppender(cacheLogger, mockAppender);
-            mockAppender.stop();
         }
     }
 
@@ -616,7 +600,8 @@ public class DocumentSubsetBitsetCacheTests extends ESTestCase {
                 null,
                 () -> true,
                 null,
-                emptyMap()
+                emptyMap(),
+                MapperMetrics.NOOP
             );
 
             context = new TestIndexContext(directory, iw, directoryReader, searchExecutionContext, leaf);
@@ -645,7 +630,7 @@ public class DocumentSubsetBitsetCacheTests extends ESTestCase {
             types.add(new MockFieldMapper(new KeywordFieldMapper.KeywordFieldType("dne-" + i)));
         }
 
-        MappingLookup mappingLookup = MappingLookup.fromMappers(Mapping.EMPTY, types, emptyList(), emptyList());
+        MappingLookup mappingLookup = MappingLookup.fromMappers(Mapping.EMPTY, types, emptyList());
 
         final Client client = mock(Client.class);
         when(client.settings()).thenReturn(Settings.EMPTY);

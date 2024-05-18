@@ -13,7 +13,9 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.util.ByteUtils;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.xcontent.XContentBuilder;
 
+import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.Collections;
 
@@ -21,9 +23,9 @@ import java.util.Collections;
 
  * Mapper for the {@code _ignored_source} field.
  *
- * A field mapper that records fields that have been ignored, along with their values. It's intended for use
- * in indexes with synthetic source to reconstruct the latter, taking into account fields that got ignored during
- * indexing.
+ * A field mapper that records fields that have been ignored or otherwise need storing their source, along with their values.
+ * It's intended for use in indexes with synthetic source to reconstruct the latter, taking into account fields that got ignored or
+ * transformed during indexing. Entries get stored in lexicographical order by field name.
  *
  * This overlaps with {@link IgnoredFieldMapper} that tracks just the ignored field names. It's worth evaluating
  * if we can replace it for all use cases to avoid duplication, assuming that the storage tradeoff is favorable.
@@ -54,10 +56,15 @@ public class IgnoredSourceFieldMapper extends MetadataFieldMapper {
     public record NameValue(String name, int parentOffset, BytesRef value) {
         String getParentFieldName() {
             // _doc corresponds to the root object
-            return (parentOffset == 0) ? "_doc" : name.substring(0, parentOffset - 1);
+            return (parentOffset == 0) ? MapperService.SINGLE_MAPPING_NAME : name.substring(0, parentOffset - 1);
         }
 
-        String getFieldName() {
+        void write(XContentBuilder builder) throws IOException {
+            builder.field(getFieldName());
+            XContentDataHelper.decodeAndWrite(builder, value());
+        }
+
+        private String getFieldName() {
             return parentOffset() == 0 ? name() : name().substring(parentOffset());
         }
     }
@@ -93,9 +100,7 @@ public class IgnoredSourceFieldMapper extends MetadataFieldMapper {
     @Override
     public void postParse(DocumentParserContext context) {
         // Ignored values are only expected in synthetic mode.
-        assert context.getIgnoredFieldValues().isEmpty()
-            || context.indexSettings().getMode().isSyntheticSourceEnabled()
-            || context.mappingLookup().isSourceSynthetic();
+        assert context.getIgnoredFieldValues().isEmpty() || context.mappingLookup().isSourceSynthetic();
         for (NameValue nameValue : context.getIgnoredFieldValues()) {
             context.doc().add(new StoredField(NAME, encode(nameValue)));
         }

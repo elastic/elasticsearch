@@ -24,6 +24,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.datastreams.lifecycle.UpdateDataStreamGlobalRetentionService;
 import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.tasks.Task;
@@ -64,7 +65,9 @@ public class DeleteDataStreamGlobalRetentionAction {
             out.writeBoolean(dryRun);
         }
 
-        public Request() {}
+        public Request(TimeValue masterNodeTimeout) {
+            super(masterNodeTimeout);
+        }
 
         public boolean dryRun() {
             return dryRun;

@@ -137,6 +137,12 @@ public class EsThreadPoolExecutor extends ThreadPoolExecutor {
         return b.toString();
     }
 
+    @Override
+    public boolean remove(Runnable task) {
+        logger.trace(() -> "task is removed " + task);
+        return super.remove(task);
+    }
+
     /**
      * Append details about this thread pool to the specified {@link StringBuilder}. All details should be appended as key/value pairs in
      * the form "%s = %s, "

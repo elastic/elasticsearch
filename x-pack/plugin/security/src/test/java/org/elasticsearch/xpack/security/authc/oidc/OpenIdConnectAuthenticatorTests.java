@@ -970,9 +970,6 @@ public class OpenIdConnectAuthenticatorTests extends OpenIdConnectTestCase {
 
     public void testLogIdTokenAndNonce() throws URISyntaxException, BadJOSEException, JOSEException, IllegalAccessException {
         final Logger logger = LogManager.getLogger(OpenIdConnectAuthenticator.class);
-        final MockLogAppender appender = new MockLogAppender();
-        appender.start();
-        Loggers.addAppender(logger, appender);
         Loggers.setLevel(logger, Level.DEBUG);
 
         final RealmConfig config = buildConfig(getBasicRealmSettings().build(), threadContext);
@@ -999,7 +996,7 @@ public class OpenIdConnectAuthenticatorTests extends OpenIdConnectTestCase {
 
         final Nonce expectedNonce = new Nonce(randomAlphaOfLength(10));
 
-        try {
+        try (var appender = MockLogAppender.capture(OpenIdConnectAuthenticator.class)) {
             appender.addExpectation(
                 new MockLogAppender.SeenEventExpectation("JWT header", logger.getName(), Level.DEBUG, "ID Token Header: " + headerString)
             );
@@ -1018,8 +1015,6 @@ public class OpenIdConnectAuthenticatorTests extends OpenIdConnectTestCase {
             // The logging message assertion is the only thing we actually care in this test
             appender.assertAllExpectationsMatched();
         } finally {
-            Loggers.removeAppender(logger, appender);
-            appender.stop();
             Loggers.setLevel(logger, (Level) null);
             openIdConnectAuthenticator.close();
         }
@@ -1062,12 +1057,9 @@ public class OpenIdConnectAuthenticatorTests extends OpenIdConnectTestCase {
 
         // In addition, capture logs to show that kept alive (TTL) is honored
         final Logger logger = LogManager.getLogger(PoolingNHttpClientConnectionManager.class);
-        final MockLogAppender appender = new MockLogAppender();
-        appender.start();
-        Loggers.addAppender(logger, appender);
         // Note: Setting an org.apache.http logger to DEBUG requires es.insecure_network_trace_enabled=true
         Loggers.setLevel(logger, Level.DEBUG);
-        try {
+        try (var appender = MockLogAppender.capture(PoolingNHttpClientConnectionManager.class)) {
             appender.addExpectation(
                 new MockLogAppender.PatternSeenEventExpectation(
                     "log",
@@ -1101,8 +1093,6 @@ public class OpenIdConnectAuthenticatorTests extends OpenIdConnectTestCase {
             appender.assertAllExpectationsMatched();
             assertThat(portTested.get(), is(true));
         } finally {
-            Loggers.removeAppender(logger, appender);
-            appender.stop();
             Loggers.setLevel(logger, (Level) null);
             authenticator.close();
             httpServer.stop(1);
@@ -1210,11 +1200,8 @@ public class OpenIdConnectAuthenticatorTests extends OpenIdConnectTestCase {
         authenticator = new OpenIdConnectAuthenticator(config, getOpConfig(), getDefaultRpConfig(), new SSLService(env), null);
 
         final Logger logger = LogManager.getLogger(OpenIdConnectAuthenticator.class);
-        final MockLogAppender appender = new MockLogAppender();
-        appender.start();
-        Loggers.addAppender(logger, appender);
         Loggers.setLevel(logger, Level.DEBUG);
-        try {
+        try (var appender = MockLogAppender.capture(OpenIdConnectAuthenticator.class)) {
             appender.addExpectation(
                 new MockLogAppender.SeenEventExpectation(
                     "log",
@@ -1227,8 +1214,6 @@ public class OpenIdConnectAuthenticatorTests extends OpenIdConnectTestCase {
             assertThat(keepAliveStrategy.getKeepAliveDuration(httpResponse, null), equalTo(effectiveTtlInMs));
             appender.assertAllExpectationsMatched();
         } finally {
-            Loggers.removeAppender(logger, appender);
-            appender.stop();
             Loggers.setLevel(logger, (Level) null);
             authenticator.close();
         }

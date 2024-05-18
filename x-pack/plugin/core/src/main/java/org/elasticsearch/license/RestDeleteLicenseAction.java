@@ -18,6 +18,7 @@ import java.io.IOException;
 import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.DELETE;
+import static org.elasticsearch.rest.RestUtils.getAckTimeout;
 import static org.elasticsearch.rest.RestUtils.getMasterNodeTimeout;
 
 public class RestDeleteLicenseAction extends BaseRestHandler {
@@ -37,7 +38,7 @@ public class RestDeleteLicenseAction extends BaseRestHandler {
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         AcknowledgedRequest.Plain deleteLicenseRequest = new AcknowledgedRequest.Plain();
-        deleteLicenseRequest.ackTimeout(request.paramAsTime("timeout", deleteLicenseRequest.ackTimeout()));
+        deleteLicenseRequest.ackTimeout(getAckTimeout(request));
         deleteLicenseRequest.masterNodeTimeout(getMasterNodeTimeout(request));
 
         return channel -> client.admin()

@@ -58,7 +58,7 @@ public class CohereEmbeddingsResponseEntityTests extends ESTestCase {
         MatcherAssert.assertThat(parsedResults, instanceOf(TextEmbeddingResults.class));
         MatcherAssert.assertThat(
             ((TextEmbeddingResults) parsedResults).embeddings(),
-            is(List.of(new TextEmbeddingResults.Embedding(List.of(-0.0018434525F, 0.01777649F))))
+            is(List.of(new TextEmbeddingResults.Embedding(new float[] { -0.0018434525F, 0.01777649F })))
         );
     }
 
@@ -96,7 +96,7 @@ public class CohereEmbeddingsResponseEntityTests extends ESTestCase {
 
         MatcherAssert.assertThat(
             parsedResults.embeddings(),
-            is(List.of(new TextEmbeddingResults.Embedding(List.of(-0.0018434525F, 0.01777649F))))
+            is(List.of(new TextEmbeddingResults.Embedding(new float[] { -0.0018434525F, 0.01777649F })))
         );
     }
 
@@ -140,7 +140,7 @@ public class CohereEmbeddingsResponseEntityTests extends ESTestCase {
 
         MatcherAssert.assertThat(
             parsedResults.embeddings(),
-            is(List.of(new TextEmbeddingResults.Embedding(List.of(-0.0018434525F, 0.01777649F))))
+            is(List.of(new TextEmbeddingResults.Embedding(new float[] { -0.0018434525F, 0.01777649F })))
         );
     }
 
@@ -184,7 +184,7 @@ public class CohereEmbeddingsResponseEntityTests extends ESTestCase {
 
         MatcherAssert.assertThat(
             parsedResults.embeddings(),
-            is(List.of(new TextEmbeddingByteResults.Embedding(List.of((byte) -1, (byte) 0))))
+            is(List.of(new TextEmbeddingByteResults.Embedding(new byte[] { (byte) -1, (byte) 0 })))
         );
     }
 
@@ -222,7 +222,7 @@ public class CohereEmbeddingsResponseEntityTests extends ESTestCase {
 
         MatcherAssert.assertThat(
             parsedResults.embeddings(),
-            is(List.of(new TextEmbeddingByteResults.Embedding(List.of((byte) -1, (byte) 0))))
+            is(List.of(new TextEmbeddingByteResults.Embedding(new byte[] { (byte) -1, (byte) 0 })))
         );
     }
 
@@ -264,8 +264,8 @@ public class CohereEmbeddingsResponseEntityTests extends ESTestCase {
             parsedResults.embeddings(),
             is(
                 List.of(
-                    new TextEmbeddingResults.Embedding(List.of(-0.0018434525F, 0.01777649F)),
-                    new TextEmbeddingResults.Embedding(List.of(-0.123F, 0.123F))
+                    new TextEmbeddingResults.Embedding(new float[] { -0.0018434525F, 0.01777649F }),
+                    new TextEmbeddingResults.Embedding(new float[] { -0.123F, 0.123F })
                 )
             )
         );
@@ -311,8 +311,8 @@ public class CohereEmbeddingsResponseEntityTests extends ESTestCase {
             parsedResults.embeddings(),
             is(
                 List.of(
-                    new TextEmbeddingResults.Embedding(List.of(-0.0018434525F, 0.01777649F)),
-                    new TextEmbeddingResults.Embedding(List.of(-0.123F, 0.123F))
+                    new TextEmbeddingResults.Embedding(new float[] { -0.0018434525F, 0.01777649F }),
+                    new TextEmbeddingResults.Embedding(new float[] { -0.123F, 0.123F })
                 )
             )
         );

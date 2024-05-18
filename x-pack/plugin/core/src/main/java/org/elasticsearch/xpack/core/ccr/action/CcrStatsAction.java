@@ -45,7 +45,9 @@ public class CcrStatsAction extends ActionType<CcrStatsAction.Response> {
             }
         }
 
-        public Request() {}
+        public Request() {
+            super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT);
+        }
 
         @Override
         public ActionRequestValidationException validate() {
@@ -77,17 +79,17 @@ public class CcrStatsAction extends ActionType<CcrStatsAction.Response> {
                 return false;
             }
             Request that = (Request) o;
-            return Objects.equals(this.timeout, that.timeout) && Objects.equals(this.masterNodeTimeout, that.masterNodeTimeout);
+            return Objects.equals(this.timeout, that.timeout) && Objects.equals(this.masterNodeTimeout(), that.masterNodeTimeout());
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(this.timeout, this.masterNodeTimeout);
+            return Objects.hash(this.timeout, this.masterNodeTimeout());
         }
 
         @Override
         public String toString() {
-            return "CcrStatsAction.Request[timeout=" + timeout + ", masterNodeTimeout=" + masterNodeTimeout + "]";
+            return "CcrStatsAction.Request[timeout=" + timeout + ", masterNodeTimeout=" + masterNodeTimeout() + "]";
         }
     }
 

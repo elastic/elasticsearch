@@ -104,6 +104,7 @@ public final class InnerHitsPhase implements FetchSubPhase {
                 }
             }
             var h = fetchResult.hits();
+            assert hit.isPooled() || h.isPooled() == false;
             results.put(entry.getKey(), h);
             h.mustIncRef();
         }

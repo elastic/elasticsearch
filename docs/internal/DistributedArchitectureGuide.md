@@ -1,6 +1,14 @@
-# Distributed Area Team Internals
+# Distributed Area Internals
 
-(Summary, brief discussion of our features)
+The Distributed Area contains indexing and coordination systems.
+
+The index path stretches from the user REST command through shard routing down to each individual shard's translog and storage
+engine. Reindexing is effectively reading from a source index and writing to a destination index (perhaps on different nodes).
+The coordination side includes cluster coordination, shard allocation, cluster autoscaling stats, task management, and cross
+cluster replication. Less obvious coordination systems include networking, the discovery plugin system, the snapshot/restore
+logic, and shard recovery.
+
+A guide to the general Elasticsearch components can be found [here](https://github.com/elastic/elasticsearch/blob/main/docs/internal/GeneralArchitectureGuide.md).
 
 # Networking
 
@@ -10,70 +18,7 @@
 
 ### ActionListener
 
-Callbacks are used extensively throughout Elasticsearch because they enable us to write asynchronous and nonblocking code, i.e. code which
-doesn't necessarily compute a result straight away but also doesn't block the calling thread waiting for the result to become available.
-They support several useful control flows:
-
-- They can be completed immediately on the calling thread.
-- They can be completed concurrently on a different thread.
-- They can be stored in a data structure and completed later on when the system reaches a particular state.
-- Most commonly, they can be passed on to other methods that themselves require a callback.
-- They can be wrapped in another callback which modifies the behaviour of the original callback, perhaps adding some extra code to run
-  before or after completion, before passing them on.
-
-`ActionListener` is a general-purpose callback interface that is used extensively across the Elasticsearch codebase. `ActionListener` is
-used pretty much everywhere that needs to perform some asynchronous and nonblocking computation. The uniformity makes it easier to compose
-parts of the system together without needing to build adapters to convert back and forth between different kinds of callback. It also makes
-it easier to develop the skills needed to read and understand all the asynchronous code, although this definitely takes practice and is
-certainly not easy in an absolute sense. Finally, it has allowed us to build a rich library for working with `ActionListener` instances
-themselves, creating new instances out of existing ones and completing them in interesting ways. See for instance:
-
-- all the static methods on [ActionListener](https://github.com/elastic/elasticsearch/blob/v8.12.2/server/src/main/java/org/elasticsearch/action/ActionListener.java) itself
-- [`ThreadedActionListener`](https://github.com/elastic/elasticsearch/blob/v8.12.2/server/src/main/java/org/elasticsearch/action/support/ThreadedActionListener.java) for forking work elsewhere
-- [`RefCountingListener`](https://github.com/elastic/elasticsearch/blob/v8.12.2/server/src/main/java/org/elasticsearch/action/support/RefCountingListener.java) for running work in parallel
-- [`SubscribableListener`](https://github.com/elastic/elasticsearch/blob/v8.12.2/server/src/main/java/org/elasticsearch/action/support/SubscribableListener.java) for constructing flexible workflows
-
-Callback-based asynchronous code can easily call regular synchronous code, but synchronous code cannot run callback-based asynchronous code
-without blocking the calling thread until the callback is called back. This blocking is at best undesirable (threads are too expensive to
-waste with unnecessary blocking) and at worst outright broken (the blocking can lead to deadlock). Unfortunately this means that most of our
-code ends up having to be written with callbacks, simply because it's ultimately calling into some other code that takes a callback. The
-entry points for all Elasticsearch APIs are callback-based (e.g. REST APIs all start at
-[`org.elasticsearch.rest.BaseRestHandler#prepareRequest`](https://github.com/elastic/elasticsearch/blob/v8.12.2/server/src/main/java/org/elasticsearch/rest/BaseRestHandler.java#L158-L171),
-and transport APIs all start at
-[`org.elasticsearch.action.support.TransportAction#doExecute`](https://github.com/elastic/elasticsearch/blob/v8.12.2/server/src/main/java/org/elasticsearch/action/support/TransportAction.java#L65))
-and the whole system fundamentally works in terms of an event loop (a `io.netty.channel.EventLoop`) which processes network events via
-callbacks.
-
-`ActionListener` is not an _ad-hoc_ invention. Formally speaking, it is our implementation of the general concept of a continuation in the
-sense of [_continuation-passing style_](https://en.wikipedia.org/wiki/Continuation-passing_style) (CPS): an extra argument to a function
-which defines how to continue the computation when the result is available. This is in contrast to _direct style_ which is the more usual
-style of calling methods that return values directly back to the caller so they can continue executing as normal. There's essentially two
-ways that computation can continue in Java (it can return a value or it can throw an exception) which is why `ActionListener` has both an
-`onResponse()` and an `onFailure()` method.
-
-CPS is strictly more expressive than direct style: direct code can be mechanically translated into continuation-passing style, but CPS also
-enables all sorts of other useful control structures such as forking work onto separate threads, possibly to be executed in parallel,
-perhaps even across multiple nodes, or possibly collecting a list of continuations all waiting for the same condition to be satisfied before
-proceeding (e.g.
-[`SubscribableListener`](https://github.com/elastic/elasticsearch/blob/v8.12.2/server/src/main/java/org/elasticsearch/action/support/SubscribableListener.java)
-amongst many others). Some languages have first-class support for continuations (e.g. the `async` and `await` primitives in C#) allowing the
-programmer to write code in direct style away from those exotic control structures, but Java does not. That's why we have to manipulate all
-the callbacks ourselves.
-
-Strictly speaking, CPS requires that a computation _only_ continues by calling the continuation. In Elasticsearch, this means that
-asynchronous methods must have `void` return type and may not throw any exceptions. This is mostly the case in our code as written today,
-and is a good guiding principle, but we don't enforce void exceptionless methods and there are some deviations from this rule. In
-particular, it's not uncommon to permit some methods to throw an exception, using things like
-[`ActionListener#run`](https://github.com/elastic/elasticsearch/blob/v8.12.2/server/src/main/java/org/elasticsearch/action/ActionListener.java#L381-L390)
-(or an equivalent `try ... catch ...` block) further up the stack to handle it. Some methods also take (and may complete) an
-`ActionListener` parameter, but still return a value separately for other local synchronous work.
-
-This pattern is often used in the transport action layer with the use of the
-[ChannelActionListener](https://github.com/elastic/elasticsearch/blob/v8.12.2/server/src/main/java/org/elasticsearch/action/support/ChannelActionListener.java)
-class, which wraps a `TransportChannel` produced by the transport layer. `TransportChannel` implementations can hold a reference to a Netty
-channel with which to pass the response back to the network caller. Netty has a many-to-one association of network callers to channels, so a
-call taking a long time generally won't hog resources: it's cheap. A transport action can take hours to respond and that's alright, barring
-caller timeouts.
+See the [Javadocs for `ActionListener`](https://github.com/elastic/elasticsearch/blob/main/server/src/main/java/org/elasticsearch/action/ActionListener.java)
 
 (TODO: add useful starter references and explanations for a range of Listener classes. Reference the Netty section.)
 
@@ -132,6 +77,14 @@ are only used for internode operations/communications.
 (long running actions should be forked off of the Netty thread. Keep short operations to avoid forking costs)
 
 ### Work Queues
+
+### RestClient
+
+The `RestClient` is primarily used in testing, to send requests against cluster nodes in the same format as would users. There
+are some uses of `RestClient`, via `RestClientBuilder`, in the production code. For example, remote reindex leverages the
+`RestClient` internally as the REST client to the remote elasticsearch cluster, and to take advantage of the compatibility of
+`RestClient` requests with much older elasticsearch versions. The `RestClient` is also used externally by the `Java API Client`
+to communicate with Elasticsearch.
 
 # Cluster Coordination
 
@@ -292,9 +245,101 @@ works in parallel with the storage engine.)
 
 # Autoscaling
 
-(Reactive and proactive autoscaling. Explain that we surface recommendations, how control plane uses it.)
+The Autoscaling API in ES (Elasticsearch) uses cluster and node level statistics to provide a recommendation
+for a cluster size to support the current cluster data and active workloads. ES Autoscaling is paired
+with an ES Cloud service that periodically polls the ES elected master node for suggested cluster
+changes. The cloud service will add more resources to the cluster based on Elasticsearch's recommendation.
+Elasticsearch by itself cannot automatically scale.
 
-(Sketch / list the different deciders that we have, and then also how we use information from each to make a recommendation.)
+Autoscaling recommendations are tailored for the user [based on user defined policies][], composed of data
+roles (hot, frozen, etc) and [deciders][]. There's a public [webinar on autoscaling][], as well as the
+public [Autoscaling APIs] docs.
+
+Autoscaling's current implementation is based primary on storage requirements, as well as memory capacity
+for ML and frozen tier. It does not yet support scaling related to search load. Paired with ES Cloud,
+autoscaling only scales upward, not downward, except for ML nodes that do get scaled up _and_ down.
+
+[based on user defined policies]: https://www.elastic.co/guide/en/elasticsearch/reference/current/xpack-autoscaling.html
+[deciders]: https://www.elastic.co/guide/en/elasticsearch/reference/current/autoscaling-deciders.html
+[webinar on autoscaling]: https://www.elastic.co/webinars/autoscaling-from-zero-to-production-seamlessly
+[Autoscaling APIs]: https://www.elastic.co/guide/en/elasticsearch/reference/current/autoscaling-apis.html
+
+### Plugin REST and TransportAction entrypoints
+
+Autoscaling is a [plugin][]. All the REST APIs can be found in [autoscaling/rest/][].
+`GetAutoscalingCapacityAction` is the capacity calculation operation REST endpoint, as opposed to the
+other rest commands that get/set/delete the policies guiding the capacity calculation. The Transport
+Actions can be found in [autoscaling/action/], where [TransportGetAutoscalingCapacityAction][] is the
+entrypoint on the master node for calculating the optimal cluster resources based on the autoscaling
+policies.
+
+[plugin]: https://github.com/elastic/elasticsearch/blob/v8.13.2/x-pack/plugin/autoscaling/src/main/java/org/elasticsearch/xpack/autoscaling/Autoscaling.java#L72
+[autoscaling/rest/]: https://github.com/elastic/elasticsearch/tree/v8.13.2/x-pack/plugin/autoscaling/src/main/java/org/elasticsearch/xpack/autoscaling/rest
+[autoscaling/action/]: https://github.com/elastic/elasticsearch/tree/v8.13.2/x-pack/plugin/autoscaling/src/main/java/org/elasticsearch/xpack/autoscaling/action
+[TransportGetAutoscalingCapacityAction]: https://github.com/elastic/elasticsearch/blob/v8.13.2/x-pack/plugin/autoscaling/src/main/java/org/elasticsearch/xpack/autoscaling/action/TransportGetAutoscalingCapacityAction.java#L82-L98
+
+### How cluster capacity is determined
+
+[AutoscalingMetadata][] implements [Metadata.Custom][] in order to persist autoscaling policies. Each
+Decider is an implementation of [AutoscalingDeciderService][]. The [AutoscalingCalculateCapacityService][]
+is responsible for running the calculation.
+
+[TransportGetAutoscalingCapacityAction.computeCapacity] is the entry point to [AutoscalingCalculateCapacityService.calculate],
+which creates a [AutoscalingDeciderResults][] for [each autoscaling policy][]. [AutoscalingDeciderResults.toXContent][] then
+determines the [maximum required capacity][] to return to the caller. [AutoscalingCapacity][] is the base unit of a cluster
+resources recommendation.
+
+The `TransportGetAutoscalingCapacityAction` response is cached to prevent concurrent callers
+overloading the system: the operation is expensive. `TransportGetAutoscalingCapacityAction` contains
+a [CapacityResponseCache][]. `TransportGetAutoscalingCapacityAction.masterOperation`
+calls [through the CapacityResponseCache][], into the `AutoscalingCalculateCapacityService`, to handle
+concurrent callers.
+
+[AutoscalingMetadata]: https://github.com/elastic/elasticsearch/blob/v8.13.2/x-pack/plugin/autoscaling/src/main/java/org/elasticsearch/xpack/autoscaling/AutoscalingMetadata.java#L38
+[Metadata.Custom]: https://github.com/elastic/elasticsearch/blob/v8.13.2/server/src/main/java/org/elasticsearch/cluster/metadata/Metadata.java#L141-L145
+[AutoscalingDeciderService]: https://github.com/elastic/elasticsearch/blob/v8.13.2/x-pack/plugin/autoscaling/src/main/java/org/elasticsearch/xpack/autoscaling/capacity/AutoscalingDeciderService.java#L16-L19
+[AutoscalingCalculateCapacityService]: https://github.com/elastic/elasticsearch/blob/v8.13.2/x-pack/plugin/autoscaling/src/main/java/org/elasticsearch/xpack/autoscaling/capacity/AutoscalingCalculateCapacityService.java#L43
+
+[TransportGetAutoscalingCapacityAction.computeCapacity]: https://github.com/elastic/elasticsearch/blob/v8.13.2/x-pack/plugin/autoscaling/src/main/java/org/elasticsearch/xpack/autoscaling/action/TransportGetAutoscalingCapacityAction.java#L102-L108
+[AutoscalingCalculateCapacityService.calculate]: https://github.com/elastic/elasticsearch/blob/v8.13.2/x-pack/plugin/autoscaling/src/main/java/org/elasticsearch/xpack/autoscaling/capacity/AutoscalingCalculateCapacityService.java#L108-L139
+[AutoscalingDeciderResults]: https://github.com/elastic/elasticsearch/blob/v8.13.2/x-pack/plugin/autoscaling/src/main/java/org/elasticsearch/xpack/autoscaling/capacity/AutoscalingDeciderResults.java#L34-L38
+[each autoscaling policy]: https://github.com/elastic/elasticsearch/blob/v8.13.2/x-pack/plugin/autoscaling/src/main/java/org/elasticsearch/xpack/autoscaling/capacity/AutoscalingCalculateCapacityService.java#L124-L131
+[AutoscalingDeciderResults.toXContent]: https://github.com/elastic/elasticsearch/blob/v8.13.2/x-pack/plugin/autoscaling/src/main/java/org/elasticsearch/xpack/autoscaling/capacity/AutoscalingDeciderResults.java#L78
+[maximum required capacity]: https://github.com/elastic/elasticsearch/blob/v8.13.2/x-pack/plugin/autoscaling/src/main/java/org/elasticsearch/xpack/autoscaling/capacity/AutoscalingDeciderResults.java#L105-L116
+[AutoscalingCapacity]: https://github.com/elastic/elasticsearch/blob/v8.13.2/x-pack/plugin/autoscaling/src/main/java/org/elasticsearch/xpack/autoscaling/capacity/AutoscalingCapacity.java#L27-L35
+
+[CapacityResponseCache]: https://github.com/elastic/elasticsearch/blob/v8.13.2/x-pack/plugin/autoscaling/src/main/java/org/elasticsearch/xpack/autoscaling/action/TransportGetAutoscalingCapacityAction.java#L44-L47
+[through the CapacityResponseCache]: https://github.com/elastic/elasticsearch/blob/v8.13.2/x-pack/plugin/autoscaling/src/main/java/org/elasticsearch/xpack/autoscaling/action/TransportGetAutoscalingCapacityAction.java#L97
+
+### Where the data comes from
+
+The Deciders each pull data from different sources as needed to inform their decisions. The
+[DiskThresholdMonitor][] is one such data source. The Monitor runs on the master node and maintains
+lists of nodes that exceed various disk size thresholds. [DiskThresholdSettings][] contains the
+threshold settings with which the `DiskThresholdMonitor` runs.
+
+[DiskThresholdMonitor]: https://github.com/elastic/elasticsearch/blob/v8.13.2/server/src/main/java/org/elasticsearch/cluster/routing/allocation/DiskThresholdMonitor.java#L53-L58
+[DiskThresholdSettings]: https://github.com/elastic/elasticsearch/blob/v8.13.2/server/src/main/java/org/elasticsearch/cluster/routing/allocation/DiskThresholdSettings.java#L24-L27
+
+### Deciders
+
+The `ReactiveStorageDeciderService` tracks information that demonstrates storage limitations are causing
+problems in the cluster. It uses [an algorithm defined here][]. Some examples are
+- information from the `DiskThresholdMonitor` to find out whether nodes are exceeding their storage capacity
+- number of unassigned shards that failed allocation because of insufficient storage
+- the max shard size and minimum node size, and whether these can be satisfied with the existing infrastructure
+
+[an algorithm defined here]: https://github.com/elastic/elasticsearch/blob/v8.13.2/x-pack/plugin/autoscaling/src/main/java/org/elasticsearch/xpack/autoscaling/storage/ReactiveStorageDeciderService.java#L158-L176
+
+The `ProactiveStorageDeciderService` maintains a forecast window that [defaults to 30 minutes][]. It only
+runs on data streams (ILM, rollover, etc), not regular indexes. It looks at past [index changes][] that
+took place within the forecast window to [predict][] resources that will be needed shortly.
+
+[defaults to 30 minutes]: https://github.com/elastic/elasticsearch/blob/v8.13.2/x-pack/plugin/autoscaling/src/main/java/org/elasticsearch/xpack/autoscaling/storage/ProactiveStorageDeciderService.java#L32
+[index changes]: https://github.com/elastic/elasticsearch/blob/v8.13.2/x-pack/plugin/autoscaling/src/main/java/org/elasticsearch/xpack/autoscaling/storage/ProactiveStorageDeciderService.java#L79-L83
+[predict]: https://github.com/elastic/elasticsearch/blob/v8.13.2/x-pack/plugin/autoscaling/src/main/java/org/elasticsearch/xpack/autoscaling/storage/ProactiveStorageDeciderService.java#L85-L95
+
+There are several more Decider Services, implementing the `AutoscalingDeciderService` interface.
 
 # Snapshot / Restore
 

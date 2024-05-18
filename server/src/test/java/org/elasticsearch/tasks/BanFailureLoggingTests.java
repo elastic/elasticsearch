@@ -9,14 +9,12 @@
 package org.elasticsearch.tasks;
 
 import org.apache.logging.log4j.Level;
-import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.admin.cluster.node.tasks.TaskManagerTestCase;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.VersionInformation;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.TimeValue;
@@ -171,26 +169,22 @@ public class BanFailureLoggingTests extends TaskManagerTestCase {
                 new ChildResponseHandler(() -> parentTransportService.getTaskManager().unregister(parentTask))
             );
 
-            MockLogAppender appender = new MockLogAppender();
-            appender.start();
-            resources.add(appender::stop);
-            Loggers.addAppender(LogManager.getLogger(TaskCancellationService.class), appender);
-            resources.add(() -> Loggers.removeAppender(LogManager.getLogger(TaskCancellationService.class), appender));
+            try (MockLogAppender appender = MockLogAppender.capture(TaskCancellationService.class)) {
+                for (MockLogAppender.LoggingExpectation expectation : expectations.apply(childTransportService.getLocalDiscoNode())) {
+                    appender.addExpectation(expectation);
+                }
 
-            for (MockLogAppender.LoggingExpectation expectation : expectations.apply(childTransportService.getLocalDiscoNode())) {
-                appender.addExpectation(expectation);
+                final PlainActionFuture<Void> cancellationFuture = new PlainActionFuture<>();
+                parentTransportService.getTaskManager().cancelTaskAndDescendants(parentTask, "test", true, cancellationFuture);
+                try {
+                    cancellationFuture.actionGet(TimeValue.timeValueSeconds(10));
+                } catch (NodeDisconnectedException e) {
+                    // acceptable; we mostly ignore the result of cancellation anyway
+                }
+
+                // assert busy since failure to remove a ban may be logged after cancellation completed
+                assertBusy(appender::assertAllExpectationsMatched);
             }
-
-            final PlainActionFuture<Void> cancellationFuture = new PlainActionFuture<>();
-            parentTransportService.getTaskManager().cancelTaskAndDescendants(parentTask, "test", true, cancellationFuture);
-            try {
-                cancellationFuture.actionGet(TimeValue.timeValueSeconds(10));
-            } catch (NodeDisconnectedException e) {
-                // acceptable; we mostly ignore the result of cancellation anyway
-            }
-
-            // assert busy since failure to remove a ban may be logged after cancellation completed
-            assertBusy(appender::assertAllExpectationsMatched);
 
             assertTrue("child tasks did not finish in time", childTaskLock.tryLock(15, TimeUnit.SECONDS));
         } finally {

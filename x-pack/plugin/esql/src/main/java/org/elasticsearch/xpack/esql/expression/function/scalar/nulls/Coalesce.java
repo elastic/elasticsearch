@@ -52,12 +52,12 @@ public class Coalesce extends EsqlScalarFunction implements OptionalArgument {
         @Param(
             name = "first",
             type = { "boolean", "text", "integer", "keyword", "long" },
-            description = "Expression to evaluate"
+            description = "Expression to evaluate."
         ) Expression first,
         @Param(
             name = "rest",
             type = { "boolean", "text", "integer", "keyword", "long" },
-            description = "Other expression to evaluate",
+            description = "Other expression to evaluate.",
             optional = true
         ) List<Expression> rest
     ) {

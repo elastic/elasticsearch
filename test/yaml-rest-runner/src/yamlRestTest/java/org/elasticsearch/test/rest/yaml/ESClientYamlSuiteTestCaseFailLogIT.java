@@ -11,8 +11,6 @@ package org.elasticsearch.test.rest.yaml;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.apache.logging.log4j.Level;
-import org.apache.logging.log4j.LogManager;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.test.MockLogAppender;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 
@@ -35,11 +33,7 @@ public class ESClientYamlSuiteTestCaseFailLogIT extends ESClientYamlSuiteTestCas
     )
     @Override
     public void test() throws IOException {
-        final MockLogAppender mockLogAppender = new MockLogAppender();
-        try {
-            mockLogAppender.start();
-            Loggers.addAppender(LogManager.getLogger(ESClientYamlSuiteTestCaseFailLogIT.class), mockLogAppender);
-
+        try (var mockLogAppender = MockLogAppender.capture(ESClientYamlSuiteTestCaseFailLogIT.class)) {
             mockLogAppender.addExpectation(
                 new MockLogAppender.SeenEventExpectation(
                     "message with dump of the test yaml",
@@ -68,9 +62,6 @@ public class ESClientYamlSuiteTestCaseFailLogIT extends ESClientYamlSuiteTestCas
             }
 
             mockLogAppender.assertAllExpectationsMatched();
-        } finally {
-            Loggers.removeAppender(LogManager.getLogger(ESClientYamlSuiteTestCaseFailLogIT.class), mockLogAppender);
-            mockLogAppender.stop();
         }
     }
 }

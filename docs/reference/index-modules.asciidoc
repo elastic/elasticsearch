@@ -273,7 +273,7 @@ are ignored for this index.
 [[index-max-regex-length]]
  `index.max_regex_length`::
 
-    The maximum length of regex that can be used in Regexp Query. It also applies to Prefix Query.
+    The maximum length of value that can be used in `regexp` or `prefix` query.
     Defaults to `1000`.
 
 [[index-query-default-field]]

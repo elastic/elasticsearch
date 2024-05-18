@@ -18,7 +18,6 @@ import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.ConstantFieldType;
@@ -62,9 +61,6 @@ public class PrefixQueryBuilder extends AbstractQueryBuilder<PrefixQueryBuilder>
         }
         if (value == null) {
             throw new IllegalArgumentException("value cannot be null");
-        }
-        if (value.length() > IndexSettings.MAX_REGEX_LENGTH_SETTING.get(Settings.EMPTY)) {
-            throw new IllegalArgumentException("value length exceeds maximum allowed length");
         }
         this.fieldName = fieldName;
         this.value = value;
@@ -214,6 +210,20 @@ public class PrefixQueryBuilder extends AbstractQueryBuilder<PrefixQueryBuilder>
 
     @Override
     protected Query doToQuery(SearchExecutionContext context) throws IOException {
+        final int maxAllowedRegexLength = context.getIndexSettings().getMaxRegexLength();
+        if (value.length() > maxAllowedRegexLength) {
+            throw new IllegalArgumentException(
+                "The length of prefix ["
+                    + value.length()
+                    + "] used in the Prefix Query request has exceeded "
+                    + "the allowed maximum of ["
+                    + maxAllowedRegexLength
+                    + "]. "
+                    + "This maximum can be set by changing the ["
+                    + IndexSettings.MAX_REGEX_LENGTH_SETTING.getKey()
+                    + "] index level setting."
+            );
+        }
         MultiTermQuery.RewriteMethod method = QueryParsers.parseRewriteMethod(rewrite, null, LoggingDeprecationHandler.INSTANCE);
 
         MappedFieldType fieldType = context.getFieldType(fieldName);

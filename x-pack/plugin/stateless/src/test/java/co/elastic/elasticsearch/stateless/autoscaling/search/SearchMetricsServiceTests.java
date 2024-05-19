@@ -368,8 +368,7 @@ public class SearchMetricsServiceTests extends ESTestCase {
         currentRelativeTimeInNanos.addAndGet(ACCURATE_METRICS_WINDOW_SETTING.get(Settings.EMPTY).nanos() + 1);
         currentRelativeTimeInNanos.addAndGet(STALE_METRICS_CHECK_INTERVAL_SETTING.get(Settings.EMPTY).nanos() + 1);
 
-        var mockLogAppender = new MockLogAppender();
-        try (var ignored = mockLogAppender.capturing(SearchMetricsService.class)) {
+        try (var mockLogAppender = MockLogAppender.capture(SearchMetricsService.class)) {
             // Verify that all the shards are reported as stale
             for (int i = 0; i < numShards; i++) {
                 mockLogAppender.addExpectation(

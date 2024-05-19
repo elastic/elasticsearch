@@ -2274,9 +2274,7 @@ public class StatelessRecoveryIT extends AbstractStatelessIntegTestCase {
                 )
         );
 
-        final var mockLogAppender = new MockLogAppender();
-
-        try (var ignored = mockLogAppender.capturing(IndicesClusterStateService.class)) {
+        try (var mockLogAppender = MockLogAppender.capture(IndicesClusterStateService.class)) {
             mockLogAppender.addExpectation(
                 new MockLogAppender.UnseenEventExpectation("warnings", IndicesClusterStateService.class.getCanonicalName(), Level.WARN, "*")
             );
@@ -2324,9 +2322,7 @@ public class StatelessRecoveryIT extends AbstractStatelessIntegTestCase {
             );
         });
 
-        final var mockLogAppender = new MockLogAppender();
-
-        try (var ignored = mockLogAppender.capturing(IndicesClusterStateService.class)) {
+        try (var mockLogAppender = MockLogAppender.capture(IndicesClusterStateService.class)) {
             mockLogAppender.addExpectation(
                 new MockLogAppender.UnseenEventExpectation(
                     "warnings",

@@ -65,7 +65,7 @@ public class DataStreamLifecycleHealthIndicatorService implements HealthIndicato
             // DSL reports health information on every run, so data will eventually arrive to the health node. In the meantime, let's
             // report UNKNOWN health
             return createIndicator(
-                HealthStatus.GREEN,
+                HealthStatus.UNKNOWN,
                 "No data stream lifecycle health data available yet. Health information will be reported after the first run.",
                 HealthIndicatorDetails.EMPTY,
                 List.of(),

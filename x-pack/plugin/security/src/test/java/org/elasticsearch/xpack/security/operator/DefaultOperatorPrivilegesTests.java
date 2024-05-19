@@ -101,10 +101,9 @@ public class DefaultOperatorPrivilegesTests extends ESTestCase {
 
         // Will mark for the operator user
         final Logger logger = LogManager.getLogger(OperatorPrivileges.class);
-        final MockLogAppender appender = new MockLogAppender();
         Loggers.setLevel(logger, Level.DEBUG);
 
-        try (var ignored = appender.capturing(OperatorPrivileges.class)) {
+        try (var appender = MockLogAppender.capture(OperatorPrivileges.class)) {
             appender.addExpectation(
                 new MockLogAppender.SeenEventExpectation(
                     "marking",
@@ -210,10 +209,9 @@ public class DefaultOperatorPrivilegesTests extends ESTestCase {
         when(xPackLicenseState.isAllowed(Security.OPERATOR_PRIVILEGES_FEATURE)).thenReturn(licensed);
 
         final Logger logger = LogManager.getLogger(OperatorPrivileges.class);
-        final MockLogAppender appender = new MockLogAppender();
         Loggers.setLevel(logger, Level.DEBUG);
 
-        try (var ignored = appender.capturing(OperatorPrivileges.class)) {
+        try (var appender = MockLogAppender.capture(OperatorPrivileges.class)) {
             final RestoreSnapshotRequest restoreSnapshotRequest = mock(RestoreSnapshotRequest.class);
             appender.addExpectation(
                 new MockLogAppender.SeenEventExpectation(

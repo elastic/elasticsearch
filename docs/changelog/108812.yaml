@@ -1,0 +1,5 @@
+pr: 108812
+summary: Fix Data Stream Lifecycle health indicator to return UNKNOWN
+area: Health
+type: bug
+issues: []

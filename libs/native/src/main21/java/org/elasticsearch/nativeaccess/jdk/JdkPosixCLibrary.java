@@ -26,6 +26,7 @@ import static java.lang.foreign.ValueLayout.ADDRESS;
 import static java.lang.foreign.ValueLayout.JAVA_INT;
 import static java.lang.foreign.ValueLayout.JAVA_LONG;
 import static org.elasticsearch.nativeaccess.jdk.LinkerHelper.downcallHandle;
+import static org.elasticsearch.nativeaccess.jdk.MemorySegmentUtil.varHandleDropOffset;
 
 class JdkPosixCLibrary implements PosixCLibrary {
 
@@ -91,8 +92,8 @@ class JdkPosixCLibrary implements PosixCLibrary {
 
     static class JdkRLimit implements RLimit {
         private static final MemoryLayout layout = MemoryLayout.structLayout(JAVA_LONG, JAVA_LONG);
-        private static final VarHandle rlim_cur$vh = layout.varHandle(groupElement(0));
-        private static final VarHandle rlim_max$vh = layout.varHandle(groupElement(1));
+        private static final VarHandle rlim_cur$vh = varHandleDropOffset(layout.varHandle(groupElement(0)));
+        private static final VarHandle rlim_max$vh = varHandleDropOffset(layout.varHandle(groupElement(1)));
 
         private final MemorySegment segment;
 
@@ -103,12 +104,12 @@ class JdkPosixCLibrary implements PosixCLibrary {
 
         @Override
         public long rlim_cur() {
-            return (long) rlim_cur$vh.get(segment, 0);
+            return (long) rlim_cur$vh.get(segment, 0L);
         }
 
         @Override
         public long rlim_max() {
-            return (long) rlim_max$vh.get(segment, 0);
+            return (long) rlim_max$vh.get(segment, 0L);
         }
 
         @Override

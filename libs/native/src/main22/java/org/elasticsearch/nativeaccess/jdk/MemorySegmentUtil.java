@@ -10,6 +10,7 @@ package org.elasticsearch.nativeaccess.jdk;
 
 import java.lang.foreign.Arena;
 import java.lang.foreign.MemorySegment;
+import java.lang.invoke.VarHandle;
 
 public class MemorySegmentUtil {
 
@@ -19,6 +20,13 @@ public class MemorySegmentUtil {
 
     static MemorySegment allocateString(Arena arena, String s) {
         return arena.allocateFrom(s);
+    }
+
+    // MemorySegment.varHandle changed between 21 and 22. The resulting varHandle now requires an additional
+    // long offset parameter. We pass the offset in at runtime, but drop it for Java 21. Here we just pass
+    // through the varHandle
+    static VarHandle varHandleDropOffset(VarHandle varHandle) {
+        return varHandle;
     }
 
     private MemorySegmentUtil() {}

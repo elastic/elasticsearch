@@ -34,6 +34,7 @@ public class CoreWithSecurityClientYamlTestSuiteIT extends ESClientYamlSuiteTest
         .module("mapper-extras")
         .module("rank-eval")
         .module("x-pack-ilm")
+        .module("x-pack-slm")
         .module("x-pack-stack")
         .module("ingest-common")
         .module("reindex")

@@ -201,7 +201,6 @@ public class S3ObjectStoreTests extends AbstractMockObjectStoreIntegTestCase {
         final String masterAndIndexNode = startMasterAndIndexNode();
         final String searchNode = startSearchNode();
 
-        final var mockLogAppender = new MockLogAppender();
         final String loggerName = "org.elasticsearch.repositories.s3.S3RetryingInputStream";
 
         enum Status {
@@ -212,7 +211,7 @@ public class S3ObjectStoreTests extends AbstractMockObjectStoreIntegTestCase {
 
         record CallSite(String threadName, String commitFile) {}
 
-        try (var ignored = mockLogAppender.capturing(loggerName)) {
+        try (var mockLogAppender = MockLogAppender.capture(loggerName)) {
             // On each call site that experiences an initial failure, we expect to see a pairing of
             // failure messages (can be multiple) and the eventual success message.
             // We use a LoggingExpectation to perform bookkeeping for observed log messages and
@@ -346,10 +345,9 @@ public class S3ObjectStoreTests extends AbstractMockObjectStoreIntegTestCase {
         final String masterAndIndexNode = startMasterAndIndexNode();
         final String searchNode = startSearchNode();
 
-        final var mockLogAppender = new MockLogAppender();
         final String loggerName = "org.elasticsearch.repositories.s3.S3RetryingInputStream";
 
-        try (var ignored = mockLogAppender.capturing(loggerName)) {
+        try (var mockLogAppender = MockLogAppender.capture(loggerName)) {
             mockLogAppender.addExpectation(
                 new MockLogAppender.UnseenEventExpectation("initial failure", loggerName, Level.INFO, "failed opening */stateless_commit_*")
             );

@@ -169,8 +169,7 @@ public class MemoryMetricsServiceTests extends ESTestCase {
             }
         }
 
-        var mockLogAppender = new MockLogAppender();
-        try (var ignored = mockLogAppender.capturing(MemoryMetricsService.class)) {
+        try (var mockLogAppender = MockLogAppender.capture(MemoryMetricsService.class)) {
             for (Index index : indicesToSkip) {
                 mockLogAppender.addExpectation(
                     new MockLogAppender.SeenEventExpectation(
@@ -214,8 +213,7 @@ public class MemoryMetricsServiceTests extends ESTestCase {
                 );
         }
 
-        var mockLogAppender = new MockLogAppender();
-        try (var ignored = mockLogAppender.capturing(MemoryMetricsService.class)) {
+        try (var mockLogAppender = MockLogAppender.capture(MemoryMetricsService.class)) {
             mockLogAppender.addExpectation(
                 new MockLogAppender.UnseenEventExpectation("no warnings", MemoryMetricsService.class.getName(), Level.WARN, "*")
             );
@@ -233,8 +231,7 @@ public class MemoryMetricsServiceTests extends ESTestCase {
                 );
         }
 
-        var mockLogAppender = new MockLogAppender();
-        try (var ignored = mockLogAppender.capturing(MemoryMetricsService.class)) {
+        try (var mockLogAppender = MockLogAppender.capture(MemoryMetricsService.class)) {
             mockLogAppender.addExpectation(
                 new MockLogAppender.UnseenEventExpectation("no warnings", MemoryMetricsService.class.getName(), Level.WARN, "*")
             );

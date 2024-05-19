@@ -48,4 +48,9 @@ public final class Euclidean extends AbstractScalarQuantizedVectorScorer {
             return fallbackScore(firstByteOffset, secondByteOffset);
         }
     }
+
+    @Override
+    public Euclidean copy() {
+        return new Euclidean(dims, maxOrd, scoreCorrectionConstant, input.clone());
+    }
 }

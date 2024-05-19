@@ -44,7 +44,6 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexModule;
@@ -1209,30 +1208,26 @@ public class SearchableSnapshotsIntegTests extends BaseSearchableSnapshotsIntegT
             );
 
             response = client().execute(MountSearchableSnapshotAction.INSTANCE, mountRequest);
-            TaskInfo[] restoreSnapshotTask = new TaskInfo[1];
-            waitUntil(() -> {
-                restoreSnapshotTask[0] = getTaskForActionFromMaster(TransportRestoreSnapshotAction.TYPE.name());
-                return restoreSnapshotTask[0] != null;
+            assertBusy(() -> {
+                TaskInfo restoreSnapshotTask = getTaskForActionFromMaster(TransportRestoreSnapshotAction.TYPE.name());
+                TaskInfo mountSnapshotTask = getTaskForActionFromMaster(MountSearchableSnapshotAction.NAME);
+                assertEquals(mountSnapshotTask.taskId(), restoreSnapshotTask.parentTaskId());
             });
-            TaskInfo mountSnapshotTask = getTaskForActionFromMaster(MountSearchableSnapshotAction.NAME);
-            assertNotNull("No mount task found", mountSnapshotTask);
-            assertEquals(mountSnapshotTask.taskId(), restoreSnapshotTask[0].parentTaskId());
         } finally {
-            safeAwait(cyclicBarrier);   // Unblock the master thread
+            // Unblock the master thread
+            safeAwait(cyclicBarrier);
+            // If we started the mount, wait for it to complete, to prevent a race between the mount and the test cleanup
             if (response != null) {
-                response.actionGet();
-                assertAcked(indicesAdmin().prepareDelete(indexName));
+                safeGet(response);
             }
         }
     }
 
-    @Nullable
     private TaskInfo getTaskForActionFromMaster(String action) {
         var ltr = new ListTasksRequest().setDetailed(true).setNodes(internalCluster().getMasterName()).setActions(action);
         ListTasksResponse response = client().execute(TransportListTasksAction.TYPE, ltr).actionGet();
-        if (response.getTasks().isEmpty()) {
-            return null;
-        }
+        int matchingTasks = response.getTasks().size();
+        assertEquals(String.format(Locale.ROOT, "Expected a single task for action %s, got %d", action, matchingTasks), 1, matchingTasks);
         return response.getTasks().get(0);
     }
 

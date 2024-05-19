@@ -33,7 +33,6 @@ import org.elasticsearch.common.blobstore.DeleteResult;
 import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
-import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.MockLogAppender;
@@ -58,21 +57,19 @@ public class StatelessClusterStateCleanupServiceIT extends AbstractStatelessInte
     private static final Logger logger = LogManager.getLogger(StatelessClusterStateCleanupServiceIT.class);
     private final long NUM_NODES = 3;
     private MockLogAppender mockLogAppender;
-    private Releasable releaseAppender;
     private ClusterStateBlockingStrategy strategy = new ClusterStateBlockingStrategy();
 
     @Before
     @Override
     public void setUp() throws Exception {
         super.setUp();
-        mockLogAppender = new MockLogAppender();
-        releaseAppender = mockLogAppender.capturing(StatelessClusterStateCleanupService.class);
+        mockLogAppender = MockLogAppender.capture(StatelessClusterStateCleanupService.class);
     }
 
     @After
     @Override
     public void tearDown() throws Exception {
-        releaseAppender.close();
+        mockLogAppender.close();
         super.tearDown();
     }
 

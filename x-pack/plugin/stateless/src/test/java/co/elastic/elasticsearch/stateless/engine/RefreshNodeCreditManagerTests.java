@@ -112,8 +112,7 @@ public class RefreshNodeCreditManagerTests extends ESTestCase {
         }
 
         Function<String, Boolean> consumeCreditAndCheckWarningMessage = (shouldSeeWarning) -> {
-            final MockLogAppender mockLogAppender = new MockLogAppender();
-            try (var ignored = mockLogAppender.capturing(RefreshNodeCreditManager.class)) {
+            try (var mockLogAppender = MockLogAppender.capture(RefreshNodeCreditManager.class)) {
                 MockLogAppender.EventuallySeenEventExpectation expectation = new MockLogAppender.EventuallySeenEventExpectation(
                     "node refresh throttling warning",
                     RefreshNodeCreditManager.class.getCanonicalName(),

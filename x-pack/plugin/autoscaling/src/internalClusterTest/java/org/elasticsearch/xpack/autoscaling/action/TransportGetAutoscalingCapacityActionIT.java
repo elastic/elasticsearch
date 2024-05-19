@@ -47,8 +47,7 @@ public class TransportGetAutoscalingCapacityActionIT extends AutoscalingIntegTes
     }
 
     public void assertCurrentCapacity(long memory, long storage, int nodes) {
-        MockLogAppender appender = new MockLogAppender();
-        try (var ignored = appender.capturing(TransportGetAutoscalingCapacityAction.class)) {
+        try (var appender = MockLogAppender.capture(TransportGetAutoscalingCapacityAction.class)) {
             appender.addExpectation(
                 new MockLogAppender.SeenEventExpectation(
                     "autoscaling capacity response message with " + storage,

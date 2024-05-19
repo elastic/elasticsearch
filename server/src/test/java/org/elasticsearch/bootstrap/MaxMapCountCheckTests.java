@@ -131,8 +131,7 @@ public class MaxMapCountCheckTests extends AbstractBootstrapCheckTestCase {
             final IOException ioException = new IOException("fatal");
             when(reader.readLine()).thenThrow(ioException);
             final Logger logger = LogManager.getLogger("testGetMaxMapCountIOException");
-            final MockLogAppender appender = new MockLogAppender();
-            try (var ignored = appender.capturing("testGetMaxMapCountIOException")) {
+            try (var appender = MockLogAppender.capture("testGetMaxMapCountIOException")) {
                 appender.addExpectation(
                     new MessageLoggingExpectation(
                         "expected logged I/O exception",
@@ -152,8 +151,7 @@ public class MaxMapCountCheckTests extends AbstractBootstrapCheckTestCase {
             reset(reader);
             when(reader.readLine()).thenReturn("eof");
             final Logger logger = LogManager.getLogger("testGetMaxMapCountNumberFormatException");
-            final MockLogAppender appender = new MockLogAppender();
-            try (var ignored = appender.capturing("testGetMaxMapCountNumberFormatException")) {
+            try (var appender = MockLogAppender.capture("testGetMaxMapCountNumberFormatException")) {
                 appender.addExpectation(
                     new MessageLoggingExpectation(
                         "expected logged number format exception",

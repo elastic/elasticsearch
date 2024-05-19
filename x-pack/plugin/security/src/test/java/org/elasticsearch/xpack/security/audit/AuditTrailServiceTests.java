@@ -59,8 +59,7 @@ public class AuditTrailServiceTests extends ESTestCase {
     }
 
     public void testLogWhenLicenseProhibitsAuditing() throws Exception {
-        MockLogAppender mockLogAppender = new MockLogAppender();
-        try (var ignored = mockLogAppender.capturing(AuditTrailService.class)) {
+        try (var mockLogAppender = MockLogAppender.capture(AuditTrailService.class)) {
             when(licenseState.getOperationMode()).thenReturn(randomFrom(License.OperationMode.values()));
             if (isAuditingAllowed) {
                 mockLogAppender.addExpectation(
@@ -94,8 +93,7 @@ public class AuditTrailServiceTests extends ESTestCase {
     }
 
     public void testNoLogRecentlyWhenLicenseProhibitsAuditing() throws Exception {
-        MockLogAppender mockLogAppender = new MockLogAppender();
-        try (var ignored = mockLogAppender.capturing(AuditTrailService.class)) {
+        try (var mockLogAppender = MockLogAppender.capture(AuditTrailService.class)) {
             service.nextLogInstantAtomic.set(randomFrom(Instant.now().minus(Duration.ofMinutes(5)), Instant.now()));
             mockLogAppender.addExpectation(
                 new MockLogAppender.UnseenEventExpectation(

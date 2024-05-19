@@ -480,9 +480,8 @@ public class AuthenticatorChainTests extends ESTestCase {
 
         final Logger logger = LogManager.getLogger(AuthenticatorChain.class);
         Loggers.setLevel(logger, Level.INFO);
-        final MockLogAppender appender = new MockLogAppender();
 
-        try (var ignored = appender.capturing(AuthenticatorChain.class)) {
+        try (var appender = MockLogAppender.capture(AuthenticatorChain.class)) {
             appender.addExpectation(
                 new MockLogAppender.SeenEventExpectation(
                     "run-as",

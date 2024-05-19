@@ -192,8 +192,7 @@ public class LoadAuthorizedIndicesTimeCheckerTests extends ESTestCase {
             requestInfo,
             thresholds
         );
-        final MockLogAppender mockAppender = new MockLogAppender();
-        try (var ignored = mockAppender.capturing(timerLogger.getName())) {
+        try (var mockAppender = MockLogAppender.capture(timerLogger.getName())) {
             mockAppender.addExpectation(expectation);
             checker.accept(List.of());
             mockAppender.assertAllExpectationsMatched();

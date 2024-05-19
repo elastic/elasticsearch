@@ -46,8 +46,6 @@ class JnaPosixCLibrary implements PosixCLibrary {
 
         int getrlimit(int resource, JnaRLimit rlimit);
 
-        int setrlimit(int resource, JnaRLimit rlimit);
-
         String strerror(int errno);
     }
 

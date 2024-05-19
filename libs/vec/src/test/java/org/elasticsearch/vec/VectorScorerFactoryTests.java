@@ -316,7 +316,7 @@ public class VectorScorerFactoryTests extends AbstractVectorTestCase {
             var expectedScore2 = luceneScore(sim, vec2, vec2, 1, 1, 1);
 
             try (IndexInput in = dir.openInput(fileName, IOContext.DEFAULT)) {
-                var scoreSupplier = factory.getInt7ScalarQuantizedVectorScorer(dims, 4, 1, sim, in).get();
+                var scoreSupplier = factory.getScalarQuantizedVectorScorer(dims, 4, 1, sim, in).get();
                 var scorer = new VectorScorerSupplierAdapter(scoreSupplier);
                 var tasks = List.<Callable<Optional<Throwable>>>of(
                     new ScoreCallable(scorer.copy().scorer(0), 1, expectedScore1),

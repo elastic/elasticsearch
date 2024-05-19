@@ -50,7 +50,7 @@ public final class Euclidean extends AbstractScalarQuantizedVectorScorer {
     }
 
     @Override
-    public Int7Euclidean copy() {
-        return new Int7Euclidean(dims, maxOrd, scoreCorrectionConstant, input.clone());
+    public Euclidean copy() {
+        return new Euclidean(dims, maxOrd, scoreCorrectionConstant, input.clone());
     }
 }

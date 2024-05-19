@@ -55,7 +55,7 @@ public final class DotProduct extends AbstractScalarQuantizedVectorScorer {
     }
 
     @Override
-    public Int7DotProduct copy() {
-        return new Int7DotProduct(dims, maxOrd, scoreCorrectionConstant, input.clone());
+    public DotProduct copy() {
+        return new DotProduct(dims, maxOrd, scoreCorrectionConstant, input.clone());
     }
 }

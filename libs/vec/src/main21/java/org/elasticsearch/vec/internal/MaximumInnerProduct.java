@@ -66,7 +66,7 @@ public final class MaximumInnerProduct extends AbstractScalarQuantizedVectorScor
     }
 
     @Override
-    public Int7MaximumInnerProduct copy() {
-        return new Int7MaximumInnerProduct(dims, maxOrd, scoreCorrectionConstant, input.clone());
+    public MaximumInnerProduct copy() {
+        return new MaximumInnerProduct(dims, maxOrd, scoreCorrectionConstant, input.clone());
     }
 }

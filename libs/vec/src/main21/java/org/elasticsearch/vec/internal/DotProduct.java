@@ -53,4 +53,9 @@ public final class DotProduct extends AbstractScalarQuantizedVectorScorer {
             return fallbackScore(firstByteOffset, secondByteOffset);
         }
     }
+
+    @Override
+    public Int7DotProduct copy() {
+        return new Int7DotProduct(dims, maxOrd, scoreCorrectionConstant, input.clone());
+    }
 }

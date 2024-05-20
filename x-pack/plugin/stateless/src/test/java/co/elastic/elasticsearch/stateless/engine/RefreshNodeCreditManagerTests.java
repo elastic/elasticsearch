@@ -19,7 +19,7 @@ package co.elastic.elasticsearch.stateless.engine;
 
 import org.apache.logging.log4j.Level;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.MockLogAppender;
+import org.elasticsearch.test.MockLog;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 
 import java.util.concurrent.atomic.AtomicLong;
@@ -112,8 +112,8 @@ public class RefreshNodeCreditManagerTests extends ESTestCase {
         }
 
         Function<String, Boolean> consumeCreditAndCheckWarningMessage = (shouldSeeWarning) -> {
-            try (var mockLogAppender = MockLogAppender.capture(RefreshNodeCreditManager.class)) {
-                MockLogAppender.EventuallySeenEventExpectation expectation = new MockLogAppender.EventuallySeenEventExpectation(
+            try (var mockLog = MockLog.capture(RefreshNodeCreditManager.class)) {
+                MockLog.EventuallySeenEventExpectation expectation = new MockLog.EventuallySeenEventExpectation(
                     "node refresh throttling warning",
                     RefreshNodeCreditManager.class.getCanonicalName(),
                     Level.WARN,
@@ -124,9 +124,9 @@ public class RefreshNodeCreditManagerTests extends ESTestCase {
                         + "the number of refreshes to suppress this message. This message will be suppressed for the next [5] minutes."
                 );
                 if (shouldSeeWarning.isEmpty() == false) expectation.setExpectSeen();
-                mockLogAppender.addExpectation(expectation);
+                mockLog.addExpectation(expectation);
                 Boolean result = nodeCreditManager.consumeCredit();
-                mockLogAppender.assertAllExpectationsMatched();
+                mockLog.assertAllExpectationsMatched();
                 return result;
             }
         };

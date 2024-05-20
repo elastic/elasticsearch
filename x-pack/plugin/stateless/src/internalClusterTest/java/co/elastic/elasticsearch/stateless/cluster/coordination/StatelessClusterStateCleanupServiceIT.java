@@ -35,7 +35,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.test.MockLogAppender;
+import org.elasticsearch.test.MockLog;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.junit.After;
 import org.junit.Before;
@@ -56,20 +56,20 @@ import static org.hamcrest.Matchers.is;
 public class StatelessClusterStateCleanupServiceIT extends AbstractStatelessIntegTestCase {
     private static final Logger logger = LogManager.getLogger(StatelessClusterStateCleanupServiceIT.class);
     private final long NUM_NODES = 3;
-    private MockLogAppender mockLogAppender;
+    private MockLog mockLog;
     private ClusterStateBlockingStrategy strategy = new ClusterStateBlockingStrategy();
 
     @Before
     @Override
     public void setUp() throws Exception {
         super.setUp();
-        mockLogAppender = MockLogAppender.capture(StatelessClusterStateCleanupService.class);
+        mockLog = MockLog.capture(StatelessClusterStateCleanupService.class);
     }
 
     @After
     @Override
     public void tearDown() throws Exception {
-        mockLogAppender.close();
+        mockLog.close();
         super.tearDown();
     }
 
@@ -220,8 +220,8 @@ public class StatelessClusterStateCleanupServiceIT extends AbstractStatelessInte
             strategy.throwOneIOExceptionOnClusterStateTermCleanup();
         }
 
-        mockLogAppender.addExpectation(
-            new MockLogAppender.SeenEventExpectation(
+        mockLog.addExpectation(
+            new MockLog.SeenEventExpectation(
                 "StatelessClusterStateCleanupService, expect transient error to produce a DEBUG log message",
                 StatelessClusterStateCleanupService.class.getName(),
                 Level.DEBUG,
@@ -233,7 +233,7 @@ public class StatelessClusterStateCleanupServiceIT extends AbstractStatelessInte
         internalCluster().stopCurrentMasterNode();
         ensureGreen();
 
-        assertBusy(mockLogAppender::assertAllExpectationsMatched);
+        assertBusy(mockLog::assertAllExpectationsMatched);
 
         logger.info("---> Check that the cleanup task succeeds.");
         assertBusy(() -> {

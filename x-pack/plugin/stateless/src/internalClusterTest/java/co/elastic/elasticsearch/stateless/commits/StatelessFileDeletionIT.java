@@ -57,7 +57,7 @@ import org.elasticsearch.indices.recovery.RecoveryClusterStateDelayListeners;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.SearchResponseUtils;
 import org.elasticsearch.snapshots.mockstore.MockRepository;
-import org.elasticsearch.test.MockLogAppender;
+import org.elasticsearch.test.MockLog;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.transport.TestTransportChannel;
@@ -738,7 +738,7 @@ public class StatelessFileDeletionIT extends AbstractStatelessIntegTestCase {
             }
         });
 
-        MockLogAppender.assertThatLogger(() -> {
+        MockLog.assertThatLogger(() -> {
             try {
                 deleteThread.start();
                 forceMergeThread.start();
@@ -751,7 +751,7 @@ public class StatelessFileDeletionIT extends AbstractStatelessIntegTestCase {
             }
         },
             ObjectStoreService.class,
-            new MockLogAppender.UnseenEventExpectation(
+            new MockLog.UnseenEventExpectation(
                 "warnings",
                 ObjectStoreService.class.getCanonicalName(),
                 Level.WARN,

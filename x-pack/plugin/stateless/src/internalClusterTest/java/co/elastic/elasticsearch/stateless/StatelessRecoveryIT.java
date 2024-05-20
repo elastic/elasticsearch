@@ -114,7 +114,7 @@ import org.elasticsearch.telemetry.Measurement;
 import org.elasticsearch.telemetry.TestTelemetryPlugin;
 import org.elasticsearch.test.InternalSettingsPlugin;
 import org.elasticsearch.test.InternalTestCluster;
-import org.elasticsearch.test.MockLogAppender;
+import org.elasticsearch.test.MockLog;
 import org.elasticsearch.test.disruption.NetworkDisruption;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.transport.MockTransportService;
@@ -2274,9 +2274,9 @@ public class StatelessRecoveryIT extends AbstractStatelessIntegTestCase {
                 )
         );
 
-        try (var mockLogAppender = MockLogAppender.capture(IndicesClusterStateService.class)) {
-            mockLogAppender.addExpectation(
-                new MockLogAppender.UnseenEventExpectation("warnings", IndicesClusterStateService.class.getCanonicalName(), Level.WARN, "*")
+        try (var mockLog = MockLog.capture(IndicesClusterStateService.class)) {
+            mockLog.addExpectation(
+                new MockLog.UnseenEventExpectation("warnings", IndicesClusterStateService.class.getCanonicalName(), Level.WARN, "*")
             );
 
             assertAcked(
@@ -2287,7 +2287,7 @@ public class StatelessRecoveryIT extends AbstractStatelessIntegTestCase {
 
             safeAwait(countDownLatch);
             ensureGreen(indexName);
-            mockLogAppender.assertAllExpectationsMatched();
+            mockLog.assertAllExpectationsMatched();
         } finally {
             indexNodeATransportService.clearAllRules();
         }
@@ -2322,9 +2322,9 @@ public class StatelessRecoveryIT extends AbstractStatelessIntegTestCase {
             );
         });
 
-        try (var mockLogAppender = MockLogAppender.capture(IndicesClusterStateService.class)) {
-            mockLogAppender.addExpectation(
-                new MockLogAppender.UnseenEventExpectation(
+        try (var mockLog = MockLog.capture(IndicesClusterStateService.class)) {
+            mockLog.addExpectation(
+                new MockLog.UnseenEventExpectation(
                     "warnings",
                     IndicesClusterStateService.class.getCanonicalName(),
                     Level.WARN,
@@ -2347,7 +2347,7 @@ public class StatelessRecoveryIT extends AbstractStatelessIntegTestCase {
             );
 
             ensureGreen(indexName);
-            mockLogAppender.assertAllExpectationsMatched();
+            mockLog.assertAllExpectationsMatched();
         } finally {
             indexNodeATransportService.clearAllRules();
         }

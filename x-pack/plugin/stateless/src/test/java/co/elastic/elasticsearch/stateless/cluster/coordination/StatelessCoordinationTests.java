@@ -54,7 +54,7 @@ import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.test.MockLogAppender;
+import org.elasticsearch.test.MockLog;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.threadpool.ThreadPool;
 
@@ -71,7 +71,7 @@ import static org.elasticsearch.cluster.coordination.stateless.StoreHeartbeatSer
 import static org.elasticsearch.cluster.coordination.stateless.StoreHeartbeatService.MAX_MISSED_HEARTBEATS;
 import static org.elasticsearch.test.ESTestCase.randomIntBetween;
 import static org.elasticsearch.test.ESTestCase.randomNonNegativeLong;
-import static org.elasticsearch.test.MockLogAppender.assertThatLogger;
+import static org.elasticsearch.test.MockLog.assertThatLogger;
 
 @TestLogging(reason = "these tests do a lot of log-worthy things but we usually don't care", value = "org.elasticsearch:FATAL")
 public class StatelessCoordinationTests extends AtomicRegisterCoordinatorTests {
@@ -153,7 +153,7 @@ public class StatelessCoordinationTests extends AtomicRegisterCoordinatorTests {
                 cluster.runFor(DEFAULT_ELECTION_DELAY, "waiting for node to try to run for election");
             },
                 Coordinator.class,
-                new MockLogAppender.SeenEventExpectation(
+                new MockLog.SeenEventExpectation(
                     "log emitted by Coordinator when shut down is in progress",
                     Coordinator.class.getCanonicalName(),
                     Level.INFO,

@@ -50,7 +50,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.MockLogAppender;
+import org.elasticsearch.test.MockLog;
 import org.hamcrest.Matchers;
 
 import java.util.ArrayList;
@@ -368,11 +368,11 @@ public class SearchMetricsServiceTests extends ESTestCase {
         currentRelativeTimeInNanos.addAndGet(ACCURATE_METRICS_WINDOW_SETTING.get(Settings.EMPTY).nanos() + 1);
         currentRelativeTimeInNanos.addAndGet(STALE_METRICS_CHECK_INTERVAL_SETTING.get(Settings.EMPTY).nanos() + 1);
 
-        try (var mockLogAppender = MockLogAppender.capture(SearchMetricsService.class)) {
+        try (var mockLog = MockLog.capture(SearchMetricsService.class)) {
             // Verify that all the shards are reported as stale
             for (int i = 0; i < numShards; i++) {
-                mockLogAppender.addExpectation(
-                    new MockLogAppender.SeenEventExpectation(
+                mockLog.addExpectation(
+                    new MockLog.SeenEventExpectation(
                         "expected warn log about stale storage metrics",
                         SearchMetricsService.class.getName(),
                         Level.WARN,
@@ -385,22 +385,22 @@ public class SearchMetricsServiceTests extends ESTestCase {
                 );
             }
             service.getSearchTierMetrics();
-            mockLogAppender.assertAllExpectationsMatched();
+            mockLog.assertAllExpectationsMatched();
 
             // Duplicate call doesn't cause new log warnings
-            mockLogAppender.addExpectation(
-                new MockLogAppender.UnseenEventExpectation("no warnings", SearchMetricsService.class.getName(), Level.WARN, "*")
+            mockLog.addExpectation(
+                new MockLog.UnseenEventExpectation("no warnings", SearchMetricsService.class.getName(), Level.WARN, "*")
             );
             service.getSearchTierMetrics();
-            mockLogAppender.assertAllExpectationsMatched();
+            mockLog.assertAllExpectationsMatched();
 
             // Refresh shard metrics, make sure there are no warning anymore
-            mockLogAppender.addExpectation(
-                new MockLogAppender.UnseenEventExpectation("no warnings", SearchMetricsService.class.getName(), Level.WARN, "*")
+            mockLog.addExpectation(
+                new MockLog.UnseenEventExpectation("no warnings", SearchMetricsService.class.getName(), Level.WARN, "*")
             );
             service.processShardSizesRequest(new PublishShardSizesRequest("search_node_1", Map.of()));
             service.getSearchTierMetrics();
-            mockLogAppender.assertAllExpectationsMatched();
+            mockLog.assertAllExpectationsMatched();
         }
     }
 

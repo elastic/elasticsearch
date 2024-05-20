@@ -41,6 +41,7 @@ import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.tasks.RemovedTaskListener;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.tasks.TaskId;
@@ -563,20 +564,6 @@ public class TasksIT extends ESIntegTestCase {
 
     public void testGetTaskWaitForCompletionWithoutStoringResult() throws Exception {
         // Need to make sure the .tasks index gets created, so let's add a fake task first
-        var latch = new CountDownLatch(1);
-        internalCluster().getInstance(TaskResultsService.class).storeResult(new TaskResult(true, fakeTask()), new ActionListener<Void>() {
-            @Override
-            public void onResponse(Void response) {
-                latch.countDown();
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                throw new RuntimeException(e);
-            }
-        });
-        safeAwait(latch);
-
         waitForCompletionTestCase(false, id -> clusterAdmin().prepareGetTask(id).setWaitForCompletion(true).execute(), response -> {
             assertTrue(response.getTask().isCompleted());
             // We didn't store the result so it won't come back when we wait
@@ -614,19 +601,27 @@ public class TasksIT extends ESIntegTestCase {
             TEST_TASK_ACTION.name() + "[n]",
             () -> client().execute(TEST_TASK_ACTION, request)
         );
-        ActionFuture<T> waitResponseFuture;
-        try {
-            var tasks = clusterAdmin().prepareListTasks().setActions(TEST_TASK_ACTION.name()).get().getTasks();
-            assertThat(tasks, hasSize(1));
-            var taskId = tasks.get(0).taskId();
-            clusterAdmin().prepareGetTask(taskId).get();
+        var tasks = clusterAdmin().prepareListTasks().setActions(TEST_TASK_ACTION.name()).get().getTasks();
+        assertThat(tasks, hasSize(1));
+        TaskId taskId = tasks.get(0).taskId();
+        clusterAdmin().prepareGetTask(taskId).get();
 
-            // Spin up a request to wait for the test task to finish
-            waitResponseFuture = wait.apply(taskId);
-        } finally {
-            // Unblock the request so the wait for completion request can finish
-            client().execute(UNBLOCK_TASK_ACTION, new TestTaskPlugin.UnblockTestTasksRequest()).get();
-        }
+        // Spin up a request to wait for the test task to finish
+        ActionFuture<T> waitResponseFuture = wait.apply(taskId);
+
+        var taskManager = (MockTaskManager) internalCluster().getInstance(
+            TransportService.class,
+            clusterService().state().getNodes().resolveNode(taskId.getNodeId()).getName()
+        ).getTaskManager();
+        taskManager.addListener(new MockTaskManagerListener() {
+            @Override
+            public void onRemovedTaskListenerRegistered(RemovedTaskListener removedTaskListener) {
+                // Unblock the request so the wait for completion request can finish
+                if (removedTaskListener.toString().startsWith("Completing running task Task{id=" + taskId.getId())) {
+                    client().execute(UNBLOCK_TASK_ACTION, new TestTaskPlugin.UnblockTestTasksRequest());
+                }
+            }
+        });
 
         // Now that the task is unblocked the list response will come back
         T waitResponse = waitResponseFuture.get();

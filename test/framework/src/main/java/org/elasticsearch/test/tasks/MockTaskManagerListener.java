@@ -8,6 +8,7 @@
 
 package org.elasticsearch.test.tasks;
 
+import org.elasticsearch.tasks.RemovedTaskListener;
 import org.elasticsearch.tasks.Task;
 
 /**
@@ -17,4 +18,6 @@ public interface MockTaskManagerListener {
     default void onTaskRegistered(Task task) {};
 
     default void onTaskUnregistered(Task task) {};
+
+    default void onRemovedTaskListenerRegistered(RemovedTaskListener removedTaskListener) {};
 }

@@ -4986,6 +4986,24 @@ public class IndexShardTests extends IndexShardTestCase {
         closeShards(primary, replicaShard);
     }
 
+    public void testSimulated() throws IOException {
+        final IndexShard shard = newStartedShard(true);
+        IndexMetadata originalIndexMetadata = shard.indexSettings().getIndexMetadata();
+        int totalOps = randomInt(10);
+        for (int i = 0; i < totalOps; i++) {
+            Engine.IndexResult indexResult = indexDoc(shard, "_doc", Integer.toString(i), true);
+            assertThat(indexResult.isCreated(), equalTo(true));
+            assertThat(indexResult.getOperationType(), equalTo(Engine.Operation.TYPE.INDEX));
+            assertThat(indexResult.getResultType(), equalTo(Engine.Result.Type.SUCCESS));
+        }
+        indexDoc(shard, "_doc", "0", "{\"foo\" : \"bar\"}", true);
+        // Now make sure that we didn't cause any mappings updates or translog writes:
+        assertThat(shard.indexSettings().getIndexMetadata(), equalTo(originalIndexMetadata));
+        assertThat(shard.translogStats().getUncommittedOperations(), equalTo(0));
+        assertThat(shard.translogStats().estimatedNumberOfOperations(), equalTo(0));
+        closeShards(shard);
+    }
+
     static class FakeClock implements LongSupplier {
         private final AtomicLong currentRelativeTime = new AtomicLong();
         private final AtomicInteger tick = new AtomicInteger();

@@ -9,6 +9,7 @@ package org.elasticsearch.compute.lucene;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.BulkScorer;
+import org.apache.lucene.search.CollectionTerminatedException;
 import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.LeafCollector;
@@ -181,7 +182,11 @@ public abstract class LuceneOperator extends SourceOperator {
             // avoid overflow and limit the range
             numDocs = Math.min(maxPosition - position, numDocs);
             assert numDocs > 0 : "scorer was exhausted";
-            position = bulkScorer.score(collector, acceptDocs, position, Math.min(maxPosition, position + numDocs));
+            try {
+                position = bulkScorer.score(collector, acceptDocs, position, Math.min(maxPosition, position + numDocs));
+            } catch (CollectionTerminatedException ex) {
+                position = DocIdSetIterator.NO_MORE_DOCS;
+            }
         }
 
         LeafReaderContext leafReaderContext() {

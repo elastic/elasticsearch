@@ -7,6 +7,7 @@
 
 package org.elasticsearch.compute.lucene;
 
+import org.apache.lucene.search.CollectionTerminatedException;
 import org.apache.lucene.search.LeafCollector;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.Scorable;
@@ -89,6 +90,8 @@ public class LuceneSourceOperator extends LuceneOperator {
                     --remainingDocs;
                     docsBuilder.appendInt(doc);
                     currentPagePos++;
+                } else {
+                    throw new CollectionTerminatedException();
                 }
             }
         };

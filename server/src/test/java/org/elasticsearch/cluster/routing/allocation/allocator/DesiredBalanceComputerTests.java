@@ -51,7 +51,7 @@ import org.elasticsearch.snapshots.InternalSnapshotsInfoService.SnapshotShard;
 import org.elasticsearch.snapshots.Snapshot;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.snapshots.SnapshotShardSizeInfo;
-import org.elasticsearch.test.MockLogAppender;
+import org.elasticsearch.test.MockLog;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.ArrayList;
@@ -75,7 +75,7 @@ import static org.elasticsearch.cluster.routing.ShardRoutingState.UNASSIGNED;
 import static org.elasticsearch.cluster.routing.TestShardRouting.newShardRouting;
 import static org.elasticsearch.cluster.routing.TestShardRouting.shardRoutingBuilder;
 import static org.elasticsearch.common.settings.ClusterSettings.createBuiltInClusterSettings;
-import static org.elasticsearch.test.MockLogAppender.assertThatLogger;
+import static org.elasticsearch.test.MockLog.assertThatLogger;
 import static org.hamcrest.Matchers.aMapWithSize;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.anyOf;
@@ -1201,7 +1201,7 @@ public class DesiredBalanceComputerTests extends ESAllocationTestCase {
         checkIterationLogging(
             999,
             10L,
-            new MockLogAppender.UnseenEventExpectation(
+            new MockLog.UnseenEventExpectation(
                 "Should not report long computation too early",
                 DesiredBalanceComputer.class.getCanonicalName(),
                 Level.INFO,
@@ -1212,7 +1212,7 @@ public class DesiredBalanceComputerTests extends ESAllocationTestCase {
         checkIterationLogging(
             1001,
             10L,
-            new MockLogAppender.SeenEventExpectation(
+            new MockLog.SeenEventExpectation(
                 "Should report long computation based on iteration count",
                 DesiredBalanceComputer.class.getCanonicalName(),
                 Level.INFO,
@@ -1223,7 +1223,7 @@ public class DesiredBalanceComputerTests extends ESAllocationTestCase {
         checkIterationLogging(
             61,
             1000L,
-            new MockLogAppender.SeenEventExpectation(
+            new MockLog.SeenEventExpectation(
                 "Should report long computation based on time",
                 DesiredBalanceComputer.class.getCanonicalName(),
                 Level.INFO,
@@ -1232,7 +1232,7 @@ public class DesiredBalanceComputerTests extends ESAllocationTestCase {
         );
     }
 
-    private void checkIterationLogging(int iterations, long eachIterationDuration, MockLogAppender.AbstractEventExpectation expectation) {
+    private void checkIterationLogging(int iterations, long eachIterationDuration, MockLog.AbstractEventExpectation expectation) {
 
         var mockThreadPool = mock(ThreadPool.class);
         var currentTime = new AtomicLong(0L);

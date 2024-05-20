@@ -21,7 +21,7 @@ import org.apache.lucene.search.join.QueryBitSetProducer;
 import org.apache.lucene.search.join.ScoreMode;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.settings.Settings;
@@ -51,6 +51,7 @@ import org.elasticsearch.search.NestedDocuments;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.inference.InferencePlugin;
 import org.elasticsearch.xpack.inference.model.TestModel;
 import org.junit.AssumptionViolatedException;
@@ -174,42 +175,41 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
     }
 
     public void testDynamicUpdate() throws IOException {
+        final String fieldName = "semantic";
+        final String inferenceId = "test_service";
+
         MapperService mapperService = createMapperService(mapping(b -> {}));
         mapperService.merge(
             "_doc",
             new CompressedXContent(
-                Strings.toString(PutMappingRequest.simpleMapping("semantic", "type=semantic_text,inference_id=test_service"))
+                Strings.toString(PutMappingRequest.simpleMapping(fieldName, "type=semantic_text,inference_id=" + inferenceId))
             ),
             MapperService.MergeReason.MAPPING_UPDATE
         );
-        String source = """
-            {
-              "semantic": {
-                "inference": {
-                  "inference_id": "test_service",
-                  "model_settings": {
-                    "task_type": "SPARSE_EMBEDDING"
-                  },
-                  "chunks": [
-                    {
-                      "embeddings": {
-                        "feature_0": 1
-                      },
-                      "text": "feature_0"
-                    }
-                  ]
-                }
-              }
-            }
-            """;
-        SourceToParse sourceToParse = new SourceToParse("test", new BytesArray(source), XContentType.JSON);
+
+        SemanticTextField semanticTextField = new SemanticTextField(
+            fieldName,
+            List.of(),
+            new SemanticTextField.InferenceResult(
+                inferenceId,
+                new SemanticTextField.ModelSettings(TaskType.SPARSE_EMBEDDING, null, null),
+                List.of()
+            ),
+            XContentType.JSON
+        );
+        XContentBuilder builder = JsonXContent.contentBuilder().startObject();
+        builder.field(semanticTextField.fieldName());
+        builder.value(semanticTextField);
+        builder.endObject();
+
+        SourceToParse sourceToParse = new SourceToParse("test", BytesReference.bytes(builder), XContentType.JSON);
         ParsedDocument parsedDocument = mapperService.documentMapper().parse(sourceToParse);
         mapperService.merge(
             "_doc",
             parsedDocument.dynamicMappingsUpdate().toCompressedXContent(),
             MapperService.MergeReason.MAPPING_UPDATE
         );
-        assertSemanticTextField(mapperService, "semantic", true);
+        assertSemanticTextField(mapperService, fieldName, true);
     }
 
     public void testUpdateModelSettings() throws IOException {

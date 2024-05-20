@@ -33,8 +33,7 @@ public class ESClientYamlSuiteTestCaseFailLogIT extends ESClientYamlSuiteTestCas
     )
     @Override
     public void test() throws IOException {
-        final MockLogAppender mockLogAppender = new MockLogAppender();
-        try (var ignored = mockLogAppender.capturing(ESClientYamlSuiteTestCaseFailLogIT.class)) {
+        try (var mockLogAppender = MockLogAppender.capture(ESClientYamlSuiteTestCaseFailLogIT.class)) {
             mockLogAppender.addExpectation(
                 new MockLogAppender.SeenEventExpectation(
                     "message with dump of the test yaml",

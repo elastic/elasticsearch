@@ -1498,9 +1498,8 @@ public class ApiKeyServiceTests extends ESTestCase {
         IntStream.range(0, cacheSize).forEach(i -> apiKeyAuthCache.put(idPrefix + count.incrementAndGet(), new ListenableFuture<>()));
         final Logger logger = LogManager.getLogger(ApiKeyService.class);
         Loggers.setLevel(logger, Level.TRACE);
-        final MockLogAppender appender = new MockLogAppender();
 
-        try (var ignored = appender.capturing(ApiKeyService.class)) {
+        try (var appender = MockLogAppender.capture(ApiKeyService.class)) {
             appender.addExpectation(
                 new MockLogAppender.PatternSeenEventExpectation(
                     "evict",
@@ -1559,9 +1558,8 @@ public class ApiKeyServiceTests extends ESTestCase {
 
         final Logger logger = LogManager.getLogger(ApiKeyService.class);
         Loggers.setLevel(logger, Level.TRACE);
-        final MockLogAppender appender = new MockLogAppender();
 
-        try (var ignored = appender.capturing(ApiKeyService.class)) {
+        try (var appender = MockLogAppender.capture(ApiKeyService.class)) {
             appender.addExpectation(
                 new MockLogAppender.UnseenEventExpectation(
                     "evict",
@@ -1592,9 +1590,8 @@ public class ApiKeyServiceTests extends ESTestCase {
         apiKeyAuthCache.put(randomAlphaOfLength(21), new ListenableFuture<>());
         final Logger logger = LogManager.getLogger(ApiKeyService.class);
         Loggers.setLevel(logger, Level.TRACE);
-        final MockLogAppender appender = new MockLogAppender();
 
-        try (var ignored = appender.capturing(ApiKeyService.class)) {
+        try (var appender = MockLogAppender.capture(ApiKeyService.class)) {
             // Prepare the warning logging to trigger
             service.getEvictionCounter().add(4500);
             final long thrashingCheckIntervalInSeconds = 300L;

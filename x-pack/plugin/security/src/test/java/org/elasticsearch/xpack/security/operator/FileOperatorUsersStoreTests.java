@@ -175,11 +175,10 @@ public class FileOperatorUsersStoreTests extends ESTestCase {
         Files.copy(sampleFile, inUseFile, StandardCopyOption.REPLACE_EXISTING);
 
         final Logger logger = LogManager.getLogger(FileOperatorUsersStore.class);
-        final MockLogAppender appender = new MockLogAppender();
         Loggers.setLevel(logger, Level.TRACE);
 
         try (
-            var ignored = appender.capturing(FileOperatorUsersStore.class);
+            var appender = MockLogAppender.capture(FileOperatorUsersStore.class);
             ResourceWatcherService watcherService = new ResourceWatcherService(settings, threadPool)
         ) {
             appender.addExpectation(

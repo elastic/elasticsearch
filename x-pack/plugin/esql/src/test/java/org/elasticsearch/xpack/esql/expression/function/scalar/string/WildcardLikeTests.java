@@ -58,8 +58,9 @@ public class WildcardLikeTests extends AbstractFunctionTestCase {
         for (DataType type : new DataType[] { DataTypes.KEYWORD, DataTypes.TEXT }) {
             suppliers.add(new TestCaseSupplier(" with " + type.esType(), List.of(type, type), () -> {
                 BytesRef str = new BytesRef(randomAlphaOfLength(5));
-                BytesRef pattern = new BytesRef(randomAlphaOfLength(2));
-                Boolean match = str.utf8ToString().startsWith(pattern.utf8ToString());
+                String patternString = randomAlphaOfLength(2);
+                BytesRef pattern = new BytesRef(patternString + "*");
+                Boolean match = str.utf8ToString().startsWith(patternString);
                 return new TestCaseSupplier.TestCase(
                     List.of(
                         new TestCaseSupplier.TypedData(str, type, "str"),

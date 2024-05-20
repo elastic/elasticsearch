@@ -616,7 +616,7 @@ public class TasksIT extends ESIntegTestCase {
         taskManager.addListener(new MockTaskManagerListener() {
             @Override
             public void onRemovedTaskListenerRegistered(RemovedTaskListener removedTaskListener) {
-                // Unblock the request so the wait for completion request can finish
+                // Unblock the request only after it started waiting for completion and registered a removed task listener
                 if (removedTaskListener.toString().startsWith("Completing running task Task{id=" + taskId.getId())) {
                     client().execute(UNBLOCK_TASK_ACTION, new TestTaskPlugin.UnblockTestTasksRequest());
                 }

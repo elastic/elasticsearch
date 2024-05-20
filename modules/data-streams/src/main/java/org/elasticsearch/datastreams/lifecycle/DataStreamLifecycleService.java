@@ -793,7 +793,7 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
     }
 
     /**
-     * This method will attempt to rollover the write index of a data stream. The rollover will occur only if the conditions
+     * This method will attempt to roll over the write index of a data stream. The rollover will occur only if the conditions
      * apply. In any case, we return the write backing index back to the caller, so it can be excluded from the next steps.
      * @return the write index of this data stream before rollover was requested.
      */
@@ -831,7 +831,7 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
                         currentRunWriteIndex.getName(),
                         errorStore,
                         Strings.format(
-                            "Data stream lifecycle encountered an error trying to rollover[%s] data steam [%s]",
+                            "Data stream lifecycle encountered an error trying to roll over%s data stream [%s]",
                             rolloverFailureStore ? " the failure store of the" : "",
                             dataStream.getName()
                         ),
@@ -844,7 +844,7 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
             logger.error(
                 () -> String.format(
                     Locale.ROOT,
-                    "Data stream lifecycle encountered an error trying to rollover[%s] data steam [%s]",
+                    "Data stream lifecycle encountered an error trying to roll over%s data stream [%s]",
                     rolloverFailureStore ? " the failure store of the" : "",
                     dataStream.getName()
                 ),
@@ -1020,7 +1020,7 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
                 DataStream dataStream = clusterService.state().metadata().dataStreams().get(rolloverTarget);
                 if (dataStream == null || dataStream.getWriteIndex().getName().equals(writeIndexName) == false) {
                     // the data stream has another write index so no point in recording an error for the previous write index we were
-                    // attempting to rollover
+                    // attempting to roll over
                     // if there are persistent issues with rolling over this data stream, the next data stream lifecycle run will attempt to
                     // rollover the _current_ write index and the error problem should surface then
                     listener.onResponse(null);

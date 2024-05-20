@@ -19,6 +19,31 @@
             "path_match": [
               "message",
               "*.message"
+            ],
+            "unmatch_mapping_type": "object"
+          }
+        },
+        {
+          "ecs_non_indexed_keyword": {
+            "mapping": {
+              "type": "keyword",
+              "index": false,
+              "doc_values": false
+            },
+            "path_match": [
+              "event.original"
+            ]
+          }
+        },
+        {
+          "ecs_non_indexed_long": {
+            "mapping": {
+              "type": "long",
+              "index": false,
+              "doc_values": false
+            },
+            "path_match": [
+              "*.x509.public_key_exponent"
             ]
           }
         },
@@ -45,7 +70,8 @@
               "*.message_id",
               "*registry.data.strings",
               "*url.path"
-            ]
+            ],
+            "unmatch_mapping_type": "object"
           }
         },
         {
@@ -62,7 +88,8 @@
               "*.body.content",
               "*url.full",
               "*url.original"
-            ]
+            ],
+            "unmatch_mapping_type": "object"
           }
         },
         {
@@ -78,7 +105,8 @@
             "match": [
               "*command_line",
               "*stack_trace"
-            ]
+            ],
+            "unmatch_mapping_type": "object"
           }
         },
         {
@@ -103,7 +131,8 @@
               "email.subject",
               "vulnerability.description",
               "user_agent.original"
-            ]
+            ],
+            "unmatch_mapping_type": "object"
           }
         },
         {
@@ -127,7 +156,8 @@
               "*.ingested",
               "*.start",
               "*.end"
-            ]
+            ],
+            "unmatch_mapping_type": "object"
           }
         },
         {
@@ -139,7 +169,8 @@
               "*.score.*",
               "*_score*"
             ],
-            "path_unmatch": "*.version"
+            "path_unmatch": "*.version",
+            "unmatch_mapping_type": "object"
           }
         },
         {
@@ -149,27 +180,7 @@
               "scaling_factor": 1000
             },
             "path_match": "*.usage",
-            "match_mapping_type": "double"
-          }
-        },
-        {
-          "ecs_usage_long_scaled_float": {
-            "mapping": {
-              "type": "scaled_float",
-              "scaling_factor": 1000
-            },
-            "path_match": "*.usage",
-            "match_mapping_type": "long"
-          }
-        },
-        {
-          "ecs_usage_long_scaled_float": {
-            "mapping": {
-              "type": "scaled_float",
-              "scaling_factor": 1000
-            },
-            "path_match": "*.usage",
-            "match_mapping_type": "string"
+            "match_mapping_type": ["double", "long", "string"]
           }
         },
         {
@@ -178,8 +189,7 @@
               "type": "geo_point"
             },
             "path_match": [
-              "location",
-              "*.location"
+              "*.geo.location"
             ]
           }
         },
@@ -192,7 +202,8 @@
               "*structured_data",
               "*exports",
               "*imports"
-            ]
+            ],
+            "match_mapping_type": "object"
           }
         },
         {

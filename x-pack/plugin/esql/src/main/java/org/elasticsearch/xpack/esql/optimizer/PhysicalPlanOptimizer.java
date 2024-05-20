@@ -7,7 +7,10 @@
 
 package org.elasticsearch.xpack.esql.optimizer;
 
+import org.elasticsearch.xpack.esql.VerificationException;
+import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
+import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.physical.AggregateExec;
 import org.elasticsearch.xpack.esql.plan.physical.EnrichExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeExec;
@@ -17,8 +20,6 @@ import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.plan.physical.ProjectExec;
 import org.elasticsearch.xpack.esql.plan.physical.RegexExtractExec;
 import org.elasticsearch.xpack.esql.plan.physical.UnaryExec;
-import org.elasticsearch.xpack.esql.planner.PhysicalVerificationException;
-import org.elasticsearch.xpack.esql.planner.PhysicalVerifier;
 import org.elasticsearch.xpack.ql.common.Failure;
 import org.elasticsearch.xpack.ql.expression.Alias;
 import org.elasticsearch.xpack.ql.expression.AttributeMap;
@@ -27,8 +28,6 @@ import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.Expressions;
 import org.elasticsearch.xpack.ql.expression.Literal;
 import org.elasticsearch.xpack.ql.expression.NamedExpression;
-import org.elasticsearch.xpack.ql.plan.logical.Aggregate;
-import org.elasticsearch.xpack.ql.plan.logical.Project;
 import org.elasticsearch.xpack.ql.rule.ParameterizedRuleExecutor;
 import org.elasticsearch.xpack.ql.rule.Rule;
 import org.elasticsearch.xpack.ql.rule.RuleExecutor;
@@ -51,11 +50,10 @@ import static java.util.Collections.singletonList;
 public class PhysicalPlanOptimizer extends ParameterizedRuleExecutor<PhysicalPlan, PhysicalOptimizerContext> {
     private static final Iterable<RuleExecutor.Batch<PhysicalPlan>> rules = initializeRules(true);
 
-    private final PhysicalVerifier verifier;
+    private final PhysicalVerifier verifier = PhysicalVerifier.INSTANCE;
 
     public PhysicalPlanOptimizer(PhysicalOptimizerContext context) {
         super(context);
-        this.verifier = new PhysicalVerifier();
     }
 
     public PhysicalPlan optimize(PhysicalPlan plan) {
@@ -65,13 +63,13 @@ public class PhysicalPlanOptimizer extends ParameterizedRuleExecutor<PhysicalPla
     PhysicalPlan verify(PhysicalPlan plan) {
         Collection<Failure> failures = verifier.verify(plan);
         if (failures.isEmpty() == false) {
-            throw new PhysicalVerificationException(failures);
+            throw new VerificationException(failures);
         }
         return plan;
     }
 
     static List<RuleExecutor.Batch<PhysicalPlan>> initializeRules(boolean isOptimizedForEsSource) {
-        var boundary = new Batch<PhysicalPlan>("Plan Boundary", Limiter.ONCE, new ProjectAwayColumns());
+        var boundary = new Batch<>("Plan Boundary", Limiter.ONCE, new ProjectAwayColumns());
         return asList(boundary);
     }
 
@@ -153,7 +151,8 @@ public class PhysicalPlanOptimizer extends ParameterizedRuleExecutor<PhysicalPla
                                     Source.EMPTY,
                                     new Project(logicalFragment.source(), logicalFragment, output),
                                     fragmentExec.esFilter(),
-                                    fragmentExec.estimatedRowSize()
+                                    fragmentExec.estimatedRowSize(),
+                                    fragmentExec.reducer()
                                 )
                             );
                         }

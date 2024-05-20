@@ -96,11 +96,12 @@ public class InternalAggregationsTests extends ESTestCase {
                 super(name, buckets, keyed, keyedBucket, metadata);
             }
 
-            public InternalAggregation reduce(List<InternalAggregation> aggregations, AggregationReduceContext reduceContext) {
+            @Override
+            protected AggregatorReducer getLeaderReducer(AggregationReduceContext reduceContext, int size) {
                 assertThat(reduceContext.builder().getName(), equalTo("f2"));
                 assertThat(reduceContext.builder(), instanceOf(FiltersAggregationBuilder.class));
                 f2Reduced.incrementAndGet();
-                return super.reduce(aggregations, reduceContext);
+                return super.getLeaderReducer(reduceContext, size);
             }
         }
         class InternalFiltersForF1 extends InternalFilters {
@@ -114,11 +115,12 @@ public class InternalAggregationsTests extends ESTestCase {
                 super(name, buckets, keyed, keyedBucket, metadata);
             }
 
-            public InternalAggregation reduce(List<InternalAggregation> aggregations, AggregationReduceContext reduceContext) {
+            @Override
+            protected AggregatorReducer getLeaderReducer(AggregationReduceContext reduceContext, int size) {
                 assertThat(reduceContext.builder().getName(), equalTo("f1"));
                 assertThat(reduceContext.builder(), instanceOf(FiltersAggregationBuilder.class));
                 f1Reduced.incrementAndGet();
-                return super.reduce(aggregations, reduceContext);
+                return super.getLeaderReducer(reduceContext, size);
             }
         }
         return InternalAggregations.from(

@@ -8,7 +8,6 @@
 
 package org.elasticsearch.script.mustache;
 
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.search.RestSearchAction;
@@ -28,7 +27,7 @@ public final class RestSearchTemplateActionTests extends RestActionTestCase {
 
     @Before
     public void setUpAction() {
-        controller().registerHandler(new RestSearchTemplateAction(mock(NamedWriteableRegistry.class)));
+        controller().registerHandler(new RestSearchTemplateAction(nf -> false));
         verifyingClient.setExecuteVerifier((actionType, request) -> mock(SearchTemplateResponse.class));
         verifyingClient.setExecuteLocallyVerifier((actionType, request) -> mock(SearchTemplateResponse.class));
     }

@@ -74,6 +74,7 @@ import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextExpansionConfi
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextSimilarityConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextSimilarityConfigUpdate;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.Tokenization;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TokenizationConfigUpdate;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TokenizationUpdate;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TrainedModel;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TrainedModelLocation;
@@ -758,6 +759,9 @@ public class MlInferenceNamedXContentProvider implements NamedXContentProvider {
         );
         namedWriteables.add(
             new NamedWriteableRegistry.Entry(InferenceConfigUpdate.class, TextSimilarityConfigUpdate.NAME, TextSimilarityConfigUpdate::new)
+        );
+        namedWriteables.add(
+            new NamedWriteableRegistry.Entry(InferenceConfigUpdate.class, TokenizationConfigUpdate.NAME, TokenizationConfigUpdate::new)
         );
 
         // Location

@@ -95,6 +95,7 @@ public class TransportPostFeatureUpgradeAction extends TransportMasterNodeAction
                 SYSTEM_INDEX_UPGRADE_TASK_NAME,
                 SYSTEM_INDEX_UPGRADE_TASK_NAME,
                 new SystemIndexMigrationTaskParams(),
+                null,
                 ActionListener.wrap(startedTask -> {
                     listener.onResponse(new PostFeatureUpgradeResponse(true, featuresToMigrate, null, null));
                 }, ex -> {

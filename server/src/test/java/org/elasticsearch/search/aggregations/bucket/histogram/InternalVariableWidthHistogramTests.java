@@ -23,6 +23,7 @@ import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.MultiBucketConsumerService;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
+import org.elasticsearch.test.InternalAggregationTestCase;
 import org.elasticsearch.test.InternalMultiBucketAggregationTestCase;
 
 import java.util.ArrayList;
@@ -166,8 +167,10 @@ public class InternalVariableWidthHistogramTests extends InternalMultiBucketAggr
 
         ArrayList<InternalAggregation> aggs = new ArrayList<>();
         aggs.add(histogram);
-        List<InternalVariableWidthHistogram.Bucket> reduced_buckets = ((InternalVariableWidthHistogram) histogram.reduce(aggs, context))
-            .getBuckets();
+        List<InternalVariableWidthHistogram.Bucket> reduced_buckets = ((InternalVariableWidthHistogram) InternalAggregationTestCase.reduce(
+            aggs,
+            context
+        )).getBuckets();
 
         // Final clusters should be [ (1,2,5), (10,12), 200) ]
         // Final centroids should be [ 3, 11, 200 ]
@@ -221,8 +224,10 @@ public class InternalVariableWidthHistogramTests extends InternalMultiBucketAggr
 
         ArrayList<InternalAggregation> aggs = new ArrayList<>();
         aggs.add(histogram);
-        List<InternalVariableWidthHistogram.Bucket> reduced_buckets = ((InternalVariableWidthHistogram) histogram.reduce(aggs, context))
-            .getBuckets();
+        List<InternalVariableWidthHistogram.Bucket> reduced_buckets = ((InternalVariableWidthHistogram) InternalAggregationTestCase.reduce(
+            aggs,
+            context
+        )).getBuckets();
 
         // Final clusters should be [ (-1.3,-1.3), (12.0,13.0), (20.0, 21.5, 23.0, 24.5) ]
         // Final centroids should be [ -1.3, 12.5, 22.25 ]
@@ -314,8 +319,10 @@ public class InternalVariableWidthHistogramTests extends InternalMultiBucketAggr
         aggs.add(histogram1);
         aggs.add(histogram2);
         aggs.add(histogram3);
-        List<InternalVariableWidthHistogram.Bucket> reduced_buckets = ((InternalVariableWidthHistogram) histogram1.reduce(aggs, context))
-            .getBuckets();
+        List<InternalVariableWidthHistogram.Bucket> reduced_buckets = ((InternalVariableWidthHistogram) InternalAggregationTestCase.reduce(
+            aggs,
+            context
+        )).getBuckets();
 
         // Final clusters should be [ (0, 1, 2, 2, 3), (5, 6, 6, 7), (10, 12) ]
         // Final centroids should be [ 2, 6, 11 ]
@@ -369,8 +376,10 @@ public class InternalVariableWidthHistogramTests extends InternalMultiBucketAggr
 
         ArrayList<InternalAggregation> aggs = new ArrayList<>();
         aggs.add(histogram);
-        List<InternalVariableWidthHistogram.Bucket> reduced_buckets = ((InternalVariableWidthHistogram) histogram.reduce(aggs, context))
-            .getBuckets();
+        List<InternalVariableWidthHistogram.Bucket> reduced_buckets = ((InternalVariableWidthHistogram) InternalAggregationTestCase.reduce(
+            aggs,
+            context
+        )).getBuckets();
 
         // Expected clusters: [ (1, 2), (4), 10) ]
         // Expected centroids: [ 1.5, 4, 10 ]
@@ -431,8 +440,10 @@ public class InternalVariableWidthHistogramTests extends InternalMultiBucketAggr
 
         ArrayList<InternalAggregation> aggs = new ArrayList<>();
         aggs.add(histogram);
-        List<InternalVariableWidthHistogram.Bucket> reduced_buckets = ((InternalVariableWidthHistogram) histogram.reduce(aggs, context))
-            .getBuckets();
+        List<InternalVariableWidthHistogram.Bucket> reduced_buckets = ((InternalVariableWidthHistogram) InternalAggregationTestCase.reduce(
+            aggs,
+            context
+        )).getBuckets();
 
         // Expected clusters: [ (1), (100), (700) ]
         // Expected clusters after same min merge: [ (1, 100), (700) ]

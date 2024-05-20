@@ -7,20 +7,46 @@
 package org.elasticsearch.xpack.security.rest.action;
 
 import org.elasticsearch.client.internal.node.NodeClient;
+import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.XPackSettings;
+import org.elasticsearch.xpack.core.security.action.Grant;
 
 import java.io.IOException;
+import java.util.Arrays;
 
 /**
  * Base class for security rest handlers. This handler takes care of ensuring that the license
  * level is valid so that security can be used!
  */
 public abstract class SecurityBaseRestHandler extends BaseRestHandler {
+
+    protected static final ConstructingObjectParser<Grant.ClientAuthentication, Void> CLIENT_AUTHENTICATION_PARSER =
+        new ConstructingObjectParser<>("client_authentication", a -> new Grant.ClientAuthentication((String) a[0], (SecureString) a[1]));
+
+    static {
+        CLIENT_AUTHENTICATION_PARSER.declareString(ConstructingObjectParser.constructorArg(), new ParseField("scheme"));
+        CLIENT_AUTHENTICATION_PARSER.declareField(
+            ConstructingObjectParser.constructorArg(),
+            SecurityBaseRestHandler::getSecureString,
+            new ParseField("value"),
+            ObjectParser.ValueType.STRING
+        );
+    }
+
+    protected static SecureString getSecureString(XContentParser parser) throws IOException {
+        return new SecureString(
+            Arrays.copyOfRange(parser.textCharacters(), parser.textOffset(), parser.textOffset() + parser.textLength())
+        );
+    }
 
     protected final Settings settings;
     protected final XPackLicenseState licenseState;

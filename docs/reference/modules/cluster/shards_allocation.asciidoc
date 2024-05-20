@@ -55,11 +55,12 @@ one of the active allocation ids in the cluster state.
      (<<dynamic-cluster-setting,Dynamic>>)
      A shortcut to set both
      `cluster.routing.allocation.node_concurrent_incoming_recoveries` and
-     `cluster.routing.allocation.node_concurrent_outgoing_recoveries`. Defaults
-     to `2`. Increasing this setting may cause shard movements to have a
-     performance impact on other activity in your cluster, but may not make
-     shard movements complete noticeably sooner. We do not recommend adjusting
-     this setting from its default of `2`.
+     `cluster.routing.allocation.node_concurrent_outgoing_recoveries`. The
+     value of this setting takes effect only when the more specific setting is
+     not configured.  Defaults to `2`. Increasing this setting may cause shard
+     movements to have a performance impact on other activity in your cluster,
+     but may not make shard movements complete noticeably sooner. We do not
+     recommend adjusting this setting from its default of `2`.
 
 `cluster.routing.allocation.node_initial_primaries_recoveries`::
      (<<dynamic-cluster-setting,Dynamic>>)

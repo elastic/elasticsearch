@@ -40,7 +40,7 @@ public final class Sets {
         return new HashSet<>(Arrays.asList(elements));
     }
 
-    public static <E> Set<E> newHashSetWithExpectedSize(int expectedSize) {
+    public static <E> HashSet<E> newHashSetWithExpectedSize(int expectedSize) {
         return new HashSet<>(capacity(expectedSize));
     }
 
@@ -53,7 +53,17 @@ public final class Sets {
         return expectedSize < 2 ? expectedSize + 1 : (int) (expectedSize / 0.75 + 1.0);
     }
 
-    public static <T> boolean haveEmptyIntersection(Set<T> left, Set<T> right) {
+    public static <T> boolean haveEmptyIntersection(Set<T> set1, Set<T> set2) {
+        final Set<T> left;
+        final Set<T> right;
+        if (set1.size() < set2.size()) {
+            left = set1;
+            right = set2;
+        } else {
+            left = set2;
+            right = set1;
+        }
+
         for (T t : left) {
             if (right.contains(t)) {
                 return false;
@@ -95,7 +105,7 @@ public final class Sets {
      * @param <T>   the type of the elements of the sets
      * @return the sorted relative complement of the left set with respect to the right set
      */
-    public static <T> SortedSet<T> sortedDifference(final Set<T> left, final Set<T> right) {
+    public static <T extends Comparable<T>> SortedSet<T> sortedDifference(final Set<T> left, final Set<T> right) {
         final SortedSet<T> set = new TreeSet<>();
         for (T k : left) {
             if (right.contains(k) == false) {
@@ -165,11 +175,12 @@ public final class Sets {
      *
      * @param set      set to copy
      * @param elements elements to add
+     * @return the unmodifiable copy of the input set with the extra elements added
      */
     @SuppressWarnings("unchecked")
     public static <E> Set<E> addToCopy(Set<E> set, E... elements) {
         final var res = new HashSet<>(set);
         Collections.addAll(res, elements);
-        return Set.copyOf(res);
+        return (Set<E>) Set.of(res.toArray());
     }
 }

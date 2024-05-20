@@ -67,7 +67,7 @@ public class MustachePlugin extends Plugin implements ScriptPlugin, ActionPlugin
         Predicate<NodeFeature> clusterSupportsFeature
     ) {
         return Arrays.asList(
-            new RestSearchTemplateAction(namedWriteableRegistry),
+            new RestSearchTemplateAction(clusterSupportsFeature),
             new RestMultiSearchTemplateAction(settings),
             new RestRenderSearchTemplateAction()
         );

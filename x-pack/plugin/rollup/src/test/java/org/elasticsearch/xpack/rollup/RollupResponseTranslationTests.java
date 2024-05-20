@@ -320,7 +320,9 @@ public class RollupResponseTranslationTests extends AggregatorTestCase {
             // this is not a mock, so needs to be decRef'd
             SearchResponse finalResponse = RollupResponseTranslator.translateResponse(
                 multiSearchResponse,
-                InternalAggregationTestCase.emptyReduceContextBuilder()
+                InternalAggregationTestCase.emptyReduceContextBuilder(
+                    new AggregatorFactories.Builder().addAggregator(new SumAggregationBuilder("foo"))
+                )
             );
             try {
                 assertNotNull(finalResponse);
@@ -693,7 +695,7 @@ public class RollupResponseTranslationTests extends AggregatorTestCase {
             PipelineTree.EMPTY
         );
 
-        InternalAggregation reduced = ((InternalDateHistogram) unrolled).reduce(Collections.singletonList(unrolled), context);
+        InternalAggregation reduced = InternalAggregationTestCase.reduce(Collections.singletonList(unrolled), context);
         assertThat(reduced.toString(), equalTo(XContentHelper.stripWhitespace("""
             {
               "histo": {

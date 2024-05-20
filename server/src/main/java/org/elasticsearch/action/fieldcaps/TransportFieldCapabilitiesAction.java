@@ -15,6 +15,7 @@ import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.RemoteClusterActionType;
+import org.elasticsearch.action.support.AbstractThreadedActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.ChannelActionListener;
 import org.elasticsearch.action.support.HandledTransportAction;
@@ -28,6 +29,7 @@ import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.shard.ShardId;
@@ -39,6 +41,7 @@ import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.RemoteClusterAware;
+import org.elasticsearch.transport.RemoteClusterService;
 import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportRequestHandler;
 import org.elasticsearch.transport.TransportService;
@@ -73,7 +76,6 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
     public static final String ACTION_NODE_NAME = NAME + "[n]";
     public static final Logger LOGGER = LogManager.getLogger(TransportFieldCapabilitiesAction.class);
 
-    private final ThreadPool threadPool;
     private final Executor searchCoordinationExecutor;
     private final TransportService transportService;
     private final ClusterService clusterService;
@@ -91,15 +93,8 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
         IndicesService indicesService,
         IndexNameExpressionResolver indexNameExpressionResolver
     ) {
-        // TODO replace SAME when removing workaround for https://github.com/elastic/elasticsearch/issues/97916
-        super(
-            NAME,
-            transportService,
-            actionFilters,
-            FieldCapabilitiesRequest::new,
-            transportService.getThreadPool().executor(ThreadPool.Names.SAME)
-        );
-        this.threadPool = threadPool;
+        // TODO replace DIRECT_EXECUTOR_SERVICE when removing workaround for https://github.com/elastic/elasticsearch/issues/97916
+        super(NAME, transportService, actionFilters, FieldCapabilitiesRequest::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         this.searchCoordinationExecutor = threadPool.executor(ThreadPool.Names.SEARCH_COORDINATION);
         this.transportService = transportService;
         this.clusterService = clusterService;
@@ -167,7 +162,18 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
                     resp = new FieldCapabilitiesIndexResponse(resp.getIndexName(), curr.getIndexMappingHash(), curr.get(), true);
                 }
             }
-            indexResponses.putIfAbsent(resp.getIndexName(), resp);
+            if (request.includeEmptyFields()) {
+                indexResponses.putIfAbsent(resp.getIndexName(), resp);
+            } else {
+                indexResponses.merge(resp.getIndexName(), resp, (a, b) -> {
+                    if (a.get().equals(b.get())) {
+                        return a;
+                    }
+                    Map<String, IndexFieldCapabilities> mergedCaps = new HashMap<>(a.get());
+                    mergedCaps.putAll(b.get());
+                    return new FieldCapabilitiesIndexResponse(a.getIndexName(), a.getIndexMappingHash(), mergedCaps, true);
+                });
+            }
             if (fieldCapTask.isCancelled()) {
                 releaseResourcesOnCancel.run();
             }
@@ -218,7 +224,11 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
                 String clusterAlias = remoteIndices.getKey();
                 OriginalIndices originalIndices = remoteIndices.getValue();
                 var remoteClusterClient = transportService.getRemoteClusterService()
-                    .getRemoteClusterClient(clusterAlias, searchCoordinationExecutor);
+                    .getRemoteClusterClient(
+                        clusterAlias,
+                        searchCoordinationExecutor,
+                        RemoteClusterService.DisconnectedStrategy.RECONNECT_UNLESS_SKIP_UNAVAILABLE
+                    );
                 FieldCapabilitiesRequest remoteRequest = prepareRemoteRequest(request, originalIndices, nowInMillis);
                 ActionListener<FieldCapabilitiesResponse> remoteListener = ActionListener.wrap(response -> {
                     for (FieldCapabilitiesIndexResponse resp : response.getIndexResponses()) {
@@ -241,7 +251,14 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
                 remoteClusterClient.execute(
                     TransportFieldCapabilitiesAction.REMOTE_TYPE,
                     remoteRequest,
-                    ActionListener.releaseAfter(remoteListener, refs.acquire())
+                    // The underlying transport service may call onFailure with a thread pool other than search_coordinator.
+                    // This fork is a workaround to ensure that the merging of field-caps always occurs on the search_coordinator.
+                    // TODO: remove this workaround after we fixed https://github.com/elastic/elasticsearch/issues/107439
+                    new ForkingOnFailureActionListener<>(
+                        searchCoordinationExecutor,
+                        true,
+                        ActionListener.releaseAfter(remoteListener, refs.acquire())
+                    )
                 );
             }
         }
@@ -294,6 +311,7 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
         remoteRequest.runtimeFields(request.runtimeFields());
         remoteRequest.indexFilter(request.indexFilter());
         remoteRequest.nowInMillis(nowInMillis);
+        remoteRequest.includeEmptyFields(request.includeEmptyFields());
         return remoteRequest;
     }
 
@@ -519,7 +537,7 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
                 final Map<String, List<ShardId>> groupedShardIds = request.shardIds()
                     .stream()
                     .collect(Collectors.groupingBy(ShardId::getIndexName));
-                final FieldCapabilitiesFetcher fetcher = new FieldCapabilitiesFetcher(indicesService);
+                final FieldCapabilitiesFetcher fetcher = new FieldCapabilitiesFetcher(indicesService, request.includeEmptyFields());
                 final Predicate<String> fieldNameFilter = Regex.simpleMatcher(request.fields());
                 for (List<ShardId> shardIds : groupedShardIds.values()) {
                     final Map<ShardId, Exception> failures = new HashMap<>();
@@ -537,10 +555,12 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
                                 request.runtimeFields()
                             );
                             if (response.canMatch()) {
-                                unmatched.clear();
-                                failures.clear();
                                 allResponses.add(response);
-                                break;
+                                if (request.includeEmptyFields()) {
+                                    unmatched.clear();
+                                    failures.clear();
+                                    break;
+                                }
                             } else {
                                 unmatched.add(shardId);
                             }
@@ -553,6 +573,17 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
                 }
                 return new FieldCapabilitiesNodeResponse(allResponses, allFailures, allUnmatchedShardIds);
             });
+        }
+    }
+
+    private static class ForkingOnFailureActionListener<Response> extends AbstractThreadedActionListener<Response> {
+        ForkingOnFailureActionListener(Executor executor, boolean forceExecution, ActionListener<Response> delegate) {
+            super(executor, forceExecution, delegate);
+        }
+
+        @Override
+        public void onResponse(Response response) {
+            delegate.onResponse(response);
         }
     }
 }

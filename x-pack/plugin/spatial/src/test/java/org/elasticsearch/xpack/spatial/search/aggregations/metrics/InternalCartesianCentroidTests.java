@@ -86,7 +86,10 @@ public class InternalCartesianCentroidTests extends InternalAggregationTestCase<
             Long.MAX_VALUE,
             Collections.emptyMap()
         );
-        InternalCentroid reducedCentroid = maxValueCentroid.reduce(Collections.singletonList(maxValueCentroid), null);
+        InternalCentroid reducedCentroid = (InternalCentroid) InternalAggregationTestCase.reduce(
+            Collections.singletonList(maxValueCentroid),
+            null
+        );
         assertThat(reducedCentroid.count(), equalTo(Long.MAX_VALUE));
     }
 

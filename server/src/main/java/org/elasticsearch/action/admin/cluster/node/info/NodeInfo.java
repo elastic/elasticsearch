@@ -61,7 +61,7 @@ public class NodeInfo extends BaseNodeResponse {
 
     public NodeInfo(StreamInput in) throws IOException {
         super(in);
-        if (in.getTransportVersion().onOrAfter(TransportVersions.NODE_INFO_VERSION_AS_STRING)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
             version = in.readString();
             transportVersion = TransportVersion.readVersion(in);
             indexVersion = IndexVersion.readVersion(in);
@@ -234,7 +234,7 @@ public class NodeInfo extends BaseNodeResponse {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.NODE_INFO_VERSION_AS_STRING)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
             out.writeString(version);
         } else {
             Version.writeVersion(Version.fromString(version), out);

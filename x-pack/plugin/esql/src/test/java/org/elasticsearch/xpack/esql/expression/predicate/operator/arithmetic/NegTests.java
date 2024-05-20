@@ -11,7 +11,7 @@ import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.elasticsearch.compute.data.Block;
-import org.elasticsearch.xpack.esql.analysis.VerificationException;
+import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.expression.function.AbstractFunctionTestCase;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
@@ -155,7 +155,7 @@ public class NegTests extends AbstractFunctionTestCase {
     }
 
     private Object process(Object val) {
-        if (testCase.allTypesAreRepresentable()) {
+        if (testCase.canBuildEvaluator()) {
             Neg neg = new Neg(Source.EMPTY, field("val", typeOf(val)));
             try (Block block = evaluator(neg).get(driverContext()).eval(row(List.of(val)))) {
                 return toJavaObject(block, 0);

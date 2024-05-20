@@ -328,7 +328,7 @@ public class UpdateSettingsIT extends ESIntegTestCase {
 
         // Wait for the index to turn green before attempting to close it
         ClusterHealthResponse health = clusterAdmin().prepareHealth()
-            .setTimeout("30s")
+            .setTimeout(TimeValue.timeValueSeconds(30))
             .setWaitForEvents(Priority.LANGUID)
             .setWaitForGreenStatus()
             .get();

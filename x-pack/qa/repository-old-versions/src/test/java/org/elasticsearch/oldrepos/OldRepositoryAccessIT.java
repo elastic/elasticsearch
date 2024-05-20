@@ -29,6 +29,7 @@ import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.search.SearchResponseUtils;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.sort.SortBuilders;
 import org.elasticsearch.search.sort.SortOrder;
@@ -214,7 +215,7 @@ public class OldRepositoryAccessIT extends ESRestTestCase {
         assertEquals(numberOfShards, (int) getResp.evaluate("snapshots.0.shards.successful"));
         assertEquals(numberOfShards, (int) getResp.evaluate("snapshots.0.shards.total"));
         assertEquals(0, (int) getResp.evaluate("snapshots.0.shards.failed"));
-        assertEquals(indexVersion.toString(), getResp.evaluate("snapshots.0.version"));
+        assertEquals(indexVersion.toReleaseVersion(), getResp.evaluate("snapshots.0.version"));
 
         // list specific snapshot on new ES
         getSnaps = new Request("GET", "/_snapshot/" + repoName + "/" + snapshotName);
@@ -228,7 +229,7 @@ public class OldRepositoryAccessIT extends ESRestTestCase {
         assertEquals(numberOfShards, (int) getResp.evaluate("snapshots.0.shards.successful"));
         assertEquals(numberOfShards, (int) getResp.evaluate("snapshots.0.shards.total"));
         assertEquals(0, (int) getResp.evaluate("snapshots.0.shards.failed"));
-        assertEquals(indexVersion.toString(), getResp.evaluate("snapshots.0.version"));
+        assertEquals(indexVersion.toReleaseVersion(), getResp.evaluate("snapshots.0.version"));
 
         // list advanced snapshot info on new ES
         getSnaps = new Request("GET", "/_snapshot/" + repoName + "/" + snapshotName + "/_status");
@@ -496,7 +497,7 @@ public class OldRepositoryAccessIT extends ESRestTestCase {
             request.setJsonEntity(builder.toString());
         }
         request.setOptions(options);
-        return SearchResponse.fromXContent(responseAsParser(client().performRequest(request)));
+        return SearchResponseUtils.parseSearchResponse(responseAsParser(client().performRequest(request)));
     }
 
     private int getIdAsNumeric(String id) {

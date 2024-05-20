@@ -8,16 +8,14 @@
 package org.elasticsearch.xpack.application.connector.action;
 
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
-import org.elasticsearch.cluster.metadata.MetadataCreateIndexService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.indices.InvalidIndexNameException;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -34,14 +32,15 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg
 
 public class UpdateConnectorIndexNameAction {
 
-    public static final String NAME = "cluster:admin/xpack/connector/update_index_name";
+    public static final String NAME = "indices:data/write/xpack/connector/update_index_name";
     public static final ActionType<ConnectorUpdateActionResponse> INSTANCE = new ActionType<>(NAME);
 
     private UpdateConnectorIndexNameAction() {/* no instances */}
 
-    public static class Request extends ActionRequest implements ToXContentObject {
+    public static class Request extends ConnectorActionRequest implements ToXContentObject {
 
         private final String connectorId;
+        @Nullable
         private final String indexName;
 
         public Request(String connectorId, String indexName) {
@@ -52,7 +51,7 @@ public class UpdateConnectorIndexNameAction {
         public Request(StreamInput in) throws IOException {
             super(in);
             this.connectorId = in.readString();
-            this.indexName = in.readString();
+            this.indexName = in.readOptionalString();
         }
 
         public String getConnectorId() {
@@ -71,7 +70,7 @@ public class UpdateConnectorIndexNameAction {
             );
 
         static {
-            PARSER.declareString(constructorArg(), Connector.INDEX_NAME_FIELD);
+            PARSER.declareStringOrNull(constructorArg(), Connector.INDEX_NAME_FIELD);
         }
 
         public static UpdateConnectorIndexNameAction.Request fromXContentBytes(
@@ -108,15 +107,7 @@ public class UpdateConnectorIndexNameAction {
                 validationException = addValidationError("[connector_id] cannot be [null] or [\"\"].", validationException);
             }
 
-            if (Strings.isNullOrEmpty(indexName)) {
-                validationException = addValidationError("[index_name] cannot be [null] or [\"\"].", validationException);
-            }
-
-            try {
-                MetadataCreateIndexService.validateIndexOrAliasName(indexName, InvalidIndexNameException::new);
-            } catch (InvalidIndexNameException e) {
-                validationException = addValidationError(e.toString(), validationException);
-            }
+            validationException = validateIndexName(indexName, validationException);
 
             return validationException;
         }
@@ -125,7 +116,7 @@ public class UpdateConnectorIndexNameAction {
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             out.writeString(connectorId);
-            out.writeString(indexName);
+            out.writeOptionalString(indexName);
         }
 
         @Override

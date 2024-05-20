@@ -23,10 +23,10 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.analysis.AnalyzerScope;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
+import org.elasticsearch.index.mapper.MapperMetrics;
 import org.elasticsearch.index.mapper.MapperRegistry;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.similarity.SimilarityService;
-import org.elasticsearch.plugins.internal.DocumentParsingObserver;
 import org.elasticsearch.script.ScriptCompiler;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
@@ -59,6 +59,7 @@ public class IndexMetadataVerifier {
     private final MapperRegistry mapperRegistry;
     private final IndexScopedSettings indexScopedSettings;
     private final ScriptCompiler scriptService;
+    private final MapperMetrics mapperMetrics;
 
     public IndexMetadataVerifier(
         Settings settings,
@@ -66,7 +67,8 @@ public class IndexMetadataVerifier {
         NamedXContentRegistry xContentRegistry,
         MapperRegistry mapperRegistry,
         IndexScopedSettings indexScopedSettings,
-        ScriptCompiler scriptCompiler
+        ScriptCompiler scriptCompiler,
+        MapperMetrics mapperMetrics
     ) {
         this.settings = settings;
         this.clusterService = clusterService;
@@ -75,6 +77,7 @@ public class IndexMetadataVerifier {
         this.mapperRegistry = mapperRegistry;
         this.indexScopedSettings = indexScopedSettings;
         this.scriptService = scriptCompiler;
+        this.mapperMetrics = mapperMetrics;
     }
 
     /**
@@ -111,9 +114,9 @@ public class IndexMetadataVerifier {
                 "The index "
                     + indexMetadata.getIndex()
                     + " has current compatibility version ["
-                    + indexMetadata.getCompatibilityVersion()
+                    + indexMetadata.getCompatibilityVersion().toReleaseVersion()
                     + "] but the minimum compatible version is ["
-                    + minimumIndexCompatibilityVersion
+                    + minimumIndexCompatibilityVersion.toReleaseVersion()
                     + "]. It should be re-indexed in Elasticsearch "
                     + (Version.CURRENT.major - 1)
                     + ".x before upgrading to "
@@ -184,7 +187,7 @@ public class IndexMetadataVerifier {
                     () -> null,
                     indexSettings.getMode().idFieldMapperWithoutFieldData(),
                     scriptService,
-                    () -> DocumentParsingObserver.EMPTY_INSTANCE
+                    mapperMetrics
                 )
             ) {
                 mapperService.merge(indexMetadata, MapperService.MergeReason.MAPPING_RECOVERY);

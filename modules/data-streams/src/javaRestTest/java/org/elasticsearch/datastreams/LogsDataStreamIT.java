@@ -19,9 +19,12 @@ import java.util.List;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.matchesRegex;
+import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 
 public class LogsDataStreamIT extends DisabledSecurityDataStreamTestCase {
@@ -460,7 +463,6 @@ public class LogsDataStreamIT extends DisabledSecurityDataStreamTestCase {
                       {
                         "@timestamp": "2023-06-12",
                         "start_timestamp": "2023-06-08",
-                        "location" : "POINT (-71.34 41.12)",
                         "test": "flattened",
                         "test.start_timestamp": "not a date",
                         "test.start-timestamp": "not a date",
@@ -494,7 +496,7 @@ public class LogsDataStreamIT extends DisabledSecurityDataStreamTestCase {
                         "vulnerability.score.version": "2.0",
                         "vulnerability.textual_score": "bad",
                         "host.cpu.usage": 0.68,
-                        "geo.location": [-73.614830, 45.505918],
+                        "host.geo.location": [-73.614830, 45.505918],
                         "data_stream.dataset": "nginx.access",
                         "data_stream.namespace": "production",
                         "data_stream.custom": "whatever",
@@ -518,8 +520,7 @@ public class LogsDataStreamIT extends DisabledSecurityDataStreamTestCase {
               },
               "fields": [
                 "data_stream.type",
-                "location",
-                "geo.location",
+                "host.geo.location",
                 "test.start-timestamp",
                 "test.start_timestamp",
                 "vulnerability.textual_score"
@@ -534,23 +535,17 @@ public class LogsDataStreamIT extends DisabledSecurityDataStreamTestCase {
         // verify that data_stream.type has the correct constant_keyword value
         assertThat(fields.get("data_stream.type"), is(List.of("logs")));
         // verify geo_point subfields evaluation
-        assertThat(((List<Map<String, Object>>) fields.get("location")).get(0).get("type"), is("Point"));
-        List<Double> coordinates = ((List<Map<String, List<Double>>>) fields.get("location")).get(0).get("coordinates");
-        assertThat(coordinates.size(), is(2));
-        assertThat(coordinates.get(0), equalTo(-71.34));
-        assertThat(coordinates.get(1), equalTo(41.12));
-        List<Object> geoLocation = (List<Object>) fields.get("geo.location");
+        List<Object> geoLocation = (List<Object>) fields.get("host.geo.location");
         assertThat(((Map<String, Object>) geoLocation.get(0)).get("type"), is("Point"));
-        coordinates = ((Map<String, List<Double>>) geoLocation.get(0)).get("coordinates");
+        List<Double> coordinates = ((Map<String, List<Double>>) geoLocation.get(0)).get("coordinates");
         assertThat(coordinates.size(), is(2));
         assertThat(coordinates.get(0), equalTo(-73.614830));
         assertThat(coordinates.get(1), equalTo(45.505918));
         // "start-timestamp" doesn't match the ECS dynamic mapping pattern "*_timestamp"
         assertThat(fields.get("test.start-timestamp"), is(List.of("not a date")));
         assertThat(ignored.size(), is(2));
-        assertThat(ignored.get(0), is("vulnerability.textual_score"));
+        assertThat(ignored, containsInAnyOrder("test.start_timestamp", "vulnerability.textual_score"));
         // the ECS date dynamic template enforces mapping of "*_timestamp" fields to a date type
-        assertThat(ignored.get(1), is("test.start_timestamp"));
         assertThat(ignoredFieldValues.get("test.start_timestamp").size(), is(1));
         assertThat(ignoredFieldValues.get("test.start_timestamp"), is(List.of("not a date")));
         assertThat(ignoredFieldValues.get("vulnerability.textual_score").size(), is(1));
@@ -610,8 +605,7 @@ public class LogsDataStreamIT extends DisabledSecurityDataStreamTestCase {
         assertThat(getValueFromPath(properties, List.of("vulnerability.textual_score", "type")), is("float"));
         assertThat(getValueFromPath(properties, List.of("host.cpu.usage", "type")), is("scaled_float"));
         assertThat(getValueFromPath(properties, List.of("host.cpu.usage", "scaling_factor")), is(1000.0));
-        assertThat(getValueFromPath(properties, List.of("location", "type")), is("geo_point"));
-        assertThat(getValueFromPath(properties, List.of("geo.location", "type")), is("geo_point"));
+        assertThat(getValueFromPath(properties, List.of("host.geo.location", "type")), is("geo_point"));
         assertThat(getValueFromPath(properties, List.of("data_stream.dataset", "type")), is("constant_keyword"));
         assertThat(getValueFromPath(properties, List.of("data_stream.namespace", "type")), is("constant_keyword"));
         assertThat(getValueFromPath(properties, List.of("data_stream.type", "type")), is("constant_keyword"));
@@ -714,6 +708,53 @@ public class LogsDataStreamIT extends DisabledSecurityDataStreamTestCase {
             }
             """);
         assertEquals(0, results.size());
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testIgnoreDynamicBeyondLimit() throws Exception {
+        Request request = new Request("POST", "/_component_template/logs@custom");
+        request.setJsonEntity("""
+            {
+              "template": {
+                "settings": {
+                  "index.mapping.total_fields.limit": 10
+                }
+              }
+            }
+            """);
+        assertOK(client.performRequest(request));
+
+        final String dataStreamName = "logs-generic-default";
+        createDataStream(client, dataStreamName);
+
+        indexDoc(client, dataStreamName, """
+            {
+              "@timestamp": "2023-04-18",
+              "field1": "foo",
+              "field2": "foo",
+              "field3": "foo",
+              "field4": "foo",
+              "field5": "foo",
+              "field6": "foo",
+              "field7": "foo",
+              "field8": "foo",
+              "field9": "foo",
+              "field10": "foo"
+            }
+            """);
+
+        List<Object> results = searchDocs(client, dataStreamName, """
+            {
+              "query": {
+                "match_all": { }
+              },
+              "fields": ["*"]
+            }
+            """);
+        assertEquals(1, results.size());
+        List<String> ignored = (List<String>) ((Map<String, ?>) results.get(0)).get("_ignored");
+        assertThat(ignored, not(empty()));
+        assertThat(ignored.stream().filter(i -> i.startsWith("field") == false).toList(), empty());
     }
 
     static void waitForLogs(RestClient client) throws Exception {

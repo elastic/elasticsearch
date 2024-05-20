@@ -54,7 +54,7 @@ public class OperatorPrivilegesIT extends ESRestTestCase {
         .setting("xpack.security.http.ssl.enabled", "false")
         .setting("xpack.security.operator_privileges.enabled", "true")
         .setting("path.repo", () -> repoDirectory.getRoot().getPath())
-        .plugin("org.elasticsearch.xpack.security.operator.OperatorPrivilegesTestPlugin")
+        .plugin("operator-privileges-test")
         .rolesFile(Resource.fromClasspath("roles.yml"))
         .configFile("service_tokens", Resource.fromClasspath("service_tokens"))
         .configFile("operator_users.yml", Resource.fromClasspath("operator_users.yml"))

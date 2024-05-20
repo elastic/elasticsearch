@@ -1,5 +1,0 @@
-pr: 105070
-summary: Validate settings before reloading JWT shared secret
-area: Authentication
-type: bug
-issues: []

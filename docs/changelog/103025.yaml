@@ -1,5 +1,0 @@
-pr: 103025
-summary: "Metrics: Allow `AsyncCounters` to switch providers"
-area: Infra/Core
-type: bug
-issues: []

@@ -41,6 +41,12 @@ import org.elasticsearch.xpack.core.security.action.Grant;
 import org.elasticsearch.xpack.core.security.action.apikey.CreateApiKeyResponse;
 import org.elasticsearch.xpack.core.security.action.apikey.GrantApiKeyAction;
 import org.elasticsearch.xpack.core.security.action.apikey.GrantApiKeyRequest;
+import org.elasticsearch.xpack.core.security.action.profile.ActivateProfileAction;
+import org.elasticsearch.xpack.core.security.action.profile.ActivateProfileRequest;
+import org.elasticsearch.xpack.core.security.action.profile.ActivateProfileResponse;
+import org.elasticsearch.xpack.core.security.action.profile.GetProfilesAction;
+import org.elasticsearch.xpack.core.security.action.profile.GetProfilesRequest;
+import org.elasticsearch.xpack.core.security.action.profile.GetProfilesResponse;
 import org.elasticsearch.xpack.core.security.action.user.AuthenticateAction;
 import org.elasticsearch.xpack.core.security.action.user.AuthenticateRequest;
 import org.elasticsearch.xpack.core.security.action.user.AuthenticateResponse;
@@ -163,6 +169,7 @@ public class JwtRealmSingleNodeTests extends SecuritySingleNodeTestCase {
             """;
     }
 
+    @Override
     protected boolean addMockHttpTransport() {
         return false;
     }
@@ -232,6 +239,84 @@ public class JwtRealmSingleNodeTests extends SecuritySingleNodeTestCase {
             ElasticsearchSecurityException e = expectThrows(
                 ElasticsearchSecurityException.class,
                 () -> client().execute(GrantApiKeyAction.INSTANCE, grantApiKeyRequest).actionGet()
+            );
+            assertThat(e.getMessage(), containsString("unable to authenticate user"));
+        }
+    }
+
+    public void testActivateProfileForJWT() throws Exception {
+        final JWTClaimsSet.Builder jwtClaims = new JWTClaimsSet.Builder();
+        final String principal;
+        final String sharedSecret;
+        final String realmName;
+        // id_token or access_token
+        if (randomBoolean()) {
+            principal = "me";
+            // JWT "id_token" valid for jwt0
+            jwtClaims.audience("es-01")
+                .issuer("my-issuer-01")
+                .subject(principal)
+                .claim("groups", "admin")
+                .issueTime(Date.from(Instant.now()))
+                .expirationTime(Date.from(Instant.now().plusSeconds(600)))
+                .build();
+            sharedSecret = jwt0SharedSecret;
+            realmName = "jwt0";
+        } else {
+            principal = "me@example.com";
+            // JWT "access_token" valid for jwt2
+            jwtClaims.audience("es-03")
+                .issuer("my-issuer-03")
+                .subject("user-03")
+                .claim("groups", "admin")
+                .claim("email", principal)
+                .issueTime(Date.from(Instant.now()))
+                .expirationTime(Date.from(Instant.now().plusSeconds(300)));
+            sharedSecret = jwt2SharedSecret;
+            realmName = "jwt2";
+        }
+        {
+            // JWT is valid but the client authentication is NOT
+            ActivateProfileRequest activateProfileRequest = getActivateProfileForJWT(
+                getSignedJWT(jwtClaims.build()),
+                randomFrom("WRONG", null)
+            );
+            ElasticsearchSecurityException e = expectThrows(
+                ElasticsearchSecurityException.class,
+                () -> client().execute(ActivateProfileAction.INSTANCE, activateProfileRequest).actionGet()
+            );
+            assertThat(e.getMessage(), containsString("unable to authenticate user"));
+        }
+        {
+            // both JWT and client authentication are valid
+            ActivateProfileRequest activateProfileRequest = getActivateProfileForJWT(getSignedJWT(jwtClaims.build()), sharedSecret);
+            ActivateProfileResponse activateProfileResponse = client().execute(ActivateProfileAction.INSTANCE, activateProfileRequest)
+                .actionGet();
+            assertThat(activateProfileResponse.getProfile(), notNullValue());
+            assertThat(activateProfileResponse.getProfile().uid(), notNullValue());
+            assertThat(activateProfileResponse.getProfile().user().username(), is(principal));
+            assertThat(activateProfileResponse.getProfile().user().realmName(), is(realmName));
+            // test to get the profile by uid
+            GetProfilesRequest getProfilesRequest = new GetProfilesRequest(List.of(activateProfileResponse.getProfile().uid()), Set.of());
+            GetProfilesResponse getProfilesResponse = client().execute(GetProfilesAction.INSTANCE, getProfilesRequest).actionGet();
+            assertThat(getProfilesResponse.getProfiles().size(), is(1));
+            assertThat(getProfilesResponse.getProfiles().get(0).uid(), is(activateProfileResponse.getProfile().uid()));
+            assertThat(getProfilesResponse.getProfiles().get(0).enabled(), is(true));
+            assertThat(getProfilesResponse.getProfiles().get(0).user().username(), is(principal));
+            assertThat(getProfilesResponse.getProfiles().get(0).user().realmName(), is(realmName));
+        }
+        {
+            // client authentication is valid but the JWT is not
+            final SignedJWT wrongJWT;
+            if (randomBoolean()) {
+                wrongJWT = getSignedJWT(jwtClaims.build(), ("wrong key that's longer than 256 bits").getBytes(StandardCharsets.UTF_8));
+            } else {
+                wrongJWT = getSignedJWT(jwtClaims.audience("wrong audience claim value").build());
+            }
+            ActivateProfileRequest activateProfileRequest = getActivateProfileForJWT(wrongJWT, sharedSecret);
+            ElasticsearchSecurityException e = expectThrows(
+                ElasticsearchSecurityException.class,
+                () -> client().execute(ActivateProfileAction.INSTANCE, activateProfileRequest).actionGet()
             );
             assertThat(e.getMessage(), containsString("unable to authenticate user"));
         }
@@ -402,7 +487,9 @@ public class JwtRealmSingleNodeTests extends SecuritySingleNodeTestCase {
             .expirationTime(Date.from(Instant.now().plusSeconds(600)));
         assertEquals(
             200,
-            client.performRequest(getRequest(getSignedJWT(jwt0Claims.build()), jwt0SharedSecret)).getStatusLine().getStatusCode()
+            client.performRequest(getAuthenticateRequest(getSignedJWT(jwt0Claims.build()), jwt0SharedSecret))
+                .getStatusLine()
+                .getStatusCode()
         );
         // valid jwt for realm1
         JWTClaimsSet.Builder jwt1Claims = new JWTClaimsSet.Builder();
@@ -415,7 +502,9 @@ public class JwtRealmSingleNodeTests extends SecuritySingleNodeTestCase {
             .expirationTime(Date.from(Instant.now().plusSeconds(300)));
         assertEquals(
             200,
-            client.performRequest(getRequest(getSignedJWT(jwt1Claims.build()), jwt1SharedSecret)).getStatusLine().getStatusCode()
+            client.performRequest(getAuthenticateRequest(getSignedJWT(jwt1Claims.build()), jwt1SharedSecret))
+                .getStatusLine()
+                .getStatusCode()
         );
         // valid jwt for realm2
         JWTClaimsSet.Builder jwt2Claims = new JWTClaimsSet.Builder();
@@ -428,7 +517,9 @@ public class JwtRealmSingleNodeTests extends SecuritySingleNodeTestCase {
             .expirationTime(Date.from(Instant.now().plusSeconds(300)));
         assertEquals(
             200,
-            client.performRequest(getRequest(getSignedJWT(jwt2Claims.build()), jwt2SharedSecret)).getStatusLine().getStatusCode()
+            client.performRequest(getAuthenticateRequest(getSignedJWT(jwt2Claims.build()), jwt2SharedSecret))
+                .getStatusLine()
+                .getStatusCode()
         );
         final PluginsService plugins = getInstanceFromNode(PluginsService.class);
         final LocalStateSecurity localStateSecurity = plugins.filterPlugins(LocalStateSecurity.class).findFirst().get();
@@ -457,30 +548,42 @@ public class JwtRealmSingleNodeTests extends SecuritySingleNodeTestCase {
             // ensure the old value still works for realm 0 (default grace period)
             assertEquals(
                 200,
-                client.performRequest(getRequest(getSignedJWT(jwt0Claims.build()), jwt0SharedSecret)).getStatusLine().getStatusCode()
+                client.performRequest(getAuthenticateRequest(getSignedJWT(jwt0Claims.build()), jwt0SharedSecret))
+                    .getStatusLine()
+                    .getStatusCode()
             );
             assertEquals(
                 200,
-                client.performRequest(getRequest(getSignedJWT(jwt0Claims.build()), "realm0updatedSecret")).getStatusLine().getStatusCode()
+                client.performRequest(getAuthenticateRequest(getSignedJWT(jwt0Claims.build()), "realm0updatedSecret"))
+                    .getStatusLine()
+                    .getStatusCode()
             );
             // ensure the old value still works for realm 1 (explicit grace period)
             assertEquals(
                 200,
-                client.performRequest(getRequest(getSignedJWT(jwt1Claims.build()), jwt1SharedSecret)).getStatusLine().getStatusCode()
+                client.performRequest(getAuthenticateRequest(getSignedJWT(jwt1Claims.build()), jwt1SharedSecret))
+                    .getStatusLine()
+                    .getStatusCode()
             );
             assertEquals(
                 200,
-                client.performRequest(getRequest(getSignedJWT(jwt1Claims.build()), "realm1updatedSecret")).getStatusLine().getStatusCode()
+                client.performRequest(getAuthenticateRequest(getSignedJWT(jwt1Claims.build()), "realm1updatedSecret"))
+                    .getStatusLine()
+                    .getStatusCode()
             );
             // ensure the old value does not work for realm 2 (no grace period)
             ResponseException exception = expectThrows(
                 ResponseException.class,
-                () -> client.performRequest(getRequest(getSignedJWT(jwt2Claims.build()), jwt2SharedSecret)).getStatusLine().getStatusCode()
+                () -> client.performRequest(getAuthenticateRequest(getSignedJWT(jwt2Claims.build()), jwt2SharedSecret))
+                    .getStatusLine()
+                    .getStatusCode()
             );
             assertEquals(401, exception.getResponse().getStatusLine().getStatusCode());
             assertEquals(
                 200,
-                client.performRequest(getRequest(getSignedJWT(jwt2Claims.build()), "realm2updatedSecret")).getStatusLine().getStatusCode()
+                client.performRequest(getAuthenticateRequest(getSignedJWT(jwt2Claims.build()), "realm2updatedSecret"))
+                    .getStatusLine()
+                    .getStatusCode()
             );
         } finally {
             // update them back to their original values
@@ -604,7 +707,7 @@ public class JwtRealmSingleNodeTests extends SecuritySingleNodeTestCase {
         }
     }
 
-    private SignedJWT getSignedJWT(JWTClaimsSet claimsSet, byte[] hmacKeyBytes) throws Exception {
+    static SignedJWT getSignedJWT(JWTClaimsSet claimsSet, byte[] hmacKeyBytes) throws Exception {
         JWSHeader jwtHeader = new JWSHeader.Builder(JWSAlgorithm.HS256).build();
         OctetSequenceKey.Builder jwt0signer = new OctetSequenceKey.Builder(hmacKeyBytes);
         jwt0signer.algorithm(JWSAlgorithm.HS256);
@@ -617,7 +720,7 @@ public class JwtRealmSingleNodeTests extends SecuritySingleNodeTestCase {
         return getSignedJWT(claimsSet, jwtHmacKey.getBytes(StandardCharsets.UTF_8));
     }
 
-    private Request getRequest(SignedJWT jwt, String sharedSecret) {
+    static Request getAuthenticateRequest(SignedJWT jwt, String sharedSecret) {
         Request request = new Request("GET", "/_security/_authenticate");
         RequestOptions.Builder options = RequestOptions.DEFAULT.toBuilder();
         options.addHeader("Authorization", "Bearer  " + jwt.serialize());
@@ -684,7 +787,7 @@ public class JwtRealmSingleNodeTests extends SecuritySingleNodeTestCase {
         return threadContext;
     }
 
-    private static GrantApiKeyRequest getGrantApiKeyForJWT(SignedJWT signedJWT, String sharedSecret) {
+    static GrantApiKeyRequest getGrantApiKeyForJWT(SignedJWT signedJWT, String sharedSecret) {
         GrantApiKeyRequest grantApiKeyRequest = new GrantApiKeyRequest();
         grantApiKeyRequest.getGrant().setType("access_token");
         grantApiKeyRequest.getGrant().setAccessToken(new SecureString(signedJWT.serialize().toCharArray()));
@@ -695,5 +798,16 @@ public class JwtRealmSingleNodeTests extends SecuritySingleNodeTestCase {
         grantApiKeyRequest.setRefreshPolicy(randomFrom(IMMEDIATE, WAIT_UNTIL));
         grantApiKeyRequest.getApiKeyRequest().setName(randomAlphaOfLength(8));
         return grantApiKeyRequest;
+    }
+
+    private static ActivateProfileRequest getActivateProfileForJWT(SignedJWT signedJWT, String sharedSecret) {
+        ActivateProfileRequest activateProfileRequest = new ActivateProfileRequest();
+        activateProfileRequest.getGrant().setType("access_token");
+        activateProfileRequest.getGrant().setAccessToken(new SecureString(signedJWT.serialize().toCharArray()));
+        if (sharedSecret != null) {
+            activateProfileRequest.getGrant()
+                .setClientAuthentication(new Grant.ClientAuthentication("SharedSecret", new SecureString(sharedSecret.toCharArray())));
+        }
+        return activateProfileRequest;
     }
 }

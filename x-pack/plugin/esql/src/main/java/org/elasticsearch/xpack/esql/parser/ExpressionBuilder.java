@@ -11,24 +11,30 @@ import org.antlr.v4.runtime.ParserRuleContext;
 import org.antlr.v4.runtime.Token;
 import org.antlr.v4.runtime.tree.ParseTree;
 import org.antlr.v4.runtime.tree.TerminalNode;
+import org.apache.lucene.util.automaton.Automata;
+import org.apache.lucene.util.automaton.Automaton;
+import org.apache.lucene.util.automaton.CharacterRunAutomaton;
+import org.apache.lucene.util.automaton.Operations;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.Equals;
-import org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.GreaterThan;
-import org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.GreaterThanOrEqual;
-import org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.InsensitiveEquals;
-import org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.LessThan;
-import org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.LessThanOrEqual;
-import org.elasticsearch.xpack.esql.evaluator.predicate.operator.regex.RLike;
-import org.elasticsearch.xpack.esql.evaluator.predicate.operator.regex.WildcardLike;
+import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.xpack.esql.expression.Order;
+import org.elasticsearch.xpack.esql.expression.UnresolvedNamePattern;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.RLike;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.WildcardLike;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Add;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Div;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Mod;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Mul;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Neg;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Sub;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThan;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThanOrEqual;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.In;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.InsensitiveEquals;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThan;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThanOrEqual;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
 import org.elasticsearch.xpack.ql.InvalidArgumentException;
@@ -67,7 +73,9 @@ import java.util.Map;
 import java.util.function.BiFunction;
 
 import static java.util.Collections.singletonList;
+import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.bigIntegerToUnsignedLong;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.parseTemporalAmout;
+import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.stringToIntegral;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.DATE_PERIOD;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.TIME_DURATION;
 import static org.elasticsearch.xpack.ql.parser.ParserUtils.source;
@@ -79,6 +87,13 @@ import static org.elasticsearch.xpack.ql.util.StringUtils.WILDCARD;
 
 public abstract class ExpressionBuilder extends IdentifierBuilder {
 
+    private int expressionDepth = 0;
+
+    /**
+     * Maximum depth for nested expressions
+     */
+    public static final int MAX_EXPRESSION_DEPTH = 500;
+
     private final Map<Token, TypedParamValue> params;
 
     ExpressionBuilder(Map<Token, TypedParamValue> params) {
@@ -86,7 +101,19 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
     }
 
     protected Expression expression(ParseTree ctx) {
-        return typedParsing(this, ctx, Expression.class);
+        expressionDepth++;
+        if (expressionDepth > MAX_EXPRESSION_DEPTH) {
+            throw new ParsingException(
+                "ESQL statement exceeded the maximum expression depth allowed ({}): [{}]",
+                MAX_EXPRESSION_DEPTH,
+                ctx.getParent().getText()
+            );
+        }
+        try {
+            return typedParsing(this, ctx, Expression.class);
+        } finally {
+            expressionDepth--;
+        }
     }
 
     protected List<Expression> expressions(List<? extends ParserRuleContext> contexts) {
@@ -118,11 +145,11 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
         Number number;
 
         try {
-            number = StringUtils.parseIntegral(text);
+            number = stringToIntegral(text);
         } catch (InvalidArgumentException siae) {
             // if it's too large, then quietly try to parse as a float instead
             try {
-                return new Literal(source, StringUtils.parseDouble(text), DataTypes.DOUBLE);
+                return new Literal(source, EsqlDataTypeConverter.stringToDouble(text), DataTypes.DOUBLE);
             } catch (InvalidArgumentException ignored) {}
 
             throw new ParsingException(source, siae.getMessage());
@@ -155,7 +182,9 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
                 source,
                 mapNumbers(
                     numbers,
-                    (no, dt) -> dt == DataTypes.UNSIGNED_LONG ? no.longValue() : asLongUnsigned(BigInteger.valueOf(no.longValue()))
+                    (no, dt) -> dt == DataTypes.UNSIGNED_LONG
+                        ? no.longValue()
+                        : bigIntegerToUnsignedLong(BigInteger.valueOf(no.longValue()))
                 ),
                 DataTypes.UNSIGNED_LONG
             );
@@ -219,11 +248,160 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
             return null;
         }
 
-        List<String> strings = visitList(this, ctx.identifierPattern(), String.class);
         var src = source(ctx);
-        return strings.size() == 1 && strings.get(0).equals(WILDCARD)
-            ? new UnresolvedStar(src, null)
-            : new UnresolvedAttribute(src, Strings.collectionToDelimitedString(strings, "."));
+        StringBuilder patternString = new StringBuilder();
+        StringBuilder nameString = new StringBuilder();
+        var patterns = ctx.identifierPattern();
+
+        // check special wildcard case
+        if (patterns.size() == 1) {
+            var idCtx = patterns.get(0);
+            if (idCtx.ID_PATTERN().getText().equals(WILDCARD)) {
+                return new UnresolvedStar(src, null);
+            }
+        }
+
+        boolean hasPattern = false;
+        // Builds a list of either strings (which map verbatim) or Automatons which match any string
+        List<Object> objects = new ArrayList<>(patterns.size());
+        for (int i = 0, s = patterns.size(); i < s; i++) {
+            if (i > 0) {
+                patternString.append(".");
+                nameString.append(".");
+                objects.add(".");
+            }
+
+            String patternContext = patterns.get(i).ID_PATTERN().getText();
+            // as this is one big string of fragments mashed together, break it manually into quoted vs unquoted
+            // for readability reasons, do a first pass to break the string into fragments and then process each of them
+            // to avoid doing a string allocation
+            List<String> fragments = breakIntoFragments(patternContext);
+
+            for (var fragment : fragments) {
+                // unquoted fragment
+                // a wildcard that matches can only appear in an unquoted section
+                if (fragment.charAt(0) == '`' == false) {
+                    patternString.append(fragment);
+                    nameString.append(fragment);
+                    // loop the string itself to extract any * and make them an automaton directly
+                    // the code is somewhat messy but doesn't invoke the full blown Regex engine either
+                    if (Regex.isSimpleMatchPattern(fragment)) {
+                        hasPattern = true;
+                        String str = fragment;
+                        boolean keepGoing = false;
+                        do {
+                            int localIndex = str.indexOf('*');
+                            // in case of match
+                            if (localIndex != -1) {
+                                keepGoing = true;
+                                // copy any prefix string
+                                if (localIndex > 0) {
+                                    objects.add(str.substring(0, localIndex));
+                                }
+                                objects.add(Automata.makeAnyString());
+                                localIndex++;
+                                // trim the string
+                                if (localIndex < str.length()) {
+                                    str = str.substring(localIndex);
+                                } else {
+                                    keepGoing = false;
+                                }
+                            }
+                            // no more matches, copy leftovers and end the loop
+                            else {
+                                keepGoing = false;
+                                if (str.length() > 0) {
+                                    objects.add(str);
+                                }
+                            }
+                        } while (keepGoing);
+                    } else {
+                        objects.add(fragment);
+                    }
+                }
+                // quoted - definitely no pattern
+                else {
+                    patternString.append(fragment);
+                    var unquotedString = unquoteIdString(fragment);
+                    objects.add(unquotedString);
+                    nameString.append(unquotedString);
+                }
+            }
+        }
+
+        NamedExpression result;
+        // need to combine automaton
+        if (hasPattern) {
+            // add . as optional matching
+            List<Automaton> list = new ArrayList<>(objects.size());
+            for (var o : objects) {
+                list.add(o instanceof Automaton a ? a : Automata.makeString(o.toString()));
+            }
+            // use the fast run variant
+            result = new UnresolvedNamePattern(
+                src,
+                new CharacterRunAutomaton(Operations.concatenate(list)),
+                patternString.toString(),
+                nameString.toString()
+            );
+        } else {
+            result = new UnresolvedAttribute(src, Strings.collectionToDelimitedString(objects, ""));
+        }
+        return result;
+    }
+
+    static List<String> breakIntoFragments(String idPattern) {
+        List<String> fragments = new ArrayList<>();
+        char backtick = '`';
+        boolean inQuotes = false;
+        boolean keepGoing = true;
+        int from = 0, offset = -1;
+
+        do {
+            offset = idPattern.indexOf(backtick, offset);
+            String fragment = null;
+            // unquoted fragment
+            if (offset < 0) {
+                keepGoing = false;
+                // pick trailing string
+                fragment = idPattern.substring(from);
+            }
+            // quoted fragment
+            else {
+                // if not in quotes
+                // copy the string over
+                // otherwise keep on going
+                if (inQuotes == false) {
+                    inQuotes = true;
+                    if (offset != 0) {
+                        fragment = idPattern.substring(from, offset);
+                        from = offset;
+                    }
+                } // in quotes
+                else {
+                    // if double backtick keep on going
+                    var ahead = offset + 1;
+                    if (ahead < idPattern.length() && idPattern.charAt(ahead) == backtick) {
+                        // move offset
+                        offset = ahead;
+                    }
+                    // otherwise end the quote
+                    else {
+                        inQuotes = false;
+                        // include the quote
+                        offset++;
+                        fragment = idPattern.substring(from, offset);
+                        from = offset;
+                    }
+                }
+                // keep moving the offset
+                offset++;
+            }
+            if (fragment != null) {
+                fragments.add(fragment);
+            }
+        } while (keepGoing && offset <= idPattern.length());
+        return fragments;
     }
 
     @Override
@@ -328,6 +506,28 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
     }
 
     @Override
+    public Expression visitInlineCast(EsqlBaseParser.InlineCastContext ctx) {
+        Source source = source(ctx);
+        DataType dataType = typedParsing(this, ctx.dataType(), DataType.class);
+        var converterToFactory = EsqlDataTypeConverter.converterFunctionFactory(dataType);
+        if (converterToFactory == null) {
+            throw new ParsingException(source, "Unsupported conversion to type [{}]", dataType);
+        }
+        Expression expr = expression(ctx.primaryExpression());
+        return converterToFactory.apply(source, expr);
+    }
+
+    @Override
+    public DataType visitToDataType(EsqlBaseParser.ToDataTypeContext ctx) {
+        String typeName = visitIdentifier(ctx.identifier());
+        DataType dataType = EsqlDataTypes.fromNameOrAlias(typeName);
+        if (dataType == DataTypes.UNSUPPORTED) {
+            throw new ParsingException(source(ctx), "Unknown data type named [{}]", typeName);
+        }
+        return dataType;
+    }
+
+    @Override
     public Expression visitLogicalBinary(EsqlBaseParser.LogicalBinaryContext ctx) {
         int type = ctx.operator.getType();
         Source source = source(ctx);
@@ -385,8 +585,8 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
         Source src = source(ctx);
         NamedExpression newName = visitQualifiedNamePattern(ctx.newName);
         NamedExpression oldName = visitQualifiedNamePattern(ctx.oldName);
-        if (newName.name().contains(WILDCARD) || oldName.name().contains(WILDCARD)) {
-            throw new ParsingException(src, "Using wildcards (*) in renaming projections is not allowed [{}]", src.text());
+        if (newName instanceof UnresolvedNamePattern || oldName instanceof UnresolvedNamePattern) {
+            throw new ParsingException(src, "Using wildcards (*) in RENAME is not allowed [{}]", src.text());
         }
 
         return new Alias(src, newName.name(), oldName);
@@ -402,8 +602,8 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
 
     private NamedExpression enrichFieldName(EsqlBaseParser.QualifiedNamePatternContext ctx) {
         var name = visitQualifiedNamePattern(ctx);
-        if (name != null && name.name().contains(WILDCARD)) {
-            throw new ParsingException(source(ctx), "Using wildcards (*) in ENRICH WITH projections is not allowed [{}]", name.name());
+        if (name instanceof UnresolvedNamePattern up) {
+            throw new ParsingException(source(ctx), "Using wildcards (*) in ENRICH WITH projections is not allowed [{}]", up.pattern());
         }
         return name;
     }
@@ -423,7 +623,7 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
     }
 
     /**
-     * Similar to {@link #visitFields(EsqlBaseParser.FieldsContext)} however avoids wrapping the exception
+     * Similar to {@link #visitFields(EsqlBaseParser.FieldsContext)} however avoids wrapping the expression
      * into an Alias.
      */
     public List<NamedExpression> visitGrouping(EsqlBaseParser.FieldsContext ctx) {

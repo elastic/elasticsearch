@@ -14,11 +14,11 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
+import org.elasticsearch.index.mapper.MapperMetrics;
 import org.elasticsearch.index.mapper.MapperRegistry;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.indices.IndicesModule;
-import org.elasticsearch.plugins.internal.DocumentParsingObserver;
 import org.elasticsearch.script.ScriptCompiler;
 import org.elasticsearch.test.IndexSettingsModule;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
@@ -68,7 +68,7 @@ public class MapperTestUtils {
             () -> null,
             indexSettings.getMode().idFieldMapperWithoutFieldData(),
             ScriptCompiler.NONE,
-            () -> DocumentParsingObserver.EMPTY_INSTANCE
+            MapperMetrics.NOOP
         );
     }
 }

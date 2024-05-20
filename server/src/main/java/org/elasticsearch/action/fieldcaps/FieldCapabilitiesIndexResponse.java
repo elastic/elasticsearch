@@ -24,7 +24,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
-final class FieldCapabilitiesIndexResponse implements Writeable {
+public final class FieldCapabilitiesIndexResponse implements Writeable {
     private static final TransportVersion MAPPING_HASH_VERSION = TransportVersions.V_8_2_0;
 
     private final String indexName;
@@ -34,7 +34,7 @@ final class FieldCapabilitiesIndexResponse implements Writeable {
     private final boolean canMatch;
     private final transient TransportVersion originVersion;
 
-    FieldCapabilitiesIndexResponse(
+    public FieldCapabilitiesIndexResponse(
         String indexName,
         @Nullable String indexMappingHash,
         Map<String, IndexFieldCapabilities> responseMap,

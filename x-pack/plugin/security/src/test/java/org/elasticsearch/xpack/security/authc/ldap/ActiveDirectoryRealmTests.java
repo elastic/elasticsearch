@@ -318,7 +318,7 @@ public class ActiveDirectoryRealmTests extends ESTestCase {
         verify(sessionFactory, times(1)).session(eq("CN=ironman"), any(SecureString.class), anyActionListener());
 
         // Refresh the role mappings
-        roleMapper.notifyRefresh();
+        roleMapper.clearRealmCachesOnLocalNode();
 
         for (int i = 0; i < count; i++) {
             PlainActionFuture<AuthenticationResult<User>> future = new PlainActionFuture<>();
@@ -624,6 +624,22 @@ public class ActiveDirectoryRealmTests extends ESTestCase {
                 final AuthenticationResult<User> result = future.actionGet();
                 assertThat(result.toString(), result.getStatus(), is(AuthenticationResult.Status.SUCCESS));
             }
+
+            // Verify that reloading fails if password gets removed when bind dn is configured.
+            var e = expectThrows(Exception.class, () -> realm.reload(Settings.EMPTY));
+            assertThat(
+                e.getMessage(),
+                containsString(
+                    "["
+                        + getFullSettingKey(config, PoolingSessionFactorySettings.BIND_DN)
+                        + "] is set but no bind password is specified. Without a corresponding bind password, "
+                        + "all "
+                        + realm.type()
+                        + " realm authentication will fail. Specify a bind password via ["
+                        + getFullSettingKey(config, PoolingSessionFactorySettings.SECURE_BIND_PASSWORD)
+                        + "]."
+                )
+            );
         }
     }
 

@@ -976,7 +976,7 @@ public final class XContentBuilder implements Closeable, Flushable {
         return map(map);
     }
 
-    private XContentBuilder value(ToXContent value, ToXContent.Params params) throws IOException {
+    public XContentBuilder value(ToXContent value, ToXContent.Params params) throws IOException {
         if (value == null) {
             return nullValue();
         }
@@ -1209,6 +1209,14 @@ public final class XContentBuilder implements Closeable, Flushable {
      */
     public XContentBuilder rawValue(InputStream stream, XContentType contentType) throws IOException {
         generator.writeRawValue(stream, contentType);
+        return this;
+    }
+
+    /**
+     * Writes a value with the source coming directly from a pre-rendered string representation
+     */
+    public XContentBuilder rawValue(String value) throws IOException {
+        generator.writeRawValue(value);
         return this;
     }
 

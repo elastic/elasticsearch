@@ -29,9 +29,12 @@ public class AnnotatedTextFieldTypeTests extends FieldTypeTestCase {
     }
 
     public void testFetchSourceValue() throws IOException {
-        MappedFieldType fieldType = new AnnotatedTextFieldMapper.Builder("field", IndexVersion.current(), createDefaultIndexAnalyzers())
-            .build(MapperBuilderContext.root(false, false))
-            .fieldType();
+        MappedFieldType fieldType = new AnnotatedTextFieldMapper.Builder(
+            "field",
+            IndexVersion.current(),
+            createDefaultIndexAnalyzers(),
+            false
+        ).build(MapperBuilderContext.root(false, false)).fieldType();
 
         assertEquals(List.of("value"), fetchSourceValue(fieldType, "value"));
         assertEquals(List.of("42"), fetchSourceValue(fieldType, 42L));

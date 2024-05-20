@@ -13,6 +13,7 @@ import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.DelegatingAnalyzerWrapper;
 import org.apache.lucene.index.CheckIndex;
 import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.FieldInfos;
 import org.apache.lucene.index.FilterDirectoryReader;
 import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.LeafReader;
@@ -102,6 +103,7 @@ import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.MapperMetrics;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.Mapping;
 import org.elasticsearch.index.mapper.MappingLookup;
@@ -223,6 +225,12 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     private final ReplicationTracker replicationTracker;
     private final IndexStorePlugin.SnapshotCommitSupplier snapshotCommitSupplier;
     private final Engine.IndexCommitListener indexCommitListener;
+    private FieldInfos fieldInfos;
+    // sys prop to disable the field has value feature, defaults to true (enabled) if set to false (disabled) the
+    // field caps always returns empty fields ignoring the value of the query param `field_caps_empty_fields_filter`.
+    private final boolean enableFieldHasValue = Booleans.parseBoolean(
+        System.getProperty("es.field_caps_empty_fields_filter", Boolean.TRUE.toString())
+    );
 
     protected volatile ShardRouting shardRouting;
     protected volatile IndexShardState state;
@@ -281,6 +289,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     private final AtomicLong lastSearcherAccess = new AtomicLong();
     private final AtomicReference<Translog.Location> pendingRefreshLocation = new AtomicReference<>();
     private final RefreshPendingLocationListener refreshPendingLocationListener;
+    private final RefreshFieldHasValueListener refreshFieldHasValueListener;
     private volatile boolean useRetentionLeasesInPeerRecovery;
     private final LongSupplier relativeTimeInNanosSupplier;
     private volatile long startedRelativeTimeInNanos;
@@ -313,7 +322,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         final CircuitBreakerService circuitBreakerService,
         final IndexStorePlugin.SnapshotCommitSupplier snapshotCommitSupplier,
         final LongSupplier relativeTimeInNanosSupplier,
-        final Engine.IndexCommitListener indexCommitListener
+        final Engine.IndexCommitListener indexCommitListener,
+        final MapperMetrics mapperMetrics
     ) throws IOException {
         super(shardRouting.shardId(), indexSettings);
         assert shardRouting.initializing();
@@ -343,7 +353,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             CollectionUtils.appendToCopyNoNullElements(searchOperationListener, searchStats),
             logger
         );
-        this.getService = new ShardGetService(indexSettings, this, mapperService);
+        this.getService = new ShardGetService(indexSettings, this, mapperService, mapperMetrics);
         this.shardWarmerService = new ShardIndexWarmerService(shardId, indexSettings);
         this.requestCacheStats = new ShardRequestCache();
         this.shardFieldData = new ShardFieldData();
@@ -396,8 +406,10 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         persistMetadata(path, indexSettings, shardRouting, null, logger);
         this.useRetentionLeasesInPeerRecovery = replicationTracker.hasAllPeerRecoveryRetentionLeases();
         this.refreshPendingLocationListener = new RefreshPendingLocationListener();
+        this.refreshFieldHasValueListener = new RefreshFieldHasValueListener();
         this.relativeTimeInNanosSupplier = relativeTimeInNanosSupplier;
         this.indexCommitListener = indexCommitListener;
+        this.fieldInfos = FieldInfos.EMPTY;
     }
 
     public ThreadPool getThreadPool() {
@@ -758,6 +770,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      * @throws IllegalStateException           if the relocation target is no longer part of the replication group
      */
     public void relocated(
+        final String targetNodeId,
         final String targetAllocationId,
         final BiConsumer<ReplicationTracker.PrimaryContext, ActionListener<Void>> consumer,
         final ActionListener<Void> listener
@@ -778,7 +791,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                          * context via a network operation. Doing this under the mutex can implicitly block the cluster state update thread
                          * on network operations.
                          */
-                        verifyRelocatingState();
+                        verifyRelocatingState(targetNodeId);
                         final ReplicationTracker.PrimaryContext primaryContext = replicationTracker.startRelocationHandoff(
                             targetAllocationId
                         );
@@ -793,7 +806,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                                 try {
                                     // make changes to primaryMode and relocated flag only under mutex
                                     synchronized (mutex) {
-                                        verifyRelocatingState();
+                                        verifyRelocatingState(targetNodeId);
                                         replicationTracker.completeRelocationHandoff();
                                     }
                                     wrappedInnerListener.onResponse(null);
@@ -847,7 +860,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         }
     }
 
-    private void verifyRelocatingState() {
+    private void verifyRelocatingState(String targetNodeId) {
         if (state != IndexShardState.STARTED) {
             throw new IndexShardNotStartedException(shardId, state);
         }
@@ -859,6 +872,14 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
         if (shardRouting.relocating() == false) {
             throw new IllegalIndexShardStateException(shardId, IndexShardState.STARTED, ": shard is no longer relocating " + shardRouting);
+        }
+
+        if (Objects.equals(targetNodeId, shardRouting.relocatingNodeId()) == false) {
+            throw new IllegalIndexShardStateException(
+                shardId,
+                IndexShardState.STARTED,
+                ": shard is no longer relocating to node [" + targetNodeId + "]: " + shardRouting
+            );
         }
 
         if (primaryReplicaResyncInProgress.get()) {
@@ -983,8 +1004,15 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             verifyNotClosed(e);
             return new Engine.IndexResult(e, version, opPrimaryTerm, seqNo, sourceToParse.id());
         }
-
         return index(engine, operation);
+    }
+
+    public void setFieldInfos(FieldInfos fieldInfos) {
+        this.fieldInfos = fieldInfos;
+    }
+
+    public FieldInfos getFieldInfos() {
+        return fieldInfos;
     }
 
     public static Engine.Index prepareIndex(
@@ -1212,15 +1240,33 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     public Engine.GetResult get(Engine.Get get) {
-        return innerGet(get, false);
+        return innerGet(get, false, this::wrapSearcher);
+    }
+
+    /**
+     * Invokes the consumer with a {@link MultiEngineGet} that can perform multiple engine gets without wrapping searchers multiple times.
+     * Callers must not pass the provided {@link MultiEngineGet} to other threads.
+     */
+    public void mget(Consumer<MultiEngineGet> mgetter) {
+        final MultiEngineGet mget = new MultiEngineGet(this::wrapSearcher) {
+            @Override
+            public GetResult get(Engine.Get get) {
+                return innerGet(get, false, this::wrapSearchSearchWithCache);
+            }
+        };
+        try {
+            mgetter.accept(mget);
+        } finally {
+            mget.releaseCachedSearcher();
+        }
     }
 
     public Engine.GetResult getFromTranslog(Engine.Get get) {
         assert get.realtime();
-        return innerGet(get, true);
+        return innerGet(get, true, this::wrapSearcher);
     }
 
-    private Engine.GetResult innerGet(Engine.Get get, boolean translogOnly) {
+    private Engine.GetResult innerGet(Engine.Get get, boolean translogOnly, Function<Engine.Searcher, Engine.Searcher> searcherWrapper) {
         readAllowed();
         MappingLookup mappingLookup = mapperService.mappingLookup();
         if (mappingLookup.hasMappings() == false) {
@@ -1230,9 +1276,9 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             throw new IllegalStateException("get operations not allowed on a legacy index");
         }
         if (translogOnly) {
-            return getEngine().getFromTranslog(get, mappingLookup, mapperService.documentParser(), this::wrapSearcher);
+            return getEngine().getFromTranslog(get, mappingLookup, mapperService.documentParser(), searcherWrapper);
         }
-        return getEngine().get(get, mappingLookup, mapperService.documentParser(), this::wrapSearcher);
+        return getEngine().get(get, mappingLookup, mapperService.documentParser(), searcherWrapper);
     }
 
     /**
@@ -1272,7 +1318,12 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     public FlushStats flushStats() {
-        return new FlushStats(flushMetric.count(), periodicFlushMetric.count(), TimeUnit.NANOSECONDS.toMillis(flushMetric.sum()));
+        return new FlushStats(
+            flushMetric.count(),
+            periodicFlushMetric.count(),
+            TimeUnit.NANOSECONDS.toMillis(flushMetric.sum()),
+            getEngineOrNull() != null ? getEngineOrNull().getTotalFlushTimeExcludingWaitingOnLockInMillis() : 0L
+        );
     }
 
     public DocsStats docStats() {
@@ -1669,7 +1720,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
     }
 
-    public void close(String reason, boolean flushEngine) throws IOException {
+    public void close(String reason, boolean flushEngine, Executor closeExecutor, ActionListener<Void> closeListener) throws IOException {
         synchronized (engineMutex) {
             try {
                 synchronized (mutex) {
@@ -1678,16 +1729,31 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 checkAndCallWaitForEngineOrClosedShardListeners();
             } finally {
                 final Engine engine = this.currentEngineReference.getAndSet(null);
-                try {
-                    if (engine != null && flushEngine) {
-                        engine.flushAndClose();
+                closeExecutor.execute(ActionRunnable.run(closeListener, new CheckedRunnable<>() {
+                    @Override
+                    public void run() throws Exception {
+                        try {
+                            if (engine != null && flushEngine) {
+                                engine.flushAndClose();
+                            }
+                        } finally {
+                            // playing safe here and close the engine even if the above succeeds - close can be called multiple times
+                            // Also closing refreshListeners to prevent us from accumulating any more listeners
+                            IOUtils.close(
+                                engine,
+                                globalCheckpointListeners,
+                                refreshListeners,
+                                pendingReplicationActions,
+                                indexShardOperationPermits
+                            );
+                        }
                     }
-                } finally {
-                    // playing safe here and close the engine even if the above succeeds - close can be called multiple times
-                    // Also closing refreshListeners to prevent us from accumulating any more listeners
-                    IOUtils.close(engine, globalCheckpointListeners, refreshListeners, pendingReplicationActions);
-                    indexShardOperationPermits.close();
-                }
+
+                    @Override
+                    public String toString() {
+                        return "IndexShard#close[" + shardId + "]";
+                    }
+                }));
             }
         }
     }
@@ -1915,14 +1981,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                     index.getAutoGeneratedIdTimestamp(),
                     true,
                     origin,
-                    new SourceToParse(
-                        index.id(),
-                        index.source(),
-                        XContentHelper.xContentType(index.source()),
-                        index.routing(),
-                        Map.of(),
-                        false
-                    )
+                    new SourceToParse(index.id(), index.source(), XContentHelper.xContentType(index.source()), index.routing())
                 );
             }
             case DELETE -> {
@@ -2531,6 +2590,10 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
     public List<Segment> segments() {
         return getEngine().segments();
+    }
+
+    public List<Segment> segments(boolean includeVectorFormatsInfo) {
+        return getEngine().segments(includeVectorFormatsInfo);
     }
 
     public String getHistoryUUID() {
@@ -3415,7 +3478,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             cachingPolicy,
             translogConfig,
             IndexingMemoryController.SHARD_INACTIVE_TIME_SETTING.get(indexSettings.getSettings()),
-            List.of(refreshListeners, refreshPendingLocationListener),
+            List.of(refreshListeners, refreshPendingLocationListener, refreshFieldHasValueListener),
             Collections.singletonList(new RefreshMetricUpdater(refreshMetric)),
             indexSort,
             circuitBreakerService,
@@ -3969,6 +4032,22 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         }
     }
 
+    private class RefreshFieldHasValueListener implements ReferenceManager.RefreshListener {
+        @Override
+        public void beforeRefresh() {}
+
+        @Override
+        public void afterRefresh(boolean didRefresh) {
+            if (enableFieldHasValue) {
+                try (Engine.Searcher hasValueSearcher = getEngine().acquireSearcher("field_has_value")) {
+                    setFieldInfos(FieldInfos.getMergedFieldInfos(hasValueSearcher.getIndexReader()));
+                } catch (AlreadyClosedException ignore) {
+                    // engine is closed - no updated FieldInfos is fine
+                }
+            }
+        }
+    }
+
     /**
      * Ensures this shard is search active before invoking the provided listener.
      * <p>
@@ -4154,12 +4233,13 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
                 @Override
                 public void close() throws IOException {
-                    assert Thread.holdsLock(engineMutex);
-
-                    Engine newEngine = newEngineReference.get();
-                    if (newEngine == currentEngineReference.get()) {
-                        // we successfully installed the new engine so do not close it.
-                        newEngine = null;
+                    Engine newEngine;
+                    synchronized (engineMutex) {
+                        newEngine = newEngineReference.get();
+                        if (newEngine == currentEngineReference.get()) {
+                            // we successfully installed the new engine so do not close it.
+                            newEngine = null;
+                        }
                     }
                     IOUtils.close(super::close, newEngine);
                 }

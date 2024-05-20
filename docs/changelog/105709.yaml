@@ -1,0 +1,6 @@
+pr: 105709
+summary: Disable validate when rewrite parameter is sent and the index access control
+  list is non-null
+area: Security
+type: bug
+issues: []

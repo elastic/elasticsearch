@@ -65,4 +65,31 @@ public class ConnectorStateMachineTests extends ESTestCase {
             assertFalse("Transition from " + state + " to itself should be invalid", ConnectorStateMachine.isValidTransition(state, state));
         }
     }
+
+    public void testAssertValidStateTransition_ExpectExceptionOnInvalidTransition() {
+        assertThrows(
+            ConnectorInvalidStatusTransitionException.class,
+            () -> ConnectorStateMachine.assertValidStateTransition(ConnectorStatus.CREATED, ConnectorStatus.CONFIGURED)
+        );
+    }
+
+    public void testAssertValidStateTransition_ExpectNoExceptionOnValidTransition() {
+        ConnectorStatus prevStatus = ConnectorStatus.CREATED;
+        ConnectorStatus nextStatus = ConnectorStatus.ERROR;
+
+        try {
+            ConnectorStateMachine.assertValidStateTransition(prevStatus, nextStatus);
+        } catch (ConnectorInvalidStatusTransitionException e) {
+            fail(
+                "Did not expect "
+                    + ConnectorInvalidStatusTransitionException.class.getSimpleName()
+                    + " to be thrown for valid state transition ["
+                    + prevStatus
+                    + "] -> "
+                    + "["
+                    + nextStatus
+                    + "]."
+            );
+        }
+    }
 }

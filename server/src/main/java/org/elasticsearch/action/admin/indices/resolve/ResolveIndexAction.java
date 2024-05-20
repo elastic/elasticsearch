@@ -38,7 +38,6 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.tasks.Task;
-import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.transport.RemoteClusterService;
 import org.elasticsearch.transport.TransportService;
@@ -441,7 +440,6 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
 
     public static class TransportAction extends HandledTransportAction<Request, Response> {
 
-        private final ThreadPool threadPool;
         private final ClusterService clusterService;
         private final RemoteClusterService remoteClusterService;
         private final IndexNameExpressionResolver indexNameExpressionResolver;
@@ -451,12 +449,10 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
         public TransportAction(
             TransportService transportService,
             ClusterService clusterService,
-            ThreadPool threadPool,
             ActionFilters actionFilters,
             IndexNameExpressionResolver indexNameExpressionResolver
         ) {
             super(NAME, transportService, actionFilters, Request::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
-            this.threadPool = threadPool;
             this.clusterService = clusterService;
             this.remoteClusterService = transportService.getRemoteClusterService();
             this.indexNameExpressionResolver = indexNameExpressionResolver;
@@ -496,7 +492,8 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
                     OriginalIndices originalIndices = remoteIndices.getValue();
                     var remoteClusterClient = remoteClusterService.getRemoteClusterClient(
                         clusterAlias,
-                        EsExecutors.DIRECT_EXECUTOR_SERVICE
+                        EsExecutors.DIRECT_EXECUTOR_SERVICE,
+                        RemoteClusterService.DisconnectedStrategy.RECONNECT_UNLESS_SKIP_UNAVAILABLE
                     );
                     Request remoteRequest = new Request(originalIndices.indices(), originalIndices.indicesOptions());
                     remoteClusterClient.execute(ResolveIndexAction.REMOTE_TYPE, remoteRequest, ActionListener.wrap(response -> {
@@ -544,7 +541,6 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
          * @param aliases        List containing any matching aliases
          * @param dataStreams    List containing any matching data streams
          */
-        // visible for testing
         static void resolveIndices(
             String[] names,
             IndicesOptions indicesOptions,
@@ -655,6 +651,5 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
             SYSTEM,
             FROZEN
         }
-
     }
 }

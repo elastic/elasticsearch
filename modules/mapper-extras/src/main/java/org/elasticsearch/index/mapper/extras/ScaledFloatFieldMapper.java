@@ -186,7 +186,7 @@ public class ScaledFloatFieldMapper extends FieldMapper {
         @Override
         public ScaledFloatFieldMapper build(MapperBuilderContext context) {
             ScaledFloatFieldType type = new ScaledFloatFieldType(
-                context.buildFullName(name),
+                context.buildFullName(name()),
                 indexed.getValue(),
                 stored.getValue(),
                 hasDocValues.getValue(),
@@ -196,7 +196,7 @@ public class ScaledFloatFieldMapper extends FieldMapper {
                 metric.getValue(),
                 indexMode
             );
-            return new ScaledFloatFieldMapper(name, type, multiFieldsBuilder.build(this, context), copyTo, this);
+            return new ScaledFloatFieldMapper(name(), type, multiFieldsBuilder.build(this, context), copyTo, this);
         }
     }
 
@@ -340,7 +340,8 @@ public class ScaledFloatFieldMapper extends FieldMapper {
                         valuesSourceType,
                         (dv, n) -> {
                             throw new UnsupportedOperationException();
-                        }
+                        },
+                        isIndexed()
                     ).build(cache, breakerService);
                     return new ScaledFloatIndexFieldData(scaledValues, scalingFactor, ScaledFloatDocValuesField::new);
                 };
@@ -609,6 +610,11 @@ public class ScaledFloatFieldMapper extends FieldMapper {
         }
 
         @Override
+        protected boolean isIndexed() {
+            return false; // We don't know how to take advantage of the index with half floats anyway
+        }
+
+        @Override
         public NumericType getNumericType() {
             /*
              * {@link ScaledFloatLeafFieldData#getDoubleValues()} transforms the raw long values in `scaled` floats.
@@ -743,6 +749,20 @@ public class ScaledFloatFieldMapper extends FieldMapper {
      */
     static double decodeForSyntheticSource(long scaledValue, double scalingFactor) {
         double v = scaledValue / scalingFactor;
+
+        // If original double value is close to MAX_VALUE
+        // and rounding is performed in the direction of the same infinity
+        // it is possible to "overshoot" infinity during reconstruction.
+        // E.g. for a value close to Double.MAX_VALUE "true" scaled value is 10.5
+        // and with rounding it becomes 11.
+        // Now, because of that rounding difference, 11 divided by scaling factor goes into infinity.
+        // There is nothing we can do about it so we'll return the closest finite value to infinity
+        // which is MAX_VALUE.
+        if (Double.isInfinite(v)) {
+            var sign = v == Double.POSITIVE_INFINITY ? 1 : -1;
+            return sign * Double.MAX_VALUE;
+        }
+
         long reenc = Math.round(v * scalingFactor);
         if (reenc != scaledValue) {
             if (reenc > scaledValue) {

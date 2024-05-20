@@ -239,7 +239,7 @@ public class InboundHandler {
             header.getCompressionScheme(),
             reg == null ? ResponseStatsConsumer.NONE : reg,
             false,
-            message.takeBreakerReleaseControl()
+            Releasables.assertOnce(message.takeBreakerReleaseControl())
         );
 
         try {
@@ -348,7 +348,7 @@ public class InboundHandler {
             header.getCompressionScheme(),
             ResponseStatsConsumer.NONE,
             true,
-            message.takeBreakerReleaseControl()
+            Releasables.assertOnce(message.takeBreakerReleaseControl())
         );
         try {
             handshaker.handleHandshake(transportChannel, requestId, stream);

@@ -7,14 +7,18 @@
 
 package org.elasticsearch.compute.operator.exchange;
 
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.RefCountingListener;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.tasks.TaskCancelledException;
+import org.elasticsearch.transport.TransportException;
 
+import java.util.List;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
@@ -42,10 +46,10 @@ public final class ExchangeSourceHandler {
         this.outstandingSources = new PendingInstances(() -> buffer.finish(true));
     }
 
-    private class LocalExchangeSource implements ExchangeSource {
+    private class ExchangeSourceImpl implements ExchangeSource {
         private boolean finished;
 
-        LocalExchangeSource() {
+        ExchangeSourceImpl() {
             outstandingSources.trackNewInstance();
         }
 
@@ -87,13 +91,27 @@ public final class ExchangeSourceHandler {
         }
     }
 
+    public void addCompletionListener(ActionListener<Void> listener) {
+        buffer.addCompletionListener(ActionListener.running(() -> {
+            try (RefCountingListener refs = new RefCountingListener(listener)) {
+                for (PendingInstances pending : List.of(outstandingSinks, outstandingSources)) {
+                    // Create an outstanding instance and then finish to complete the completionListener
+                    // if we haven't registered any instances of exchange sinks or exchange sources before.
+                    pending.trackNewInstance();
+                    pending.completion.addListener(refs.acquire());
+                    pending.finishInstance();
+                }
+            }
+        }));
+    }
+
     /**
      * Create a new {@link ExchangeSource} for exchanging data
      *
      * @see ExchangeSinkOperator
      */
     public ExchangeSource createExchangeSource() {
-        return new LocalExchangeSource();
+        return new ExchangeSourceImpl();
     }
 
     /**
@@ -181,7 +199,10 @@ public final class ExchangeSourceHandler {
             loopControl.exited();
         }
 
-        void onSinkFailed(Exception e) {
+        void onSinkFailed(Exception originEx) {
+            final Exception e = originEx instanceof TransportException
+                ? (originEx.getCause() instanceof Exception cause ? cause : new ElasticsearchException(originEx.getCause()))
+                : originEx;
             failure.getAndUpdate(first -> {
                 if (first == null) {
                     return e;
@@ -198,6 +219,7 @@ public final class ExchangeSourceHandler {
                 }
                 return first;
             });
+            buffer.waitForReading().onResponse(null); // resume the Driver if it is being blocked on reading
             onSinkComplete();
         }
 
@@ -247,10 +269,10 @@ public final class ExchangeSourceHandler {
 
     private static class PendingInstances {
         private final AtomicInteger instances = new AtomicInteger();
-        private final Releasable onComplete;
+        private final SubscribableListener<Void> completion = new SubscribableListener<>();
 
-        PendingInstances(Releasable onComplete) {
-            this.onComplete = onComplete;
+        PendingInstances(Runnable onComplete) {
+            completion.addListener(ActionListener.running(onComplete));
         }
 
         void trackNewInstance() {
@@ -262,7 +284,7 @@ public final class ExchangeSourceHandler {
             int refs = instances.decrementAndGet();
             assert refs >= 0;
             if (refs == 0) {
-                onComplete.close();
+                completion.onResponse(null);
             }
         }
     }

@@ -1,7 +1,7 @@
 {
   "connector.update_index_name": {
     "documentation": {
-      "url": "https://www.elastic.co/guide/en/elasticsearch/reference/master/connector-apis.html",
+      "url": "https://www.elastic.co/guide/en/elasticsearch/reference/master/update-connector-index-name-api.html",
       "description": "Updates the index name of the connector."
     },
     "stability": "experimental",

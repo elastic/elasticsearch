@@ -261,7 +261,7 @@ class ActiveDirectorySessionFactory extends PoolingSessionFactory {
     ADAuthenticator getADAuthenticator(String username) {
         if (username.indexOf('\\') > 0) {
             return downLevelADAuthenticator;
-        } else if (username.indexOf("@") > 0) {
+        } else if (username.indexOf('@') > 0) {
             return upnADAuthenticator;
         }
         return defaultADAuthenticator;

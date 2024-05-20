@@ -12,6 +12,8 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.test.ESTestCase;
 
+import static org.hamcrest.Matchers.equalTo;
+
 public class BulkRequestBuilderTests extends ESTestCase {
 
     public void testValidation() {
@@ -19,5 +21,19 @@ public class BulkRequestBuilderTests extends ESTestCase {
         bulkRequestBuilder.add(new IndexRequestBuilder(null, randomAlphaOfLength(10)));
         bulkRequestBuilder.add(new IndexRequest());
         expectThrows(IllegalStateException.class, bulkRequestBuilder::request);
+    }
+
+    public void testRequestTwice() {
+        BulkRequestBuilder bulkRequestBuilder = new BulkRequestBuilder(null, null);
+        bulkRequestBuilder.add(new IndexRequestBuilder(null, randomAlphaOfLength(10)));
+        bulkRequestBuilder.add(new IndexRequestBuilder(null, randomAlphaOfLength(10)));
+        bulkRequestBuilder.add(new IndexRequestBuilder(null, randomAlphaOfLength(10)));
+        assertThat(bulkRequestBuilder.numberOfActions(), equalTo(3));
+        BulkRequest bulkRequest = bulkRequestBuilder.request();
+        assertNotNull(bulkRequest);
+        assertThat(bulkRequest.numberOfActions(), equalTo(3));
+        // Make sure that the bulk request builder is no longer holding onto the child request builders:
+        assertThat(bulkRequestBuilder.numberOfActions(), equalTo(0));
+        expectThrows(AssertionError.class, bulkRequestBuilder::request);
     }
 }

@@ -41,8 +41,8 @@ final class BlacklistedPathPatternMatcher {
         String sanitizedPattern = p.replaceAll("([\\[\\]\\{\\}\\(\\)\\?\\.])", "\\\\$1");
 
         // very simple transformation from wildcard to a proper regex
-        String finalPattern = sanitizedPattern.replaceAll("\\*", "[^/]*") // support wildcard matches (within a single path segment)
-            .replaceAll("\\\\,", ",");  // restore previously escaped ',' in paths.
+        String finalPattern = sanitizedPattern.replace("*", "[^/]*") // support wildcard matches (within a single path segment)
+            .replace("\\,", ",");  // restore previously escaped ',' in paths.
 
         // suffix match
         pattern = Pattern.compile(".*" + finalPattern);

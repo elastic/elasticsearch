@@ -17,6 +17,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.ModelSecrets;
 import org.elasticsearch.inference.SecretSettings;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xpack.inference.services.settings.ApiKeySecrets;
 
 import java.io.IOException;
 import java.util.Map;
@@ -24,7 +25,7 @@ import java.util.Objects;
 
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractRequiredSecureString;
 
-public record HuggingFaceElserSecretSettings(SecureString apiKey) implements SecretSettings {
+public record HuggingFaceElserSecretSettings(SecureString apiKey) implements SecretSettings, ApiKeySecrets {
     public static final String NAME = "hugging_face_elser_secret_settings";
 
     static final String API_KEY = "api_key";
@@ -67,7 +68,7 @@ public record HuggingFaceElserSecretSettings(SecureString apiKey) implements Sec
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.ML_INFERENCE_TASK_SETTINGS_OPTIONAL_ADDED;
+        return TransportVersions.V_8_12_0;
     }
 
     @Override

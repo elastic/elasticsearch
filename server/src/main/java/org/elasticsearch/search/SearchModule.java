@@ -86,6 +86,7 @@ import org.elasticsearch.plugins.SearchPlugin.PipelineAggregationSpec;
 import org.elasticsearch.plugins.SearchPlugin.QuerySpec;
 import org.elasticsearch.plugins.SearchPlugin.QueryVectorBuilderSpec;
 import org.elasticsearch.plugins.SearchPlugin.RescorerSpec;
+import org.elasticsearch.plugins.SearchPlugin.RetrieverSpec;
 import org.elasticsearch.plugins.SearchPlugin.ScoreFunctionSpec;
 import org.elasticsearch.plugins.SearchPlugin.SearchExtSpec;
 import org.elasticsearch.plugins.SearchPlugin.SignificanceHeuristicSpec;
@@ -227,6 +228,10 @@ import org.elasticsearch.search.fetch.subphase.highlight.PlainHighlighter;
 import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.search.rescore.QueryRescorerBuilder;
 import org.elasticsearch.search.rescore.RescorerBuilder;
+import org.elasticsearch.search.retriever.KnnRetrieverBuilder;
+import org.elasticsearch.search.retriever.RetrieverBuilder;
+import org.elasticsearch.search.retriever.RetrieverParserContext;
+import org.elasticsearch.search.retriever.StandardRetrieverBuilder;
 import org.elasticsearch.search.sort.FieldSortBuilder;
 import org.elasticsearch.search.sort.GeoDistanceSortBuilder;
 import org.elasticsearch.search.sort.ScoreSortBuilder;
@@ -249,6 +254,7 @@ import org.elasticsearch.search.vectors.ExactKnnQueryBuilder;
 import org.elasticsearch.search.vectors.KnnScoreDocQueryBuilder;
 import org.elasticsearch.search.vectors.KnnVectorQueryBuilder;
 import org.elasticsearch.search.vectors.QueryVectorBuilder;
+import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentParser;
@@ -284,6 +290,11 @@ public class SearchModule {
         Setting.Property.NodeScope
     );
 
+    /**
+     * Metric name for aggregation usage statistics
+     */
+    private final TelemetryProvider telemetryProvider;
+
     private final Map<String, Highlighter> highlighters;
 
     private final List<FetchSubPhase> fetchSubPhases = new ArrayList<>();
@@ -301,10 +312,23 @@ public class SearchModule {
      * @param plugins List of included {@link SearchPlugin} objects.
      */
     public SearchModule(Settings settings, List<SearchPlugin> plugins) {
+        this(settings, plugins, TelemetryProvider.NOOP);
+    }
+
+    /**
+     * Constructs a new SearchModule object
+     *
+     * @param settings          Current settings
+     * @param plugins           List of included {@link SearchPlugin} objects.
+     * @param telemetryProvider
+     */
+    public SearchModule(Settings settings, List<SearchPlugin> plugins, TelemetryProvider telemetryProvider) {
         this.settings = settings;
+        this.telemetryProvider = telemetryProvider;
         registerSuggesters(plugins);
         highlighters = setupHighlighters(settings, plugins);
         registerScoreFunctions(plugins);
+        registerRetrieverParsers(plugins);
         registerQueryParsers(plugins);
         registerRescorers(plugins);
         registerSorts();
@@ -346,7 +370,7 @@ public class SearchModule {
     }
 
     private ValuesSourceRegistry registerAggregations(List<SearchPlugin> plugins) {
-        ValuesSourceRegistry.Builder builder = new ValuesSourceRegistry.Builder();
+        ValuesSourceRegistry.Builder builder = new ValuesSourceRegistry.Builder(telemetryProvider.getMeterRegistry());
 
         registerAggregation(
             new AggregationSpec(AvgAggregationBuilder.NAME, AvgAggregationBuilder::new, AvgAggregationBuilder.PARSER).addResultReader(
@@ -1039,6 +1063,13 @@ public class SearchModule {
         fetchSubPhases.add(requireNonNull(subPhase, "FetchSubPhase must not be null"));
     }
 
+    private void registerRetrieverParsers(List<SearchPlugin> plugins) {
+        registerRetriever(new RetrieverSpec<>(StandardRetrieverBuilder.NAME, StandardRetrieverBuilder::fromXContent));
+        registerRetriever(new RetrieverSpec<>(KnnRetrieverBuilder.NAME, KnnRetrieverBuilder::fromXContent));
+
+        registerFromPlugin(plugins, SearchPlugin::getRetrievers, this::registerRetriever);
+    }
+
     private void registerQueryParsers(List<SearchPlugin> plugins) {
         registerQuery(new QuerySpec<>(MatchQueryBuilder.NAME, MatchQueryBuilder::new, MatchQueryBuilder::fromXContent));
         registerQuery(new QuerySpec<>(MatchPhraseQueryBuilder.NAME, MatchPhraseQueryBuilder::new, MatchPhraseQueryBuilder::fromXContent));
@@ -1194,6 +1225,17 @@ public class SearchModule {
                 IntervalsSourceProvider.class,
                 IntervalsSourceProvider.Fuzzy.NAME,
                 IntervalsSourceProvider.Fuzzy::new
+            )
+        );
+    }
+
+    private void registerRetriever(RetrieverSpec<?> spec) {
+        namedXContents.add(
+            new NamedXContentRegistry.Entry(
+                RetrieverBuilder.class,
+                spec.getName(),
+                (p, c) -> spec.getParser().fromXContent(p, (RetrieverParserContext) c),
+                spec.getName().getForRestApiVersion()
             )
         );
     }

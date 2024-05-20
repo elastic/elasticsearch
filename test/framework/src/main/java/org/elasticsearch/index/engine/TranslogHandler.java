@@ -14,6 +14,7 @@ import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.VersionType;
+import org.elasticsearch.index.mapper.MapperMetrics;
 import org.elasticsearch.index.mapper.MapperRegistry;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.SourceToParse;
@@ -22,12 +23,10 @@ import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.indices.IndicesModule;
-import org.elasticsearch.plugins.internal.DocumentParsingObserver;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 
 import java.io.IOException;
-import java.util.Map;
 import java.util.concurrent.atomic.AtomicLong;
 
 import static java.util.Collections.emptyList;
@@ -56,7 +55,7 @@ public class TranslogHandler implements Engine.TranslogRecoveryRunner {
             () -> null,
             indexSettings.getMode().idFieldMapperWithoutFieldData(),
             null,
-            () -> DocumentParsingObserver.EMPTY_INSTANCE
+            MapperMetrics.NOOP
         );
     }
 
@@ -90,14 +89,7 @@ public class TranslogHandler implements Engine.TranslogRecoveryRunner {
                 final Translog.Index index = (Translog.Index) operation;
                 final Engine.Index engineIndex = IndexShard.prepareIndex(
                     mapperService,
-                    new SourceToParse(
-                        index.id(),
-                        index.source(),
-                        XContentHelper.xContentType(index.source()),
-                        index.routing(),
-                        Map.of(),
-                        false
-                    ),
+                    new SourceToParse(index.id(), index.source(), XContentHelper.xContentType(index.source()), index.routing()),
                     index.seqNo(),
                     index.primaryTerm(),
                     index.version(),

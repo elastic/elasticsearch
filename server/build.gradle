@@ -37,6 +37,7 @@ dependencies {
   api project(":libs:elasticsearch-plugin-analysis-api")
   api project(':libs:elasticsearch-grok')
   api project(":libs:elasticsearch-tdigest")
+  implementation project(":libs:elasticsearch-vec")
 
   implementation project(':libs:elasticsearch-plugin-classloader')
   // no compile dependency by server, but server defines security policy for this codebase so it i>
@@ -67,6 +68,8 @@ dependencies {
   api "org.apache.logging.log4j:log4j-api:${versions.log4j}"
   api "org.apache.logging.log4j:log4j-core:${versions.log4j}"
 
+  // access to native functions
+  implementation project(':libs:elasticsearch-native')
   api "net.java.dev.jna:jna:${versions.jna}"
 
   api "co.elastic.logging:log4j2-ecs-layout:${versions.ecsLogging}"
@@ -150,7 +153,7 @@ if (BuildParams.isSnapshotBuild() == false) {
 }
 
 tasks.named("test").configure {
-    systemProperty 'es.insecure_network_trace_enabled', 'true'
+  systemProperty 'es.insecure_network_trace_enabled', 'true'
 }
 
 tasks.named("thirdPartyAudit").configure {

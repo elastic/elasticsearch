@@ -11,7 +11,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchSecurityException;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionModule;
 import org.elasticsearch.action.ActionResponse;
@@ -33,6 +32,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.env.BuildVersion;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeMetadata;
 import org.elasticsearch.env.TestEnvironment;
@@ -41,8 +41,10 @@ import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
+import org.elasticsearch.index.SlowLogFieldProvider;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.index.engine.InternalEngineFactory;
+import org.elasticsearch.index.mapper.MapperMetrics;
 import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.license.ClusterStateLicenseService;
 import org.elasticsearch.license.License;
@@ -51,10 +53,9 @@ import org.elasticsearch.license.TestUtils;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.license.internal.XPackLicenseStatus;
 import org.elasticsearch.plugins.ExtensiblePlugin;
+import org.elasticsearch.plugins.FieldPredicate;
 import org.elasticsearch.plugins.MapperPlugin;
-import org.elasticsearch.plugins.internal.DocumentParsingObserver;
 import org.elasticsearch.plugins.internal.RestExtension;
-import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.script.ScriptService;
@@ -62,7 +63,7 @@ import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.telemetry.tracing.Tracer;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
-import org.elasticsearch.test.MockLogAppender;
+import org.elasticsearch.test.MockLog;
 import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.test.index.IndexVersionUtils;
 import org.elasticsearch.test.rest.FakeRestRequest;
@@ -121,12 +122,12 @@ import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
-import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyMap;
 import static org.elasticsearch.test.LambdaMatchers.falseWith;
 import static org.elasticsearch.test.LambdaMatchers.trueWith;
+import static org.elasticsearch.test.MockLog.assertThatLogger;
 import static org.elasticsearch.xpack.core.security.authc.RealmSettings.getFullSettingKey;
 import static org.elasticsearch.xpack.security.operator.OperatorPrivileges.NOOP_OPERATOR_PRIVILEGES_SERVICE;
 import static org.elasticsearch.xpack.security.operator.OperatorPrivileges.OPERATOR_PRIVILEGES_ENABLED;
@@ -177,7 +178,7 @@ public class SecurityTests extends ESTestCase {
         }
 
         @Override
-        public OperatorPrivilegesViolation checkRest(RestHandler restHandler, RestRequest restRequest, RestChannel restChannel) {
+        public void checkRest(RestHandler restHandler, RestRequest restRequest) {
             throw new RuntimeException("boom");
         }
     }
@@ -203,7 +204,7 @@ public class SecurityTests extends ESTestCase {
 
     private Collection<Object> createComponentsUtil(Settings settings) throws Exception {
         Environment env = TestEnvironment.newEnvironment(settings);
-        NodeMetadata nodeMetadata = new NodeMetadata(randomAlphaOfLength(8), Version.CURRENT, IndexVersion.current());
+        NodeMetadata nodeMetadata = new NodeMetadata(randomAlphaOfLength(8), BuildVersion.current(), IndexVersion.current());
         ThreadPool threadPool = mock(ThreadPool.class);
         ClusterService clusterService = mock(ClusterService.class);
         settings = Security.additionalSettings(settings, true);
@@ -375,7 +376,8 @@ public class SecurityTests extends ESTestCase {
             () -> true,
             TestIndexNameExpressionResolver.newInstance(threadPool.getThreadContext()),
             Collections.emptyMap(),
-            () -> DocumentParsingObserver.EMPTY_INSTANCE
+            mock(SlowLogFieldProvider.class),
+            MapperMetrics.NOOP
         );
         security.onIndexModule(indexModule);
         // indexReaderWrapper is a SetOnce so if Security#onIndexModule had already set an ReaderWrapper we would get an exception here
@@ -470,7 +472,7 @@ public class SecurityTests extends ESTestCase {
 
     public void testGetFieldFilterSecurityEnabled() throws Exception {
         createComponents(Settings.EMPTY);
-        Function<String, Predicate<String>> fieldFilter = security.getFieldFilter();
+        Function<String, FieldPredicate> fieldFilter = security.getFieldFilter();
         assertNotSame(MapperPlugin.NOOP_FIELD_FILTER, fieldFilter);
         Map<String, IndicesAccessControl.IndexAccessControl> permissionsMap = new HashMap<>();
 
@@ -492,9 +494,9 @@ public class SecurityTests extends ESTestCase {
 
         assertThat(fieldFilter.apply("index_granted"), trueWith("field_granted"));
         assertThat(fieldFilter.apply("index_granted"), falseWith(randomAlphaOfLengthBetween(3, 10)));
-        assertEquals(MapperPlugin.NOOP_FIELD_PREDICATE, fieldFilter.apply("index_granted_all_permissions"));
+        assertEquals(FieldPredicate.ACCEPT_ALL, fieldFilter.apply("index_granted_all_permissions"));
         assertThat(fieldFilter.apply("index_granted_all_permissions"), trueWith(randomAlphaOfLengthBetween(3, 10)));
-        assertEquals(MapperPlugin.NOOP_FIELD_PREDICATE, fieldFilter.apply("index_other"));
+        assertEquals(FieldPredicate.ACCEPT_ALL, fieldFilter.apply("index_other"));
     }
 
     public void testGetFieldFilterSecurityDisabled() throws Exception {
@@ -504,7 +506,7 @@ public class SecurityTests extends ESTestCase {
 
     public void testGetFieldFilterSecurityEnabledLicenseNoFLS() throws Exception {
         createComponents(Settings.EMPTY);
-        Function<String, Predicate<String>> fieldFilter = security.getFieldFilter();
+        Function<String, FieldPredicate> fieldFilter = security.getFieldFilter();
         assertNotSame(MapperPlugin.NOOP_FIELD_FILTER, fieldFilter);
         licenseState.update(
             new XPackLicenseStatus(
@@ -514,7 +516,7 @@ public class SecurityTests extends ESTestCase {
             )
         );
         assertNotSame(MapperPlugin.NOOP_FIELD_FILTER, fieldFilter);
-        assertSame(MapperPlugin.NOOP_FIELD_PREDICATE, fieldFilter.apply(randomAlphaOfLengthBetween(3, 6)));
+        assertSame(FieldPredicate.ACCEPT_ALL, fieldFilter.apply(randomAlphaOfLengthBetween(3, 6)));
     }
 
     public void testValidateRealmsWhenSettingsAreInvalid() {
@@ -668,7 +670,7 @@ public class SecurityTests extends ESTestCase {
                 )
             )
             .build();
-        expectLogs(Security.class, Collections.emptyList(), () -> Security.validateForFips(settings));
+        assertThatLogger(() -> Security.validateForFips(settings), Security.class);
     }
 
     public void testValidateForFipsNonFipsCompliantCacheHashAlgoWarningLog() throws IllegalAccessException {
@@ -677,7 +679,7 @@ public class SecurityTests extends ESTestCase {
             .put(XPackSettings.FIPS_MODE_ENABLED.getKey(), true)
             .put(key, randomNonFipsCompliantCacheHash())
             .build();
-        expectLogs(Security.class, List.of(logEventForNonCompliantCacheHash(key)), () -> Security.validateForFips(settings));
+        assertThatLogger(() -> Security.validateForFips(settings), Security.class, logEventForNonCompliantCacheHash(key));
     }
 
     public void testValidateForFipsNonFipsCompliantStoredHashAlgoWarningLog() throws IllegalAccessException {
@@ -686,7 +688,7 @@ public class SecurityTests extends ESTestCase {
             .put(XPackSettings.FIPS_MODE_ENABLED.getKey(), true)
             .put(key, randomNonFipsCompliantStoredHash())
             .build();
-        expectLogs(Security.class, List.of(logEventForNonCompliantStoredHash(key)), () -> Security.validateForFips(settings));
+        assertThatLogger(() -> Security.validateForFips(settings), Security.class, logEventForNonCompliantStoredHash(key));
     }
 
     public void testValidateForMultipleNonFipsCompliantCacheHashAlgoWarningLogs() throws IllegalAccessException {
@@ -697,10 +699,11 @@ public class SecurityTests extends ESTestCase {
             .put(firstKey, randomNonFipsCompliantCacheHash())
             .put(secondKey, randomNonFipsCompliantCacheHash())
             .build();
-        expectLogs(
+        assertThatLogger(
+            () -> Security.validateForFips(settings),
             Security.class,
-            List.of(logEventForNonCompliantCacheHash(firstKey), logEventForNonCompliantCacheHash(secondKey)),
-            () -> Security.validateForFips(settings)
+            logEventForNonCompliantCacheHash(firstKey),
+            logEventForNonCompliantCacheHash(secondKey)
         );
     }
 
@@ -713,15 +716,15 @@ public class SecurityTests extends ESTestCase {
             .put(secondKey, randomNonFipsCompliantCacheHash())
             .put("xpack.security.transport.ssl.keystore.path", "path/to/keystore")
             .build();
-        expectLogs(Security.class, List.of(logEventForNonCompliantCacheHash(firstKey), logEventForNonCompliantCacheHash(secondKey)), () -> {
+        assertThatLogger(() -> {
             final IllegalArgumentException iae = expectThrows(IllegalArgumentException.class, () -> Security.validateForFips(settings));
             assertThat(iae.getMessage(), containsString("JKS Keystores cannot be used in a FIPS 140 compliant JVM"));
-        });
+        }, Security.class, logEventForNonCompliantCacheHash(firstKey), logEventForNonCompliantCacheHash(secondKey));
     }
 
     public void testValidateForFipsNoErrorsOrLogsForDefaultSettings() throws IllegalAccessException {
         final Settings settings = Settings.builder().put(XPackSettings.FIPS_MODE_ENABLED.getKey(), true).build();
-        expectLogs(Security.class, Collections.emptyList(), () -> Security.validateForFips(settings));
+        assertThatLogger(() -> Security.validateForFips(settings), Security.class);
     }
 
     public void testLicenseUpdateFailureHandlerUpdate() throws Exception {
@@ -783,22 +786,19 @@ public class SecurityTests extends ESTestCase {
     public void testSecurityRestHandlerInterceptorCanBeInstalled() throws IllegalAccessException {
         final Logger amLogger = LogManager.getLogger(ActionModule.class);
         Loggers.setLevel(amLogger, Level.DEBUG);
-        final MockLogAppender appender = new MockLogAppender();
-        Loggers.addAppender(amLogger, appender);
-        appender.start();
 
         Settings settings = Settings.builder().put("xpack.security.enabled", false).put("path.home", createTempDir()).build();
         SettingsModule settingsModule = new SettingsModule(Settings.EMPTY);
         ThreadPool threadPool = new TestThreadPool(getTestName());
 
-        try {
+        try (var mockLog = MockLog.capture(ActionModule.class)) {
             UsageService usageService = new UsageService();
             Security security = new Security(settings);
 
             // Verify Security rest interceptor is about to be installed
             // We will throw later if another interceptor is already installed
-            appender.addExpectation(
-                new MockLogAppender.SeenEventExpectation(
+            mockLog.addExpectation(
+                new MockLog.SeenEventExpectation(
                     "Security rest interceptor",
                     ActionModule.class.getName(),
                     Level.DEBUG,
@@ -827,11 +827,9 @@ public class SecurityTests extends ESTestCase {
             );
             actionModule.initRestHandlers(null, null);
 
-            appender.assertAllExpectationsMatched();
+            mockLog.assertAllExpectationsMatched();
         } finally {
             threadPool.shutdown();
-            appender.stop();
-            Loggers.removeAppender(amLogger, appender);
         }
     }
 
@@ -839,9 +837,6 @@ public class SecurityTests extends ESTestCase {
         final Logger mockLogger = LogManager.getLogger(Security.class);
         boolean securityEnabled = true;
         Loggers.setLevel(mockLogger, Level.INFO);
-        final MockLogAppender appender = new MockLogAppender();
-        Loggers.addAppender(mockLogger, appender);
-        appender.start();
 
         Settings.Builder settings = Settings.builder().put("path.home", createTempDir());
         if (randomBoolean()) {
@@ -850,9 +845,9 @@ public class SecurityTests extends ESTestCase {
             settings.put("xpack.security.enabled", securityEnabled);
         }
 
-        try {
-            appender.addExpectation(
-                new MockLogAppender.SeenEventExpectation(
+        try (var mockLog = MockLog.capture(Security.class)) {
+            mockLog.addExpectation(
+                new MockLog.SeenEventExpectation(
                     "message",
                     Security.class.getName(),
                     Level.INFO,
@@ -860,10 +855,7 @@ public class SecurityTests extends ESTestCase {
                 )
             );
             createComponents(settings.build());
-            appender.assertAllExpectationsMatched();
-        } finally {
-            appender.stop();
-            Loggers.removeAppender(mockLogger, appender);
+            mockLog.assertAllExpectationsMatched();
         }
     }
 
@@ -1138,8 +1130,8 @@ public class SecurityTests extends ESTestCase {
         );
     }
 
-    private MockLogAppender.SeenEventExpectation logEventForNonCompliantCacheHash(String settingKey) {
-        return new MockLogAppender.SeenEventExpectation(
+    private MockLog.SeenEventExpectation logEventForNonCompliantCacheHash(String settingKey) {
+        return new MockLog.SeenEventExpectation(
             "cache hash not fips compliant",
             Security.class.getName(),
             Level.WARN,
@@ -1150,8 +1142,8 @@ public class SecurityTests extends ESTestCase {
         );
     }
 
-    private MockLogAppender.SeenEventExpectation logEventForNonCompliantStoredHash(String settingKey) {
-        return new MockLogAppender.SeenEventExpectation(
+    private MockLog.SeenEventExpectation logEventForNonCompliantStoredHash(String settingKey) {
+        return new MockLog.SeenEventExpectation(
             "stored hash not fips compliant",
             Security.class.getName(),
             Level.WARN,
@@ -1160,21 +1152,5 @@ public class SecurityTests extends ESTestCase {
                 + settingKey
                 + "] setting."
         );
-    }
-
-    private void expectLogs(Class<?> clazz, List<MockLogAppender.LoggingExpectation> expected, Runnable runnable)
-        throws IllegalAccessException {
-        final MockLogAppender mockAppender = new MockLogAppender();
-        final Logger logger = LogManager.getLogger(clazz);
-        mockAppender.start();
-        try {
-            Loggers.addAppender(logger, mockAppender);
-            expected.forEach(mockAppender::addExpectation);
-            runnable.run();
-            mockAppender.assertAllExpectationsMatched();
-        } finally {
-            Loggers.removeAppender(logger, mockAppender);
-            mockAppender.stop();
-        }
     }
 }

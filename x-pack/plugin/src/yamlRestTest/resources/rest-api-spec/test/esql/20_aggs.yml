@@ -1,9 +1,9 @@
 ---
 setup:
-  - skip:
-      version: " - 8.10.99"
+  - requires:
+      cluster_features: ["gte_v8.11.0"]
       reason: "ESQL is available in 8.11+"
-      features: warnings
+      test_runner_features: allowed_warnings_regex
   - do:
       indices.create:
         index:  test
@@ -115,11 +115,12 @@ setup:
 ---
 "Test From":
   - do:
-      warnings:
-        - "No limit defined, adding default limit of [500]"
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
       esql.query:
         body:
           query: 'from test'
+          version: 2024.04.01
 
   - match: {columns.0.name: "color"}
   - match: {columns.0.type: "keyword"}
@@ -140,12 +141,13 @@ setup:
 ---
 "Test simple grouping avg":
   - do:
-      warnings:
-        - "No limit defined, adding default limit of [500]"
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
       esql.query:
         body:
           query: 'from test | where color == "red" | stats avg(data) by color'
           columnar: true
+          version: 2024.04.01
 
   - match: {columns.0.name: "avg(data)"}
   - match: {columns.0.type: "double"}
@@ -156,12 +158,13 @@ setup:
 ---
 "Test From Stats Avg":
   - do:
-      warnings:
-        - "No limit defined, adding default limit of [500]"
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
       esql.query:
         body:
           query: 'from test | stats avg(count)'
           columnar: true
+          version: 2024.04.01
 
   - match: {columns.0.name: "avg(count)"}
   - match: {columns.0.type: "double"}
@@ -170,12 +173,13 @@ setup:
 ---
 "Test From Stats Avg With Alias":
   - do:
-      warnings:
-        - "No limit defined, adding default limit of [500]"
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
       esql.query:
         body:
           query: 'from test | stats f1 = avg(count)'
           columnar: true
+          version: 2024.04.01
 
   - match: {columns.0.name: "f1"}
   - match: {columns.0.type: "double"}
@@ -184,12 +188,13 @@ setup:
 ---
 "Test From Stats Count":
   - do:
-      warnings:
-        - "No limit defined, adding default limit of [500]"
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
       esql.query:
         body:
           query: 'from test | stats count(data)'
           columnar: true
+          version: 2024.04.01
 
   - match: {columns.0.name: "count(data)"}
   - match: {columns.0.type: "long"}
@@ -198,12 +203,13 @@ setup:
 ---
 "Test From Stats Count With Alias":
   - do:
-      warnings:
-        - "No limit defined, adding default limit of [500]"
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
       esql.query:
         body:
           query: 'from test | stats dataCount = count(data)'
           columnar: true
+          version: 2024.04.01
 
   - match: {columns.0.name: "dataCount"}
   - match: {columns.0.type: "long"}
@@ -212,12 +218,13 @@ setup:
 ---
 "Test From Stats Min":
   - do:
-      warnings:
-        - "No limit defined, adding default limit of [500]"
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
       esql.query:
         body:
           query: 'from test | stats min(count)'
           columnar: true
+          version: 2024.04.01
 
   - match: {columns.0.name: "min(count)"}
   - match: {columns.0.type: "long"}
@@ -226,12 +233,13 @@ setup:
 ---
 "Test From Stats Min With Alias":
   - do:
-      warnings:
-        - "No limit defined, adding default limit of [500]"
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
       esql.query:
         body:
           query: 'from test | stats minCount=min(count)'
           columnar: true
+          version: 2024.04.01
 
   - match: {columns.0.name: "minCount"}
   - match: {columns.0.type: "long"}
@@ -240,12 +248,13 @@ setup:
 ---
 "Test From Stats Max":
   - do:
-      warnings:
-        - "No limit defined, adding default limit of [500]"
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
       esql.query:
         body:
           query: 'from test | stats max(count)'
           columnar: true
+          version: 2024.04.01
 
   - match: {columns.0.name: "max(count)"}
   - match: {columns.0.type: "long"}
@@ -254,12 +263,13 @@ setup:
 ---
 "Test From Stats Max With Alias":
   - do:
-      warnings:
-        - "No limit defined, adding default limit of [500]"
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
       esql.query:
         body:
           query: 'from test | stats maxCount=max(count)'
           columnar: true
+          version: 2024.04.01
 
   - match: {columns.0.name: "maxCount"}
   - match: {columns.0.type: "long"}
@@ -272,6 +282,7 @@ setup:
         body:
           query: 'from test | stats avg(count) by color | sort color | limit 2'
           columnar: true
+          version: 2024.04.01
 
   - match: {columns.0.name: "avg(count)"}
   - match: {columns.0.type: "double"}
@@ -283,12 +294,13 @@ setup:
 ---
 "Test Median On Long":
   - do:
-      warnings:
-        - "No limit defined, adding default limit of [500]"
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
       esql.query:
         body:
           query: 'from test | stats med=median(count)'
           columnar: true
+          version: 2024.04.01
 
   - match: {columns.0.name: "med"}
   - match: {columns.0.type: "double"}
@@ -297,12 +309,13 @@ setup:
 ---
 "Test Median On Double":
   - do:
-      warnings:
-        - "No limit defined, adding default limit of [500]"
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
       esql.query:
         body:
           query: 'from test | stats med=median(count_d)'
           columnar: true
+          version: 2024.04.01
 
   - match: {columns.0.name: "med"}
   - match: {columns.0.type: "double"}
@@ -311,12 +324,13 @@ setup:
 ---
 "Test Grouping Median On Long":
   - do:
-      warnings:
-        - "No limit defined, adding default limit of [500]"
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
       esql.query:
         body:
           query: 'from test | stats med=median(count) by color | sort med'
           columnar: true
+          version: 2024.04.01
 
   - match: {columns.0.name: "med"}
   - match: {columns.0.type: "double"}
@@ -328,12 +342,13 @@ setup:
 ---
 "Test Grouping Median On Double":
   - do:
-      warnings:
-        - "No limit defined, adding default limit of [500]"
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
       esql.query:
         body:
           query: 'from test | stats med=median(count_d) by color | sort med'
           columnar: true
+          version: 2024.04.01
 
   - match: {columns.0.name: "med"}
   - match: {columns.0.type: "double"}
@@ -345,12 +360,13 @@ setup:
 ---
 "Test Median Absolute Deviation On Long":
   - do:
-      warnings:
-        - "No limit defined, adding default limit of [500]"
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
       esql.query:
         body:
           query: 'from test | stats med=median_absolute_deviation(count)'
           columnar: true
+          version: 2024.04.01
 
   - match: {columns.0.name: "med"}
   - match: {columns.0.type: "double"}
@@ -359,12 +375,13 @@ setup:
 ---
 "Test Median Absolute Deviation On Double":
   - do:
-      warnings:
-        - "No limit defined, adding default limit of [500]"
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
       esql.query:
         body:
           query: 'from test | stats med=median_absolute_deviation(count_d)'
           columnar: true
+          version: 2024.04.01
 
   - match: {columns.0.name: "med"}
   - match: {columns.0.type: "double"}
@@ -373,12 +390,13 @@ setup:
 ---
 "Test Grouping Median Absolute Deviation On Long":
   - do:
-      warnings:
-        - "No limit defined, adding default limit of [500]"
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
       esql.query:
         body:
           query: 'from test | stats med=median_absolute_deviation(count) by color | sort color'
           columnar: true
+          version: 2024.04.01
 
   - match: {columns.0.name: "med"}
   - match: {columns.0.type: "double"}
@@ -390,12 +408,13 @@ setup:
 ---
 "Test Grouping Median Absolute Deviation On Double":
   - do:
-      warnings:
-        - "No limit defined, adding default limit of [500]"
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
       esql.query:
         body:
           query: 'from test | stats med=median_absolute_deviation(count_d) by color | sort color'
           columnar: true
+          version: 2024.04.01
 
   - match: {columns.0.name: "med"}
   - match: {columns.0.type: "double"}
@@ -407,11 +426,12 @@ setup:
 ---
 "Test From Stats Eval":
   - do:
-      warnings:
-        - "No limit defined, adding default limit of [500]"
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
       esql.query:
         body:
           query: 'from test | stats avg_count = avg(count) | eval x = avg_count + 7'
+          version: 2024.04.01
 
   - length: {values: 1}
   - length: {values.0: 2}
@@ -420,11 +440,12 @@ setup:
 ---
 "Test Stats Where":
   - do:
-      warnings:
-        - "No limit defined, adding default limit of [500]"
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
       esql.query:
         body:
           query: 'from test | stats x = avg(count) | where x > 100'
+          version: 2024.04.01
 
   - length: {values: 0}
 
@@ -434,6 +455,7 @@ setup:
       esql.query:
         body:
           query: 'from test | eval nullsum = count_d + null | sort nullsum | limit 1'
+          version: 2024.04.01
 
   - length: {columns: 8}
   - length: {values: 1}
@@ -444,11 +466,12 @@ setup:
 ---
 "Test Eval Row With Null":
   - do:
-      warnings:
-        - "No limit defined, adding default limit of [500]"
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
       esql.query:
         body:
           query: 'row a = 1, b = 2, c = null | eval z = c + b + a'
+          version: 2024.04.01
 
   - length: {columns: 4}
   - length: {values: 1}
@@ -469,11 +492,12 @@ setup:
 ---
 "Test Eval With Null And Count":
   - do:
-      warnings:
-        - "No limit defined, adding default limit of [500]"
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
       esql.query:
         body:
           query: 'from test | eval nullsum = count_d + null | stats count(nullsum)'
+          version: 2024.04.01
 
   - length: {columns: 1}
   - length: {values: 1}
@@ -485,11 +509,12 @@ setup:
 ---
 "Test Eval With Multiple Expressions":
   - do:
-      warnings:
-        - "No limit defined, adding default limit of [500]"
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
       esql.query:
         body:
           query: 'row l=1, d=1.0, ln=1 + null, dn=1.0 + null | stats sum(l), sum(d), sum(ln), sum(dn)'
+          version: 2024.04.01
 
   - length: {columns: 4}
   - length: {values: 1}
@@ -510,12 +535,13 @@ setup:
 ---
 grouping on text:
   - do:
-      warnings:
-        - "No limit defined, adding default limit of [500]"
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
       esql.query:
         body:
           query: 'FROM test | STATS med=median(count) BY text | SORT med'
           columnar: true
+          version: 2024.04.01
 
   - match: {columns.0.name: "med"}
   - match: {columns.0.type: "double"}

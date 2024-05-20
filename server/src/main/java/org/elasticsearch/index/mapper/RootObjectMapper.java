@@ -18,8 +18,6 @@ import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.mapper.DynamicTemplate.XContentFieldType;
 import org.elasticsearch.index.mapper.MapperService.MergeReason;
-import org.elasticsearch.logging.LogManager;
-import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -77,8 +75,6 @@ public class RootObjectMapper extends ObjectMapper {
         protected Explicit<Boolean> dateDetection = Defaults.DATE_DETECTION;
         protected Explicit<Boolean> numericDetection = Defaults.NUMERIC_DETECTION;
 
-        private static final Logger logger = LogManager.getLogger(RootObjectMapper.Builder.class);
-
         public Builder(String name, Explicit<Boolean> subobjects) {
             super(name, subobjects);
         }
@@ -111,62 +107,19 @@ public class RootObjectMapper extends ObjectMapper {
 
         @Override
         public RootObjectMapper build(MapperBuilderContext context) {
-            Map<String, Mapper> mappers = buildMappers(context);
-
-            Map<String, Mapper> aliasMappers = new HashMap<>();
-            getAliasMappers(mappers, aliasMappers, context, 0);
-            mappers.putAll(aliasMappers);
-
             return new RootObjectMapper(
-                name,
+                name(),
                 enabled,
                 subobjects,
+                storeArraySource,
                 dynamic,
-                mappers,
+                buildMappers(context.createChildContext(null, dynamic)),
                 new HashMap<>(runtimeFields),
                 dynamicDateTimeFormatters,
                 dynamicTemplates,
                 dateDetection,
                 numericDetection
             );
-        }
-
-        void getAliasMappers(Map<String, Mapper> mappers, Map<String, Mapper> aliasMappers, MapperBuilderContext context, int level) {
-            if (level >= MAX_NESTING_LEVEL_FOR_PASS_THROUGH_OBJECTS) {
-                logger.warn("Exceeded maximum nesting level for searching for pass-through object fields within object fields.");
-                return;
-            }
-            for (Mapper mapper : mappers.values()) {
-                // Create aliases for all fields in child passthrough mappers and place them under the root object.
-                if (mapper instanceof PassThroughObjectMapper passthroughMapper) {
-                    for (Mapper internalMapper : passthroughMapper.mappers.values()) {
-                        if (internalMapper instanceof FieldMapper fieldMapper) {
-                            // If there's a conflicting alias with the same name at the root level, we don't want to throw an error
-                            // to avoid indexing disruption.
-                            // TODO: record an error without affecting document indexing, so that it can be investigated later.
-                            Mapper conflict = mappers.get(fieldMapper.simpleName());
-                            if (conflict != null) {
-                                if (conflict.typeName().equals(FieldAliasMapper.CONTENT_TYPE) == false
-                                    || ((FieldAliasMapper) conflict).path().equals(fieldMapper.mappedFieldType.name()) == false) {
-                                    logger.warn(
-                                        "Root alias for field "
-                                            + fieldMapper.name()
-                                            + " conflicts with existing field or alias, skipping alias creation."
-                                    );
-                                }
-                            } else {
-                                FieldAliasMapper aliasMapper = new FieldAliasMapper.Builder(fieldMapper.simpleName()).path(
-                                    fieldMapper.mappedFieldType.name()
-                                ).build(context);
-                                aliasMappers.put(aliasMapper.simpleName(), aliasMapper);
-                            }
-                        }
-                    }
-                } else if (mapper instanceof ObjectMapper objectMapper) {
-                    // Call recursively to check child fields. The level guards against long recursive call sequences.
-                    getAliasMappers(objectMapper.mappers, aliasMappers, context, level + 1);
-                }
-            }
         }
     }
 
@@ -180,6 +133,7 @@ public class RootObjectMapper extends ObjectMapper {
         String name,
         Explicit<Boolean> enabled,
         Explicit<Boolean> subobjects,
+        Explicit<Boolean> trackArraySource,
         Dynamic dynamic,
         Map<String, Mapper> mappers,
         Map<String, RuntimeField> runtimeFields,
@@ -188,7 +142,7 @@ public class RootObjectMapper extends ObjectMapper {
         Explicit<Boolean> dateDetection,
         Explicit<Boolean> numericDetection
     ) {
-        super(name, name, enabled, subobjects, dynamic, mappers);
+        super(name, name, enabled, subobjects, trackArraySource, dynamic, mappers);
         this.runtimeFields = runtimeFields;
         this.dynamicTemplates = dynamicTemplates;
         this.dynamicDateTimeFormatters = dynamicDateTimeFormatters;
@@ -210,6 +164,7 @@ public class RootObjectMapper extends ObjectMapper {
             simpleName(),
             enabled,
             subobjects,
+            storeArraySource,
             dynamic,
             Map.of(),
             Map.of(),
@@ -259,19 +214,17 @@ public class RootObjectMapper extends ObjectMapper {
     @Override
     protected MapperMergeContext createChildContext(MapperMergeContext mapperMergeContext, String name) {
         assert Objects.equals(mapperMergeContext.getMapperBuilderContext().buildFullName("foo"), "foo");
-        return mapperMergeContext;
+        return mapperMergeContext.createChildContext(null, dynamic);
     }
 
     @Override
-    public RootObjectMapper merge(Mapper mergeWith, MergeReason reason, MapperMergeContext parentMergeContext) {
+    public RootObjectMapper merge(Mapper mergeWith, MapperMergeContext parentMergeContext) {
         if (mergeWith instanceof RootObjectMapper == false) {
             MapperErrors.throwObjectMappingConflictError(mergeWith.name());
         }
-        return merge((RootObjectMapper) mergeWith, reason, parentMergeContext);
-    }
 
-    RootObjectMapper merge(RootObjectMapper mergeWithObject, MergeReason reason, MapperMergeContext parentMergeContext) {
-        final var mergeResult = MergeResult.build(this, mergeWithObject, reason, parentMergeContext);
+        RootObjectMapper mergeWithObject = (RootObjectMapper) mergeWith;
+        final var mergeResult = MergeResult.build(this, mergeWithObject, parentMergeContext);
         final Explicit<Boolean> numericDetection;
         if (mergeWithObject.numericDetection.explicit()) {
             numericDetection = mergeWithObject.numericDetection;
@@ -295,7 +248,7 @@ public class RootObjectMapper extends ObjectMapper {
 
         final Explicit<DynamicTemplate[]> dynamicTemplates;
         if (mergeWithObject.dynamicTemplates.explicit()) {
-            if (reason == MergeReason.INDEX_TEMPLATE) {
+            if (parentMergeContext.getMapperBuilderContext().getMergeReason() == MergeReason.INDEX_TEMPLATE) {
                 Map<String, DynamicTemplate> templatesByKey = new LinkedHashMap<>();
                 for (DynamicTemplate template : this.dynamicTemplates.value()) {
                     templatesByKey.put(template.name(), template);
@@ -327,6 +280,7 @@ public class RootObjectMapper extends ObjectMapper {
             simpleName(),
             mergeResult.enabled(),
             mergeResult.subObjects(),
+            mergeResult.trackArraySource(),
             mergeResult.dynamic(),
             mergeResult.mappers(),
             Map.copyOf(runtimeFields),
@@ -482,8 +436,8 @@ public class RootObjectMapper extends ObjectMapper {
     }
 
     @Override
-    protected void startSyntheticField(XContentBuilder b) throws IOException {
-        b.startObject();
+    protected boolean isRoot() {
+        return true;
     }
 
     public static RootObjectMapper.Builder parse(String name, Map<String, Object> node, MappingParserContext parserContext)
@@ -552,7 +506,7 @@ public class RootObjectMapper extends ObjectMapper {
                 String templateName = entry.getKey();
                 Map<String, Object> templateParams = (Map<String, Object>) entry.getValue();
                 DynamicTemplate template = DynamicTemplate.parse(templateName, templateParams);
-                validateDynamicTemplate(parserContext, template);
+                validateDynamicTemplate(parserContext.createDynamicTemplateContext(null), template);
                 templates.add(template);
             }
             builder.dynamicTemplates(templates);
@@ -576,11 +530,7 @@ public class RootObjectMapper extends ObjectMapper {
     }
 
     @Override
-    public int mapperSize() {
-        int size = runtimeFields().size();
-        for (Mapper mapper : this) {
-            size += mapper.mapperSize();
-        }
-        return size;
+    public int getTotalFieldsCount() {
+        return mappers.values().stream().mapToInt(Mapper::getTotalFieldsCount).sum() + runtimeFields.size();
     }
 }

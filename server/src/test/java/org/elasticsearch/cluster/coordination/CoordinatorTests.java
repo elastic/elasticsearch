@@ -39,7 +39,7 @@ import org.elasticsearch.discovery.DiscoveryModule;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.monitor.NodeHealthService;
 import org.elasticsearch.monitor.StatusInfo;
-import org.elasticsearch.test.MockLogAppender;
+import org.elasticsearch.test.MockLog;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.ToXContent;
@@ -93,7 +93,6 @@ import static org.hamcrest.Matchers.startsWith;
 
 @TestLogging(reason = "these tests do a lot of log-worthy things but we usually don't care", value = "org.elasticsearch:FATAL")
 public class CoordinatorTests extends AbstractCoordinatorTestCase {
-
     public void testCanUpdateClusterStateAfterStabilisation() {
         try (Cluster cluster = new Cluster(randomIntBetween(1, 5))) {
             cluster.runRandomly();
@@ -637,6 +636,10 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
     }
 
     public void testAckListenerReceivesNacksIfPublicationTimesOut() {
+        testAckListenerReceivesNacksIfPublicationTimesOut(false);
+    }
+
+    protected void testAckListenerReceivesNacksIfPublicationTimesOut(boolean expectLeaderAcksSuccessfullyInStateless) {
         try (Cluster cluster = new Cluster(3)) {
             cluster.runRandomly();
             cluster.stabilise();
@@ -651,12 +654,19 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
             assertFalse("expected no immediate ack from " + leader, ackCollector.hasAcked(leader));
             assertFalse("expected no immediate ack from " + follower0, ackCollector.hasAcked(follower0));
             assertFalse("expected no immediate ack from " + follower1, ackCollector.hasAcked(follower1));
+
             follower0.heal();
             follower1.heal();
             cluster.stabilise();
             assertTrue("expected eventual nack from " + follower0, ackCollector.hasAckedUnsuccessfully(follower0));
             assertTrue("expected eventual nack from " + follower1, ackCollector.hasAckedUnsuccessfully(follower1));
-            assertTrue("expected eventual nack from " + leader, ackCollector.hasAckedUnsuccessfully(leader));
+            if (expectLeaderAcksSuccessfullyInStateless) {
+                // A stateless leader directly updates the cluster state in the remote blob store: it does not require communication with
+                // the other cluster nodes to procceed with an update commit to the cluster state.
+                assertTrue("expected ack from leader, " + leader, ackCollector.hasAckedSuccessfully(leader));
+            } else {
+                assertTrue("expected eventual nack from leader, " + leader, ackCollector.hasAckedUnsuccessfully(leader));
+            }
         }
     }
 
@@ -1216,18 +1226,12 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
             List<ClusterNode> addedNodes = cluster.addNodes(randomIntBetween(1, 2));
             final long previousClusterStateVersion = cluster.getAnyLeader().getLastAppliedClusterState().version();
 
-            MockLogAppender mockAppender = new MockLogAppender();
-            try (var ignored = mockAppender.capturing(JoinHelper.class, Coordinator.class)) {
-                mockAppender.addExpectation(
-                    new MockLogAppender.SeenEventExpectation(
-                        "failed to join",
-                        JoinHelper.class.getCanonicalName(),
-                        Level.INFO,
-                        "*failed to join*"
-                    )
+            try (var mockLog = MockLog.capture(JoinHelper.class, Coordinator.class)) {
+                mockLog.addExpectation(
+                    new MockLog.SeenEventExpectation("failed to join", JoinHelper.class.getCanonicalName(), Level.INFO, "*failed to join*")
                 );
-                mockAppender.addExpectation(
-                    new MockLogAppender.SeenEventExpectation(
+                mockLog.addExpectation(
+                    new MockLog.SeenEventExpectation(
                         "failed to ping",
                         Coordinator.class.getCanonicalName(),
                         Level.WARN,
@@ -1235,7 +1239,7 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
                     )
                 );
                 cluster.runFor(10000, "failing joins");
-                mockAppender.assertAllExpectationsMatched();
+                mockLog.assertAllExpectationsMatched();
             }
 
             assertTrue(addedNodes.stream().allMatch(ClusterNode::isCandidate));
@@ -1271,21 +1275,50 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
         }
     }
 
-    public void testClusterCannotFormWithFailingJoinValidation() {
+    public void testClusterCannotFormWithFailingJoinValidation() throws Exception {
+        clusterCannotFormWithFailingJoinValidation(false);
+    }
+
+    /**
+     * Forms a random sized cluster and then disables join validation on either a random majority subset or all cluster nodes. Then checks
+     * that election fails.
+     *
+     * @param failJoinOnAllNodes this controls whether to fail join on all nodes or only a majority subset. The atomic register CAS election
+     *                           strategy will succeed in electing a master if any node can vote (even the master candidate voting for
+     *                           itself).
+     * @throws Exception
+     */
+    protected void clusterCannotFormWithFailingJoinValidation(boolean failJoinOnAllNodes) throws Exception {
         try (Cluster cluster = new Cluster(randomIntBetween(1, 5))) {
-            // fail join validation on a majority of nodes in the initial configuration
-            randomValueOtherThanMany(
-                nodes -> cluster.initialConfiguration.hasQuorum(
-                    nodes.stream().map(ClusterNode::getLocalNode).map(DiscoveryNode::getId).collect(Collectors.toSet())
-                ) == false,
-                () -> randomSubsetOf(cluster.clusterNodes)
-            ).forEach(cn -> cn.extraJoinValidators.add((discoveryNode, clusterState) -> {
+            List<ClusterNode> clusterNodesToFailJoin;
+            if (failJoinOnAllNodes) {
+                // The AtomicRegister strategy succeeds if a master candidate votes for itself, so we must disable all nodes from passing
+                // join validation so that none of them can self-elect.
+                clusterNodesToFailJoin = cluster.clusterNodes;
+            } else {
+                // Fetch a random subset of cluster nodes that form a quorum (majority subset).
+                clusterNodesToFailJoin = randomValueOtherThanMany(
+                    nodes -> cluster.initialConfiguration.hasQuorum(
+                        nodes.stream().map(ClusterNode::getLocalNode).map(DiscoveryNode::getId).collect(Collectors.toSet())
+                    ) == false,
+                    () -> randomSubsetOf(cluster.clusterNodes)
+                );
+            }
+
+            // Fail join validation on the set of nodes so that election will fail in the initial configuration.
+            clusterNodesToFailJoin.forEach(cn -> cn.extraJoinValidators.add((discoveryNode, clusterState) -> {
                 throw new IllegalArgumentException("join validation failed");
             }));
+
             cluster.bootstrapIfNecessary();
+
+            // Run the cluster for 10 seconds to give the cluster time to elect a master.
+            // It's possible stabilisation takes longer, but essentially impossible that it _always_ takes longer.
             cluster.runFor(10000, "failing join validation");
+
             assertTrue(cluster.clusterNodes.stream().allMatch(cn -> cn.getLastAppliedClusterState().version() == 0));
 
+            // Now clear the validation failures and verify that the cluster stabilizes.
             for (ClusterNode clusterNode : cluster.clusterNodes) {
                 clusterNode.extraJoinValidators.clear();
             }
@@ -1324,13 +1357,12 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
 
             cluster1.clusterNodes.add(newNode);
 
-            MockLogAppender mockAppender = new MockLogAppender();
-            mockAppender.addExpectation(
-                new MockLogAppender.SeenEventExpectation("test1", JoinHelper.class.getCanonicalName(), Level.INFO, "*failed to join*")
-            );
-            try (var ignored = mockAppender.capturing(JoinHelper.class)) {
+            try (var mockLog = MockLog.capture(JoinHelper.class)) {
+                mockLog.addExpectation(
+                    new MockLog.SeenEventExpectation("test1", JoinHelper.class.getCanonicalName(), Level.INFO, "*failed to join*")
+                );
                 cluster1.runFor(DEFAULT_STABILISATION_TIME, "failing join validation");
-                mockAppender.assertAllExpectationsMatched();
+                mockLog.assertAllExpectationsMatched();
             }
             assertEquals(0, newNode.getLastAppliedClusterState().version());
 
@@ -1363,59 +1395,59 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
             final var leader = cluster.getAnyLeader();
             leader.addActionBlock(TransportService.HANDSHAKE_ACTION_NAME);
 
-            final var mockAppender = new MockLogAppender();
-            mockAppender.addExpectation(
-                new MockLogAppender.SeenEventExpectation(
-                    "connect-back failure",
-                    Coordinator.class.getCanonicalName(),
-                    Level.WARN,
-                    "*received join request from ["
-                        + partitionedNode.getLocalNode().descriptionWithoutAttributes()
-                        + "] but could not connect back to the joining node"
-                )
-            );
-            mockAppender.addExpectation(new MockLogAppender.LoggingExpectation() {
-                boolean matched = false;
-
-                @Override
-                public void match(LogEvent event) {
-                    if (event.getLevel() != Level.INFO) {
-                        return;
-                    }
-                    if (event.getLoggerName().equals(JoinHelper.class.getCanonicalName()) == false) {
-                        return;
-                    }
-
-                    var cause = event.getThrown();
-                    if (cause == null) {
-                        return;
-                    }
-                    cause = cause.getCause();
-                    if (cause == null) {
-                        return;
-                    }
-                    if (Regex.simpleMatch(
-                        "* failure when opening connection back from ["
-                            + leader.getLocalNode().descriptionWithoutAttributes()
-                            + "] to ["
+            try (var mockLog = MockLog.capture(Coordinator.class, JoinHelper.class)) {
+                mockLog.addExpectation(
+                    new MockLog.SeenEventExpectation(
+                        "connect-back failure",
+                        Coordinator.class.getCanonicalName(),
+                        Level.WARN,
+                        "*received join request from ["
                             + partitionedNode.getLocalNode().descriptionWithoutAttributes()
-                            + "]",
-                        cause.getMessage()
-                    ) == false) {
-                        return;
-                    }
-                    if (cause.getStackTrace() != null && cause.getStackTrace().length != 0) {
-                        return;
-                    }
-                    matched = true;
-                }
+                            + "] but could not connect back to the joining node"
+                    )
+                );
+                mockLog.addExpectation(new MockLog.LoggingExpectation() {
+                    boolean matched = false;
 
-                @Override
-                public void assertMatched() {
-                    assertTrue(matched);
-                }
-            });
-            try (var ignored = mockAppender.capturing(Coordinator.class, JoinHelper.class)) {
+                    @Override
+                    public void match(LogEvent event) {
+                        if (event.getLevel() != Level.INFO) {
+                            return;
+                        }
+                        if (event.getLoggerName().equals(JoinHelper.class.getCanonicalName()) == false) {
+                            return;
+                        }
+
+                        var cause = event.getThrown();
+                        if (cause == null) {
+                            return;
+                        }
+                        cause = cause.getCause();
+                        if (cause == null) {
+                            return;
+                        }
+                        if (Regex.simpleMatch(
+                            "* failure when opening connection back from ["
+                                + leader.getLocalNode().descriptionWithoutAttributes()
+                                + "] to ["
+                                + partitionedNode.getLocalNode().descriptionWithoutAttributes()
+                                + "]",
+                            cause.getMessage()
+                        ) == false) {
+                            return;
+                        }
+                        if (cause.getStackTrace() != null && cause.getStackTrace().length != 0) {
+                            return;
+                        }
+                        matched = true;
+                    }
+
+                    @Override
+                    public void assertMatched() {
+                        assertTrue(matched);
+                    }
+                });
+
                 cluster.runFor(
                     // This expects 8 tasks to be executed after PeerFinder handling wakeup:
                     //
@@ -1431,7 +1463,7 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
                     defaultMillis(DISCOVERY_FIND_PEERS_INTERVAL_SETTING) + 8 * DEFAULT_DELAY_VARIABILITY,
                     "allowing time for join attempt"
                 );
-                mockAppender.assertAllExpectationsMatched();
+                mockLog.assertAllExpectationsMatched();
             }
 
             leader.clearActionBlocks();
@@ -1655,9 +1687,8 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
             }
 
             for (int i = scaledRandomIntBetween(1, 10); i >= 0; i--) {
-                final MockLogAppender mockLogAppender = new MockLogAppender();
-                try (var ignored = mockLogAppender.capturing(ClusterFormationFailureHelper.class)) {
-                    mockLogAppender.addExpectation(new MockLogAppender.LoggingExpectation() {
+                try (var mockLog = MockLog.capture(ClusterFormationFailureHelper.class)) {
+                    mockLog.addExpectation(new MockLog.LoggingExpectation() {
                         final Set<DiscoveryNode> nodesLogged = new HashSet<>();
 
                         @Override
@@ -1689,7 +1720,7 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
                         }
                     });
                     cluster.runFor(warningDelayMillis + DEFAULT_DELAY_VARIABILITY, "waiting for warning to be emitted");
-                    mockLogAppender.assertAllExpectationsMatched();
+                    mockLog.assertAllExpectationsMatched();
                 }
             }
 
@@ -1724,9 +1755,8 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
             cluster.stabilise();
 
             for (int i = scaledRandomIntBetween(1, 10); i >= 0; i--) {
-                final MockLogAppender mockLogAppender = new MockLogAppender();
-                try (var ignored = mockLogAppender.capturing(Coordinator.class)) {
-                    mockLogAppender.addExpectation(new MockLogAppender.LoggingExpectation() {
+                try (var mockLog = MockLog.capture(Coordinator.class)) {
+                    mockLog.addExpectation(new MockLog.LoggingExpectation() {
                         String loggedClusterUuid;
 
                         @Override
@@ -1743,7 +1773,7 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
                         }
                     });
                     cluster.runFor(warningDelayMillis + DEFAULT_DELAY_VARIABILITY, "waiting for warning to be emitted");
-                    mockLogAppender.assertAllExpectationsMatched();
+                    mockLog.assertAllExpectationsMatched();
                 }
             }
         }
@@ -1768,11 +1798,10 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
             cluster.stabilise();
             final ClusterNode brokenNode = cluster.getAnyNodeExcept(cluster.getAnyLeader());
 
-            final MockLogAppender mockLogAppender = new MockLogAppender();
-            try (var ignored = mockLogAppender.capturing(Coordinator.CoordinatorPublication.class, LagDetector.class)) {
+            try (var mockLog = MockLog.capture(Coordinator.CoordinatorPublication.class, LagDetector.class)) {
 
-                mockLogAppender.addExpectation(
-                    new MockLogAppender.SeenEventExpectation(
+                mockLog.addExpectation(
+                    new MockLog.SeenEventExpectation(
                         "publication info message",
                         Coordinator.CoordinatorPublication.class.getCanonicalName(),
                         Level.INFO,
@@ -1784,8 +1813,8 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
                     )
                 );
 
-                mockLogAppender.addExpectation(
-                    new MockLogAppender.SeenEventExpectation(
+                mockLog.addExpectation(
+                    new MockLog.SeenEventExpectation(
                         "publication warning",
                         Coordinator.CoordinatorPublication.class.getCanonicalName(),
                         Level.WARN,
@@ -1797,8 +1826,8 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
                     )
                 );
 
-                mockLogAppender.addExpectation(
-                    new MockLogAppender.SeenEventExpectation(
+                mockLog.addExpectation(
+                    new MockLog.SeenEventExpectation(
                         "lag warning",
                         LagDetector.class.getCanonicalName(),
                         Level.WARN,
@@ -1809,8 +1838,8 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
                     )
                 );
 
-                mockLogAppender.addExpectation(
-                    new MockLogAppender.SeenEventExpectation(
+                mockLog.addExpectation(
+                    new MockLog.SeenEventExpectation(
                         "hot threads from lagging node",
                         LagDetector.class.getCanonicalName(),
                         Level.DEBUG,
@@ -1845,7 +1874,7 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
                     "waiting for messages to be emitted"
                 );
 
-                mockLogAppender.assertAllExpectationsMatched();
+                mockLog.assertAllExpectationsMatched();
             }
         }
     }
@@ -1885,31 +1914,23 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
             final Coordinator coordinator = cluster.getAnyLeader().coordinator;
             final ClusterState currentState = coordinator.getLastAcceptedState();
 
-            Set<CoordinationMetadata.VotingConfigExclusion> newVotingConfigExclusion1 = new HashSet<>() {
-                {
-                    add(
-                        new CoordinationMetadata.VotingConfigExclusion(
-                            "resolvableNodeId",
-                            CoordinationMetadata.VotingConfigExclusion.MISSING_VALUE_MARKER
-                        )
-                    );
-                }
-            };
+            Set<CoordinationMetadata.VotingConfigExclusion> newVotingConfigExclusion1 = Set.of(
+                new CoordinationMetadata.VotingConfigExclusion(
+                    "resolvableNodeId",
+                    CoordinationMetadata.VotingConfigExclusion.MISSING_VALUE_MARKER
+                )
+            );
 
             ClusterState newState1 = buildNewClusterStateWithVotingConfigExclusion(currentState, newVotingConfigExclusion1);
 
             assertFalse(Coordinator.validVotingConfigExclusionState(newState1));
 
-            Set<CoordinationMetadata.VotingConfigExclusion> newVotingConfigExclusion2 = new HashSet<>() {
-                {
-                    add(
-                        new CoordinationMetadata.VotingConfigExclusion(
-                            CoordinationMetadata.VotingConfigExclusion.MISSING_VALUE_MARKER,
-                            "resolvableNodeName"
-                        )
-                    );
-                }
-            };
+            Set<CoordinationMetadata.VotingConfigExclusion> newVotingConfigExclusion2 = Set.of(
+                new CoordinationMetadata.VotingConfigExclusion(
+                    CoordinationMetadata.VotingConfigExclusion.MISSING_VALUE_MARKER,
+                    "resolvableNodeName"
+                )
+            );
 
             ClusterState newState2 = buildNewClusterStateWithVotingConfigExclusion(currentState, newVotingConfigExclusion2);
 

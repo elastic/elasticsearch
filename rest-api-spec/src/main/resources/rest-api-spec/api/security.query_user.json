@@ -28,6 +28,13 @@
     "body": {
       "description": "From, size, query, sort and search_after",
       "required": false
+    },
+    "params": {
+      "with_profile_uid": {
+        "type": "boolean",
+        "default": false,
+        "description": "flag to retrieve profile uid (if exists) associated with the user"
+      }
     }
   }
 }

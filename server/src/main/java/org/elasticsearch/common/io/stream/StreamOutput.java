@@ -216,7 +216,7 @@ public abstract class StreamOutput extends OutputStream {
         writeBytes(buffer, 0, index);
     }
 
-    private static int putVInt(byte[] buffer, int i, int off) {
+    public static int putVInt(byte[] buffer, int i, int off) {
         if (Integer.numberOfLeadingZeros(i) >= 25) {
             buffer[off] = (byte) i;
             return 1;
@@ -534,6 +534,19 @@ public abstract class StreamOutput extends OutputStream {
         }
     }
 
+    /**
+     * Writes a float array, for null arrays it writes false.
+     * @param array an array or null
+     */
+    public void writeOptionalFloatArray(@Nullable float[] array) throws IOException {
+        if (array == null) {
+            writeBoolean(false);
+        } else {
+            writeBoolean(true);
+            writeFloatArray(array);
+        }
+    }
+
     public void writeGenericMap(@Nullable Map<String, Object> map) throws IOException {
         writeGenericValue(map);
     }
@@ -787,8 +800,10 @@ public abstract class StreamOutput extends OutputStream {
         })
     );
 
+    public static final byte GENERIC_LIST_HEADER = (byte) 7;
+
     public <T> void writeGenericList(List<T> v, Writer<T> writer) throws IOException {
-        writeByte((byte) 7);
+        writeByte(GENERIC_LIST_HEADER);
         writeCollection(v, writer);
     }
 

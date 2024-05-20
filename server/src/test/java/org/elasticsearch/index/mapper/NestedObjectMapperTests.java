@@ -1515,8 +1515,7 @@ public class NestedObjectMapperTests extends MapperServiceTestCase {
 
         NestedObjectMapper result = (NestedObjectMapper) firstMapper.merge(
             secondMapper,
-            MapperService.MergeReason.INDEX_TEMPLATE,
-            MapperMergeContext.root(false, false, Long.MAX_VALUE)
+            MapperMergeContext.root(false, false, MapperService.MergeReason.INDEX_TEMPLATE, Long.MAX_VALUE)
         );
         assertFalse(result.isIncludeInParent());
         assertTrue(result.isIncludeInRoot());

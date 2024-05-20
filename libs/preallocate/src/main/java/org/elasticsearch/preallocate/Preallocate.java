@@ -10,6 +10,7 @@ package org.elasticsearch.preallocate;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
+import org.elasticsearch.preallocate.Preallocator.NativeFileHandle;
 
 import java.io.FileOutputStream;
 import java.io.IOException;
@@ -17,7 +18,6 @@ import java.io.RandomAccessFile;
 import java.lang.reflect.Field;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.security.AccessController;
 import java.security.PrivilegedExceptionAction;
 
 public class Preallocate {
@@ -42,21 +42,16 @@ public class Preallocate {
         }
     }
 
-    @SuppressForbidden(reason = "need access to fd on FileOutputStream")
+    @SuppressForbidden(reason = "need access to toFile for RandomAccessFile")
     private static void preallocate(final Path cacheFile, final long fileSize, final Preallocator prealloactor) throws IOException {
         boolean success = false;
         try {
             if (prealloactor.useNative()) {
-                try (FileOutputStream fileChannel = new FileOutputStream(cacheFile.toFile())) {
-                    long currentSize = fileChannel.getChannel().size();
+                try (NativeFileHandle openFile = prealloactor.open(cacheFile.toAbsolutePath().toString())) {
+                    long currentSize = openFile.getSize();
                     if (currentSize < fileSize) {
                         logger.info("pre-allocating cache file [{}] ({} bytes) using native methods", cacheFile, fileSize);
-                        final Field field = AccessController.doPrivileged(new FileDescriptorFieldAction(fileChannel));
-                        final int errno = prealloactor.preallocate(
-                            (int) field.get(fileChannel.getFD()),
-                            currentSize,
-                            fileSize - currentSize
-                        );
+                        final int errno = prealloactor.preallocate(openFile.fd(), currentSize, fileSize - currentSize);
                         if (errno == 0) {
                             success = true;
                             logger.debug("pre-allocated cache file [{}] using native methods", cacheFile);

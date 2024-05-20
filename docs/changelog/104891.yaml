@@ -1,6 +1,0 @@
-pr: 104891
-summary: "ESQL: Fix `SearchStats#count(String)` to count values not rows"
-area: ES|QL
-type: bug
-issues:
- - 104795

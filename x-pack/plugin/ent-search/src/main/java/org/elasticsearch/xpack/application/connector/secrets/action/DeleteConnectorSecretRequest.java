@@ -12,6 +12,7 @@ import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.xpack.application.connector.secrets.ConnectorSecretsConstants;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -23,7 +24,7 @@ public class DeleteConnectorSecretRequest extends ActionRequest {
     private final String id;
 
     public DeleteConnectorSecretRequest(String id) {
-        this.id = Objects.requireNonNull(id);
+        this.id = id;
     }
 
     public DeleteConnectorSecretRequest(StreamInput in) throws IOException {
@@ -46,7 +47,10 @@ public class DeleteConnectorSecretRequest extends ActionRequest {
         ActionRequestValidationException validationException = null;
 
         if (Strings.isNullOrEmpty(id)) {
-            validationException = addValidationError("id missing", validationException);
+            validationException = addValidationError(
+                ConnectorSecretsConstants.CONNECTOR_SECRET_ID_NULL_OR_EMPTY_MESSAGE,
+                validationException
+            );
         }
 
         return validationException;

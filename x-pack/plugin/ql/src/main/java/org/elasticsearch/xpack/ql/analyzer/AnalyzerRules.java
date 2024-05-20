@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.ql.analyzer;
 
-import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.xpack.ql.expression.Attribute;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.FieldAttribute;
@@ -32,7 +31,8 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.Objects;
-import java.util.function.BiFunction;
+import java.util.function.Predicate;
+import java.util.function.Supplier;
 
 import static java.util.Arrays.asList;
 import static java.util.Collections.singletonList;
@@ -144,27 +144,37 @@ public final class AnalyzerRules {
     public static List<Attribute> maybeResolveAgainstList(
         UnresolvedAttribute u,
         Collection<Attribute> attrList,
-        boolean allowCompound,
-        boolean acceptPattern,
-        BiFunction<UnresolvedAttribute, Attribute, Attribute> specialFieldHandler
+        java.util.function.Function<Attribute, Attribute> fieldInspector
+    ) {
+        // first take into account the qualified version
+        final String qualifier = u.qualifier();
+        final String name = u.name();
+        final boolean qualified = u.qualifier() != null;
+
+        Predicate<Attribute> predicate = a -> {
+            return qualified ? Objects.equals(qualifier, a.qualifiedName()) :
+            // if the field is unqualified
+            // first check the names directly
+                (Objects.equals(name, a.name()))
+                    // but also if the qualifier might not be quoted and if there's any ambiguity with nested fields
+                    || Objects.equals(name, a.qualifiedName());
+
+        };
+        return maybeResolveAgainstList(predicate, () -> u, attrList, false, fieldInspector);
+    }
+
+    public static List<Attribute> maybeResolveAgainstList(
+        Predicate<Attribute> matcher,
+        Supplier<UnresolvedAttribute> unresolved,
+        Collection<Attribute> attrList,
+        boolean isPattern,
+        java.util.function.Function<Attribute, Attribute> fieldInspector
     ) {
         List<Attribute> matches = new ArrayList<>();
 
-        // first take into account the qualified version
-        boolean qualified = u.qualifier() != null;
-
-        var name = u.name();
-        var isPattern = acceptPattern && Regex.isSimpleMatchPattern(name);
-        BiFunction<String, String, Boolean> nameMatcher = isPattern ? Regex::simpleMatch : Objects::equals;
-
         for (Attribute attribute : attrList) {
             if (attribute.synthetic() == false) {
-                boolean match = qualified ? Objects.equals(u.qualifiedName(), attribute.qualifiedName()) : // TODO: qualified w/ pattern?
-                // if the field is unqualified
-                // first check the names directly
-                    (nameMatcher.apply(name, attribute.name())
-                        // but also if the qualifier might not be quoted and if there's any ambiguity with nested fields
-                        || nameMatcher.apply(name, attribute.qualifiedName()));
+                boolean match = matcher.test(attribute);
                 if (match) {
                     matches.add(attribute);
                 }
@@ -175,10 +185,11 @@ public final class AnalyzerRules {
             return matches;
         }
 
+        UnresolvedAttribute ua = unresolved.get();
         // found exact match or multiple if pattern
         if (matches.size() == 1 || isPattern) {
-            // only add the location if the match is univocal; b/c otherwise adding the location will overwrite any preexisting one
-            matches.replaceAll(e -> specialFieldHandler.apply(u, e.withLocation(u.source())));
+            // NB: only add the location if the match is univocal; b/c otherwise adding the location will overwrite any preexisting one
+            matches.replaceAll(e -> fieldInspector.apply(e));
             return matches;
         }
 
@@ -198,8 +209,12 @@ public final class AnalyzerRules {
             .toList();
 
         return singletonList(
-            u.withUnresolvedMessage(
-                "Reference [" + u.qualifiedName() + "] is ambiguous (to disambiguate use quotes or qualifiers); " + "matches any of " + refs
+            ua.withUnresolvedMessage(
+                "Reference ["
+                    + ua.qualifiedName()
+                    + "] is ambiguous (to disambiguate use quotes or qualifiers); "
+                    + "matches any of "
+                    + refs
             )
         );
     }
@@ -209,10 +224,8 @@ public final class AnalyzerRules {
         if (named instanceof FieldAttribute fa) {
 
             // incompatible mappings
-            if (fa.field() instanceof InvalidMappedField) {
-                named = u.withUnresolvedMessage(
-                    "Cannot use field [" + fa.name() + "] due to ambiguities being " + ((InvalidMappedField) fa.field()).errorMessage()
-                );
+            if (fa.field() instanceof InvalidMappedField imf) {
+                named = u.withUnresolvedMessage("Cannot use field [" + fa.name() + "] due to ambiguities being " + imf.errorMessage());
             }
             // unsupported types
             else if (DataTypes.isUnsupported(fa.dataType())) {
@@ -240,6 +253,7 @@ public final class AnalyzerRules {
                 );
             }
         }
-        return named;
+        // make sure to copy the resolved attribute with the proper location
+        return named.withLocation(u.source());
     }
 }

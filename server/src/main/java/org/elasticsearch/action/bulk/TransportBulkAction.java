@@ -20,7 +20,7 @@ import org.elasticsearch.action.DocWriteRequest.OpType;
 import org.elasticsearch.action.admin.indices.create.AutoCreateAction;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
-import org.elasticsearch.action.admin.indices.rollover.RolloverAction;
+import org.elasticsearch.action.admin.indices.rollover.LazyRolloverAction;
 import org.elasticsearch.action.admin.indices.rollover.RolloverRequest;
 import org.elasticsearch.action.admin.indices.rollover.RolloverResponse;
 import org.elasticsearch.action.index.IndexRequest;
@@ -31,6 +31,7 @@ import org.elasticsearch.action.support.RefCountingRunnable;
 import org.elasticsearch.action.support.WriteResponse;
 import org.elasticsearch.action.support.replication.ReplicationResponse;
 import org.elasticsearch.action.update.UpdateRequest;
+import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateObserver;
@@ -50,6 +51,7 @@ import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexingPressure;
@@ -68,6 +70,7 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.SortedMap;
+import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
 import java.util.function.LongSupplier;
 import java.util.stream.Collectors;
@@ -81,18 +84,26 @@ import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
  */
 public class TransportBulkAction extends HandledTransportAction<BulkRequest, BulkResponse> {
 
+    public static final String NAME = "indices:data/write/bulk";
+    public static final ActionType<BulkResponse> TYPE = new ActionType<>(NAME);
     private static final Logger logger = LogManager.getLogger(TransportBulkAction.class);
+    public static final String LAZY_ROLLOVER_ORIGIN = "lazy_rollover";
 
     private final ActionType<BulkResponse> bulkAction;
     private final ThreadPool threadPool;
     private final ClusterService clusterService;
     private final IngestService ingestService;
+    private final FeatureService featureService;
     private final LongSupplier relativeTimeProvider;
     private final IngestActionForwarder ingestForwarder;
     private final NodeClient client;
     private final IndexNameExpressionResolver indexNameExpressionResolver;
     private final IndexingPressure indexingPressure;
     private final SystemIndices systemIndices;
+    private final OriginSettingClient rolloverClient;
+
+    private final Executor writeExecutor;
+    private final Executor systemWriteExecutor;
 
     @Inject
     public TransportBulkAction(
@@ -100,6 +111,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
         TransportService transportService,
         ClusterService clusterService,
         IngestService ingestService,
+        FeatureService featureService,
         NodeClient client,
         ActionFilters actionFilters,
         IndexNameExpressionResolver indexNameExpressionResolver,
@@ -111,6 +123,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
             transportService,
             clusterService,
             ingestService,
+            featureService,
             client,
             actionFilters,
             indexNameExpressionResolver,
@@ -125,6 +138,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
         TransportService transportService,
         ClusterService clusterService,
         IngestService ingestService,
+        FeatureService featureService,
         NodeClient client,
         ActionFilters actionFilters,
         IndexNameExpressionResolver indexNameExpressionResolver,
@@ -133,12 +147,13 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
         LongSupplier relativeTimeProvider
     ) {
         this(
-            BulkAction.INSTANCE,
+            TYPE,
             BulkRequest::new,
             threadPool,
             transportService,
             clusterService,
             ingestService,
+            featureService,
             client,
             actionFilters,
             indexNameExpressionResolver,
@@ -155,6 +170,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
         TransportService transportService,
         ClusterService clusterService,
         IngestService ingestService,
+        FeatureService featureService,
         NodeClient client,
         ActionFilters actionFilters,
         IndexNameExpressionResolver indexNameExpressionResolver,
@@ -168,6 +184,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
         this.threadPool = threadPool;
         this.clusterService = clusterService;
         this.ingestService = ingestService;
+        this.featureService = featureService;
         this.relativeTimeProvider = relativeTimeProvider;
         this.ingestForwarder = new IngestActionForwarder(transportService);
         this.client = client;
@@ -175,6 +192,9 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
         this.indexingPressure = indexingPressure;
         this.systemIndices = systemIndices;
         clusterService.addStateApplier(this.ingestForwarder);
+        this.rolloverClient = new OriginSettingClient(client, LAZY_ROLLOVER_ORIGIN);
+        this.writeExecutor = threadPool.executor(Names.WRITE);
+        this.systemWriteExecutor = threadPool.executor(Names.SYSTEM_WRITE);
     }
 
     /**
@@ -232,14 +252,14 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
         final boolean isOnlySystem = isOnlySystem(bulkRequest, clusterService.state().metadata().getIndicesLookup(), systemIndices);
         final Releasable releasable = indexingPressure.markCoordinatingOperationStarted(indexingOps, indexingBytes, isOnlySystem);
         final ActionListener<BulkResponse> releasingListener = ActionListener.runBefore(listener, releasable::close);
-        final String executorName = isOnlySystem ? Names.SYSTEM_WRITE : Names.WRITE;
-        ensureClusterStateThenForkAndExecute(task, bulkRequest, executorName, releasingListener);
+        final Executor executor = isOnlySystem ? systemWriteExecutor : writeExecutor;
+        ensureClusterStateThenForkAndExecute(task, bulkRequest, executor, releasingListener);
     }
 
     private void ensureClusterStateThenForkAndExecute(
         Task task,
         BulkRequest bulkRequest,
-        String executorName,
+        Executor executor,
         ActionListener<BulkResponse> releasingListener
     ) {
         final ClusterState initialState = clusterService.state();
@@ -260,7 +280,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
             clusterStateObserver.waitForNextChange(new ClusterStateObserver.Listener() {
                 @Override
                 public void onNewClusterState(ClusterState state) {
-                    forkAndExecute(task, bulkRequest, executorName, releasingListener);
+                    forkAndExecute(task, bulkRequest, executor, releasingListener);
                 }
 
                 @Override
@@ -274,20 +294,20 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                 }
             }, newState -> false == newState.blocks().hasGlobalBlockWithLevel(ClusterBlockLevel.WRITE));
         } else {
-            forkAndExecute(task, bulkRequest, executorName, releasingListener);
+            forkAndExecute(task, bulkRequest, executor, releasingListener);
         }
     }
 
-    private void forkAndExecute(Task task, BulkRequest bulkRequest, String executorName, ActionListener<BulkResponse> releasingListener) {
-        threadPool.executor(Names.WRITE).execute(new ActionRunnable<>(releasingListener) {
+    private void forkAndExecute(Task task, BulkRequest bulkRequest, Executor executor, ActionListener<BulkResponse> releasingListener) {
+        executor.execute(new ActionRunnable<>(releasingListener) {
             @Override
             protected void doRun() {
-                doInternalExecute(task, bulkRequest, executorName, releasingListener);
+                doInternalExecute(task, bulkRequest, executor, releasingListener);
             }
         });
     }
 
-    protected void doInternalExecute(Task task, BulkRequest bulkRequest, String executorName, ActionListener<BulkResponse> listener) {
+    protected void doInternalExecute(Task task, BulkRequest bulkRequest, Executor executor, ActionListener<BulkResponse> listener) {
         final long startTime = relativeTime();
 
         boolean hasIndexRequestsWithPipelines = false;
@@ -320,7 +340,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                     assert arePipelinesResolved : bulkRequest;
                 }
                 if (clusterService.localNode().isIngestNode()) {
-                    processBulkIndexIngestRequest(task, bulkRequest, executorName, metadata, l);
+                    processBulkIndexIngestRequest(task, bulkRequest, executor, metadata, l);
                 } else {
                     ingestForwarder.forwardIngestRequest(bulkAction, bulkRequest, l);
                 }
@@ -341,8 +361,11 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
             .collect(
                 Collectors.toMap(
                     DocWriteRequest::index,
-                    request -> new ReducedRequestInfo(request.isRequireAlias(), request.isRequireDataStream()),
-                    ReducedRequestInfo::merge
+                    request -> ReducedRequestInfo.of(request.isRequireAlias(), request.isRequireDataStream()),
+                    (existing, updated) -> ReducedRequestInfo.of(
+                        existing.isRequireAlias || updated.isRequireAlias,
+                        existing.isRequireDataStream || updated.isRequireDataStream
+                    )
                 )
             );
 
@@ -357,16 +380,18 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
             .collect(Collectors.toMap(Map.Entry::getKey, entry -> entry.getValue().isRequireDataStream));
 
         // Step 3: Collect all the data streams that need to be rolled over before writing
-        Set<String> dataStreamsToBeRolledOver = indices.keySet().stream().filter(target -> {
-            DataStream dataStream = state.metadata().dataStreams().get(target);
-            return dataStream != null && dataStream.rolloverOnWrite();
-        }).collect(Collectors.toSet());
+        Set<String> dataStreamsToBeRolledOver = featureService.clusterHasFeature(state, LazyRolloverAction.DATA_STREAM_LAZY_ROLLOVER)
+            ? indices.keySet().stream().filter(target -> {
+                DataStream dataStream = state.metadata().dataStreams().get(target);
+                return dataStream != null && dataStream.rolloverOnWrite();
+            }).collect(Collectors.toSet())
+            : Set.of();
 
         // Step 4: create all the indices that are missing, if there are any missing. start the bulk after all the creates come back.
         createMissingIndicesAndIndexData(
             task,
             bulkRequest,
-            executorName,
+            executor,
             listener,
             indicesToAutoCreate,
             dataStreamsToBeRolledOver,
@@ -382,7 +407,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
     protected void createMissingIndicesAndIndexData(
         Task task,
         BulkRequest bulkRequest,
-        String executorName,
+        Executor executor,
         ActionListener<BulkResponse> listener,
         Map<String, Boolean> indicesToAutoCreate,
         Set<String> dataStreamsToBeRolledOver,
@@ -392,13 +417,13 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
         final AtomicArray<BulkItemResponse> responses = new AtomicArray<>(bulkRequest.requests.size());
         // Optimizing when there are no prerequisite actions
         if (indicesToAutoCreate.isEmpty() && dataStreamsToBeRolledOver.isEmpty()) {
-            executeBulk(task, bulkRequest, startTime, listener, executorName, responses, indicesThatCannotBeCreated);
+            executeBulk(task, bulkRequest, startTime, listener, executor, responses, indicesThatCannotBeCreated);
             return;
         }
-        Runnable executeBulkRunnable = () -> threadPool.executor(executorName).execute(new ActionRunnable<>(listener) {
+        Runnable executeBulkRunnable = () -> executor.execute(new ActionRunnable<>(listener) {
             @Override
             protected void doRun() {
-                executeBulk(task, bulkRequest, startTime, listener, executorName, responses, indicesThatCannotBeCreated);
+                executeBulk(task, bulkRequest, startTime, listener, executor, responses, indicesThatCannotBeCreated);
             }
         });
         try (RefCountingRunnable refs = new RefCountingRunnable(executeBulkRunnable)) {
@@ -423,7 +448,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                 }, refs.acquire()));
             }
             for (String dataStream : dataStreamsToBeRolledOver) {
-                rolloverDataStream(dataStream, bulkRequest.timeout(), ActionListener.releaseAfter(new ActionListener<>() {
+                lazyRolloverDataStream(dataStream, bulkRequest.timeout(), ActionListener.releaseAfter(new ActionListener<>() {
 
                     @Override
                     public void onResponse(RolloverResponse result) {
@@ -432,8 +457,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                         // - A request had conditions that were not met
                         // Since none of the above apply, getting a response with rolled_over false is considered a bug
                         // that should be caught here and inform the developer.
-                        assert result.isRolledOver()
-                            : "An successful unconditional rollover should always result in a rolled over data stream";
+                        assert result.isRolledOver() : "An successful lazy rollover should always result in a rolled over data stream";
                     }
 
                     @Override
@@ -561,10 +585,12 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
         client.execute(AutoCreateAction.INSTANCE, createIndexRequest, listener);
     }
 
-    void rolloverDataStream(String dataStream, TimeValue timeout, ActionListener<RolloverResponse> listener) {
+    void lazyRolloverDataStream(String dataStream, TimeValue timeout, ActionListener<RolloverResponse> listener) {
         RolloverRequest rolloverRequest = new RolloverRequest(dataStream, null);
         rolloverRequest.masterNodeTimeout(timeout);
-        client.execute(RolloverAction.INSTANCE, rolloverRequest, listener);
+        // We are executing a lazy rollover because it is an action specialised for this situation, when we want an
+        // unconditional and performant rollover.
+        rolloverClient.execute(LazyRolloverAction.INSTANCE, rolloverRequest, listener);
     }
 
     private static boolean setResponseFailureIfIndexMatches(
@@ -586,13 +612,29 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
         return TimeUnit.NANOSECONDS.toMillis(relativeTime() - startTimeNanos);
     }
 
-    private record ReducedRequestInfo(boolean isRequireAlias, boolean isRequireDataStream) {
-        private ReducedRequestInfo merge(ReducedRequestInfo other) {
-            return new ReducedRequestInfo(
-                this.isRequireAlias || other.isRequireAlias,
-                this.isRequireDataStream || other.isRequireDataStream
-            );
+    private enum ReducedRequestInfo {
+
+        REQUIRE_ALIAS_AND_DATA_STREAM(true, true),
+        REQUIRE_ALIAS_NOT_DATA_STREAM(true, false),
+
+        REQUIRE_DATA_STREAM_NOT_ALIAS(false, true),
+        REQUIRE_NOTHING(false, false);
+
+        private final boolean isRequireAlias;
+        private final boolean isRequireDataStream;
+
+        ReducedRequestInfo(boolean isRequireAlias, boolean isRequireDataStream) {
+            this.isRequireAlias = isRequireAlias;
+            this.isRequireDataStream = isRequireDataStream;
         }
+
+        static ReducedRequestInfo of(boolean isRequireAlias, boolean isRequireDataStream) {
+            if (isRequireAlias) {
+                return isRequireDataStream ? REQUIRE_ALIAS_AND_DATA_STREAM : REQUIRE_ALIAS_NOT_DATA_STREAM;
+            }
+            return isRequireDataStream ? REQUIRE_DATA_STREAM_NOT_ALIAS : REQUIRE_NOTHING;
+        }
+
     }
 
     void executeBulk(
@@ -600,14 +642,14 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
         BulkRequest bulkRequest,
         long startTimeNanos,
         ActionListener<BulkResponse> listener,
-        String executorName,
+        Executor executor,
         AtomicArray<BulkItemResponse> responses,
         Map<String, IndexNotFoundException> indicesThatCannotBeCreated
     ) {
         new BulkOperation(
             task,
             threadPool,
-            executorName,
+            executor,
             clusterService,
             bulkRequest,
             client,
@@ -627,7 +669,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
     private void processBulkIndexIngestRequest(
         Task task,
         BulkRequest original,
-        String executorName,
+        Executor executor,
         Metadata metadata,
         ActionListener<BulkResponse> listener
     ) {
@@ -660,7 +702,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                         ActionRunnable<BulkResponse> runnable = new ActionRunnable<>(actionListener) {
                             @Override
                             protected void doRun() {
-                                doInternalExecute(task, bulkRequest, executorName, actionListener);
+                                doInternalExecute(task, bulkRequest, executor, actionListener);
                             }
 
                             @Override
@@ -677,12 +719,12 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                         if (originalThread == Thread.currentThread()) {
                             runnable.run();
                         } else {
-                            threadPool.executor(executorName).execute(runnable);
+                            executor.execute(runnable);
                         }
                     }
                 }
             },
-            executorName
+            executor
         );
     }
 
@@ -696,7 +738,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
      * or if it matches a template that has a data stream failure store enabled.
      */
     static boolean shouldStoreFailure(String indexName, Metadata metadata, long epochMillis) {
-        return DataStream.isFailureStoreEnabled()
+        return DataStream.isFailureStoreFeatureFlagEnabled()
             && resolveFailureStoreFromMetadata(indexName, metadata, epochMillis).or(
                 () -> resolveFailureStoreFromTemplate(indexName, metadata)
             ).orElse(false);
@@ -732,7 +774,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
         DataStream targetDataStream = writeAbstraction.getParentDataStream();
 
         // We will store the failure if the write target belongs to a data stream with a failure store.
-        return Optional.of(targetDataStream != null && targetDataStream.isFailureStore());
+        return Optional.of(targetDataStream != null && targetDataStream.isFailureStoreEnabled());
     }
 
     /**

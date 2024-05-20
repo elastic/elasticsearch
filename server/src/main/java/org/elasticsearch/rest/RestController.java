@@ -51,7 +51,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.util.Collections;
-import java.util.HashSet;
+import java.util.EnumSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
@@ -365,6 +365,32 @@ public class RestController implements HttpServerTransport.Dispatcher {
         }
     }
 
+    public boolean checkSupported(
+        RestRequest.Method method,
+        String path,
+        Set<String> parameters,
+        Set<String> capabilities,
+        RestApiVersion restApiVersion
+    ) {
+        Iterator<MethodHandlers> allHandlers = getAllHandlers(null, path);
+        while (allHandlers.hasNext()) {
+            RestHandler handler;
+            MethodHandlers handlers = allHandlers.next();
+            if (handlers == null) {
+                handler = null;
+            } else {
+                handler = handlers.getHandler(method, restApiVersion);
+            }
+
+            if (handler != null) {
+                var supportedParams = handler.supportedQueryParameters();
+                return (supportedParams == null || supportedParams.containsAll(parameters))
+                    && handler.supportedCapabilities().containsAll(capabilities);
+            }
+        }
+        return false;
+    }
+
     @Override
     public Map<String, HttpRouteStats> getStats() {
         final Iterator<MethodHandlers> methodHandlersIterator = handlers.allNodeValues();
@@ -644,7 +670,7 @@ public class RestController implements HttpServerTransport.Dispatcher {
         // we use rawPath since we don't want to decode it while processing the path resolution
         // so we can handle things like:
         // my_index/my_type/http%3A%2F%2Fwww.google.com
-        return handlers.retrieveAll(rawPath, paramsSupplier);
+        return handlers.retrieveAll(rawPath, paramsSupplier).iterator();
     }
 
     /**
@@ -734,7 +760,7 @@ public class RestController implements HttpServerTransport.Dispatcher {
      * Get the valid set of HTTP methods for a REST request.
      */
     private Set<RestRequest.Method> getValidHandlerMethodSet(String rawPath) {
-        Set<RestRequest.Method> validMethods = new HashSet<>();
+        Set<RestRequest.Method> validMethods = EnumSet.noneOf(RestRequest.Method.class);
         Iterator<MethodHandlers> allHandlers = getAllHandlers(null, rawPath);
         while (allHandlers.hasNext()) {
             final MethodHandlers methodHandlers = allHandlers.next();
@@ -885,6 +911,7 @@ public class RestController implements HttpServerTransport.Dispatcher {
         void addChunkLength(long chunkLength) {
             assert chunkLength >= 0L : chunkLength;
             assert Transports.assertTransportThread(); // always called on the transport worker, no need for sync
+            assert get() != null : "already closed";
             responseLength += chunkLength;
         }
     }

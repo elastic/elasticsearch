@@ -14,14 +14,18 @@ import org.elasticsearch.Build;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
+import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.TestClustersThreadFilter;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
+import org.elasticsearch.test.cluster.LogType;
 import org.elasticsearch.xpack.esql.qa.rest.RestEsqlTestCase;
+import org.hamcrest.Matchers;
 import org.junit.Assert;
 import org.junit.ClassRule;
 
 import java.io.IOException;
+import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.List;
@@ -29,12 +33,16 @@ import java.util.Locale;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.not;
 import static org.hamcrest.core.Is.is;
 
 @ThreadLeakFilters(filters = TestClustersThreadFilter.class)
 public class RestEsqlIT extends RestEsqlTestCase {
     @ClassRule
-    public static ElasticsearchCluster cluster = Clusters.testCluster();
+    public static ElasticsearchCluster cluster = Clusters.testCluster(
+        specBuilder -> specBuilder.plugin("mapper-size").plugin("mapper-murmur3")
+    );
 
     @Override
     protected String getTestRestCluster() {
@@ -65,7 +73,7 @@ public class RestEsqlIT extends RestEsqlTestCase {
         Response response = client().performRequest(bulk);
         Assert.assertEquals("{\"errors\":false}", EntityUtils.toString(response.getEntity(), StandardCharsets.UTF_8));
 
-        RequestObjectBuilder builder = new RequestObjectBuilder().query(fromIndex() + " | stats avg(value)");
+        RequestObjectBuilder builder = requestObjectBuilder().query(fromIndex() + " | stats avg(value)");
         if (Build.current().isSnapshot()) {
             builder.pragmas(Settings.builder().put("data_partitioning", "shard").build());
         }
@@ -85,7 +93,7 @@ public class RestEsqlIT extends RestEsqlTestCase {
             request.setJsonEntity("{\"f\":" + i + "}");
             assertOK(client().performRequest(request));
         }
-        RequestObjectBuilder builder = new RequestObjectBuilder().query("from test-index | limit 1 | keep f");
+        RequestObjectBuilder builder = requestObjectBuilder().query("from test-index | limit 1 | keep f");
         builder.pragmas(Settings.builder().put("data_partitioning", "invalid-option").build());
         ResponseException re = expectThrows(ResponseException.class, () -> runEsqlSync(builder));
         assertThat(EntityUtils.toString(re.getResponse().getEntity()), containsString("No enum constant"));
@@ -95,9 +103,164 @@ public class RestEsqlIT extends RestEsqlTestCase {
 
     public void testPragmaNotAllowed() throws IOException {
         assumeFalse("pragma only disabled on release builds", Build.current().isSnapshot());
-        RequestObjectBuilder builder = new RequestObjectBuilder().query("row a = 1, b = 2");
+        RequestObjectBuilder builder = requestObjectBuilder().query("row a = 1, b = 2");
         builder.pragmas(Settings.builder().put("data_partitioning", "shard").build());
         ResponseException re = expectThrows(ResponseException.class, () -> runEsqlSync(builder));
         assertThat(EntityUtils.toString(re.getResponse().getEntity()), containsString("[pragma] only allowed in snapshot builds"));
+    }
+
+    public void testDoNotLogWithInfo() throws IOException {
+        try {
+            setLoggingLevel("INFO");
+            RequestObjectBuilder builder = requestObjectBuilder().query("ROW DO_NOT_LOG_ME = 1");
+            Map<String, Object> result = runEsql(builder);
+            assertEquals(2, result.size());
+            Map<String, String> colA = Map.of("name", "DO_NOT_LOG_ME", "type", "integer");
+            assertEquals(List.of(colA), result.get("columns"));
+            assertEquals(List.of(List.of(1)), result.get("values"));
+            for (int i = 0; i < cluster.getNumNodes(); i++) {
+                try (InputStream log = cluster.getNodeLog(i, LogType.SERVER)) {
+                    Streams.readAllLines(log, line -> assertThat(line, not(containsString("DO_NOT_LOG_ME"))));
+                }
+            }
+        } finally {
+            setLoggingLevel(null);
+        }
+    }
+
+    public void testDoLogWithDebug() throws IOException {
+        try {
+            setLoggingLevel("DEBUG");
+            RequestObjectBuilder builder = requestObjectBuilder().query("ROW DO_LOG_ME = 1");
+            Map<String, Object> result = runEsql(builder);
+            assertEquals(2, result.size());
+            Map<String, String> colA = Map.of("name", "DO_LOG_ME", "type", "integer");
+            assertEquals(List.of(colA), result.get("columns"));
+            assertEquals(List.of(List.of(1)), result.get("values"));
+            boolean[] found = new boolean[] { false };
+            for (int i = 0; i < cluster.getNumNodes(); i++) {
+                try (InputStream log = cluster.getNodeLog(i, LogType.SERVER)) {
+                    Streams.readAllLines(log, line -> {
+                        if (line.contains("DO_LOG_ME")) {
+                            found[0] = true;
+                        }
+                    });
+                }
+            }
+            assertThat(found[0], equalTo(true));
+        } finally {
+            setLoggingLevel(null);
+        }
+    }
+
+    private void setLoggingLevel(String level) throws IOException {
+        Request request = new Request("PUT", "/_cluster/settings");
+        request.setJsonEntity("""
+            {
+                "persistent": {
+                    "logger.org.elasticsearch.xpack.esql.action": $LEVEL$
+                }
+            }
+            """.replace("$LEVEL$", level == null ? "null" : '"' + level + '"'));
+        client().performRequest(request);
+    }
+
+    public void testIncompatibleMappingsErrors() throws IOException {
+        // create first index
+        Request request = new Request("PUT", "/index1");
+        request.setJsonEntity("""
+            {
+               "mappings": {
+                 "_size": {
+                   "enabled": true
+                 },
+                 "properties": {
+                   "message": {
+                     "type": "keyword",
+                     "fields": {
+                       "hash": {
+                         "type": "murmur3"
+                       }
+                     }
+                   }
+                 }
+               }
+            }
+            """);
+        assertEquals(200, client().performRequest(request).getStatusLine().getStatusCode());
+
+        // create second index
+        request = new Request("PUT", "/index2");
+        request.setJsonEntity("""
+            {
+              "mappings": {
+                "properties": {
+                  "message": {
+                    "type": "long",
+                    "fields": {
+                      "hash": {
+                        "type": "integer"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+            """);
+        assertEquals(200, client().performRequest(request).getStatusLine().getStatusCode());
+
+        // create alias
+        request = new Request("POST", "/_aliases");
+        request.setJsonEntity("""
+            {
+              "actions": [
+                {
+                  "add": {
+                    "index": "index1",
+                    "alias": "test_alias"
+                  }
+                },
+                {
+                  "add": {
+                    "index": "index2",
+                    "alias": "test_alias"
+                  }
+                }
+              ]
+            }
+            """);
+        assertEquals(200, client().performRequest(request).getStatusLine().getStatusCode());
+        assertException(
+            "from index1,index2 | stats count(message)",
+            "VerificationException",
+            "Cannot use field [message] due to ambiguities",
+            "incompatible types: [keyword] in [index1], [long] in [index2]"
+        );
+        assertException(
+            "from test_alias | where message is not null",
+            "VerificationException",
+            "Cannot use field [message] due to ambiguities",
+            "incompatible types: [keyword] in [index1], [long] in [index2]"
+        );
+        assertException("from test_alias | where _size is not null | limit 1", "Unknown column [_size]");
+        assertException(
+            "from test_alias | where message.hash is not null | limit 1",
+            "Cannot use field [message.hash] with unsupported type [murmur3]"
+        );
+        assertException(
+            "from index1 | where message.hash is not null | limit 1",
+            "Cannot use field [message.hash] with unsupported type [murmur3]"
+        );
+        // clean up
+        assertThat(deleteIndex("index1").isAcknowledged(), Matchers.is(true));
+        assertThat(deleteIndex("index2").isAcknowledged(), Matchers.is(true));
+    }
+
+    private void assertException(String query, String... errorMessages) throws IOException {
+        ResponseException re = expectThrows(ResponseException.class, () -> runEsqlSync(requestObjectBuilder().query(query)));
+        assertThat(re.getResponse().getStatusLine().getStatusCode(), equalTo(400));
+        for (var error : errorMessages) {
+            assertThat(re.getMessage(), containsString(error));
+        }
     }
 }

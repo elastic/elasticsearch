@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.remotecluster;
 
+import org.apache.http.util.EntityUtils;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
@@ -16,6 +17,7 @@ import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.search.SearchResponseUtils;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.util.resource.Resource;
 import org.elasticsearch.test.junit.RunnableTestRuleAdapter;
@@ -185,6 +187,7 @@ public class RemoteClusterSecurityRestIT extends AbstractRemoteClusterSecurityTe
             final var putRoleRequest = new Request("PUT", "/_security/role/" + REMOTE_SEARCH_ROLE);
             putRoleRequest.setJsonEntity("""
                 {
+                  "description": "Role with privileges for remote and local indices.",
                   "indices": [
                     {
                       "names": ["local_index"],
@@ -223,7 +226,7 @@ public class RemoteClusterSecurityRestIT extends AbstractRemoteClusterSecurityTe
             );
             final Response response = performRequestWithRemoteSearchUser(searchRequest);
             assertOK(response);
-            final SearchResponse searchResponse = SearchResponse.fromXContent(responseAsParser(response));
+            final SearchResponse searchResponse = SearchResponseUtils.parseSearchResponse(responseAsParser(response));
             try {
                 final List<String> actualIndices = Arrays.stream(searchResponse.getHits().getHits())
                     .map(SearchHit::getIndex)
@@ -242,7 +245,7 @@ public class RemoteClusterSecurityRestIT extends AbstractRemoteClusterSecurityTe
                 "GET",
                 String.format(Locale.ROOT, "/my_remote_cluster:*/_search?ccs_minimize_roundtrips=%s", randomBoolean())
             );
-            final SearchResponse metricSearchResponse = SearchResponse.fromXContent(
+            final SearchResponse metricSearchResponse = SearchResponseUtils.parseSearchResponse(
                 responseAsParser(performRequestWithRemoteMetricUser(metricSearchRequest))
             );
             try {
@@ -291,6 +294,7 @@ public class RemoteClusterSecurityRestIT extends AbstractRemoteClusterSecurityTe
             final var putLocalSearchRoleRequest = new Request("PUT", "/_security/role/local_search");
             putLocalSearchRoleRequest.setJsonEntity(Strings.format("""
                 {
+                  "description": "Role with privileges for searching local only indices.",
                   "indices": [
                     {
                       "names": ["local_index"],
@@ -330,66 +334,108 @@ public class RemoteClusterSecurityRestIT extends AbstractRemoteClusterSecurityTe
                 )
             );
 
-            // Check that authentication fails if we use a non-existent API key
+            // Check that authentication fails if we use a non-existent API key (when skip_unavailable=false)
+            boolean skipUnavailable = randomBoolean();
             updateClusterSettings(
                 randomBoolean()
                     ? Settings.builder()
                         .put("cluster.remote.invalid_remote.seeds", fulfillingCluster.getRemoteClusterServerEndpoint(0))
+                        .put("cluster.remote.invalid_remote.skip_unavailable", Boolean.toString(skipUnavailable))
                         .build()
                     : Settings.builder()
                         .put("cluster.remote.invalid_remote.mode", "proxy")
+                        .put("cluster.remote.invalid_remote.skip_unavailable", Boolean.toString(skipUnavailable))
                         .put("cluster.remote.invalid_remote.proxy_address", fulfillingCluster.getRemoteClusterServerEndpoint(0))
                         .build()
             );
-            final ResponseException exception4 = expectThrows(
-                ResponseException.class,
-                () -> performRequestWithRemoteSearchUser(new Request("GET", "/invalid_remote:index1/_search"))
-            );
-            assertThat(exception4.getResponse().getStatusLine().getStatusCode(), equalTo(401));
-            assertThat(exception4.getMessage(), containsString("unable to find apikey"));
+            if (skipUnavailable) {
+                /*
+                  when skip_unavailable=true, response should be something like:
+                  {"took":1,"timed_out":false,"num_reduce_phases":0,"_shards":{"total":0,"successful":0,"skipped":0,"failed":0},
+                   "_clusters":{"total":1,"successful":0,"skipped":1,"running":0,"partial":0,"failed":0,
+                                "details":{"invalid_remote":{"status":"skipped","indices":"index1","timed_out":false,
+                                "failures":[{"shard":-1,"index":null,"reason":{"type":"connect_transport_exception",
+                                             "reason":"Unable to connect to [invalid_remote]"}}]}}},
+                    "hits":{"total":{"value":0,"relation":"eq"},"max_score":null,"hits":[]}}
+                 */
+                Response invalidRemoteResponse = performRequestWithRemoteSearchUser(new Request("GET", "/invalid_remote:index1/_search"));
+                assertThat(invalidRemoteResponse.getStatusLine().getStatusCode(), equalTo(200));
+                String responseJson = EntityUtils.toString(invalidRemoteResponse.getEntity());
+                assertThat(responseJson, containsString("\"status\":\"skipped\""));
+                assertThat(responseJson, containsString("connect_transport_exception"));
+            } else {
+                final ResponseException exception4 = expectThrows(
+                    ResponseException.class,
+                    () -> performRequestWithRemoteSearchUser(new Request("GET", "/invalid_remote:index1/_search"))
+                );
+                assertThat(exception4.getResponse().getStatusLine().getStatusCode(), equalTo(401));
+                assertThat(exception4.getMessage(), containsString("unable to find apikey"));
+            }
 
-            // check that REST API key is not supported by cross cluster access
+            // check that REST API key is not supported by cross cluster access (when skip_unavailable=false)
+            skipUnavailable = randomBoolean();
             updateClusterSettings(
                 randomBoolean()
                     ? Settings.builder()
                         .put("cluster.remote.wrong_api_key_type.seeds", fulfillingCluster.getRemoteClusterServerEndpoint(0))
+                        .put("cluster.remote.wrong_api_key_type.skip_unavailable", Boolean.toString(skipUnavailable))
                         .build()
                     : Settings.builder()
                         .put("cluster.remote.wrong_api_key_type.mode", "proxy")
+                        .put("cluster.remote.wrong_api_key_type.skip_unavailable", Boolean.toString(skipUnavailable))
                         .put("cluster.remote.wrong_api_key_type.proxy_address", fulfillingCluster.getRemoteClusterServerEndpoint(0))
                         .build()
             );
-            final ResponseException exception5 = expectThrows(
-                ResponseException.class,
-                () -> performRequestWithRemoteSearchUser(new Request("GET", "/wrong_api_key_type:*/_search"))
-            );
-            assertThat(exception5.getResponse().getStatusLine().getStatusCode(), equalTo(401));
-            assertThat(
-                exception5.getMessage(),
-                containsString(
-                    "authentication expected API key type of [cross_cluster], but API key ["
-                        + REST_API_KEY_MAP_REF.get().get("id")
-                        + "] has type [rest]"
-                )
-            );
+            if (skipUnavailable) {
+                Response invalidRemoteResponse = performRequestWithRemoteSearchUser(new Request("GET", "/wrong_api_key_type:*/_search"));
+                assertThat(invalidRemoteResponse.getStatusLine().getStatusCode(), equalTo(200));
+                String responseJson = EntityUtils.toString(invalidRemoteResponse.getEntity());
+                assertThat(responseJson, containsString("\"status\":\"skipped\""));
+                assertThat(responseJson, containsString("connect_transport_exception"));
+            } else {
+                final ResponseException exception5 = expectThrows(
+                    ResponseException.class,
+                    () -> performRequestWithRemoteSearchUser(new Request("GET", "/wrong_api_key_type:*/_search"))
+                );
+                assertThat(exception5.getResponse().getStatusLine().getStatusCode(), equalTo(401));
+                assertThat(
+                    exception5.getMessage(),
+                    containsString(
+                        "authentication expected API key type of [cross_cluster], but API key ["
+                            + REST_API_KEY_MAP_REF.get().get("id")
+                            + "] has type [rest]"
+                    )
+                );
+            }
 
-            // Check invalid cross-cluster API key length is rejected
+            // Check invalid cross-cluster API key length is rejected (and gets security error when skip_unavailable=false)
+            skipUnavailable = randomBoolean();
             updateClusterSettings(
                 randomBoolean()
                     ? Settings.builder()
                         .put("cluster.remote.invalid_secret_length.seeds", fulfillingCluster.getRemoteClusterServerEndpoint(0))
+                        .put("cluster.remote.invalid_secret_length.skip_unavailable", Boolean.toString(skipUnavailable))
                         .build()
                     : Settings.builder()
                         .put("cluster.remote.invalid_secret_length.mode", "proxy")
+                        .put("cluster.remote.invalid_secret_length.skip_unavailable", Boolean.toString(skipUnavailable))
                         .put("cluster.remote.invalid_secret_length.proxy_address", fulfillingCluster.getRemoteClusterServerEndpoint(0))
                         .build()
             );
-            final ResponseException exception6 = expectThrows(
-                ResponseException.class,
-                () -> performRequestWithRemoteSearchUser(new Request("GET", "/invalid_secret_length:*/_search"))
-            );
-            assertThat(exception6.getResponse().getStatusLine().getStatusCode(), equalTo(401));
-            assertThat(exception6.getMessage(), containsString("invalid cross-cluster API key value"));
+            if (skipUnavailable) {
+                Response invalidRemoteResponse = performRequestWithRemoteSearchUser(new Request("GET", "/invalid_secret_length:*/_search"));
+                assertThat(invalidRemoteResponse.getStatusLine().getStatusCode(), equalTo(200));
+                String responseJson = EntityUtils.toString(invalidRemoteResponse.getEntity());
+                assertThat(responseJson, containsString("\"status\":\"skipped\""));
+                assertThat(responseJson, containsString("connect_transport_exception"));
+            } else {
+                final ResponseException exception6 = expectThrows(
+                    ResponseException.class,
+                    () -> performRequestWithRemoteSearchUser(new Request("GET", "/invalid_secret_length:*/_search"))
+                );
+                assertThat(exception6.getResponse().getStatusLine().getStatusCode(), equalTo(401));
+                assertThat(exception6.getMessage(), containsString("invalid cross-cluster API key value"));
+            }
         }
     }
 

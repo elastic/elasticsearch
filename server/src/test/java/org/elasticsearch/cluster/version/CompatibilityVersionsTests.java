@@ -128,7 +128,7 @@ public class CompatibilityVersionsTests extends ESTestCase {
                 compatibilityVersions
             )
         );
-        assertThat(e.getMessage(), containsString("may not join a cluster with minimum transport version"));
+        assertThat(e.getMessage(), containsString("may not join a cluster with minimum version"));
     }
 
     public void testPreventJoinClusterWithUnsupportedMappingsVersion() {

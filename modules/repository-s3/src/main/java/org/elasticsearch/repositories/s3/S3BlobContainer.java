@@ -13,6 +13,7 @@ import com.amazonaws.services.s3.AmazonS3;
 import com.amazonaws.services.s3.model.AbortMultipartUploadRequest;
 import com.amazonaws.services.s3.model.AmazonS3Exception;
 import com.amazonaws.services.s3.model.CompleteMultipartUploadRequest;
+import com.amazonaws.services.s3.model.GetObjectMetadataRequest;
 import com.amazonaws.services.s3.model.GetObjectRequest;
 import com.amazonaws.services.s3.model.InitiateMultipartUploadRequest;
 import com.amazonaws.services.s3.model.ListMultipartUploadsRequest;
@@ -25,6 +26,7 @@ import com.amazonaws.services.s3.model.PartETag;
 import com.amazonaws.services.s3.model.PutObjectRequest;
 import com.amazonaws.services.s3.model.UploadPartRequest;
 import com.amazonaws.services.s3.model.UploadPartResult;
+import com.amazonaws.util.ValidationUtils;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -90,9 +92,8 @@ class S3BlobContainer extends AbstractBlobContainer {
 
     @Override
     public boolean blobExists(OperationPurpose purpose, String blobName) {
-        // TODO: Exists request needs to be include for metrics as well, see ES-7810
         try (AmazonS3Reference clientReference = blobStore.clientReference()) {
-            return SocketAccess.doPrivileged(() -> clientReference.client().doesObjectExist(blobStore.bucket(), buildKey(blobName)));
+            return SocketAccess.doPrivileged(() -> doesObjectExist(purpose, clientReference, blobStore.bucket(), buildKey(blobName)));
         } catch (final Exception e) {
             throw new BlobStoreException("Failed to check if blob [" + blobName + "] exists", e);
         }
@@ -223,6 +224,23 @@ class S3BlobContainer extends AbstractBlobContainer {
         ) {
             writer.accept(out);
             out.markSuccess();
+        }
+    }
+
+    // This method is largely copied from AmazonS3Client#doesObjectExist with the ability to instrument the getObjectMetadataRequest
+    private boolean doesObjectExist(OperationPurpose purpose, AmazonS3Reference clientReference, String bucketName, String objectName) {
+        try {
+            ValidationUtils.assertStringNotEmpty(bucketName, "bucketName");
+            ValidationUtils.assertStringNotEmpty(objectName, "objectName");
+            final var getObjectMetadataRequest = new GetObjectMetadataRequest(bucketName, objectName);
+            S3BlobStore.configureRequestForMetrics(getObjectMetadataRequest, blobStore, Operation.HEAD_OBJECT, purpose);
+            clientReference.client().getObjectMetadata(getObjectMetadataRequest);
+            return true;
+        } catch (AmazonS3Exception e) {
+            if (e.getStatusCode() == 404) {
+                return false;
+            }
+            throw e;
         }
     }
 

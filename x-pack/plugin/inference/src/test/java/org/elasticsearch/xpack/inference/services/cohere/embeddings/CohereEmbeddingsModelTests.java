@@ -10,14 +10,15 @@ package org.elasticsearch.xpack.inference.services.cohere.embeddings;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.InputType;
+import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.inference.common.SimilarityMeasure;
 import org.elasticsearch.xpack.inference.services.cohere.CohereServiceSettings;
 import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings;
 import org.hamcrest.MatcherAssert;
 
 import java.util.Map;
+import java.util.Objects;
 
 import static org.elasticsearch.xpack.inference.services.cohere.embeddings.CohereEmbeddingsTaskSettingsTests.getTaskSettingsMap;
 import static org.hamcrest.Matchers.is;
@@ -217,8 +218,31 @@ public class CohereEmbeddingsModelTests extends ESTestCase {
             TaskType.TEXT_EMBEDDING,
             "service",
             new CohereEmbeddingsServiceSettings(
-                new CohereServiceSettings(url, SimilarityMeasure.DOT_PRODUCT, dimensions, tokenLimit, model),
-                embeddingType
+                new CohereServiceSettings(url, SimilarityMeasure.DOT_PRODUCT, dimensions, tokenLimit, model, null),
+                Objects.requireNonNullElse(embeddingType, CohereEmbeddingType.FLOAT)
+            ),
+            taskSettings,
+            new DefaultSecretSettings(new SecureString(apiKey.toCharArray()))
+        );
+    }
+
+    public static CohereEmbeddingsModel createModel(
+        String url,
+        String apiKey,
+        CohereEmbeddingsTaskSettings taskSettings,
+        @Nullable Integer tokenLimit,
+        @Nullable Integer dimensions,
+        @Nullable String model,
+        @Nullable CohereEmbeddingType embeddingType,
+        @Nullable SimilarityMeasure similarityMeasure
+    ) {
+        return new CohereEmbeddingsModel(
+            "id",
+            TaskType.TEXT_EMBEDDING,
+            "service",
+            new CohereEmbeddingsServiceSettings(
+                new CohereServiceSettings(url, similarityMeasure, dimensions, tokenLimit, model, null),
+                Objects.requireNonNullElse(embeddingType, CohereEmbeddingType.FLOAT)
             ),
             taskSettings,
             new DefaultSecretSettings(new SecureString(apiKey.toCharArray()))

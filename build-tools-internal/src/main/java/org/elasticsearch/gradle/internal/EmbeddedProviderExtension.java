@@ -9,11 +9,13 @@
 package org.elasticsearch.gradle.internal;
 
 import org.gradle.api.Project;
+import org.gradle.api.Task;
 import org.gradle.api.artifacts.Configuration;
 import org.gradle.api.file.Directory;
 import org.gradle.api.provider.Provider;
 import org.gradle.api.tasks.SourceSet;
 import org.gradle.api.tasks.Sync;
+import org.gradle.api.tasks.TaskProvider;
 
 import static org.elasticsearch.gradle.internal.conventions.GUtils.capitalize;
 import static org.elasticsearch.gradle.util.GradleUtils.getJavaSourceSets;
@@ -23,9 +25,11 @@ import static org.gradle.api.artifacts.type.ArtifactTypeDefinition.DIRECTORY_TYP
 public class EmbeddedProviderExtension {
 
     private final Project project;
+    private final TaskProvider<Task> metaTask;
 
-    public EmbeddedProviderExtension(Project project) {
+    public EmbeddedProviderExtension(Project project, TaskProvider<Task> metaTask) {
         this.project = project;
+        this.metaTask = metaTask;
     }
 
     void impl(String implName, Project implProject) {
@@ -55,6 +59,7 @@ public class EmbeddedProviderExtension {
                 spec.from(generateProviderManifest);
             });
         });
+        metaTask.configure(t -> { t.dependsOn(generateProviderImpl); });
 
         var mainSourceSet = getJavaSourceSets(project).findByName(SourceSet.MAIN_SOURCE_SET_NAME);
         mainSourceSet.getOutput().dir(generateProviderImpl);

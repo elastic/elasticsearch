@@ -10,11 +10,10 @@
         "sort": {
           "field": [
             "profiling.project.id",
-            "@timestamp",
             "orchestrator.resource.name",
+            "host.name",
             "container.name",
-            "process.thread.name",
-            "host.id"
+            "process.thread.name"
           ]
         }
       },
@@ -22,7 +21,7 @@
     },
     "mappings": {
       "_source": {
-        "enabled": false
+        "mode": "synthetic"
       },
       "_meta": {
         "index-template-version": ${xpack.profiling.template.version},
@@ -75,6 +74,9 @@
           "type": "keyword"
         },
         "tags": {
+          "type": "keyword"
+        },
+        "service.name": {
           "type": "keyword"
         }
       }

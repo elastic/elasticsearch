@@ -28,7 +28,6 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class CcrRollingUpgradeIT extends AbstractMultiClusterUpgradeTestCase {
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/102000")
     public void testUniDirectionalIndexFollowing() throws Exception {
         logger.info("clusterName={}, upgradeState={}", clusterName, upgradeState);
 
@@ -233,6 +232,10 @@ public class CcrRollingUpgradeIT extends AbstractMultiClusterUpgradeTestCase {
                     allOf(
                         containsString("the snapshot was created with index version ["),
                         containsString("] which is higher than the version used by this node [")
+                    ),
+                    allOf(
+                        containsString("the snapshot was created with version ["),
+                        containsString("] which is higher than the version of this node [")
                     ),
                     allOf(
                         containsString("the snapshot was created with Elasticsearch version ["),

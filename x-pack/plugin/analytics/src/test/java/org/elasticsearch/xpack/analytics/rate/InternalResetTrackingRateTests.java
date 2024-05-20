@@ -191,7 +191,7 @@ public class InternalResetTrackingRateTests extends InternalAggregationTestCase<
             rate(5, 15, 4000, 5000, 0, dateTimeUnit),
             rate(0, 10, 5000, 6000, 0, dateTimeUnit)  // cross-boundary reset
         );
-        InternalAggregation reduced = rates.get(0).reduce(rates, null);
+        InternalAggregation reduced = InternalAggregationTestCase.reduce(rates, null);
         assertThat(reduced, instanceOf(Rate.class));
         assertThat(((Rate) reduced).getValue(), equalTo(operand));
     }

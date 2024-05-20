@@ -458,7 +458,9 @@ public class ElasticsearchNode implements TestClusterConfiguration {
                 // make sure we always start fresh
                 if (Files.exists(workingDir)) {
                     if (preserveDataDir) {
-                        Files.list(workingDir).filter(path -> path.equals(confPathData) == false).forEach(this::uncheckedDeleteWithRetry);
+                        try (var files = Files.list(workingDir)) {
+                            files.filter(path -> path.equals(confPathData) == false).forEach(this::uncheckedDeleteWithRetry);
+                        }
                     } else {
                         deleteWithRetry(workingDir);
                     }
@@ -1105,11 +1107,11 @@ public class ElasticsearchNode implements TestClusterConfiguration {
             return;
         }
 
-        boolean foundNettyLeaks = false;
+        boolean foundLeaks = false;
         for (String logLine : errorsAndWarnings.keySet()) {
-            if (logLine.contains("ResourceLeakDetector]")) {
+            if (logLine.contains("ResourceLeakDetector") || logLine.contains("LeakTracker")) {
                 tailLogs = true;
-                foundNettyLeaks = true;
+                foundLeaks = true;
                 break;
             }
         }
@@ -1138,8 +1140,8 @@ public class ElasticsearchNode implements TestClusterConfiguration {
                 });
             }
         }
-        if (foundNettyLeaks) {
-            throw new TestClustersException("Found Netty ByteBuf leaks in node logs.");
+        if (foundLeaks) {
+            throw new TestClustersException("Found resource leaks in node logs.");
         }
     }
 

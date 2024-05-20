@@ -16,7 +16,9 @@ import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.datastreams.CreateDataStreamAction;
 import org.elasticsearch.action.datastreams.GetDataStreamAction;
 import org.elasticsearch.action.datastreams.GetDataStreamAction.Response.ManagedBy;
+import org.elasticsearch.action.datastreams.lifecycle.ExplainDataStreamLifecycleAction;
 import org.elasticsearch.action.datastreams.lifecycle.ExplainIndexDataStreamLifecycle;
+import org.elasticsearch.action.datastreams.lifecycle.PutDataStreamLifecycleAction;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.DataStream;
@@ -28,8 +30,6 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.datastreams.DataStreamsPlugin;
 import org.elasticsearch.datastreams.lifecycle.DataStreamLifecycleService;
-import org.elasticsearch.datastreams.lifecycle.action.ExplainDataStreamLifecycleAction;
-import org.elasticsearch.datastreams.lifecycle.action.PutDataStreamLifecycleAction;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.DateFieldMapper;
@@ -238,7 +238,7 @@ public class DataStreamAndIndexLifecycleMixingTests extends ESIntegTestCase {
         // let's migrate this data stream to use the custom data stream lifecycle
         client().execute(
             PutDataStreamLifecycleAction.INSTANCE,
-            new PutDataStreamLifecycleAction.Request(new String[] { dataStreamName }, customLifecycle.getEffectiveDataRetention())
+            new PutDataStreamLifecycleAction.Request(new String[] { dataStreamName }, customLifecycle.getDataStreamRetention())
         ).actionGet();
 
         assertBusy(() -> {
@@ -580,7 +580,7 @@ public class DataStreamAndIndexLifecycleMixingTests extends ESIntegTestCase {
         // let's migrate this data stream to use the custom data stream lifecycle
         client().execute(
             PutDataStreamLifecycleAction.INSTANCE,
-            new PutDataStreamLifecycleAction.Request(new String[] { dataStreamName }, customLifecycle.getEffectiveDataRetention())
+            new PutDataStreamLifecycleAction.Request(new String[] { dataStreamName }, customLifecycle.getDataStreamRetention())
         ).actionGet();
 
         // data stream was rolled over and has 4 indices, 2 managed by ILM, and 2 managed by the custom data stream lifecycle

@@ -3,10 +3,13 @@
  * or more contributor license agreements. Licensed under the Elastic License
  * 2.0; you may not use this file except in compliance with the Elastic License
  * 2.0.
+ *
+ * this file was contributed to by a generative AI
  */
 
 package org.elasticsearch.xpack.core.inference.results;
 
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -14,14 +17,17 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.inference.InferenceResults;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.TaskType;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.stream.Collectors;
 
 /**
@@ -59,6 +65,30 @@ public record TextEmbeddingResults(List<Embedding> embeddings) implements Infere
         );
     }
 
+    public static TextEmbeddingResults of(List<? extends InferenceResults> results) {
+        List<Embedding> embeddings = new ArrayList<>(results.size());
+        for (InferenceResults result : results) {
+            if (result instanceof org.elasticsearch.xpack.core.ml.inference.results.TextEmbeddingResults embeddingResult) {
+                embeddings.add(Embedding.of(embeddingResult));
+            } else if (result instanceof org.elasticsearch.xpack.core.ml.inference.results.ErrorInferenceResults errorResult) {
+                if (errorResult.getException() instanceof ElasticsearchStatusException statusException) {
+                    throw statusException;
+                } else {
+                    throw new ElasticsearchStatusException(
+                        "Received error inference result.",
+                        RestStatus.INTERNAL_SERVER_ERROR,
+                        errorResult.getException()
+                    );
+                }
+            } else {
+                throw new IllegalArgumentException(
+                    "Received invalid inference result, of type " + result.getClass().getName() + " but expected TextEmbeddingResults."
+                );
+            }
+        }
+        return new TextEmbeddingResults(embeddings);
+    }
+
     @Override
     public int getFirstEmbeddingSize() {
         return TextEmbeddingUtils.getFirstEmbeddingSize(new ArrayList<>(embeddings));
@@ -87,8 +117,13 @@ public record TextEmbeddingResults(List<Embedding> embeddings) implements Infere
     @Override
     public List<? extends InferenceResults> transformToCoordinationFormat() {
         return embeddings.stream()
-            .map(embedding -> embedding.values.stream().mapToDouble(value -> value).toArray())
-            .map(values -> new org.elasticsearch.xpack.core.ml.inference.results.TextEmbeddingResults(TEXT_EMBEDDING, values, false))
+            .map(
+                embedding -> new org.elasticsearch.xpack.core.ml.inference.results.TextEmbeddingResults(
+                    TEXT_EMBEDDING,
+                    embedding.asDoubleArray(),
+                    false
+                )
+            )
             .toList();
     }
 
@@ -104,26 +139,52 @@ public record TextEmbeddingResults(List<Embedding> embeddings) implements Infere
 
     public Map<String, Object> asMap() {
         Map<String, Object> map = new LinkedHashMap<>();
-        map.put(TEXT_EMBEDDING, embeddings.stream().map(Embedding::asMap).collect(Collectors.toList()));
+        map.put(TEXT_EMBEDDING, embeddings);
 
         return map;
     }
 
-    public record Embedding(List<Float> values) implements Writeable, ToXContentObject, EmbeddingInt {
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        TextEmbeddingResults that = (TextEmbeddingResults) o;
+        return Objects.equals(embeddings, that.embeddings);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(embeddings);
+    }
+
+    public record Embedding(float[] values) implements Writeable, ToXContentObject, EmbeddingInt {
         public static final String EMBEDDING = "embedding";
 
         public Embedding(StreamInput in) throws IOException {
-            this(in.readCollectionAsImmutableList(StreamInput::readFloat));
+            this(in.readFloatArray());
+        }
+
+        public static Embedding of(org.elasticsearch.xpack.core.ml.inference.results.TextEmbeddingResults embeddingResult) {
+            float[] embeddingAsArray = embeddingResult.getInferenceAsFloat();
+            return new Embedding(embeddingAsArray);
+        }
+
+        public static Embedding of(List<Float> embeddingValuesList) {
+            float[] embeddingValues = new float[embeddingValuesList.size()];
+            for (int i = 0; i < embeddingValuesList.size(); i++) {
+                embeddingValues[i] = embeddingValuesList.get(i);
+            }
+            return new Embedding(embeddingValues);
         }
 
         @Override
         public int getSize() {
-            return values.size();
+            return values.length;
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeCollection(values, StreamOutput::writeFloat);
+            out.writeFloatArray(values);
         }
 
         @Override
@@ -131,7 +192,7 @@ public record TextEmbeddingResults(List<Embedding> embeddings) implements Infere
             builder.startObject();
 
             builder.startArray(EMBEDDING);
-            for (Float value : values) {
+            for (float value : values) {
                 builder.value(value);
             }
             builder.endArray();
@@ -145,8 +206,25 @@ public record TextEmbeddingResults(List<Embedding> embeddings) implements Infere
             return Strings.toString(this);
         }
 
-        public Map<String, Object> asMap() {
-            return Map.of(EMBEDDING, values);
+        private double[] asDoubleArray() {
+            double[] doubles = new double[values.length];
+            for (int i = 0; i < values.length; i++) {
+                doubles[i] = values[i];
+            }
+            return doubles;
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            Embedding embedding = (Embedding) o;
+            return Arrays.equals(values, embedding.values);
+        }
+
+        @Override
+        public int hashCode() {
+            return Arrays.hashCode(values);
         }
     }
 }

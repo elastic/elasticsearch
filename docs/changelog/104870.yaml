@@ -1,7 +1,0 @@
-pr: 104870
-summary: Make `_reset` action stop transforms without force first
-area: Transform
-type: bug
-issues:
- - 100596
- - 104825

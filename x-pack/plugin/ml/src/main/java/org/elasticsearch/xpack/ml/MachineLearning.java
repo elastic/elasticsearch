@@ -49,7 +49,6 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.analysis.CharFilterFactory;
 import org.elasticsearch.index.analysis.TokenizerFactory;
-import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.indices.AssociatedIndexDescriptor;
 import org.elasticsearch.indices.SystemIndexDescriptor;
@@ -69,7 +68,6 @@ import org.elasticsearch.plugins.AnalysisPlugin;
 import org.elasticsearch.plugins.CircuitBreakerPlugin;
 import org.elasticsearch.plugins.ExtensiblePlugin;
 import org.elasticsearch.plugins.IngestPlugin;
-import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.plugins.PersistentTaskPlugin;
 import org.elasticsearch.plugins.Platforms;
 import org.elasticsearch.plugins.Plugin;
@@ -121,6 +119,7 @@ import org.elasticsearch.xpack.core.ml.action.EvaluateDataFrameAction;
 import org.elasticsearch.xpack.core.ml.action.ExplainDataFrameAnalyticsAction;
 import org.elasticsearch.xpack.core.ml.action.FinalizeJobExecutionAction;
 import org.elasticsearch.xpack.core.ml.action.FlushJobAction;
+import org.elasticsearch.xpack.core.ml.action.FlushTrainedModelCacheAction;
 import org.elasticsearch.xpack.core.ml.action.ForecastJobAction;
 import org.elasticsearch.xpack.core.ml.action.GetBucketsAction;
 import org.elasticsearch.xpack.core.ml.action.GetCalendarEventsAction;
@@ -194,6 +193,7 @@ import org.elasticsearch.xpack.core.ml.dataframe.evaluation.MlEvaluationNamedXCo
 import org.elasticsearch.xpack.core.ml.dataframe.stats.AnalysisStatsNamedWriteablesProvider;
 import org.elasticsearch.xpack.core.ml.inference.MlInferenceNamedXContentProvider;
 import org.elasticsearch.xpack.core.ml.inference.ModelAliasMetadata;
+import org.elasticsearch.xpack.core.ml.inference.TrainedModelCacheMetadata;
 import org.elasticsearch.xpack.core.ml.inference.assignment.TrainedModelAssignmentMetadata;
 import org.elasticsearch.xpack.core.ml.inference.persistence.InferenceIndexConstants;
 import org.elasticsearch.xpack.core.ml.job.config.JobTaskState;
@@ -227,6 +227,7 @@ import org.elasticsearch.xpack.ml.action.TransportExplainDataFrameAnalyticsActio
 import org.elasticsearch.xpack.ml.action.TransportExternalInferModelAction;
 import org.elasticsearch.xpack.ml.action.TransportFinalizeJobExecutionAction;
 import org.elasticsearch.xpack.ml.action.TransportFlushJobAction;
+import org.elasticsearch.xpack.ml.action.TransportFlushTrainedModelCacheAction;
 import org.elasticsearch.xpack.ml.action.TransportForecastJobAction;
 import org.elasticsearch.xpack.ml.action.TransportGetBucketsAction;
 import org.elasticsearch.xpack.ml.action.TransportGetCalendarEventsAction;
@@ -334,6 +335,7 @@ import org.elasticsearch.xpack.ml.inference.loadingservice.ModelLoadingService;
 import org.elasticsearch.xpack.ml.inference.ltr.LearningToRankRescorerBuilder;
 import org.elasticsearch.xpack.ml.inference.ltr.LearningToRankService;
 import org.elasticsearch.xpack.ml.inference.modelsize.MlModelSizeNamedXContentProvider;
+import org.elasticsearch.xpack.ml.inference.persistence.TrainedModelCacheMetadataService;
 import org.elasticsearch.xpack.ml.inference.persistence.TrainedModelProvider;
 import org.elasticsearch.xpack.ml.inference.pytorch.process.BlackHolePyTorchProcess;
 import org.elasticsearch.xpack.ml.inference.pytorch.process.NativePyTorchProcessFactory;
@@ -365,7 +367,6 @@ import org.elasticsearch.xpack.ml.job.process.normalizer.NormalizerFactory;
 import org.elasticsearch.xpack.ml.job.process.normalizer.NormalizerProcessFactory;
 import org.elasticsearch.xpack.ml.job.snapshot.upgrader.SnapshotUpgradeTaskExecutor;
 import org.elasticsearch.xpack.ml.job.task.OpenJobPersistentTasksExecutor;
-import org.elasticsearch.xpack.ml.mapper.SemanticTextFieldMapper;
 import org.elasticsearch.xpack.ml.notifications.AnomalyDetectionAuditor;
 import org.elasticsearch.xpack.ml.notifications.DataFrameAnalyticsAuditor;
 import org.elasticsearch.xpack.ml.notifications.InferenceAuditor;
@@ -485,8 +486,7 @@ public class MachineLearning extends Plugin
         PersistentTaskPlugin,
         SearchPlugin,
         ShutdownAwarePlugin,
-        ExtensiblePlugin,
-        MapperPlugin {
+        ExtensiblePlugin {
     public static final String NAME = "ml";
     public static final String BASE_PATH = "/_ml/";
     // Endpoints that were deprecated in 7.x can still be called in 8.x using the REST compatibility layer
@@ -1132,7 +1132,15 @@ public class MachineLearning extends Plugin
             clusterService,
             threadPool
         );
-        final TrainedModelProvider trainedModelProvider = new TrainedModelProvider(client, xContentRegistry);
+        final TrainedModelCacheMetadataService trainedModelCacheMetadataService = new TrainedModelCacheMetadataService(
+            clusterService,
+            client
+        );
+        final TrainedModelProvider trainedModelProvider = new TrainedModelProvider(
+            client,
+            trainedModelCacheMetadataService,
+            xContentRegistry
+        );
         final ModelLoadingService modelLoadingService = new ModelLoadingService(
             trainedModelProvider,
             inferenceAuditor,
@@ -1151,7 +1159,14 @@ public class MachineLearning extends Plugin
         );
 
         this.deploymentManager.set(
-            new DeploymentManager(client, xContentRegistry, threadPool, pyTorchProcessFactory, getMaxModelDeploymentsPerNode())
+            new DeploymentManager(
+                client,
+                xContentRegistry,
+                threadPool,
+                pyTorchProcessFactory,
+                getMaxModelDeploymentsPerNode(),
+                inferenceAuditor
+            )
         );
 
         // Data frame analytics components
@@ -1307,6 +1322,7 @@ public class MachineLearning extends Plugin
             dataFrameAnalyticsConfigProvider,
             nativeStorageProvider,
             modelLoadingService,
+            trainedModelCacheMetadataService,
             trainedModelProvider,
             trainedModelAssignmentService,
             trainedModelAllocationClusterServiceSetOnce.get(),
@@ -1341,7 +1357,7 @@ public class MachineLearning extends Plugin
                 getLicenseState(),
                 machineLearningExtension.get().includeNodeInfo()
             ),
-            new TransportStartDatafeedAction.StartDatafeedPersistentTasksExecutor(datafeedRunner.get(), expressionResolver),
+            new TransportStartDatafeedAction.StartDatafeedPersistentTasksExecutor(datafeedRunner.get(), expressionResolver, threadPool),
             new TransportStartDataFrameAnalyticsAction.TaskExecutor(
                 settings,
                 client,
@@ -1459,7 +1475,7 @@ public class MachineLearning extends Plugin
                 restHandlers.add(new RestCatDataFrameAnalyticsAction());
             }
             if (machineLearningExtension.get().isNlpEnabled()) {
-                restHandlers.add(new RestStartTrainedModelDeploymentAction());
+                restHandlers.add(new RestStartTrainedModelDeploymentAction(machineLearningExtension.get().disableInferenceProcessCache()));
                 restHandlers.add(new RestStopTrainedModelDeploymentAction());
                 restHandlers.add(new RestInferTrainedModelDeploymentAction());
                 restHandlers.add(new RestUpdateTrainedModelDeploymentAction());
@@ -1555,6 +1571,7 @@ public class MachineLearning extends Plugin
             actionHandlers.add(
                 new ActionHandler<>(PutTrainedModelDefinitionPartAction.INSTANCE, TransportPutTrainedModelDefinitionPartAction.class)
             );
+            actionHandlers.add(new ActionHandler<>(FlushTrainedModelCacheAction.INSTANCE, TransportFlushTrainedModelCacheAction.class));
             actionHandlers.add(new ActionHandler<>(InferModelAction.INSTANCE, TransportInternalInferModelAction.class));
             actionHandlers.add(new ActionHandler<>(InferModelAction.EXTERNAL_INSTANCE, TransportExternalInferModelAction.class));
             actionHandlers.add(new ActionHandler<>(GetDeploymentStatsAction.INSTANCE, TransportGetDeploymentStatsAction.class));
@@ -1817,6 +1834,13 @@ public class MachineLearning extends Plugin
         namedXContent.add(
             new NamedXContentRegistry.Entry(
                 Metadata.Custom.class,
+                new ParseField((TrainedModelCacheMetadata.NAME)),
+                TrainedModelCacheMetadata::fromXContent
+            )
+        );
+        namedXContent.add(
+            new NamedXContentRegistry.Entry(
+                Metadata.Custom.class,
                 new ParseField(ModelAliasMetadata.NAME),
                 ModelAliasMetadata::fromXContent
             )
@@ -1852,6 +1876,12 @@ public class MachineLearning extends Plugin
         // Custom metadata
         namedWriteables.add(new NamedWriteableRegistry.Entry(Metadata.Custom.class, "ml", MlMetadata::new));
         namedWriteables.add(new NamedWriteableRegistry.Entry(NamedDiff.class, "ml", MlMetadata.MlMetadataDiff::new));
+        namedWriteables.add(
+            new NamedWriteableRegistry.Entry(Metadata.Custom.class, TrainedModelCacheMetadata.NAME, TrainedModelCacheMetadata::new)
+        );
+        namedWriteables.add(
+            new NamedWriteableRegistry.Entry(NamedDiff.class, TrainedModelCacheMetadata.NAME, TrainedModelCacheMetadata::readDiffFrom)
+        );
         namedWriteables.add(new NamedWriteableRegistry.Entry(Metadata.Custom.class, ModelAliasMetadata.NAME, ModelAliasMetadata::new));
         namedWriteables.add(new NamedWriteableRegistry.Entry(NamedDiff.class, ModelAliasMetadata.NAME, ModelAliasMetadata::readDiffFrom));
         namedWriteables.add(
@@ -2300,13 +2330,5 @@ public class MachineLearning extends Plugin
         if (enabled) {
             mlLifeCycleService.get().signalGracefulShutdown(shutdownNodeIds);
         }
-    }
-
-    @Override
-    public Map<String, Mapper.TypeParser> getMappers() {
-        if (SemanticTextFeature.isEnabled()) {
-            return Map.of(SemanticTextFieldMapper.CONTENT_TYPE, SemanticTextFieldMapper.PARSER);
-        }
-        return Map.of();
     }
 }

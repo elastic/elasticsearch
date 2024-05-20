@@ -20,6 +20,7 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.update.UpdateRequest;
+import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.DataStream;
@@ -34,6 +35,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
@@ -57,14 +59,19 @@ import java.util.List;
 import java.util.Map;
 import java.util.SortedMap;
 import java.util.TreeMap;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.action.bulk.TransportBulkAction.prohibitCustomRoutingOnDataStream;
 import static org.elasticsearch.cluster.metadata.MetadataCreateDataStreamServiceTests.createDataStream;
 import static org.elasticsearch.test.ClusterServiceUtils.createClusterService;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.is;
 import static org.junit.Assume.assumeThat;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class TransportBulkActionTests extends ESTestCase {
 
@@ -74,6 +81,7 @@ public class TransportBulkActionTests extends ESTestCase {
     private TestThreadPool threadPool;
 
     private TestTransportBulkAction bulkAction;
+    private FeatureService mockFeatureService;
 
     class TestTransportBulkAction extends TransportBulkAction {
 
@@ -87,7 +95,8 @@ public class TransportBulkActionTests extends ESTestCase {
                 transportService,
                 clusterService,
                 null,
-                null,
+                mockFeatureService,
+                new NodeClient(Settings.EMPTY, TransportBulkActionTests.this.threadPool),
                 new ActionFilters(Collections.emptySet()),
                 new Resolver(),
                 new IndexingPressure(Settings.EMPTY),
@@ -132,6 +141,8 @@ public class TransportBulkActionTests extends ESTestCase {
         );
         transportService.start();
         transportService.acceptIncomingRequests();
+        mockFeatureService = mock(FeatureService.class);
+        when(mockFeatureService.clusterHasFeature(any(), any())).thenReturn(true);
         bulkAction = new TestTransportBulkAction();
     }
 
@@ -312,36 +323,50 @@ public class TransportBulkActionTests extends ESTestCase {
         assertFalse(TransportBulkAction.isOnlySystem(buildBulkRequest(mixed), indicesLookup, systemIndices));
     }
 
-    public void testRejectCoordination() throws Exception {
+    private void blockWriteThreadPool(CountDownLatch blockingLatch) {
+        assertThat(blockingLatch.getCount(), greaterThan(0L));
+        final var executor = threadPool.executor(ThreadPool.Names.WRITE);
+        // Add tasks repeatedly until we get an EsRejectedExecutionException which indicates that the threadpool and its queue are full.
+        expectThrows(EsRejectedExecutionException.class, () -> {
+            // noinspection InfiniteLoopStatement
+            while (true) {
+                executor.execute(() -> safeAwait(blockingLatch));
+            }
+        });
+    }
+
+    public void testRejectCoordination() {
         BulkRequest bulkRequest = new BulkRequest().add(new IndexRequest("index").id("id").source(Collections.emptyMap()));
 
+        final var blockingLatch = new CountDownLatch(1);
         try {
-            threadPool.startForcingRejections();
+            blockWriteThreadPool(blockingLatch);
             PlainActionFuture<BulkResponse> future = new PlainActionFuture<>();
             ActionTestUtils.execute(bulkAction, null, bulkRequest, future);
             expectThrows(EsRejectedExecutionException.class, future);
         } finally {
-            threadPool.stopForcingRejections();
+            blockingLatch.countDown();
         }
     }
 
-    public void testRejectionAfterCreateIndexIsPropagated() throws Exception {
+    public void testRejectionAfterCreateIndexIsPropagated() {
         BulkRequest bulkRequest = new BulkRequest().add(new IndexRequest("index").id("id").source(Collections.emptyMap()));
 
         bulkAction.failIndexCreation = randomBoolean();
+        final var blockingLatch = new CountDownLatch(1);
         try {
-            bulkAction.beforeIndexCreation = threadPool::startForcingRejections;
+            bulkAction.beforeIndexCreation = () -> blockWriteThreadPool(blockingLatch);
             PlainActionFuture<BulkResponse> future = new PlainActionFuture<>();
             ActionTestUtils.execute(bulkAction, null, bulkRequest, future);
             expectThrows(EsRejectedExecutionException.class, future);
             assertTrue(bulkAction.indexCreated);
         } finally {
-            threadPool.stopForcingRejections();
+            blockingLatch.countDown();
         }
     }
 
     public void testResolveFailureStoreFromMetadata() throws Exception {
-        assumeThat(DataStream.isFailureStoreEnabled(), is(true));
+        assumeThat(DataStream.isFailureStoreFeatureFlagEnabled(), is(true));
 
         String dataStreamWithFailureStore = "test-data-stream-failure-enabled";
         String dataStreamWithoutFailureStore = "test-data-stream-failure-disabled";
@@ -400,7 +425,7 @@ public class TransportBulkActionTests extends ESTestCase {
     }
 
     public void testResolveFailureStoreFromTemplate() throws Exception {
-        assumeThat(DataStream.isFailureStoreEnabled(), is(true));
+        assumeThat(DataStream.isFailureStoreFeatureFlagEnabled(), is(true));
 
         String dsTemplateWithFailureStore = "test-data-stream-failure-enabled";
         String dsTemplateWithoutFailureStore = "test-data-stream-failure-disabled";

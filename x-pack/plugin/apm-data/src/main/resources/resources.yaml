@@ -1,7 +1,7 @@
 # "version" holds the version of the templates and ingest pipelines installed
 # by xpack-plugin apm-data. This must be increased whenever an existing template or
 # pipeline is changed, in order for it to be updated on Elasticsearch upgrade.
-version: 1
+version: 4
 
 component-templates:
   # Data lifecycle.
@@ -49,7 +49,27 @@ index-templates:
 
 # Ingest pipeline configuration requires to manually specify pipeline dependencies
 ingest-pipelines:
-  - apm@default-pipeline: {}
+  # Default pipelines.
+  #
+  # Each data stream index template gets its own default pipeline,
+  # with the exception of the interval data streams which share one
+  # for all intervals of the same metric, and the sampled traces
+  # data stream which does not have (or need) one.
+  - logs-apm.app@default-pipeline: {}
+  - logs-apm.error@default-pipeline: {}
+  - metrics-apm.app@default-pipeline: {}
+  - metrics-apm.internal@default-pipeline:
+      dependencies:
+        - metrics-apm.service_destination@default-pipeline
+        - metrics-apm.transaction@default-pipeline
+  - metrics-apm.service_destination@default-pipeline: {}
+  - metrics-apm.service_summary@default-pipeline: {}
+  - metrics-apm.service_transaction@default-pipeline: {}
+  - metrics-apm.transaction@default-pipeline: {}
+  - traces-apm@default-pipeline: {}
+  - traces-apm.rum@default-pipeline: {}
+
+  # Final pipelines.
   - apm@pipeline: {}
   - traces-apm@pipeline:
       dependencies:

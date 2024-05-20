@@ -1,13 +1,15 @@
 ---
 setup:
   - skip:
-      version: "8.7.00 - 8.9.99"
+      known_issues:
+        - cluster_feature: "gte_v8.7.0"
+          fixed_by: "gte_v8.10.0"
       reason: "Synthetic source shows up in the mapping in 8.10 and on, may trigger assert failures in mixed cluster tests"
 
 ---
 ecs style:
-  - skip:
-      version: " - 8.0.99"
+  - requires:
+      cluster_features: ["gte_v8.1.0"]
       reason: index.mode and routing_path introduced in 8.1.0
 
   - do:
@@ -62,8 +64,8 @@ ecs style:
 
 ---
 top level wildcard dim object:
-  - skip:
-      version: " - 8.1.99"
+  - requires:
+      cluster_features: ["gte_v8.2.0"]
       reason: routing_path object type check improve in 8.2.0
 
   - do:
@@ -120,12 +122,12 @@ top level wildcard dim object:
 
 ---
 exact match object type:
-  - skip:
-      version: " - 8.7.99"
-      reason: routing_path error message updated in 8.8.0
+  - requires:
+      cluster_features: ["gte_v8.14.0"]
+      reason: routing_path error message updated in 8.14.0
 
   - do:
-      catch: '/All fields that match routing_path must be keywords with \[time_series_dimension: true\] or flattened fields with a list of dimensions in \[time_series_dimensions\] and without the \[script\] parameter. \[dim\] was \[object\]./'
+      catch: '/All fields that match routing_path must be configured with \[time_series_dimension: true\] or flattened fields with a list of dimensions in \[time_series_dimensions\] and without the \[script\] parameter. \[dim\] was \[object\]./'
       indices.create:
         index: tsdb_index
         body:
@@ -153,12 +155,12 @@ exact match object type:
 
 ---
 non keyword matches routing_path:
-  - skip:
-      version: " - 8.7.99"
-      reason: routing_path error message updated in 8.8.0
+  - requires:
+      cluster_features: ["gte_v8.14.0"]
+      reason: routing_path error message updated in 8.14.0
 
   - do:
-      catch: '/All fields that match routing_path must be keywords with \[time_series_dimension: true\] or flattened fields with a list of dimensions in \[time_series_dimensions\] and without the \[script\] parameter. \[@timestamp\] was \[date\]./'
+      catch: '/All fields that match routing_path must be configured with \[time_series_dimension: true\] or flattened fields with a list of dimensions in \[time_series_dimensions\] and without the \[script\] parameter. \[@timestamp\] was not a dimension./'
       indices.create:
           index: test_index
           body:
@@ -198,8 +200,8 @@ non keyword matches routing_path:
 
 ---
 runtime field matching routing path:
-  - skip:
-      version: " - 8.1.99"
+  - requires:
+      cluster_features: ["gte_v8.2.0"]
       reason: tsdb indexing changed in 8.2.0
 
   - do:
@@ -240,9 +242,9 @@ runtime field matching routing path:
 
 ---
 "dynamic: runtime matches routing_path":
-  - skip:
-      version: " - 8.7.99"
-      reason: routing_path error message updated in 8.8.0
+  - requires:
+      cluster_features: ["gte_v8.14.0"]
+      reason: routing_path error message updated in 8.8.0 and has_dynamic_mapping condition fixed in 8.14.0
 
   - do:
       indices.create:
@@ -272,14 +274,14 @@ runtime field matching routing path:
         index: test
         body:
           - '{"index": {}}'
-          - '{"@timestamp": "2021-04-28T18:50:04.467Z", "dim_kw": "dim", "dim": {"foo": "a"}}'
-  - match: {items.0.index.error.reason: "All fields that match routing_path must be keywords with [time_series_dimension: true] or flattened fields with a list of dimensions in [time_series_dimensions] and without the [script] parameter. [dim.foo] was a runtime [keyword]."}
+          - '{"@timestamp": "2021-04-28T18:50:04.467Z", "dim_kw": "dim", "dim": {"foo": "a"}, "extra_field": 100}'
+  - match: {items.0.index.error.reason: "All fields that match routing_path must be configured with [time_series_dimension: true] or flattened fields with a list of dimensions in [time_series_dimensions] and without the [script] parameter. [dim.foo] was a runtime [keyword]."}
 
 ---
 "dynamic: false matches routing_path":
-  - skip:
-      features: contains
-      version: " - 8.1.99"
+  - requires:
+      test_runner_features: contains
+      cluster_features: ["gte_v8.2.0"]
       reason: tsdb indexing changed in 8.2.0
 
   - do:
@@ -315,8 +317,8 @@ runtime field matching routing path:
 
 ---
 nested dimensions:
-  - skip:
-      version: " - 8.1.99"
+  - requires:
+      cluster_features: ["gte_v8.2.0"]
       reason: message changed in 8.2.0
 
   - do:
@@ -344,8 +346,8 @@ nested dimensions:
 
 ---
 nested fields:
-  - skip:
-      version: " - 8.1.99"
+  - requires:
+      cluster_features: ["gte_v8.2.0"]
       reason: message changed in 8.2.0
 
   - do:
@@ -375,8 +377,8 @@ nested fields:
 
 ---
 "Unable to define a metric type for a runtime field":
-  - skip:
-      version: " - 8.4.99"
+  - requires:
+      cluster_features: ["gte_v8.5.0"]
       reason: "downsample introduced in 8.5.0"
 
   - do:
@@ -424,8 +426,8 @@ nested fields:
 
 ---
 "Synthetic source":
-  - skip:
-      version: " - 8.9.99"
+  - requires:
+      cluster_features: ["gte_v8.10.0"]
       reason: Synthetic source shows up in the mapping in 8.10
 
   - do:
@@ -455,8 +457,8 @@ nested fields:
 
 ---
 regular source:
-  - skip:
-      version: " - 8.6.99"
+  - requires:
+      cluster_features: ["gte_v8.7.0"]
       reason: synthetic source
 
   - do:
@@ -486,8 +488,8 @@ regular source:
                         time_series_dimension: true
 ---
 disabled source:
-  - skip:
-      version: " - 8.6.99"
+  - requires:
+      cluster_features: ["gte_v8.7.0"]
       reason: synthetic source
 
   - do:
@@ -518,8 +520,8 @@ disabled source:
 
 ---
 source include/exclude:
-  - skip:
-      version: " - 8.6.99"
+  - requires:
+      cluster_features: ["gte_v8.7.0"]
       reason: synthetic source
 
   - do:
@@ -576,8 +578,8 @@ source include/exclude:
 
 ---
 Supported metric type position:
-  - skip:
-      version: " - 8.7.99"
+  - requires:
+      cluster_features: ["gte_v8.8.0"]
       reason: "position introduced in 8.8.0"
 
   - do:

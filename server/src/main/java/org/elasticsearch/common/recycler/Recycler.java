@@ -30,6 +30,11 @@ public interface Recycler<T> {
 
         /** Destroy the data. This operation allows the data structure to release any internal resources before GC. */
         void destroy(T value);
+
+        /**
+         * @return see {@link Recycler#pageSize()}
+         */
+        int pageSize();
     }
 
     interface V<T> extends Releasable {
@@ -43,5 +48,10 @@ public interface Recycler<T> {
     }
 
     V<T> obtain();
+
+    /**
+     * @return the page size of the recycled object if it is array backed.
+     */
+    int pageSize();
 
 }

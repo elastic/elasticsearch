@@ -52,6 +52,7 @@ import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.index.translog.TranslogConfig;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
+import org.elasticsearch.plugins.internal.DocumentSizeObserver;
 import org.elasticsearch.test.DummyShardLock;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
@@ -556,7 +557,17 @@ public class RefreshListenersTests extends ESTestCase {
         document.add(versionField);
         seqID.addFields(document);
         BytesReference source = new BytesArray(new byte[] { 1 });
-        ParsedDocument doc = new ParsedDocument(versionField, seqID, id, null, Arrays.asList(document), source, XContentType.JSON, null);
+        ParsedDocument doc = new ParsedDocument(
+            versionField,
+            seqID,
+            id,
+            null,
+            Arrays.asList(document),
+            source,
+            XContentType.JSON,
+            null,
+            DocumentSizeObserver.EMPTY_INSTANCE
+        );
         Engine.Index index = new Engine.Index(uid, engine.config().getPrimaryTermSupplier().getAsLong(), doc);
         return engine.index(index);
     }

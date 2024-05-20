@@ -42,7 +42,7 @@ public class CombinedDeletionPolicy extends IndexDeletionPolicy {
     private final TranslogDeletionPolicy translogDeletionPolicy;
     private final SoftDeletesPolicy softDeletesPolicy;
     private final LongSupplier globalCheckpointSupplier;
-    private final Map<IndexCommit, Integer> snapshottedCommits; // Number of snapshots held against each commit point.
+    private final Map<IndexCommit, Integer> acquiredIndexCommits; // Number of references held against each commit point.
 
     interface CommitsListener {
 
@@ -71,7 +71,7 @@ public class CombinedDeletionPolicy extends IndexDeletionPolicy {
         this.softDeletesPolicy = softDeletesPolicy;
         this.globalCheckpointSupplier = globalCheckpointSupplier;
         this.commitsListener = commitsListener;
-        this.snapshottedCommits = new HashMap<>();
+        this.acquiredIndexCommits = new HashMap<>();
     }
 
     @Override
@@ -97,21 +97,13 @@ public class CombinedDeletionPolicy extends IndexDeletionPolicy {
         assert Thread.holdsLock(this) == false : "should not block concurrent acquire or release";
         final int keptPosition = indexOfKeptCommits(commits, globalCheckpointSupplier.getAsLong());
         final IndexCommit safeCommit = commits.get(keptPosition);
-        int totalDocsOfSafeCommit;
-        try {
-            totalDocsOfSafeCommit = getDocCountOfCommit(safeCommit);
-        } catch (IOException ex) {
-            logger.info("failed to get the total docs from the safe commit; use the total docs from the previous safe commit", ex);
-            totalDocsOfSafeCommit = safeCommitInfo.docCount;
-        }
-        IndexCommit newCommit = null;
-        IndexCommit previousLastCommit = null;
+        final var newSafeCommitInfo = getNewSafeCommitInfo(safeCommit);
+        final IndexCommit newCommit;
+        final IndexCommit previousLastCommit;
         List<IndexCommit> deletedCommits = null;
         synchronized (this) {
-            this.safeCommitInfo = new SafeCommitInfo(
-                Long.parseLong(safeCommit.getUserData().get(SequenceNumbers.LOCAL_CHECKPOINT_KEY)),
-                totalDocsOfSafeCommit
-            );
+            // we are synchronized on the IndexWriter in this method so nothing concurrently changed safeCommitInfo since the previous read
+            this.safeCommitInfo = newSafeCommitInfo;
             previousLastCommit = this.lastCommit;
             this.lastCommit = commits.get(commits.size() - 1);
             this.safeCommit = safeCommit;
@@ -123,10 +115,12 @@ public class CombinedDeletionPolicy extends IndexDeletionPolicy {
             }
             if (commitsListener != null && previousLastCommit != this.lastCommit) {
                 newCommit = acquireIndexCommit(false);
+            } else {
+                newCommit = null;
             }
             for (int i = 0; i < keptPosition; i++) {
                 final IndexCommit commit = commits.get(i);
-                if (snapshottedCommits.containsKey(commit) == false) {
+                if (acquiredIndexCommits.containsKey(commit) == false) {
                     deleteCommit(commit);
                     if (deletedCommits == null) {
                         deletedCommits = new ArrayList<>();
@@ -146,6 +140,31 @@ public class CombinedDeletionPolicy extends IndexDeletionPolicy {
                     commitsListener.onDeletedCommit(deletedCommit);
                 }
             }
+        }
+    }
+
+    private SafeCommitInfo getNewSafeCommitInfo(IndexCommit newSafeCommit) {
+        final var currentSafeCommitInfo = this.safeCommitInfo;
+        final long newSafeCommitLocalCheckpoint;
+        try {
+            newSafeCommitLocalCheckpoint = Long.parseLong(newSafeCommit.getUserData().get(SequenceNumbers.LOCAL_CHECKPOINT_KEY));
+        } catch (Exception ex) {
+            logger.info("failed to get the local checkpoint from the safe commit; use the info from the previous safe commit", ex);
+            return currentSafeCommitInfo;
+        }
+
+        if (currentSafeCommitInfo.localCheckpoint == newSafeCommitLocalCheckpoint) {
+            // the new commit could in principle have the same LCP but a different doc count due to extra operations between its LCP and
+            // MSN, but that is a transient state since we'll eventually advance the LCP. The doc count is only used for heuristics around
+            // expiring excessively-lagging retention leases, so a little inaccuracy is tolerable here.
+            return currentSafeCommitInfo;
+        }
+
+        try {
+            return new SafeCommitInfo(newSafeCommitLocalCheckpoint, getDocCountOfCommit(newSafeCommit));
+        } catch (IOException ex) {
+            logger.info("failed to get the total docs from the safe commit; use the total docs from the previous safe commit", ex);
+            return new SafeCommitInfo(newSafeCommitLocalCheckpoint, currentSafeCommitInfo.docCount);
         }
     }
 
@@ -194,7 +213,7 @@ public class CombinedDeletionPolicy extends IndexDeletionPolicy {
         assert safeCommit != null : "Safe commit is not initialized yet";
         assert lastCommit != null : "Last commit is not initialized yet";
         final IndexCommit snapshotting = acquiringSafeCommit ? safeCommit : lastCommit;
-        snapshottedCommits.merge(snapshotting, 1, Integer::sum); // increase refCount
+        acquiredIndexCommits.merge(snapshotting, 1, Integer::sum); // increase refCount
         return wrapCommit(snapshotting);
     }
 
@@ -205,27 +224,27 @@ public class CombinedDeletionPolicy extends IndexDeletionPolicy {
     /**
      * Releases an index commit that acquired by {@link #acquireIndexCommit(boolean)}.
      *
-     * @return true if the snapshotting commit can be clean up.
+     * @return true if the acquired commit can be clean up.
      */
-    synchronized boolean releaseCommit(final IndexCommit snapshotCommit) {
-        final IndexCommit releasingCommit = ((SnapshotIndexCommit) snapshotCommit).getIndexCommit();
-        assert snapshottedCommits.containsKey(releasingCommit)
-            : "Release non-snapshotted commit;"
-                + "snapshotted commits ["
-                + snapshottedCommits
+    synchronized boolean releaseCommit(final IndexCommit acquiredCommit) {
+        final IndexCommit releasingCommit = ((SnapshotIndexCommit) acquiredCommit).getIndexCommit();
+        assert acquiredIndexCommits.containsKey(releasingCommit)
+            : "Release non-acquired commit;"
+                + "acquired commits ["
+                + acquiredIndexCommits
                 + "], releasing commit ["
                 + releasingCommit
                 + "]";
         // release refCount
-        final Integer refCount = snapshottedCommits.compute(releasingCommit, (key, count) -> {
+        final Integer refCount = acquiredIndexCommits.compute(releasingCommit, (key, count) -> {
             if (count == 1) {
                 return null;
             }
             return count - 1;
         });
 
-        assert refCount == null || refCount > 0 : "Number of snapshots can not be negative [" + refCount + "]";
-        // The commit can be clean up only if no pending snapshot and it is neither the safe commit nor last commit.
+        assert refCount == null || refCount > 0 : "Number of references for acquired commit can not be negative [" + refCount + "]";
+        // The commit can be clean up only if no refCount and it is neither the safe commit nor last commit.
         return refCount == null && releasingCommit.equals(safeCommit) == false && releasingCommit.equals(lastCommit) == false;
     }
 
@@ -277,10 +296,10 @@ public class CombinedDeletionPolicy extends IndexDeletionPolicy {
     }
 
     /**
-     * Checks whether the deletion policy is holding on to snapshotted commits
+     * Checks whether the deletion policy is holding on to acquired index commits
      */
-    synchronized boolean hasSnapshottedCommits() {
-        return snapshottedCommits.isEmpty() == false;
+    synchronized boolean hasAcquiredIndexCommits() {
+        return acquiredIndexCommits.isEmpty() == false;
     }
 
     /**

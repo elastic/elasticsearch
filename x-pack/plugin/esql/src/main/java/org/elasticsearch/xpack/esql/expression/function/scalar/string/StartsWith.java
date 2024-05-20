@@ -10,12 +10,11 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.string;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
-import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
+import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
+import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunction;
 import org.elasticsearch.xpack.ql.expression.Expression;
-import org.elasticsearch.xpack.ql.expression.function.scalar.ScalarFunction;
-import org.elasticsearch.xpack.ql.expression.gen.script.ScriptTemplate;
 import org.elasticsearch.xpack.ql.tree.NodeInfo;
 import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataType;
@@ -29,19 +28,28 @@ import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.SECOND;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isString;
 
-public class StartsWith extends ScalarFunction implements EvaluatorMapper {
+public class StartsWith extends EsqlScalarFunction {
 
     private final Expression str;
     private final Expression prefix;
 
     @FunctionInfo(
         returnType = "boolean",
-        description = "Returns a boolean that indicates whether a keyword string starts with another string"
+        description = "Returns a boolean that indicates whether a keyword string starts with another string.",
+        examples = @Example(file = "docs", tag = "startsWith")
     )
     public StartsWith(
         Source source,
-        @Param(name = "str", type = { "keyword", "text" }) Expression str,
-        @Param(name = "prefix", type = { "keyword", "text" }) Expression prefix
+        @Param(
+            name = "str",
+            type = { "keyword", "text" },
+            description = "String expression. If `null`, the function returns `null`."
+        ) Expression str,
+        @Param(
+            name = "prefix",
+            type = { "keyword", "text" },
+            description = "String expression. If `null`, the function returns `null`."
+        ) Expression prefix
     ) {
         super(source, Arrays.asList(str, prefix));
         this.str = str;
@@ -71,11 +79,6 @@ public class StartsWith extends ScalarFunction implements EvaluatorMapper {
         return str.foldable() && prefix.foldable();
     }
 
-    @Override
-    public Object fold() {
-        return EvaluatorMapper.super.fold();
-    }
-
     @Evaluator
     static boolean process(BytesRef str, BytesRef prefix) {
         if (str.length < prefix.length) {
@@ -92,11 +95,6 @@ public class StartsWith extends ScalarFunction implements EvaluatorMapper {
     @Override
     protected NodeInfo<? extends Expression> info() {
         return NodeInfo.create(this, StartsWith::new, str, prefix);
-    }
-
-    @Override
-    public ScriptTemplate asScript() {
-        throw new UnsupportedOperationException("functions do not support scripting");
     }
 
     @Override

@@ -1,5 +1,0 @@
-pr: 104904
-summary: Improve `CANNOT_REBALANCE_CAN_ALLOCATE` explanation
-area: Allocation
-type: bug
-issues: []

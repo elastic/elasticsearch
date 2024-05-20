@@ -26,7 +26,6 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 
 import static org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfigTests.randomStringList;
@@ -105,7 +104,7 @@ public class DatafeedConfigBuilderTests extends AbstractWireSerializingTestCase<
         }
         builder.setIndicesOptions(
             IndicesOptions.fromParameters(
-                randomFrom(IndicesOptions.WildcardStates.values()).name().toLowerCase(Locale.ROOT),
+                randomFrom("open", "closed", "hidden"),
                 Boolean.toString(randomBoolean()),
                 Boolean.toString(randomBoolean()),
                 Boolean.toString(randomBoolean()),

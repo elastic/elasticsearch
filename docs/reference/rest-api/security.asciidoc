@@ -12,6 +12,8 @@ Use the following APIs to perform security activities.
 * <<security-api-has-privileges>>
 * <<security-api-ssl>>
 * <<security-api-get-builtin-privileges>>
+* <<security-api-get-settings>>
+* <<security-api-update-settings>>
 * <<security-api-get-user-privileges>>
 
 [discrete]
@@ -69,7 +71,7 @@ without requiring basic authentication:
 * <<security-api-update-api-key,Update REST API key>>
 * <<security-api-bulk-update-api-keys,Bulk update REST API keys>>
 
-beta:[] Use the following APIs to create and update cross-cluster API keys for
+Use the following APIs to create and update cross-cluster API keys for
 <<remote-clusters-api-key,API key based remote cluster access>>:
 
 * <<security-api-create-cross-cluster-api-key,Create Cross-Cluster API key>>

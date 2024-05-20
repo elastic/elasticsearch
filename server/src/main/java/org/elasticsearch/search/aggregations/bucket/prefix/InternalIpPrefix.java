@@ -14,10 +14,12 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.AggregationReduceContext;
+import org.elasticsearch.search.aggregations.AggregatorReducer;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.InternalMultiBucketAggregation;
 import org.elasticsearch.search.aggregations.KeyComparable;
+import org.elasticsearch.search.aggregations.bucket.BucketReducer;
 import org.elasticsearch.search.aggregations.bucket.IteratorAndCurrent;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -220,27 +222,33 @@ public class InternalIpPrefix extends InternalMultiBucketAggregation<InternalIpP
     }
 
     @Override
-    public InternalAggregation reduce(List<InternalAggregation> aggregations, AggregationReduceContext reduceContext) {
-        List<InternalIpPrefix.Bucket> reducedBuckets = reduceBuckets(aggregations, reduceContext);
-        reduceContext.consumeBucketsAndMaybeBreak(reducedBuckets.size());
+    protected AggregatorReducer getLeaderReducer(AggregationReduceContext reduceContext, int size) {
+        return new AggregatorReducer() {
+            private final PriorityQueue<IteratorAndCurrent<Bucket>> pq = new PriorityQueue<>(size) {
+                @Override
+                protected boolean lessThan(IteratorAndCurrent<Bucket> a, IteratorAndCurrent<Bucket> b) {
+                    return a.current().key.compareTo(b.current().key) < 0;
+                }
+            };
 
-        return new InternalIpPrefix(getName(), format, keyed, minDocCount, reducedBuckets, metadata);
-    }
-
-    private List<Bucket> reduceBuckets(List<InternalAggregation> aggregations, AggregationReduceContext reduceContext) {
-        final PriorityQueue<IteratorAndCurrent<Bucket>> pq = new PriorityQueue<>(aggregations.size()) {
             @Override
-            protected boolean lessThan(IteratorAndCurrent<Bucket> a, IteratorAndCurrent<Bucket> b) {
-                return a.current().key.compareTo(b.current().key) < 0;
+            public void accept(InternalAggregation aggregation) {
+                final InternalIpPrefix ipPrefix = (InternalIpPrefix) aggregation;
+                if (ipPrefix.buckets.isEmpty() == false) {
+                    pq.add(new IteratorAndCurrent<>(ipPrefix.buckets.iterator()));
+                }
+            }
+
+            @Override
+            public InternalAggregation get() {
+                final List<InternalIpPrefix.Bucket> reducedBuckets = reduceBuckets(pq, reduceContext);
+                reduceContext.consumeBucketsAndMaybeBreak(reducedBuckets.size());
+                return new InternalIpPrefix(getName(), format, keyed, minDocCount, reducedBuckets, metadata);
             }
         };
-        for (InternalAggregation aggregation : aggregations) {
-            InternalIpPrefix ipPrefix = (InternalIpPrefix) aggregation;
-            if (ipPrefix.buckets.isEmpty() == false) {
-                pq.add(new IteratorAndCurrent<>(ipPrefix.buckets.iterator()));
-            }
-        }
+    }
 
+    private List<Bucket> reduceBuckets(PriorityQueue<IteratorAndCurrent<Bucket>> pq, AggregationReduceContext reduceContext) {
         List<Bucket> reducedBuckets = new ArrayList<>();
         if (pq.size() > 0) {
             // list of buckets coming from different shards that have the same value
@@ -331,17 +339,14 @@ public class InternalIpPrefix extends InternalMultiBucketAggregation<InternalIpP
         );
     }
 
-    @Override
-    protected Bucket reduceBucket(List<Bucket> buckets, AggregationReduceContext context) {
-        assert buckets.size() > 0;
-        List<InternalAggregations> aggregations = new ArrayList<>(buckets.size());
-        long docCount = 0;
-        for (InternalIpPrefix.Bucket bucket : buckets) {
-            docCount += bucket.docCount;
-            aggregations.add(bucket.getAggregations());
+    private Bucket reduceBucket(List<Bucket> buckets, AggregationReduceContext context) {
+        assert buckets.isEmpty() == false;
+        try (BucketReducer<Bucket> reducer = new BucketReducer<>(buckets.get(0), context, buckets.size())) {
+            for (Bucket bucket : buckets) {
+                reducer.accept(bucket);
+            }
+            return createBucket(reducer.getProto(), reducer.getAggregations(), reducer.getDocCount());
         }
-        InternalAggregations aggs = InternalAggregations.reduce(aggregations, context);
-        return createBucket(buckets.get(0), aggs, docCount);
     }
 
     @Override

@@ -14,7 +14,7 @@ import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.MockLogAppender;
+import org.elasticsearch.test.MockLog;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.junit.After;
 import org.junit.Before;
@@ -233,7 +233,7 @@ public class StoreHeartbeatServiceTests extends ESTestCase {
             assertThat(heartbeat, is(nullValue()));
 
             AtomicBoolean noRecentLeaderFound = new AtomicBoolean();
-            heartbeatService.runIfNoRecentLeader(() -> noRecentLeaderFound.set(true));
+            heartbeatService.checkLeaderHeartbeatAndRun(() -> noRecentLeaderFound.set(true), hb -> {});
             assertThat(noRecentLeaderFound.get(), is(true));
         }
 
@@ -242,7 +242,7 @@ public class StoreHeartbeatServiceTests extends ESTestCase {
             PlainActionFuture.<Void, Exception>get(f -> heartbeatStore.writeHeartbeat(new Heartbeat(1, fakeClock.get()), f));
 
             AtomicBoolean noRecentLeaderFound = new AtomicBoolean();
-            heartbeatService.runIfNoRecentLeader(() -> noRecentLeaderFound.set(true));
+            heartbeatService.checkLeaderHeartbeatAndRun(() -> noRecentLeaderFound.set(true), hb -> {});
             assertThat(noRecentLeaderFound.get(), is(false));
         }
 
@@ -252,7 +252,7 @@ public class StoreHeartbeatServiceTests extends ESTestCase {
             fakeClock.set(maxTimeSinceLastHeartbeat.millis() + 1);
 
             AtomicBoolean noRecentLeaderFound = new AtomicBoolean();
-            heartbeatService.runIfNoRecentLeader(() -> noRecentLeaderFound.set(true));
+            heartbeatService.checkLeaderHeartbeatAndRun(() -> noRecentLeaderFound.set(true), hb -> {});
             assertThat(noRecentLeaderFound.get(), is(true));
         }
 
@@ -260,21 +260,19 @@ public class StoreHeartbeatServiceTests extends ESTestCase {
         {
             PlainActionFuture.<Void, Exception>get(f -> heartbeatStore.writeHeartbeat(new Heartbeat(1, fakeClock.get()), f));
             fakeClock.set(maxTimeSinceLastHeartbeat.millis() + 1);
-
             failReadingHeartbeat.set(true);
 
-            final var mockAppender = new MockLogAppender();
-            mockAppender.addExpectation(
-                new MockLogAppender.SeenEventExpectation(
-                    "warning log",
-                    StoreHeartbeatService.class.getCanonicalName(),
-                    Level.WARN,
-                    "failed to read heartbeat from store"
-                )
-            );
-            try (var ignored = mockAppender.capturing(StoreHeartbeatService.class)) {
-                heartbeatService.runIfNoRecentLeader(() -> fail("should not be called"));
-                mockAppender.assertAllExpectationsMatched();
+            try (var mockLog = MockLog.capture(StoreHeartbeatService.class)) {
+                mockLog.addExpectation(
+                    new MockLog.SeenEventExpectation(
+                        "warning log",
+                        StoreHeartbeatService.class.getCanonicalName(),
+                        Level.WARN,
+                        "failed to read heartbeat from store"
+                    )
+                );
+                heartbeatService.checkLeaderHeartbeatAndRun(() -> fail("should not be called"), hb -> {});
+                mockLog.assertAllExpectationsMatched();
             }
         }
     }

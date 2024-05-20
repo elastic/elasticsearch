@@ -146,6 +146,14 @@ Bezalel Simmel    | Bezalel        | Simmel
 ;
 
 
+overwriteNameAfterSort#[skip:-8.13.0]
+from employees | sort emp_no ASC | dissect first_name "Ge%{emp_no}gi" | limit 1 | rename emp_no as first_name_fragment | keep first_name_fragment
+;
+
+first_name_fragment:keyword
+or
+;
+
 # for now it calculates only based on the first value
 multivalueInput
 from employees | where emp_no <= 10006 | dissect job_positions "%{a} %{b} %{c}" | sort emp_no | keep emp_no, a, b, c;

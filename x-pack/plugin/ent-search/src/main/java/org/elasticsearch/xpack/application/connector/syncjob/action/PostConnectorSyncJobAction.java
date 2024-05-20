@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.application.connector.syncjob.action;
 
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
@@ -24,6 +23,7 @@ import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.application.connector.Connector;
+import org.elasticsearch.xpack.application.connector.ConnectorTemplateRegistry;
 import org.elasticsearch.xpack.application.connector.syncjob.ConnectorSyncJob;
 import org.elasticsearch.xpack.application.connector.syncjob.ConnectorSyncJobTriggerMethod;
 import org.elasticsearch.xpack.application.connector.syncjob.ConnectorSyncJobType;
@@ -37,12 +37,12 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstr
 
 public class PostConnectorSyncJobAction {
 
-    public static final String NAME = "cluster:admin/xpack/connector/sync_job/post";
+    public static final String NAME = "indices:data/write/xpack/connector/sync_job/post";
     public static final ActionType<PostConnectorSyncJobAction.Response> INSTANCE = new ActionType<>(NAME);
 
     private PostConnectorSyncJobAction() {/* no instances */}
 
-    public static class Request extends ActionRequest implements ToXContentObject {
+    public static class Request extends ConnectorSyncJobActionRequest implements ToXContentObject {
         public static final String EMPTY_CONNECTOR_ID_ERROR_MESSAGE = "[id] of the connector cannot be null or empty";
         private final String id;
         private final ConnectorSyncJobType jobType;
@@ -152,6 +152,14 @@ public class PostConnectorSyncJobAction {
         @Override
         public int hashCode() {
             return Objects.hash(id, jobType, triggerMethod);
+        }
+
+        @Override
+        public String[] indices() {
+            // Creating a new sync job requires reading from connector index
+            return new String[] {
+                ConnectorTemplateRegistry.CONNECTOR_SYNC_JOBS_INDEX_NAME_PATTERN,
+                ConnectorTemplateRegistry.CONNECTOR_INDEX_NAME_PATTERN };
         }
     }
 

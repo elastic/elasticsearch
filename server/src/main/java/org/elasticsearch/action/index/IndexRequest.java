@@ -13,7 +13,6 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchGenerationException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.CompositeIndicesRequest;
 import org.elasticsearch.action.DocWriteRequest;
@@ -24,6 +23,7 @@ import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.routing.IndexRouting;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -39,7 +39,7 @@ import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.ingest.IngestService;
-import org.elasticsearch.plugins.internal.DocumentParsingObserver;
+import org.elasticsearch.plugins.internal.DocumentSizeObserver;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
@@ -58,14 +58,14 @@ import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
 
 /**
  * Index request to index a typed JSON document into a specific index and make it searchable.
- *
+ * <p>
  * The index requires the {@link #index()}, {@link #id(String)} and
  * {@link #source(byte[], XContentType)} to be set.
- *
+ * <p>
  * The source (content to index) can be set in its bytes form using ({@link #source(byte[], XContentType)}),
  * its string form ({@link #source(String, XContentType)}) or using a {@link org.elasticsearch.xcontent.XContentBuilder}
  * ({@link #source(org.elasticsearch.xcontent.XContentBuilder)}).
- *
+ * <p>
  * If the {@link #id(String)} is not set, it will be automatically generated.
  *
  * @see IndexResponse
@@ -146,7 +146,7 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
      * rawTimestamp field is used on the coordinate node, it doesn't need to be serialised.
      */
     private Object rawTimestamp;
-    private boolean pipelinesHaveRun = false;
+    private long normalisedBytesParsed = -1;
 
     public IndexRequest(StreamInput in) throws IOException {
         this(null, in);
@@ -187,10 +187,11 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
         if (in.getTransportVersion().onOrAfter(TransportVersions.V_7_13_0)) {
             dynamicTemplates = in.readMap(StreamInput::readString);
         }
-        if (in.getTransportVersion().onOrAfter(PIPELINES_HAVE_RUN_FIELD_ADDED)) {
-            pipelinesHaveRun = in.readBoolean();
+        if (in.getTransportVersion().onOrAfter(PIPELINES_HAVE_RUN_FIELD_ADDED)
+            && in.getTransportVersion().before(TransportVersions.V_8_13_0)) {
+            in.readBoolean();
         }
-        if (in.getTransportVersion().onOrAfter(TransportVersions.PIPELINES_IN_BULK_RESPONSE_ADDED)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
             this.listExecutedPipelines = in.readBoolean();
             if (listExecutedPipelines) {
                 List<String> possiblyImmutableExecutedPipelines = in.readOptionalCollectionAsList(StreamInput::readString);
@@ -199,8 +200,9 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
                     : new ArrayList<>(possiblyImmutableExecutedPipelines);
             }
         }
-        if (in.getTransportVersion().onOrAfter(TransportVersions.REQUIRE_DATA_STREAM_ADDED)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_13_0)) {
             requireDataStream = in.readBoolean();
+            normalisedBytesParsed = in.readZLong();
         } else {
             requireDataStream = false;
         }
@@ -324,7 +326,7 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
      */
     @Override
     public IndexRequest routing(String routing) {
-        if (routing != null && routing.length() == 0) {
+        if (routing != null && routing.isEmpty()) {
             this.routing = null;
         } else {
             this.routing = routing;
@@ -407,8 +409,8 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
         return XContentHelper.convertToMap(source, false, contentType).v2();
     }
 
-    public Map<String, Object> sourceAsMap(DocumentParsingObserver documentParsingObserver) {
-        return XContentHelper.convertToMap(source, false, contentType, documentParsingObserver).v2();
+    public Map<String, Object> sourceAsMap(DocumentSizeObserver documentSizeObserver) {
+        return XContentHelper.convertToMap(source, false, contentType, documentSizeObserver).v2();
     }
 
     /**
@@ -448,7 +450,7 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
 
     /**
      * Sets the document source to index.
-     *
+     * <p>
      * Note, its preferable to either set it using {@link #source(org.elasticsearch.xcontent.XContentBuilder)}
      * or using the {@link #source(byte[], XContentType)}.
      */
@@ -627,7 +629,7 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
     /**
      * only perform this indexing request if the document was last modification was assigned the given
      * sequence number. Must be used in combination with {@link #setIfPrimaryTerm(long)}
-     *
+     * <p>
      * If the document last modification was assigned a different sequence number a
      * {@link org.elasticsearch.index.engine.VersionConflictEngineException} will be thrown.
      */
@@ -642,7 +644,7 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
     /**
      * only performs this indexing request if the document was last modification was assigned the given
      * primary term. Must be used in combination with {@link #setIfSeqNo(long)}
-     *
+     * <p>
      * If the document last modification was assigned a different term a
      * {@link org.elasticsearch.index.engine.VersionConflictEngineException} will be thrown.
      */
@@ -665,7 +667,7 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
 
     /**
      * If set, only perform this indexing request if the document was last modification was assigned this primary term.
-     *
+     * <p>
      * If the document last modification was assigned a different term a
      * {@link org.elasticsearch.index.engine.VersionConflictEngineException} will be thrown.
      */
@@ -758,20 +760,28 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
             out.writeMap(dynamicTemplates, StreamOutput::writeString);
         } else {
             if (dynamicTemplates.isEmpty() == false) {
-                throw new IllegalArgumentException("[dynamic_templates] parameter requires all nodes on " + Version.V_7_13_0 + " or later");
+                throw new IllegalArgumentException(
+                    Strings.format(
+                        "[dynamic_templates] parameter requires all nodes on %s or later",
+                        TransportVersions.V_7_13_0.toReleaseVersion()
+                    )
+                );
             }
         }
-        if (out.getTransportVersion().onOrAfter(PIPELINES_HAVE_RUN_FIELD_ADDED)) {
-            out.writeBoolean(pipelinesHaveRun);
+        if (out.getTransportVersion().onOrAfter(PIPELINES_HAVE_RUN_FIELD_ADDED)
+            && out.getTransportVersion().before(TransportVersions.V_8_13_0)) {
+            out.writeBoolean(normalisedBytesParsed != -1L);
         }
-        if (out.getTransportVersion().onOrAfter(TransportVersions.PIPELINES_IN_BULK_RESPONSE_ADDED)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
             out.writeBoolean(listExecutedPipelines);
             if (listExecutedPipelines) {
                 out.writeOptionalCollection(executedPipelines, StreamOutput::writeString);
             }
         }
-        if (out.getTransportVersion().onOrAfter(TransportVersions.REQUIRE_DATA_STREAM_ADDED)) {
+
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_13_0)) {
             out.writeBoolean(requireDataStream);
+            out.writeZLong(normalisedBytesParsed);
         }
     }
 
@@ -843,7 +853,7 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
 
     @Override
     public Index getConcreteWriteIndex(IndexAbstraction ia, Metadata metadata) {
-        if (DataStream.isFailureStoreEnabled() && writeToFailureStore) {
+        if (DataStream.isFailureStoreFeatureFlagEnabled() && writeToFailureStore) {
             if (ia.isDataStreamRelated() == false) {
                 throw new ElasticsearchException(
                     "Attempting to write a document to a failure store but the targeted index is not a data stream"
@@ -852,12 +862,12 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
             // Resolve write index and get parent data stream to handle the case of dealing with an alias
             String defaultWriteIndexName = ia.getWriteIndex().getName();
             DataStream dataStream = metadata.getIndicesLookup().get(defaultWriteIndexName).getParentDataStream();
-            if (dataStream.getFailureIndices().size() < 1) {
+            if (dataStream.getFailureIndices().getIndices().size() < 1) {
                 throw new ElasticsearchException(
                     "Attempting to write a document to a failure store but the target data stream does not have one enabled"
                 );
             }
-            return dataStream.getFailureIndices().get(dataStream.getFailureIndices().size() - 1);
+            return dataStream.getFailureIndices().getIndices().get(dataStream.getFailureIndices().getIndices().size() - 1);
         } else {
             // Resolve as normal
             return ia.getWriteIndex(this, metadata);
@@ -866,7 +876,7 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
 
     @Override
     public int route(IndexRouting indexRouting) {
-        return indexRouting.indexShard(id, routing, contentType, source);
+        return indexRouting.indexShard(id, routing, contentType, source, this::routing);
     }
 
     public IndexRequest setRequireAlias(boolean requireAlias) {
@@ -918,16 +928,36 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
         this.rawTimestamp = rawTimestamp;
     }
 
-    public void setPipelinesHaveRun() {
-        pipelinesHaveRun = true;
+    /**
+     * Returns a number of bytes observed when parsing a document in earlier stages of ingestion (like update/ingest service)
+     * Defaults to -1 when a document size was not observed in earlier stages.
+     * @return a number of bytes observed
+     */
+    public long getNormalisedBytesParsed() {
+        return normalisedBytesParsed;
     }
 
-    public boolean pipelinesHaveRun() {
-        return pipelinesHaveRun;
+    /**
+     * Sets number of bytes observed by a <code>DocumentSizeObserver</code>
+     * @return an index request
+     */
+    public IndexRequest setNormalisedBytesParsed(long normalisedBytesParsed) {
+        this.normalisedBytesParsed = normalisedBytesParsed;
+        return this;
+    }
+
+    /**
+     * when observing document size while parsing, this method indicates that this request should not be recorded.
+     * @return an index request
+     */
+    public IndexRequest noParsedBytesToReport() {
+        this.normalisedBytesParsed = 0;
+        return this;
     }
 
     /**
      * Adds the pipeline to the list of executed pipelines, if listExecutedPipelines is true
+     *
      * @param pipeline
      */
     public void addPipeline(String pipeline) {
@@ -942,6 +972,7 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
     /**
      * This returns the list of pipelines executed on the document for this request. If listExecutedPipelines is false, the response will be
      * null, even if pipelines were executed. If listExecutedPipelines is true but no pipelines were executed, the list will be empty.
+     *
      * @return
      */
     @Nullable

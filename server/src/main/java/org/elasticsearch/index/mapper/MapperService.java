@@ -28,7 +28,6 @@ import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.indices.IndicesModule;
-import org.elasticsearch.plugins.internal.DocumentParsingObserver;
 import org.elasticsearch.script.ScriptCompiler;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ToXContent;
@@ -153,6 +152,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
     private final IndexVersion indexVersionCreated;
     private final MapperRegistry mapperRegistry;
     private final Supplier<MappingParserContext> mappingParserContextSupplier;
+    private final MapperMetrics mapperMetrics;
 
     private volatile DocumentMapper mapper;
     private volatile long mappingVersion;
@@ -167,7 +167,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         Supplier<SearchExecutionContext> searchExecutionContextSupplier,
         IdFieldMapper idFieldMapper,
         ScriptCompiler scriptCompiler,
-        Supplier<DocumentParsingObserver> documentParsingObserverSupplier
+        MapperMetrics mapperMetrics
     ) {
         this(
             () -> clusterService.state().getMinTransportVersion(),
@@ -179,7 +179,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
             searchExecutionContextSupplier,
             idFieldMapper,
             scriptCompiler,
-            documentParsingObserverSupplier
+            mapperMetrics
         );
     }
 
@@ -194,7 +194,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         Supplier<SearchExecutionContext> searchExecutionContextSupplier,
         IdFieldMapper idFieldMapper,
         ScriptCompiler scriptCompiler,
-        Supplier<DocumentParsingObserver> documentParsingObserverSupplier
+        MapperMetrics mapperMetrics
     ) {
         super(indexSettings);
         this.indexVersionCreated = indexSettings.getIndexVersionCreated();
@@ -212,11 +212,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
             indexSettings,
             idFieldMapper
         );
-        this.documentParser = new DocumentParser(
-            parserConfiguration,
-            this.mappingParserContextSupplier.get(),
-            documentParsingObserverSupplier
-        );
+        this.documentParser = new DocumentParser(parserConfiguration, this.mappingParserContextSupplier.get());
         Map<String, MetadataFieldMapper.TypeParser> metadataMapperParsers = mapperRegistry.getMetadataMapperParsers(
             indexSettings.getIndexVersionCreated()
         );
@@ -226,6 +222,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
             this::getMetadataMappers,
             this::resolveDocumentType
         );
+        this.mapperMetrics = mapperMetrics;
     }
 
     public boolean hasNested() {
@@ -318,7 +315,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         if (newMappingMetadata != null) {
             String type = newMappingMetadata.type();
             CompressedXContent incomingMappingSource = newMappingMetadata.source();
-            Mapping incomingMapping = parseMapping(type, incomingMappingSource);
+            Mapping incomingMapping = parseMapping(type, MergeReason.MAPPING_UPDATE, incomingMappingSource);
             DocumentMapper previousMapper;
             synchronized (this) {
                 previousMapper = this.mapper;
@@ -374,7 +371,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
             // that the incoming mappings are the same as the current ones: we need to
             // parse the incoming mappings into a DocumentMapper and check that its
             // serialization is the same as the existing mapper
-            Mapping newMapping = parseMapping(mapping.type(), mapping.source());
+            Mapping newMapping = parseMapping(mapping.type(), MergeReason.MAPPING_UPDATE, mapping.source());
             final CompressedXContent currentSource = this.mapper.mappingSource();
             final CompressedXContent newSource = newMapping.toCompressedXContent();
             if (Objects.equals(currentSource, newSource) == false
@@ -541,7 +538,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
     }
 
     private synchronized DocumentMapper doMerge(String type, MergeReason reason, Map<String, Object> mappingSourceAsMap) {
-        Mapping incomingMapping = parseMapping(type, mappingSourceAsMap);
+        Mapping incomingMapping = parseMapping(type, reason, mappingSourceAsMap);
         Mapping mapping = mergeMappings(this.mapper, incomingMapping, reason, this.indexSettings);
         // TODO: In many cases the source here is equal to mappingSource so we need not serialize again.
         // We should identify these cases reliably and save expensive serialization here
@@ -550,19 +547,19 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
             return newMapper;
         }
         this.mapper = newMapper;
-        assert assertSerialization(newMapper);
+        assert assertSerialization(newMapper, reason);
         return newMapper;
     }
 
     private DocumentMapper newDocumentMapper(Mapping mapping, MergeReason reason, CompressedXContent mappingSource) {
-        DocumentMapper newMapper = new DocumentMapper(documentParser, mapping, mappingSource, indexVersionCreated);
+        DocumentMapper newMapper = new DocumentMapper(documentParser, mapping, mappingSource, indexVersionCreated, mapperMetrics);
         newMapper.validate(indexSettings, reason != MergeReason.MAPPING_RECOVERY);
         return newMapper;
     }
 
-    public Mapping parseMapping(String mappingType, CompressedXContent mappingSource) {
+    public Mapping parseMapping(String mappingType, MergeReason reason, CompressedXContent mappingSource) {
         try {
-            return mappingParser.parse(mappingType, mappingSource);
+            return mappingParser.parse(mappingType, reason, mappingSource);
         } catch (Exception e) {
             throw new MapperParsingException("Failed to parse mapping: {}", e, e.getMessage());
         }
@@ -572,12 +569,13 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
      * A method to parse mapping from a source in a map form.
      *
      * @param mappingType   the mapping type
+     * @param reason        the merge reason to use when merging mappers while building the mapper
      * @param mappingSource mapping source already converted to a map form, but not yet processed otherwise
      * @return a parsed mapping
      */
-    public Mapping parseMapping(String mappingType, Map<String, Object> mappingSource) {
+    public Mapping parseMapping(String mappingType, MergeReason reason, Map<String, Object> mappingSource) {
         try {
-            return mappingParser.parse(mappingType, mappingSource);
+            return mappingParser.parse(mappingType, reason, mappingSource);
         } catch (Exception e) {
             throw new MapperParsingException("Failed to parse mapping: {}", e, e.getMessage());
         }
@@ -627,10 +625,10 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         return newMapping;
     }
 
-    private boolean assertSerialization(DocumentMapper mapper) {
+    private boolean assertSerialization(DocumentMapper mapper, MergeReason reason) {
         // capture the source now, it may change due to concurrent parsing
         final CompressedXContent mappingSource = mapper.mappingSource();
-        Mapping newMapping = parseMapping(mapper.type(), mappingSource);
+        Mapping newMapping = parseMapping(mapper.type(), reason, mappingSource);
         if (newMapping.toCompressedXContent().equals(mappingSource) == false) {
             throw new AssertionError(
                 "Mapping serialization result is different from source. \n--> Source ["
@@ -786,5 +784,9 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
 
     public MapperRegistry getMapperRegistry() {
         return mapperRegistry;
+    }
+
+    public MapperMetrics getMapperMetrics() {
+        return mapperMetrics;
     }
 }

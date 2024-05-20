@@ -246,24 +246,24 @@ on.
 
 `list_executed_pipelines`::
 (Optional, Boolean) If `true`, the response will include the ingest pipelines that
-were executed for each `index` or ``create`.
+were executed for each `index` or `create`.
 Defaults to `false`.
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=pipeline]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=pipeline]
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=refresh]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=refresh]
 
 `require_alias`::
 (Optional, Boolean) If `true`, the request's actions must target an index alias.
 Defaults to `false`.
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=routing]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=routing]
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=source]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=source]
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=source_excludes]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=source_excludes]
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=source_includes]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=source_includes]
 
 `timeout`::
 +
@@ -280,7 +280,7 @@ timeout before failing. The actual wait time could be longer, particularly when
 multiple waits occur.
 --
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=wait_for_active_shards]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=wait_for_active_shards]
 
 [[bulk-api-request-body]]
 ==== {api-request-body-title}
@@ -293,15 +293,15 @@ Indexes the specified document if it does not already exist.
 The following line must contain the source data to be indexed.
 +
 --
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=bulk-index-ds]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=bulk-index-ds]
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=bulk-id]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=bulk-id]
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=bulk-list-executed-pipelines]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=bulk-list-executed-pipelines]
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=bulk-require-alias]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=bulk-require-alias]
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=bulk-dynamic-templates]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=bulk-dynamic-templates]
 --
 
 `delete`::
@@ -309,12 +309,12 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=bulk-dynamic-templates
 Removes the specified document from the index.
 +
 --
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=bulk-index]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=bulk-index]
 
 `_id`::
 (Required, string) The document ID.
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=bulk-require-alias]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=bulk-require-alias]
 --
 
 `index`::
@@ -324,15 +324,15 @@ If the document exists, replaces the document and increments the version.
 The following line must contain the source data to be indexed.
 +
 --
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=bulk-index]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=bulk-index]
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=bulk-id]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=bulk-id]
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=bulk-list-executed-pipelines]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=bulk-list-executed-pipelines]
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=bulk-require-alias]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=bulk-require-alias]
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=bulk-dynamic-templates]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=bulk-dynamic-templates]
 --
 
 `update`::
@@ -341,12 +341,12 @@ Performs a partial document update.
 The following line must contain the partial document and update options.
 +
 --
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=bulk-index]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=bulk-index]
 
 `_id`::
 (Required, string) The document ID.
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=bulk-require-alias]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=bulk-require-alias]
 --
 
 `doc`::
@@ -414,9 +414,7 @@ This parameter is only returned for successful actions.
 `result`::
 (string)
 Result of the operation. Successful values are `created`, `deleted`, and
-`updated`.
-+
-This parameter is only returned for successful operations.
+`updated`. Other valid values are `noop` and `not_found`.
 
 `_shards`::
 (object)

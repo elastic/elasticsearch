@@ -30,7 +30,7 @@ public class EsqlQueryGenerator {
     public static String sourceCommand(List<String> availabeIndices) {
         return switch (randomIntBetween(0, 2)) {
             case 0 -> from(availabeIndices);
-            case 1 -> showFunctions();
+            case 1 -> metaFunctions();
             default -> row();
         };
 
@@ -111,8 +111,14 @@ public class EsqlQueryGenerator {
         if (field == null || policies.isEmpty()) {
             return "";
         }
+
         // TODO add WITH
-        return " | enrich " + randomFrom(policies).policyName() + " on " + field;
+        return " | enrich " + randomFrom(policiesOnKeyword(policies)).policyName() + " on " + field;
+    }
+
+    private static List<CsvTestsDataLoader.EnrichConfig> policiesOnKeyword(List<CsvTestsDataLoader.EnrichConfig> policies) {
+        // TODO make it smarter and extend it to other types
+        return policies.stream().filter(x -> Set.of("languages_policy").contains(x.policyName())).toList();
     }
 
     private static String grok(List<Column> previousOutput) {
@@ -361,8 +367,8 @@ public class EsqlQueryGenerator {
         return result.toString();
     }
 
-    private static String showFunctions() {
-        return "show functions";
+    private static String metaFunctions() {
+        return "meta functions";
     }
 
     private static String indexPattern(String indexName) {

@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.inference.services.huggingface;
 
-import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
@@ -16,7 +15,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSenderFactory;
+import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
 import org.elasticsearch.xpack.inference.services.ServiceComponents;
 import org.elasticsearch.xpack.inference.services.ServiceUtils;
 import org.elasticsearch.xpack.inference.services.huggingface.elser.HuggingFaceElserModel;
@@ -27,7 +26,7 @@ import java.util.Map;
 public class HuggingFaceService extends HuggingFaceBaseService {
     public static final String NAME = "hugging_face";
 
-    public HuggingFaceService(SetOnce<HttpRequestSenderFactory> factory, SetOnce<ServiceComponents> serviceComponents) {
+    public HuggingFaceService(HttpRequestSender.Factory factory, ServiceComponents serviceComponents) {
         super(factory, serviceComponents);
     }
 
@@ -62,9 +61,10 @@ public class HuggingFaceService extends HuggingFaceBaseService {
     private static HuggingFaceEmbeddingsModel updateModelWithEmbeddingDetails(HuggingFaceEmbeddingsModel model, int embeddingSize) {
         var serviceSettings = new HuggingFaceServiceSettings(
             model.getServiceSettings().uri(),
-            null, // Similarity measure is unknown
+            model.getServiceSettings().similarity(), // we don't know the similarity but use whatever the user specified
             embeddingSize,
-            model.getTokenLimit()
+            model.getTokenLimit(),
+            model.getServiceSettings().rateLimitSettings()
         );
 
         return new HuggingFaceEmbeddingsModel(model, serviceSettings);
@@ -77,6 +77,6 @@ public class HuggingFaceService extends HuggingFaceBaseService {
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.ML_INFERENCE_HF_SERVICE_ADDED;
+        return TransportVersions.ML_INFERENCE_RATE_LIMIT_SETTINGS_ADDED;
     }
 }

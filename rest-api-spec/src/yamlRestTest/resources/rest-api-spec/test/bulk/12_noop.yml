@@ -1,0 +1,49 @@
+---
+"Noop":
+  - requires:
+      cluster_features: ["gte_v8.14.0"]
+      reason: fixed in 8.14.0
+  - do:
+      indices.create:
+        index: test_1
+        body:
+          settings:
+            number_of_shards: 1
+            number_of_replicas: 0
+  - do:
+      cluster.health:
+        wait_for_status: green
+  - do:
+      bulk:
+        refresh: true
+        body: |
+          { "create": { "_index": "test_1", "_id": "1"} }
+          { "foo": "bar" }
+          { "create": { "_index": "test_1", "_id": "2"} }
+          { "foo": "bar" }
+  - do:
+      indices.stats: { index: test_1 }
+
+  - match: { indices.test_1.total.indexing.index_total: 2 }
+  - match: { indices.test_1.primaries.indexing.index_total: 2 }
+  - match: { indices.test_1.total.indexing.noop_update_total: 0 }
+  - match: { indices.test_1.primaries.indexing.noop_update_total: 0 }
+
+  - do:
+      bulk:
+        body: |
+          { "update": { "_index": "test_1", "_id": "1"} }
+          { "doc": { "foo": "bar" } }
+          { "update": { "_index": "test_1", "_id": "2"} }
+          { "doc": { "foo": "bar" } }
+
+  - match: { items.0.update.result: noop }
+  - match: { items.1.update.result: noop }
+
+  - do:
+      indices.stats: { index: test_1 }
+
+  - match: { indices.test_1.total.indexing.index_total: 2 }
+  - match: { indices.test_1.primaries.indexing.index_total: 2 }
+  - match: { indices.test_1.total.indexing.noop_update_total: 2 } # total noop == primaries noop
+  - match: { indices.test_1.primaries.indexing.noop_update_total: 2 }

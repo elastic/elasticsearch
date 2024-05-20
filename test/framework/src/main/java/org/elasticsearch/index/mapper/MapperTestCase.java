@@ -427,6 +427,11 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
         assertParseMaximalWarnings();
     }
 
+    public void testTotalFieldsCount() throws IOException {
+        MapperService mapperService = createMapperService(fieldMapping(this::minimalMapping));
+        assertEquals(1, mapperService.documentMapper().mapping().getRoot().getTotalFieldsCount());
+    }
+
     protected final void assertParseMinimalWarnings() {
         String[] warnings = getParseMinimalWarnings();
         if (warnings.length > 0) {
@@ -1026,7 +1031,14 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
     }
 
     protected String minimalIsInvalidRoutingPathErrorMessage(Mapper mapper) {
-        return "All fields that match routing_path must be keywords with [time_series_dimension: true] "
+        if (mapper instanceof FieldMapper fieldMapper && fieldMapper.fieldType().isDimension() == false) {
+            return "All fields that match routing_path must be configured with [time_series_dimension: true] "
+                + "or flattened fields with a list of dimensions in [time_series_dimensions] and "
+                + "without the [script] parameter. ["
+                + mapper.name()
+                + "] was not a dimension.";
+        }
+        return "All fields that match routing_path must be configured with [time_series_dimension: true] "
             + "or flattened fields with a list of dimensions in [time_series_dimensions] and "
             + "without the [script] parameter. ["
             + mapper.name()
@@ -1176,7 +1188,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
             }
             try (DirectoryReader reader = DirectoryReader.open(directory)) {
                 int i = 0;
-                SourceLoader loader = mapper.sourceMapper().newSourceLoader(mapper.mapping());
+                SourceLoader loader = mapper.sourceMapper().newSourceLoader(mapper.mapping(), SourceFieldMetrics.NOOP);
                 StoredFieldLoader storedFieldLoader = loader.requiredStoredFields().isEmpty()
                     ? StoredFieldLoader.empty()
                     : StoredFieldLoader.create(false, loader.requiredStoredFields());
@@ -1274,7 +1286,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
      * @param loaderFieldName the field name to use for loading the field
      */
     public record BlockReaderSupport(boolean columnAtATimeReader, boolean syntheticSource, MapperService mapper, String loaderFieldName) {
-        BlockReaderSupport(boolean columnAtATimeReader, MapperService mapper, String loaderFieldName) {
+        public BlockReaderSupport(boolean columnAtATimeReader, MapperService mapper, String loaderFieldName) {
             this(columnAtATimeReader, true, mapper, loaderFieldName);
         }
 

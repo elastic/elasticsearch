@@ -10,17 +10,23 @@ package org.elasticsearch.xpack.esql.optimizer;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.Equals;
-import org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.InsensitiveBinaryComparison;
-import org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.NotEquals;
+import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.SpatialAggregateFunction;
+import org.elasticsearch.xpack.esql.expression.function.scalar.ip.CIDRMatch;
+import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.SpatialRelatesFunction;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.In;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.InsensitiveBinaryComparison;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.NotEquals;
 import org.elasticsearch.xpack.esql.optimizer.PhysicalOptimizerRules.OptimizerRule;
 import org.elasticsearch.xpack.esql.plan.physical.AggregateExec;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
 import org.elasticsearch.xpack.esql.plan.physical.EsSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.EsStatsQueryExec;
 import org.elasticsearch.xpack.esql.plan.physical.EsStatsQueryExec.Stat;
+import org.elasticsearch.xpack.esql.plan.physical.EsTimeseriesQueryExec;
+import org.elasticsearch.xpack.esql.plan.physical.EvalExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeExec;
 import org.elasticsearch.xpack.esql.plan.physical.FieldExtractExec;
 import org.elasticsearch.xpack.esql.plan.physical.FilterExec;
@@ -30,8 +36,6 @@ import org.elasticsearch.xpack.esql.plan.physical.TopNExec;
 import org.elasticsearch.xpack.esql.plan.physical.UnaryExec;
 import org.elasticsearch.xpack.esql.planner.AbstractPhysicalOperationProviders;
 import org.elasticsearch.xpack.esql.planner.EsqlTranslatorHandler;
-import org.elasticsearch.xpack.esql.planner.PhysicalVerificationException;
-import org.elasticsearch.xpack.esql.planner.PhysicalVerifier;
 import org.elasticsearch.xpack.esql.stats.SearchStats;
 import org.elasticsearch.xpack.ql.common.Failure;
 import org.elasticsearch.xpack.ql.expression.Alias;
@@ -44,7 +48,6 @@ import org.elasticsearch.xpack.ql.expression.MetadataAttribute;
 import org.elasticsearch.xpack.ql.expression.NamedExpression;
 import org.elasticsearch.xpack.ql.expression.Order;
 import org.elasticsearch.xpack.ql.expression.TypedAttribute;
-import org.elasticsearch.xpack.ql.expression.function.aggregate.SpatialAggregateFunction;
 import org.elasticsearch.xpack.ql.expression.function.scalar.UnaryScalarFunction;
 import org.elasticsearch.xpack.ql.expression.predicate.Predicates;
 import org.elasticsearch.xpack.ql.expression.predicate.logical.BinaryLogic;
@@ -70,7 +73,6 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Set;
 import java.util.function.Predicate;
-import java.util.stream.Collectors;
 
 import static java.util.Arrays.asList;
 import static java.util.Collections.emptyList;
@@ -82,10 +84,12 @@ import static org.elasticsearch.xpack.ql.optimizer.OptimizerRules.TransformDirec
 public class LocalPhysicalPlanOptimizer extends ParameterizedRuleExecutor<PhysicalPlan, LocalPhysicalOptimizerContext> {
     public static final EsqlTranslatorHandler TRANSLATOR_HANDLER = new EsqlTranslatorHandler();
 
-    private final PhysicalVerifier verifier = new PhysicalVerifier();
+    private final PhysicalVerifier verifier = PhysicalVerifier.INSTANCE;
+    private final boolean timeSeriesMode;
 
     public LocalPhysicalPlanOptimizer(LocalPhysicalOptimizerContext context) {
         super(context);
+        this.timeSeriesMode = context.configuration().pragmas().timeSeriesMode();
     }
 
     public PhysicalPlan localOptimize(PhysicalPlan plan) {
@@ -95,14 +99,14 @@ public class LocalPhysicalPlanOptimizer extends ParameterizedRuleExecutor<Physic
     PhysicalPlan verify(PhysicalPlan plan) {
         Collection<Failure> failures = verifier.verify(plan);
         if (failures.isEmpty() == false) {
-            throw new PhysicalVerificationException(failures);
+            throw new VerificationException(failures);
         }
         return plan;
     }
 
     protected List<Batch<PhysicalPlan>> rules(boolean optimizeForEsSource) {
         List<Rule<?, PhysicalPlan>> esSourceRules = new ArrayList<>(4);
-        esSourceRules.add(new ReplaceAttributeSourceWithDocId());
+        esSourceRules.add(new ReplaceAttributeSourceWithDocId(timeSeriesMode));
 
         if (optimizeForEsSource) {
             esSourceRules.add(new PushTopNToSource());
@@ -127,13 +131,20 @@ public class LocalPhysicalPlanOptimizer extends ParameterizedRuleExecutor<Physic
 
     private static class ReplaceAttributeSourceWithDocId extends OptimizerRule<EsSourceExec> {
 
-        ReplaceAttributeSourceWithDocId() {
+        private final boolean timeSeriesMode;
+
+        ReplaceAttributeSourceWithDocId(boolean timeSeriesMode) {
             super(UP);
+            this.timeSeriesMode = timeSeriesMode;
         }
 
         @Override
         protected PhysicalPlan rule(EsSourceExec plan) {
-            return new EsQueryExec(plan.source(), plan.index(), plan.query());
+            if (timeSeriesMode) {
+                return new EsTimeseriesQueryExec(plan.source(), plan.index(), plan.query());
+            } else {
+                return new EsQueryExec(plan.source(), plan.index(), plan.query());
+            }
         }
     }
 
@@ -249,8 +260,18 @@ public class LocalPhysicalPlanOptimizer extends ParameterizedRuleExecutor<Physic
                 return canPushToSource(not.field(), hasIdenticalDelegate);
             } else if (exp instanceof UnaryScalarFunction usf) {
                 if (usf instanceof RegexMatch<?> || usf instanceof IsNull || usf instanceof IsNotNull) {
+                    if (usf instanceof IsNull || usf instanceof IsNotNull) {
+                        if (usf.field() instanceof FieldAttribute fa && fa.dataType().equals(DataTypes.TEXT)) {
+                            return true;
+                        }
+                    }
                     return isAttributePushable(usf.field(), usf, hasIdenticalDelegate);
                 }
+            } else if (exp instanceof CIDRMatch cidrMatch) {
+                return isAttributePushable(cidrMatch.ipField(), cidrMatch, hasIdenticalDelegate)
+                    && Expressions.foldable(cidrMatch.matches());
+            } else if (exp instanceof SpatialRelatesFunction bc) {
+                return bc.canPushToSource(LocalPhysicalPlanOptimizer::isAggregatable);
             }
             return false;
         }
@@ -350,9 +371,7 @@ public class LocalPhysicalPlanOptimizer extends ParameterizedRuleExecutor<Physic
                 // for the moment support pushing count just for one field
                 List<Stat> stats = tuple.v2();
                 if (stats.size() > 1) {
-                    if (stats.stream().map(Stat::name).collect(Collectors.toSet()).size() > 1) {
-                        return aggregateExec;
-                    }
+                    return aggregateExec;
                 }
 
                 // TODO: handle case where some aggs cannot be pushed down by breaking the aggs into two sources (regular + stats) + union
@@ -435,7 +454,7 @@ public class LocalPhysicalPlanOptimizer extends ParameterizedRuleExecutor<Physic
     private static class SpatialDocValuesExtraction extends OptimizerRule<AggregateExec> {
         @Override
         protected PhysicalPlan rule(AggregateExec aggregate) {
-            var foundAttributes = new HashSet<Attribute>();
+            var foundAttributes = new HashSet<FieldAttribute>();
 
             PhysicalPlan plan = aggregate.transformDown(UnaryExec.class, exec -> {
                 if (exec instanceof AggregateExec agg) {
@@ -443,7 +462,8 @@ public class LocalPhysicalPlanOptimizer extends ParameterizedRuleExecutor<Physic
                     var changedAggregates = false;
                     for (NamedExpression aggExpr : agg.aggregates()) {
                         if (aggExpr instanceof Alias as && as.child() instanceof SpatialAggregateFunction af) {
-                            if (af.field() instanceof FieldAttribute fieldAttribute) {
+                            if (af.field() instanceof FieldAttribute fieldAttribute
+                                && allowedForDocValues(fieldAttribute, agg, foundAttributes)) {
                                 // We need to both mark the field to load differently, and change the spatial function to know to use it
                                 foundAttributes.add(fieldAttribute);
                                 changedAggregates = true;
@@ -466,18 +486,71 @@ public class LocalPhysicalPlanOptimizer extends ParameterizedRuleExecutor<Physic
                         );
                     }
                 }
+                if (exec instanceof EvalExec evalExec) {
+                    List<Alias> fields = evalExec.fields();
+                    List<Alias> changed = fields.stream()
+                        .map(
+                            f -> (Alias) f.transformDown(
+                                SpatialRelatesFunction.class,
+                                spatialRelatesFunction -> (spatialRelatesFunction.hasFieldAttribute(foundAttributes))
+                                    ? spatialRelatesFunction.withDocValues(foundAttributes)
+                                    : spatialRelatesFunction
+                            )
+                        )
+                        .toList();
+                    if (changed.equals(fields) == false) {
+                        exec = new EvalExec(exec.source(), exec.child(), changed);
+                    }
+                }
+                if (exec instanceof FilterExec filterExec) {
+                    // Note that ST_CENTROID does not support shapes, but SpatialRelatesFunction does, so when we extend the centroid
+                    // to support shapes, we need to consider loading shape doc-values for both centroid and relates (ST_INTERSECTS)
+                    var condition = filterExec.condition()
+                        .transformDown(
+                            SpatialRelatesFunction.class,
+                            spatialRelatesFunction -> (spatialRelatesFunction.hasFieldAttribute(foundAttributes))
+                                ? spatialRelatesFunction.withDocValues(foundAttributes)
+                                : spatialRelatesFunction
+                        );
+                    if (filterExec.condition().equals(condition) == false) {
+                        exec = new FilterExec(filterExec.source(), filterExec.child(), condition);
+                    }
+                }
                 if (exec instanceof FieldExtractExec fieldExtractExec) {
                     // Tell the field extractor that it should extract the field from doc-values instead of source values
+                    var attributesToExtract = fieldExtractExec.attributesToExtract();
+                    Set<Attribute> docValuesAttributes = new HashSet<>();
                     for (Attribute found : foundAttributes) {
-                        if (fieldExtractExec.attributesToExtract().contains(found)) {
-                            fieldExtractExec = fieldExtractExec.preferDocValues(found);
+                        if (attributesToExtract.contains(found)) {
+                            docValuesAttributes.add(found);
                         }
                     }
-                    exec = fieldExtractExec;
+                    if (docValuesAttributes.size() > 0) {
+                        exec = new FieldExtractExec(exec.source(), exec.child(), attributesToExtract, docValuesAttributes);
+                    }
                 }
                 return exec;
             });
             return plan;
+        }
+
+        /**
+         * This function disallows the use of more than one field for doc-values extraction in the same spatial relation function.
+         * This is because comparing two doc-values fields is not supported in the current implementation.
+         */
+        private boolean allowedForDocValues(FieldAttribute fieldAttribute, AggregateExec agg, Set<FieldAttribute> foundAttributes) {
+            var candidateDocValuesAttributes = new HashSet<>(foundAttributes);
+            candidateDocValuesAttributes.add(fieldAttribute);
+            var spatialRelatesAttributes = new HashSet<FieldAttribute>();
+            agg.forEachExpressionDown(SpatialRelatesFunction.class, relatesFunction -> {
+                candidateDocValuesAttributes.forEach(candidate -> {
+                    if (relatesFunction.hasFieldAttribute(Set.of(candidate))) {
+                        spatialRelatesAttributes.add(candidate);
+                    }
+                });
+            });
+            // Disallow more than one spatial field to be extracted using doc-values (for now)
+            return spatialRelatesAttributes.size() < 2;
         }
     }
 }

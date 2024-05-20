@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.esql;
 
-import org.elasticsearch.xpack.esql.analysis.VerificationException;
 import org.elasticsearch.xpack.ql.tree.Source;
 
 public class ExceptionUtils {

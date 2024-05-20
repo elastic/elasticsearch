@@ -1,6 +1,0 @@
-pr: 104585
-summary: Ingest correctly handle upsert operations and drop processors together
-area: Ingest Node
-type: bug
-issues:
- - 36746

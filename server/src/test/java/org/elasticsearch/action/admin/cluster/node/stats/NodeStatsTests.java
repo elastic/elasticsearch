@@ -21,6 +21,7 @@ import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
+import org.elasticsearch.cluster.routing.allocation.NodeAllocationStats;
 import org.elasticsearch.cluster.service.ClusterApplierRecordingService;
 import org.elasticsearch.cluster.service.ClusterApplierRecordingService.Stats.Recording;
 import org.elasticsearch.cluster.service.ClusterStateUpdateStats;
@@ -491,8 +492,8 @@ public class NodeStatsTests extends ESTestCase {
     }
 
     private static int expectedChunks(NodeStats nodeStats, NodeStatsLevel level) {
-        // expectedChunks = number of static chunks (8 at the moment, see NodeStats#toXContentChunked) + number of variable chunks
-        return 8 + expectedChunks(nodeStats.getHttp()) //
+        return 7 // number of static chunks, see NodeStats#toXContentChunked
+            + expectedChunks(nodeStats.getHttp()) //
             + expectedChunks(nodeStats.getIndices(), level) //
             + expectedChunks(nodeStats.getTransport()) //
             + expectedChunks(nodeStats.getIngestStats()) //
@@ -627,7 +628,7 @@ public class NodeStatsTests extends ESTestCase {
 
         indicesCommonStats.getMerge().add(mergeStats);
         indicesCommonStats.getRefresh().add(new RefreshStats(++iota, ++iota, ++iota, ++iota, ++iota));
-        indicesCommonStats.getFlush().add(new FlushStats(++iota, ++iota, ++iota));
+        indicesCommonStats.getFlush().add(new FlushStats(++iota, ++iota, ++iota, ++iota));
         indicesCommonStats.getWarmer().add(new WarmerStats(++iota, ++iota, ++iota));
         indicesCommonStats.getCompletion().add(new CompletionStats(++iota, null));
         indicesCommonStats.getTranslog().add(new TranslogStats(++iota, ++iota, ++iota, ++iota, ++iota));
@@ -970,7 +971,8 @@ public class NodeStatsTests extends ESTestCase {
                             randomLongBetween(0, maxStatValue),
                             randomLongBetween(0, maxStatValue),
                             randomLongBetween(0, maxStatValue)
-                        )
+                        ),
+                        new IngestStats.ByteStats(randomLongBetween(0, maxStatValue), randomLongBetween(0, maxStatValue))
                     )
                 );
 
@@ -1037,11 +1039,20 @@ public class NodeStatsTests extends ESTestCase {
                 randomLongBetween(0, maxStatValue),
                 randomLongBetween(0, maxStatValue),
                 randomLongBetween(0, maxStatValue),
+                randomLongBetween(0, maxStatValue),
+                randomLongBetween(0, maxStatValue),
                 randomLongBetween(0, maxStatValue)
             );
         }
         RepositoriesStats repositoriesStats = new RepositoriesStats(
             Map.of("test-repository", new RepositoriesStats.ThrottlingStats(100, 200))
+        );
+        NodeAllocationStats nodeAllocationStats = new NodeAllocationStats(
+            randomIntBetween(0, 10000),
+            randomIntBetween(0, 1000),
+            randomDoubleBetween(0, 8, true),
+            randomNonNegativeLong(),
+            randomNonNegativeLong()
         );
 
         return new NodeStats(
@@ -1062,7 +1073,8 @@ public class NodeStatsTests extends ESTestCase {
             adaptiveSelectionStats,
             scriptCacheStats,
             indexingPressureStats,
-            repositoriesStats
+            repositoriesStats,
+            nodeAllocationStats
         );
     }
 

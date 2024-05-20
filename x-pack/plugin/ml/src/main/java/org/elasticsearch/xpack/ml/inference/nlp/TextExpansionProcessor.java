@@ -38,7 +38,7 @@ public class TextExpansionProcessor extends NlpTask.Processor {
         Map<Integer, String> sanitized = new HashMap<>();
         for (int i = 0; i < inputVocab.size(); i++) {
             if (inputVocab.get(i).contains(".")) {
-                sanitized.put(i, inputVocab.get(i).replaceAll("\\.", "__"));
+                sanitized.put(i, inputVocab.get(i).replace(".", "__"));
             }
         }
         return sanitized;

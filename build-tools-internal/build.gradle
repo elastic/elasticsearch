@@ -119,6 +119,10 @@ gradlePlugin {
       id = 'elasticsearch.java-doc'
       implementationClass = 'org.elasticsearch.gradle.internal.ElasticsearchJavadocPlugin'
     }
+    javaBase {
+      id = 'elasticsearch.java-base'
+      implementationClass = 'org.elasticsearch.gradle.internal.ElasticsearchJavaBasePlugin'
+    }
     java {
       id = 'elasticsearch.java'
       implementationClass = 'org.elasticsearch.gradle.internal.ElasticsearchJavaPlugin'
@@ -174,6 +178,10 @@ gradlePlugin {
     testFixtures {
       id = 'elasticsearch.test.fixtures'
       implementationClass = 'org.elasticsearch.gradle.internal.testfixtures.TestFixturesPlugin'
+    }
+    deployTestFixtures {
+      id = 'elasticsearch.deploy-test-fixtures'
+      implementationClass = 'org.elasticsearch.gradle.internal.testfixtures.TestFixturesDeployPlugin'
     }
     testBase {
       id = 'elasticsearch.test-base'

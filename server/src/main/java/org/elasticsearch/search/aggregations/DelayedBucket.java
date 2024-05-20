@@ -35,9 +35,6 @@ public final class DelayedBucket<B extends InternalMultiBucketAggregation.Intern
 
     /**
      * Build a delayed bucket.
-     * <p>
-     * We take a {@link BiFunction} to match the signature of
-     * {@link InternalMultiBucketAggregation#reduceBucket}.
      */
     public DelayedBucket(
         BiFunction<List<B>, AggregationReduceContext, B> reduce,

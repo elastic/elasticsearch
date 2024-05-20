@@ -59,7 +59,9 @@ public class CohereResponseHandler extends BaseResponseHandler {
         }
 
         // handle error codes
-        if (statusCode >= 500) {
+        if (statusCode == 500) {
+            throw new RetryException(true, buildError(SERVER_ERROR, request, result));
+        } else if (statusCode > 500) {
             throw new RetryException(false, buildError(SERVER_ERROR, request, result));
         } else if (statusCode == 429) {
             throw new RetryException(true, buildError(RATE_LIMIT, request, result));

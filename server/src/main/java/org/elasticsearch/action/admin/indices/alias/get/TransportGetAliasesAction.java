@@ -23,6 +23,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.Predicates;
 import org.elasticsearch.core.UpdateForV9;
 import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.indices.SystemIndices.SystemIndexAccessLevel;
@@ -160,7 +161,7 @@ public class TransportGetAliasesAction extends TransportLocalClusterStateAction<
     ) {
         final Predicate<String> systemIndexAccessAllowPredicate;
         if (systemIndexAccessLevel == SystemIndexAccessLevel.NONE) {
-            systemIndexAccessAllowPredicate = indexName -> false;
+            systemIndexAccessAllowPredicate = Predicates.never();
         } else if (systemIndexAccessLevel == SystemIndexAccessLevel.RESTRICTED) {
             systemIndexAccessAllowPredicate = systemIndices.getProductSystemIndexNamePredicate(threadContext);
         } else {

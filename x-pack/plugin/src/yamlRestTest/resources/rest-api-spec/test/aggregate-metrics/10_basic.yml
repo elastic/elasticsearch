@@ -1,7 +1,7 @@
 ---
 "Test exists query on aggregate metric field":
-  - skip:
-      version: " - 7.10.99"
+  - requires:
+      cluster_features: ["gte_v7.11.0"]
       reason: "Aggregate metric fields have been added in 7.11"
 
   - do:
@@ -57,8 +57,8 @@
 
 ---
 "Test term query on aggregate metric field":
-  - skip:
-      version: " - 7.10.99"
+  - requires:
+      cluster_features: ["gte_v7.11.0"]
       reason: "Aggregate metric fields have been added in 7.11"
 
   - do:
@@ -133,8 +133,8 @@
 
 ---
 "Test range query on aggregate metric field":
-  - skip:
-      version: " - 7.10.99"
+  - requires:
+      cluster_features: ["gte_v7.11.0"]
       reason: "Aggregate metric fields have been added in 7.11"
 
   - do:
@@ -210,8 +210,8 @@
 
 ---
 "Sort":
-  - skip:
-      version: " - 7.10.99"
+  - requires:
+      cluster_features: ["gte_v7.11.0"]
       reason: "Aggregate metric fields have been added in 7.11"
 
   - do:
@@ -293,8 +293,8 @@
 
 ---
 "Test fields api":
-  - skip:
-      version: "- 8.3.99"
+  - requires:
+      cluster_features: "gte_v8.4.0"
       reason: "Breaking change introduced in 8.4.0"
   - do:
       indices.create:
@@ -350,3 +350,20 @@
   - match: { hits.hits.1.fields.metric.0.max: 1000 }
   - match: { hits.hits.1.fields.metric.0.sum: 5000 }
   - match: { hits.hits.1.fields.metric.0.value_count: 10 }
+---
+"deprecated use of multi-fields":
+  - requires:
+      cluster_features: ["gte_v8.14.0"]
+      reason: "deprecation added in 8.14"
+      test_runner_features: warnings
+
+  - do:
+      warnings:
+        - "Adding multifields to [aggregate_metric_double] mappers has no effect and will be forbidden in future"
+      indices.create:
+        index: aggregate_metric_double-multi-field
+        body:
+          mappings:
+            properties:
+              aggregated: { "type": "aggregate_metric_double", "metrics": ["max"], "default_metric": "max", "fields": {"keyword": {"type": "keyword"}} }
+

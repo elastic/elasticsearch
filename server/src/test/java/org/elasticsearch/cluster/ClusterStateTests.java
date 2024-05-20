@@ -61,7 +61,6 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.EnumSet;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -396,13 +395,14 @@ public class ClusterStateTests extends ESTestCase {
     }
 
     public void testToXContent_FlatSettingTrue_ReduceMappingFalse() throws IOException {
-        Map<String, String> mapParams = new HashMap<>() {
-            {
-                put("flat_settings", "true");
-                put("reduce_mappings", "false");
-                put(Metadata.CONTEXT_MODE_PARAM, Metadata.CONTEXT_MODE_API);
-            }
-        };
+        Map<String, String> mapParams = Map.of(
+            "flat_settings",
+            "true",
+            "reduce_mappings",
+            "false",
+            Metadata.CONTEXT_MODE_PARAM,
+            Metadata.CONTEXT_MODE_API
+        );
 
         final ClusterState clusterState = buildClusterState();
         IndexRoutingTable index = clusterState.getRoutingTable().getIndicesRouting().get("index");
@@ -661,13 +661,14 @@ public class ClusterStateTests extends ESTestCase {
     }
 
     public void testToXContent_FlatSettingFalse_ReduceMappingTrue() throws IOException {
-        Map<String, String> mapParams = new HashMap<>() {
-            {
-                put("flat_settings", "false");
-                put("reduce_mappings", "true");
-                put(Metadata.CONTEXT_MODE_PARAM, Metadata.CONTEXT_MODE_API);
-            }
-        };
+        Map<String, String> mapParams = Map.of(
+            "flat_settings",
+            "false",
+            "reduce_mappings",
+            "true",
+            Metadata.CONTEXT_MODE_PARAM,
+            Metadata.CONTEXT_MODE_API
+        );
 
         final ClusterState clusterState = buildClusterState();
 
@@ -948,15 +949,7 @@ public class ClusterStateTests extends ESTestCase {
                                     "type",
                                     // the type name is the root value,
                                     // the original logic in ClusterState.toXContent will reduce
-                                    new HashMap<>() {
-                                        {
-                                            put("type", new HashMap<String, Object>() {
-                                                {
-                                                    put("key", "value");
-                                                }
-                                            });
-                                        }
-                                    }
+                                    Map.of("type", Map.of("key", "value"))
                                 )
                             )
                             .numberOfShards(1)
@@ -1086,23 +1079,11 @@ public class ClusterStateTests extends ESTestCase {
         IndexMetadata indexMetadata = IndexMetadata.builder("index")
             .state(IndexMetadata.State.OPEN)
             .settings(Settings.builder().put(SETTING_VERSION_CREATED, IndexVersion.current()))
-            .putMapping(new MappingMetadata("type", new HashMap<>() {
-                {
-                    put("type1", new HashMap<String, Object>() {
-                        {
-                            put("key", "value");
-                        }
-                    });
-                }
-            }))
+            .putMapping(new MappingMetadata("type", Map.of("type1", Map.of("key", "value"))))
             .putAlias(AliasMetadata.builder("alias").indexRouting("indexRouting").build())
             .numberOfShards(1)
             .primaryTerm(0, 1L)
-            .putInSyncAllocationIds(0, new HashSet<>() {
-                {
-                    add("allocationId");
-                }
-            })
+            .putInSyncAllocationIds(0, Set.of("allocationId"))
             .numberOfReplicas(2)
             .putRolloverInfo(new RolloverInfo("rolloveAlias", new ArrayList<>(), 1L))
             .stats(new IndexMetadataStats(IndexWriteLoad.builder(1).build(), 120, 1))
@@ -1150,16 +1131,8 @@ public class ClusterStateTests extends ESTestCase {
                     .coordinationMetadata(
                         CoordinationMetadata.builder()
                             .term(1)
-                            .lastCommittedConfiguration(new CoordinationMetadata.VotingConfiguration(new HashSet<>() {
-                                {
-                                    add("commitedConfigurationNodeId");
-                                }
-                            }))
-                            .lastAcceptedConfiguration(new CoordinationMetadata.VotingConfiguration(new HashSet<>() {
-                                {
-                                    add("acceptedConfigurationNodeId");
-                                }
-                            }))
+                            .lastCommittedConfiguration(new CoordinationMetadata.VotingConfiguration(Set.of("commitedConfigurationNodeId")))
+                            .lastAcceptedConfiguration(new CoordinationMetadata.VotingConfiguration(Set.of("acceptedConfigurationNodeId")))
                             .addVotingConfigExclusion(new CoordinationMetadata.VotingConfigExclusion("exlucdedNodeId", "excludedNodeName"))
                             .build()
                     )

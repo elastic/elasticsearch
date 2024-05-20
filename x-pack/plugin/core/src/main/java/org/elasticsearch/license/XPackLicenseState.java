@@ -225,7 +225,10 @@ public class XPackLicenseState {
                     case TRIAL:
                     case PLATINUM:
                     case ENTERPRISE:
-                        return new String[] { "Search Applications and behavioral analytics will be disabled" };
+                        return new String[] {
+                            "Search Applications and behavioral analytics will be disabled.",
+                            "Elastic Web crawler will be disabled.",
+                            "Connector clients require at least a platinum license." };
                 }
                 break;
         }

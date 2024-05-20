@@ -58,6 +58,8 @@ import org.elasticsearch.indices.ExecutorSelector;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.node.NodeClosedException;
+import org.elasticsearch.plugins.internal.DocumentParsingProvider;
+import org.elasticsearch.plugins.internal.DocumentSizeObserver;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportService;
@@ -75,7 +77,7 @@ import static org.elasticsearch.core.Strings.format;
 /** Performs shard-level bulk (index, delete or update) operations */
 public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequest, BulkShardRequest, BulkShardResponse> {
 
-    public static final String ACTION_NAME = BulkAction.NAME + "[s]";
+    public static final String ACTION_NAME = TransportBulkAction.NAME + "[s]";
     public static final ActionType<BulkShardResponse> TYPE = new ActionType<>(ACTION_NAME);
 
     private static final Logger logger = LogManager.getLogger(TransportShardBulkAction.class);
@@ -83,6 +85,8 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
     private final UpdateHelper updateHelper;
     private final MappingUpdatedAction mappingUpdatedAction;
     private final Consumer<Runnable> postWriteAction;
+
+    private final DocumentParsingProvider documentParsingProvider;
 
     @Inject
     public TransportShardBulkAction(
@@ -96,7 +100,8 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
         UpdateHelper updateHelper,
         ActionFilters actionFilters,
         IndexingPressure indexingPressure,
-        SystemIndices systemIndices
+        SystemIndices systemIndices,
+        DocumentParsingProvider documentParsingProvider
     ) {
         super(
             settings,
@@ -109,7 +114,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
             actionFilters,
             BulkShardRequest::new,
             BulkShardRequest::new,
-            ExecutorSelector::getWriteExecutorForShard,
+            ExecutorSelector.getWriteExecutorForShard(threadPool),
             false,
             indexingPressure,
             systemIndices
@@ -117,6 +122,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
         this.updateHelper = updateHelper;
         this.mappingUpdatedAction = mappingUpdatedAction;
         this.postWriteAction = WriteAckDelay.create(settings, threadPool);
+        this.documentParsingProvider = documentParsingProvider;
     }
 
     private static final TransportRequestOptions TRANSPORT_REQUEST_OPTIONS = TransportRequestOptions.of(
@@ -160,7 +166,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
             public void onTimeout(TimeValue timeout) {
                 mappingUpdateListener.onFailure(new MapperException("timed out while waiting for a dynamic mapping update"));
             }
-        }), listener, threadPool, executor(primary), postWriteRefresh, postWriteAction);
+        }), listener, executor(primary), postWriteRefresh, postWriteAction, documentParsingProvider);
     }
 
     @Override
@@ -181,8 +187,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
         MappingUpdatePerformer mappingUpdater,
         Consumer<ActionListener<Void>> waitForMappingUpdate,
         ActionListener<PrimaryResult<BulkShardRequest, BulkShardResponse>> listener,
-        ThreadPool threadPool,
-        String executorName
+        Executor executor
     ) {
         performOnPrimary(
             request,
@@ -192,10 +197,10 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
             mappingUpdater,
             waitForMappingUpdate,
             listener,
-            threadPool,
-            executorName,
+            executor,
             null,
-            null
+            null,
+            DocumentParsingProvider.EMPTY_INSTANCE
         );
     }
 
@@ -207,14 +212,12 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
         MappingUpdatePerformer mappingUpdater,
         Consumer<ActionListener<Void>> waitForMappingUpdate,
         ActionListener<PrimaryResult<BulkShardRequest, BulkShardResponse>> listener,
-        ThreadPool threadPool,
-        String executorName,
+        Executor executor,
         @Nullable PostWriteRefresh postWriteRefresh,
-        @Nullable Consumer<Runnable> postWriteAction
+        @Nullable Consumer<Runnable> postWriteAction,
+        DocumentParsingProvider documentParsingProvider
     ) {
         new ActionRunnable<>(listener) {
-
-            private final Executor executor = threadPool.executor(executorName);
 
             private final BulkPrimaryExecutionContext context = new BulkPrimaryExecutionContext(request, primary);
 
@@ -229,7 +232,9 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
                         nowInMillisSupplier,
                         mappingUpdater,
                         waitForMappingUpdate,
-                        ActionListener.wrap(v -> executor.execute(this), this::onRejection)
+
+                        ActionListener.wrap(v -> executor.execute(this), this::onRejection),
+                        documentParsingProvider
                     ) == false) {
                         // We are waiting for a mapping update on another thread, that will invoke this action again once its done
                         // so we just break out here.
@@ -304,7 +309,8 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
         LongSupplier nowInMillisSupplier,
         MappingUpdatePerformer mappingUpdater,
         Consumer<ActionListener<Void>> waitForMappingUpdate,
-        ActionListener<Void> itemDoneListener
+        ActionListener<Void> itemDoneListener,
+        DocumentParsingProvider documentParsingProvider
     ) throws Exception {
         final DocWriteRequest.OpType opType = context.getCurrent().opType();
 
@@ -326,6 +332,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
             if (updateResult.getResponseResult() == DocWriteResponse.Result.NOOP) {
                 context.markOperationAsNoOp(updateResult.action());
                 context.markAsCompleted(context.getExecutionResult());
+                context.getPrimary().noopUpdate();
                 return true;
             }
             context.setRequestToExecute(updateResult.action());
@@ -351,13 +358,16 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
             );
         } else {
             final IndexRequest request = context.getRequestToExecute();
+            DocumentSizeObserver documentSizeObserver = getDocumentSizeObserver(documentParsingProvider, request);
+
+            context.setDocumentSizeObserver(documentSizeObserver);
             final SourceToParse sourceToParse = new SourceToParse(
                 request.id(),
                 request.source(),
                 request.getContentType(),
                 request.routing(),
                 request.getDynamicTemplates(),
-                request.pipelinesHaveRun() == false
+                documentSizeObserver
             );
             result = primary.applyIndexOperationOnPrimary(
                 version,
@@ -368,6 +378,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
                 request.getAutoGeneratedTimestamp(),
                 request.isRetry()
             );
+
         }
         if (result.getResultType() == Engine.Result.Type.MAPPING_UPDATE_REQUIRED) {
 
@@ -425,6 +436,25 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
             onComplete(result, context, updateResult);
         }
         return true;
+    }
+
+    /**
+     * Creates a new document size observer
+     * @param documentParsingProvider a provider to create a new observer.
+     * @param request an index request to provide information about bytes being already parsed.
+     * @return a Fixed version of DocumentSizeObserver if parsing already happened (in IngestService, UpdateHelper)
+     * and there is a value to be reported >0
+     * It would be pre-populated with information about how many bytes were already parsed
+     * or a noop instance if parsed bytes in IngestService/UpdateHelper was 0 (like when empty doc or script in update)
+     * or return a new DocumentSizeObserver that will be used when parsing.
+     */
+    private static DocumentSizeObserver getDocumentSizeObserver(DocumentParsingProvider documentParsingProvider, IndexRequest request) {
+        if (request.getNormalisedBytesParsed() != -1) {
+            return documentParsingProvider.newFixedSizeDocumentObserver(request.getNormalisedBytesParsed());
+        } else if (request.getNormalisedBytesParsed() == 0) {
+            return DocumentSizeObserver.EMPTY_INSTANCE;
+        }
+        return documentParsingProvider.newDocumentSizeObserver();
     }
 
     private static Engine.Result exceptionToResult(Exception e, IndexShard primary, boolean isDelete, long version, String id) {
@@ -633,9 +663,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
                     indexRequest.id(),
                     indexRequest.source(),
                     indexRequest.getContentType(),
-                    indexRequest.routing(),
-                    Map.of(),
-                    false
+                    indexRequest.routing()
                 );
                 result = replica.applyIndexOperationOnReplica(
                     primaryResponse.getSeqNo(),

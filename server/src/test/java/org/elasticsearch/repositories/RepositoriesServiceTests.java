@@ -10,6 +10,7 @@ package org.elasticsearch.repositories;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryRequest;
+import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterName;
@@ -20,7 +21,6 @@ import org.elasticsearch.cluster.metadata.RepositoriesMetadata;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
-import org.elasticsearch.cluster.service.ClusterApplierService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.blobstore.BlobPath;
@@ -29,7 +29,8 @@ import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.component.LifecycleListener;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.MockBigArrays;
-import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.CheckedConsumer;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.snapshots.IndexShardSnapshotStatus;
@@ -39,11 +40,16 @@ import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.repositories.blobstore.MeteredBlobStoreRepository;
 import org.elasticsearch.snapshots.SnapshotDeleteListener;
 import org.elasticsearch.snapshots.SnapshotId;
+import org.elasticsearch.snapshots.SnapshotInfo;
+import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.junit.AfterClass;
+import org.junit.BeforeClass;
 
 import java.util.Arrays;
 import java.util.Collection;
@@ -51,25 +57,36 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.Executor;
+import java.util.function.BooleanSupplier;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.isA;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
 
 public class RepositoriesServiceTests extends ESTestCase {
 
+    private static ThreadPool threadPool;
+
+    private ClusterService clusterService;
     private RepositoriesService repositoriesService;
+
+    @BeforeClass
+    public static void createThreadPool() {
+        threadPool = new TestThreadPool(RepositoriesService.class.getName());
+    }
+
+    @AfterClass
+    public static void terminateThreadPool() {
+        if (threadPool != null) {
+            threadPool.shutdownNow();
+            threadPool = null;
+        }
+    }
 
     @Override
     public void setUp() throws Exception {
         super.setUp();
-        ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
-        ThreadPool threadPool = mock(ThreadPool.class);
-        when(threadPool.getThreadContext()).thenReturn(threadContext);
-        when(threadPool.info(ThreadPool.Names.SNAPSHOT)).thenReturn(
-            new ThreadPool.Info(ThreadPool.Names.SNAPSHOT, ThreadPool.ThreadPoolType.FIXED, randomIntBetween(1, 10))
-        );
+
         final TransportService transportService = new TransportService(
             Settings.EMPTY,
             mock(Transport.class),
@@ -79,10 +96,18 @@ public class RepositoriesServiceTests extends ESTestCase {
             null,
             Collections.emptySet()
         );
-        final ClusterApplierService clusterApplierService = mock(ClusterApplierService.class);
-        when(clusterApplierService.threadPool()).thenReturn(threadPool);
-        final ClusterService clusterService = mock(ClusterService.class);
-        when(clusterService.getClusterApplierService()).thenReturn(clusterApplierService);
+
+        clusterService = ClusterServiceUtils.createClusterService(threadPool);
+
+        // cluster utils publisher does not call AckListener, making some method calls hang indefinitely
+        // in this test we have a single master node, and it acknowledges cluster state immediately
+        final var publisher = ClusterServiceUtils.createClusterStatePublisher(clusterService.getClusterApplierService());
+        clusterService.getMasterService().setClusterStatePublisher((evt, pub, ack) -> {
+            publisher.publish(evt, pub, ack);
+            ack.onCommit(TimeValue.ZERO);
+            ack.onNodeAck(clusterService.localNode(), null);
+        });
+
         Map<String, Repository.Factory> typesRegistry = Map.of(
             TestRepository.TYPE,
             TestRepository::new,
@@ -95,14 +120,23 @@ public class RepositoriesServiceTests extends ESTestCase {
         );
         repositoriesService = new RepositoriesService(
             Settings.EMPTY,
-            mock(ClusterService.class),
+            clusterService,
             transportService,
             typesRegistry,
             typesRegistry,
             threadPool,
             List.of()
         );
+
+        clusterService.start();
         repositoriesService.start();
+    }
+
+    @Override
+    public void tearDown() throws Exception {
+        super.tearDown();
+        clusterService.stop();
+        repositoriesService.stop();
     }
 
     public void testRegisterInternalRepository() {
@@ -280,18 +314,11 @@ public class RepositoriesServiceTests extends ESTestCase {
         // 2. repository creation successfully when current node become master node and repository is put again
         var request = new PutRepositoryRequest().name(repoName).type(TestRepository.TYPE);
 
-        repositoriesService.registerRepository(request, new ActionListener<>() {
-            @Override
-            public void onResponse(AcknowledgedResponse acknowledgedResponse) {
-                assertTrue(acknowledgedResponse.isAcknowledged());
-                assertThat(repositoriesService.repository(repoName), isA(TestRepository.class));
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                assert false : e;
-            }
-        });
+        var resultListener = new SubscribableListener<AcknowledgedResponse>();
+        repositoriesService.registerRepository(request, resultListener);
+        var response = safeAwait(resultListener);
+        assertTrue(response.isAcknowledged());
+        assertThat(repositoriesService.repository(repoName), isA(TestRepository.class));
     }
 
     private ClusterState createClusterStateWithRepo(String repoName, String repoType) {
@@ -317,10 +344,9 @@ public class RepositoriesServiceTests extends ESTestCase {
     private static class TestRepository implements Repository {
 
         private static final String TYPE = "internal";
+        private final RepositoryMetadata metadata;
         private boolean isClosed;
         private boolean isStarted;
-
-        private final RepositoryMetadata metadata;
 
         private TestRepository(RepositoryMetadata metadata) {
             this.metadata = metadata;
@@ -332,7 +358,13 @@ public class RepositoriesServiceTests extends ESTestCase {
         }
 
         @Override
-        public void getSnapshotInfo(GetSnapshotInfoContext context) {
+        public void getSnapshotInfo(
+            Collection<SnapshotId> snapshotIds,
+            boolean abortOnFailure,
+            BooleanSupplier isCancelled,
+            CheckedConsumer<SnapshotInfo, Exception> consumer,
+            ActionListener<Void> listener
+        ) {
             throw new UnsupportedOperationException();
         }
 
@@ -348,7 +380,7 @@ public class RepositoriesServiceTests extends ESTestCase {
 
         @Override
         public void getRepositoryData(Executor responseExecutor, ActionListener<RepositoryData> listener) {
-            listener.onResponse(null);
+            listener.onResponse(RepositoryData.EMPTY);
         }
 
         @Override
@@ -482,8 +514,7 @@ public class RepositoriesServiceTests extends ESTestCase {
                 MockBigArrays.NON_RECYCLING_INSTANCE,
                 mock(RecoverySettings.class),
                 BlobPath.EMPTY,
-                Map.of("bucket", "bucket-a"),
-                RepositoriesMetrics.NOOP
+                Map.of("bucket", "bucket-a")
             );
         }
 
@@ -510,8 +541,7 @@ public class RepositoriesServiceTests extends ESTestCase {
                 MockBigArrays.NON_RECYCLING_INSTANCE,
                 mock(RecoverySettings.class),
                 BlobPath.EMPTY,
-                Map.of("bucket", "bucket-b"),
-                RepositoriesMetrics.NOOP
+                Map.of("bucket", "bucket-b")
             );
         }
 

@@ -1,6 +1,0 @@
-pr: 105024
-summary: "[Connectors API] Fix bug with crawler configuration parsing and `sync_now`\
-  \ flag"
-area: Application
-type: bug
-issues: []

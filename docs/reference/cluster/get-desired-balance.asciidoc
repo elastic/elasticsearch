@@ -7,6 +7,7 @@
 NOTE: {cloud-only}
 
 Exposes:
+
 * the desired balance computation and reconciliation stats
 * balancing stats such as distribution of shards, disk and ingest forecasts
   across nodes and data tiers (based on the current cluster state)

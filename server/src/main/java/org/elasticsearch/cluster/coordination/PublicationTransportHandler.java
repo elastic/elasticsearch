@@ -14,6 +14,7 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
+import org.elasticsearch.action.support.ChannelActionListener;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStatePublicationEvent;
 import org.elasticsearch.cluster.Diff;
@@ -41,7 +42,6 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.BytesTransportRequest;
 import org.elasticsearch.transport.NodeNotConnectedException;
 import org.elasticsearch.transport.Transport;
-import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportService;
@@ -53,7 +53,6 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.function.Consumer;
 import java.util.function.Function;
 
 import static org.elasticsearch.core.Strings.format;
@@ -112,7 +111,7 @@ public class PublicationTransportHandler {
             false,
             false,
             BytesTransportRequest::new,
-            this::handleIncomingPublishRequest
+            (request, channel, task) -> this.handleIncomingPublishRequest(request, new ChannelActionListener<>(channel))
         );
     }
 
@@ -125,7 +124,7 @@ public class PublicationTransportHandler {
         );
     }
 
-    private void handleIncomingPublishRequest(BytesTransportRequest request, TransportChannel transportChannel, Task task)
+    private void handleIncomingPublishRequest(BytesTransportRequest request, ActionListener<PublishWithJoinResponse> actionListener)
         throws IOException {
         assert ThreadPool.assertCurrentThreadPool(GENERIC);
         final Compressor compressor = CompressorFactory.compressor(request.bytes());
@@ -150,7 +149,7 @@ public class PublicationTransportHandler {
                 }
                 fullClusterStateReceivedCount.incrementAndGet();
                 logger.debug("received full cluster state version [{}] with size [{}]", incomingState.version(), request.bytes().length());
-                acceptState(incomingState, transportChannel, lastSeenClusterState::set);
+                acceptState(incomingState, ActionListener.runBefore(actionListener, () -> lastSeenClusterState.set(incomingState)));
             } else {
                 final ClusterState lastSeen = lastSeenClusterState.get();
                 if (lastSeen == null) {
@@ -200,11 +199,8 @@ public class PublicationTransportHandler {
                         incomingState.stateUUID(),
                         request.bytes().length()
                     );
-                    acceptState(
-                        incomingState,
-                        transportChannel,
-                        (acceptedState) -> lastSeenClusterState.compareAndSet(lastSeen, acceptedState)
-                    );
+                    final ClusterState stateToApply = incomingState;
+                    acceptState(stateToApply, ActionListener.runBefore(actionListener, () -> lastSeenClusterState.set(stateToApply)));
                 }
             }
         } finally {
@@ -216,25 +212,14 @@ public class PublicationTransportHandler {
      * Delegate to cluster-coordination thread to apply received state
      *
      * @param incomingState The received cluster state
-     * @param transportChannel The channel on which it was received
-     * @param onSuccess The action to perform if the new state is accepted
+     * @param actionListener The action to perform once the publish call completes
      */
-    private void acceptState(ClusterState incomingState, TransportChannel transportChannel, Consumer<ClusterState> onSuccess) {
+    private void acceptState(ClusterState incomingState, ActionListener<PublishWithJoinResponse> actionListener) {
         assert incomingState.nodes().isLocalNodeElectedMaster() == false
             : "should handle local publications locally, but got " + incomingState;
-        clusterCoordinationExecutor.execute(ActionRunnable.supply(new ActionListener<>() {
-
-            @Override
-            public void onResponse(PublishWithJoinResponse publishWithJoinResponse) {
-                onSuccess.accept(incomingState);
-                transportChannel.sendResponse(publishWithJoinResponse);
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                transportChannel.sendResponse(e);
-            }
-        }, () -> handlePublishRequest.apply(new PublishRequest(incomingState))));
+        clusterCoordinationExecutor.execute(
+            ActionRunnable.supply(actionListener, () -> handlePublishRequest.apply(new PublishRequest(incomingState)))
+        );
     }
 
     public PublicationContext newPublicationContext(ClusterStatePublicationEvent clusterStatePublicationEvent) {

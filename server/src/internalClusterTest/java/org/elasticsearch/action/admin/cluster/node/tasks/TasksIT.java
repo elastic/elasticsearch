@@ -563,7 +563,6 @@ public class TasksIT extends ESIntegTestCase {
     }
 
     public void testGetTaskWaitForCompletionWithoutStoringResult() throws Exception {
-        // Need to make sure the .tasks index gets created, so let's add a fake task first
         waitForCompletionTestCase(false, id -> clusterAdmin().prepareGetTask(id).setWaitForCompletion(true).execute(), response -> {
             assertTrue(response.getTask().isCompleted());
             // We didn't store the result so it won't come back when we wait

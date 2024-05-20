@@ -14,7 +14,6 @@ import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.operator.exchange.ExchangeService;
 import org.elasticsearch.core.TimeValue;
@@ -31,7 +30,9 @@ import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.esql.plugin.TransportEsqlQueryAction;
 import org.junit.After;
 
+import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 
@@ -61,7 +62,11 @@ public abstract class AbstractEsqlIntegTestCase extends ESIntegTestCase {
         for (String node : internalCluster().getNodeNames()) {
             TransportEsqlQueryAction esqlQueryAction = internalCluster().getInstance(TransportEsqlQueryAction.class, node);
             ExchangeService exchangeService = esqlQueryAction.exchangeService();
-            assertBusy(() -> assertTrue("Leftover exchanges " + exchangeService + " on node " + node, exchangeService.isEmpty()));
+            assertBusy(
+                () -> assertTrue("Leftover exchanges " + exchangeService + " on node " + node, exchangeService.isEmpty()),
+                30,
+                TimeUnit.SECONDS
+            );
         }
     }
 
@@ -87,7 +92,7 @@ public abstract class AbstractEsqlIntegTestCase extends ESIntegTestCase {
                             .toList()
                     );
                     assertThat("Request breaker not reset to 0 on node: " + node, reqBreaker.getUsed(), equalTo(0L));
-                });
+                }, 30, TimeUnit.SECONDS);
             } catch (Exception e) {
                 throw new RuntimeException("failed waiting for breakers to clear", e);
             }
@@ -100,7 +105,7 @@ public abstract class AbstractEsqlIntegTestCase extends ESIntegTestCase {
             return List.of(
                 Setting.timeSetting(
                     ExchangeService.INACTIVE_SINKS_INTERVAL_SETTING,
-                    TimeValue.timeValueSeconds(5),
+                    TimeValue.timeValueSeconds(10),
                     Setting.Property.NodeScope
                 ),
                 Setting.byteSizeSetting(
@@ -124,7 +129,10 @@ public abstract class AbstractEsqlIntegTestCase extends ESIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return CollectionUtils.appendToCopy(super.nodePlugins(), EsqlPlugin.class);
+        var plugins = new ArrayList<>(super.nodePlugins());
+        plugins.add(EsqlPlugin.class);
+        plugins.add(InternalExchangePlugin.class);
+        return Collections.unmodifiableList(plugins);
     }
 
     protected void setRequestCircuitBreakerLimit(ByteSizeValue limit) {

@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.action;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.compute.operator.exchange.ExchangeService;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.plugins.Plugin;
@@ -25,7 +26,6 @@ import org.hamcrest.core.IsEqual;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 
@@ -46,17 +46,12 @@ public class AsyncEsqlQueryActionIT extends AbstractPausableIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        ArrayList<Class<? extends Plugin>> actions = new ArrayList<>(super.nodePlugins());
-        actions.add(EsqlAsyncActionIT.LocalStateEsqlAsync.class);
-        actions.add(InternalExchangePlugin.class);
-        return Collections.unmodifiableList(actions);
+        return CollectionUtils.appendToCopy(super.nodePlugins(), EsqlAsyncActionIT.LocalStateEsqlAsync.class);
     }
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
-        return Settings.builder()
-            .put(ExchangeService.INACTIVE_SINKS_INTERVAL_SETTING, TimeValue.timeValueMillis(between(500, 2000)))
-            .build();
+        return Settings.builder().put(ExchangeService.INACTIVE_SINKS_INTERVAL_SETTING, TimeValue.timeValueSeconds(5)).build();
     }
 
     public void testBasicAsyncExecution() throws Exception {

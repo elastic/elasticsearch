@@ -94,6 +94,6 @@ public class RankFeatureResult extends SearchPhaseResult {
 
     @Override
     public boolean hasSearchContext() {
-        return true;
+        return rankShardResult != null;
     }
 }

@@ -44,6 +44,10 @@ public abstract class SearchPhaseResult extends TransportResponse {
         super(in);
     }
 
+    /**
+     * Specifies whether the specific search phase results are associated with an opened SearchContext on the shards that
+     * executed the request.
+     */
     public boolean hasSearchContext() {
         return false;
     }

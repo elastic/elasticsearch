@@ -27,7 +27,7 @@ import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.MockLogAppender;
+import org.elasticsearch.test.MockLog;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.junit.After;
@@ -173,25 +173,25 @@ public class ClusterConnectionManagerTests extends ESTestCase {
         final Releasable localConnectionRef = toClose.getAndSet(null);
         assertThat(localConnectionRef, notNullValue());
 
-        try (var appender = MockLogAppender.capture(ClusterConnectionManager.class)) {
-            appender.addExpectation(
-                new MockLogAppender.SeenEventExpectation(
+        try (var mockLog = MockLog.capture(ClusterConnectionManager.class)) {
+            mockLog.addExpectation(
+                new MockLog.SeenEventExpectation(
                     "locally-triggered close message",
                     ClusterConnectionManager.class.getCanonicalName(),
                     Level.DEBUG,
                     "closing unused transport connection to [" + localClose + "]"
                 )
             );
-            appender.addExpectation(
-                new MockLogAppender.SeenEventExpectation(
+            mockLog.addExpectation(
+                new MockLog.SeenEventExpectation(
                     "remotely-triggered close message",
                     ClusterConnectionManager.class.getCanonicalName(),
                     Level.INFO,
                     "transport connection to [" + remoteClose.descriptionWithoutAttributes() + "] closed by remote"
                 )
             );
-            appender.addExpectation(
-                new MockLogAppender.SeenEventExpectation(
+            mockLog.addExpectation(
+                new MockLog.SeenEventExpectation(
                     "shutdown-triggered close message",
                     ClusterConnectionManager.class.getCanonicalName(),
                     Level.TRACE,
@@ -203,7 +203,7 @@ public class ClusterConnectionManagerTests extends ESTestCase {
             connectionManager.disconnectFromNode(remoteClose);
             connectionManager.close();
 
-            appender.assertAllExpectationsMatched();
+            mockLog.assertAllExpectationsMatched();
         }
     }
 

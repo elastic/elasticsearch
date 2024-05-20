@@ -1,7 +1,7 @@
 setup:
   - requires:
-      cluster_features: [ "gte_v8.15.0" ]
-      reason: Introduced in 8.15.0
+      cluster_features: ["gte_v8.10.0"]
+      reason: Introduced in 8.10.0
 
   - do:
       indices.create:
@@ -43,7 +43,7 @@ setup:
               criteria:
                 - type: exact
                   metadata: query_string
-                  values: [ search ]
+                  values: [search]
               actions:
                 ids:
                   - 'doc1'
@@ -52,7 +52,7 @@ setup:
               criteria:
                 - type: exact
                   metadata: query_string
-                  values: [ ui ]
+                  values: [ui]
               actions:
                 docs:
                   - '_index': 'test-index1'
@@ -72,7 +72,7 @@ setup:
 ---
 "Perform a rule query specifying a ruleset that does not exist":
   - requires:
-      cluster_features: [ "gte_v8.13.0" ]
+      cluster_features: ["gte_v8.13.0"]
       reason: Bugfix that was broken in previous versions
 
   - do:
@@ -80,7 +80,7 @@ setup:
       search:
         body:
           query:
-            rule:
+            rule_query:
               organic:
                 query_string:
                   default_field: text
@@ -92,7 +92,7 @@ setup:
 ---
 "Perform a rule query with malformed rule":
   - requires:
-      cluster_features: [ "gte_v8.13.0" ]
+      cluster_features: ["gte_v8.13.0"]
       reason: Bugfix that was broken in previous versions
 
   - do:
@@ -100,7 +100,7 @@ setup:
       search:
         body:
           query:
-            rule:
+            rule_query:
               organic:
                 query_string:
                   default_field: text
@@ -114,7 +114,7 @@ setup:
       search:
         body:
           query:
-            rule:
+            rule_query:
               organic:
                 query_string:
                   default_field: text
@@ -137,7 +137,7 @@ setup:
       search:
         body:
           query:
-            rule:
+            rule_query:
               organic:
                 query_string:
                   default_field: text
@@ -160,7 +160,7 @@ setup:
       search:
         body:
           query:
-            rule:
+            rule_query:
               organic:
                 query_string:
                   default_field: text
@@ -179,7 +179,7 @@ setup:
       search:
         body:
           query:
-            rule:
+            rule_query:
               organic:
                 query_string:
                   default_field: text
@@ -198,7 +198,7 @@ setup:
       search:
         body:
           query:
-            rule:
+            rule_query:
               organic:
                 query_string:
                   default_field: text
@@ -209,7 +209,7 @@ setup:
 
   - match: { hits.total.value: 2 }
   - match: { hits.hits.0._id: 'doc2' }
-  - match: { hits.hits.1._id: 'doc3' }
+  - match: { hits.hits.1._id: 'doc3'}
 
 
 ---
@@ -219,7 +219,7 @@ setup:
       search:
         body:
           query:
-            rule:
+            rule_query:
               organic:
                 query_string:
                   default_field: text
@@ -262,7 +262,7 @@ setup:
       search:
         body:
           query:
-            rule:
+            rule_query:
               organic:
                 query_string:
                   default_field: text
@@ -277,7 +277,7 @@ setup:
 ---
 "Perform a rule query with an organic query that must be rewritten to another query type":
   - requires:
-      cluster_features: [ "gte_v8.12.2" ]
+      cluster_features: ["gte_v8.12.2"]
       reason: Bugfix that was broken in previous versions
 
   - do:
@@ -378,7 +378,7 @@ setup:
       search:
         body:
           query:
-            rule:
+            rule_query:
               organic:
                 text_expansion:
                   ml.tokens:
@@ -395,7 +395,7 @@ setup:
       search:
         body:
           query:
-            rule:
+            rule_query:
               organic:
                 text_expansion:
                   ml.tokens:
@@ -412,7 +412,7 @@ setup:
       search:
         body:
           query:
-            rule:
+            rule_query:
               organic:
                 text_expansion:
                   ml.tokens:

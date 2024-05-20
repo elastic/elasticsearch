@@ -77,7 +77,7 @@ public class RuleQueryBuilderTests extends AbstractQueryTestCase<RuleQueryBuilde
     public void testFromJson() throws IOException {
         String query = """
             {
-              "rule_query": {
+              "rule": {
                 "organic": {
                   "term": {
                     "tag": {
@@ -104,10 +104,10 @@ public class RuleQueryBuilderTests extends AbstractQueryTestCase<RuleQueryBuilde
     * test that unknown query names in the clauses throw an error
     */
     public void testUnknownQueryName() {
-        String query = "{\"rule_query\" : {\"organic\" : { \"unknown_query\" : { } } } }";
+        String query = "{\"rule\" : {\"organic\" : { \"unknown_query\" : { } } } }";
 
         ParsingException ex = expectThrows(ParsingException.class, () -> parseQuery(query));
-        assertEquals("[1:50] [rule_query] failed to parse field [organic]", ex.getMessage());
+        assertEquals("[1:44] [rule] failed to parse field [organic]", ex.getMessage());
     }
 
     public void testRewrite() throws IOException {

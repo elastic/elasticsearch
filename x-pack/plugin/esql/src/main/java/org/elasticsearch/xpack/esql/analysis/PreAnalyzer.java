@@ -43,7 +43,7 @@ public class PreAnalyzer {
         List<TableInfo> indices = new ArrayList<>();
         List<Enrich> unresolvedEnriches = new ArrayList<>();
 
-        plan.forEachUp(EsqlUnresolvedRelation.class, p -> indices.add(new TableInfo(p.table(), p.frozen())));
+        plan.forEachUp(EsqlUnresolvedRelation.class, p -> { indices.add(new TableInfo(p.table(), p.frozen())); });
         plan.forEachUp(Enrich.class, unresolvedEnriches::add);
 
         // mark plan as preAnalyzed (if it were marked, there would be no analysis)

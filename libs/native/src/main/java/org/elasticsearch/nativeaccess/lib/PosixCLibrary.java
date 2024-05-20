@@ -20,4 +20,19 @@ public non-sealed interface PosixCLibrary extends NativeLibrary {
      * @see <a href="https://pubs.opengroup.org/onlinepubs/9699919799/functions/geteuid.html">geteuid</a>
      */
     int geteuid();
+
+    /** corresponds to struct rlimit */
+    interface RLimit {
+        long rlim_cur();
+
+        long rlim_max();
+    }
+
+    RLimit newRLimit();
+
+    int getrlimit(int resource, RLimit rlimit);
+
+    String strerror(int errno);
+
+    int errno();
 }

@@ -8,14 +8,23 @@
 
 package org.elasticsearch.cluster.routing.allocation.allocator;
 
+import org.elasticsearch.cluster.ClusterInfo;
+import org.elasticsearch.cluster.ClusterName;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ESAllocationTestCase;
+import org.elasticsearch.cluster.metadata.DataStream;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
-import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
+import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.snapshots.SnapshotShardSizeInfo;
 import org.hamcrest.Description;
 import org.hamcrest.TypeSafeMatcher;
 
@@ -28,6 +37,7 @@ import static org.elasticsearch.cluster.routing.ShardRoutingState.STARTED;
 import static org.elasticsearch.cluster.routing.TestShardRouting.newShardRouting;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.anyOf;
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
@@ -49,7 +59,10 @@ public class OrderedShardsIteratorTests extends ESAllocationTestCase {
         var ordering = new NodeAllocationOrdering();
         ordering.recordAllocation("node-1");
 
-        var iterator = createOrderedShardsIterator(nodes, routing, ordering);
+        var iterator = OrderedShardsIterator.createForNecessaryMoves(
+            createRoutingAllocation(nodes, Metadata.EMPTY_METADATA, routing),
+            ordering
+        );
 
         // order within same priority is not defined
         // no recorded allocations first
@@ -81,7 +94,10 @@ public class OrderedShardsIteratorTests extends ESAllocationTestCase {
         ordering.recordAllocation("node-3");
         ordering.recordAllocation("node-2");
 
-        var iterator = createOrderedShardsIterator(nodes, routing, ordering);
+        var iterator = OrderedShardsIterator.createForNecessaryMoves(
+            createRoutingAllocation(nodes, Metadata.EMPTY_METADATA, routing),
+            ordering
+        );
 
         var first = iterator.next();
         assertThat(first, anyOf(isIndexShardAt("index-1a", "node-1"), isIndexShardAt("index-1b", "node-1")));
@@ -93,13 +109,76 @@ public class OrderedShardsIteratorTests extends ESAllocationTestCase {
         assertThat(iterator.hasNext(), equalTo(false));
     }
 
-    private OrderedShardsIterator createOrderedShardsIterator(DiscoveryNodes nodes, RoutingTable routing, NodeAllocationOrdering ordering) {
-        var routingNodes = randomBoolean() ? RoutingNodes.mutable(routing, nodes) : RoutingNodes.immutable(routing, nodes);
-        return OrderedShardsIterator.create(routingNodes, ordering);
+    public void testShouldOrderShardByPriority() {
+
+        var nodes = DiscoveryNodes.builder().add(newNode("node-1")).add(newNode("node-2")).build();
+
+        IndexMetadata lookup = IndexMetadata.builder("lookup").settings(indexSettings(IndexVersion.current(), 1, 0)).build();
+        IndexMetadata ds1 = IndexMetadata.builder(".ds-data-stream-2024.04.18-000001")
+            .settings(indexSettings(IndexVersion.current(), 1, 0))
+            .build();
+        IndexMetadata ds2 = IndexMetadata.builder(".ds-data-stream-2024.04.18-000002")
+            .settings(indexSettings(IndexVersion.current(), 1, 0))
+            .build();
+
+        var metadata = Metadata.builder()
+            .put(lookup, false)
+            .put(ds1, false)
+            .put(ds2, false)
+            .put(DataStream.builder("data-stream", List.of(ds1.getIndex(), ds2.getIndex())).build())
+            .build();
+
+        var routing = RoutingTable.builder()
+            .add(index(lookup.getIndex(), "node-1"))
+            .add(index(ds1.getIndex(), "node-1"))
+            .add(index(ds2.getIndex(), "node-1"))
+            .build();
+
+        // when performing necessary moves (such as preparation for the node shutdown) write shards should be moved first
+        assertThat(
+            next(
+                3,
+                OrderedShardsIterator.createForNecessaryMoves(
+                    createRoutingAllocation(nodes, metadata, routing),
+                    new NodeAllocationOrdering()
+                )
+            ),
+            contains(
+                isIndexShardAt(".ds-data-stream-2024.04.18-000002", "node-1"),
+                isIndexShardAt("lookup", "node-1"),
+                isIndexShardAt(".ds-data-stream-2024.04.18-000001", "node-1")
+            )
+        );
+
+        // when performing rebalancing write shards should be moved last
+        assertThat(
+            next(
+                3,
+                OrderedShardsIterator.createForBalancing(createRoutingAllocation(nodes, metadata, routing), new NodeAllocationOrdering())
+            ),
+            contains(
+                isIndexShardAt(".ds-data-stream-2024.04.18-000001", "node-1"),
+                isIndexShardAt("lookup", "node-1"),
+                isIndexShardAt(".ds-data-stream-2024.04.18-000002", "node-1")
+            )
+        );
+    }
+
+    private static RoutingAllocation createRoutingAllocation(DiscoveryNodes nodes, Metadata metadata, RoutingTable routing) {
+        return new RoutingAllocation(
+            new AllocationDeciders(List.of()),
+            ClusterState.builder(ClusterName.DEFAULT).nodes(nodes).metadata(metadata).routingTable(routing).build(),
+            ClusterInfo.EMPTY,
+            SnapshotShardSizeInfo.EMPTY,
+            0
+        );
     }
 
     private static IndexRoutingTable index(String indexName, String nodeId) {
-        var index = new Index(indexName, "_na_");
+        return index(new Index(indexName, "_na_"), nodeId);
+    }
+
+    private static IndexRoutingTable index(Index index, String nodeId) {
         return IndexRoutingTable.builder(index).addShard(newShardRouting(new ShardId(index, 0), nodeId, true, STARTED)).build();
     }
 
@@ -120,7 +199,9 @@ public class OrderedShardsIteratorTests extends ESAllocationTestCase {
             }
 
             @Override
-            public void describeTo(Description description) {}
+            public void describeTo(Description description) {
+                description.appendText("[" + indexName + "][0], node[" + nodeId + "]");
+            }
         };
     }
 }

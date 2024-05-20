@@ -34,7 +34,6 @@ import org.elasticsearch.common.inject.spi.ProviderBinding;
 import org.elasticsearch.common.inject.spi.ProviderKeyBinding;
 import org.elasticsearch.common.inject.util.Providers;
 
-import java.lang.annotation.Annotation;
 import java.lang.reflect.GenericArrayType;
 import java.lang.reflect.Modifier;
 import java.lang.reflect.ParameterizedType;
@@ -46,7 +45,6 @@ import java.util.List;
 import java.util.Map;
 
 import static java.util.Collections.emptySet;
-import static org.elasticsearch.common.inject.internal.Annotations.findScopeAnnotation;
 
 /**
  * Default {@link Injector} implementation.
@@ -328,13 +326,6 @@ class InjectorImpl implements Injector, Lookups {
         // Error: Inner class.
         if (Classes.isInnerClass(rawType)) {
             throw errors.cannotInjectInnerClass(rawType).toException();
-        }
-
-        if (scoping.isExplicitlyScoped() == false) {
-            Class<? extends Annotation> scopeAnnotation = findScopeAnnotation(errors, rawType);
-            if (scopeAnnotation != null) {
-                scoping = Scopes.makeInjectable(Scoping.forAnnotation(scopeAnnotation), this, errors.withSource(rawType));
-            }
         }
 
         return ConstructorBindingImpl.create(this, key, source, scoping);

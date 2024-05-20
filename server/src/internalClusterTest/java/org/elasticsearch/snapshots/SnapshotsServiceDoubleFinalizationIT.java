@@ -167,6 +167,7 @@ public class SnapshotsServiceDoubleFinalizationIT extends AbstractSnapshotIntegT
     private PlainActionFuture<Void> setWaitForClusterState(Predicate<ClusterState> predicate) {
         final var clusterStateObserver = new ClusterStateObserver(
             internalCluster().getCurrentMasterNodeInstance(ClusterService.class),
+            TimeValue.timeValueMillis(60000),
             logger,
             new ThreadContext(Settings.EMPTY)
         );

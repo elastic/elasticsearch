@@ -9,6 +9,11 @@
 package org.elasticsearch.common.unit;
 
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.Writeable;
+
+import java.io.IOException;
 
 /**
  * A byte size value that allows specification using either of:
@@ -16,7 +21,7 @@ import org.elasticsearch.ElasticsearchParseException;
  * 2. Relative percentage value (95%)
  * 3. Relative ratio value (0.95)
  */
-public class RelativeByteSizeValue {
+public class RelativeByteSizeValue implements Writeable {
 
     private final ByteSizeValue absolute;
     private final RatioValue ratio;
@@ -101,6 +106,26 @@ public class RelativeByteSizeValue {
             return ratio.formatNoTrailingZerosPercent();
         } else {
             return absolute.getStringRep();
+        }
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        out.writeBoolean(isAbsolute());
+        if (isAbsolute()) {
+            assert absolute != null;
+            absolute.writeTo(out);
+        } else {
+            assert ratio != null;
+            ratio.writeTo(out);
+        }
+    }
+
+    public static RelativeByteSizeValue readFrom(StreamInput in) throws IOException {
+        if (in.readBoolean()) {
+            return new RelativeByteSizeValue(ByteSizeValue.readFrom(in));
+        } else {
+            return new RelativeByteSizeValue(RatioValue.readFrom(in));
         }
     }
 }

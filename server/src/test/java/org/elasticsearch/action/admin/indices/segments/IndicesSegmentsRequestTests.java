@@ -77,4 +77,33 @@ public class IndicesSegmentsRequestTests extends ESSingleNodeTestCase {
         IndicesSegmentResponse rsp = client().admin().indices().prepareSegments().get();
         assertEquals(0, rsp.getIndices().size());
     }
+
+    public void testRequestOnClosedIndexWithVectorFormats() {
+        client().admin().indices().prepareClose("test").get();
+        try {
+            client().admin().indices().prepareSegments("test").includeVectorFormatInfo(true).get();
+            fail("Expected IndexClosedException");
+        } catch (IndexClosedException e) {
+            assertThat(e.getMessage(), is("closed"));
+        }
+    }
+
+    public void testAllowNoIndexWithVectorFormats() {
+        client().admin().indices().prepareDelete("test").get();
+        IndicesSegmentResponse rsp = client().admin().indices().prepareSegments().includeVectorFormatInfo(true).get();
+        assertEquals(0, rsp.getIndices().size());
+    }
+
+    public void testRequestOnClosedIndexIgnoreUnavailableWithVectorFormats() {
+        client().admin().indices().prepareClose("test").get();
+        IndicesOptions defaultOptions = new IndicesSegmentsRequest().indicesOptions();
+        IndicesOptions testOptions = IndicesOptions.fromOptions(true, true, true, false, defaultOptions);
+        IndicesSegmentResponse rsp = client().admin()
+            .indices()
+            .prepareSegments("test")
+            .includeVectorFormatInfo(true)
+            .setIndicesOptions(testOptions)
+            .get();
+        assertEquals(0, rsp.getIndices().size());
+    }
 }

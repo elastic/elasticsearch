@@ -17,8 +17,10 @@ import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.text.Text;
+import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.rest.action.search.RestSearchAction;
 import org.elasticsearch.search.SearchModule;
+import org.elasticsearch.search.SearchResponseUtils;
 import org.elasticsearch.search.suggest.Suggest.Suggestion;
 import org.elasticsearch.search.suggest.Suggest.Suggestion.Entry;
 import org.elasticsearch.search.suggest.Suggest.Suggestion.Entry.Option;
@@ -28,6 +30,7 @@ import org.elasticsearch.search.suggest.term.TermSuggestion;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -60,24 +63,74 @@ public class SuggestTests extends ESTestCase {
             new NamedXContentRegistry.Entry(
                 Suggest.Suggestion.class,
                 new ParseField("term"),
-                (parser, context) -> TermSuggestion.fromXContent(parser, (String) context)
+                (parser, context) -> parseTermSuggestion(parser, (String) context)
             )
         );
         namedXContents.add(
             new NamedXContentRegistry.Entry(
                 Suggest.Suggestion.class,
                 new ParseField("phrase"),
-                (parser, context) -> PhraseSuggestion.fromXContent(parser, (String) context)
+                (parser, context) -> parsePhraseSuggestion(parser, (String) context)
             )
         );
-        namedXContents.add(
-            new NamedXContentRegistry.Entry(
-                Suggest.Suggestion.class,
-                new ParseField("completion"),
-                (parser, context) -> CompletionSuggestion.fromXContent(parser, (String) context)
-            )
-        );
+        namedXContents.add(new NamedXContentRegistry.Entry(Suggest.Suggestion.class, new ParseField("completion"), (parser, context) -> {
+            CompletionSuggestion suggestion = new CompletionSuggestion((String) context, -1, false);
+            parseEntries(parser, suggestion, SuggestionEntryTests::parseCompletionSuggestionEntry);
+            return suggestion;
+        }));
         xContentRegistry = new NamedXContentRegistry(namedXContents);
+    }
+
+    public static PhraseSuggestion parsePhraseSuggestion(XContentParser parser, String name) throws IOException {
+        PhraseSuggestion suggestion = new PhraseSuggestion(name, -1);
+        parseEntries(parser, suggestion, SuggestionEntryTests::parsePhraseSuggestionEntry);
+        return suggestion;
+    }
+
+    private static <E extends Suggestion.Entry<?>> void parseEntries(
+        XContentParser parser,
+        Suggestion<E> suggestion,
+        CheckedFunction<XContentParser, E, IOException> entryParser
+    ) throws IOException {
+        ensureExpectedToken(XContentParser.Token.START_ARRAY, parser.currentToken(), parser);
+        while ((parser.nextToken()) != XContentParser.Token.END_ARRAY) {
+            suggestion.addTerm(entryParser.apply(parser));
+        }
+    }
+
+    static void declareCommonEntryParserFields(ObjectParser<? extends Entry<? extends Option>, Void> parser) {
+        parser.declareString((entry, text) -> entry.text = new Text(text), new ParseField(Suggestion.Entry.TEXT));
+        parser.declareInt((entry, offset) -> entry.offset = offset, new ParseField(Suggestion.Entry.OFFSET));
+        parser.declareInt((entry, length) -> entry.length = length, new ParseField(Suggestion.Entry.LENGTH));
+    }
+
+    public static TermSuggestion parseTermSuggestion(XContentParser parser, String name) throws IOException {
+        // the "size" parameter and the SortBy for TermSuggestion cannot be parsed from the response, use default values
+        TermSuggestion suggestion = new TermSuggestion(name, -1, SortBy.SCORE);
+        parseEntries(parser, suggestion, SuggestTests::parseTermSuggestionEntry);
+        return suggestion;
+    }
+
+    private static final ObjectParser<TermSuggestion.Entry, Void> PARSER = new ObjectParser<>(
+        "TermSuggestionEntryParser",
+        true,
+        TermSuggestion.Entry::new
+    );
+    static {
+        declareCommonEntryParserFields(PARSER);
+        /*
+         * The use of a lambda expression instead of the method reference Entry::addOptions is a workaround for a JDK 14 compiler bug.
+         * The bug is: https://bugs.java.com/bugdatabase/view_bug.do?bug_id=JDK-8242214
+         */
+        PARSER.declareObjectArray(
+            (e, o) -> e.addOptions(o),
+            (p, c) -> TermSuggestionOptionTests.parseEntryOption(p),
+            new ParseField(Suggest.Suggestion.Entry.OPTIONS)
+        );
+    }
+
+    public static TermSuggestion.Entry parseTermSuggestionEntry(XContentParser parser) {
+        return PARSER.apply(parser, null);
     }
 
     public static List<NamedXContentRegistry.Entry> getDefaultNamedXContents() {
@@ -113,7 +166,7 @@ public class SuggestTests extends ESTestCase {
             ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser);
             ensureFieldName(parser, parser.nextToken(), Suggest.NAME);
             ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser);
-            parsed = Suggest.fromXContent(parser);
+            parsed = SearchResponseUtils.parseSuggest(parser);
             assertEquals(XContentParser.Token.END_OBJECT, parser.currentToken());
             assertEquals(XContentParser.Token.END_OBJECT, parser.nextToken());
             assertNull(parser.nextToken());
@@ -210,7 +263,7 @@ public class SuggestTests extends ESTestCase {
         BytesReference originalBytes = BytesReference.bytes(builder);
         try (XContentParser parser = createParser(builder.contentType().xContent(), originalBytes)) {
             assertEquals(XContentParser.Token.START_OBJECT, parser.nextToken());
-            ParsingException ex = expectThrows(ParsingException.class, () -> Suggest.fromXContent(parser));
+            ParsingException ex = expectThrows(ParsingException.class, () -> SearchResponseUtils.parseSuggest(parser));
             assertEquals("Could not parse suggestion keyed as [unknownSuggestion]", ex.getMessage());
         }
     }

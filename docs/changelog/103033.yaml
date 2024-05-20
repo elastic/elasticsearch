@@ -1,5 +1,0 @@
-pr: 103033
-summary: "X-pack/plugin/core: rename `double_metrics` template"
-area: Data streams
-type: enhancement
-issues: []

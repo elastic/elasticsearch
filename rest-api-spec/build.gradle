@@ -38,6 +38,7 @@ dependencies {
   clusterModules project(":modules:reindex")
   clusterModules project(':modules:analysis-common')
   clusterModules project(':modules:health-shards-availability')
+  clusterModules project(':modules:data-streams')
 }
 
 tasks.named("yamlRestTestV7CompatTransform").configure { task ->
@@ -82,6 +83,7 @@ tasks.named("yamlRestTestV7CompatTransform").configure { task ->
   task.skipTest("search/370_profile/fetch source", "profile output has changed")
   task.skipTest("search/370_profile/fetch nested source", "profile output has changed")
   task.skipTest("search/240_date_nanos/doc value fields are working as expected across date and date_nanos fields", "Fetching docvalues field multiple times is no longer allowed")
+  task.skipTest("search/110_field_collapsing/field collapsing and rescore", "#107779 Field collapsing is compatible with rescore in 8.15")
 
   task.replaceValueInMatch("_type", "_doc")
   task.addAllowedWarningRegex("\\[types removal\\].*")

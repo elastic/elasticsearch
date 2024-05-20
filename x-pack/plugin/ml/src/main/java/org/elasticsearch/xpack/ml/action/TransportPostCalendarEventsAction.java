@@ -7,9 +7,9 @@
 package org.elasticsearch.xpack.ml.action;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.bulk.BulkAction;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
+import org.elasticsearch.action.bulk.TransportBulkAction;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
@@ -97,7 +97,7 @@ public class TransportPostCalendarEventsAction extends HandledTransportAction<
             executeAsyncWithOrigin(
                 client,
                 ML_ORIGIN,
-                BulkAction.INSTANCE,
+                TransportBulkAction.TYPE,
                 bulkRequestBuilder.request(),
                 new ActionListener<BulkResponse>() {
                     @Override

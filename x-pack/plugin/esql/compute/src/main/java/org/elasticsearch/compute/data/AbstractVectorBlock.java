@@ -55,10 +55,4 @@ abstract class AbstractVectorBlock extends AbstractNonThreadSafeRefCounted imple
     public final MvOrdering mvOrdering() {
         return MvOrdering.DEDUPLICATED_AND_SORTED_ASCENDING;
     }
-
-    @Override
-    public final Block expand() {
-        incRef();
-        return this;
-    }
 }

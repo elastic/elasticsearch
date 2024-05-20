@@ -136,7 +136,7 @@ public class BlobStoreRepositoryRestoreTests extends IndexShardTestCase {
         } finally {
             if (shard != null && shard.state() != IndexShardState.CLOSED) {
                 try {
-                    shard.close("test", false);
+                    closeShardNoCheck(shard);
                 } finally {
                     IOUtils.close(shard.store());
                 }
@@ -205,7 +205,7 @@ public class BlobStoreRepositoryRestoreTests extends IndexShardTestCase {
         } finally {
             if (shard != null && shard.state() != IndexShardState.CLOSED) {
                 try {
-                    shard.close("test", false);
+                    closeShardNoCheck(shard);
                 } finally {
                     IOUtils.close(shard.store());
                 }
@@ -225,12 +225,7 @@ public class BlobStoreRepositoryRestoreTests extends IndexShardTestCase {
             clusterService,
             MockBigArrays.NON_RECYCLING_INSTANCE,
             new RecoverySettings(Settings.EMPTY, new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS))
-        ) {
-            @Override
-            protected void assertSnapshotOrGenericThread() {
-                // eliminate thread name check as we create repo manually
-            }
-        };
+        );
         clusterService.addStateApplier(event -> repository.updateState(event.state()));
         // Apply state once to initialize repo properly like RepositoriesService would
         repository.updateState(clusterService.state());

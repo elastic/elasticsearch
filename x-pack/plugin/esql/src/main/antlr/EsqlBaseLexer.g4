@@ -11,6 +11,7 @@ INLINESTATS : 'inlinestats'   -> pushMode(EXPRESSION_MODE);
 KEEP : 'keep'                 -> pushMode(PROJECT_MODE);
 LIMIT : 'limit'               -> pushMode(EXPRESSION_MODE);
 META : 'meta'                 -> pushMode(META_MODE);
+METRICS : 'metrics'           -> pushMode(METRICS_MODE);
 MV_EXPAND : 'mv_expand'       -> pushMode(MVEXPAND_MODE);
 RENAME : 'rename'             -> pushMode(RENAME_MODE);
 ROW : 'row'                   -> pushMode(EXPRESSION_MODE);
@@ -31,6 +32,16 @@ MULTILINE_COMMENT
 WS
     : [ \r\n\t]+ -> channel(HIDDEN)
     ;
+
+fragment INDEX_UNQUOTED_IDENTIFIER_PART
+    : ~[=`|,[\]/ \t\r\n]
+    | '/' ~[*/] // allow single / but not followed by another / or * which would start a comment
+    ;
+
+INDEX_UNQUOTED_IDENTIFIER
+    : INDEX_UNQUOTED_IDENTIFIER_PART+
+    ;
+
 //
 // Explain
 //
@@ -89,7 +100,7 @@ fragment UNQUOTED_ID_BODY
     : (LETTER | DIGIT | UNDERSCORE)
     ;
 
-STRING
+QUOTED_STRING
     : '"' (ESCAPE_SEQUENCE | UNESCAPED_CHARS)* '"'
     | '"""' (~[\r\n])*? '"""' '"'? '"'?
     ;
@@ -110,6 +121,7 @@ BY : 'by';
 AND : 'and';
 ASC : 'asc';
 ASSIGN : '=';
+CAST_OP : '::';
 COMMA : ',';
 DESC : 'desc';
 DOT : '.';
@@ -186,20 +198,12 @@ FROM_OPENING_BRACKET : OPENING_BRACKET -> type(OPENING_BRACKET);
 FROM_CLOSING_BRACKET : CLOSING_BRACKET -> type(CLOSING_BRACKET);
 FROM_COMMA : COMMA -> type(COMMA);
 FROM_ASSIGN : ASSIGN -> type(ASSIGN);
+FROM_QUOTED_STRING : QUOTED_STRING -> type(QUOTED_STRING);
 
-METADATA: 'metadata';
+METADATA : 'metadata';
 
-fragment FROM_UNQUOTED_IDENTIFIER_PART
-    : ~[=`|,[\]/ \t\r\n]
-    | '/' ~[*/] // allow single / but not followed by another / or * which would start a comment
-    ;
-
-FROM_UNQUOTED_IDENTIFIER
-    : FROM_UNQUOTED_IDENTIFIER_PART+
-    ;
-
-FROM_QUOTED_IDENTIFIER
-    : QUOTED_IDENTIFIER -> type(QUOTED_IDENTIFIER)
+FROM_INDEX_UNQUOTED_IDENTIFIER
+    : INDEX_UNQUOTED_IDENTIFIER -> type(INDEX_UNQUOTED_IDENTIFIER)
     ;
 
 FROM_LINE_COMMENT
@@ -425,3 +429,60 @@ SETTING_WS
     : WS -> channel(HIDDEN)
     ;
 
+
+//
+// METRICS command
+//
+mode METRICS_MODE;
+METRICS_PIPE : PIPE -> type(PIPE), popMode;
+
+METRICS_INDEX_UNQUOTED_IDENTIFIER
+    : INDEX_UNQUOTED_IDENTIFIER -> type(INDEX_UNQUOTED_IDENTIFIER), popMode, pushMode(CLOSING_METRICS_MODE)
+    ;
+
+METRICS_LINE_COMMENT
+    : LINE_COMMENT -> channel(HIDDEN)
+    ;
+
+METRICS_MULTILINE_COMMENT
+    : MULTILINE_COMMENT -> channel(HIDDEN)
+    ;
+
+METRICS_WS
+    : WS -> channel(HIDDEN)
+    ;
+
+// TODO: remove this workaround mode - see https://github.com/elastic/elasticsearch/issues/108528
+mode CLOSING_METRICS_MODE;
+
+CLOSING_METRICS_COMMA
+    : COMMA -> type(COMMA), popMode, pushMode(METRICS_MODE)
+    ;
+
+CLOSING_METRICS_LINE_COMMENT
+    : LINE_COMMENT -> channel(HIDDEN)
+    ;
+
+CLOSING_METRICS_MULTILINE_COMMENT
+    : MULTILINE_COMMENT -> channel(HIDDEN)
+    ;
+
+CLOSING_METRICS_WS
+    : WS -> channel(HIDDEN)
+    ;
+
+CLOSING_METRICS_QUOTED_IDENTIFIER
+    : QUOTED_IDENTIFIER -> popMode, pushMode(EXPRESSION_MODE), type(QUOTED_IDENTIFIER)
+    ;
+
+CLOSING_METRICS_UNQUOTED_IDENTIFIER
+    :UNQUOTED_IDENTIFIER -> popMode, pushMode(EXPRESSION_MODE), type(UNQUOTED_IDENTIFIER)
+    ;
+
+CLOSING_METRICS_BY
+    :BY -> popMode, pushMode(EXPRESSION_MODE), type(BY)
+    ;
+
+CLOSING_METRICS_PIPE
+    : PIPE -> type(PIPE), popMode
+    ;

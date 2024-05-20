@@ -401,6 +401,8 @@ public abstract class AsyncTwoPhaseIndexer<JobPosition, JobStats extends Indexer
 
     /**
      * Called after onFinish or after onFailure and all the following steps - in particular state persistence - are completed.
+     * This will be called before the internal state changes from {@link IndexerState#INDEXING} to {@link IndexerState#STARTED} or
+     * from {@link IndexerState#STOPPING} to {@link IndexerState#STOPPED}.
      */
     protected void afterFinishOrFailure() {}
 

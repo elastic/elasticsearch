@@ -353,27 +353,33 @@ public final class CsvTestUtils {
                 List<Object> rowValues = new ArrayList<>(row.size());
                 for (int i = 0; i < row.size(); i++) {
                     String value = row.get(i);
-                    if (value == null || value.trim().equalsIgnoreCase(NULL_VALUE)) {
+                    if (value == null) {
                         rowValues.add(null);
                         continue;
                     }
 
                     value = value.trim();
-                    if (value.startsWith("[") ^ value.endsWith("]")) {
-                        throw new IllegalArgumentException("Incomplete multi-value (opening and closing square brackets) found " + value);
+                    if (value.equalsIgnoreCase(NULL_VALUE)) {
+                        rowValues.add(null);
+                        continue;
                     }
-                    if (value.contains(",") && value.startsWith("[")) {
+                    if (value.startsWith("[")) {
+                        if (false == value.endsWith("]")) {
+                            throw new IllegalArgumentException(
+                                "Incomplete multi-value (opening and closing square brackets) found " + value + " on row " + values.size()
+                            );
+                        }
                         // split on commas but ignoring escaped commas
                         String[] multiValues = value.substring(1, value.length() - 1).split(COMMA_ESCAPING_REGEX);
-                        if (multiValues.length > 0) {
-                            List<Object> listOfMvValues = new ArrayList<>();
-                            for (String mvValue : multiValues) {
-                                listOfMvValues.add(columnTypes.get(i).convert(mvValue.trim().replace(ESCAPED_COMMA_SEQUENCE, ",")));
-                            }
-                            rowValues.add(listOfMvValues);
-                        } else {
-                            rowValues.add(columnTypes.get(i).convert(value.replace(ESCAPED_COMMA_SEQUENCE, ",")));
+                        if (multiValues.length == 1) {
+                            rowValues.add(columnTypes.get(i).convert(multiValues[0].replace(ESCAPED_COMMA_SEQUENCE, ",")));
+                            continue;
                         }
+                        List<Object> listOfMvValues = new ArrayList<>();
+                        for (String mvValue : multiValues) {
+                            listOfMvValues.add(columnTypes.get(i).convert(mvValue.trim().replace(ESCAPED_COMMA_SEQUENCE, ",")));
+                        }
+                        rowValues.add(listOfMvValues);
                     } else {
                         // The value considered here is the one where any potential escaped comma is kept as is (with the escape char)
                         // TODO if we'd want escaped commas outside multi-values fields, we'd have to adjust this value here as well
@@ -441,6 +447,12 @@ public final class CsvTestUtils {
             // widen smaller types
             LOOKUP.put("SHORT", INTEGER);
             LOOKUP.put("BYTE", INTEGER);
+
+            // counter types
+            LOOKUP.put("COUNTER_INTEGER", INTEGER);
+            LOOKUP.put("COUNTER_LONG", LONG);
+            LOOKUP.put("COUNTER_DOUBLE", DOUBLE);
+            LOOKUP.put("COUNTER_FLOAT", FLOAT);
 
             // add also the types with short names
             LOOKUP.put("BOOL", BOOLEAN);

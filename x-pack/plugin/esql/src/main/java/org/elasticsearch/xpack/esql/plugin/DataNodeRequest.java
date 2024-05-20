@@ -10,8 +10,13 @@ package org.elasticsearch.xpack.esql.plugin;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.compute.data.BlockFactory;
+import org.elasticsearch.compute.data.BlockStreamInput;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.internal.AliasFilter;
@@ -61,8 +66,11 @@ final class DataNodeRequest extends TransportRequest implements IndicesRequest {
     DataNodeRequest(StreamInput in) throws IOException {
         super(in);
         this.sessionId = in.readString();
-        this.configuration = new EsqlConfiguration(in);
-        if (in.getTransportVersion().onOrAfter(TransportVersions.ESQL_CLUSTER_ALIAS)) {
+        this.configuration = new EsqlConfiguration(
+            // TODO make EsqlConfiguration Releasable
+            new BlockStreamInput(in, new BlockFactory(new NoopCircuitBreaker(CircuitBreaker.REQUEST), BigArrays.NON_RECYCLING_INSTANCE))
+        );
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_13_0)) {
             this.clusterAlias = in.readString();
         } else {
             this.clusterAlias = RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY;
@@ -77,12 +85,12 @@ final class DataNodeRequest extends TransportRequest implements IndicesRequest {
         super.writeTo(out);
         out.writeString(sessionId);
         configuration.writeTo(out);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_CLUSTER_ALIAS)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_13_0)) {
             out.writeString(clusterAlias);
         }
         out.writeCollection(shardIds);
         out.writeMap(aliasFilters);
-        new PlanStreamOutput(out, planNameRegistry).writePhysicalPlanNode(plan);
+        new PlanStreamOutput(out, planNameRegistry, configuration).writePhysicalPlanNode(plan);
     }
 
     @Override

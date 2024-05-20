@@ -1,5 +1,5 @@
 [[retriever]]
-=== Retriever API
+=== Retriever
 
 preview::["This functionality is in technical preview and may be changed or removed in a future release. The syntax will likely change before GA. Elastic will work to fix any issues, but features in technical preview are not subject to the support SLA of official GA features."]
 
@@ -11,6 +11,11 @@ retriever with two or more children is considered a compound retriever. This
 allows for complex behavior to be depicted in a tree-like structure, called
 the retriever tree, to better clarify the order of operations that occur
 during a search.
+
+[TIP]
+====
+Refer to <<retrievers-overview>> for a high level overview of the retrievers abstraction.
+====
 
 The following retrievers are available:
 
@@ -46,7 +51,7 @@ where all documents must match this query but do not contribute to the score.
 +
 Defines a search after object parameter used for pagination.
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=terminate_after]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=terminate_after]
 
 `sort`::
 +
@@ -97,12 +102,12 @@ A kNN retriever returns top documents from a <<knn-search, k-nearest neighbor se
 `field`::
 (Required, string)
 +
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=knn-field]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=knn-field]
 
 `query_vector`::
 (Required if `query_vector_builder` is not defined, array of `float`)
 +
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=knn-query-vector]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=knn-query-vector]
 
 `query_vector_builder`::
 (Required if `query_vector` is not defined, query vector builder object)
@@ -118,17 +123,17 @@ or equal to `num_candidates`.
 `num_candidates`::
 (Required, integer)
 +
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=knn-num-candidates]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=knn-num-candidates]
 
 `filter`::
 (Optional, <<query-dsl, query object or list of query objects>>)
 +
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=knn-filter]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=knn-filter]
 
 `similarity`::
 (Optional, float)
 +
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=knn-similarity]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=knn-similarity]
 
 ===== Restrictions
 
@@ -160,11 +165,11 @@ equally weighting two or more child retrievers.
 
 ===== Parameters
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=rrf-retrievers]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=rrf-retrievers]
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=rrf-rank-constant]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=rrf-rank-constant]
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=rrf-window-size]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=rrf-window-size]
 
 ===== Restrictions
 
@@ -189,7 +194,7 @@ GET /index/_search
                 }
             ],
             "rank_constant": ...
-            "window_size": ...
+            "rank_window_size": ...
         }
     }
 }
@@ -202,7 +207,7 @@ The <<search-from-param, `from`>> and <<search-size-param, `size`>>
 parameters are provided globally as part of the general
 <<search-search, search API>>. They are applied to all retrievers in a
 retriever tree unless a specific retriever overrides the `size` parameter
-using a different parameter such as `window_size`. Though, the final
+using a different parameter such as `rank_window_size`. Though, the final
 search hits are always limited to `size`.
 
 ==== Using aggregations with a retriever tree

@@ -11,6 +11,8 @@ import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.core.ReleasableIterator;
 import org.elasticsearch.index.mapper.BlockLoader;
 
 import java.io.IOException;
@@ -39,6 +41,12 @@ public sealed interface IntBlock extends Block permits IntArrayBlock, IntVectorB
     IntBlock filter(int... positions);
 
     @Override
+    ReleasableIterator<? extends IntBlock> lookup(IntBlock positions, ByteSizeValue targetBlockSize);
+
+    @Override
+    IntBlock expand();
+
+    @Override
     default String getWriteableName() {
         return "IntBlock";
     }
@@ -49,7 +57,7 @@ public sealed interface IntBlock extends Block permits IntArrayBlock, IntVectorB
         return readFrom((BlockStreamInput) in);
     }
 
-    private static IntBlock readFrom(BlockStreamInput in) throws IOException {
+    static IntBlock readFrom(BlockStreamInput in) throws IOException {
         final byte serializationType = in.readByte();
         return switch (serializationType) {
             case SERIALIZE_BLOCK_VALUES -> IntBlock.readValues(in);
@@ -219,19 +227,6 @@ public sealed interface IntBlock extends Block permits IntArrayBlock, IntVectorB
 
         @Override
         Builder mvOrdering(Block.MvOrdering mvOrdering);
-
-        /**
-         * Appends the all values of the given block into a the current position
-         * in this builder.
-         */
-        @Override
-        Builder appendAllValuesToCurrentPosition(Block block);
-
-        /**
-         * Appends the all values of the given block into a the current position
-         * in this builder.
-         */
-        Builder appendAllValuesToCurrentPosition(IntBlock block);
 
         @Override
         IntBlock build();

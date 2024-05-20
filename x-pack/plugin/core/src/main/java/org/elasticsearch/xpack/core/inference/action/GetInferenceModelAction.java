@@ -38,6 +38,7 @@ public class GetInferenceModelAction extends ActionType<GetInferenceModelAction.
         private final TaskType taskType;
 
         public Request(String inferenceEntityId, TaskType taskType) {
+            super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT, DEFAULT_ACK_TIMEOUT);
             this.inferenceEntityId = Objects.requireNonNull(inferenceEntityId);
             this.taskType = Objects.requireNonNull(taskType);
         }
@@ -79,42 +80,42 @@ public class GetInferenceModelAction extends ActionType<GetInferenceModelAction.
 
     public static class Response extends ActionResponse implements ToXContentObject {
 
-        private final List<ModelConfigurations> models;
+        private final List<ModelConfigurations> endpoints;
 
-        public Response(List<ModelConfigurations> models) {
-            this.models = models;
+        public Response(List<ModelConfigurations> endpoints) {
+            this.endpoints = endpoints;
         }
 
         public Response(StreamInput in) throws IOException {
             super(in);
             if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
-                models = in.readCollectionAsList(ModelConfigurations::new);
+                endpoints = in.readCollectionAsList(ModelConfigurations::new);
             } else {
-                models = new ArrayList<>();
-                models.add(new ModelConfigurations(in));
+                endpoints = new ArrayList<>();
+                endpoints.add(new ModelConfigurations(in));
             }
         }
 
-        public List<ModelConfigurations> getModels() {
-            return models;
+        public List<ModelConfigurations> getEndpoints() {
+            return endpoints;
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
-                out.writeCollection(models);
+                out.writeCollection(endpoints);
             } else {
-                models.get(0).writeTo(out);
+                endpoints.get(0).writeTo(out);
             }
         }
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
-            builder.startArray("models");
-            for (var model : models) {
-                if (model != null) {
-                    model.toFilteredXContent(builder, params);
+            builder.startArray("endpoints");
+            for (var endpoint : endpoints) {
+                if (endpoint != null) {
+                    endpoint.toFilteredXContent(builder, params);
                 }
             }
             builder.endArray();
@@ -127,12 +128,12 @@ public class GetInferenceModelAction extends ActionType<GetInferenceModelAction.
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             GetInferenceModelAction.Response response = (GetInferenceModelAction.Response) o;
-            return Objects.equals(models, response.models);
+            return Objects.equals(endpoints, response.endpoints);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(models);
+            return Objects.hash(endpoints);
         }
     }
 }

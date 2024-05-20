@@ -13,6 +13,7 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.ingest.ConfigurationUtils;
 import org.elasticsearch.ingest.IngestMetadata;
 import org.elasticsearch.ingest.Pipeline;
+import org.elasticsearch.transport.Transports;
 
 import java.util.HashMap;
 import java.util.LinkedHashSet;
@@ -70,11 +71,41 @@ public final class InferenceProcessorInfoExtractor {
     }
 
     /**
+     * @param ingestMetadata The ingestMetadata of current ClusterState
+     * @return The set of model IDs referenced by inference processors
+     */
+    @SuppressWarnings("unchecked")
+    public static Set<String> getModelIdsFromInferenceProcessors(IngestMetadata ingestMetadata) {
+        if (ingestMetadata == null) {
+            return Set.of();
+        }
+
+        Set<String> modelIds = new LinkedHashSet<>();
+        ingestMetadata.getPipelines().forEach((pipelineId, configuration) -> {
+            Map<String, Object> configMap = configuration.getConfigAsMap();
+            List<Map<String, Object>> processorConfigs = ConfigurationUtils.readList(null, null, configMap, PROCESSORS_KEY);
+            for (Map<String, Object> processorConfigWithKey : processorConfigs) {
+                for (Map.Entry<String, Object> entry : processorConfigWithKey.entrySet()) {
+                    addModelsAndPipelines(
+                        entry.getKey(),
+                        pipelineId,
+                        (Map<String, Object>) entry.getValue(),
+                        pam -> modelIds.add(pam.modelIdOrAlias()),
+                        0
+                    );
+                }
+            }
+        });
+        return modelIds;
+    }
+
+    /**
      * @param state Current cluster state
      * @return a map from Model or Deployment IDs or Aliases to each pipeline referencing them.
      */
     @SuppressWarnings("unchecked")
     public static Map<String, Set<String>> pipelineIdsByResource(ClusterState state, Set<String> ids) {
+        assert Transports.assertNotTransportThread("non-trivial nested loops over cluster state structures");
         Map<String, Set<String>> pipelineIdsByModelIds = new HashMap<>();
         Metadata metadata = state.metadata();
         if (metadata == null) {

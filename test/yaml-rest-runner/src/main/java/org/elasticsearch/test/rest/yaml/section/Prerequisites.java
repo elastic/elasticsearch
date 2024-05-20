@@ -10,8 +10,11 @@ package org.elasticsearch.test.rest.yaml.section;
 
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.test.rest.yaml.ClientYamlTestExecutionContext;
+import org.elasticsearch.test.rest.yaml.section.PrerequisiteSection.CapabilitiesCheck;
+import org.elasticsearch.test.rest.yaml.section.PrerequisiteSection.KnownIssue;
 
 import java.util.List;
+import java.util.Optional;
 import java.util.Set;
 import java.util.function.Predicate;
 
@@ -43,5 +46,27 @@ public class Prerequisites {
 
     static Predicate<ClientYamlTestExecutionContext> skipOnClusterFeatures(Set<String> clusterFeatures) {
         return context -> clusterFeatures.stream().anyMatch(context::clusterHasFeature);
+    }
+
+    static Predicate<ClientYamlTestExecutionContext> skipOnKnownIssue(List<KnownIssue> knownIssues) {
+        return context -> knownIssues.stream()
+            .anyMatch(i -> context.clusterHasFeature(i.clusterFeature()) && context.clusterHasFeature(i.fixedBy()) == false);
+    }
+
+    static CapabilitiesPredicate requireCapabilities(List<CapabilitiesCheck> checks) {
+        // requirement not fulfilled if unknown / capabilities API not supported
+        return context -> checks.stream().allMatch(check -> checkCapabilities(context, check).orElse(false));
+    }
+
+    static CapabilitiesPredicate skipCapabilities(List<CapabilitiesCheck> checks) {
+        // skip if unknown / capabilities API not supported
+        return context -> checks.stream().anyMatch(check -> checkCapabilities(context, check).orElse(true));
+    }
+
+    interface CapabilitiesPredicate extends Predicate<ClientYamlTestExecutionContext> {}
+
+    private static Optional<Boolean> checkCapabilities(ClientYamlTestExecutionContext context, CapabilitiesCheck check) {
+        Optional<Boolean> b = context.clusterHasCapabilities(check.method(), check.path(), check.parameters(), check.capabilities());
+        return b;
     }
 }

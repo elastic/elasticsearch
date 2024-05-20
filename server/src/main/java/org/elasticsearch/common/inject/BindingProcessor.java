@@ -16,7 +16,6 @@
 
 package org.elasticsearch.common.inject;
 
-import org.elasticsearch.common.inject.internal.Annotations;
 import org.elasticsearch.common.inject.internal.BindingImpl;
 import org.elasticsearch.common.inject.internal.Errors;
 import org.elasticsearch.common.inject.internal.ErrorsException;
@@ -73,9 +72,7 @@ class BindingProcessor extends AbstractProcessor {
             return true;
         }
 
-        validateKey(command.getSource(), command.getKey());
-
-        final Scoping scoping = Scopes.makeInjectable(((BindingImpl<?>) command).getScoping(), injector, errors);
+        final Scoping scoping = ((BindingImpl<?>) command).getScoping();
 
         command.acceptTargetVisitor(new BindingTargetVisitor<T, Void>() {
 
@@ -171,10 +168,6 @@ class BindingProcessor extends AbstractProcessor {
         });
 
         return true;
-    }
-
-    private <T> void validateKey(Object source, Key<T> key) {
-        Annotations.checkForMisplacedScopeAnnotations(key.getRawType(), source, errors);
     }
 
     static <T> UntargettedBindingImpl<T> invalidBinding(InjectorImpl injector, Key<T> key, Object source) {

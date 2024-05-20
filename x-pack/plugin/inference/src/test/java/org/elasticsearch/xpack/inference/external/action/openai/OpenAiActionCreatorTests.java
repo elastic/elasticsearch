@@ -19,7 +19,9 @@ import org.elasticsearch.test.http.MockResponse;
 import org.elasticsearch.test.http.MockWebServer;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.inference.external.http.HttpClientManager;
+import org.elasticsearch.xpack.inference.external.http.sender.DocumentsOnlyInput;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSenderTests;
 import org.elasticsearch.xpack.inference.logging.ThrottlerManager;
 import org.junit.After;
@@ -27,19 +29,23 @@ import org.junit.Before;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xpack.inference.Utils.inferenceUtilityPool;
 import static org.elasticsearch.xpack.inference.Utils.mockClusterServiceEmpty;
+import static org.elasticsearch.xpack.inference.external.action.openai.OpenAiChatCompletionActionTests.buildExpectedChatCompletionResultMap;
 import static org.elasticsearch.xpack.inference.external.http.Utils.entityAsMap;
 import static org.elasticsearch.xpack.inference.external.http.Utils.getUrl;
 import static org.elasticsearch.xpack.inference.external.http.retry.RetrySettingsTests.buildSettingsWithRetryFields;
 import static org.elasticsearch.xpack.inference.external.request.openai.OpenAiUtils.ORGANIZATION_HEADER;
-import static org.elasticsearch.xpack.inference.results.TextEmbeddingResultsTests.buildExpectation;
+import static org.elasticsearch.xpack.inference.results.TextEmbeddingResultsTests.buildExpectationFloat;
 import static org.elasticsearch.xpack.inference.services.ServiceComponentsTests.createWithEmptySettings;
+import static org.elasticsearch.xpack.inference.services.openai.completion.OpenAiChatCompletionModelTests.createChatCompletionModel;
+import static org.elasticsearch.xpack.inference.services.openai.completion.OpenAiChatCompletionRequestTaskSettingsTests.getChatCompletionRequestTaskSettingsMap;
 import static org.elasticsearch.xpack.inference.services.openai.embeddings.OpenAiEmbeddingsModelTests.createModel;
-import static org.elasticsearch.xpack.inference.services.openai.embeddings.OpenAiEmbeddingsRequestTaskSettingsTests.getRequestTaskSettingsMap;
+import static org.elasticsearch.xpack.inference.services.openai.embeddings.OpenAiEmbeddingsRequestTaskSettingsTests.createRequestTaskSettingsMap;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
@@ -95,15 +101,15 @@ public class OpenAiActionCreatorTests extends ESTestCase {
 
             var model = createModel(getUrl(webServer), "org", "secret", "model", "user");
             var actionCreator = new OpenAiActionCreator(sender, createWithEmptySettings(threadPool));
-            var overriddenTaskSettings = getRequestTaskSettingsMap("overridden_user");
+            var overriddenTaskSettings = createRequestTaskSettingsMap("overridden_user");
             var action = actionCreator.create(model, overriddenTaskSettings);
 
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-            action.execute(List.of("abc"), listener);
+            action.execute(new DocumentsOnlyInput(List.of("abc")), InferenceAction.Request.DEFAULT_TIMEOUT, listener);
 
             var result = listener.actionGet(TIMEOUT);
 
-            assertThat(result.asMap(), is(buildExpectation(List.of(List.of(0.0123F, -0.0123F)))));
+            assertThat(result.asMap(), is(buildExpectationFloat(List.of(new float[] { 0.0123F, -0.0123F }))));
             assertThat(webServer.requests(), hasSize(1));
             assertNull(webServer.requests().get(0).getUri().getQuery());
             assertThat(webServer.requests().get(0).getHeader(HttpHeaders.CONTENT_TYPE), equalTo(XContentType.JSON.mediaType()));
@@ -148,15 +154,15 @@ public class OpenAiActionCreatorTests extends ESTestCase {
 
             var model = createModel(getUrl(webServer), "org", "secret", "model", null);
             var actionCreator = new OpenAiActionCreator(sender, createWithEmptySettings(threadPool));
-            var overriddenTaskSettings = getRequestTaskSettingsMap(null);
+            var overriddenTaskSettings = createRequestTaskSettingsMap(null);
             var action = actionCreator.create(model, overriddenTaskSettings);
 
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-            action.execute(List.of("abc"), listener);
+            action.execute(new DocumentsOnlyInput(List.of("abc")), InferenceAction.Request.DEFAULT_TIMEOUT, listener);
 
             var result = listener.actionGet(TIMEOUT);
 
-            assertThat(result.asMap(), is(buildExpectation(List.of(List.of(0.0123F, -0.0123F)))));
+            assertThat(result.asMap(), is(buildExpectationFloat(List.of(new float[] { 0.0123F, -0.0123F }))));
             assertThat(webServer.requests(), hasSize(1));
             assertNull(webServer.requests().get(0).getUri().getQuery());
             assertThat(webServer.requests().get(0).getHeader(HttpHeaders.CONTENT_TYPE), equalTo(XContentType.JSON.mediaType()));
@@ -200,15 +206,15 @@ public class OpenAiActionCreatorTests extends ESTestCase {
 
             var model = createModel(getUrl(webServer), null, "secret", "model", null);
             var actionCreator = new OpenAiActionCreator(sender, createWithEmptySettings(threadPool));
-            var overriddenTaskSettings = getRequestTaskSettingsMap("overridden_user");
+            var overriddenTaskSettings = createRequestTaskSettingsMap("overridden_user");
             var action = actionCreator.create(model, overriddenTaskSettings);
 
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-            action.execute(List.of("abc"), listener);
+            action.execute(new DocumentsOnlyInput(List.of("abc")), InferenceAction.Request.DEFAULT_TIMEOUT, listener);
 
             var result = listener.actionGet(TIMEOUT);
 
-            assertThat(result.asMap(), is(buildExpectation(List.of(List.of(0.0123F, -0.0123F)))));
+            assertThat(result.asMap(), is(buildExpectationFloat(List.of(new float[] { 0.0123F, -0.0123F }))));
             assertThat(webServer.requests(), hasSize(1));
             assertNull(webServer.requests().get(0).getUri().getQuery());
             assertThat(webServer.requests().get(0).getHeader(HttpHeaders.CONTENT_TYPE), equalTo(XContentType.JSON.mediaType()));
@@ -259,11 +265,11 @@ public class OpenAiActionCreatorTests extends ESTestCase {
 
             var model = createModel(getUrl(webServer), null, "secret", "model", null);
             var actionCreator = new OpenAiActionCreator(sender, createWithEmptySettings(threadPool));
-            var overriddenTaskSettings = getRequestTaskSettingsMap("overridden_user");
+            var overriddenTaskSettings = createRequestTaskSettingsMap("overridden_user");
             var action = actionCreator.create(model, overriddenTaskSettings);
 
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-            action.execute(List.of("abc"), listener);
+            action.execute(new DocumentsOnlyInput(List.of("abc")), InferenceAction.Request.DEFAULT_TIMEOUT, listener);
 
             var thrownException = expectThrows(ElasticsearchStatusException.class, () -> listener.actionGet(TIMEOUT));
             assertThat(thrownException.getMessage(), is(format("Failed to send OpenAI embeddings request to [%s]", getUrl(webServer))));
@@ -280,6 +286,266 @@ public class OpenAiActionCreatorTests extends ESTestCase {
             assertThat(requestMap.get("input"), is(List.of("abc")));
             assertThat(requestMap.get("model"), is("model"));
             assertThat(requestMap.get("user"), is("overridden_user"));
+        }
+    }
+
+    public void testCreate_OpenAiChatCompletionModel() throws IOException {
+        var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
+
+        try (var sender = senderFactory.createSender("test_service")) {
+            sender.start();
+
+            String responseJson = """
+                {
+                  "id": "chatcmpl-123",
+                  "object": "chat.completion",
+                  "created": 1677652288,
+                  "model": "gpt-3.5-turbo-0613",
+                  "system_fingerprint": "fp_44709d6fcb",
+                  "choices": [
+                      {
+                          "index": 0,
+                          "message": {
+                              "role": "assistant",
+                              "content": "Hello there, how may I assist you today?"
+                             },
+                          "logprobs": null,
+                          "finish_reason": "stop"
+                      }
+                  ],
+                  "usage": {
+                    "prompt_tokens": 9,
+                    "completion_tokens": 12,
+                    "total_tokens": 21
+                  }
+                }
+                """;
+
+            webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
+
+            var model = createChatCompletionModel(getUrl(webServer), "org", "secret", "model", "user");
+            var actionCreator = new OpenAiActionCreator(sender, createWithEmptySettings(threadPool));
+            var overriddenTaskSettings = getChatCompletionRequestTaskSettingsMap("overridden_user");
+            var action = actionCreator.create(model, overriddenTaskSettings);
+
+            PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
+            action.execute(new DocumentsOnlyInput(List.of("abc")), InferenceAction.Request.DEFAULT_TIMEOUT, listener);
+
+            var result = listener.actionGet(TIMEOUT);
+
+            assertThat(result.asMap(), is(buildExpectedChatCompletionResultMap(List.of("Hello there, how may I assist you today?"))));
+            assertThat(webServer.requests(), hasSize(1));
+
+            var request = webServer.requests().get(0);
+
+            assertNull(request.getUri().getQuery());
+            assertThat(request.getHeader(HttpHeaders.CONTENT_TYPE), equalTo(XContentType.JSON.mediaType()));
+            assertThat(request.getHeader(HttpHeaders.AUTHORIZATION), equalTo("Bearer secret"));
+            assertThat(request.getHeader(ORGANIZATION_HEADER), equalTo("org"));
+
+            var requestMap = entityAsMap(webServer.requests().get(0).getBody());
+            assertThat(requestMap.size(), is(4));
+            assertThat(requestMap.get("messages"), is(List.of(Map.of("role", "user", "content", "abc"))));
+            assertThat(requestMap.get("model"), is("model"));
+            assertThat(requestMap.get("user"), is("overridden_user"));
+            assertThat(requestMap.get("n"), is(1));
+        }
+    }
+
+    public void testCreate_OpenAiChatCompletionModel_WithoutUser() throws IOException {
+        var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
+
+        try (var sender = senderFactory.createSender("test_service")) {
+            sender.start();
+
+            String responseJson = """
+                {
+                  "id": "chatcmpl-123",
+                  "object": "chat.completion",
+                  "created": 1677652288,
+                  "model": "gpt-3.5-turbo-0613",
+                  "system_fingerprint": "fp_44709d6fcb",
+                  "choices": [
+                      {
+                          "index": 0,
+                          "message": {
+                              "role": "assistant",
+                              "content": "Hello there, how may I assist you today?"
+                             },
+                          "logprobs": null,
+                          "finish_reason": "stop"
+                      }
+                  ],
+                  "usage": {
+                    "prompt_tokens": 9,
+                    "completion_tokens": 12,
+                    "total_tokens": 21
+                  }
+                }
+                """;
+
+            webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
+
+            var model = createChatCompletionModel(getUrl(webServer), "org", "secret", "model", null);
+            var actionCreator = new OpenAiActionCreator(sender, createWithEmptySettings(threadPool));
+            var overriddenTaskSettings = getChatCompletionRequestTaskSettingsMap(null);
+            var action = actionCreator.create(model, overriddenTaskSettings);
+
+            PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
+            action.execute(new DocumentsOnlyInput(List.of("abc")), InferenceAction.Request.DEFAULT_TIMEOUT, listener);
+
+            var result = listener.actionGet(TIMEOUT);
+
+            assertThat(result.asMap(), is(buildExpectedChatCompletionResultMap(List.of("Hello there, how may I assist you today?"))));
+            assertThat(webServer.requests(), hasSize(1));
+
+            var request = webServer.requests().get(0);
+
+            assertNull(request.getUri().getQuery());
+            assertThat(request.getHeader(HttpHeaders.CONTENT_TYPE), equalTo(XContentType.JSON.mediaType()));
+            assertThat(request.getHeader(HttpHeaders.AUTHORIZATION), equalTo("Bearer secret"));
+            assertThat(request.getHeader(ORGANIZATION_HEADER), equalTo("org"));
+
+            var requestMap = entityAsMap(webServer.requests().get(0).getBody());
+            assertThat(requestMap.size(), is(3));
+            assertThat(requestMap.get("messages"), is(List.of(Map.of("role", "user", "content", "abc"))));
+            assertThat(requestMap.get("model"), is("model"));
+            assertThat(requestMap.get("n"), is(1));
+        }
+    }
+
+    public void testCreate_OpenAiChatCompletionModel_WithoutOrganization() throws IOException {
+        var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
+
+        try (var sender = senderFactory.createSender("test_service")) {
+            sender.start();
+
+            String responseJson = """
+                {
+                  "id": "chatcmpl-123",
+                  "object": "chat.completion",
+                  "created": 1677652288,
+                  "model": "gpt-3.5-turbo-0613",
+                  "system_fingerprint": "fp_44709d6fcb",
+                  "choices": [
+                      {
+                          "index": 0,
+                          "message": {
+                              "role": "assistant",
+                              "content": "Hello there, how may I assist you today?"
+                             },
+                          "logprobs": null,
+                          "finish_reason": "stop"
+                      }
+                  ],
+                  "usage": {
+                    "prompt_tokens": 9,
+                    "completion_tokens": 12,
+                    "total_tokens": 21
+                  }
+                }
+                """;
+
+            webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
+
+            var model = createChatCompletionModel(getUrl(webServer), null, "secret", "model", null);
+            var actionCreator = new OpenAiActionCreator(sender, createWithEmptySettings(threadPool));
+            var overriddenTaskSettings = getChatCompletionRequestTaskSettingsMap("overridden_user");
+            var action = actionCreator.create(model, overriddenTaskSettings);
+
+            PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
+            action.execute(new DocumentsOnlyInput(List.of("abc")), InferenceAction.Request.DEFAULT_TIMEOUT, listener);
+
+            var result = listener.actionGet(TIMEOUT);
+
+            assertThat(result.asMap(), is(buildExpectedChatCompletionResultMap(List.of("Hello there, how may I assist you today?"))));
+            assertThat(webServer.requests(), hasSize(1));
+
+            var request = webServer.requests().get(0);
+
+            assertNull(request.getUri().getQuery());
+            assertThat(request.getHeader(HttpHeaders.CONTENT_TYPE), equalTo(XContentType.JSON.mediaType()));
+            assertThat(request.getHeader(HttpHeaders.AUTHORIZATION), equalTo("Bearer secret"));
+            assertNull(request.getHeader(ORGANIZATION_HEADER));
+
+            var requestMap = entityAsMap(webServer.requests().get(0).getBody());
+            assertThat(requestMap.size(), is(4));
+            assertThat(requestMap.get("messages"), is(List.of(Map.of("role", "user", "content", "abc"))));
+            assertThat(requestMap.get("model"), is("model"));
+            assertThat(requestMap.get("user"), is("overridden_user"));
+            assertThat(requestMap.get("n"), is(1));
+        }
+    }
+
+    public void testCreate_OpenAiChatCompletionModel_FailsFromInvalidResponseFormat() throws IOException {
+        // timeout as zero for no retries
+        var settings = buildSettingsWithRetryFields(
+            TimeValue.timeValueMillis(1),
+            TimeValue.timeValueMinutes(1),
+            TimeValue.timeValueSeconds(0)
+        );
+        var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager, settings);
+
+        try (var sender = senderFactory.createSender("test_service")) {
+            sender.start();
+
+            String responseJson = """
+                {
+                  "id": "chatcmpl-123",
+                  "object": "chat.completion",
+                  "created": 1677652288,
+                  "model": "gpt-3.5-turbo-0613",
+                  "system_fingerprint": "fp_44709d6fcb",
+                  "data_does_not_exist": [
+                      {
+                          "index": 0,
+                          "message": {
+                              "role": "assistant",
+                              "content": "Hello there, how may I assist you today?"
+                             },
+                          "logprobs": null,
+                          "finish_reason": "stop"
+                      }
+                  ],
+                  "usage": {
+                    "prompt_tokens": 9,
+                    "completion_tokens": 12,
+                    "total_tokens": 21
+                  }
+                }
+                """;
+            webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
+
+            var model = createChatCompletionModel(getUrl(webServer), null, "secret", "model", null);
+            var actionCreator = new OpenAiActionCreator(sender, createWithEmptySettings(threadPool));
+            var overriddenTaskSettings = getChatCompletionRequestTaskSettingsMap("overridden_user");
+            var action = actionCreator.create(model, overriddenTaskSettings);
+
+            PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
+            action.execute(new DocumentsOnlyInput(List.of("abc")), InferenceAction.Request.DEFAULT_TIMEOUT, listener);
+
+            var thrownException = expectThrows(ElasticsearchStatusException.class, () -> listener.actionGet(TIMEOUT));
+            assertThat(
+                thrownException.getMessage(),
+                is(format("Failed to send OpenAI chat completions request to [%s]", getUrl(webServer)))
+            );
+            assertThat(
+                thrownException.getCause().getMessage(),
+                is("Failed to find required field [choices] in OpenAI chat completions response")
+            );
+
+            assertThat(webServer.requests(), hasSize(1));
+            assertNull(webServer.requests().get(0).getUri().getQuery());
+            assertThat(webServer.requests().get(0).getHeader(HttpHeaders.CONTENT_TYPE), equalTo(XContentType.JSON.mediaType()));
+            assertThat(webServer.requests().get(0).getHeader(HttpHeaders.AUTHORIZATION), equalTo("Bearer secret"));
+            assertNull(webServer.requests().get(0).getHeader(ORGANIZATION_HEADER));
+
+            var requestMap = entityAsMap(webServer.requests().get(0).getBody());
+            assertThat(requestMap.size(), is(4));
+            assertThat(requestMap.get("messages"), is(List.of(Map.of("role", "user", "content", "abc"))));
+            assertThat(requestMap.get("model"), is("model"));
+            assertThat(requestMap.get("user"), is("overridden_user"));
+            assertThat(requestMap.get("n"), is(1));
         }
     }
 
@@ -329,15 +595,15 @@ public class OpenAiActionCreatorTests extends ESTestCase {
 
             var model = createModel(getUrl(webServer), "org", "secret", "model", "user");
             var actionCreator = new OpenAiActionCreator(sender, createWithEmptySettings(threadPool));
-            var overriddenTaskSettings = getRequestTaskSettingsMap("overridden_user");
+            var overriddenTaskSettings = createRequestTaskSettingsMap("overridden_user");
             var action = actionCreator.create(model, overriddenTaskSettings);
 
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-            action.execute(List.of("abcd"), listener);
+            action.execute(new DocumentsOnlyInput(List.of("abcd")), InferenceAction.Request.DEFAULT_TIMEOUT, listener);
 
             var result = listener.actionGet(TIMEOUT);
 
-            assertThat(result.asMap(), is(buildExpectation(List.of(List.of(0.0123F, -0.0123F)))));
+            assertThat(result.asMap(), is(buildExpectationFloat(List.of(new float[] { 0.0123F, -0.0123F }))));
             assertThat(webServer.requests(), hasSize(2));
             {
                 assertNull(webServer.requests().get(0).getUri().getQuery());
@@ -412,15 +678,15 @@ public class OpenAiActionCreatorTests extends ESTestCase {
 
             var model = createModel(getUrl(webServer), "org", "secret", "model", "user");
             var actionCreator = new OpenAiActionCreator(sender, createWithEmptySettings(threadPool));
-            var overriddenTaskSettings = getRequestTaskSettingsMap("overridden_user");
+            var overriddenTaskSettings = createRequestTaskSettingsMap("overridden_user");
             var action = actionCreator.create(model, overriddenTaskSettings);
 
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-            action.execute(List.of("abcd"), listener);
+            action.execute(new DocumentsOnlyInput(List.of("abcd")), InferenceAction.Request.DEFAULT_TIMEOUT, listener);
 
             var result = listener.actionGet(TIMEOUT);
 
-            assertThat(result.asMap(), is(buildExpectation(List.of(List.of(0.0123F, -0.0123F)))));
+            assertThat(result.asMap(), is(buildExpectationFloat(List.of(new float[] { 0.0123F, -0.0123F }))));
             assertThat(webServer.requests(), hasSize(2));
             {
                 assertNull(webServer.requests().get(0).getUri().getQuery());
@@ -480,15 +746,15 @@ public class OpenAiActionCreatorTests extends ESTestCase {
             // truncated to 1 token = 3 characters
             var model = createModel(getUrl(webServer), "org", "secret", "model", "user", 1);
             var actionCreator = new OpenAiActionCreator(sender, createWithEmptySettings(threadPool));
-            var overriddenTaskSettings = getRequestTaskSettingsMap("overridden_user");
+            var overriddenTaskSettings = createRequestTaskSettingsMap("overridden_user");
             var action = actionCreator.create(model, overriddenTaskSettings);
 
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-            action.execute(List.of("super long input"), listener);
+            action.execute(new DocumentsOnlyInput(List.of("super long input")), InferenceAction.Request.DEFAULT_TIMEOUT, listener);
 
             var result = listener.actionGet(TIMEOUT);
 
-            assertThat(result.asMap(), is(buildExpectation(List.of(List.of(0.0123F, -0.0123F)))));
+            assertThat(result.asMap(), is(buildExpectationFloat(List.of(new float[] { 0.0123F, -0.0123F }))));
             assertThat(webServer.requests(), hasSize(1));
             assertNull(webServer.requests().get(0).getUri().getQuery());
             assertThat(webServer.requests().get(0).getHeader(HttpHeaders.CONTENT_TYPE), equalTo(XContentType.JSON.mediaType()));

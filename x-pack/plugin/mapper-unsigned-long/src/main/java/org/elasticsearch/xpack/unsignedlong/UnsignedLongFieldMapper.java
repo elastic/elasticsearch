@@ -76,7 +76,7 @@ public class UnsignedLongFieldMapper extends FieldMapper {
         return (UnsignedLongFieldMapper) in;
     }
 
-    public static final class Builder extends FieldMapper.Builder {
+    public static final class Builder extends FieldMapper.DimensionBuilder {
         private final Parameter<Boolean> indexed;
         private final Parameter<Boolean> hasDocValues = Parameter.docValuesParam(m -> toType(m).hasDocValues, true);
         private final Parameter<Boolean> stored = Parameter.storeParam(m -> toType(m).stored, false);
@@ -195,7 +195,7 @@ public class UnsignedLongFieldMapper extends FieldMapper {
 
         @Override
         public UnsignedLongFieldMapper build(MapperBuilderContext context) {
-            if (context.parentObjectContainsDimensions()) {
+            if (inheritDimensionParameterFromParentObject(context)) {
                 dimension.setValue(true);
             }
             UnsignedLongFieldType fieldType = new UnsignedLongFieldType(
@@ -362,9 +362,10 @@ public class UnsignedLongFieldMapper extends FieldMapper {
                         valuesSourceType,
                         (dv, n) -> {
                             throw new UnsupportedOperationException();
-                        }
+                        },
+                        isIndexed()
                     ).build(cache, breakerService);
-                    return new UnsignedLongIndexFieldData(signedLongValues, UnsignedLongDocValuesField::new);
+                    return new UnsignedLongIndexFieldData(signedLongValues, UnsignedLongDocValuesField::new, isIndexed());
                 };
             }
 
@@ -539,9 +540,7 @@ public class UnsignedLongFieldMapper extends FieldMapper {
             return longValue;
         }
 
-        /**
-         * @return true if field has been marked as a dimension field
-         */
+        @Override
         public boolean isDimension() {
             return isDimension;
         }

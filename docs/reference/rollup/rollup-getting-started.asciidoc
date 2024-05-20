@@ -5,7 +5,7 @@
 <titleabbrev>Getting started</titleabbrev>
 ++++
 
-deprecated::[8.11.0,"Rollups will be removed in a future version. Use <<downsampling,downsampling>> instead."]
+deprecated::[8.11.0,"Rollups will be removed in a future version. Please <<rollup-migrating-to-downsampling,migrate>> to <<downsampling,downsampling>> instead."]
 
 To use the Rollup feature, you need to create one or more "Rollup Jobs". These jobs run continuously in the background
 and rollup the index or indices that you specify, placing the rolled documents in a secondary index (also of your choosing).

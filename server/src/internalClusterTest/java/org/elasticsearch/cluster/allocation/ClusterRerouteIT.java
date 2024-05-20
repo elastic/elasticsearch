@@ -42,7 +42,7 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
-import org.elasticsearch.test.MockLogAppender;
+import org.elasticsearch.test.MockLog;
 
 import java.nio.file.Path;
 import java.util.Arrays;
@@ -387,17 +387,16 @@ public class ClusterRerouteIT extends ESIntegTestCase {
             )
             .get();
 
-        MockLogAppender dryRunMockLog = new MockLogAppender();
-        dryRunMockLog.addExpectation(
-            new MockLogAppender.UnseenEventExpectation(
-                "no completed message logged on dry run",
-                TransportClusterRerouteAction.class.getName(),
-                Level.INFO,
-                "allocated an empty primary*"
-            )
-        );
+        try (var dryRunMockLog = MockLog.capture(TransportClusterRerouteAction.class)) {
+            dryRunMockLog.addExpectation(
+                new MockLog.UnseenEventExpectation(
+                    "no completed message logged on dry run",
+                    TransportClusterRerouteAction.class.getName(),
+                    Level.INFO,
+                    "allocated an empty primary*"
+                )
+            );
 
-        try (var ignored = dryRunMockLog.capturing(TransportClusterRerouteAction.class)) {
             AllocationCommand dryRunAllocation = new AllocateEmptyPrimaryAllocationCommand(indexName, 0, nodeName1, true);
             ClusterRerouteResponse dryRunResponse = clusterAdmin().prepareReroute()
                 .setExplain(randomBoolean())
@@ -412,24 +411,23 @@ public class ClusterRerouteIT extends ESIntegTestCase {
             dryRunMockLog.assertAllExpectationsMatched();
         }
 
-        MockLogAppender allocateMockLog = new MockLogAppender();
-        allocateMockLog.addExpectation(
-            new MockLogAppender.SeenEventExpectation(
-                "message for first allocate empty primary",
-                TransportClusterRerouteAction.class.getName(),
-                Level.INFO,
-                "allocated an empty primary*" + nodeName1 + "*"
-            )
-        );
-        allocateMockLog.addExpectation(
-            new MockLogAppender.UnseenEventExpectation(
-                "no message for second allocate empty primary",
-                TransportClusterRerouteAction.class.getName(),
-                Level.INFO,
-                "allocated an empty primary*" + nodeName2 + "*"
-            )
-        );
-        try (var ignored = allocateMockLog.capturing(TransportClusterRerouteAction.class)) {
+        try (var allocateMockLog = MockLog.capture(TransportClusterRerouteAction.class)) {
+            allocateMockLog.addExpectation(
+                new MockLog.SeenEventExpectation(
+                    "message for first allocate empty primary",
+                    TransportClusterRerouteAction.class.getName(),
+                    Level.INFO,
+                    "allocated an empty primary*" + nodeName1 + "*"
+                )
+            );
+            allocateMockLog.addExpectation(
+                new MockLog.UnseenEventExpectation(
+                    "no message for second allocate empty primary",
+                    TransportClusterRerouteAction.class.getName(),
+                    Level.INFO,
+                    "allocated an empty primary*" + nodeName2 + "*"
+                )
+            );
 
             AllocationCommand yesDecisionAllocation = new AllocateEmptyPrimaryAllocationCommand(indexName, 0, nodeName1, true);
             AllocationCommand noDecisionAllocation = new AllocateEmptyPrimaryAllocationCommand("noexist", 1, nodeName2, true);

@@ -57,7 +57,7 @@ public class BulkRequestBuilder extends ActionRequestLazyBuilder<BulkRequest, Bu
     private boolean requestPreviouslyCalled = false;
 
     public BulkRequestBuilder(ElasticsearchClient client, @Nullable String globalIndex) {
-        super(client, BulkAction.INSTANCE);
+        super(client, TransportBulkAction.TYPE);
         this.globalIndex = globalIndex;
     }
 
@@ -161,14 +161,6 @@ public class BulkRequestBuilder extends ActionRequestLazyBuilder<BulkRequest, Bu
      */
     public final BulkRequestBuilder setTimeout(TimeValue timeout) {
         this.timeout = timeout;
-        return this;
-    }
-
-    /**
-     * A timeout to wait if the index operation can't be performed immediately. Defaults to {@code 1m}.
-     */
-    public final BulkRequestBuilder setTimeout(String timeout) {
-        this.timeout = TimeValue.parseTimeValue(timeout, null, getClass().getSimpleName() + ".timeout");
         return this;
     }
 

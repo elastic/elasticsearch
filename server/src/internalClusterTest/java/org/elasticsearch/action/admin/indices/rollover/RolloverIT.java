@@ -26,7 +26,6 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.unit.ByteSizeUnit;
@@ -36,7 +35,7 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalSettingsPlugin;
-import org.elasticsearch.test.MockLogAppender;
+import org.elasticsearch.test.MockLog;
 
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
@@ -119,6 +118,14 @@ public class RolloverIT extends ESIntegTestCase {
             oldIndex.getRolloverInfos().get("test_alias").getTime(),
             is(both(greaterThanOrEqualTo(beforeTime)).and(lessThanOrEqualTo(client().threadPool().absoluteTimeInMillis() + 1000L)))
         );
+    }
+
+    public void testInfiniteMasterNodeTimeout() {
+        assertAcked(prepareCreate("test_index-2").addAlias(new Alias("test_alias")).get());
+        indexDoc("test_index-2", "1", "field", "value");
+        flush("test_index-2");
+        final RolloverResponse response = indicesAdmin().prepareRolloverIndex("test_alias").setMasterNodeTimeout(TimeValue.MINUS_ONE).get();
+        assertTrue(response.isShardsAcknowledged());
     }
 
     public void testRolloverWithExplicitWriteIndex() throws Exception {
@@ -243,23 +250,19 @@ public class RolloverIT extends ESIntegTestCase {
         ensureGreen();
         Logger allocationServiceLogger = LogManager.getLogger(AllocationService.class);
 
-        MockLogAppender appender = new MockLogAppender();
-        appender.start();
-        appender.addExpectation(
-            new MockLogAppender.UnseenEventExpectation(
-                "no related message logged on dry run",
-                AllocationService.class.getName(),
-                Level.INFO,
-                "*test_index*"
-            )
-        );
-        Loggers.addAppender(allocationServiceLogger, appender);
-
-        final RolloverResponse response = indicesAdmin().prepareRolloverIndex("test_alias").dryRun(true).get();
-
-        appender.assertAllExpectationsMatched();
-        appender.stop();
-        Loggers.removeAppender(allocationServiceLogger, appender);
+        final RolloverResponse response;
+        try (var mockLog = MockLog.capture(AllocationService.class)) {
+            mockLog.addExpectation(
+                new MockLog.UnseenEventExpectation(
+                    "no related message logged on dry run",
+                    AllocationService.class.getName(),
+                    Level.INFO,
+                    "*test_index*"
+                )
+            );
+            response = indicesAdmin().prepareRolloverIndex("test_alias").dryRun(true).get();
+            mockLog.assertAllExpectationsMatched();
+        }
 
         assertThat(response.getOldIndex(), equalTo("test_index-1"));
         assertThat(response.getNewIndex(), equalTo("test_index-000002"));

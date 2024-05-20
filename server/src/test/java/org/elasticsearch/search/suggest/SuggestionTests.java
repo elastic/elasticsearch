@@ -11,6 +11,7 @@ package org.elasticsearch.search.suggest;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.text.Text;
 import org.elasticsearch.rest.action.search.RestSearchAction;
+import org.elasticsearch.search.SearchResponseUtils;
 import org.elasticsearch.search.suggest.Suggest.Suggestion;
 import org.elasticsearch.search.suggest.Suggest.Suggestion.Entry;
 import org.elasticsearch.search.suggest.Suggest.Suggestion.Entry.Option;
@@ -130,7 +131,7 @@ public class SuggestionTests extends ESTestCase {
                 ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser);
                 ensureExpectedToken(XContentParser.Token.FIELD_NAME, parser.nextToken(), parser);
                 ensureExpectedToken(XContentParser.Token.START_ARRAY, parser.nextToken(), parser);
-                parsed = Suggestion.fromXContent(parser);
+                parsed = SearchResponseUtils.parseSuggestion(parser);
                 assertEquals(XContentParser.Token.END_OBJECT, parser.nextToken());
                 assertNull(parser.nextToken());
             }
@@ -153,7 +154,7 @@ public class SuggestionTests extends ESTestCase {
             ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser);
             ensureExpectedToken(XContentParser.Token.FIELD_NAME, parser.nextToken(), parser);
             ensureExpectedToken(XContentParser.Token.START_ARRAY, parser.nextToken(), parser);
-            assertNull(Suggestion.fromXContent(parser));
+            assertNull(SearchResponseUtils.parseSuggestion(parser));
             ensureExpectedToken(XContentParser.Token.END_OBJECT, parser.nextToken(), parser);
         }
     }
@@ -187,7 +188,10 @@ public class SuggestionTests extends ESTestCase {
             ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser);
             ensureExpectedToken(XContentParser.Token.FIELD_NAME, parser.nextToken(), parser);
             ensureExpectedToken(XContentParser.Token.START_ARRAY, parser.nextToken(), parser);
-            NamedObjectNotFoundException e = expectThrows(NamedObjectNotFoundException.class, () -> Suggestion.fromXContent(parser));
+            NamedObjectNotFoundException e = expectThrows(
+                NamedObjectNotFoundException.class,
+                () -> SearchResponseUtils.parseSuggestion(parser)
+            );
             assertEquals("[1:31] unknown field [unknownType]", e.getMessage());
         }
     }

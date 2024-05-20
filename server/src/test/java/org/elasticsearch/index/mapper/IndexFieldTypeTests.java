@@ -83,7 +83,8 @@ public class IndexFieldTypeTests extends ConstantFieldTypeTestCase {
             indexNameMatcher,
             () -> true,
             null,
-            Collections.emptyMap()
+            Collections.emptyMap(),
+            MapperMetrics.NOOP
         );
     }
 }

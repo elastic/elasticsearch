@@ -142,7 +142,7 @@ public class DataFrameAnalyticsConfigProvider {
 
     private void deleteLeftOverDocs(DataFrameAnalyticsConfig config, TimeValue timeout, ActionListener<AcknowledgedResponse> listener) {
         DataFrameAnalyticsDeleter deleter = new DataFrameAnalyticsDeleter(client, auditor);
-        deleter.deleteAllDocuments(config, timeout, ActionListener.wrap(r -> listener.onResponse(r), e -> {
+        deleter.deleteAllDocuments(config, timeout, ActionListener.wrap(listener::onResponse, e -> {
             if (ExceptionsHelper.unwrapCause(e) instanceof ResourceNotFoundException) {
                 // This is expected
                 listener.onResponse(AcknowledgedResponse.TRUE);

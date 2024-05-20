@@ -33,6 +33,8 @@ import java.util.Objects;
 /**
  * {@link ShardRouting} immutably encapsulates information about shard
  * indexRoutings like id, state, version, etc.
+ *
+ * Information about a particular shard instance.
  */
 public final class ShardRouting implements Writeable, ToXContentObject {
 

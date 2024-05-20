@@ -64,17 +64,19 @@ include::set-security-user.asciidoc[]
 [[ccx-apikeys-dls-fls]]
 ==== Field and document level security with Cross-cluster API keys
 
-Cross-cluster API keys can be used to authenticate requests to a remote cluster.
-`access` controls Cross Cluster Search, and `replication` controls Cross Cluster Replication.
+<<security-api-create-cross-cluster-api-key, Cross-Cluster API keys>> can be used to authenticate
+requests to a remote cluster.`access` provides access for Cross Cluster Search.
+`replication` provides access for Cross Cluster Replication.
 
-For reasons similar those described in  <<multiple-roles-dls-fls,Multiple roles with document and field level security>>,
-it is not allowed to create a single Cross-cluster API key with both `access` and `replication` where
+`replication` does not support any field or document level security. `access` supports field and/or document level security.
+However, for reasons similar those described in  <<multiple-roles-dls-fls,Multiple roles with document and field level security>>,
+it is not allowed to create a single Cross-Cluster API key with both `access` and `replication` where
 `access` has document or field level security defined.
 
 If you need both `access` and `replication` with the need to
-define document or field level security, create two separate Cross-cluster API keys. One with `access` that defines
+define document or field level security for `access`, create two separate Cross-Cluster API keys. One with `access` that defines
 document or field level security, and another with `replication`. You will need to also setup two different
-remote connections (to the same cluster), with each named connection using the appropriate Cross-cluster API key.
+remote connections (to the same cluster), with each named connection using the appropriate Cross-Cluster API key.
 
 
 

@@ -27,6 +27,7 @@ import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.metadata.InferenceFieldMetadata;
 import org.elasticsearch.cluster.routing.IndexRouting;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardIterator;
@@ -179,7 +180,11 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
         final ShardId shardId = request.getShardId();
         final IndexService indexService = indicesService.indexServiceSafe(shardId.getIndex());
         final IndexShard indexShard = indexService.getShard(shardId.getId());
-        final UpdateHelper.Result result = updateHelper.prepare(request, indexShard, threadPool::absoluteTimeInMillis);
+        final UpdateHelper.Result result = deleteInferenceResults(
+            request,
+            updateHelper.prepare(request, indexShard, threadPool::absoluteTimeInMillis)
+        );
+
         switch (result.getResponseResult()) {
             case CREATED -> {
                 IndexRequest upsertRequest = result.action();
@@ -332,5 +337,44 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
             return;
         }
         listener.onFailure(cause instanceof Exception ? (Exception) cause : new NotSerializableExceptionWrapper(cause));
+    }
+
+    private UpdateHelper.Result deleteInferenceResults(UpdateRequest updateRequest, UpdateHelper.Result result) {
+        if (result.getResponseResult() != DocWriteResponse.Result.UPDATED) {
+            return result;
+        }
+
+        final String index = updateRequest.index();
+        final Map<String, InferenceFieldMetadata> inferenceFields = clusterService.state().metadata().index(index).getInferenceFields();
+        if (inferenceFields.isEmpty()) {
+            return result;
+        }
+
+        Map<String, Object> updateRequestSource = updateRequest.doc().sourceAsMap();
+        Map<String, Object> updatedSource = result.updatedSourceAsMap();
+        boolean updatedSourceModified = false;
+        for (var entry : inferenceFields.entrySet()) {
+            String fieldName = entry.getKey();
+            String[] sourceFields = entry.getValue().getSourceFields();
+            for (String sourceField : sourceFields) {
+                if (updateRequestSource.containsKey(sourceField)) {
+                    // TODO: Get field name from SemanticTextField
+                    updatedSource.remove(fieldName + ".inference.chunks");
+                    updatedSourceModified = true;
+                    break;
+                }
+            }
+        }
+
+        UpdateHelper.Result returnedResult = result;
+        if (updatedSourceModified) {
+            XContentType contentType = result.updateSourceContentType();
+            IndexRequest indexRequest = result.action();
+            indexRequest.source(updatedSource, contentType);
+
+            returnedResult = new UpdateHelper.Result(indexRequest, result.getResponseResult(), updatedSource, contentType);
+        }
+
+        return returnedResult;
     }
 }

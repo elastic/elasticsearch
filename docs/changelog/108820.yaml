@@ -1,5 +1,5 @@
 pr: 108820
 summary: Allow `LuceneSourceOperator` to early terminate
-area: Compute Engine
+area: ES|QL
 type: enhancement
 issues: []

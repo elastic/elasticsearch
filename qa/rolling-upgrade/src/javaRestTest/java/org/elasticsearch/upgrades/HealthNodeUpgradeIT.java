@@ -13,8 +13,11 @@ import com.carrotsearch.randomizedtesting.annotations.Name;
 import org.apache.http.util.EntityUtils;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
+import org.elasticsearch.common.settings.Settings;
 import org.hamcrest.Matchers;
+import org.junit.Before;
 
+import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.Map;
 
@@ -24,6 +27,12 @@ public class HealthNodeUpgradeIT extends AbstractRollingUpgradeTestCase {
 
     public HealthNodeUpgradeIT(@Name("upgradedNodes") int upgradedNodes) {
         super(upgradedNodes);
+    }
+
+    @Before
+    public void updatePollInterval() throws IOException {
+        // We need Data Stream Lifecycle to run at least once to have a "green" status.
+        updateClusterSettings(client(), Settings.builder().put("data_streams.lifecycle.poll_interval", "5s").build());
     }
 
     public void testHealthNode() throws Exception {

@@ -14,7 +14,7 @@ import org.elasticsearch.nativeaccess.lib.NativeLibraryProvider;
 
 import java.util.Optional;
 
-import static java.lang.management.ManagementFactory.*;
+import static java.lang.management.ManagementFactory.getMemoryMXBean;
 
 class WindowsNativeAccess extends AbstractNativeAccess {
 

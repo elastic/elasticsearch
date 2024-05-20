@@ -51,7 +51,7 @@ public non-sealed interface Kernel32Library extends NativeLibrary {
      * @param address A pointer to the base address of the region of pages to be locked.
      * @param size The size of the region to be locked, in bytes.
      * @return true if the function succeeds
-     * @see <a href="https://msdn.microsoft.com/en-us/library/windows/desktop/aa366895%28v=vs.85%29.aspx>VirtualLock docs</a>
+     * @see <a href="https://msdn.microsoft.com/en-us/library/windows/desktop/aa366895%28v=vs.85%29.aspx">VirtualLock docs</a>
      */
     boolean VirtualLock(Address address, long size);
 

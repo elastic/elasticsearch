@@ -60,7 +60,7 @@ class JdkPosixCLibrary implements PosixCLibrary {
     public String strerror(int errno) {
         try {
             MemorySegment str = (MemorySegment) strerror$mh.invokeExact(errno);
-            return str.reinterpret(Long.MAX_VALUE).getUtf8String(0);
+            return MemorySegmentUtil.getString(str.reinterpret(Long.MAX_VALUE), 0);
         } catch (Throwable t) {
             throw new AssertionError(t);
         }

@@ -26,6 +26,12 @@ class NoopNativeAccess implements NativeAccess {
     }
 
     @Override
+    public ProcessLimits getProcessLimits() {
+        logger.warn("Cannot get process limits because native access is not available");
+        return new ProcessLimits(ProcessLimits.UNKNOWN, ProcessLimits.UNKNOWN, ProcessLimits.UNKNOWN);
+    }
+
+    @Override
     public Systemd systemd() {
         logger.warn("Cannot get systemd access because native access is not available");
         return null;

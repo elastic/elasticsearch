@@ -832,7 +832,7 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
                         errorStore,
                         Strings.format(
                             "Data stream lifecycle encountered an error trying to roll over%s data stream [%s]",
-                            rolloverFailureStore ? " the failure store of the" : "",
+                            rolloverFailureStore ? " the failure store of " : "",
                             dataStream.getName()
                         ),
                         signallingErrorRetryInterval
@@ -845,7 +845,7 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
                 () -> String.format(
                     Locale.ROOT,
                     "Data stream lifecycle encountered an error trying to roll over%s data stream [%s]",
-                    rolloverFailureStore ? " the failure store of the" : "",
+                    rolloverFailureStore ? " the failure store of " : "",
                     dataStream.getName()
                 ),
                 e

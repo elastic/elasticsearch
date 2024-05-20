@@ -177,11 +177,14 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
         BiFunction<ExecutorSelector, IndexShard, Executor> executorFunction,
         ExecutorSelector executorSelector
     ) {
+        assert request.isSimulated() || mappingUpdatedAction != null
+            : "mappingUpdatedAction can only be null when running a simulate request";
         ClusterStateObserver observer = new ClusterStateObserver(clusterService, request.timeout(), logger, threadPool.getThreadContext());
         performOnPrimary(request, primary, updateHelper, threadPool::absoluteTimeInMillis, (update, shardId, mappingListener) -> {
             assert update != null;
             assert shardId != null;
-            assert mappingUpdatedAction != null : "mappingUpdatedAction is null, but the mappingUpdater was called";
+            assert mappingUpdatedAction != null;
+            assert request.isSimulated() == false : "Cannot run a mapping update in simulate mode";
             mappingUpdatedAction.updateMappingOnMaster(shardId.getIndex(), update, mappingListener);
         }, mappingUpdateListener -> observer.waitForNextChange(new ClusterStateObserver.Listener() {
             @Override
@@ -414,7 +417,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
 
         }
         if (result.getResultType() == Engine.Result.Type.MAPPING_UPDATE_REQUIRED) {
-
+            assert context.getBulkShardRequest().isSimulated() == false : "mapping updates are not allowed in simulate mode";
             try {
                 Optional<CompressedXContent> mergedSource = Optional.ofNullable(
                     primary.mapperService()

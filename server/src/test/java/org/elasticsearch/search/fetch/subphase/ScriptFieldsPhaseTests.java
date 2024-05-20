@@ -82,10 +82,15 @@ public class ScriptFieldsPhaseTests extends ESTestCase {
         FetchSubPhaseProcessor processor = phase.getProcessor(fetchContext);
         processor.setNextReader(null);
         var searchHit = new SearchHit(1);
-        var hitContext = new FetchSubPhase.HitContext(searchHit, null, 1, Map.of(), null);
-        processor.process(hitContext);
+        try {
+            var hitContext = new FetchSubPhase.HitContext(searchHit, null, 1, Map.of(), null);
+            processor.process(hitContext);
 
-        DocumentField field = searchHit.field("field");
-        assertThat(field.getValue(), equalTo("<unserializable>"));
+            DocumentField field = searchHit.field("field");
+            assertThat(field.getValue(), equalTo("<unserializable>"));
+        } finally {
+            searchHit.decRef();
+        }
+
     }
 }

@@ -21,6 +21,7 @@ import org.elasticsearch.xpack.core.security.action.apikey.QueryApiKeyRequest;
 import org.elasticsearch.xpack.core.security.action.apikey.QueryApiKeyResponse;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.security.authc.ApiKeyService;
+import org.elasticsearch.xpack.security.profile.ProfileService;
 import org.elasticsearch.xpack.security.support.ApiKeyAggregationsBuilder;
 import org.elasticsearch.xpack.security.support.ApiKeyBoolQueryBuilder;
 
@@ -47,17 +48,20 @@ public final class TransportQueryApiKeyAction extends TransportAction<QueryApiKe
 
     private final ApiKeyService apiKeyService;
     private final SecurityContext securityContext;
+    private final ProfileService profileService;
 
     @Inject
     public TransportQueryApiKeyAction(
         TransportService transportService,
         ActionFilters actionFilters,
         ApiKeyService apiKeyService,
-        SecurityContext context
+        SecurityContext context,
+        ProfileService profileService
     ) {
         super(QueryApiKeyAction.NAME, actionFilters, transportService.getTaskManager());
         this.apiKeyService = apiKeyService;
         this.securityContext = context;
+        this.profileService = profileService;
     }
 
     @Override
@@ -113,7 +117,34 @@ public final class TransportQueryApiKeyAction extends TransportAction<QueryApiKe
         }
 
         final SearchRequest searchRequest = new SearchRequest(new String[] { SECURITY_MAIN_ALIAS }, searchSourceBuilder);
-        apiKeyService.queryApiKeys(searchRequest, request.withLimitedBy(), listener);
+        apiKeyService.queryApiKeys(searchRequest, request.withLimitedBy(), ActionListener.wrap(queryApiKeysResult -> {
+            if (request.withProfileUid()) {
+                profileService.resolveProfileUidsForApiKeys(
+                    queryApiKeysResult.apiKeyInfos(),
+                    ActionListener.wrap(
+                        ownerProfileUids -> listener.onResponse(
+                            new QueryApiKeyResponse(
+                                queryApiKeysResult.total(),
+                                queryApiKeysResult.apiKeyInfos(),
+                                queryApiKeysResult.sortValues(),
+                                ownerProfileUids,
+                                queryApiKeysResult.aggregations()
+                            )
+                        ),
+                        listener::onFailure
+                    )
+                );
+            } else {
+                listener.onResponse(
+                    new QueryApiKeyResponse(
+                        queryApiKeysResult.total(),
+                        queryApiKeysResult.apiKeyInfos(),
+                        queryApiKeysResult.sortValues(),
+                        null,
+                        queryApiKeysResult.aggregations()
+                    )
+                );
+            }
+        }, listener::onFailure));
     }
-
 }

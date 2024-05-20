@@ -63,6 +63,7 @@ import java.nio.charset.CharacterCodingException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.security.AccessControlException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashSet;
@@ -246,16 +247,17 @@ public class Analysis {
         try {
             return loadWordList(path, removeComments);
         } catch (CharacterCodingException ex) {
-            String message = String.format(
-                Locale.ROOT,
+            String message = Strings.format(
                 "Unsupported character encoding detected while reading %s: %s - files must be UTF-8 encoded",
                 settingPath,
-                path.toString()
+                path
             );
             throw new IllegalArgumentException(message, ex);
         } catch (IOException ioe) {
-            String message = String.format(Locale.ROOT, "IOException while reading %s: %s", settingPath, path.toString());
+            String message = Strings.format("IOException while reading %s: %s", settingPath, path);
             throw new IllegalArgumentException(message, ioe);
+        } catch (AccessControlException ace) {
+            throw new IllegalArgumentException(Strings.format("Access denied trying to read file %s: %s", settingPath, path), ace);
         }
     }
 

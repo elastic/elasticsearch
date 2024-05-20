@@ -35,7 +35,7 @@ import org.elasticsearch.action.admin.indices.recovery.RecoveryResponse;
 import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
-import org.elasticsearch.action.bulk.BulkAction;
+import org.elasticsearch.action.bulk.TransportBulkAction;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.action.support.ActiveShardCount;
@@ -1936,7 +1936,7 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
 
         // delay the delivery of the replica write until the end of the test so the replica never becomes in-sync
         replicaNodeTransportService.addRequestHandlingBehavior(
-            BulkAction.NAME + "[s][r]",
+            TransportBulkAction.NAME + "[s][r]",
             (handler, request, channel, task) -> recoveryCompleteListener.addListener(
                 assertNoFailureListener(ignored -> handler.messageReceived(request, channel, task))
             )

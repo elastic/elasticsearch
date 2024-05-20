@@ -23,7 +23,9 @@ sourceCommand
     : explainCommand
     | fromCommand
     | rowCommand
+    | metricsCommand
     | showCommand
+    | metaCommand
     ;
 
 processingCommand
@@ -78,10 +80,15 @@ primaryExpression
     | qualifiedName                                                                     #dereference
     | functionExpression                                                                #function
     | LP booleanExpression RP                                                           #parenthesizedExpression
+    | primaryExpression CAST_OP dataType                                                #inlineCast
     ;
 
 functionExpression
     : identifier LP (ASTERISK | (booleanExpression (COMMA booleanExpression)*))? RP
+    ;
+
+dataType
+    : identifier                                                                        #toDataType
     ;
 
 rowCommand
@@ -98,7 +105,11 @@ field
     ;
 
 fromCommand
-    : FROM fromIdentifier (COMMA fromIdentifier)* metadata?
+    : FROM indexIdentifier (COMMA indexIdentifier)* metadata?
+    ;
+
+indexIdentifier
+    : INDEX_UNQUOTED_IDENTIFIER
     ;
 
 metadata
@@ -107,11 +118,15 @@ metadata
     ;
 
 metadataOption
-    : METADATA fromIdentifier (COMMA fromIdentifier)*
+    : METADATA indexIdentifier (COMMA indexIdentifier)*
     ;
 
 deprecated_metadata
     : OPENING_BRACKET metadataOption CLOSING_BRACKET
+    ;
+
+metricsCommand
+    : METRICS indexIdentifier (COMMA indexIdentifier)* aggregates=fields? (BY grouping=fields)?
     ;
 
 evalCommand
@@ -126,10 +141,6 @@ inlinestatsCommand
     : INLINESTATS stats=fields (BY grouping=fields)?
     ;
 
-fromIdentifier
-    : FROM_UNQUOTED_IDENTIFIER
-    | QUOTED_IDENTIFIER
-    ;
 
 qualifiedName
     : identifier (DOT identifier)*
@@ -227,7 +238,7 @@ integerValue
     ;
 
 string
-    : STRING
+    : QUOTED_STRING
     ;
 
 comparisonOperator
@@ -244,7 +255,10 @@ subqueryExpression
 
 showCommand
     : SHOW INFO                                                           #showInfo
-    | SHOW FUNCTIONS                                                      #showFunctions
+    ;
+
+metaCommand
+    : META FUNCTIONS                                                      #metaFunctions
     ;
 
 enrichCommand

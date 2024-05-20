@@ -9,7 +9,6 @@
 package org.elasticsearch.action.search;
 
 import org.elasticsearch.action.ActionResponse;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xcontent.ParseField;
@@ -32,12 +31,6 @@ public class ClearScrollResponse extends ActionResponse implements ToXContentObj
     public ClearScrollResponse(boolean succeeded, int numFreed) {
         this.succeeded = succeeded;
         this.numFreed = numFreed;
-    }
-
-    public ClearScrollResponse(StreamInput in) throws IOException {
-        super(in);
-        succeeded = in.readBoolean();
-        numFreed = in.readVInt();
     }
 
     /**

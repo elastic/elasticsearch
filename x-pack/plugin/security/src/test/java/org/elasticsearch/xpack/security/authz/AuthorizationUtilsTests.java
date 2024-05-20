@@ -30,7 +30,7 @@ import java.util.Arrays;
 import java.util.concurrent.CountDownLatch;
 import java.util.function.Consumer;
 
-import static org.elasticsearch.action.admin.cluster.node.tasks.get.GetTaskAction.TASKS_ORIGIN;
+import static org.elasticsearch.action.admin.cluster.node.tasks.get.TransportGetTaskAction.TASKS_ORIGIN;
 import static org.hamcrest.Matchers.is;
 
 /**

@@ -39,7 +39,7 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.telemetry.tracing.Tracer;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.MockLogAppender;
+import org.elasticsearch.test.MockLog;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.threadpool.TestThreadPool;
@@ -599,10 +599,9 @@ public class DefaultRestChannelTests extends ESTestCase {
             tracer
         );
 
-        final MockLogAppender sendingResponseMockLog = new MockLogAppender();
-        try (var ignored = sendingResponseMockLog.capturing(HttpTracer.class)) {
+        try (var sendingResponseMockLog = MockLog.capture(HttpTracer.class)) {
             sendingResponseMockLog.addExpectation(
-                new MockLogAppender.UnseenEventExpectation(
+                new MockLog.UnseenEventExpectation(
                     "no response should be logged",
                     HttpTracer.class.getName(),
                     Level.TRACE,
@@ -616,10 +615,9 @@ public class DefaultRestChannelTests extends ESTestCase {
             sendingResponseMockLog.assertAllExpectationsMatched();
         }
 
-        final MockLogAppender sendingResponseCompleteMockLog = new MockLogAppender();
-        try (var ignored = sendingResponseCompleteMockLog.capturing(HttpTracer.class)) {
+        try (var sendingResponseCompleteMockLog = MockLog.capture(HttpTracer.class)) {
             sendingResponseCompleteMockLog.addExpectation(
-                new MockLogAppender.SeenEventExpectation(
+                new MockLog.SeenEventExpectation(
                     "response should be logged",
                     HttpTracer.class.getName(),
                     Level.TRACE,
@@ -661,10 +659,9 @@ public class DefaultRestChannelTests extends ESTestCase {
             tracer
         );
 
-        MockLogAppender mockLogAppender = new MockLogAppender();
-        try (var ignored = mockLogAppender.capturing(HttpTracer.class)) {
-            mockLogAppender.addExpectation(
-                new MockLogAppender.SeenEventExpectation(
+        try (var mockLog = MockLog.capture(HttpTracer.class)) {
+            mockLog.addExpectation(
+                new MockLog.SeenEventExpectation(
                     "response should be logged with success = false",
                     HttpTracer.class.getName(),
                     Level.TRACE,
@@ -673,7 +670,7 @@ public class DefaultRestChannelTests extends ESTestCase {
             );
 
             expectThrows(RuntimeException.class, () -> channel.sendResponse(new RestResponse(RestStatus.OK, "ignored")));
-            mockLogAppender.assertAllExpectationsMatched();
+            mockLog.assertAllExpectationsMatched();
         }
     }
 

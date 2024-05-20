@@ -1,5 +1,0 @@
-pr: 104893
-summary: Release resources in `BestBucketsDeferringCollector` earlier
-area: Aggregations
-type: enhancement
-issues: []

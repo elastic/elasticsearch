@@ -17,6 +17,8 @@ import org.elasticsearch.xpack.core.ilm.action.ILMActions;
 import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.POST;
+import static org.elasticsearch.rest.RestUtils.getAckTimeout;
+import static org.elasticsearch.rest.RestUtils.getMasterNodeTimeout;
 
 public class RestStartILMAction extends BaseRestHandler {
 
@@ -33,8 +35,8 @@ public class RestStartILMAction extends BaseRestHandler {
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) {
         StartILMRequest request = new StartILMRequest();
-        request.timeout(restRequest.paramAsTime("timeout", request.timeout()));
-        request.masterNodeTimeout(restRequest.paramAsTime("master_timeout", request.masterNodeTimeout()));
+        request.ackTimeout(getAckTimeout(restRequest));
+        request.masterNodeTimeout(getMasterNodeTimeout(restRequest));
         return channel -> client.execute(ILMActions.START, request, new RestToXContentListener<>(channel));
     }
 }

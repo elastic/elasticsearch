@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.inference.services.elasticsearch;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -16,8 +17,6 @@ import org.elasticsearch.xpack.inference.services.ServiceUtils;
 
 import java.io.IOException;
 import java.util.Map;
-
-import static org.elasticsearch.TransportVersions.ML_TEXT_EMBEDDING_INFERENCE_SERVICE_ADDED;
 
 public class CustomElandInternalServiceSettings extends ElasticsearchInternalServiceSettings {
 
@@ -46,7 +45,8 @@ public class CustomElandInternalServiceSettings extends ElasticsearchInternalSer
 
         validateParameters(numAllocations, validationException, numThreads);
 
-        String modelId = ServiceUtils.extractRequiredString(map, MODEL_ID, "ServiceSettings", validationException);
+        String modelId = ServiceUtils.extractRequiredString(map, MODEL_ID, "ServiceSettings", validationException); // TODO check if this is
+                                                                                                                    // the correct scope
 
         if (validationException.validationErrors().isEmpty() == false) {
             throw validationException;
@@ -85,7 +85,7 @@ public class CustomElandInternalServiceSettings extends ElasticsearchInternalSer
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return ML_TEXT_EMBEDDING_INFERENCE_SERVICE_ADDED;
+        return TransportVersions.V_8_13_0;
     }
 
     @Override

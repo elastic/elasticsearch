@@ -24,13 +24,12 @@ import org.elasticsearch.tasks.TaskId;
 
 import java.io.IOException;
 import java.util.Map;
-import java.util.concurrent.TimeUnit;
 
 public class ClusterHealthRequest extends MasterNodeReadRequest<ClusterHealthRequest> implements IndicesRequest.Replaceable {
 
     private String[] indices;
     private IndicesOptions indicesOptions = IndicesOptions.lenientExpandHidden();
-    private TimeValue timeout = new TimeValue(30, TimeUnit.SECONDS);
+    private TimeValue timeout = TimeValue.timeValueSeconds(30);
     private ClusterHealthStatus waitForStatus;
     private boolean waitForNoRelocatingShards = false;
     private boolean waitForNoInitializingShards = false;
@@ -38,9 +37,12 @@ public class ClusterHealthRequest extends MasterNodeReadRequest<ClusterHealthReq
     private String waitForNodes = "";
     private Priority waitForEvents = null;
 
-    public ClusterHealthRequest() {}
+    public ClusterHealthRequest() {
+        super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT);
+    }
 
     public ClusterHealthRequest(String... indices) {
+        super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT);
         this.indices = indices;
     }
 
@@ -121,14 +123,7 @@ public class ClusterHealthRequest extends MasterNodeReadRequest<ClusterHealthReq
 
     public ClusterHealthRequest timeout(TimeValue timeout) {
         this.timeout = timeout;
-        if (masterNodeTimeout == DEFAULT_MASTER_NODE_TIMEOUT) {
-            masterNodeTimeout = timeout;
-        }
         return this;
-    }
-
-    public ClusterHealthRequest timeout(String timeout) {
-        return this.timeout(TimeValue.parseTimeValue(timeout, null, getClass().getSimpleName() + ".timeout"));
     }
 
     public ClusterHealthStatus waitForStatus() {

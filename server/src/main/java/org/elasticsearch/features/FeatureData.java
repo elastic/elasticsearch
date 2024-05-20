@@ -38,7 +38,8 @@ public class FeatureData {
     public static FeatureData createFromSpecifications(List<? extends FeatureSpecification> specs) {
         Map<String, FeatureSpecification> allFeatures = new HashMap<>();
 
-        NavigableMap<Version, Set<String>> historicalFeatures = new TreeMap<>();
+        // Initialize historicalFeatures with empty version to guarantee there's a floor entry for every version
+        NavigableMap<Version, Set<String>> historicalFeatures = new TreeMap<>(Map.of(Version.V_EMPTY, Set.of()));
         Map<String, NodeFeature> nodeFeatures = new HashMap<>();
         for (FeatureSpecification spec : specs) {
             var specFeatures = spec.getFeatures();

@@ -30,10 +30,8 @@ For more information, see <<security-privileges>>.
     For example, `nodeId1,nodeId2`. For node selection options, see
     <<cluster-nodes>>.
 
-[[searchable-snapshots-api-cache-stats-query-params]]
-==== {api-query-parms-title}
-
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=master-timeout]
+//[[searchable-snapshots-api-cache-stats-query-params]]
+//==== {api-query-parms-title}
 
 [role="child_attributes"]
 [[searchable-snapshots-api-cache-stats-response-body]]

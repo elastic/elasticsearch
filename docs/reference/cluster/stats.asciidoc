@@ -33,7 +33,7 @@ memory usage) and information about the current nodes that form the cluster
 ==== {api-path-parms-title}
 
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=node-filter]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=node-filter]
 
 
 [[cluster-stats-api-query-params]]
@@ -86,7 +86,7 @@ Unique identifier for the cluster.
 the last time the cluster statistics were refreshed.
 
 `status`::
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=cluster-health-status]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=cluster-health-status]
 +
 See <<cluster-health>>.
 
@@ -223,6 +223,10 @@ selected nodes.
 +
 This number is based on documents in Lucene segments. {es} reclaims the disk
 space of deleted Lucene documents when a segment is merged.
+
+`total_size_in_bytes`::
+(integer)
+Total size in bytes across all primary shards assigned to selected nodes.
 =====
 
 `store`::
@@ -1594,7 +1598,8 @@ The API returns the following response:
       },
       "docs": {
          "count": 10,
-         "deleted": 0
+         "deleted": 0,
+         "total_size_in_bytes": 8833
       },
       "store": {
          "size": "16.2kb",
@@ -1816,7 +1821,8 @@ The API returns the following response:
                 "all_in_bytes": 0,
                 "coordinating_rejections": 0,
                 "primary_rejections": 0,
-                "replica_rejections": 0
+                "replica_rejections": 0,
+                "primary_document_rejections": 0
             },
             "limit" : "0b",
             "limit_in_bytes": 0

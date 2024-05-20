@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.math;
 
 import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
+import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.function.scalar.UnaryScalarFunction;
@@ -30,8 +31,21 @@ import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isNumeric;
  * </p>
  */
 public class Ceil extends UnaryScalarFunction {
-    @FunctionInfo(returnType = { "double", "integer", "long", "unsigned_long" }, description = "Round a number up to the nearest integer.")
-    public Ceil(Source source, @Param(name = "n", type = { "double", "integer", "long", "unsigned_long" }) Expression n) {
+    @FunctionInfo(
+        returnType = { "double", "integer", "long", "unsigned_long" },
+        description = "Round a number up to the nearest integer.",
+        note = "This is a noop for `long` (including unsigned) and `integer`. For `double` this picks the closest `double` value to "
+            + "the integer similar to {javadoc}/java.base/java/lang/Math.html#ceil(double)[Math.ceil].",
+        examples = @Example(file = "math", tag = "ceil")
+    )
+    public Ceil(
+        Source source,
+        @Param(
+            name = "number",
+            type = { "double", "integer", "long", "unsigned_long" },
+            description = "Numeric expression. If `null`, the function returns `null`."
+        ) Expression n
+    ) {
         super(source, n);
     }
 

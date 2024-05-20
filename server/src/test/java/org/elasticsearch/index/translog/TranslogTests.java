@@ -63,6 +63,7 @@ import org.elasticsearch.index.seqno.LocalCheckpointTrackerTests;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.translog.Translog.Location;
+import org.elasticsearch.plugins.internal.DocumentSizeObserver;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
 import org.elasticsearch.test.TransportVersionUtils;
@@ -297,7 +298,8 @@ public class TranslogTests extends ESTestCase {
             NON_RECYCLING_INSTANCE,
             bufferSize,
             randomBoolean() ? DiskIoBufferPool.INSTANCE : RANDOMIZING_IO_BUFFERS,
-            Objects.requireNonNullElse(listener, (d, s, l) -> {})
+            Objects.requireNonNullElse(listener, (d, s, l) -> {}),
+            true
         );
     }
 
@@ -1390,7 +1392,9 @@ public class TranslogTests extends ESTestCase {
             temp.getIndexSettings(),
             temp.getBigArrays(),
             new ByteSizeValue(1, ByteSizeUnit.KB),
-            randomBoolean() ? DiskIoBufferPool.INSTANCE : RANDOMIZING_IO_BUFFERS
+            randomBoolean() ? DiskIoBufferPool.INSTANCE : RANDOMIZING_IO_BUFFERS,
+            TranslogConfig.NOOP_OPERATION_LISTENER,
+            true
         );
 
         final Set<Long> persistedSeqNos = new HashSet<>();
@@ -3382,7 +3386,17 @@ public class TranslogTests extends ESTestCase {
         document.add(idField);
         document.add(versionField);
         seqID.addFields(document);
-        ParsedDocument doc = new ParsedDocument(versionField, seqID, "1", null, Arrays.asList(document), B_1, XContentType.JSON, null);
+        ParsedDocument doc = new ParsedDocument(
+            versionField,
+            seqID,
+            "1",
+            null,
+            Arrays.asList(document),
+            B_1,
+            XContentType.JSON,
+            null,
+            DocumentSizeObserver.EMPTY_INSTANCE
+        );
 
         Engine.Index eIndex = new Engine.Index(
             newUid(doc),
@@ -3995,5 +4009,52 @@ public class TranslogTests extends ESTestCase {
             }
         }
         return false;
+    }
+
+    public void testDisabledFsync() throws IOException {
+        var translogDir = createTempDir();
+        var config = new TranslogConfig(
+            shardId,
+            translogDir,
+            IndexSettingsModule.newIndexSettings(shardId.getIndex(), Settings.EMPTY),
+            NON_RECYCLING_INSTANCE,
+            new ByteSizeValue(1, ByteSizeUnit.KB),
+            randomBoolean() ? DiskIoBufferPool.INSTANCE : RANDOMIZING_IO_BUFFERS,
+            TranslogConfig.NOOP_OPERATION_LISTENER,
+            false
+        );
+        var translogUUID = Translog.createEmptyTranslog(
+            config.getTranslogPath(),
+            SequenceNumbers.NO_OPS_PERFORMED,
+            shardId,
+            primaryTerm.get()
+        );
+
+        try (
+            var translog = new Translog(
+                config,
+                translogUUID,
+                new TranslogDeletionPolicy(),
+                () -> SequenceNumbers.NO_OPS_PERFORMED,
+                primaryTerm::get,
+                getPersistedSeqNoConsumer()
+            ) {
+                @Override
+                ChannelFactory getChannelFactory() {
+                    return (file, openOption) -> new FilterFileChannel(FileChannel.open(file, openOption)) {
+                        @Override
+                        public void force(boolean metaData) {
+                            throw new AssertionError("fsync should be disabled");
+                        }
+                    };
+                }
+            }
+        ) {
+            if (randomBoolean()) {
+                translog.rollGeneration();
+            }
+            var location = translog.add(indexOp(randomUUID(), 1, primaryTerm.get(), "source"));
+            assertTrue("sync needs to happen", translog.ensureSynced(location, SequenceNumbers.UNASSIGNED_SEQ_NO));
+        }
     }
 }

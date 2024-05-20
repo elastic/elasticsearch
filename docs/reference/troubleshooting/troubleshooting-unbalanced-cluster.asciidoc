@@ -46,7 +46,7 @@ Some operations such as node restarting, decommissioning, or changing cluster al
 are disruptive and might require multiple shards to move in order to rebalance the cluster.
 
 Shard movement order is not deterministic and mostly determined by the source and target node readiness to move a shard.
-While rebalancing is in progress some nodes might appear busier then others.
+While rebalancing is in progress some nodes might appear busier than others.
 
 When a shard is allocated to an undesired node it uses the resources of the current node instead of the target.
 This might cause a hotspot (disk or CPU) when multiple shards reside on the current node that have not been

@@ -19,7 +19,7 @@ import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
-@ServerlessScope(Scope.PUBLIC)
+@ServerlessScope(Scope.INTERNAL)
 public class RestEnrichStatsAction extends BaseRestHandler {
 
     @Override

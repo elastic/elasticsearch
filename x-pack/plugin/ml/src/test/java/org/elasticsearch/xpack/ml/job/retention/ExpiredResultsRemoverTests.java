@@ -144,6 +144,7 @@ public class ExpiredResultsRemoverTests extends ESTestCase {
         List<Job> jobs = Collections.singletonList(JobTests.buildJobBuilder(jobId).setResultsRetentionDays(1L).build());
 
         ActionListener<AbstractExpiredJobDataRemover.CutoffDetails> cutoffListener = mock(ActionListener.class);
+        when(cutoffListener.delegateFailureAndWrap(any())).thenCallRealMethod();
         createExpiredResultsRemover(jobs.iterator()).calcCutoffEpochMs(jobId, 1L, cutoffListener);
 
         long dayInMills = 60 * 60 * 24 * 1000;

@@ -47,7 +47,7 @@ public class RemoveIndexLifecyclePolicyAction extends ActionType<RemoveIndexLife
             PARSER.declareBoolean(ConstructingObjectParser.constructorArg(), HAS_FAILURES_FIELD);
         }
 
-        private List<String> failedIndexes;
+        private final List<String> failedIndexes;
 
         public Response(StreamInput in) throws IOException {
             super(in);
@@ -113,9 +113,12 @@ public class RemoveIndexLifecyclePolicyAction extends ActionType<RemoveIndexLife
             indicesOptions = IndicesOptions.readIndicesOptions(in);
         }
 
-        public Request() {}
+        public Request() {
+            super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT, DEFAULT_ACK_TIMEOUT);
+        }
 
         public Request(String... indices) {
+            super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT, DEFAULT_ACK_TIMEOUT);
             if (indices == null) {
                 throw new IllegalArgumentException("indices cannot be null");
             }

@@ -64,6 +64,30 @@ public class InferenceProcessorInfoExtractorTests extends ESTestCase {
         );
     }
 
+    public void testGetModelIdsFromInferenceProcessors() throws IOException {
+        String modelId1 = "trained_model_1";
+        String modelId2 = "trained_model_2";
+        String modelId3 = "trained_model_3";
+        Set<String> expectedModelIds = new HashSet<>(Arrays.asList(modelId1, modelId2, modelId3));
+
+        ClusterState clusterState = buildClusterStateWithModelReferences(2, modelId1, modelId2, modelId3);
+        IngestMetadata ingestMetadata = clusterState.metadata().custom(IngestMetadata.TYPE);
+        Set<String> actualModelIds = InferenceProcessorInfoExtractor.getModelIdsFromInferenceProcessors(ingestMetadata);
+
+        assertThat(actualModelIds, equalTo(expectedModelIds));
+    }
+
+    public void testGetModelIdsFromInferenceProcessorsWhenNull() throws IOException {
+
+        Set<String> expectedModelIds = new HashSet<>(Arrays.asList());
+
+        ClusterState clusterState = buildClusterStateWithModelReferences(0);
+        IngestMetadata ingestMetadata = clusterState.metadata().custom(IngestMetadata.TYPE);
+        Set<String> actualModelIds = InferenceProcessorInfoExtractor.getModelIdsFromInferenceProcessors(ingestMetadata);
+
+        assertThat(actualModelIds, equalTo(expectedModelIds));
+    }
+
     public void testNumInferenceProcessors() throws IOException {
         assertThat(InferenceProcessorInfoExtractor.countInferenceProcessors(buildClusterState(null)), equalTo(0));
         assertThat(InferenceProcessorInfoExtractor.countInferenceProcessors(buildClusterState(Metadata.EMPTY_METADATA)), equalTo(0));

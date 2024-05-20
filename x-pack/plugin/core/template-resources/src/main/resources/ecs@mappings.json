@@ -24,6 +24,30 @@
           }
         },
         {
+          "ecs_non_indexed_keyword": {
+            "mapping": {
+              "type": "keyword",
+              "index": false,
+              "doc_values": false
+            },
+            "path_match": [
+              "event.original"
+            ]
+          }
+        },
+        {
+          "ecs_non_indexed_long": {
+            "mapping": {
+              "type": "long",
+              "index": false,
+              "doc_values": false
+            },
+            "path_match": [
+              "*.x509.public_key_exponent"
+            ]
+          }
+        },
+        {
           "ecs_ip": {
             "mapping": {
               "type": "ip"
@@ -165,8 +189,7 @@
               "type": "geo_point"
             },
             "path_match": [
-              "location",
-              "*.location"
+              "*.geo.location"
             ]
           }
         },

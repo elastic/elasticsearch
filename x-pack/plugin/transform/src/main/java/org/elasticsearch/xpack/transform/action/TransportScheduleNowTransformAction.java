@@ -19,17 +19,13 @@ import org.elasticsearch.action.support.tasks.TransportTasksAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
-import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.ActionNotFoundTransportException;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.XPackPlugin;
-import org.elasticsearch.xpack.core.XPackSettings;
-import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.transform.action.ScheduleNowTransformAction;
 import org.elasticsearch.xpack.core.transform.action.ScheduleNowTransformAction.Request;
 import org.elasticsearch.xpack.core.transform.action.ScheduleNowTransformAction.Response;
@@ -50,13 +46,10 @@ public class TransportScheduleNowTransformAction extends TransportTasksAction<Tr
     private static final Logger logger = LogManager.getLogger(TransportScheduleNowTransformAction.class);
     private final TransformConfigManager transformConfigManager;
     private final TransformScheduler transformScheduler;
-    private final SecurityContext securityContext;
 
     @Inject
     public TransportScheduleNowTransformAction(
-        Settings settings,
         TransportService transportService,
-        ThreadPool threadPool,
         ActionFilters actionFilters,
         ClusterService clusterService,
         TransformServices transformServices
@@ -68,15 +61,11 @@ public class TransportScheduleNowTransformAction extends TransportTasksAction<Tr
             actionFilters,
             Request::new,
             Response::new,
-            Response::new,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
 
         this.transformConfigManager = transformServices.getConfigManager();
         this.transformScheduler = transformServices.getScheduler();
-        this.securityContext = XPackSettings.SECURITY_ENABLED.get(settings)
-            ? new SecurityContext(settings, threadPool.getThreadContext())
-            : null;
     }
 
     @Override

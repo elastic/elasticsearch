@@ -79,6 +79,8 @@ public class RestTestLegacyFeatures implements FeatureSpecification {
     public static final NodeFeature TSDB_NEW_INDEX_FORMAT = new NodeFeature("indices.tsdb_new_format");
     public static final NodeFeature TSDB_GENERALLY_AVAILABLE = new NodeFeature("indices.tsdb_supported");
 
+    public static final NodeFeature TSDB_DOWNSAMPLING_STABLE = new NodeFeature("indices.tsdb_downsampling_stable");
+
     /*
      * A composable index template with no template defined in the body is mistakenly always assumed to not be a time series template.
      * Fixed in #98840
@@ -123,6 +125,14 @@ public class RestTestLegacyFeatures implements FeatureSpecification {
     @UpdateForV9
     public static final NodeFeature ML_NLP_SUPPORTED = new NodeFeature("ml.nlp_supported");
 
+    /*
+     * Starting with 8.11, cluster state has minimum system index mappings versions (#99307) and the system index mappings upgrade service
+     * started using them to determine when to update mappings for system indices. See https://github.com/elastic/elasticsearch/pull/99668
+     */
+    public static final NodeFeature MAPPINGS_UPGRADE_SERVICE_USES_MAPPINGS_VERSION = new NodeFeature(
+        "mappings.upgrade_service_uses_mappings_version"
+    );
+
     // YAML
     public static final NodeFeature REST_ELASTIC_PRODUCT_HEADER_PRESENT = new NodeFeature("action.rest.product_header_present");
 
@@ -157,6 +167,7 @@ public class RestTestLegacyFeatures implements FeatureSpecification {
             entry(DESIRED_BALANCED_ALLOCATOR_SUPPORTED, Version.V_8_6_0),
             entry(DESIRED_BALANCED_ALLOCATOR_FIXED, Version.V_8_7_1),
             entry(TSDB_GENERALLY_AVAILABLE, Version.V_8_7_0),
+            entry(TSDB_DOWNSAMPLING_STABLE, Version.V_8_10_0),
             entry(TSDB_EMPTY_TEMPLATE_FIXED, Version.V_8_11_0),
             entry(INDEXING_SLOWLOG_LEVEL_SETTING_REMOVED, Version.V_8_0_0),
             entry(DEPRECATION_WARNINGS_LEAK_FIXED, Version.V_7_17_9),
@@ -171,7 +182,8 @@ public class RestTestLegacyFeatures implements FeatureSpecification {
             entry(DATA_STREAMS_SUPPORTED, Version.V_7_9_0),
             entry(NEW_DATA_STREAMS_INDEX_NAME_FORMAT, Version.V_7_11_0),
             entry(DISABLE_FIELD_NAMES_FIELD_REMOVED, Version.V_8_0_0),
-            entry(ML_NLP_SUPPORTED, Version.V_8_0_0)
+            entry(ML_NLP_SUPPORTED, Version.V_8_0_0),
+            entry(MAPPINGS_UPGRADE_SERVICE_USES_MAPPINGS_VERSION, Version.V_8_11_0)
         );
     }
 }

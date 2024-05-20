@@ -34,14 +34,14 @@ directly from the {infer} cache.
 
 `<model_id>`::
 (Optional, string)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=model-id-or-alias]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=model-id-or-alias]
 If you specify the `model_id` in the API call, and the model has multiple 
 deployments, a random deployment will be used. If the `model_id` matches the ID 
 of one of the deployments, that deployment will be used.
 
 `<deployment_id>`::
 (Optional, string)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=deployment-id]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=deployment-id]
 
 [[infer-trained-model-query-params]]
 == {api-query-parms-title}
@@ -84,28 +84,28 @@ Classification configuration for inference.
 =====
 `num_top_classes`::::
 (Optional, integer)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-classification-num-top-classes]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=inference-config-classification-num-top-classes]
 
 `num_top_feature_importance_values`::::
 (Optional, integer)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-classification-num-top-feature-importance-values]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=inference-config-classification-num-top-feature-importance-values]
 
 `prediction_field_type`::::
 (Optional, string)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-classification-prediction-field-type]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=inference-config-classification-prediction-field-type]
 
 `results_field`::::
 (Optional, string)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-results-field]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=inference-config-results-field]
 
 `top_classes_results_field`::::
 (Optional, string)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-classification-top-classes-results-field]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=inference-config-classification-top-classes-results-field]
 =====
 
 `fill_mask`:::
 (Optional, object)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-fill-mask]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-fill-mask]
 +
 .Properties of fill_mask inference
 [%collapsible%open]
@@ -117,228 +117,228 @@ to `0`.
 
 `results_field`::::
 (Optional, string)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-results-field]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=inference-config-results-field]
 
 `tokenization`::::
 (Optional, object)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization]
 +
 .Properties of tokenization
 [%collapsible%open]
 ======
 `bert`::::
 (Optional, object)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-bert]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-bert]
 +
 .Properties of bert
 [%collapsible%open]
 =======
 `truncate`::::
 (Optional, string)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-truncate]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-truncate]
 =======
 `roberta`::::
 (Optional, object)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-roberta]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-roberta]
 +
 .Properties of roberta
 [%collapsible%open]
 =======
 `truncate`::::
 (Optional, string)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-truncate]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-truncate]
 =======
 `mpnet`::::
 (Optional, object)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-mpnet]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-mpnet]
 +
 .Properties of mpnet
 [%collapsible%open]
 =======
 `truncate`::::
 (Optional, string)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-truncate]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-truncate]
 =======
 `xlm_roberta`::::
 (Optional, object)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-xlm-roberta]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-xlm-roberta]
 +
 .Properties of xlm_roberta
 [%collapsible%open]
 =======
 `truncate`::::
 (Optional, string)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-truncate]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-truncate]
 =======
 `bert_ja`::::
 (Optional, object)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-bert-ja]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-bert-ja]
 +
 .Properties of bert_ja
 [%collapsible%open]
 =======
 `truncate`::::
 (Optional, string)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-truncate]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-truncate]
 =======
 ======
 =====
 
 `ner`:::
 (Optional, object)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-ner]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=inference-config-ner]
 +
 .Properties of ner inference
 [%collapsible%open]
 =====
 `results_field`::::
 (Optional, string)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-results-field]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=inference-config-results-field]
 
 `tokenization`::::
 (Optional, object)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization]
 +
 .Properties of tokenization
 [%collapsible%open]
 ======
 `bert`::::
 (Optional, object)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-bert]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-bert]
 +
 .Properties of bert
 [%collapsible%open]
 =======
 `truncate`::::
 (Optional, string)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-truncate]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-truncate]
 =======
 `roberta`::::
 (Optional, object)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-roberta]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-roberta]
 +
 .Properties of roberta
 [%collapsible%open]
 =======
 `truncate`::::
 (Optional, string)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-truncate]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-truncate]
 =======
 `mpnet`::::
 (Optional, object)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-mpnet]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-mpnet]
 +
 .Properties of mpnet
 [%collapsible%open]
 =======
 `truncate`::::
 (Optional, string)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-truncate]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-truncate]
 =======
 `xlm_roberta`::::
 (Optional, object)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-xlm-roberta]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-xlm-roberta]
 +
 .Properties of xlm_roberta
 [%collapsible%open]
 =======
 `truncate`::::
 (Optional, string)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-truncate]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-truncate]
 =======
 `bert_ja`::::
 (Optional, object)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-bert-ja]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-bert-ja]
 +
 .Properties of bert_ja
 [%collapsible%open]
 =======
 `truncate`::::
 (Optional, string)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-truncate]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-truncate]
 =======
 ======
 =====
 
 `pass_through`:::
 (Optional, object)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-pass-through]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=inference-config-pass-through]
 +
 .Properties of pass_through inference
 [%collapsible%open]
 =====
 `results_field`::::
 (Optional, string)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-results-field]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=inference-config-results-field]
 
 `tokenization`::::
 (Optional, object)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization]
 +
 .Properties of tokenization
 [%collapsible%open]
 ======
 `bert`::::
 (Optional, object)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-bert]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-bert]
 +
 .Properties of bert
 [%collapsible%open]
 =======
 `truncate`::::
 (Optional, string)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-truncate]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-truncate]
 =======
 `roberta`::::
 (Optional, object)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-roberta]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-roberta]
 +
 .Properties of roberta
 [%collapsible%open]
 =======
 `truncate`::::
 (Optional, string)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-truncate]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-truncate]
 =======
 `mpnet`::::
 (Optional, object)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-mpnet]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-mpnet]
 +
 .Properties of mpnet
 [%collapsible%open]
 =======
 `truncate`::::
 (Optional, string)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-truncate]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-truncate]
 =======
 `xlm_roberta`::::
 (Optional, object)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-xlm-roberta]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-xlm-roberta]
 +
 .Properties of xlm_roberta
 [%collapsible%open]
 =======
 `truncate`::::
 (Optional, string)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-truncate]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-truncate]
 =======
 `bert_ja`::::
 (Optional, object)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-bert-ja]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-bert-ja]
 +
 .Properties of bert_ja
 [%collapsible%open]
 =======
 `truncate`::::
 (Optional, string)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-truncate]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-truncate]
 =======
 ======
 =====
 
 `question_answering`:::
 (Optional, object)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-question-answering]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-question-answering]
 +
 .Properties of question_answering inference
 [%collapsible%open]
@@ -358,11 +358,11 @@ The question to use when extracting an answer
 
 `results_field`::::
 (Optional, string)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-results-field]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=inference-config-results-field]
 
 `tokenization`::::
 (Optional, object)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization]
 +
 Recommended to set `max_sequence_length` to `386` with `128` of `span` and set
 `truncate` to `none`.
@@ -372,78 +372,78 @@ Recommended to set `max_sequence_length` to `386` with `128` of `span` and set
 ======
 `bert`::::
 (Optional, object)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-bert]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-bert]
 +
 .Properties of bert
 [%collapsible%open]
 =======
 `span`::::
 (Optional, integer)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-span]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-span]
 
 `truncate`::::
 (Optional, string)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-truncate]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-truncate]
 =======
 `roberta`::::
 (Optional, object)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-roberta]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-roberta]
 +
 .Properties of roberta
 [%collapsible%open]
 =======
 `span`::::
 (Optional, integer)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-span]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-span]
 
 `truncate`::::
 (Optional, string)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-truncate]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-truncate]
 =======
 `mpnet`::::
 (Optional, object)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-mpnet]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-mpnet]
 +
 .Properties of mpnet
 [%collapsible%open]
 =======
 `span`::::
 (Optional, integer)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-span]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-span]
 
 `truncate`::::
 (Optional, string)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-truncate]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-truncate]
 =======
 `xlm_roberta`::::
 (Optional, object)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-xlm-roberta]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-xlm-roberta]
 +
 .Properties of xlm_roberta
 [%collapsible%open]
 =======
 `span`::::
 (Optional, integer)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-span]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-span]
 
 `truncate`::::
 (Optional, string)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-truncate]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-truncate]
 =======
 `bert_ja`::::
 (Optional, object)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-bert-ja]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-bert-ja]
 +
 .Properties of bert_ja
 [%collapsible%open]
 =======
 `span`::::
 (Optional, integer)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-span]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-span]
 
 `truncate`::::
 (Optional, string)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-truncate]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-truncate]
 =======
 ======
 =====
@@ -457,16 +457,16 @@ Regression configuration for inference.
 =====
 `num_top_feature_importance_values`::::
 (Optional, integer)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-regression-num-top-feature-importance-values]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=inference-config-regression-num-top-feature-importance-values]
 
 `results_field`::::
 (Optional, string)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-results-field]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=inference-config-results-field]
 =====
 
 `text_classification`:::
 (Optional, object)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-text-classification]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=inference-config-text-classification]
 +
 .Properties of text_classification inference
 [%collapsible%open]
@@ -481,346 +481,346 @@ Specifies the number of top class predictions to return. Defaults to all classes
 
 `results_field`::::
 (Optional, string)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-results-field]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=inference-config-results-field]
 
 `tokenization`::::
 (Optional, object)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization]
 +
 .Properties of tokenization
 [%collapsible%open]
 ======
 `bert`::::
 (Optional, object)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-bert]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-bert]
 +
 .Properties of bert
 [%collapsible%open]
 =======
 `span`::::
 (Optional, integer)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-span]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-span]
 
 `truncate`::::
 (Optional, string)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-truncate]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-truncate]
 =======
 `roberta`::::
 (Optional, object)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-roberta]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-roberta]
 +
 .Properties of roberta
 [%collapsible%open]
 =======
 `span`::::
 (Optional, integer)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-span]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-span]
 
 `truncate`::::
 (Optional, string)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-truncate]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-truncate]
 =======
 `mpnet`::::
 (Optional, object)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-mpnet]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-mpnet]
 +
 .Properties of mpnet
 [%collapsible%open]
 =======
 `span`::::
 (Optional, integer)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-span]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-span]
 
 `truncate`::::
 (Optional, string)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-truncate]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-truncate]
 =======
 `xlm_roberta`::::
 (Optional, object)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-xlm-roberta]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-xlm-roberta]
 +
 .Properties of xlm_roberta
 [%collapsible%open]
 =======
 `span`::::
 (Optional, integer)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-span]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-span]
 
 `truncate`::::
 (Optional, string)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-truncate]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-truncate]
 =======
 `bert_ja`::::
 (Optional, object)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-bert-ja]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-bert-ja]
 +
 .Properties of bert_ja
 [%collapsible%open]
 =======
 `span`::::
 (Optional, integer)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-span]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-span]
 
 `truncate`::::
 (Optional, string)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-truncate]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-truncate]
 =======
 ======
 =====
 `text_embedding`:::
 (Object, optional)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-text-embedding]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=inference-config-text-embedding]
 +
 .Properties of text_embedding inference
 [%collapsible%open]
 =====
 `results_field`::::
 (Optional, string)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-results-field]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=inference-config-results-field]
 
 `tokenization`::::
 (Optional, object)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization]
 +
 .Properties of tokenization
 [%collapsible%open]
 ======
 `bert`::::
 (Optional, object)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-bert]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-bert]
 +
 .Properties of bert
 [%collapsible%open]
 =======
 `truncate`::::
 (Optional, string)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-truncate]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-truncate]
 =======
 `roberta`::::
 (Optional, object)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-roberta]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-roberta]
 +
 .Properties of roberta
 [%collapsible%open]
 =======
 `truncate`::::
 (Optional, string)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-truncate]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-truncate]
 =======
 `mpnet`::::
 (Optional, object)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-mpnet]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-mpnet]
 +
 .Properties of mpnet
 [%collapsible%open]
 =======
 `truncate`::::
 (Optional, string)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-truncate]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-truncate]
 =======
 `xlm_roberta`::::
 (Optional, object)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-xlm-roberta]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-xlm-roberta]
 +
 .Properties of xlm_roberta
 [%collapsible%open]
 =======
 `truncate`::::
 (Optional, string)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-truncate]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-truncate]
 =======
 `bert_ja`::::
 (Optional, object)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-bert-ja]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-bert-ja]
 +
 .Properties of bert_ja
 [%collapsible%open]
 =======
 `truncate`::::
 (Optional, string)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-truncate]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-truncate]
 =======
 ======
 =====
 `text_similarity`:::
 (Object, optional)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-text-similarity]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=inference-config-text-similarity]
 +
 .Properties of text_similarity inference
 [%collapsible%open]
 =====
 `span_score_combination_function`::::
 (Optional, string)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-text-similarity-span-score-func]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=inference-config-text-similarity-span-score-func]
 
 `text`::::
 (Required, string)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-text-similarity-text]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=inference-config-text-similarity-text]
 
 `tokenization`::::
 (Optional, object)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization]
 +
 .Properties of tokenization
 [%collapsible%open]
 ======
 `bert`::::
 (Optional, object)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-bert]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-bert]
 +
 .Properties of bert
 [%collapsible%open]
 =======
 `span`::::
 (Optional, integer)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-span]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-span]
 
 `with_special_tokens`::::
 (Optional, boolean)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-bert-with-special-tokens]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-bert-with-special-tokens]
 =======
 `roberta`::::
 (Optional, object)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-roberta]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-roberta]
 +
 .Properties of roberta
 [%collapsible%open]
 =======
 `span`::::
 (Optional, integer)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-span]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-span]
 
 `truncate`::::
 (Optional, string)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-truncate]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-truncate]
 =======
 `mpnet`::::
 (Optional, object)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-mpnet]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-mpnet]
 +
 .Properties of mpnet
 [%collapsible%open]
 =======
 `span`::::
 (Optional, integer)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-span]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-span]
 
 `truncate`::::
 (Optional, string)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-truncate]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-truncate]
 =======
 `xlm_roberta`::::
 (Optional, object)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-xlm-roberta]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-xlm-roberta]
 +
 .Properties of xlm_roberta
 [%collapsible%open]
 =======
 `span`::::
 (Optional, integer)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-span]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-span]
 
 `truncate`::::
 (Optional, string)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-truncate]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-truncate]
 =======
 `bert_ja`::::
 (Optional, object)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-bert-ja]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-bert-ja]
 +
 .Properties of bert_ja
 [%collapsible%open]
 =======
 `span`::::
 (Optional, integer)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-span]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-span]
 
 `with_special_tokens`::::
 (Optional, boolean)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-bert-ja-with-special-tokens]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-bert-ja-with-special-tokens]
 =======
 ======
 =====
 `zero_shot_classification`:::
 (Object, optional)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-zero-shot-classification]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=inference-config-zero-shot-classification]
 +
 .Properties of zero_shot_classification inference
 [%collapsible%open]
 =====
 `labels`::::
 (Optional, array)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-zero-shot-classification-labels]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=inference-config-zero-shot-classification-labels]
 
 `multi_label`::::
 (Optional, boolean)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-zero-shot-classification-multi-label]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=inference-config-zero-shot-classification-multi-label]
 
 `results_field`::::
 (Optional, string)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-results-field]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=inference-config-results-field]
 
 `tokenization`::::
 (Optional, object)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization]
 +
 .Properties of tokenization
 [%collapsible%open]
 ======
 `bert`::::
 (Optional, object)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-bert]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-bert]
 +
 .Properties of bert
 [%collapsible%open]
 =======
 `truncate`::::
 (Optional, string)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-truncate]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-truncate]
 =======
 `roberta`::::
 (Optional, object)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-roberta]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-roberta]
 +
 .Properties of roberta
 [%collapsible%open]
 =======
 `truncate`::::
 (Optional, string)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-truncate]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-truncate]
 =======
 `mpnet`::::
 (Optional, object)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-mpnet]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-mpnet]
 +
 .Properties of mpnet
 [%collapsible%open]
 =======
 `truncate`::::
 (Optional, string)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-truncate]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-truncate]
 =======
 `xlm_roberta`::::
 (Optional, object)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-xlm-roberta]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-xlm-roberta]
 +
 .Properties of xlm_roberta
 [%collapsible%open]
 =======
 `truncate`::::
 (Optional, string)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-truncate]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-truncate]
 =======
 `bert_ja`::::
 (Optional, object)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-bert-ja]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-bert-ja]
 +
 .Properties of bert_ja
 [%collapsible%open]
 =======
 `truncate`::::
 (Optional, string)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-truncate]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-truncate]
 =======
 ======
 =====

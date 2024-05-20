@@ -9,6 +9,7 @@ package org.elasticsearch.compute.aggregation;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.util.BitArray;
+import org.elasticsearch.compute.aggregation.blockhash.BlockHash;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BlockTestUtils;
@@ -31,6 +32,7 @@ import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.operator.PositionMergingSourceOperator;
 import org.elasticsearch.compute.operator.SourceOperator;
 import org.elasticsearch.core.Releasables;
+import org.hamcrest.Matcher;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -69,26 +71,28 @@ public abstract class GroupingAggregatorFunctionTestCase extends ForkingOperator
             supplier = chunkGroups(emitChunkSize, supplier);
         }
         return new HashAggregationOperator.HashAggregationOperatorFactory(
-            List.of(new HashAggregationOperator.GroupSpec(0, ElementType.LONG)),
+            List.of(new BlockHash.GroupSpec(0, ElementType.LONG)),
             List.of(supplier.groupingAggregatorFactory(mode)),
             randomPageSize()
         );
     }
 
     @Override
-    protected final String expectedDescriptionOfSimple() {
-        return "HashAggregationOperator[mode = <not-needed>, aggs = " + expectedDescriptionOfAggregator() + "]";
+    protected final Matcher<String> expectedDescriptionOfSimple() {
+        return equalTo("HashAggregationOperator[mode = <not-needed>, aggs = " + expectedDescriptionOfAggregator() + "]");
     }
 
     @Override
-    protected final String expectedToStringOfSimple() {
+    protected final Matcher<String> expectedToStringOfSimple() {
         String hash = "blockHash=LongBlockHash{channel=0, entries=0, seenNull=false}";
         String type = getClass().getSimpleName().replace("Tests", "");
-        return "HashAggregationOperator["
-            + hash
-            + ", aggregators=[GroupingAggregator[aggregatorFunction="
-            + type
-            + "[channels=[1]], mode=SINGLE]]]";
+        return equalTo(
+            "HashAggregationOperator["
+                + hash
+                + ", aggregators=[GroupingAggregator[aggregatorFunction="
+                + type
+                + "[channels=[1]], mode=SINGLE]]]"
+        );
     }
 
     private SeenGroups seenGroups(List<Page> input) {

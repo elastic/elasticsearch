@@ -34,11 +34,14 @@ public class GetAliasesRequest extends MasterNodeReadRequest<GetAliasesRequest> 
     private String[] originalAliases = Strings.EMPTY_ARRAY;
 
     public GetAliasesRequest(String... aliases) {
+        super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT);
         this.aliases = aliases;
         this.originalAliases = aliases;
     }
 
-    public GetAliasesRequest() {}
+    public GetAliasesRequest() {
+        super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT);
+    }
 
     /**
      * NB prior to 8.12 get-aliases was a TransportMasterNodeReadAction so for BwC we must remain able to read these requests until we no

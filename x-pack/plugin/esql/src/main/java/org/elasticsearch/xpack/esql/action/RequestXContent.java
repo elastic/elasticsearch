@@ -46,13 +46,15 @@ final class RequestXContent {
         PARAM_PARSER.declareString(constructorArg(), TYPE);
     }
 
-    private static final ParseField QUERY_FIELD = new ParseField("query");
+    static final ParseField ESQL_VERSION_FIELD = new ParseField("version");
+    static final ParseField QUERY_FIELD = new ParseField("query");
     private static final ParseField COLUMNAR_FIELD = new ParseField("columnar");
     private static final ParseField FILTER_FIELD = new ParseField("filter");
-    private static final ParseField PRAGMA_FIELD = new ParseField("pragma");
+    static final ParseField PRAGMA_FIELD = new ParseField("pragma");
     private static final ParseField PARAMS_FIELD = new ParseField("params");
     private static final ParseField LOCALE_FIELD = new ParseField("locale");
     private static final ParseField PROFILE_FIELD = new ParseField("profile");
+    static final ParseField TABLES_FIELD = new ParseField("tables");
 
     static final ParseField WAIT_FOR_COMPLETION_TIMEOUT = new ParseField("wait_for_completion_timeout");
     static final ParseField KEEP_ALIVE = new ParseField("keep_alive");
@@ -72,6 +74,7 @@ final class RequestXContent {
     }
 
     private static void objectParserCommon(ObjectParser<EsqlQueryRequest, ?> parser) {
+        parser.declareString(EsqlQueryRequest::esqlVersion, ESQL_VERSION_FIELD);
         parser.declareString(EsqlQueryRequest::query, QUERY_FIELD);
         parser.declareBoolean(EsqlQueryRequest::columnar, COLUMNAR_FIELD);
         parser.declareObject(EsqlQueryRequest::filter, (p, c) -> AbstractQueryBuilder.parseTopLevelQuery(p), FILTER_FIELD);
@@ -83,6 +86,7 @@ final class RequestXContent {
         parser.declareField(EsqlQueryRequest::params, RequestXContent::parseParams, PARAMS_FIELD, VALUE_ARRAY);
         parser.declareString((request, localeTag) -> request.locale(Locale.forLanguageTag(localeTag)), LOCALE_FIELD);
         parser.declareBoolean(EsqlQueryRequest::profile, PROFILE_FIELD);
+        parser.declareField((p, r, c) -> new ParseTables(r, p).parseTables(), TABLES_FIELD, ObjectParser.ValueType.OBJECT);
     }
 
     private static ObjectParser<EsqlQueryRequest, Void> objectParserSync(Supplier<EsqlQueryRequest> supplier) {

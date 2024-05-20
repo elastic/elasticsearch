@@ -20,6 +20,7 @@ public class DocumentMapper {
     private final CompressedXContent mappingSource;
     private final MappingLookup mappingLookup;
     private final DocumentParser documentParser;
+    private final MapperMetrics mapperMetrics;
 
     /**
      * Create a new {@link DocumentMapper} that holds empty mappings.
@@ -32,14 +33,27 @@ public class DocumentMapper {
         );
         MetadataFieldMapper[] metadata = mapperService.getMetadataMappers().values().toArray(new MetadataFieldMapper[0]);
         Mapping mapping = new Mapping(root, metadata, null);
-        return new DocumentMapper(mapperService.documentParser(), mapping, mapping.toCompressedXContent(), IndexVersion.current());
+        return new DocumentMapper(
+            mapperService.documentParser(),
+            mapping,
+            mapping.toCompressedXContent(),
+            IndexVersion.current(),
+            mapperService.getMapperMetrics()
+        );
     }
 
-    DocumentMapper(DocumentParser documentParser, Mapping mapping, CompressedXContent source, IndexVersion version) {
+    DocumentMapper(
+        DocumentParser documentParser,
+        Mapping mapping,
+        CompressedXContent source,
+        IndexVersion version,
+        MapperMetrics mapperMetrics
+    ) {
         this.documentParser = documentParser;
         this.type = mapping.getRoot().name();
         this.mappingLookup = MappingLookup.fromMapping(mapping);
         this.mappingSource = source;
+        this.mapperMetrics = mapperMetrics;
 
         assert mapping.toCompressedXContent().equals(source) || isSyntheticSourceMalformed(source, version)
             : "provided source [" + source + "] differs from mapping [" + mapping.toCompressedXContent() + "]";
@@ -112,7 +126,7 @@ public class DocumentMapper {
          * Build an empty source loader to validate that the mapping is compatible
          * with the source loading strategy declared on the source field mapper.
          */
-        sourceMapper().newSourceLoader(mapping());
+        sourceMapper().newSourceLoader(mapping(), mapperMetrics.sourceFieldMetrics());
         if (settings.getIndexSortConfig().hasIndexSort() && mappers().nestedLookup() != NestedLookup.EMPTY) {
             throw new IllegalArgumentException("cannot have nested fields when index sort is activated");
         }
@@ -125,7 +139,7 @@ public class DocumentMapper {
                 // object type is not allowed in the routing paths
                 if (path.equals(objectName)) {
                     throw new IllegalArgumentException(
-                        "All fields that match routing_path must be keywords with [time_series_dimension: true] "
+                        "All fields that match routing_path must be configured with [time_series_dimension: true] "
                             + "or flattened fields with a list of dimensions in [time_series_dimensions] "
                             + "and without the [script] parameter. ["
                             + objectName

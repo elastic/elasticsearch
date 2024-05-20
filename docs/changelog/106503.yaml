@@ -1,0 +1,5 @@
+pr: 106503
+summary: "Support ST_CONTAINS and ST_WITHIN"
+area: "ES|QL"
+type: enhancement
+issues: []

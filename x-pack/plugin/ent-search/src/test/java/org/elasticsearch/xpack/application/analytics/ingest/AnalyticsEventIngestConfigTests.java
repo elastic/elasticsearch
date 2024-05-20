@@ -28,13 +28,13 @@ public class AnalyticsEventIngestConfigTests extends ESTestCase {
     }
 
     public void testCustomFlushDelay() {
-        String value = randomTimeValue(1, 60, "s");
+        String value = between(1, 60) + "s";
         AnalyticsEventIngestConfig config = createCustomBulkProcessorConfig("flush_delay", value);
         assertThat(config.flushDelay(), equalTo(TimeValue.parseTimeValue(value, "flush_delay")));
     }
 
     public void testCustomFlushDelayTooLow() {
-        String value = randomTimeValue(1, 60, "ms");
+        String value = between(1, 60) + "ms";
         Exception e = expectThrows(IllegalArgumentException.class, () -> createCustomBulkProcessorConfig("flush_delay", value));
         assertThat(
             e.getMessage(),

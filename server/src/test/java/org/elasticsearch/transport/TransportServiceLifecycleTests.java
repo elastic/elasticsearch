@@ -72,13 +72,13 @@ public class TransportServiceLifecycleTests extends ESTestCase {
                         while (keepGoing.get() && requestPermits.tryAcquire()) {
                             nodeB.transportService.sendRequest(
                                 randomFrom(random, nodeA, nodeB).transportService.getLocalNode(),
-                                TestNode.ACTION_NAME_PREFIX + randomFrom(random, TestNode.EXECUTOR_NAMES),
+                                TestNode.randomActionName(random),
                                 TransportRequest.Empty.INSTANCE,
                                 new TransportResponseHandler<TransportResponse.Empty>() {
 
                                     final AtomicBoolean completed = new AtomicBoolean();
 
-                                    final String executor = randomFrom(random, TestNode.EXECUTOR_NAMES);
+                                    final Executor executor = nodeB.randomExecutor();
 
                                     @Override
                                     public void handleResponse(TransportResponse.Empty response) {
@@ -99,7 +99,7 @@ public class TransportServiceLifecycleTests extends ESTestCase {
 
                                     @Override
                                     public Executor executor() {
-                                        return nodeB.transportService.getThreadPool().executor(executor);
+                                        return executor;
                                     }
                                 }
                             );
@@ -130,7 +130,7 @@ public class TransportServiceLifecycleTests extends ESTestCase {
             final var future = new PlainActionFuture<TransportResponse.Empty>();
             nodeA.transportService.sendRequest(
                 nodeA.getThrowingConnection(),
-                TestNode.ACTION_NAME_PREFIX + randomFrom(TestNode.EXECUTOR_NAMES),
+                TestNode.randomActionName(random()),
                 new TransportRequest.Empty(),
                 TransportRequestOptions.EMPTY,
                 new ActionListenerResponseHandler<>(future, unusedReader(), deterministicTaskQueue::scheduleNow)
@@ -149,7 +149,7 @@ public class TransportServiceLifecycleTests extends ESTestCase {
             final var future = new PlainActionFuture<TransportResponse.Empty>();
             nodeA.transportService.sendRequest(
                 nodeA.getThrowingConnection(),
-                TestNode.ACTION_NAME_PREFIX + randomFrom(TestNode.EXECUTOR_NAMES),
+                TestNode.randomActionName(random()),
                 new TransportRequest.Empty(),
                 TransportRequestOptions.EMPTY,
                 new ActionListenerResponseHandler<>(future.delegateResponse((l, e) -> {
@@ -178,7 +178,7 @@ public class TransportServiceLifecycleTests extends ESTestCase {
             try {
                 nodeA.transportService.sendRequest(
                     nodeA.getThrowingConnection(),
-                    TestNode.ACTION_NAME_PREFIX + randomFrom(TestNode.EXECUTOR_NAMES),
+                    TestNode.randomActionName(random()),
                     new TransportRequest.Empty(),
                     TransportRequestOptions.EMPTY,
                     new ActionListenerResponseHandler<>(future.delegateResponse((l, e) -> {
@@ -197,14 +197,14 @@ public class TransportServiceLifecycleTests extends ESTestCase {
 
     public void testInternalSendExceptionCompletesHandlerOnCallingThreadIfTransportServiceClosed() {
         final var nodeA = new TestNode("node-A");
-        final var executor = nodeA.threadPool.executor(randomFrom(TestNode.EXECUTOR_NAMES));
+        final var executor = nodeA.randomExecutor();
         nodeA.close();
 
         final var testThread = Thread.currentThread();
         final var future = new PlainActionFuture<TransportResponse.Empty>();
         nodeA.transportService.sendRequest(
             nodeA.getThrowingConnection(),
-            TestNode.ACTION_NAME_PREFIX + randomFrom(TestNode.EXECUTOR_NAMES),
+            TestNode.randomActionName(random()),
             new TransportRequest.Empty(),
             TransportRequestOptions.EMPTY,
             new ActionListenerResponseHandler<>(future.delegateResponse((l, e) -> {
@@ -229,6 +229,7 @@ public class TransportServiceLifecycleTests extends ESTestCase {
     }
 
     private static class Executors {
+        static final String DIRECT = "direct";
         static final String SCALING_DROP_ON_SHUTDOWN = "scaling-drop-on-shutdown";
         static final String SCALING_REJECT_ON_SHUTDOWN = "scaling-reject-on-shutdown";
         static final String FIXED_BOUNDED_QUEUE = "fixed-bounded-queue";
@@ -238,8 +239,9 @@ public class TransportServiceLifecycleTests extends ESTestCase {
     private static class TestNode implements Releasable {
 
         static final String ACTION_NAME_PREFIX = "internal:test/";
+
         static final String[] EXECUTOR_NAMES = new String[] {
-            ThreadPool.Names.SAME,
+            Executors.DIRECT,
             Executors.SCALING_DROP_ON_SHUTDOWN,
             Executors.SCALING_REJECT_ON_SHUTDOWN,
             Executors.FIXED_BOUNDED_QUEUE,
@@ -293,10 +295,10 @@ public class TransportServiceLifecycleTests extends ESTestCase {
                 null,
                 emptySet()
             );
-            for (final var executor : EXECUTOR_NAMES) {
+            for (final var executorName : EXECUTOR_NAMES) {
                 transportService.registerRequestHandler(
-                    ACTION_NAME_PREFIX + executor,
-                    threadPool.executor(executor),
+                    ACTION_NAME_PREFIX + executorName,
+                    getExecutor(executorName),
                     TransportRequest.Empty::new,
                     (request, channel, task) -> {
                         if (randomBoolean()) {
@@ -309,6 +311,18 @@ public class TransportServiceLifecycleTests extends ESTestCase {
             }
             transportService.start();
             transportService.acceptIncomingRequests();
+        }
+
+        Executor getExecutor(String executorName) {
+            return executorName.equals(Executors.DIRECT) ? EsExecutors.DIRECT_EXECUTOR_SERVICE : threadPool.executor(executorName);
+        }
+
+        Executor randomExecutor() {
+            return getExecutor(randomFrom(TestNode.EXECUTOR_NAMES));
+        }
+
+        static String randomActionName(Random random) {
+            return ACTION_NAME_PREFIX + randomFrom(random, EXECUTOR_NAMES);
         }
 
         @Override

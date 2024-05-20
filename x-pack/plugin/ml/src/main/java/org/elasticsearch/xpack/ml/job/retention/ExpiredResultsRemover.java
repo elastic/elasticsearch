@@ -165,18 +165,18 @@ public class ExpiredResultsRemover extends AbstractExpiredJobDataRemover {
 
     @Override
     void calcCutoffEpochMs(String jobId, long retentionDays, ActionListener<CutoffDetails> listener) {
-        ThreadedActionListener<CutoffDetails> threadedActionListener = new ThreadedActionListener<>(
-            threadPool.executor(MachineLearning.UTILITY_THREAD_POOL_NAME),
-            listener
-        );
-        latestBucketTime(client, getParentTaskId(), jobId, ActionListener.wrap(latestTime -> {
+        latestBucketTime(client, getParentTaskId(), jobId, listener.delegateFailureAndWrap((l, latestTime) -> {
+            ThreadedActionListener<CutoffDetails> threadedActionListener = new ThreadedActionListener<>(
+                threadPool.executor(MachineLearning.UTILITY_THREAD_POOL_NAME),
+                l
+            );
             if (latestTime == null) {
                 threadedActionListener.onResponse(null);
             } else {
                 long cutoff = latestTime - new TimeValue(retentionDays, TimeUnit.DAYS).getMillis();
                 threadedActionListener.onResponse(new CutoffDetails(latestTime, cutoff));
             }
-        }, listener::onFailure));
+        }));
     }
 
     static void latestBucketTime(OriginSettingClient client, TaskId parentTaskId, String jobId, ActionListener<Long> listener) {

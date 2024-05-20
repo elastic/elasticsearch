@@ -10,6 +10,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.scheduler.SchedulerEngine;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.junit.Before;
@@ -17,6 +18,7 @@ import org.junit.Before;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.format.DateTimeFormatter;
+import java.util.List;
 import java.util.Locale;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -35,7 +37,8 @@ public class LicenseScheduleTests extends ESTestCase {
             mock(ThreadPool.class),
             mock(ClusterService.class),
             mock(Clock.class),
-            mock(XPackLicenseState.class)
+            mock(XPackLicenseState.class),
+            new FeatureService(List.of())
         );
         schedule = service.nextLicenseCheck(license);
     }

@@ -1,6 +1,14 @@
-# Distributed Area Team Internals
+# Distributed Area Internals
 
-(Summary, brief discussion of our features)
+The Distributed Area contains indexing and coordination systems.
+
+The index path stretches from the user REST command through shard routing down to each individual shard's translog and storage
+engine. Reindexing is effectively reading from a source index and writing to a destination index (perhaps on different nodes).
+The coordination side includes cluster coordination, shard allocation, cluster autoscaling stats, task management, and cross
+cluster replication. Less obvious coordination systems include networking, the discovery plugin system, the snapshot/restore
+logic, and shard recovery.
+
+A guide to the general Elasticsearch components can be found [here](https://github.com/elastic/elasticsearch/blob/main/docs/internal/GeneralArchitectureGuide.md).
 
 # Networking
 
@@ -10,28 +18,53 @@
 
 ### ActionListener
 
-`ActionListener`s are a means off injecting logic into lower layers of the code. They encapsulate a block of code that takes a response
-value -- the `onResponse()` method --, and then that block of code (the `ActionListener`) is passed into a function that will eventually
-execute the code (call `onResponse()`) when a response value is available. `ActionListener`s are used to pass code down to act on a result,
-rather than lower layers returning a result back up to be acted upon by the caller. One of three things can happen to a listener: it can be
-executed in the same thread — e.g. `ActionListener.run()` --; it can be passed off to another thread to be executed; or it can be added to
-a list someplace, to eventually be executed by some service. `ActionListener`s also define `onFailure()` logic, in case an error is
-encountered before a result can be formed.
-
-This pattern is often used in the transport action layer with the use of the
-[ChannelActionListener]([url](https://github.com/elastic/elasticsearch/blob/8.12/server/src/main/java/org/elasticsearch/action/support/ChannelActionListener.java))
-class, which wraps a `TransportChannel` produced by the transport layer. `TransportChannel` implementations can hold a reference to a Netty
-channel with which to pass the response back to the network caller. Netty has a many-to-one association of network callers to channels, so
-a call taking a long time generally won't hog resources: it's cheap. A transport action can take hours to respond and that's alright,
-barring caller timeouts.
+See the [Javadocs for `ActionListener`](https://github.com/elastic/elasticsearch/blob/main/server/src/main/java/org/elasticsearch/action/ActionListener.java)
 
 (TODO: add useful starter references and explanations for a range of Listener classes. Reference the Netty section.)
 
 ### REST Layer
 
-(including how REST and Transport layers are bound together through the ActionModule)
+The REST and Transport layers are bound together through the `ActionModule`. `ActionModule#initRestHandlers` registers all the
+rest actions with a `RestController` that matches incoming requests to particular REST actions. `RestController#registerHandler`
+uses each `Rest*Action`'s `#routes()` implementation to match HTTP requests to that particular `Rest*Action`. Typically, REST
+actions follow the class naming convention `Rest*Action`, which makes them easier to find, but not always; the `#routes()`
+definition can also be helpful in finding a REST action. `RestController#dispatchRequest` eventually calls `#handleRequest` on a
+`RestHandler` implementation. `RestHandler` is the base class for `BaseRestHandler`, which most `Rest*Action` instances extend to
+implement a particular REST action.
+
+`BaseRestHandler#handleRequest` calls into `BaseRestHandler#prepareRequest`, which children `Rest*Action` classes extend to
+define the behavior for a particular action. `RestController#dispatchRequest` passes a `RestChannel` to the `Rest*Action` via
+`RestHandler#handleRequest`: `Rest*Action#prepareRequest` implementations return a `RestChannelConsumer` defining how to execute
+the action and reply on the channel (usually in the form of completing an ActionListener wrapper). `Rest*Action#prepareRequest`
+implementations are responsible for parsing the incoming request, and verifying that the structure of the request is valid.
+`BaseRestHandler#handleRequest` will then check that all the request parameters have been consumed: unexpected request parameters
+result in an error.
+
+### How REST Actions Connect to Transport Actions
+
+The Rest layer uses an implementation of `AbstractClient`. `BaseRestHandler#prepareRequest` takes a `NodeClient`: this client
+knows how to connect to a specified TransportAction. A `Rest*Action` implementation will return a `RestChannelConsumer` that
+most often invokes a call into a method on the `NodeClient` to pass through to the TransportAction. Along the way from
+`BaseRestHandler#prepareRequest` through the `AbstractClient` and `NodeClient` code, `NodeClient#executeLocally` is called: this
+method calls into `TaskManager#registerAndExecute`, registering the operation with the `TaskManager` so it can be found in Task
+API requests, before moving on to execute the specified TransportAction.
+
+`NodeClient` has a `NodeClient#actions` map from `ActionType` to `TransportAction`. `ActionModule#setupActions` registers all the
+core TransportActions, as well as those defined in any plugins that are being used: plugins can override `Plugin#getActions()` to
+define additional TransportActions. Note that not all TransportActions will be mapped back to a REST action: many TransportActions
+are only used for internode operations/communications.
 
 ### Transport Layer
+
+(Managed by the TransportService, TransportActions must be registered there, too)
+
+(Executing a TransportAction (either locally via NodeClient or remotely via TransportService) is where most of the authorization & other security logic runs)
+
+(What actions, and why, are registered in TransportService but not NodeClient?)
+
+### Direct Node to Node Transport Layer
+
+(TransportService maps incoming requests to TransportActions)
 
 ### Chunk Encoding
 
@@ -44,6 +77,14 @@ barring caller timeouts.
 (long running actions should be forked off of the Netty thread. Keep short operations to avoid forking costs)
 
 ### Work Queues
+
+### RestClient
+
+The `RestClient` is primarily used in testing, to send requests against cluster nodes in the same format as would users. There
+are some uses of `RestClient`, via `RestClientBuilder`, in the production code. For example, remote reindex leverages the
+`RestClient` internally as the REST client to the remote elasticsearch cluster, and to take advantage of the compatibility of
+`RestClient` requests with much older elasticsearch versions. The `RestClient` is also used externally by the `Java API Client`
+to communicate with Elasticsearch.
 
 # Cluster Coordination
 
@@ -204,9 +245,101 @@ works in parallel with the storage engine.)
 
 # Autoscaling
 
-(Reactive and proactive autoscaling. Explain that we surface recommendations, how control plane uses it.)
+The Autoscaling API in ES (Elasticsearch) uses cluster and node level statistics to provide a recommendation
+for a cluster size to support the current cluster data and active workloads. ES Autoscaling is paired
+with an ES Cloud service that periodically polls the ES elected master node for suggested cluster
+changes. The cloud service will add more resources to the cluster based on Elasticsearch's recommendation.
+Elasticsearch by itself cannot automatically scale.
 
-(Sketch / list the different deciders that we have, and then also how we use information from each to make a recommendation.)
+Autoscaling recommendations are tailored for the user [based on user defined policies][], composed of data
+roles (hot, frozen, etc) and [deciders][]. There's a public [webinar on autoscaling][], as well as the
+public [Autoscaling APIs] docs.
+
+Autoscaling's current implementation is based primary on storage requirements, as well as memory capacity
+for ML and frozen tier. It does not yet support scaling related to search load. Paired with ES Cloud,
+autoscaling only scales upward, not downward, except for ML nodes that do get scaled up _and_ down.
+
+[based on user defined policies]: https://www.elastic.co/guide/en/elasticsearch/reference/current/xpack-autoscaling.html
+[deciders]: https://www.elastic.co/guide/en/elasticsearch/reference/current/autoscaling-deciders.html
+[webinar on autoscaling]: https://www.elastic.co/webinars/autoscaling-from-zero-to-production-seamlessly
+[Autoscaling APIs]: https://www.elastic.co/guide/en/elasticsearch/reference/current/autoscaling-apis.html
+
+### Plugin REST and TransportAction entrypoints
+
+Autoscaling is a [plugin][]. All the REST APIs can be found in [autoscaling/rest/][].
+`GetAutoscalingCapacityAction` is the capacity calculation operation REST endpoint, as opposed to the
+other rest commands that get/set/delete the policies guiding the capacity calculation. The Transport
+Actions can be found in [autoscaling/action/], where [TransportGetAutoscalingCapacityAction][] is the
+entrypoint on the master node for calculating the optimal cluster resources based on the autoscaling
+policies.
+
+[plugin]: https://github.com/elastic/elasticsearch/blob/v8.13.2/x-pack/plugin/autoscaling/src/main/java/org/elasticsearch/xpack/autoscaling/Autoscaling.java#L72
+[autoscaling/rest/]: https://github.com/elastic/elasticsearch/tree/v8.13.2/x-pack/plugin/autoscaling/src/main/java/org/elasticsearch/xpack/autoscaling/rest
+[autoscaling/action/]: https://github.com/elastic/elasticsearch/tree/v8.13.2/x-pack/plugin/autoscaling/src/main/java/org/elasticsearch/xpack/autoscaling/action
+[TransportGetAutoscalingCapacityAction]: https://github.com/elastic/elasticsearch/blob/v8.13.2/x-pack/plugin/autoscaling/src/main/java/org/elasticsearch/xpack/autoscaling/action/TransportGetAutoscalingCapacityAction.java#L82-L98
+
+### How cluster capacity is determined
+
+[AutoscalingMetadata][] implements [Metadata.Custom][] in order to persist autoscaling policies. Each
+Decider is an implementation of [AutoscalingDeciderService][]. The [AutoscalingCalculateCapacityService][]
+is responsible for running the calculation.
+
+[TransportGetAutoscalingCapacityAction.computeCapacity] is the entry point to [AutoscalingCalculateCapacityService.calculate],
+which creates a [AutoscalingDeciderResults][] for [each autoscaling policy][]. [AutoscalingDeciderResults.toXContent][] then
+determines the [maximum required capacity][] to return to the caller. [AutoscalingCapacity][] is the base unit of a cluster
+resources recommendation.
+
+The `TransportGetAutoscalingCapacityAction` response is cached to prevent concurrent callers
+overloading the system: the operation is expensive. `TransportGetAutoscalingCapacityAction` contains
+a [CapacityResponseCache][]. `TransportGetAutoscalingCapacityAction.masterOperation`
+calls [through the CapacityResponseCache][], into the `AutoscalingCalculateCapacityService`, to handle
+concurrent callers.
+
+[AutoscalingMetadata]: https://github.com/elastic/elasticsearch/blob/v8.13.2/x-pack/plugin/autoscaling/src/main/java/org/elasticsearch/xpack/autoscaling/AutoscalingMetadata.java#L38
+[Metadata.Custom]: https://github.com/elastic/elasticsearch/blob/v8.13.2/server/src/main/java/org/elasticsearch/cluster/metadata/Metadata.java#L141-L145
+[AutoscalingDeciderService]: https://github.com/elastic/elasticsearch/blob/v8.13.2/x-pack/plugin/autoscaling/src/main/java/org/elasticsearch/xpack/autoscaling/capacity/AutoscalingDeciderService.java#L16-L19
+[AutoscalingCalculateCapacityService]: https://github.com/elastic/elasticsearch/blob/v8.13.2/x-pack/plugin/autoscaling/src/main/java/org/elasticsearch/xpack/autoscaling/capacity/AutoscalingCalculateCapacityService.java#L43
+
+[TransportGetAutoscalingCapacityAction.computeCapacity]: https://github.com/elastic/elasticsearch/blob/v8.13.2/x-pack/plugin/autoscaling/src/main/java/org/elasticsearch/xpack/autoscaling/action/TransportGetAutoscalingCapacityAction.java#L102-L108
+[AutoscalingCalculateCapacityService.calculate]: https://github.com/elastic/elasticsearch/blob/v8.13.2/x-pack/plugin/autoscaling/src/main/java/org/elasticsearch/xpack/autoscaling/capacity/AutoscalingCalculateCapacityService.java#L108-L139
+[AutoscalingDeciderResults]: https://github.com/elastic/elasticsearch/blob/v8.13.2/x-pack/plugin/autoscaling/src/main/java/org/elasticsearch/xpack/autoscaling/capacity/AutoscalingDeciderResults.java#L34-L38
+[each autoscaling policy]: https://github.com/elastic/elasticsearch/blob/v8.13.2/x-pack/plugin/autoscaling/src/main/java/org/elasticsearch/xpack/autoscaling/capacity/AutoscalingCalculateCapacityService.java#L124-L131
+[AutoscalingDeciderResults.toXContent]: https://github.com/elastic/elasticsearch/blob/v8.13.2/x-pack/plugin/autoscaling/src/main/java/org/elasticsearch/xpack/autoscaling/capacity/AutoscalingDeciderResults.java#L78
+[maximum required capacity]: https://github.com/elastic/elasticsearch/blob/v8.13.2/x-pack/plugin/autoscaling/src/main/java/org/elasticsearch/xpack/autoscaling/capacity/AutoscalingDeciderResults.java#L105-L116
+[AutoscalingCapacity]: https://github.com/elastic/elasticsearch/blob/v8.13.2/x-pack/plugin/autoscaling/src/main/java/org/elasticsearch/xpack/autoscaling/capacity/AutoscalingCapacity.java#L27-L35
+
+[CapacityResponseCache]: https://github.com/elastic/elasticsearch/blob/v8.13.2/x-pack/plugin/autoscaling/src/main/java/org/elasticsearch/xpack/autoscaling/action/TransportGetAutoscalingCapacityAction.java#L44-L47
+[through the CapacityResponseCache]: https://github.com/elastic/elasticsearch/blob/v8.13.2/x-pack/plugin/autoscaling/src/main/java/org/elasticsearch/xpack/autoscaling/action/TransportGetAutoscalingCapacityAction.java#L97
+
+### Where the data comes from
+
+The Deciders each pull data from different sources as needed to inform their decisions. The
+[DiskThresholdMonitor][] is one such data source. The Monitor runs on the master node and maintains
+lists of nodes that exceed various disk size thresholds. [DiskThresholdSettings][] contains the
+threshold settings with which the `DiskThresholdMonitor` runs.
+
+[DiskThresholdMonitor]: https://github.com/elastic/elasticsearch/blob/v8.13.2/server/src/main/java/org/elasticsearch/cluster/routing/allocation/DiskThresholdMonitor.java#L53-L58
+[DiskThresholdSettings]: https://github.com/elastic/elasticsearch/blob/v8.13.2/server/src/main/java/org/elasticsearch/cluster/routing/allocation/DiskThresholdSettings.java#L24-L27
+
+### Deciders
+
+The `ReactiveStorageDeciderService` tracks information that demonstrates storage limitations are causing
+problems in the cluster. It uses [an algorithm defined here][]. Some examples are
+- information from the `DiskThresholdMonitor` to find out whether nodes are exceeding their storage capacity
+- number of unassigned shards that failed allocation because of insufficient storage
+- the max shard size and minimum node size, and whether these can be satisfied with the existing infrastructure
+
+[an algorithm defined here]: https://github.com/elastic/elasticsearch/blob/v8.13.2/x-pack/plugin/autoscaling/src/main/java/org/elasticsearch/xpack/autoscaling/storage/ReactiveStorageDeciderService.java#L158-L176
+
+The `ProactiveStorageDeciderService` maintains a forecast window that [defaults to 30 minutes][]. It only
+runs on data streams (ILM, rollover, etc), not regular indexes. It looks at past [index changes][] that
+took place within the forecast window to [predict][] resources that will be needed shortly.
+
+[defaults to 30 minutes]: https://github.com/elastic/elasticsearch/blob/v8.13.2/x-pack/plugin/autoscaling/src/main/java/org/elasticsearch/xpack/autoscaling/storage/ProactiveStorageDeciderService.java#L32
+[index changes]: https://github.com/elastic/elasticsearch/blob/v8.13.2/x-pack/plugin/autoscaling/src/main/java/org/elasticsearch/xpack/autoscaling/storage/ProactiveStorageDeciderService.java#L79-L83
+[predict]: https://github.com/elastic/elasticsearch/blob/v8.13.2/x-pack/plugin/autoscaling/src/main/java/org/elasticsearch/xpack/autoscaling/storage/ProactiveStorageDeciderService.java#L85-L95
+
+There are several more Decider Services, implementing the `AutoscalingDeciderService` interface.
 
 # Snapshot / Restore
 

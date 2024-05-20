@@ -61,6 +61,7 @@ import java.util.Set;
 import static java.util.Collections.emptyList;
 import static java.util.Collections.emptySet;
 import static org.elasticsearch.cluster.metadata.AliasMetadata.newAliasMetadataBuilder;
+import static org.elasticsearch.cluster.metadata.IndexMetadataTests.randomInferenceFields;
 import static org.elasticsearch.cluster.routing.RandomShardRoutingMutator.randomChange;
 import static org.elasticsearch.cluster.routing.TestShardRouting.shardRoutingBuilder;
 import static org.elasticsearch.cluster.routing.UnassignedInfoTests.randomUnassignedInfo;
@@ -571,7 +572,7 @@ public class ClusterStateDiffIT extends ESIntegTestCase {
             @Override
             public IndexMetadata randomChange(IndexMetadata part) {
                 IndexMetadata.Builder builder = IndexMetadata.builder(part);
-                switch (randomIntBetween(0, 2)) {
+                switch (randomIntBetween(0, 3)) {
                     case 0:
                         builder.settings(Settings.builder().put(part.getSettings()).put(randomSettings(Settings.EMPTY)));
                         break;
@@ -584,6 +585,9 @@ public class ClusterStateDiffIT extends ESIntegTestCase {
                         break;
                     case 2:
                         builder.settings(Settings.builder().put(part.getSettings()).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0));
+                        break;
+                    case 3:
+                        builder.putInferenceFields(randomInferenceFields());
                         break;
                     default:
                         throw new IllegalArgumentException("Shouldn't be here");

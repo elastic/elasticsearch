@@ -28,7 +28,7 @@ available under the current license and some usage statistics.
 [[usage-api-query-parms]]
 === {api-query-parms-title}
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=master-timeout]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=master-timeout]
 
 [discrete]
 [[usage-api-example]]
@@ -228,7 +228,8 @@ GET /_xpack/usage
       "keep" : 0,
       "enrich" : 0,
       "from" : 0,
-      "row" : 0
+      "row" : 0,
+      "meta" : 0
     },
     "queries" : {
       "rest" : {
@@ -307,7 +308,8 @@ GET /_xpack/usage
   },
   "rollup" : {
     "available" : true,
-    "enabled" : true
+    "enabled" : true,
+    ...
   },
   "ilm" : {
     "policy_count" : 3,
@@ -495,6 +497,7 @@ GET /_xpack/usage
 }
 ------------------------------------------------------------
 // TESTRESPONSE[s/"security" : \{[^\}]*\},/"security" : $body.$_path,/]
+// TESTRESPONSE[s/"rollup" : \{[^\}]*\},/"rollup" : $body.$_path,/]
 // TESTRESPONSE[s/"detectors" : \{[^\}]*\},/"detectors" : $body.$_path,/]
 // TESTRESPONSE[s/"model_size" : \{[^\}]*\},/"model_size" : $body.$_path,/]
 // TESTRESPONSE[s/"eql" : \{[^\}]*\},/"eql" : $body.$_path,/]

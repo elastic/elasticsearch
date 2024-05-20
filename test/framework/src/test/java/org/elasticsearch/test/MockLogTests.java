@@ -13,10 +13,10 @@ import org.apache.logging.log4j.Logger;
 
 import java.util.concurrent.atomic.AtomicBoolean;
 
-public class MockLogAppenderTests extends ESTestCase {
+public class MockLogTests extends ESTestCase {
 
     public void testConcurrentLogAndLifecycle() throws Exception {
-        Logger logger = LogManager.getLogger(MockLogAppenderTests.class);
+        Logger logger = LogManager.getLogger(MockLogTests.class);
         final var keepGoing = new AtomicBoolean(true);
         final var logThread = new Thread(() -> {
             while (keepGoing.get()) {
@@ -26,7 +26,7 @@ public class MockLogAppenderTests extends ESTestCase {
         logThread.start();
 
         for (int i = 0; i < 1000; i++) {
-            try (var appender = MockLogAppender.capture(MockLogAppenderTests.class)) {
+            try (var mockLog = MockLog.capture(MockLogTests.class)) {
                 Thread.yield();
             }
         }

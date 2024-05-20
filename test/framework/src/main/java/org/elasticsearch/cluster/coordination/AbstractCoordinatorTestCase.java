@@ -219,11 +219,12 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
     // 3. master sends out PublishRequests to nodes
     // 4. master receives PublishResponses from nodes
     // 5. master sends ApplyCommitRequests to nodes
-    // 6. nodes apply committed cluster state
-    // 7. master receives ApplyCommitResponses
-    // 8. apply committed state on master (last one to apply cluster state)
-    // 9. complete the publication listener back on the master service thread
-    public static final int CLUSTER_STATE_UPDATE_NUMBER_OF_DELAYS = 9;
+    // 6. nodes deserialize committed cluster state
+    // 7. nodes apply committed cluster state
+    // 8. master receives ApplyCommitResponses
+    // 9. apply committed state on master (last one to apply cluster state)
+    // 10. complete the publication listener back on the master service thread
+    public static final int CLUSTER_STATE_UPDATE_NUMBER_OF_DELAYS = 10;
     public static final long DEFAULT_CLUSTER_STATE_UPDATE_DELAY = CLUSTER_STATE_UPDATE_NUMBER_OF_DELAYS * DEFAULT_DELAY_VARIABILITY;
 
     private static final int ELECTION_RETRIES = 10;

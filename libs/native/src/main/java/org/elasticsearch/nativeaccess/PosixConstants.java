@@ -8,16 +8,7 @@
 
 package org.elasticsearch.nativeaccess;
 
-import org.elasticsearch.nativeaccess.lib.NativeLibraryProvider;
-
-class MacNativeAccess extends PosixNativeAccess {
-
-    MacNativeAccess(NativeLibraryProvider libraryProvider) {
-        super("MacOS", libraryProvider, new PosixConstants(9223372036854775807L, 5, 1));
-    }
-
-    @Override
-    protected long getMaxThreads() {
-        return ProcessLimits.UNKNOWN;
-    }
-}
+/**
+ * Code constants on POSIX systems.
+ */
+record PosixConstants(long RLIMIT_INFINITY, int RLIMIT_AS, int RLIMIT_FSIZE) {}

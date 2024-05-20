@@ -64,4 +64,9 @@ public final class MaximumInnerProduct extends AbstractScalarQuantizedVectorScor
         }
         return rawSimilarity + 1;
     }
+
+    @Override
+    public MaximumInnerProduct copy() {
+        return new MaximumInnerProduct(dims, maxOrd, scoreCorrectionConstant, input.clone());
+    }
 }

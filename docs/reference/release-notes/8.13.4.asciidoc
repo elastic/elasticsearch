@@ -1,0 +1,22 @@
+[[release-notes-8.13.4]]
+== {es} version 8.13.4
+
+Also see <<breaking-changes-8.13,Breaking changes in 8.13>>.
+
+[[bug-8.13.4]]
+[float]
+=== Bug fixes
+
+Aggregations::
+* Fix Bucket ordering for partial reduction in date histogram and histogram aggregation {es-pull}108184[#108184] (issue: {es-issue}108181[#108181])
+
+ES|QL::
+* Fix `BlockHash` `DirectEncoder` {es-pull}108283[#108283] (issue: {es-issue}108268[#108268])
+
+Snapshot/Restore::
+* Ensure necessary security context for s3 bulk deletions {es-pull}108280[#108280] (issue: {es-issue}108049[#108049])
+
+TSDB::
+* Fix tsdb codec when doc-values spread in two blocks {es-pull}108276[#108276]
+
+

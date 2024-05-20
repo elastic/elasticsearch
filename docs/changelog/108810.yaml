@@ -1,0 +1,5 @@
+pr: 108810
+summary: "[8.14] Fix multithreading copies in lib vec"
+area: Vector Search
+type: bug
+issues: []

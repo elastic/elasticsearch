@@ -46,11 +46,14 @@ import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.common.util.CollectionUtils;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.features.NodeFeature;
+import org.elasticsearch.http.HttpBodyTracer;
 import org.elasticsearch.http.HttpRouteStats;
 import org.elasticsearch.http.HttpRouteStatsTracker;
 import org.elasticsearch.http.HttpServerTransport;
@@ -68,7 +71,7 @@ import org.elasticsearch.rest.action.RestActionListener;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskCancelledException;
-import org.elasticsearch.test.MockLogAppender;
+import org.elasticsearch.test.MockLog;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -79,6 +82,7 @@ import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.OutputStreamWriter;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Iterator;
 import java.util.List;
@@ -86,6 +90,7 @@ import java.util.concurrent.CancellationException;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 import java.util.regex.Pattern;
@@ -147,37 +152,57 @@ public class Netty4ChunkedContinuationsIT extends ESNetty4IntegTestCase {
         // slightly awkward test, we can't use ChunkedLoggingStreamTestUtils.getDecodedLoggedBody directly because it asserts that we _only_
         // log one thing and we can't easily separate the request body from the response body logging, so instead we capture the body log
         // message and then log it again with a different logger.
-
-        var loggingFinishedLatch = new CountDownLatch(1);
-        var mockLogAppender = new MockLogAppender();
-        mockLogAppender.addExpectation(new MockLogAppender.LoggingExpectation() {
-            final Pattern messagePattern = Pattern.compile("^\\[[1-9][0-9]*] (response body.*)");
-
-            @Override
-            public void match(LogEvent event) {
-                final var formattedMessage = event.getMessage().getFormattedMessage();
-                final var matcher = messagePattern.matcher(formattedMessage);
-                if (matcher.matches()) {
-                    logger.info("{}", matcher.group(1));
-                    if (formattedMessage.contains(ReferenceDocs.HTTP_TRACER.toString())) {
-                        loggingFinishedLatch.countDown();
-                    }
-                }
-            }
-
-            @Override
-            public void assertMatched() {}
-        });
-
-        try (var ignored = withResourceTracker(); var ignored2 = mockLogAppender.capturing("org.elasticsearch.http.HttpBodyTracer")) {
-            assertEquals(
-                expectedBody,
-                ChunkedLoggingStreamTestUtils.getDecodedLoggedBody(logger, Level.INFO, "response body", ReferenceDocs.HTTP_TRACER, () -> {
-                    getRestClient().performRequest(new Request("GET", YieldsContinuationsPlugin.ROUTE));
-                    safeAwait(loggingFinishedLatch);
-                }).utf8ToString()
+        final var resources = new ArrayList<Releasable>();
+        try (var ignored = Releasables.wrap(resources)) {
+            resources.add(withResourceTracker());
+            final var executor = EsExecutors.newFixed(
+                "test",
+                1,
+                -1,
+                EsExecutors.daemonThreadFactory(Settings.EMPTY, "test"),
+                new ThreadContext(Settings.EMPTY),
+                EsExecutors.TaskTrackingConfig.DO_NOT_TRACK
             );
-            mockLogAppender.assertAllExpectationsMatched();
+            resources.add(() -> assertTrue(ThreadPool.terminate(executor, 10, TimeUnit.SECONDS)));
+            var loggingFinishedLatch = new CountDownLatch(1);
+            MockLog.assertThatLogger(
+                () -> assertEquals(
+                    expectedBody,
+                    ChunkedLoggingStreamTestUtils.getDecodedLoggedBody(
+                        logger,
+                        Level.INFO,
+                        "response body",
+                        ReferenceDocs.HTTP_TRACER,
+                        () -> {
+                            final var request = new Request("GET", YieldsContinuationsPlugin.ROUTE);
+                            request.addParameter("error_trace", "true");
+                            getRestClient().performRequest(request);
+                            safeAwait(loggingFinishedLatch);
+                        }
+                    ).utf8ToString()
+                ),
+                HttpBodyTracer.class,
+                new MockLog.LoggingExpectation() {
+                    final Pattern messagePattern = Pattern.compile("^\\[[1-9][0-9]*] (response body.*)");
+
+                    @Override
+                    public void match(LogEvent event) {
+                        final var formattedMessage = event.getMessage().getFormattedMessage();
+                        final var matcher = messagePattern.matcher(formattedMessage);
+                        if (matcher.matches()) {
+                            executor.execute(() -> {
+                                logger.info("{}", matcher.group(1));
+                                if (formattedMessage.contains(ReferenceDocs.HTTP_TRACER.toString())) {
+                                    loggingFinishedLatch.countDown();
+                                }
+                            });
+                        }
+                    }
+
+                    @Override
+                    public void assertMatched() {}
+                }
+            );
         }
     }
 

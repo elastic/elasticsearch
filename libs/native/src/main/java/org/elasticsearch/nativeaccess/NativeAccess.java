@@ -34,6 +34,14 @@ public interface NativeAccess {
      */
     ProcessLimits getProcessLimits();
 
+    /**
+     *
+     * @return
+     */
+    void tryLockMemory();
+
+    boolean isMemoryLocked();
+
     Systemd systemd();
 
     /**

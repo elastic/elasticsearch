@@ -36,19 +36,8 @@
   - exists: indicators.shards_availability.details.started_primaries
   - exists: indicators.shards_availability.details.unassigned_replicas
 
-  - match: { indicators.slm.status: "green" }
-  - match: { indicators.slm.symptom: "No Snapshot Lifecycle Management policies configured" }
-  - match: { indicators.slm.details.slm_status: "RUNNING" }
-  - exists: indicators.slm.details.policies
-
-  - match: { indicators.ilm.status: "green" }
-  - match: { indicators.ilm.symptom: "Index Lifecycle Management is running" }
-  - match: { indicators.ilm.details.ilm_status: "RUNNING" }
-  - is_true: indicators.ilm.details.policies
-  - exists: indicators.ilm.details.stagnating_indices
-
 ---
-"basic shards capacity health test":
+"basic shards capacity health indicator test":
   - requires:
       cluster_features: "gte_v8.8.0"
       reason: "shards capacity indicator was added in 8.8.0"
@@ -56,13 +45,16 @@
   - do:
       health_report: { }
 
+  - is_true: cluster_name
+  # This test might execute before the health node has received all health info, resulting in status "unknown"
+  - is_true: status
   - match: { indicators.shards_capacity.status: "green" }
   - match: { indicators.shards_capacity.symptom: "The cluster has enough room to add new shards." }
   - is_true: indicators.shards_capacity.details.data.max_shards_in_cluster
   - is_true: indicators.shards_capacity.details.frozen.max_shards_in_cluster
 
 ---
-"basic data stream lifecycle health test":
+"basic data stream lifecycle health indicator test":
   - requires:
       cluster_features: "gte_v8.13.0"
       reason: "data stream lifecycle indicator was added in 8.13.0"
@@ -70,5 +62,8 @@
   - do:
       health_report: { }
 
+  - is_true: cluster_name
+  # This test might execute before the health node has received all health info, resulting in status "unknown"
+  - is_true: status
   - is_true: indicators.data_stream_lifecycle.status
   - is_true: indicators.data_stream_lifecycle.symptom

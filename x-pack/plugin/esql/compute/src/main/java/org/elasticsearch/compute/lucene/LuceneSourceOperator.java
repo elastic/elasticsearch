@@ -10,6 +10,7 @@ package org.elasticsearch.compute.lucene;
 import org.apache.lucene.search.LeafCollector;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.Scorable;
+import org.apache.lucene.search.ScoreMode;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.DocVector;
 import org.elasticsearch.compute.data.IntBlock;
@@ -47,7 +48,7 @@ public class LuceneSourceOperator extends LuceneOperator {
             int maxPageSize,
             int limit
         ) {
-            super(contexts, queryFunction, dataPartitioning, taskConcurrency, limit);
+            super(contexts, queryFunction, dataPartitioning, taskConcurrency, limit, ScoreMode.COMPLETE_NO_SCORES);
             this.maxPageSize = maxPageSize;
         }
 

@@ -48,4 +48,9 @@ public final class Int7Euclidean extends AbstractInt7ScalarQuantizedVectorScorer
             return fallbackScore(firstByteOffset, secondByteOffset);
         }
     }
+
+    @Override
+    public Int7Euclidean copy() {
+        return new Int7Euclidean(dims, maxOrd, scoreCorrectionConstant, input.clone());
+    }
 }

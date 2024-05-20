@@ -26,6 +26,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.stream.IntStream;
 
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
 public class BlockSerializationTests extends SerializationTestCase {
@@ -332,6 +333,30 @@ public class BlockSerializationTests extends SerializationTestCase {
                         }
                     }
                 }
+            }
+        }
+    }
+
+    public void testCompositeBlock() throws Exception {
+        final int numBlocks = randomIntBetween(1, 10);
+        final int positionCount = randomIntBetween(1, 1000);
+        final Block[] blocks = new Block[numBlocks];
+        for (int b = 0; b < numBlocks; b++) {
+            ElementType elementType = randomFrom(ElementType.LONG, ElementType.DOUBLE, ElementType.BOOLEAN, ElementType.NULL);
+            blocks[b] = BasicBlockTests.randomBlock(blockFactory, elementType, positionCount, true, 0, between(1, 2), 0, between(1, 2))
+                .block();
+        }
+        try (CompositeBlock origBlock = new CompositeBlock(blocks)) {
+            assertThat(origBlock.getBlockCount(), equalTo(numBlocks));
+            for (int b = 0; b < numBlocks; b++) {
+                assertThat(origBlock.getBlock(b), equalTo(blocks[b]));
+            }
+            try (CompositeBlock deserBlock = serializeDeserializeBlock(origBlock)) {
+                assertThat(deserBlock.getBlockCount(), equalTo(numBlocks));
+                for (int b = 0; b < numBlocks; b++) {
+                    assertThat(deserBlock.getBlock(b), equalTo(origBlock.getBlock(b)));
+                }
+                EqualsHashCodeTestUtils.checkEqualsAndHashCode(deserBlock, unused -> deserBlock);
             }
         }
     }

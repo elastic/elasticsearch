@@ -37,7 +37,7 @@ import org.elasticsearch.core.Strings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.indices.AutoscalingMissedIndicesUpdateException;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.MockLogAppender;
+import org.elasticsearch.test.MockLog;
 import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.BeforeClass;
@@ -169,10 +169,10 @@ public class MemoryMetricsServiceTests extends ESTestCase {
             }
         }
 
-        try (var mockLogAppender = MockLogAppender.capture(MemoryMetricsService.class)) {
+        try (var mockLog = MockLog.capture(MemoryMetricsService.class)) {
             for (Index index : indicesToSkip) {
-                mockLogAppender.addExpectation(
-                    new MockLogAppender.SeenEventExpectation(
+                mockLog.addExpectation(
+                    new MockLog.SeenEventExpectation(
                         "expected warn log about state index",
                         MemoryMetricsService.class.getName(),
                         Level.WARN,
@@ -187,14 +187,14 @@ public class MemoryMetricsServiceTests extends ESTestCase {
             }
 
             customService.calculateTotalIndicesMappingSize();
-            mockLogAppender.assertAllExpectationsMatched();
+            mockLog.assertAllExpectationsMatched();
 
             // Second call doesn't result in duplicate logs
-            mockLogAppender.addExpectation(
-                new MockLogAppender.UnseenEventExpectation("no warnings", MemoryMetricsService.class.getName(), Level.WARN, "*")
+            mockLog.addExpectation(
+                new MockLog.UnseenEventExpectation("no warnings", MemoryMetricsService.class.getName(), Level.WARN, "*")
             );
             customService.calculateTotalIndicesMappingSize();
-            mockLogAppender.assertAllExpectationsMatched();
+            mockLog.assertAllExpectationsMatched();
         }
     }
 
@@ -213,12 +213,12 @@ public class MemoryMetricsServiceTests extends ESTestCase {
                 );
         }
 
-        try (var mockLogAppender = MockLogAppender.capture(MemoryMetricsService.class)) {
-            mockLogAppender.addExpectation(
-                new MockLogAppender.UnseenEventExpectation("no warnings", MemoryMetricsService.class.getName(), Level.WARN, "*")
+        try (var mockLog = MockLog.capture(MemoryMetricsService.class)) {
+            mockLog.addExpectation(
+                new MockLog.UnseenEventExpectation("no warnings", MemoryMetricsService.class.getName(), Level.WARN, "*")
             );
             service.calculateTotalIndicesMappingSize();
-            mockLogAppender.assertAllExpectationsMatched();
+            mockLog.assertAllExpectationsMatched();
         }
     }
 
@@ -231,12 +231,12 @@ public class MemoryMetricsServiceTests extends ESTestCase {
                 );
         }
 
-        try (var mockLogAppender = MockLogAppender.capture(MemoryMetricsService.class)) {
-            mockLogAppender.addExpectation(
-                new MockLogAppender.UnseenEventExpectation("no warnings", MemoryMetricsService.class.getName(), Level.WARN, "*")
+        try (var mockLog = MockLog.capture(MemoryMetricsService.class)) {
+            mockLog.addExpectation(
+                new MockLog.UnseenEventExpectation("no warnings", MemoryMetricsService.class.getName(), Level.WARN, "*")
             );
             service.calculateTotalIndicesMappingSize();
-            mockLogAppender.assertAllExpectationsMatched();
+            mockLog.assertAllExpectationsMatched();
         }
     }
 

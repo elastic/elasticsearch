@@ -38,7 +38,7 @@ import org.elasticsearch.repositories.RepositoryStats;
 import org.elasticsearch.repositories.blobstore.ESMockAPIBasedRepositoryIntegTestCase;
 import org.elasticsearch.repositories.s3.S3RepositoryPlugin;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.test.MockLogAppender;
+import org.elasticsearch.test.MockLog;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportResponse;
@@ -211,13 +211,13 @@ public class S3ObjectStoreTests extends AbstractMockObjectStoreIntegTestCase {
 
         record CallSite(String threadName, String commitFile) {}
 
-        try (var mockLogAppender = MockLogAppender.capture(loggerName)) {
+        try (var mockLogAppender = MockLog.capture(loggerName)) {
             // On each call site that experiences an initial failure, we expect to see a pairing of
             // failure messages (can be multiple) and the eventual success message.
             // We use a LoggingExpectation to perform bookkeeping for observed log messages and
             // ensures (1) we must see some related log messages and (2) the messages must make the pairing
             // (in the order of failure then success) for each call site.
-            mockLogAppender.addExpectation(new MockLogAppender.LoggingExpectation() {
+            mockLogAppender.addExpectation(new MockLog.LoggingExpectation() {
                 private final Pattern failurePattern = Pattern.compile(
                     "failed opening .*/(stateless_commit_[0-9]+).* at offset .* with purpose \\[Indices]; this was attempt .*"
                 );
@@ -347,12 +347,12 @@ public class S3ObjectStoreTests extends AbstractMockObjectStoreIntegTestCase {
 
         final String loggerName = "org.elasticsearch.repositories.s3.S3RetryingInputStream";
 
-        try (var mockLogAppender = MockLogAppender.capture(loggerName)) {
+        try (var mockLogAppender = MockLog.capture(loggerName)) {
             mockLogAppender.addExpectation(
-                new MockLogAppender.UnseenEventExpectation("initial failure", loggerName, Level.INFO, "failed opening */stateless_commit_*")
+                new MockLog.UnseenEventExpectation("initial failure", loggerName, Level.INFO, "failed opening */stateless_commit_*")
             );
             mockLogAppender.addExpectation(
-                new MockLogAppender.UnseenEventExpectation(
+                new MockLog.UnseenEventExpectation(
                     "final success",
                     loggerName,
                     Level.INFO,

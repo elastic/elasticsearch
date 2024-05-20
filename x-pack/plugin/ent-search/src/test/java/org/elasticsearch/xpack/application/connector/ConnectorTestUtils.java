@@ -330,7 +330,6 @@ public final class ConnectorTestUtils {
             .setSyncInfo(getRandomConnectorSyncInfo())
             .setName(randomFrom(new String[] { null, randomAlphaOfLength(10) }))
             .setPipeline(randomBoolean() ? getRandomConnectorIngestPipeline() : null)
-            .setServiceType(randomAlphaOfLengthBetween(5, 10))
             .setScheduling(getRandomConnectorScheduling())
             .setStatus(getRandomConnectorInitialStatus())
             .setSyncCursor(randomBoolean() ? Map.of(randomAlphaOfLengthBetween(5, 10), randomAlphaOfLengthBetween(5, 10)) : null)
@@ -343,10 +342,6 @@ public final class ConnectorTestUtils {
 
     public static Connector getRandomConnectorWithDetachedIndex() {
         return getRandomConnectorBuilder().setIndexName(null).build();
-    }
-
-    public static Connector getRandomConnectorWithServiceTypeNotDefined() {
-        return getRandomConnectorBuilder().setServiceType(null).build();
     }
 
     private static BytesReference convertConnectorToBytesReference(Connector connector) {

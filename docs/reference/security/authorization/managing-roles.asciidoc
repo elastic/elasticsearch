@@ -37,9 +37,9 @@ A role is defined by the following JSON structure:
     This field is optional (missing `remote_indices` privileges effectively mean
     no index level permissions for any API key based remote clusters).
 <7> A list of cluster permissions entries for
-<<remote-clusters-api-key,remote clusters configured with the API key based model>>.
-This field is optional (missing `remote_cluster` privileges effectively mean
-no additional cluster permissions for any API key based remote clusters).
+    <<remote-clusters-api-key,remote clusters configured with the API key based model>>.
+    This field is optional (missing `remote_cluster` privileges effectively mean
+    no additional cluster permissions for any API key based remote clusters).
 
 [[valid-role-name]]
 NOTE: Role names must be at least 1 and no more than 507 characters. They can

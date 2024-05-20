@@ -35,7 +35,7 @@ public class FieldNamesFieldTypeTests extends ESTestCase {
             settings
         );
         List<FieldMapper> mappers = Stream.of(fieldNamesFieldType, fieldType).<FieldMapper>map(MockFieldMapper::new).toList();
-        MappingLookup mappingLookup = MappingLookup.fromMappers(Mapping.EMPTY, mappers, emptyList(), emptyList());
+        MappingLookup mappingLookup = MappingLookup.fromMappers(Mapping.EMPTY, mappers, emptyList());
         SearchExecutionContext searchExecutionContext = SearchExecutionContextHelper.createSimple(indexSettings, null, null);
         Query termQuery = fieldNamesFieldType.termQuery("field_name", searchExecutionContext);
         assertEquals(new TermQuery(new Term(FieldNamesFieldMapper.CONTENT_TYPE, "field_name")), termQuery);

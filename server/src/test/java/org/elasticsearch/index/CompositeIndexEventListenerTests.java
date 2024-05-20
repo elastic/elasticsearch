@@ -39,8 +39,7 @@ public class CompositeIndexEventListenerTests extends IndexShardTestCase {
 
     public void testBeforeIndexShardRecoveryInOrder() throws Exception {
         var shard = newShard(randomBoolean());
-        var appender = new MockLogAppender();
-        try (var ignored = appender.capturing(CompositeIndexEventListener.class)) {
+        try (var appender = MockLogAppender.capture(CompositeIndexEventListener.class)) {
             final var stepNumber = new AtomicInteger();
             final var stepCount = between(0, 20);
             final var failAtStep = new AtomicInteger(-1);
@@ -109,8 +108,7 @@ public class CompositeIndexEventListenerTests extends IndexShardTestCase {
 
     public void testAfterIndexShardRecoveryInOrder() throws Exception {
         var shard = newShard(randomBoolean());
-        var appender = new MockLogAppender();
-        try (var ignored = appender.capturing(CompositeIndexEventListener.class)) {
+        try (var appender = MockLogAppender.capture(CompositeIndexEventListener.class)) {
             final var stepNumber = new AtomicInteger();
             final var stepCount = between(0, 20);
             final var failAtStep = new AtomicInteger(-1);

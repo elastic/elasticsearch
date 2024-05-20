@@ -64,8 +64,7 @@ public class SearchableSnapshotsRecoverFromSnapshotIntegTests extends BaseSearch
 
         final var newNode = internalCluster().startDataOnlyNode();
 
-        final var mockAppender = new MockLogAppender();
-        try (var ignored = mockAppender.capturing(ShardSnapshotsService.class)) {
+        try (var mockAppender = MockLogAppender.capture(ShardSnapshotsService.class)) {
             mockAppender.addExpectation(
                 new MockLogAppender.UnseenEventExpectation(
                     "Error fetching segments file",

@@ -107,14 +107,14 @@ final class FetchSearchPhase extends SearchPhase {
         if (queryAndFetchOptimization) {
             assert assertConsistentWithQueryAndFetchOptimization();
             // query AND fetch optimization
-            moveToNextPhase(reducedQueryPhase, queryResults);
+            moveToNextPhase(queryResults);
         } else {
             ScoreDoc[] scoreDocs = reducedQueryPhase.sortedTopDocs().scoreDocs();
             // no docs to fetch -- sidestep everything and return
             if (scoreDocs.length == 0) {
                 // we have to release contexts here to free up resources
                 queryResults.asList().forEach(x -> releaseIrrelevantSearchContext(x, context));
-                moveToNextPhase(reducedQueryPhase, fetchResults.getAtomicArray());
+                moveToNextPhase(fetchResults.getAtomicArray());
             } else {
                 final ScoreDoc[] lastEmittedDocPerShard = context.getRequest().scroll() != null
                     ? SearchPhaseController.getLastEmittedDocPerShard(reducedQueryPhase, numShards)
@@ -123,7 +123,7 @@ final class FetchSearchPhase extends SearchPhase {
                 final CountedCollector<FetchSearchResult> counter = new CountedCollector<>(
                     fetchResults,
                     docIdsToLoad.length, // we count down every shard in the result no matter if we got any results or not
-                    () -> moveToNextPhase(reducedQueryPhase, fetchResults.getAtomicArray()),
+                    () -> moveToNextPhase(fetchResults.getAtomicArray()),
                     context
                 );
                 for (int i = 0; i < docIdsToLoad.length; i++) {
@@ -206,10 +206,7 @@ final class FetchSearchPhase extends SearchPhase {
             );
     }
 
-    private void moveToNextPhase(
-        SearchPhaseController.ReducedQueryPhase reducedQueryPhase,
-        AtomicArray<? extends SearchPhaseResult> fetchResultsArr
-    ) {
+  private void moveToNextPhase(AtomicArray<? extends SearchPhaseResult> fetchResultsArr) {
         var resp = SearchPhaseController.merge(context.getRequest().scroll() != null, reducedQueryPhase, fetchResultsArr);
         context.addReleasable(resp::decRef);
         fetchResults.close();

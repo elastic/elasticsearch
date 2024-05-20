@@ -206,7 +206,7 @@ final class FetchSearchPhase extends SearchPhase {
             );
     }
 
-  private void moveToNextPhase(AtomicArray<? extends SearchPhaseResult> fetchResultsArr) {
+    private void moveToNextPhase(AtomicArray<? extends SearchPhaseResult> fetchResultsArr) {
         var resp = SearchPhaseController.merge(context.getRequest().scroll() != null, reducedQueryPhase, fetchResultsArr);
         context.addReleasable(resp::decRef);
         fetchResults.close();

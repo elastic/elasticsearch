@@ -10,8 +10,9 @@ package org.elasticsearch.index;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.util.Strings;
 import org.apache.lucene.index.MergePolicy;
-import org.elasticsearch.Version;
+import org.apache.lucene.search.uhighlight.UnifiedHighlighter;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.IndexRouting;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.AbstractScopedSettings;
@@ -22,7 +23,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.ingest.IngestService;
@@ -37,9 +37,12 @@ import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 import java.util.function.Function;
 
+import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_INDEX_VERSION_CREATED;
+import static org.elasticsearch.cluster.routing.allocation.ExistingShardsAllocator.EXISTING_SHARDS_ALLOCATOR_SETTING;
 import static org.elasticsearch.index.mapper.MapperService.INDEX_MAPPING_DEPTH_LIMIT_SETTING;
 import static org.elasticsearch.index.mapper.MapperService.INDEX_MAPPING_DIMENSION_FIELDS_LIMIT_SETTING;
 import static org.elasticsearch.index.mapper.MapperService.INDEX_MAPPING_FIELD_NAME_LENGTH_LIMIT_SETTING;
+import static org.elasticsearch.index.mapper.MapperService.INDEX_MAPPING_IGNORE_DYNAMIC_BEYOND_LIMIT_SETTING;
 import static org.elasticsearch.index.mapper.MapperService.INDEX_MAPPING_NESTED_DOCS_LIMIT_SETTING;
 import static org.elasticsearch.index.mapper.MapperService.INDEX_MAPPING_NESTED_FIELDS_LIMIT_SETTING;
 import static org.elasticsearch.index.mapper.MapperService.INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING;
@@ -56,12 +59,14 @@ public final class IndexSettings {
         "index.query.default_field",
         Collections.singletonList("*"),
         Property.IndexScope,
-        Property.Dynamic
+        Property.Dynamic,
+        Property.ServerlessPublic
     );
     public static final Setting<Boolean> QUERY_STRING_LENIENT_SETTING = Setting.boolSetting(
         "index.query_string.lenient",
         false,
-        Property.IndexScope
+        Property.IndexScope,
+        Property.ServerlessPublic
     );
     public static final Setting<Boolean> QUERY_STRING_ANALYZE_WILDCARD = Setting.boolSetting(
         "indices.query.query_string.analyze_wildcard",
@@ -129,6 +134,7 @@ public final class IndexSettings {
         Property.Dynamic,
         Property.IndexScope
     );
+
     /**
      * Index setting describing the maximum value of from + size on an individual inner hit definition or
      * top hits aggregation. The default maximum of 100 is defensive for the reason that the number of inner hit responses
@@ -179,6 +185,17 @@ public final class IndexSettings {
         "index.highlight.max_analyzed_offset",
         1000000,
         1,
+        Property.Dynamic,
+        Property.IndexScope
+    );
+
+    /**
+     * Index setting to enable/disable the {@link UnifiedHighlighter.HighlightFlag#WEIGHT_MATCHES}
+     * mode of the unified highlighter.
+     */
+    public static final Setting<Boolean> WEIGHT_MATCHES_MODE_ENABLED_SETTING = Setting.boolSetting(
+        "index.highlight.weight_matches_mode.enabled",
+        true,
         Property.Dynamic,
         Property.IndexScope
     );
@@ -238,6 +255,7 @@ public final class IndexSettings {
         Property.Dynamic,
         Property.IndexScope
     );
+
     /**
      * Index setting describing the maximum size of the rescore window. Defaults to {@link #MAX_RESULT_WINDOW_SETTING}
      * because they both do the same thing: control the size of the heap of hits.
@@ -249,20 +267,72 @@ public final class IndexSettings {
         Property.Dynamic,
         Property.IndexScope
     );
+    /**
+     * Only intended for stateless.
+     */
+    public static final Setting<Boolean> INDEX_FAST_REFRESH_SETTING = Setting.boolSetting(
+        "index.fast_refresh",
+        false,
+        Property.Final,
+        Property.IndexScope
+    );
+
     public static final TimeValue DEFAULT_REFRESH_INTERVAL = new TimeValue(1, TimeUnit.SECONDS);
     public static final Setting<TimeValue> NODE_DEFAULT_REFRESH_INTERVAL_SETTING = Setting.timeSetting(
         "node._internal.default_refresh_interval",
         DEFAULT_REFRESH_INTERVAL,
-        new TimeValue(-1, TimeUnit.MILLISECONDS),
+        TimeValue.MINUS_ONE,
         Property.NodeScope
+    ); // TODO: remove setting
+    public static TimeValue STATELESS_DEFAULT_REFRESH_INTERVAL = TimeValue.timeValueSeconds(15); // TODO: this value is still not final
+    public static TimeValue STATELESS_MIN_NON_FAST_REFRESH_INTERVAL = TimeValue.timeValueSeconds(5);
+    public static final Setting<TimeValue> INDEX_REFRESH_INTERVAL_SETTING = Setting.timeSetting("index.refresh_interval", (settings) -> {
+        if (EXISTING_SHARDS_ALLOCATOR_SETTING.get(settings).equals("stateless") && INDEX_FAST_REFRESH_SETTING.get(settings) == false) {
+            return STATELESS_DEFAULT_REFRESH_INTERVAL;
+        }
+        return DEFAULT_REFRESH_INTERVAL;
+    }, new RefreshIntervalValidator(), Property.Dynamic, Property.IndexScope, Property.ServerlessPublic);
+
+    static class RefreshIntervalValidator implements Setting.Validator<TimeValue> {
+        @Override
+        public void validate(TimeValue value) {}
+
+        @Override
+        public void validate(final TimeValue value, final Map<Setting<?>, Object> settings) {
+            final String existingShardsAllocator = (String) settings.get(EXISTING_SHARDS_ALLOCATOR_SETTING);
+            final Boolean fastRefresh = (Boolean) settings.get(INDEX_FAST_REFRESH_SETTING);
+            final IndexVersion indexVersion = (IndexVersion) settings.get(SETTING_INDEX_VERSION_CREATED);
+
+            if (existingShardsAllocator.equals("stateless")
+                && fastRefresh == false
+                && value.compareTo(TimeValue.ZERO) > 0
+                && value.compareTo(STATELESS_MIN_NON_FAST_REFRESH_INTERVAL) < 0
+                && indexVersion.after(IndexVersions.V_8_10_0)) {
+                throw new IllegalArgumentException(
+                    "index setting ["
+                        + IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey()
+                        + "="
+                        + value
+                        + "] should be either "
+                        + TimeValue.MINUS_ONE
+                        + " or equal to or greater than "
+                        + STATELESS_MIN_NON_FAST_REFRESH_INTERVAL
+                );
+            }
+        }
+
+        @Override
+        public Iterator<Setting<?>> settings() {
+            return REFRESH_INTERVAL_VALIDATOR_SETTINGS_LIST.iterator();
+        }
+    }
+
+    private static final List<Setting<?>> REFRESH_INTERVAL_VALIDATOR_SETTINGS_LIST = List.of(
+        EXISTING_SHARDS_ALLOCATOR_SETTING,
+        INDEX_FAST_REFRESH_SETTING,
+        SETTING_INDEX_VERSION_CREATED
     );
-    public static final Setting<TimeValue> INDEX_REFRESH_INTERVAL_SETTING = Setting.timeSetting(
-        "index.refresh_interval",
-        NODE_DEFAULT_REFRESH_INTERVAL_SETTING,
-        new TimeValue(-1, TimeUnit.MILLISECONDS),
-        Property.Dynamic,
-        Property.IndexScope
-    );
+
     public static final Setting<ByteSizeValue> INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING = Setting.byteSizeSetting(
         "index.translog.flush_threshold_size",
         /*
@@ -307,6 +377,7 @@ public final class IndexSettings {
         Property.Dynamic,
         Property.IndexScope
     );
+
     /**
      * The maximum size of a translog generation. This is independent of the maximum size of
      * translog operations that have not been flushed.
@@ -440,7 +511,8 @@ public final class IndexSettings {
         IngestService.NOOP_PIPELINE_NAME,
         Function.identity(),
         Property.Dynamic,
-        Property.IndexScope
+        Property.IndexScope,
+        Property.ServerlessPublic
     );
 
     public static final Setting<String> FINAL_PIPELINE = new Setting<>(
@@ -448,7 +520,8 @@ public final class IndexSettings {
         IngestService.NOOP_PIPELINE_NAME,
         Function.identity(),
         Property.Dynamic,
-        Property.IndexScope
+        Property.IndexScope,
+        Property.ServerlessPublic
     );
 
     /**
@@ -496,7 +569,8 @@ public final class IndexSettings {
         -1,
         -1,
         Property.Dynamic,
-        Property.IndexScope
+        Property.IndexScope,
+        Property.ServerlessPublic
     );
     public static final String LIFECYCLE_PARSE_ORIGINATION_DATE = "index.lifecycle.parse_origination_date";
     public static final Setting<Boolean> LIFECYCLE_PARSE_ORIGINATION_DATE_SETTING = Setting.boolSetting(
@@ -506,15 +580,8 @@ public final class IndexSettings {
         Property.IndexScope
     );
 
-    /**
-     * Is the {@code index.mode} enabled? It should only be enabled if you
-     * pass a jvm parameter or are running a snapshot build.
-     */
-    private static final FeatureFlag TIME_SERIES_MODE_FEATURE_FLAG = FeatureFlag.legacyRegisteredFlag("index_mode");
-
-    public static boolean isTimeSeriesModeEnabled() {
-        return TIME_SERIES_MODE_FEATURE_FLAG.isEnabled();
-    }
+    public static final String PREFER_ILM = "index.lifecycle.prefer_ilm";
+    public static final Setting<Boolean> PREFER_ILM_SETTING = Setting.boolSetting(PREFER_ILM, true, Property.Dynamic, Property.IndexScope);
 
     /**
      * in time series mode, the start time of the index, timestamp must larger than start_time
@@ -524,7 +591,8 @@ public final class IndexSettings {
         Instant.ofEpochMilli(DateUtils.MAX_MILLIS_BEFORE_MINUS_9999),
         v -> {},
         Property.IndexScope,
-        Property.Final
+        Property.Final,
+        Property.ServerlessPublic
     );
 
     /**
@@ -553,8 +621,23 @@ public final class IndexSettings {
             }
         },
         Property.IndexScope,
-        Property.Dynamic
+        Property.Dynamic,
+        Property.ServerlessPublic
     );
+
+    public static final Setting<Boolean> TIME_SERIES_ES87TSDB_CODEC_ENABLED_SETTING = Setting.boolSetting(
+        "index.time_series.es87tsdb_codec.enabled",
+        true,
+        Property.IndexScope,
+        Property.Final
+    );
+
+    /**
+     * Returns <code>true</code> if TSDB encoding is enabled. The default is <code>true</code>
+     */
+    public boolean isES87TSDBCodecEnabled() {
+        return es87TSDBCodecEnabled;
+    }
 
     /**
      * The {@link IndexMode "mode"} of the index.
@@ -578,7 +661,8 @@ public final class IndexSettings {
             }
         },
         Property.IndexScope,
-        Property.Final
+        Property.Final,
+        Property.ServerlessPublic
     );
 
     /**
@@ -596,7 +680,7 @@ public final class IndexSettings {
     );
 
     private final Index index;
-    private final Version version;
+    private final IndexVersion version;
     private final Logger logger;
     private final String nodeName;
     private final Settings nodeSettings;
@@ -622,6 +706,7 @@ public final class IndexSettings {
     private volatile Translog.Durability durability;
     private volatile TimeValue syncInterval;
     private volatile TimeValue refreshInterval;
+    private final boolean fastRefresh;
     private volatile ByteSizeValue flushThresholdSize;
     private volatile TimeValue flushThresholdAge;
     private volatile ByteSizeValue generationThresholdSize;
@@ -633,6 +718,7 @@ public final class IndexSettings {
     private long gcDeletesInMillis = DEFAULT_GC_DELETES.millis();
     private final boolean softDeleteEnabled;
     private volatile long softDeleteRetentionOperations;
+    private final boolean es87TSDBCodecEnabled;
 
     private volatile long retentionLeaseMillis;
 
@@ -660,6 +746,7 @@ public final class IndexSettings {
     private volatile int maxShingleDiff;
     private volatile TimeValue searchIdleAfter;
     private volatile int maxAnalyzedOffset;
+    private volatile boolean weightMatchesEnabled;
     private volatile int maxTermsCount;
     private volatile String defaultPipeline;
     private volatile String requiredPipeline;
@@ -667,6 +754,7 @@ public final class IndexSettings {
     private volatile long mappingNestedFieldsLimit;
     private volatile long mappingNestedDocsLimit;
     private volatile long mappingTotalFieldsLimit;
+    private volatile boolean ignoreDynamicFieldsBeyondLimit;
     private volatile long mappingDepthLimit;
     private volatile long mappingFieldNameLengthLimit;
     private volatile long mappingDimensionFieldsLimit;
@@ -749,7 +837,7 @@ public final class IndexSettings {
         this.nodeSettings = nodeSettings;
         this.settings = Settings.builder().put(nodeSettings).put(indexMetadata.getSettings()).build();
         this.index = indexMetadata.getIndex();
-        version = IndexMetadata.SETTING_INDEX_VERSION_CREATED.get(settings);
+        version = SETTING_INDEX_VERSION_CREATED.get(settings);
         logger = Loggers.getLogger(getClass(), index);
         nodeName = Node.NODE_NAME_SETTING.get(settings);
         this.indexMetadata = indexMetadata;
@@ -770,6 +858,15 @@ public final class IndexSettings {
         defaultFields = scopedSettings.get(DEFAULT_FIELD_SETTING);
         syncInterval = INDEX_TRANSLOG_SYNC_INTERVAL_SETTING.get(settings);
         refreshInterval = scopedSettings.get(INDEX_REFRESH_INTERVAL_SETTING);
+        fastRefresh = scopedSettings.get(INDEX_FAST_REFRESH_SETTING);
+        if (fastRefresh) {
+            if (DiscoveryNode.isStateless(nodeSettings) == false) {
+                throw new IllegalArgumentException(INDEX_FAST_REFRESH_SETTING.getKey() + " is allowed only in stateless");
+            }
+            if (indexMetadata.isSystem() == false) {
+                throw new IllegalArgumentException(INDEX_FAST_REFRESH_SETTING.getKey() + " is allowed only for system indices");
+            }
+        }
         flushThresholdSize = scopedSettings.get(INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE_SETTING);
         flushThresholdAge = scopedSettings.get(INDEX_TRANSLOG_FLUSH_THRESHOLD_AGE_SETTING);
         generationThresholdSize = scopedSettings.get(INDEX_TRANSLOG_GENERATION_THRESHOLD_SIZE_SETTING);
@@ -777,7 +874,7 @@ public final class IndexSettings {
         mergeSchedulerConfig = new MergeSchedulerConfig(this);
         gcDeletesInMillis = scopedSettings.get(INDEX_GC_DELETES_SETTING).getMillis();
         softDeleteEnabled = scopedSettings.get(INDEX_SOFT_DELETES_SETTING);
-        assert softDeleteEnabled || version.before(Version.V_8_0_0) : "soft deletes must be enabled in version " + version;
+        assert softDeleteEnabled || version.before(IndexVersions.V_8_0_0) : "soft deletes must be enabled in version " + version;
         softDeleteRetentionOperations = scopedSettings.get(INDEX_SOFT_DELETES_RETENTION_OPERATIONS_SETTING);
         retentionLeaseMillis = scopedSettings.get(INDEX_SOFT_DELETES_RETENTION_LEASE_PERIOD_SETTING).millis();
         warmerEnabled = scopedSettings.get(INDEX_WARMER_ENABLED_SETTING);
@@ -792,6 +889,7 @@ public final class IndexSettings {
         maxRefreshListeners = scopedSettings.get(MAX_REFRESH_LISTENERS_PER_SHARD);
         maxSlicesPerScroll = scopedSettings.get(MAX_SLICES_PER_SCROLL);
         maxAnalyzedOffset = scopedSettings.get(MAX_ANALYZED_OFFSET_SETTING);
+        weightMatchesEnabled = scopedSettings.get(WEIGHT_MATCHES_MODE_ENABLED_SETTING);
         maxTermsCount = scopedSettings.get(MAX_TERMS_COUNT_SETTING);
         maxRegexLength = scopedSettings.get(MAX_REGEX_LENGTH_SETTING);
         this.mergePolicyConfig = new MergePolicyConfig(logger, this);
@@ -801,10 +899,12 @@ public final class IndexSettings {
         mappingNestedFieldsLimit = scopedSettings.get(INDEX_MAPPING_NESTED_FIELDS_LIMIT_SETTING);
         mappingNestedDocsLimit = scopedSettings.get(INDEX_MAPPING_NESTED_DOCS_LIMIT_SETTING);
         mappingTotalFieldsLimit = scopedSettings.get(INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING);
+        ignoreDynamicFieldsBeyondLimit = scopedSettings.get(INDEX_MAPPING_IGNORE_DYNAMIC_BEYOND_LIMIT_SETTING);
         mappingDepthLimit = scopedSettings.get(INDEX_MAPPING_DEPTH_LIMIT_SETTING);
         mappingFieldNameLengthLimit = scopedSettings.get(INDEX_MAPPING_FIELD_NAME_LENGTH_LIMIT_SETTING);
         mappingDimensionFieldsLimit = scopedSettings.get(INDEX_MAPPING_DIMENSION_FIELDS_LIMIT_SETTING);
         indexRouting = IndexRouting.fromIndexMetadata(indexMetadata);
+        es87TSDBCodecEnabled = scopedSettings.get(TIME_SERIES_ES87TSDB_CODEC_ENABLED_SETTING);
 
         scopedSettings.addSettingsUpdateConsumer(
             MergePolicyConfig.INDEX_COMPOUND_FORMAT_SETTING,
@@ -866,6 +966,7 @@ public final class IndexSettings {
         scopedSettings.addSettingsUpdateConsumer(INDEX_REFRESH_INTERVAL_SETTING, this::setRefreshInterval);
         scopedSettings.addSettingsUpdateConsumer(MAX_REFRESH_LISTENERS_PER_SHARD, this::setMaxRefreshListeners);
         scopedSettings.addSettingsUpdateConsumer(MAX_ANALYZED_OFFSET_SETTING, this::setHighlightMaxAnalyzedOffset);
+        scopedSettings.addSettingsUpdateConsumer(WEIGHT_MATCHES_MODE_ENABLED_SETTING, this::setWeightMatchesEnabled);
         scopedSettings.addSettingsUpdateConsumer(MAX_TERMS_COUNT_SETTING, this::setMaxTermsCount);
         scopedSettings.addSettingsUpdateConsumer(MAX_SLICES_PER_SCROLL, this::setMaxSlicesPerScroll);
         scopedSettings.addSettingsUpdateConsumer(DEFAULT_FIELD_SETTING, this::setDefaultFields);
@@ -878,6 +979,10 @@ public final class IndexSettings {
         scopedSettings.addSettingsUpdateConsumer(INDEX_SOFT_DELETES_RETENTION_LEASE_PERIOD_SETTING, this::setRetentionLeaseMillis);
         scopedSettings.addSettingsUpdateConsumer(INDEX_MAPPING_NESTED_FIELDS_LIMIT_SETTING, this::setMappingNestedFieldsLimit);
         scopedSettings.addSettingsUpdateConsumer(INDEX_MAPPING_NESTED_DOCS_LIMIT_SETTING, this::setMappingNestedDocsLimit);
+        scopedSettings.addSettingsUpdateConsumer(
+            INDEX_MAPPING_IGNORE_DYNAMIC_BEYOND_LIMIT_SETTING,
+            this::setIgnoreDynamicFieldsBeyondLimit
+        );
         scopedSettings.addSettingsUpdateConsumer(INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING, this::setMappingTotalFieldsLimit);
         scopedSettings.addSettingsUpdateConsumer(INDEX_MAPPING_DEPTH_LIMIT_SETTING, this::setMappingDepthLimit);
         scopedSettings.addSettingsUpdateConsumer(INDEX_MAPPING_FIELD_NAME_LENGTH_LIMIT_SETTING, this::setMappingFieldNameLengthLimit);
@@ -952,7 +1057,7 @@ public final class IndexSettings {
      * Returns the version the index was created on.
      * @see IndexMetadata#SETTING_VERSION_CREATED
      */
-    public Version getIndexVersionCreated() {
+    public IndexVersion getIndexVersionCreated() {
         return version;
     }
 
@@ -1007,18 +1112,23 @@ public final class IndexSettings {
      */
     public synchronized boolean updateIndexMetadata(IndexMetadata indexMetadata) {
         final Settings newSettings = indexMetadata.getSettings();
-        Version newIndexVersion = IndexMetadata.SETTING_INDEX_VERSION_CREATED.get(newSettings);
+        IndexVersion newIndexVersion = SETTING_INDEX_VERSION_CREATED.get(newSettings);
         if (version.equals(newIndexVersion) == false) {
-            throw new IllegalArgumentException("version mismatch on settings update expected: " + version + " but was: " + newIndexVersion);
+            throw new IllegalArgumentException(
+                "version mismatch on settings update expected: "
+                    + version.toReleaseVersion()
+                    + " but was: "
+                    + newIndexVersion.toReleaseVersion()
+            );
         }
-        Version newCompatibilityVersion = IndexMetadata.SETTING_INDEX_VERSION_COMPATIBILITY.get(newSettings);
-        Version compatibilityVersion = IndexMetadata.SETTING_INDEX_VERSION_COMPATIBILITY.get(settings);
+        IndexVersion newCompatibilityVersion = IndexMetadata.SETTING_INDEX_VERSION_COMPATIBILITY.get(newSettings);
+        IndexVersion compatibilityVersion = IndexMetadata.SETTING_INDEX_VERSION_COMPATIBILITY.get(settings);
         if (compatibilityVersion.equals(newCompatibilityVersion) == false) {
             throw new IllegalArgumentException(
                 "compatibility version mismatch on settings update expected: "
-                    + compatibilityVersion
+                    + compatibilityVersion.toReleaseVersion()
                     + " but was: "
-                    + newCompatibilityVersion
+                    + newCompatibilityVersion.toReleaseVersion()
             );
         }
         final String newUUID = newSettings.get(IndexMetadata.SETTING_INDEX_UUID, IndexMetadata.INDEX_UUID_NA_VALUE);
@@ -1096,6 +1206,13 @@ public final class IndexSettings {
      */
     public TimeValue getRefreshInterval() {
         return refreshInterval;
+    }
+
+    /**
+     * Only intended for stateless.
+     */
+    public boolean isFastRefresh() {
+        return fastRefresh;
     }
 
     /**
@@ -1236,6 +1353,14 @@ public final class IndexSettings {
 
     private void setHighlightMaxAnalyzedOffset(int maxAnalyzedOffset) {
         this.maxAnalyzedOffset = maxAnalyzedOffset;
+    }
+
+    public boolean isWeightMatchesEnabled() {
+        return this.weightMatchesEnabled;
+    }
+
+    private void setWeightMatchesEnabled(boolean value) {
+        this.weightMatchesEnabled = value;
     }
 
     /**
@@ -1404,6 +1529,14 @@ public final class IndexSettings {
 
     private void setMappingTotalFieldsLimit(long value) {
         this.mappingTotalFieldsLimit = value;
+    }
+
+    private void setIgnoreDynamicFieldsBeyondLimit(boolean ignoreDynamicFieldsBeyondLimit) {
+        this.ignoreDynamicFieldsBeyondLimit = ignoreDynamicFieldsBeyondLimit;
+    }
+
+    public boolean isIgnoreDynamicFieldsBeyondLimit() {
+        return ignoreDynamicFieldsBeyondLimit;
     }
 
     public long getMappingDepthLimit() {

@@ -5,7 +5,7 @@
 ++++
 
 The purpose of this processor is to point documents to the right time based index based
-on a date or timestamp field in a document by using the <<date-math-index-names, date math index name support>>.
+on a date or timestamp field in a document by using the <<api-date-math-index-names, date math index name support>>.
 
 The processor sets the `_index` metadata field with a date math index name expression based on the provided index name
 prefix, a date or timestamp field in the documents being processed and the provided date rounding.
@@ -126,7 +126,7 @@ and the result:
 // TESTRESPONSE[s/2016-11-08T19:43:03.850\+0000/$body.docs.0.doc._ingest.timestamp/]
 
 The above example shows that `_index` was set to `<my-index-{2016-04-25||/M{yyyy-MM-dd|UTC}}>`. Elasticsearch
-understands this to mean `2016-04-01` as is explained in the <<date-math-index-names, date math index name documentation>>
+understands this to mean `2016-04-01` as is explained in the <<api-date-math-index-names, date math index name documentation>>
 
 [[date-index-name-options]]
 .Date index name options

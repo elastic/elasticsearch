@@ -7,7 +7,6 @@
  */
 package org.elasticsearch.gateway;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Manifest;
 import org.elasticsearch.cluster.metadata.Metadata;
@@ -16,6 +15,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
@@ -45,14 +45,7 @@ public class MetaStateServiceTests extends ESTestCase {
 
     private static IndexMetadata indexMetadata(String name) {
         return IndexMetadata.builder(name)
-            .settings(
-                Settings.builder()
-                    .put(IndexMetadata.SETTING_INDEX_UUID, UUIDs.randomBase64UUID())
-                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-                    .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
-                    .build()
-            )
+            .settings(indexSettings(IndexVersion.current(), 1, 0).put(IndexMetadata.SETTING_INDEX_UUID, UUIDs.randomBase64UUID()))
             .build();
     }
 

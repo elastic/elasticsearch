@@ -31,8 +31,13 @@ public class InternalHDRPercentilesTests extends InternalPercentilesTestCase<Int
         boolean keyed,
         DocValueFormat format,
         double[] percents,
-        double[] values
+        double[] values,
+        boolean empty
     ) {
+
+        if (empty) {
+            return new InternalHDRPercentiles(name, percents, null, keyed, format, metadata);
+        }
 
         final DoubleHistogram state = new DoubleHistogram(3);
         Arrays.stream(values).forEach(state::recordValue);
@@ -64,11 +69,6 @@ public class InternalHDRPercentilesTests extends InternalPercentilesTestCase<Int
         }
     }
 
-    @Override
-    protected Class<? extends ParsedPercentiles> implementationClass() {
-        return ParsedHDRPercentiles.class;
-    }
-
     public void testIterator() {
         final double[] percents = randomPercents(false);
         final double[] values = new double[frequently() ? randomIntBetween(1, 10) : 0];
@@ -76,7 +76,15 @@ public class InternalHDRPercentilesTests extends InternalPercentilesTestCase<Int
             values[i] = randomDouble();
         }
 
-        InternalHDRPercentiles aggregation = createTestInstance("test", emptyMap(), false, randomNumericDocValueFormat(), percents, values);
+        InternalHDRPercentiles aggregation = createTestInstance(
+            "test",
+            emptyMap(),
+            false,
+            randomNumericDocValueFormat(),
+            percents,
+            values,
+            false
+        );
 
         Iterator<Percentile> iterator = aggregation.iterator();
         Iterator<String> nameIterator = aggregation.valueNames().iterator();
@@ -88,10 +96,10 @@ public class InternalHDRPercentilesTests extends InternalPercentilesTestCase<Int
             String percentileName = nameIterator.next();
 
             assertEquals(percent, Double.valueOf(percentileName), 0.0d);
-            assertEquals(percent, percentile.getPercent(), 0.0d);
+            assertEquals(percent, percentile.percent(), 0.0d);
 
-            assertEquals(aggregation.percentile(percent), percentile.getValue(), 0.0d);
-            assertEquals(aggregation.value(String.valueOf(percent)), percentile.getValue(), 0.0d);
+            assertEquals(aggregation.percentile(percent), percentile.value(), 0.0d);
+            assertEquals(aggregation.value(String.valueOf(percent)), percentile.value(), 0.0d);
         }
         assertFalse(iterator.hasNext());
         assertFalse(nameIterator.hasNext());

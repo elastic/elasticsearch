@@ -16,6 +16,6 @@ public class SimulatePipelineAction extends ActionType<SimulatePipelineResponse>
     public static final String NAME = "cluster:admin/ingest/pipeline/simulate";
 
     public SimulatePipelineAction() {
-        super(NAME, SimulatePipelineResponse::new);
+        super(NAME);
     }
 }

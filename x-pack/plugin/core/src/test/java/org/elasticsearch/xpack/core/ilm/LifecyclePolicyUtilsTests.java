@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.core.ilm;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
@@ -20,6 +19,7 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.indices.EmptySystemIndices;
 import org.elasticsearch.test.ESTestCase;
 
@@ -79,7 +79,7 @@ public class LifecyclePolicyUtilsTests extends ESTestCase {
                         )
                         .put(
                             IndexMetadata.builder("myindex")
-                                .settings(indexSettings(Version.CURRENT, 1, 0).put(LifecycleSettings.LIFECYCLE_NAME, "mypolicy"))
+                                .settings(indexSettings(IndexVersion.current(), 1, 0).put(LifecycleSettings.LIFECYCLE_NAME, "mypolicy"))
                         )
                         .build()
                 )
@@ -104,26 +104,24 @@ public class LifecyclePolicyUtilsTests extends ESTestCase {
                         )
                         .put(
                             IndexMetadata.builder("myindex")
-                                .settings(indexSettings(Version.CURRENT, 1, 0).put(LifecycleSettings.LIFECYCLE_NAME, "mypolicy"))
+                                .settings(indexSettings(IndexVersion.current(), 1, 0).put(LifecycleSettings.LIFECYCLE_NAME, "mypolicy"))
                         )
                         .putCustom(
                             ComposableIndexTemplateMetadata.TYPE,
                             new ComposableIndexTemplateMetadata(
                                 Collections.singletonMap(
                                     "mytemplate",
-                                    new ComposableIndexTemplate(
-                                        Collections.singletonList("myds"),
-                                        new Template(
-                                            Settings.builder().put(LifecycleSettings.LIFECYCLE_NAME, "mypolicy").build(),
-                                            null,
-                                            null
-                                        ),
-                                        null,
-                                        null,
-                                        null,
-                                        null,
-                                        new ComposableIndexTemplate.DataStreamTemplate(false, false)
-                                    )
+                                    ComposableIndexTemplate.builder()
+                                        .indexPatterns(Collections.singletonList("myds"))
+                                        .template(
+                                            new Template(
+                                                Settings.builder().put(LifecycleSettings.LIFECYCLE_NAME, "mypolicy").build(),
+                                                null,
+                                                null
+                                            )
+                                        )
+                                        .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate(false, false))
+                                        .build()
                                 )
                             )
                         )
@@ -147,15 +145,15 @@ public class LifecyclePolicyUtilsTests extends ESTestCase {
                 )
                 .put(
                     IndexMetadata.builder("myindex")
-                        .settings(indexSettings(Version.CURRENT, 1, 0).put(LifecycleSettings.LIFECYCLE_NAME, "mypolicy"))
+                        .settings(indexSettings(IndexVersion.current(), 1, 0).put(LifecycleSettings.LIFECYCLE_NAME, "mypolicy"))
                 )
                 .put(
                     IndexMetadata.builder("another")
-                        .settings(indexSettings(Version.CURRENT, 1, 0).put(LifecycleSettings.LIFECYCLE_NAME, "mypolicy"))
+                        .settings(indexSettings(IndexVersion.current(), 1, 0).put(LifecycleSettings.LIFECYCLE_NAME, "mypolicy"))
                 )
                 .put(
                     IndexMetadata.builder("other")
-                        .settings(indexSettings(Version.CURRENT, 1, 0).put(LifecycleSettings.LIFECYCLE_NAME, "otherpolicy"))
+                        .settings(indexSettings(IndexVersion.current(), 1, 0).put(LifecycleSettings.LIFECYCLE_NAME, "otherpolicy"))
                 )
 
                 .putCustom(
@@ -163,15 +161,13 @@ public class LifecyclePolicyUtilsTests extends ESTestCase {
                     new ComposableIndexTemplateMetadata(
                         Collections.singletonMap(
                             "mytemplate",
-                            new ComposableIndexTemplate(
-                                Collections.singletonList("myds"),
-                                new Template(Settings.builder().put(LifecycleSettings.LIFECYCLE_NAME, "mypolicy").build(), null, null),
-                                null,
-                                null,
-                                null,
-                                null,
-                                new ComposableIndexTemplate.DataStreamTemplate(false, false)
-                            )
+                            ComposableIndexTemplate.builder()
+                                .indexPatterns(Collections.singletonList("myds"))
+                                .template(
+                                    new Template(Settings.builder().put(LifecycleSettings.LIFECYCLE_NAME, "mypolicy").build(), null, null)
+                                )
+                                .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate(false, false))
+                                .build()
                         )
                     )
                 );

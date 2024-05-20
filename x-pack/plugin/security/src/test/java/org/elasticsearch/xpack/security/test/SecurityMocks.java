@@ -10,38 +10,25 @@ package org.elasticsearch.xpack.security.test;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionType;
-import org.elasticsearch.action.get.GetAction;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.GetRequestBuilder;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.get.MultiGetItemResponse;
 import org.elasticsearch.action.get.MultiGetRequest;
 import org.elasticsearch.action.get.MultiGetResponse;
-import org.elasticsearch.action.index.IndexAction;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.index.IndexResponse;
+import org.elasticsearch.action.index.TransportIndexAction;
 import org.elasticsearch.client.internal.Client;
-import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.get.GetResult;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.license.MockLicenseState;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.xpack.core.XPackSettings;
-import org.elasticsearch.xpack.core.security.SecurityContext;
-import org.elasticsearch.xpack.security.Security;
-import org.elasticsearch.xpack.security.authc.TokenService;
-import org.elasticsearch.xpack.security.authc.TokenServiceMock;
 import org.elasticsearch.xpack.security.support.SecurityIndexManager;
 import org.junit.Assert;
 
-import java.security.GeneralSecurityException;
-import java.time.Clock;
-import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -54,7 +41,6 @@ import static java.util.Collections.emptyMap;
 import static org.elasticsearch.test.ActionListenerUtils.anyActionListener;
 import static org.elasticsearch.xpack.security.support.SecuritySystemIndices.SECURITY_MAIN_ALIAS;
 import static org.elasticsearch.xpack.security.support.SecuritySystemIndices.SECURITY_PROFILE_ALIAS;
-import static org.elasticsearch.xpack.security.support.SecuritySystemIndices.SECURITY_TOKENS_ALIAS;
 import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
@@ -99,9 +85,10 @@ public final class SecurityMocks {
             return null;
         }).when(securityIndexManager).checkIndexVersionThenExecute(anyConsumer(), any(Runnable.class));
         when(securityIndexManager.indexExists()).thenReturn(exists);
-        when(securityIndexManager.isAvailable()).thenReturn(available);
+        when(securityIndexManager.isAvailable(SecurityIndexManager.Availability.PRIMARY_SHARDS)).thenReturn(available);
+        when(securityIndexManager.isAvailable(SecurityIndexManager.Availability.SEARCH_SHARDS)).thenReturn(available);
         when(securityIndexManager.aliasName()).thenReturn(alias);
-        when(securityIndexManager.freeze()).thenReturn(securityIndexManager);
+        when(securityIndexManager.defensiveCopy()).thenReturn(securityIndexManager);
         return securityIndexManager;
     }
 
@@ -115,7 +102,7 @@ public final class SecurityMocks {
     }
 
     public static void mockGetRequest(Client client, String indexAliasName, String documentId, GetResult result) {
-        final GetRequestBuilder requestBuilder = new GetRequestBuilder(client, GetAction.INSTANCE);
+        final GetRequestBuilder requestBuilder = new GetRequestBuilder(client);
         requestBuilder.setIndex(indexAliasName);
         requestBuilder.setId(documentId);
         when(client.prepareGet(indexAliasName, documentId)).thenReturn(requestBuilder);
@@ -137,7 +124,7 @@ public final class SecurityMocks {
     }
 
     public static void mockGetRequestException(Client client, Exception e) {
-        when(client.prepareGet(anyString(), anyString())).thenReturn(new GetRequestBuilder(client, GetAction.INSTANCE));
+        when(client.prepareGet(anyString(), anyString())).thenReturn(new GetRequestBuilder(client));
         doAnswer(inv -> {
             @SuppressWarnings("unchecked")
             ActionListener<GetResponse> listener = (ActionListener<GetResponse>) inv.getArguments()[1];
@@ -219,7 +206,7 @@ public final class SecurityMocks {
             Assert.assertThat(inv.getArguments(), arrayWithSize(1));
             final Object requestIndex = inv.getArguments()[0];
             Assert.assertThat(requestIndex, instanceOf(String.class));
-            return new IndexRequestBuilder(client, IndexAction.INSTANCE).setIndex((String) requestIndex);
+            return new IndexRequestBuilder(client).setIndex((String) requestIndex);
         }).when(client).prepareIndex(anyString());
         doAnswer(inv -> {
             Assert.assertThat(inv.getArguments(), arrayWithSize(3));
@@ -234,31 +221,7 @@ public final class SecurityMocks {
             final ShardId shardId = new ShardId(request.index(), ESTestCase.randomAlphaOfLength(12), 0);
             listener.onResponse(new IndexResponse(shardId, request.id(), 1, 1, 1, true));
             return null;
-        }).when(client).execute(eq(IndexAction.INSTANCE), any(IndexRequest.class), anyActionListener());
-    }
-
-    public static TokenServiceMock tokenService(boolean enabled, ThreadPool threadPool) throws GeneralSecurityException {
-        final Settings settings = Settings.builder().put(XPackSettings.TOKEN_SERVICE_ENABLED_SETTING.getKey(), enabled).build();
-        final Instant now = Instant.now();
-        final Clock clock = Clock.fixed(now, ESTestCase.randomZone());
-        final Client client = mock(Client.class);
-        when(client.threadPool()).thenReturn(threadPool);
-        final MockLicenseState licenseState = mock(MockLicenseState.class);
-        when(licenseState.isAllowed(Security.TOKEN_SERVICE_FEATURE)).thenReturn(true);
-        final ClusterService clusterService = mock(ClusterService.class);
-
-        final SecurityContext securityContext = new SecurityContext(settings, threadPool.getThreadContext());
-        final TokenService service = new TokenService(
-            settings,
-            clock,
-            client,
-            licenseState,
-            securityContext,
-            mockSecurityIndexManager(SECURITY_MAIN_ALIAS),
-            mockSecurityIndexManager(SECURITY_TOKENS_ALIAS),
-            clusterService
-        );
-        return new TokenServiceMock(service, client);
+        }).when(client).execute(eq(TransportIndexAction.TYPE), any(IndexRequest.class), anyActionListener());
     }
 
     @SuppressWarnings("unchecked")

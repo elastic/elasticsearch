@@ -1,6 +1,0 @@
-pr: 92810
-summary: Do not fail node if SAML HTTP metadata is unavailable
-area: Authentication
-type: enhancement
-issues: 
- - 37608

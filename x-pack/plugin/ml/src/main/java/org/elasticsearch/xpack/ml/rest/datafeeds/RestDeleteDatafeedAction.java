@@ -10,6 +10,8 @@ import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.Scope;
+import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xpack.core.ml.action.CloseJobAction;
 import org.elasticsearch.xpack.core.ml.action.DeleteDatafeedAction;
@@ -19,9 +21,12 @@ import java.io.IOException;
 import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.DELETE;
+import static org.elasticsearch.rest.RestUtils.getAckTimeout;
+import static org.elasticsearch.rest.RestUtils.getMasterNodeTimeout;
 import static org.elasticsearch.xpack.ml.MachineLearning.BASE_PATH;
 import static org.elasticsearch.xpack.ml.MachineLearning.PRE_V7_BASE_PATH;
 
+@ServerlessScope(Scope.PUBLIC)
 public class RestDeleteDatafeedAction extends BaseRestHandler {
 
     @Override
@@ -45,8 +50,8 @@ public class RestDeleteDatafeedAction extends BaseRestHandler {
         if (restRequest.hasParam(DeleteDatafeedAction.Request.FORCE.getPreferredName())) {
             request.setForce(restRequest.paramAsBoolean(CloseJobAction.Request.FORCE.getPreferredName(), request.isForce()));
         }
-        request.timeout(restRequest.paramAsTime("timeout", request.timeout()));
-        request.masterNodeTimeout(restRequest.paramAsTime("master_timeout", request.masterNodeTimeout()));
+        request.ackTimeout(getAckTimeout(restRequest));
+        request.masterNodeTimeout(getMasterNodeTimeout(restRequest));
         return channel -> client.execute(DeleteDatafeedAction.INSTANCE, request, new RestToXContentListener<>(channel));
     }
 }

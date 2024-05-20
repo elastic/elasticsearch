@@ -37,13 +37,10 @@ public class TransportGetDesiredBalanceActionIT extends ESIntegTestCase {
 
         indexData(index);
 
-        var clusterHealthResponse = client().admin()
-            .cluster()
-            .health(new ClusterHealthRequest().waitForStatus(ClusterHealthStatus.GREEN))
-            .get();
+        var clusterHealthResponse = clusterAdmin().health(new ClusterHealthRequest().waitForStatus(ClusterHealthStatus.GREEN)).get();
         assertEquals(RestStatus.OK, clusterHealthResponse.status());
 
-        DesiredBalanceResponse desiredBalanceResponse = client().execute(GetDesiredBalanceAction.INSTANCE, new DesiredBalanceRequest())
+        DesiredBalanceResponse desiredBalanceResponse = client().execute(TransportGetDesiredBalanceAction.TYPE, new DesiredBalanceRequest())
             .get();
 
         assertEquals(1, desiredBalanceResponse.getRoutingTable().size());
@@ -52,9 +49,7 @@ public class TransportGetDesiredBalanceActionIT extends ESIntegTestCase {
         for (var entry : shardsMap.entrySet()) {
             Integer shardId = entry.getKey();
             DesiredBalanceResponse.DesiredShards desiredShards = entry.getValue();
-            IndexShardRoutingTable shardRoutingTable = client().admin()
-                .cluster()
-                .prepareState()
+            IndexShardRoutingTable shardRoutingTable = clusterAdmin().prepareState()
                 .get()
                 .getState()
                 .routingTable()
@@ -77,13 +72,10 @@ public class TransportGetDesiredBalanceActionIT extends ESIntegTestCase {
         int numberOfReplicas = 1;
         createIndex(index, numberOfShards, numberOfReplicas);
         indexData(index);
-        var clusterHealthResponse = client().admin()
-            .cluster()
-            .health(new ClusterHealthRequest(index).waitForStatus(ClusterHealthStatus.YELLOW))
-            .get();
+        var clusterHealthResponse = clusterAdmin().health(new ClusterHealthRequest(index).waitForStatus(ClusterHealthStatus.YELLOW)).get();
         assertEquals(RestStatus.OK, clusterHealthResponse.status());
 
-        DesiredBalanceResponse desiredBalanceResponse = client().execute(GetDesiredBalanceAction.INSTANCE, new DesiredBalanceRequest())
+        DesiredBalanceResponse desiredBalanceResponse = client().execute(TransportGetDesiredBalanceAction.TYPE, new DesiredBalanceRequest())
             .get();
 
         assertEquals(1, desiredBalanceResponse.getRoutingTable().size());
@@ -92,9 +84,7 @@ public class TransportGetDesiredBalanceActionIT extends ESIntegTestCase {
         for (var entry : shardsMap.entrySet()) {
             Integer shardId = entry.getKey();
             DesiredBalanceResponse.DesiredShards desiredShards = entry.getValue();
-            IndexShardRoutingTable shardRoutingTable = client().admin()
-                .cluster()
-                .prepareState()
+            IndexShardRoutingTable shardRoutingTable = clusterAdmin().prepareState()
                 .get()
                 .getState()
                 .routingTable()

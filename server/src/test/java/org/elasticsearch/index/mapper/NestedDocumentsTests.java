@@ -9,7 +9,7 @@
 package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.search.join.QueryBitSetProducer;
-import org.elasticsearch.Version;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.search.LeafNestedDocuments;
 import org.elasticsearch.search.NestedDocuments;
 import org.elasticsearch.search.SearchHit;
@@ -46,7 +46,7 @@ public class NestedDocumentsTests extends MapperServiceTestCase {
         }));
 
         withLuceneIndex(mapperService, iw -> iw.addDocuments(doc.docs()), reader -> {
-            NestedDocuments nested = new NestedDocuments(mapperService.mappingLookup(), QueryBitSetProducer::new, Version.CURRENT);
+            NestedDocuments nested = new NestedDocuments(mapperService.mappingLookup(), QueryBitSetProducer::new, IndexVersion.current());
             LeafNestedDocuments leaf = nested.getLeafNestedDocuments(reader.leaves().get(0));
 
             assertNotNull(leaf.advance(0));
@@ -143,7 +143,7 @@ public class NestedDocumentsTests extends MapperServiceTestCase {
         }));
 
         withLuceneIndex(mapperService, iw -> iw.addDocuments(doc.docs()), reader -> {
-            NestedDocuments nested = new NestedDocuments(mapperService.mappingLookup(), QueryBitSetProducer::new, Version.CURRENT);
+            NestedDocuments nested = new NestedDocuments(mapperService.mappingLookup(), QueryBitSetProducer::new, IndexVersion.current());
             LeafNestedDocuments leaf = nested.getLeafNestedDocuments(reader.leaves().get(0));
 
             assertNotNull(leaf.advance(0));
@@ -258,7 +258,7 @@ public class NestedDocumentsTests extends MapperServiceTestCase {
         }));
 
         withLuceneIndex(mapperService, iw -> iw.addDocuments(doc.docs()), reader -> {
-            NestedDocuments nested = new NestedDocuments(mapperService.mappingLookup(), QueryBitSetProducer::new, Version.CURRENT);
+            NestedDocuments nested = new NestedDocuments(mapperService.mappingLookup(), QueryBitSetProducer::new, IndexVersion.current());
             LeafNestedDocuments leaf = nested.getLeafNestedDocuments(reader.leaves().get(0));
 
             assertNotNull(leaf.advance(0));

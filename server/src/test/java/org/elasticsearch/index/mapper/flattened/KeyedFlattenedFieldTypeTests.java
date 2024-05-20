@@ -39,7 +39,7 @@ import static org.mockito.Mockito.when;
 public class KeyedFlattenedFieldTypeTests extends FieldTypeTestCase {
 
     private static KeyedFlattenedFieldType createFieldType() {
-        return new KeyedFlattenedFieldType("field", true, true, "key", false, Collections.emptyMap());
+        return new KeyedFlattenedFieldType("field", true, true, "key", false, Collections.emptyMap(), false);
     }
 
     public void testIndexedValueForSearch() {
@@ -64,7 +64,15 @@ public class KeyedFlattenedFieldTypeTests extends FieldTypeTestCase {
         expected = AutomatonQueries.caseInsensitiveTermQuery(new Term(ft.name(), "key\0value"));
         assertEquals(expected, ft.termQueryCaseInsensitive("value", null));
 
-        KeyedFlattenedFieldType unsearchable = new KeyedFlattenedFieldType("field", false, true, "key", false, Collections.emptyMap());
+        KeyedFlattenedFieldType unsearchable = new KeyedFlattenedFieldType(
+            "field",
+            false,
+            true,
+            "key",
+            false,
+            Collections.emptyMap(),
+            false
+        );
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> unsearchable.termQuery("field", null));
         assertEquals("Cannot search on field [" + ft.name() + "] since it is not indexed.", e.getMessage());
     }

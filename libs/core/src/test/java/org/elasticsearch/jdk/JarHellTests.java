@@ -121,7 +121,7 @@ public class JarHellTests extends ESTestCase {
     public void testNonJDKModuleURLs() throws Throwable {
         var bootLayer = ModuleLayer.boot();
 
-        Path fooDir = createTempDir(getTestName());
+        Path fooDir = createTempDir();
         Path fooJar = PathUtils.get(makeJar(fooDir, "foo.jar", null, "p/Foo.class").toURI());
         var fooConfiguration = bootLayer.configuration().resolve(ModuleFinder.of(), ModuleFinder.of(fooJar), List.of("foo"));
         Set<URL> urls = JarHell.nonJDKModuleURLs(fooConfiguration).collect(Collectors.toSet());

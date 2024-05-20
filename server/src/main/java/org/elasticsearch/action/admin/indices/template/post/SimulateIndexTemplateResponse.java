@@ -8,10 +8,10 @@
 
 package org.elasticsearch.action.admin.indices.template.post;
 
-import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionResponse;
-import org.elasticsearch.action.admin.indices.rollover.RolloverConditions;
-import org.elasticsearch.cluster.metadata.DataLifecycle;
+import org.elasticsearch.action.admin.indices.rollover.RolloverConfiguration;
+import org.elasticsearch.cluster.metadata.DataStreamGlobalRetention;
 import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -38,27 +38,39 @@ public class SimulateIndexTemplateResponse extends ActionResponse implements ToX
 
     @Nullable
     // the resolved settings, mappings and aliases for the matched templates, if any
-    private Template resolvedTemplate;
+    private final Template resolvedTemplate;
 
     @Nullable
     // a map of template names and their index patterns that would overlap when matching the given index name
-    private Map<String, List<String>> overlappingTemplates;
+    private final Map<String, List<String>> overlappingTemplates;
 
     @Nullable
-    private RolloverConditions rolloverConditions = null;
+    private final RolloverConfiguration rolloverConfiguration;
+    @Nullable
+    private final DataStreamGlobalRetention globalRetention;
 
-    public SimulateIndexTemplateResponse(@Nullable Template resolvedTemplate, @Nullable Map<String, List<String>> overlappingTemplates) {
-        this(resolvedTemplate, overlappingTemplates, null);
+    public SimulateIndexTemplateResponse(
+        @Nullable Template resolvedTemplate,
+        @Nullable Map<String, List<String>> overlappingTemplates,
+        DataStreamGlobalRetention globalRetention
+    ) {
+        this(resolvedTemplate, overlappingTemplates, null, globalRetention);
     }
 
     public SimulateIndexTemplateResponse(
         @Nullable Template resolvedTemplate,
         @Nullable Map<String, List<String>> overlappingTemplates,
-        @Nullable RolloverConditions rolloverConditions
+        @Nullable RolloverConfiguration rolloverConfiguration,
+        @Nullable DataStreamGlobalRetention globalRetention
     ) {
         this.resolvedTemplate = resolvedTemplate;
         this.overlappingTemplates = overlappingTemplates;
-        this.rolloverConditions = rolloverConditions;
+        this.rolloverConfiguration = rolloverConfiguration;
+        this.globalRetention = globalRetention;
+    }
+
+    public RolloverConfiguration getRolloverConfiguration() {
+        return rolloverConfiguration;
     }
 
     public SimulateIndexTemplateResponse(StreamInput in) throws IOException {
@@ -69,14 +81,17 @@ public class SimulateIndexTemplateResponse extends ActionResponse implements ToX
             overlappingTemplates = Maps.newMapWithExpectedSize(overlappingTemplatesCount);
             for (int i = 0; i < overlappingTemplatesCount; i++) {
                 String templateName = in.readString();
-                overlappingTemplates.put(templateName, in.readStringList());
+                overlappingTemplates.put(templateName, in.readStringCollectionAsList());
             }
         } else {
             this.overlappingTemplates = null;
         }
-        if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_8_0) && DataLifecycle.isEnabled()) {
-            rolloverConditions = in.readOptionalWriteable(RolloverConditions::new);
-        }
+        rolloverConfiguration = in.getTransportVersion().onOrAfter(TransportVersions.V_8_9_X)
+            ? in.readOptionalWriteable(RolloverConfiguration::new)
+            : null;
+        globalRetention = in.getTransportVersion().onOrAfter(TransportVersions.USE_DATA_STREAM_GLOBAL_RETENTION)
+            ? in.readOptionalWriteable(DataStreamGlobalRetention::read)
+            : null;
     }
 
     @Override
@@ -92,8 +107,11 @@ public class SimulateIndexTemplateResponse extends ActionResponse implements ToX
         } else {
             out.writeBoolean(false);
         }
-        if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_8_0) && DataLifecycle.isEnabled()) {
-            out.writeOptionalWriteable(rolloverConditions);
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_9_X)) {
+            out.writeOptionalWriteable(rolloverConfiguration);
+        }
+        if (out.getTransportVersion().onOrAfter(TransportVersions.USE_DATA_STREAM_GLOBAL_RETENTION)) {
+            out.writeOptionalWriteable(globalRetention);
         }
     }
 
@@ -102,7 +120,7 @@ public class SimulateIndexTemplateResponse extends ActionResponse implements ToX
         builder.startObject();
         if (this.resolvedTemplate != null) {
             builder.field(TEMPLATE.getPreferredName());
-            this.resolvedTemplate.toXContent(builder, params, rolloverConditions);
+            this.resolvedTemplate.toXContent(builder, params, rolloverConfiguration);
         }
         if (this.overlappingTemplates != null) {
             builder.startArray(OVERLAPPING.getPreferredName());
@@ -128,12 +146,14 @@ public class SimulateIndexTemplateResponse extends ActionResponse implements ToX
         }
         SimulateIndexTemplateResponse that = (SimulateIndexTemplateResponse) o;
         return Objects.equals(resolvedTemplate, that.resolvedTemplate)
-            && Objects.deepEquals(overlappingTemplates, that.overlappingTemplates);
+            && Objects.deepEquals(overlappingTemplates, that.overlappingTemplates)
+            && Objects.equals(rolloverConfiguration, that.rolloverConfiguration)
+            && Objects.equals(globalRetention, that.globalRetention);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(resolvedTemplate, overlappingTemplates);
+        return Objects.hash(resolvedTemplate, overlappingTemplates, rolloverConfiguration, globalRetention);
     }
 
     @Override

@@ -31,6 +31,7 @@ import java.util.List;
 import java.util.Set;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.hamcrest.Matchers.equalTo;
 
 @ClusterScope(scope = Scope.TEST, numDataNodes = 0)
@@ -48,23 +49,14 @@ public class FilteringAllocationIT extends ESIntegTestCase {
         ensureGreen("test");
         logger.info("--> index some data");
         for (int i = 0; i < 100; i++) {
-            client().prepareIndex("test").setId(Integer.toString(i)).setSource("field", "value" + i).execute().actionGet();
+            prepareIndex("test").setId(Integer.toString(i)).setSource("field", "value" + i).get();
         }
-        client().admin().indices().prepareRefresh().execute().actionGet();
-        assertThat(
-            client().prepareSearch()
-                .setSize(0)
-                .setQuery(QueryBuilders.matchAllQuery())
-                .execute()
-                .actionGet()
-                .getHits()
-                .getTotalHits().value,
-            equalTo(100L)
-        );
+        indicesAdmin().prepareRefresh().get();
+        assertHitCount(prepareSearch().setSize(0).setQuery(QueryBuilders.matchAllQuery()), 100);
 
         final boolean closed = randomBoolean();
         if (closed) {
-            assertAcked(client().admin().indices().prepareClose("test"));
+            assertAcked(indicesAdmin().prepareClose("test"));
             ensureGreen("test");
         }
 
@@ -73,7 +65,7 @@ public class FilteringAllocationIT extends ESIntegTestCase {
         ensureGreen("test");
 
         logger.info("--> verify all are allocated on node1 now");
-        ClusterState clusterState = client().admin().cluster().prepareState().execute().actionGet().getState();
+        ClusterState clusterState = clusterAdmin().prepareState().get().getState();
         for (IndexRoutingTable indexRoutingTable : clusterState.routingTable()) {
             for (int shardId = 0; shardId < indexRoutingTable.size(); shardId++) {
                 final IndexShardRoutingTable indexShardRoutingTable = indexRoutingTable.shard(shardId);
@@ -84,20 +76,11 @@ public class FilteringAllocationIT extends ESIntegTestCase {
         }
 
         if (closed) {
-            assertAcked(client().admin().indices().prepareOpen("test"));
+            assertAcked(indicesAdmin().prepareOpen("test"));
         }
 
-        client().admin().indices().prepareRefresh().execute().actionGet();
-        assertThat(
-            client().prepareSearch()
-                .setSize(0)
-                .setQuery(QueryBuilders.matchAllQuery())
-                .execute()
-                .actionGet()
-                .getHits()
-                .getTotalHits().value,
-            equalTo(100L)
-        );
+        indicesAdmin().prepareRefresh().get();
+        assertHitCount(prepareSearch().setSize(0).setQuery(QueryBuilders.matchAllQuery()), 100);
     }
 
     public void testAutoExpandReplicasToFilteredNodes() {
@@ -109,7 +92,7 @@ public class FilteringAllocationIT extends ESIntegTestCase {
 
         logger.info("--> creating an index with auto-expand replicas");
         createIndex("test", Settings.builder().put(AutoExpandReplicas.SETTING.getKey(), "0-all").build());
-        ClusterState clusterState = client().admin().cluster().prepareState().execute().actionGet().getState();
+        ClusterState clusterState = clusterAdmin().prepareState().get().getState();
         assertThat(clusterState.metadata().index("test").getNumberOfReplicas(), equalTo(1));
         ensureGreen("test");
 
@@ -122,7 +105,7 @@ public class FilteringAllocationIT extends ESIntegTestCase {
         ensureGreen("test");
 
         logger.info("--> verify all are allocated on node1 now");
-        clusterState = client().admin().cluster().prepareState().execute().actionGet().getState();
+        clusterState = clusterAdmin().prepareState().get().getState();
         assertThat(clusterState.metadata().index("test").getNumberOfReplicas(), equalTo(0));
         for (IndexRoutingTable indexRoutingTable : clusterState.routingTable()) {
             for (int shardId = 0; shardId < indexRoutingTable.size(); shardId++) {
@@ -147,27 +130,18 @@ public class FilteringAllocationIT extends ESIntegTestCase {
 
         logger.info("--> index some data");
         for (int i = 0; i < 100; i++) {
-            client().prepareIndex("test").setId(Integer.toString(i)).setSource("field", "value" + i).execute().actionGet();
+            prepareIndex("test").setId(Integer.toString(i)).setSource("field", "value" + i).get();
         }
-        client().admin().indices().prepareRefresh().execute().actionGet();
-        assertThat(
-            client().prepareSearch()
-                .setSize(0)
-                .setQuery(QueryBuilders.matchAllQuery())
-                .execute()
-                .actionGet()
-                .getHits()
-                .getTotalHits().value,
-            equalTo(100L)
-        );
+        indicesAdmin().prepareRefresh().get();
+        assertHitCount(prepareSearch().setSize(0).setQuery(QueryBuilders.matchAllQuery()), 100);
 
         final boolean closed = randomBoolean();
         if (closed) {
-            assertAcked(client().admin().indices().prepareClose("test"));
+            assertAcked(indicesAdmin().prepareClose("test"));
             ensureGreen("test");
         }
 
-        ClusterState clusterState = client().admin().cluster().prepareState().execute().actionGet().getState();
+        ClusterState clusterState = clusterAdmin().prepareState().get().getState();
         IndexRoutingTable indexRoutingTable = clusterState.routingTable().index("test");
         int numShardsOnNode1 = 0;
         for (int shardId = 0; shardId < indexRoutingTable.size(); shardId++) {
@@ -186,11 +160,11 @@ public class FilteringAllocationIT extends ESIntegTestCase {
         }
         logger.info("--> remove index from the first node");
         updateIndexSettings(Settings.builder().put("index.routing.allocation.exclude._name", node_0), "test");
-        client().admin().cluster().prepareReroute().get();
+        clusterAdmin().prepareReroute().get();
         ensureGreen("test");
 
         logger.info("--> verify all shards are allocated on node_1 now");
-        clusterState = client().admin().cluster().prepareState().execute().actionGet().getState();
+        clusterState = clusterAdmin().prepareState().get().getState();
         indexRoutingTable = clusterState.routingTable().index("test");
         for (int shardId = 0; shardId < indexRoutingTable.size(); shardId++) {
             final IndexShardRoutingTable indexShardRoutingTable = indexRoutingTable.shard(shardId);
@@ -201,11 +175,11 @@ public class FilteringAllocationIT extends ESIntegTestCase {
 
         logger.info("--> disable allocation filtering ");
         updateIndexSettings(Settings.builder().put("index.routing.allocation.exclude._name", ""), "test");
-        client().admin().cluster().prepareReroute().get();
+        clusterAdmin().prepareReroute().get();
         ensureGreen("test");
 
         logger.info("--> verify that there are shards allocated on both nodes now");
-        clusterState = client().admin().cluster().prepareState().execute().actionGet().getState();
+        clusterState = clusterAdmin().prepareState().get().getState();
         assertThat(clusterState.routingTable().index("test").numberOfNodesShardsAreAllocatedOn(), equalTo(2));
     }
 
@@ -218,12 +192,8 @@ public class FilteringAllocationIT extends ESIntegTestCase {
         );
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
-            () -> client().admin()
-                .cluster()
-                .prepareUpdateSettings()
+            clusterAdmin().prepareUpdateSettings()
                 .setPersistentSettings(Settings.builder().put(filterSetting.getKey() + ipKey, "192.168.1.1."))
-                .execute()
-                .actionGet()
         );
         assertEquals("invalid IP address [192.168.1.1.] for [" + filterSetting.getKey() + ipKey + "]", e.getMessage());
     }
@@ -238,11 +208,11 @@ public class FilteringAllocationIT extends ESIntegTestCase {
             Strings.collectionToCommaDelimitedString(includeNodes)
         );
         ensureStableCluster(6);
-        client().admin().indices().prepareCreate("test").get();
+        indicesAdmin().prepareCreate("test").get();
         ensureGreen("test");
 
         if (randomBoolean()) {
-            assertAcked(client().admin().indices().prepareClose("test"));
+            assertAcked(indicesAdmin().prepareClose("test"));
         }
 
         Settings exclude = Settings.builder()
@@ -250,12 +220,12 @@ public class FilteringAllocationIT extends ESIntegTestCase {
             .build();
 
         logger.info("--> updating settings");
-        client().admin().cluster().prepareUpdateSettings().setTransientSettings(exclude).get();
+        clusterAdmin().prepareUpdateSettings().setTransientSettings(exclude).get();
 
         logger.info("--> waiting for relocation");
         waitForRelocation(ClusterHealthStatus.GREEN);
 
-        ClusterState state = client().admin().cluster().prepareState().get().getState();
+        ClusterState state = clusterAdmin().prepareState().get().getState();
 
         for (ShardRouting shard : RoutingNodesHelper.shardsWithState(state.getRoutingNodes(), ShardRoutingState.STARTED)) {
             String node = state.getRoutingNodes().node(shard.currentNodeId()).node().getName();
@@ -272,12 +242,12 @@ public class FilteringAllocationIT extends ESIntegTestCase {
         Settings other = Settings.builder().put("cluster.info.update.interval", "45s").build();
 
         logger.info("--> updating settings with random persistent setting");
-        client().admin().cluster().prepareUpdateSettings().setPersistentSettings(other).setTransientSettings(exclude).get();
+        clusterAdmin().prepareUpdateSettings().setPersistentSettings(other).setTransientSettings(exclude).get();
 
         logger.info("--> waiting for relocation");
         waitForRelocation(ClusterHealthStatus.GREEN);
 
-        state = client().admin().cluster().prepareState().get().getState();
+        state = clusterAdmin().prepareState().get().getState();
 
         // The transient settings still exist in the state
         assertThat(state.metadata().transientSettings(), equalTo(exclude));

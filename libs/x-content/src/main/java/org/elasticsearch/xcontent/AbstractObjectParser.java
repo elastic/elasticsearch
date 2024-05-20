@@ -403,7 +403,7 @@ public abstract class AbstractObjectParser<Value, Context> {
      */
     public abstract void declareExclusiveFieldSet(String... exclusiveSet);
 
-    private static <T, Context> List<T> parseArray(XContentParser parser, Context context, ContextParser<Context, T> itemParser)
+    public static <T, Context> List<T> parseArray(XContentParser parser, Context context, ContextParser<Context, T> itemParser)
         throws IOException {
         final XContentParser.Token currentToken = parser.currentToken();
         if (currentToken.isValue()

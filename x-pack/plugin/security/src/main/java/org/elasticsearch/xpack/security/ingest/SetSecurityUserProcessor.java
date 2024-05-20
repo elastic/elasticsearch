@@ -40,7 +40,7 @@ public final class SetSecurityUserProcessor extends AbstractProcessor {
 
     public static final String TYPE = "set_security_user";
 
-    private final Logger logger = LogManager.getLogger(SetSecurityUserProcessor.class);
+    private static final Logger logger = LogManager.getLogger(SetSecurityUserProcessor.class);
 
     private final SecurityContext securityContext;
     private final Settings settings;

@@ -15,7 +15,7 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
-import org.elasticsearch.search.aggregations.Aggregations;
+import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.PipelineAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.filter.Filter;
 import org.elasticsearch.search.aggregations.bucket.nested.Nested;
@@ -175,7 +175,7 @@ public class AucRoc extends AbstractAucRoc {
     }
 
     @Override
-    public void process(Aggregations aggs) {
+    public void process(InternalAggregations aggs) {
         if (result.get() != null) {
             return;
         }

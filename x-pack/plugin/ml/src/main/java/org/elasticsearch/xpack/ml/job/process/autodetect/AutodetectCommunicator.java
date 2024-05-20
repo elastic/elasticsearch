@@ -170,6 +170,7 @@ public class AutodetectCommunicator implements Closeable {
                     killProcess(false, false);
                     stateStreamer.cancel();
                 }
+                dataCountsReporter.writeUnreportedCounts();
                 autodetectResultProcessor.awaitCompletion();
             } finally {
                 onFinishHandler.accept(null, true);
@@ -179,8 +180,7 @@ public class AutodetectCommunicator implements Closeable {
         });
         try {
             future.get();
-            autodetectWorkerExecutor.shutdown();
-            dataCountsReporter.writeUnreportedCounts();
+            autodetectWorkerExecutor.shutdownNow();
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
         } catch (ExecutionException e) {
@@ -203,7 +203,7 @@ public class AutodetectCommunicator implements Closeable {
         try {
             processKilled = true;
             autodetectResultProcessor.setProcessKilled();
-            autodetectWorkerExecutor.shutdown();
+            autodetectWorkerExecutor.shutdownNow();
             autodetectProcess.kill(awaitCompletion);
 
             if (awaitCompletion) {

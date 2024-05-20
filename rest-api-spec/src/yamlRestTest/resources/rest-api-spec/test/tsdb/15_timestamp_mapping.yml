@@ -1,8 +1,15 @@
+---
+setup:
+  - skip:
+      known_issues:
+        - cluster_feature: "gte_v8.7.0"
+          fixed_by: "gte_v8.10.0"
+      reason: "Synthetic source shows up in the mapping in 8.10 and on, may trigger assert failures in mixed cluster tests"
 
 ---
 date:
-  - skip:
-      version: " - 8.1.99"
+  - requires:
+      cluster_features: ["gte_v8.2.0"]
       reason: tsdb indexing changed in 8.2.0
 
   - do:
@@ -49,8 +56,8 @@ date:
 
 ---
 date_nanos:
-  - skip:
-      version: " - 8.1.99"
+  - requires:
+      cluster_features: ["gte_v8.2.0"]
       reason: tsdb indexing changed in 8.2.0
 
   - do:
@@ -97,8 +104,8 @@ date_nanos:
 
 ---
 automatically add with date:
-  - skip:
-      version: " - 8.1.99"
+  - requires:
+      cluster_features: ["gte_v8.2.0"]
       reason: tsdb indexing changed in 8.2.0
 
   - do:
@@ -143,12 +150,12 @@ automatically add with date:
 
 ---
 reject @timestamp with wrong type:
-  - skip:
-      version: " - 8.0.99"
+  - requires:
+      cluster_features: ["gte_v8.1.0"]
       reason: introduced in 8.1.0
 
   - do:
-      catch: /data stream timestamp field \[@timestamp\] is of type \[keyword\], but \[date,date_nanos\] is expected/
+      catch: /data stream timestamp field \[@timestamp\] is of type \[long\], but \[date,date_nanos\] is expected/
       indices.create:
           index: test
           body:
@@ -163,12 +170,12 @@ reject @timestamp with wrong type:
             mappings:
               properties:
                 "@timestamp":
-                  type: keyword
+                  type: long
 
 ---
 reject timestamp meta field with wrong type:
-  - skip:
-      version: " - 8.0.99"
+  - requires:
+      cluster_features: ["gte_v8.1.0"]
       reason: introduced in 8.1.0
 
   - do:
@@ -190,8 +197,8 @@ reject timestamp meta field with wrong type:
 
 ---
 enable timestamp meta field:
-  - skip:
-      version: " - 8.0.99"
+  - requires:
+      cluster_features: ["gte_v8.1.0"]
       reason: introduced in 8.1.0
 
   - do:
@@ -218,8 +225,8 @@ enable timestamp meta field:
 
 ---
 reject bad timestamp meta field:
-  - skip:
-      version: " - 8.0.99"
+  - requires:
+      cluster_features: ["gte_v8.1.0"]
       reason: introduced in 8.1.0
 
   - do:
@@ -240,8 +247,8 @@ reject bad timestamp meta field:
 
 ---
 write without timestamp:
-  - skip:
-      version: " - 8.1.99"
+  - requires:
+      cluster_features: ["gte_v8.2.0"]
       reason: tsdb indexing changed in 8.2.0
 
   - do:
@@ -279,8 +286,8 @@ write without timestamp:
 
 ---
 explicitly enable timestamp meta field:
-  - skip:
-      version: " - 8.1.99"
+  - requires:
+      cluster_features: ["gte_v8.2.0"]
       reason: tsdb indexing changed in 8.2.0
 
   - do:
@@ -333,8 +340,8 @@ explicitly enable timestamp meta field:
 
 ---
 unable to create a time series index with @timestamp runtime field:
-  - skip:
-      version: " - 8.1.99"
+  - requires:
+      cluster_features: ["gte_v8.2.0"]
       reason: tsdb indexing changed in 8.2.0
 
   - do:

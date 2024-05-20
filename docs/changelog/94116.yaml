@@ -1,5 +1,0 @@
-pr: 94116
-summary: Add to `HealthMetadata` information about `ShardLimits`
-area: Health
-type: feature
-issues: []

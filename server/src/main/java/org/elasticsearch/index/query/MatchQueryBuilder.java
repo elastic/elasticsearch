@@ -12,6 +12,7 @@ import org.apache.lucene.analysis.core.KeywordAnalyzer;
 import org.apache.lucene.search.FuzzyQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -117,7 +118,7 @@ public class MatchQueryBuilder extends AbstractQueryBuilder<MatchQueryBuilder> {
         fuzzyRewrite = in.readOptionalString();
         fuzziness = in.readOptionalWriteable(Fuzziness::new);
         // cutoff_frequency has been removed
-        if (in.getTransportVersion().before(TransportVersion.V_8_0_0)) {
+        if (in.getTransportVersion().before(TransportVersions.V_8_0_0)) {
             in.readOptionalFloat();
         }
         autoGenerateSynonymsPhraseQuery = in.readBoolean();
@@ -139,7 +140,7 @@ public class MatchQueryBuilder extends AbstractQueryBuilder<MatchQueryBuilder> {
         out.writeOptionalString(fuzzyRewrite);
         out.writeOptionalWriteable(fuzziness);
         // cutoff_frequency has been removed
-        if (out.getTransportVersion().before(TransportVersion.V_8_0_0)) {
+        if (out.getTransportVersion().before(TransportVersions.V_8_0_0)) {
             out.writeOptionalFloat(null);
         }
         out.writeBoolean(autoGenerateSynonymsPhraseQuery);
@@ -368,26 +369,22 @@ public class MatchQueryBuilder extends AbstractQueryBuilder<MatchQueryBuilder> {
     }
 
     @Override
-    protected QueryBuilder doRewrite(QueryRewriteContext queryRewriteContext) throws IOException {
+    protected QueryBuilder doIndexMetadataRewrite(QueryRewriteContext context) throws IOException {
         if (fuzziness != null || lenient) {
             // Term queries can be neither fuzzy nor lenient, so don't rewrite under these conditions
             return this;
         }
-        SearchExecutionContext sec = queryRewriteContext.convertToSearchExecutionContext();
-        if (sec == null) {
-            return this;
-        }
         // If we're using a keyword analyzer then we can rewrite this to a TermQueryBuilder
         // and possibly shortcut
-        NamedAnalyzer configuredAnalyzer = configuredAnalyzer(sec);
+        NamedAnalyzer configuredAnalyzer = configuredAnalyzer(context);
         if (configuredAnalyzer != null && configuredAnalyzer.analyzer() instanceof KeywordAnalyzer) {
             TermQueryBuilder termQueryBuilder = new TermQueryBuilder(fieldName, value);
-            return termQueryBuilder.rewrite(sec);
+            return termQueryBuilder.rewrite(context);
         }
         return this;
     }
 
-    private NamedAnalyzer configuredAnalyzer(SearchExecutionContext context) {
+    private NamedAnalyzer configuredAnalyzer(QueryRewriteContext context) {
         if (analyzer != null) {
             return context.getIndexAnalyzers().get(analyzer);
         }
@@ -578,6 +575,6 @@ public class MatchQueryBuilder extends AbstractQueryBuilder<MatchQueryBuilder> {
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersion.ZERO;
+        return TransportVersions.ZERO;
     }
 }

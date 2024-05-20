@@ -7,32 +7,18 @@
  */
 package org.elasticsearch.index;
 
-import org.elasticsearch.client.internal.Client;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.cluster.routing.allocation.AllocationService;
-import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.AbstractModule;
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.env.Environment;
-import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.repositories.RepositoriesService;
-import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
-import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.tracing.Tracer;
-import org.elasticsearch.watcher.ResourceWatcherService;
-import org.elasticsearch.xcontent.NamedXContentRegistry;
 
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
-import java.util.function.Supplier;
 
 import static org.elasticsearch.test.ESIntegTestCase.Scope.SUITE;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
@@ -62,21 +48,7 @@ public class SettingsListenerIT extends ESIntegTestCase {
         }
 
         @Override
-        public Collection<Object> createComponents(
-            Client client,
-            ClusterService clusterService,
-            ThreadPool threadPool,
-            ResourceWatcherService resourceWatcherService,
-            ScriptService scriptService,
-            NamedXContentRegistry xContentRegistry,
-            Environment environment,
-            NodeEnvironment nodeEnvironment,
-            NamedWriteableRegistry namedWriteableRegistry,
-            IndexNameExpressionResolver expressionResolver,
-            Supplier<RepositoriesService> repositoriesServiceSupplier,
-            Tracer tracer,
-            AllocationService allocationService
-        ) {
+        public Collection<?> createComponents(PluginServices services) {
             return Collections.singletonList(service);
         }
     }
@@ -105,9 +77,7 @@ public class SettingsListenerIT extends ESIntegTestCase {
     }
 
     public void testListener() {
-        assertAcked(
-            client().admin().indices().prepareCreate("test").setSettings(Settings.builder().put("index.test.new.setting", 21).build()).get()
-        );
+        assertAcked(indicesAdmin().prepareCreate("test").setSettings(Settings.builder().put("index.test.new.setting", 21).build()).get());
 
         for (SettingsTestingService instance : internalCluster().getDataNodeInstances(SettingsTestingService.class)) {
             assertEquals(21, instance.value);
@@ -118,13 +88,7 @@ public class SettingsListenerIT extends ESIntegTestCase {
             assertEquals(42, instance.value);
         }
 
-        assertAcked(
-            client().admin()
-                .indices()
-                .prepareCreate("other")
-                .setSettings(Settings.builder().put("index.test.new.setting", 21).build())
-                .get()
-        );
+        assertAcked(indicesAdmin().prepareCreate("other").setSettings(Settings.builder().put("index.test.new.setting", 21).build()).get());
 
         for (SettingsTestingService instance : internalCluster().getDataNodeInstances(SettingsTestingService.class)) {
             assertEquals(42, instance.value);
@@ -136,11 +100,7 @@ public class SettingsListenerIT extends ESIntegTestCase {
         }
 
         try {
-            client().admin()
-                .indices()
-                .prepareUpdateSettings("other")
-                .setSettings(Settings.builder().put("index.test.new.setting", -5))
-                .get();
+            indicesAdmin().prepareUpdateSettings("other").setSettings(Settings.builder().put("index.test.new.setting", -5)).get();
             fail();
         } catch (IllegalArgumentException ex) {
             assertEquals("Failed to parse value [-5] for setting [index.test.new.setting] must be >= -1", ex.getMessage());

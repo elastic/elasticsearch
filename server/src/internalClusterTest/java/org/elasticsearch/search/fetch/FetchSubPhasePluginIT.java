@@ -14,7 +14,6 @@ import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -39,7 +38,7 @@ import java.util.Map;
 import java.util.Objects;
 
 import static java.util.Collections.singletonList;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailuresAndResponse;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.CoreMatchers.equalTo;
 
@@ -52,9 +51,7 @@ public class FetchSubPhasePluginIT extends ESIntegTestCase {
 
     @SuppressWarnings("unchecked")
     public void testPlugin() throws Exception {
-        client().admin()
-            .indices()
-            .prepareCreate("test")
+        indicesAdmin().prepareCreate("test")
             .setMapping(
                 jsonBuilder().startObject()
                     .startObject("_doc")
@@ -72,23 +69,24 @@ public class FetchSubPhasePluginIT extends ESIntegTestCase {
         client().index(new IndexRequest("test").id("1").source(jsonBuilder().startObject().field("test", "I am sam i am").endObject()))
             .actionGet();
 
-        client().admin().indices().prepareRefresh().get();
+        indicesAdmin().prepareRefresh().get();
 
-        SearchResponse response = client().prepareSearch()
-            .setSource(new SearchSourceBuilder().ext(Collections.singletonList(new TermVectorsFetchBuilder("test"))))
-            .get();
-        assertSearchResponse(response);
-        assertThat(
-            ((Map<String, Integer>) response.getHits().getAt(0).field("term_vectors_fetch").getValues().get(0)).get("i"),
-            equalTo(2)
-        );
-        assertThat(
-            ((Map<String, Integer>) response.getHits().getAt(0).field("term_vectors_fetch").getValues().get(0)).get("am"),
-            equalTo(2)
-        );
-        assertThat(
-            ((Map<String, Integer>) response.getHits().getAt(0).field("term_vectors_fetch").getValues().get(0)).get("sam"),
-            equalTo(1)
+        assertNoFailuresAndResponse(
+            prepareSearch().setSource(new SearchSourceBuilder().ext(Collections.singletonList(new TermVectorsFetchBuilder("test")))),
+            response -> {
+                assertThat(
+                    ((Map<String, Integer>) response.getHits().getAt(0).field("term_vectors_fetch").getValues().get(0)).get("i"),
+                    equalTo(2)
+                );
+                assertThat(
+                    ((Map<String, Integer>) response.getHits().getAt(0).field("term_vectors_fetch").getValues().get(0)).get("am"),
+                    equalTo(2)
+                );
+                assertThat(
+                    ((Map<String, Integer>) response.getHits().getAt(0).field("term_vectors_fetch").getValues().get(0)).get("sam"),
+                    equalTo(1)
+                );
+            }
         );
     }
 

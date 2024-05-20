@@ -19,9 +19,7 @@ import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonXContent;
 
-import java.io.BufferedReader;
 import java.io.IOException;
-import java.io.StringReader;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -34,24 +32,12 @@ import java.util.Set;
 import java.util.StringTokenizer;
 import java.util.TreeSet;
 import java.util.function.Supplier;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 public class Strings {
 
     public static final String[] EMPTY_ARRAY = new String[0];
-
-    public static void spaceify(int spaces, String from, StringBuilder to) throws IOException {
-        char[] spaceChars = new char[spaces];
-        Arrays.fill(spaceChars, ' ');
-
-        try (BufferedReader reader = new BufferedReader(new StringReader(from))) {
-            String line;
-            while ((line = reader.readLine()) != null) {
-                to.append(spaceChars).append(line).append('\n');
-            }
-        }
-    }
 
     // ---------------------------------------------------------------------
     // General convenience methods for working with Strings
@@ -287,9 +273,16 @@ public class Strings {
         return newChar + str.substring(1);
     }
 
-    public static final String INVALID_FILENAME_CHARS = Stream.of('\\', '/', '*', '?', '"', '<', '>', '|', ' ', ',')
+    // Visible for testing
+    static final Set<Character> INVALID_CHARS = Set.of('\\', '/', '*', '?', '"', '<', '>', '|', ' ', ',');
+
+    public static final String INVALID_FILENAME_CHARS = INVALID_CHARS.stream()
         .map(c -> "'" + c + "'")
         .collect(Collectors.joining(",", "[", "]"));
+
+    public static final Pattern INVALID_FILENAME_CHARS_REGEX = Pattern.compile(
+        "[" + INVALID_CHARS.stream().map(Objects::toString).map(Pattern::quote).collect(Collectors.joining()) + "]+"
+    );
 
     public static boolean validFileName(String fileName) {
         for (int i = 0; i < fileName.length(); i++) {
@@ -923,5 +916,9 @@ public class Strings {
      */
     public static String format(String format, Object... args) {
         return org.elasticsearch.core.Strings.format(format, args);
+    }
+
+    public static String stripDisallowedChars(String string) {
+        return INVALID_FILENAME_CHARS_REGEX.matcher(string).replaceAll("");
     }
 }

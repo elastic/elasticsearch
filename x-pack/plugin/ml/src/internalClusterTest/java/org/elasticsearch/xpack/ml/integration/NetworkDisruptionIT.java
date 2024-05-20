@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.ml.integration;
 
-import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -28,6 +27,8 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.Set;
+
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 
 public class NetworkDisruptionIT extends BaseMlIntegTestCase {
 
@@ -81,25 +82,23 @@ public class NetworkDisruptionIT extends BaseMlIntegTestCase {
         assertEquals(newJobNode, finalJobNode);
 
         // The job running on the original node should have been killed, and hence should not have persisted quantiles
-        SearchResponse searchResponse = client().prepareSearch(AnomalyDetectorsIndex.jobStateIndexPattern())
-            .setQuery(QueryBuilders.idsQuery().addIds(Quantiles.documentId(job.getId())))
-            .setTrackTotalHits(true)
-            .setIndicesOptions(IndicesOptions.lenientExpandOpen())
-            .execute()
-            .actionGet();
-        assertEquals(0L, searchResponse.getHits().getTotalHits().value);
+        assertHitCount(
+            prepareSearch(AnomalyDetectorsIndex.jobStateIndexPattern()).setQuery(
+                QueryBuilders.idsQuery().addIds(Quantiles.documentId(job.getId()))
+            ).setTrackTotalHits(true).setIndicesOptions(IndicesOptions.lenientExpandOpen()),
+            0
+        );
 
         CloseJobAction.Request closeJobRequest = new CloseJobAction.Request(job.getId());
         CloseJobAction.Response closeJobResponse = client().execute(CloseJobAction.INSTANCE, closeJobRequest).actionGet();
         assertTrue(closeJobResponse.isClosed());
 
         // The relocated job was closed rather than killed, and hence should have persisted quantiles
-        searchResponse = client().prepareSearch(AnomalyDetectorsIndex.jobStateIndexPattern())
-            .setQuery(QueryBuilders.idsQuery().addIds(Quantiles.documentId(job.getId())))
-            .setTrackTotalHits(true)
-            .setIndicesOptions(IndicesOptions.lenientExpandOpen())
-            .execute()
-            .actionGet();
-        assertEquals(1L, searchResponse.getHits().getTotalHits().value);
+        assertHitCount(
+            prepareSearch(AnomalyDetectorsIndex.jobStateIndexPattern()).setQuery(
+                QueryBuilders.idsQuery().addIds(Quantiles.documentId(job.getId()))
+            ).setTrackTotalHits(true).setIndicesOptions(IndicesOptions.lenientExpandOpen()),
+            1
+        );
     }
 }

@@ -364,6 +364,33 @@ public class SqlParserTests extends ESTestCase {
         );
     }
 
+    public void testQuotedIndexName() {
+        Project plan = project(parseStatement("SELECT * FROM \"foo,bar\""));
+
+        assertThat(plan.child(), instanceOf(UnresolvedRelation.class));
+        UnresolvedRelation relation = (UnresolvedRelation) plan.child();
+        assertEquals("foo,bar", relation.table().index());
+        assertNull(relation.table().cluster());
+    }
+
+    public void testQuotedIndexNameWithCluster() {
+        Project plan = project(parseStatement("SELECT * FROM elastic:\"foo,bar\""));
+
+        assertThat(plan.child(), instanceOf(UnresolvedRelation.class));
+        UnresolvedRelation relation = (UnresolvedRelation) plan.child();
+        assertEquals("foo,bar", relation.table().index());
+        assertEquals("elastic", relation.table().cluster());
+    }
+
+    public void testQuotedIndexNameWithQuotedCluster() {
+        Project plan = project(parseStatement("SELECT * FROM \"elastic\":\"foo,bar\""));
+
+        assertThat(plan.child(), instanceOf(UnresolvedRelation.class));
+        UnresolvedRelation relation = (UnresolvedRelation) plan.child();
+        assertEquals("foo,bar", relation.table().index());
+        assertEquals("elastic", relation.table().cluster());
+    }
+
     private LogicalPlan parseStatement(String sql) {
         return new SqlParser().createStatement(sql);
     }

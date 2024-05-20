@@ -16,6 +16,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.xpack.ccr.Ccr;
 import org.elasticsearch.xpack.core.LocalStateCompositeXPackPlugin;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.ilm.ExplainLifecycleRequest;
@@ -30,7 +31,8 @@ import org.elasticsearch.xpack.core.ilm.ShrinkAction;
 import org.elasticsearch.xpack.core.ilm.ShrunkShardsAllocatedStep;
 import org.elasticsearch.xpack.core.ilm.Step;
 import org.elasticsearch.xpack.core.ilm.action.ExplainLifecycleAction;
-import org.elasticsearch.xpack.core.ilm.action.PutLifecycleAction;
+import org.elasticsearch.xpack.core.ilm.action.ILMActions;
+import org.elasticsearch.xpack.core.ilm.action.PutLifecycleRequest;
 import org.junit.Before;
 
 import java.util.Arrays;
@@ -62,13 +64,8 @@ public class ClusterStateWaitThresholdBreachTests extends ESIntegTestCase {
     }
 
     @Override
-    protected boolean ignoreExternalCluster() {
-        return true;
-    }
-
-    @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Arrays.asList(LocalStateCompositeXPackPlugin.class, IndexLifecycle.class);
+        return Arrays.asList(LocalStateCompositeXPackPlugin.class, IndexLifecycle.class, Ccr.class);
     }
 
     @Override
@@ -79,7 +76,6 @@ public class ClusterStateWaitThresholdBreachTests extends ESIntegTestCase {
         settings.put(XPackSettings.WATCHER_ENABLED.getKey(), false);
         settings.put(XPackSettings.GRAPH_ENABLED.getKey(), false);
         settings.put(LifecycleSettings.LIFECYCLE_POLL_INTERVAL, "1s");
-        settings.put(LifecycleSettings.SLM_HISTORY_INDEX_ENABLED_SETTING.getKey(), false);
         settings.put(LifecycleSettings.LIFECYCLE_HISTORY_INDEX_ENABLED, false);
         return settings.build();
     }
@@ -92,11 +88,11 @@ public class ClusterStateWaitThresholdBreachTests extends ESIntegTestCase {
         Phase warmPhase = new Phase(
             "warm",
             TimeValue.ZERO,
-            Map.of(MigrateAction.NAME, MigrateAction.DISABLED, ShrinkAction.NAME, new ShrinkAction(1, null))
+            Map.of(MigrateAction.NAME, MigrateAction.DISABLED, ShrinkAction.NAME, new ShrinkAction(1, null, false))
         );
         LifecyclePolicy lifecyclePolicy = new LifecyclePolicy(policy, Map.of("warm", warmPhase));
-        PutLifecycleAction.Request putLifecycleRequest = new PutLifecycleAction.Request(lifecyclePolicy);
-        assertAcked(client().execute(PutLifecycleAction.INSTANCE, putLifecycleRequest).get());
+        PutLifecycleRequest putLifecycleRequest = new PutLifecycleRequest(lifecyclePolicy);
+        assertAcked(client().execute(ILMActions.PUT, putLifecycleRequest).get());
 
         // we're configuring a very high number of replicas. this will make ths shrunk index unable to allocate successfully, so ILM will
         // wait in the `shrunk-shards-allocated` step (we don't wait for the original index to be GREEN before)
@@ -108,7 +104,7 @@ public class ClusterStateWaitThresholdBreachTests extends ESIntegTestCase {
             // configuring the threshold to the minimum value
             .put(LifecycleSettings.LIFECYCLE_STEP_WAIT_TIME_THRESHOLD, "1h")
             .build();
-        CreateIndexResponse res = client().admin().indices().prepareCreate(managedIndex).setSettings(settings).get();
+        CreateIndexResponse res = indicesAdmin().prepareCreate(managedIndex).setSettings(settings).get();
         assertTrue(res.isAcknowledged());
 
         String[] firstAttemptShrinkIndexName = new String[1];

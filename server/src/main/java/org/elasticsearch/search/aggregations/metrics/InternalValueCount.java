@@ -10,12 +10,12 @@ package org.elasticsearch.search.aggregations.metrics;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.aggregations.AggregationReduceContext;
+import org.elasticsearch.search.aggregations.AggregatorReducer;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.support.SamplingContext;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
-import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
@@ -48,6 +48,10 @@ public class InternalValueCount extends InternalNumericMetricsAggregation.Single
         return ValueCountAggregationBuilder.NAME;
     }
 
+    public static InternalValueCount empty(String name, Map<String, Object> metadata) {
+        return new InternalValueCount(name, 0L, metadata);
+    }
+
     @Override
     public long getValue() {
         return value;
@@ -59,12 +63,20 @@ public class InternalValueCount extends InternalNumericMetricsAggregation.Single
     }
 
     @Override
-    public InternalAggregation reduce(List<InternalAggregation> aggregations, AggregationReduceContext reduceContext) {
-        long valueCount = 0;
-        for (InternalAggregation aggregation : aggregations) {
-            valueCount += ((InternalValueCount) aggregation).value;
-        }
-        return new InternalValueCount(name, valueCount, getMetadata());
+    protected AggregatorReducer getLeaderReducer(AggregationReduceContext reduceContext, int size) {
+        return new AggregatorReducer() {
+            long valueCount = 0;
+
+            @Override
+            public void accept(InternalAggregation aggregation) {
+                valueCount += ((InternalValueCount) aggregation).value;
+            }
+
+            @Override
+            public InternalAggregation get() {
+                return new InternalValueCount(name, valueCount, getMetadata());
+            }
+        };
     }
 
     @Override

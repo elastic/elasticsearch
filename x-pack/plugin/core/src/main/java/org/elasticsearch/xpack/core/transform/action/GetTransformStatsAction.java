@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.core.transform.action;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.TaskOperationFailure;
@@ -22,6 +23,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.action.util.PageParams;
@@ -45,19 +47,20 @@ public class GetTransformStatsAction extends ActionType<GetTransformStatsAction.
     public static final String NAME = "cluster:monitor/transform/stats/get";
 
     public GetTransformStatsAction() {
-        super(NAME, GetTransformStatsAction.Response::new);
+        super(NAME);
     }
 
-    public static class Request extends BaseTasksRequest<Request> {
+    public static final class Request extends BaseTasksRequest<Request> {
         private final String id;
         private PageParams pageParams = PageParams.defaultParams();
         private boolean allowNoMatch = true;
+        private final boolean basic;
 
         public static final int MAX_SIZE_RETURN = 1000;
         // used internally to expand the queried id expression
         private List<String> expandedIds;
 
-        public Request(String id, @Nullable TimeValue timeout) {
+        public Request(String id, @Nullable TimeValue timeout, boolean basic) {
             setTimeout(timeout);
             if (Strings.isNullOrEmpty(id) || id.equals("*")) {
                 this.id = Metadata.ALL;
@@ -65,14 +68,20 @@ public class GetTransformStatsAction extends ActionType<GetTransformStatsAction.
                 this.id = id;
             }
             this.expandedIds = Collections.singletonList(this.id);
+            this.basic = basic;
         }
 
         public Request(StreamInput in) throws IOException {
             super(in);
             id = in.readString();
-            expandedIds = in.readImmutableList(StreamInput::readString);
+            expandedIds = in.readCollectionAsImmutableList(StreamInput::readString);
             pageParams = new PageParams(in);
             allowNoMatch = in.readBoolean();
+            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_13_0)) {
+                basic = in.readBoolean();
+            } else {
+                basic = false;
+            }
         }
 
         @Override
@@ -94,11 +103,11 @@ public class GetTransformStatsAction extends ActionType<GetTransformStatsAction.
             this.expandedIds = List.copyOf(expandedIds);
         }
 
-        public final void setPageParams(PageParams pageParams) {
+        public void setPageParams(PageParams pageParams) {
             this.pageParams = Objects.requireNonNull(pageParams);
         }
 
-        public final PageParams getPageParams() {
+        public PageParams getPageParams() {
             return pageParams;
         }
 
@@ -110,6 +119,10 @@ public class GetTransformStatsAction extends ActionType<GetTransformStatsAction.
             this.allowNoMatch = allowNoMatch;
         }
 
+        public boolean isBasic() {
+            return basic;
+        }
+
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
@@ -117,6 +130,9 @@ public class GetTransformStatsAction extends ActionType<GetTransformStatsAction.
             out.writeStringCollection(expandedIds);
             pageParams.writeTo(out);
             out.writeBoolean(allowNoMatch);
+            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_13_0)) {
+                out.writeBoolean(basic);
+            }
         }
 
         @Override
@@ -133,7 +149,7 @@ public class GetTransformStatsAction extends ActionType<GetTransformStatsAction.
 
         @Override
         public int hashCode() {
-            return Objects.hash(id, pageParams, allowNoMatch);
+            return Objects.hash(id, pageParams, allowNoMatch, basic);
         }
 
         @Override
@@ -145,7 +161,10 @@ public class GetTransformStatsAction extends ActionType<GetTransformStatsAction.
                 return false;
             }
             Request other = (Request) obj;
-            return Objects.equals(id, other.id) && Objects.equals(pageParams, other.pageParams) && allowNoMatch == other.allowNoMatch;
+            return Objects.equals(id, other.id)
+                && Objects.equals(pageParams, other.pageParams)
+                && allowNoMatch == other.allowNoMatch
+                && basic == other.basic;
         }
 
         @Override
@@ -157,8 +176,8 @@ public class GetTransformStatsAction extends ActionType<GetTransformStatsAction.
     public static class Response extends BaseTasksResponse implements ToXContentObject {
         private final QueryPage<TransformStats> transformsStats;
 
-        public Response(List<TransformStats> transformStateAndStats, long count) {
-            this(new QueryPage<>(transformStateAndStats, count, TransformField.TRANSFORMS));
+        public Response(List<TransformStats> transformStateAndStats) {
+            this(new QueryPage<>(transformStateAndStats, transformStateAndStats.size(), TransformField.TRANSFORMS));
         }
 
         public Response(
@@ -170,7 +189,7 @@ public class GetTransformStatsAction extends ActionType<GetTransformStatsAction.
             this(new QueryPage<>(transformStateAndStats, count, TransformField.TRANSFORMS), taskFailures, nodeFailures);
         }
 
-        private Response(QueryPage<TransformStats> transformsStats) {
+        public Response(QueryPage<TransformStats> transformsStats) {
             this(transformsStats, Collections.emptyList(), Collections.emptyList());
         }
 
@@ -194,6 +213,10 @@ public class GetTransformStatsAction extends ActionType<GetTransformStatsAction.
 
         public long getCount() {
             return transformsStats.count();
+        }
+
+        public ParseField getResultsField() {
+            return transformsStats.getResultsField();
         }
 
         @Override

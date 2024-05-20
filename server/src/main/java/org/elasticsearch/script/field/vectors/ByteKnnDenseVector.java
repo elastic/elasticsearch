@@ -70,7 +70,7 @@ public class ByteKnnDenseVector implements DenseVector {
     }
 
     @SuppressForbidden(reason = "used only for bytes so it cannot overflow")
-    private int abs(int value) {
+    private static int abs(int value) {
         return Math.abs(value);
     }
 
@@ -103,14 +103,7 @@ public class ByteKnnDenseVector implements DenseVector {
 
     @Override
     public double l2Norm(byte[] queryVector) {
-        int result = 0;
-        int i = 0;
-        while (i < docVector.length) {
-            int diff = docVector[i] - queryVector[i];
-            result += diff * diff;
-            i++;
-        }
-        return Math.sqrt(result);
+        return Math.sqrt(VectorUtil.squareDistance(docVector, queryVector));
     }
 
     @Override

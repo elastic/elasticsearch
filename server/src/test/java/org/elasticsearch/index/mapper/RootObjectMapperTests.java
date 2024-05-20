@@ -10,6 +10,7 @@ package org.elasticsearch.index.mapper;
 
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.index.mapper.MapperService.MergeReason;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
@@ -19,6 +20,7 @@ import java.util.Arrays;
 import java.util.Collections;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 
 public class RootObjectMapperTests extends MapperServiceTestCase {
@@ -160,6 +162,7 @@ public class RootObjectMapperTests extends MapperServiceTestCase {
         }));
         MapperService mapperService = createMapperService(mapping);
         assertEquals(mapping, mapperService.documentMapper().mappingSource().toString());
+        assertEquals(3, mapperService.documentMapper().mapping().getRoot().getTotalFieldsCount());
     }
 
     public void testRuntimeSectionRejectedUpdate() throws IOException {
@@ -356,6 +359,53 @@ public class RootObjectMapperTests extends MapperServiceTestCase {
         // Empty name not allowed in index created after 5.0
         Exception e = expectThrows(MapperParsingException.class, () -> createMapperService(mapping));
         assertThat(e.getMessage(), containsString("type cannot be an empty string"));
+    }
+
+    public void testWithoutMappers() throws IOException {
+        RootObjectMapper shallowRoot = createRootObjectMapperWithAllParametersSet(b -> {}, b -> {});
+        RootObjectMapper root = createRootObjectMapperWithAllParametersSet(b -> {
+            b.startObject("keyword");
+            {
+                b.field("type", "keyword");
+            }
+            b.endObject();
+        }, b -> {
+            b.startObject("runtime");
+            b.startObject("field").field("type", "keyword").endObject();
+            b.endObject();
+        });
+        assertThat(root.withoutMappers().toString(), equalTo(shallowRoot.toString()));
+    }
+
+    private RootObjectMapper createRootObjectMapperWithAllParametersSet(
+        CheckedConsumer<XContentBuilder, IOException> buildProperties,
+        CheckedConsumer<XContentBuilder, IOException> buildRuntimeFields
+    ) throws IOException {
+        DocumentMapper mapper = createDocumentMapper(topMapping(b -> {
+            b.field("enabled", false);
+            b.field("subobjects", false);
+            b.field("dynamic", false);
+            b.field("date_detection", false);
+            b.field("numeric_detection", false);
+            b.field("dynamic_date_formats", Collections.singletonList("yyyy-MM-dd"));
+            b.startArray("dynamic_templates");
+            {
+                b.startObject();
+                {
+                    b.startObject("my_template");
+                    {
+                        b.startObject("mapping").field("type", "keyword").endObject();
+                    }
+                    b.endObject();
+                }
+                b.endObject();
+            }
+            b.endArray();
+            b.startObject("properties");
+            buildProperties.accept(b);
+            b.endObject();
+        }));
+        return mapper.mapping().getRoot();
     }
 
 }

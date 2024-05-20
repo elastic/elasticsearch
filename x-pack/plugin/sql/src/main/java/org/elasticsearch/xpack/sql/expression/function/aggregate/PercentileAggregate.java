@@ -160,11 +160,6 @@ abstract class PercentileAggregate extends NumericAggregate implements EnclosedA
     }
 
     @Override
-    public DataType dataType() {
-        return DataTypes.DOUBLE;
-    }
-
-    @Override
     public String innerName() {
         Double value = (Double) SqlDataTypeConverter.convert(Foldables.valueOf(parameter), DataTypes.DOUBLE);
         return Double.toString(value);

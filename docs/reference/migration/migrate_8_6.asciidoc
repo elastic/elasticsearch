@@ -13,10 +13,7 @@ See also <<release-highlights>> and <<es-release-notes>>.
 [[breaking-changes-8.6]]
 === Breaking changes
 
-// tag::notable-breaking-changes[]
 There are no breaking changes in {es} 8.6.
-// end::notable-breaking-changes[]
-
 
 [discrete]
 [[deprecated-8.6]]

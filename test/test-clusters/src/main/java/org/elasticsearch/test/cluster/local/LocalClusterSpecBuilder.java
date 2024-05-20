@@ -14,33 +14,33 @@ import org.elasticsearch.test.cluster.util.resource.Resource;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 
-public interface LocalClusterSpecBuilder extends LocalSpecBuilder<LocalClusterSpecBuilder> {
+public interface LocalClusterSpecBuilder<T extends ElasticsearchCluster> extends LocalSpecBuilder<LocalClusterSpecBuilder<T>> {
     /**
      * Sets the node name. By default, "test-cluster" is used.
      */
-    LocalClusterSpecBuilder name(String name);
+    LocalClusterSpecBuilder<T> name(String name);
 
     /**
      * Apply configuration from a {@link LocalClusterConfigProvider}. This configuration is applied eagerly. Subsequent calls to this
      * builder will override provider settings.
      */
-    LocalClusterSpecBuilder apply(LocalClusterConfigProvider configProvider);
+    LocalClusterSpecBuilder<T> apply(LocalClusterConfigProvider configProvider);
 
     /**
      * Apply configuration from a {@link LocalClusterConfigProvider} created by the given {@link Supplier}. This configuration is applied
      * lazily and will override existing builder settings.
      */
-    LocalClusterSpecBuilder apply(Supplier<LocalClusterConfigProvider> configProvider);
+    LocalClusterSpecBuilder<T> apply(Supplier<LocalClusterConfigProvider> configProvider);
 
     /**
      * Sets the number of nodes for the cluster.
      */
-    LocalClusterSpecBuilder nodes(int nodes);
+    LocalClusterSpecBuilder<T> nodes(int nodes);
 
     /**
      * Adds a new node to the cluster and configures the node.
      */
-    LocalClusterSpecBuilder withNode(Consumer<? super LocalNodeSpecBuilder> config);
+    LocalClusterSpecBuilder<T> withNode(Consumer<? super LocalNodeSpecBuilder> config);
 
     /**
      * Configures an existing node.
@@ -48,22 +48,32 @@ public interface LocalClusterSpecBuilder extends LocalSpecBuilder<LocalClusterSp
      * @param index the index of the node to configure
      * @param config configuration to apply to the node
      */
-    LocalClusterSpecBuilder node(int index, Consumer<? super LocalNodeSpecBuilder> config);
+    LocalClusterSpecBuilder<T> node(int index, Consumer<? super LocalNodeSpecBuilder> config);
 
     /**
-     * Register a user using the default test role.
+     * Register a user using the default test role, as an operator
      */
-    LocalClusterSpecBuilder user(String username, String password);
+    LocalClusterSpecBuilder<T> user(String username, String password);
 
     /**
      * Register a user using the given role.
+     * @param operator If true, configure the user as an operator.
+     *                 <em>Note</em>: This does <strong>not</strong> automatically enable operator privileges on the cluster
      */
-    LocalClusterSpecBuilder user(String username, String password, String role);
+    LocalClusterSpecBuilder<T> user(String username, String password, String role, boolean operator);
 
     /**
      * Register a roles file with cluster via the supplied {@link Resource}.
      */
-    LocalClusterSpecBuilder rolesFile(Resource rolesFile);
+    LocalClusterSpecBuilder<T> rolesFile(Resource rolesFile);
 
-    ElasticsearchCluster build();
+    /**
+     * Configure whether this cluster should be shared across test suites (classes). If set to {@code true} then the cluster will not be
+     * shut down or recreated before the next test suite begins execution. This setting is {@code false} by default.
+     *
+     * @param isShared whether the cluster should be shared
+     */
+    LocalClusterSpecBuilder<T> shared(Boolean isShared);
+
+    T build();
 }

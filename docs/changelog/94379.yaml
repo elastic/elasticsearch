@@ -1,5 +1,0 @@
-pr: 94379
-summary: "Avoid duplicate application of RoutingTable diff"
-area: Allocation
-type: bug
-issues: []

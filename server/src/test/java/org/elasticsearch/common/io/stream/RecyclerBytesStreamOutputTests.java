@@ -107,7 +107,7 @@ public class RecyclerBytesStreamOutputTests extends ESTestCase {
         RecyclerBytesStreamOutput out = new RecyclerBytesStreamOutput(recycler);
 
         // bulk-write with wrong args
-        expectThrows(IllegalArgumentException.class, () -> out.writeBytes(new byte[] {}, 0, 1));
+        expectThrows(IndexOutOfBoundsException.class, () -> out.writeBytes(new byte[] {}, 0, 1));
         out.close();
     }
 
@@ -426,9 +426,9 @@ public class RecyclerBytesStreamOutputTests extends ESTestCase {
         }
 
         try (RecyclerBytesStreamOutput out = new RecyclerBytesStreamOutput(recycler)) {
-            out.writeNamedWriteableList(expected);
+            out.writeNamedWriteableCollection(expected);
             try (StreamInput in = new NamedWriteableAwareStreamInput(out.bytes().streamInput(), namedWriteableRegistry)) {
-                assertEquals(expected, in.readNamedWriteableList(BaseNamedWriteable.class));
+                assertEquals(expected, in.readNamedWriteableCollectionAsList(BaseNamedWriteable.class));
                 assertEquals(0, in.available());
             }
         }
@@ -516,11 +516,11 @@ public class RecyclerBytesStreamOutputTests extends ESTestCase {
         }
 
         final RecyclerBytesStreamOutput out = new RecyclerBytesStreamOutput(recycler);
-        out.writeList(expected);
+        out.writeCollection(expected);
 
         final StreamInput in = StreamInput.wrap(BytesReference.toBytes(out.bytes()));
 
-        final List<TestWriteable> loaded = in.readList(TestWriteable::new);
+        final List<TestWriteable> loaded = in.readCollectionAsList(TestWriteable::new);
 
         assertThat(loaded, hasSize(expected.size()));
 
@@ -580,48 +580,6 @@ public class RecyclerBytesStreamOutputTests extends ESTestCase {
         final ImmutableOpenMap<TestWriteable, TestWriteable> loaded = in.readImmutableOpenMap(TestWriteable::new, TestWriteable::new);
 
         assertThat(expected, equalTo(loaded));
-    }
-
-    public void testWriteMapOfLists() throws IOException {
-        final int size = randomIntBetween(0, 5);
-        final Map<String, List<String>> expected = Maps.newMapWithExpectedSize(size);
-
-        for (int i = 0; i < size; ++i) {
-            int listSize = randomIntBetween(0, 5);
-            List<String> list = new ArrayList<>(listSize);
-
-            for (int j = 0; j < listSize; ++j) {
-                list.add(randomAlphaOfLength(5));
-            }
-
-            expected.put(randomAlphaOfLength(2), list);
-        }
-
-        final RecyclerBytesStreamOutput out = new RecyclerBytesStreamOutput(recycler);
-        out.writeMapOfLists(expected, StreamOutput::writeString, StreamOutput::writeString);
-
-        final StreamInput in = StreamInput.wrap(BytesReference.toBytes(out.bytes()));
-
-        final Map<String, List<String>> loaded = in.readMapOfLists(StreamInput::readString, StreamInput::readString);
-
-        assertThat(loaded.size(), equalTo(expected.size()));
-
-        for (Map.Entry<String, List<String>> entry : expected.entrySet()) {
-            assertThat(loaded.containsKey(entry.getKey()), equalTo(true));
-
-            List<String> loadedList = loaded.get(entry.getKey());
-
-            assertThat(loadedList, hasSize(entry.getValue().size()));
-
-            for (int i = 0; i < loadedList.size(); ++i) {
-                assertEquals(entry.getValue().get(i), loadedList.get(i));
-            }
-        }
-
-        assertEquals(0, in.available());
-
-        in.close();
-        out.close();
     }
 
     public void testWriteMapAsList() throws IOException {
@@ -712,6 +670,59 @@ public class RecyclerBytesStreamOutputTests extends ESTestCase {
         }
     }
 
+    public void testWriteLongToCompletePage() throws IOException {
+        try (RecyclerBytesStreamOutput out = new RecyclerBytesStreamOutput(recycler)) {
+            out.seek(PageCacheRecycler.BYTE_PAGE_SIZE + 1);
+            int longPos = PageCacheRecycler.BYTE_PAGE_SIZE - Long.BYTES;
+            out.seek(longPos);
+            long longValue = randomLong();
+            out.writeLong(longValue);
+            byte byteValue = randomByte();
+            out.writeByte(byteValue);
+            var input = out.bytes().streamInput();
+            assertEquals(longPos, input.skip(longPos));
+            assertEquals(longValue, input.readLong());
+            assertEquals(byteValue, input.readByte());
+        }
+    }
+
+    public void testRandomWritesAndSeeks() throws IOException {
+        try (RecyclerBytesStreamOutput out = new RecyclerBytesStreamOutput(recycler)) {
+
+            final byte[] expectedBuffer = new byte[between(0, PageCacheRecycler.BYTE_PAGE_SIZE * 4)];
+            int currentPos = 0;
+
+            for (int i = scaledRandomIntBetween(0, 1000); i >= 0; i--) {
+                switch (between(1, 3)) {
+                    case 1 -> {
+                        currentPos = between(0, expectedBuffer.length);
+                        out.seek(currentPos);
+                    }
+                    case 2 -> {
+                        if (currentPos < expectedBuffer.length) {
+                            byte newByte = randomByte();
+                            expectedBuffer[currentPos] = newByte;
+                            out.write(newByte);
+                            currentPos += 1;
+                        }
+                    }
+                    case 3 -> {
+                        final var newBytes = randomByteArrayOfLength(scaledRandomIntBetween(0, expectedBuffer.length));
+                        final var startPos = between(0, newBytes.length);
+                        final var len = between(0, Math.min(newBytes.length - startPos, expectedBuffer.length - currentPos));
+                        out.write(newBytes, startPos, len);
+                        System.arraycopy(newBytes, startPos, expectedBuffer, currentPos, len);
+                        currentPos += len;
+                    }
+                }
+            }
+
+            final byte[] expected = new byte[currentPos];
+            System.arraycopy(expectedBuffer, 0, expected, 0, currentPos);
+            assertArrayEquals(expected, BytesReference.toBytes(out.bytes()));
+        }
+    }
+
     private static class TestWriteable implements Writeable {
 
         private boolean value;
@@ -777,7 +788,7 @@ public class RecyclerBytesStreamOutputTests extends ESTestCase {
         try (RecyclerBytesStreamOutput streamOut = new RecyclerBytesStreamOutput(recycler)) {
             streamOut.writeMapWithConsistentOrder(streamOutMap);
             StreamInput in = StreamInput.wrap(BytesReference.toBytes(streamOut.bytes()));
-            Map<String, Object> streamInMap = in.readMap();
+            Map<String, Object> streamInMap = in.readGenericMap();
             assertEquals(streamOutMap, streamInMap);
         }
     }
@@ -1016,12 +1027,17 @@ public class RecyclerBytesStreamOutputTests extends ESTestCase {
                 pagesAllocated.incrementAndGet();
                 return page;
             }
+
+            @Override
+            public int pageSize() {
+                return pageSize;
+            }
         })) {
             var bytesAllocated = 0;
             while (bytesAllocated < Integer.MAX_VALUE) {
                 var thisAllocation = between(1, Integer.MAX_VALUE - bytesAllocated);
                 bytesAllocated += thisAllocation;
-                final var expectedPages = ((long) bytesAllocated + pageSize - 1) / pageSize;
+                final long expectedPages = (long) bytesAllocated / pageSize + (bytesAllocated % pageSize == 0 ? 0 : 1);
                 try {
                     output.skip(thisAllocation);
                     assertThat(pagesAllocated.get(), equalTo(expectedPages));

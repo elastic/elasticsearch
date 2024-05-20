@@ -49,6 +49,7 @@ public class SimpleQueryStringQueryParser extends SimpleQueryParser {
     private final Settings settings;
     private SearchExecutionContext context;
     private final MultiMatchQueryParser queryBuilder;
+    private MultiMatchQueryBuilder.Type type = MultiMatchQueryBuilder.Type.MOST_FIELDS;
 
     /** Creates a new parser with custom flags used to enable/disable certain features. */
     public SimpleQueryStringQueryParser(Map<String, Float> weights, int flags, Settings settings, SearchExecutionContext context) {
@@ -110,10 +111,14 @@ public class SimpleQueryStringQueryParser extends SimpleQueryParser {
     @Override
     public Query newDefaultQuery(String text) {
         try {
-            return queryBuilder.parse(MultiMatchQueryBuilder.Type.MOST_FIELDS, weights, text, null);
+            return queryBuilder.parse(type, weights, text, null);
         } catch (IOException e) {
             return rethrowUnlessLenient(new IllegalStateException(e.getMessage()));
         }
+    }
+
+    public void setType(MultiMatchQueryBuilder.Type type) {
+        this.type = type;
     }
 
     @Override

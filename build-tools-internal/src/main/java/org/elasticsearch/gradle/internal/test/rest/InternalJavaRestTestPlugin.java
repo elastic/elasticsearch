@@ -8,7 +8,7 @@
 
 package org.elasticsearch.gradle.internal.test.rest;
 
-import org.elasticsearch.gradle.testclusters.StandaloneRestIntegTestTask;
+import org.elasticsearch.gradle.internal.test.RestIntegTestTask;
 import org.elasticsearch.gradle.util.GradleUtils;
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
@@ -35,16 +35,12 @@ public class InternalJavaRestTestPlugin implements Plugin<Project> {
         SourceSetContainer sourceSets = project.getExtensions().getByType(SourceSetContainer.class);
         SourceSet javaTestSourceSet = sourceSets.create(SOURCE_SET_NAME);
 
-        project.getDependencies().add(javaTestSourceSet.getImplementationConfigurationName(), project.project(":test:test-clusters"));
+        if (project.findProject(":test:test-clusters") != null) {
+            project.getDependencies().add(javaTestSourceSet.getImplementationConfigurationName(), project.project(":test:test-clusters"));
+        }
 
         // setup the javaRestTest task
-        // we use a StandloneRestIntegTestTask here so that the conventions of RestTestBasePlugin don't create a test cluster
-        TaskProvider<StandaloneRestIntegTestTask> testTask = registerTestTask(
-            project,
-            javaTestSourceSet,
-            SOURCE_SET_NAME,
-            StandaloneRestIntegTestTask.class
-        );
+        TaskProvider<RestIntegTestTask> testTask = registerTestTask(project, javaTestSourceSet, SOURCE_SET_NAME, RestIntegTestTask.class);
 
         project.getTasks().named(JavaBasePlugin.CHECK_TASK_NAME).configure(check -> check.dependsOn(testTask));
 

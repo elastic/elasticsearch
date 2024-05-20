@@ -84,6 +84,11 @@ public abstract class DeferringBucketCollector extends BucketCollector {
         }
 
         @Override
+        public void releaseAggregations() {
+            in.releaseAggregations();
+        }
+
+        @Override
         public InternalAggregation buildEmptyAggregation() {
             return in.buildEmptyAggregation();
         }

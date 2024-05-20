@@ -26,6 +26,7 @@ import org.elasticsearch.common.Table;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.rest.RestRequest;
@@ -43,9 +44,9 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
 
-import static org.elasticsearch.action.support.master.MasterNodeRequest.DEFAULT_MASTER_NODE_TIMEOUT;
 import static org.elasticsearch.common.util.set.Sets.addToCopy;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
+import static org.elasticsearch.rest.RestUtils.getMasterNodeTimeout;
 
 @ServerlessScope(Scope.PUBLIC)
 public class RestIndicesAction extends AbstractCatAction {
@@ -78,7 +79,7 @@ public class RestIndicesAction extends AbstractCatAction {
     public RestChannelConsumer doCatRequest(final RestRequest request, final NodeClient client) {
         final String[] indices = Strings.splitStringByCommaToArray(request.param("index"));
         final IndicesOptions indicesOptions = IndicesOptions.fromRequest(request, IndicesOptions.strictExpand());
-        final TimeValue masterNodeTimeout = request.paramAsTime("master_timeout", DEFAULT_MASTER_NODE_TIMEOUT);
+        final TimeValue masterNodeTimeout = getMasterNodeTimeout(request);
         final boolean includeUnloadedSegments = request.paramAsBoolean("include_unloaded_segments", false);
 
         return channel -> {
@@ -169,6 +170,12 @@ public class RestIndicesAction extends AbstractCatAction {
 
         table.addCell("store.size", "sibling:pri;alias:ss,storeSize;text-align:right;desc:store size of primaries & replicas");
         table.addCell("pri.store.size", "text-align:right;desc:store size of primaries");
+
+        if (request.getRestApiVersion() == RestApiVersion.V_7) {
+            table.addCell("dataset.size", "default:false;text-align:right;desc:total size of dataset");
+        } else {
+            table.addCell("dataset.size", "text-align:right;desc:total size of dataset");
+        }
 
         table.addCell("completion.size", "sibling:pri;alias:cs,completionSize;default:false;text-align:right;desc:size of completion");
         table.addCell("pri.completion.size", "default:false;text-align:right;desc:size of completion");
@@ -501,6 +508,12 @@ public class RestIndicesAction extends AbstractCatAction {
         );
         table.addCell("pri.bulk.avg_size_in_bytes", "default:false;text-align:right;desc:average size in bytes of shard bulk");
 
+        table.addCell(
+            "dense_vector.value_count",
+            "sibling:pri;alias:dvc,denseVectorCount;default:false;text-align:right;desc:total count of indexed dense vector"
+        );
+        table.addCell("pri.dense_vector.value_count", "default:false;text-align:right;desc:total count of indexed dense vector");
+
         table.endHeaders();
         return table;
     }
@@ -579,6 +592,7 @@ public class RestIndicesAction extends AbstractCatAction {
 
             table.addCell(totalStats.getStore() == null ? null : totalStats.getStore().size());
             table.addCell(primaryStats.getStore() == null ? null : primaryStats.getStore().size());
+            table.addCell(primaryStats.getStore() == null ? null : primaryStats.getStore().totalDataSetSize());
 
             table.addCell(totalStats.getCompletion() == null ? null : totalStats.getCompletion().getSize());
             table.addCell(primaryStats.getCompletion() == null ? null : primaryStats.getCompletion().getSize());
@@ -773,6 +787,9 @@ public class RestIndicesAction extends AbstractCatAction {
 
             table.addCell(totalStats.getBulk() == null ? null : totalStats.getBulk().getAvgSizeInBytes());
             table.addCell(primaryStats.getBulk() == null ? null : primaryStats.getBulk().getAvgSizeInBytes());
+
+            table.addCell(totalStats.getDenseVectorStats() == null ? null : totalStats.getDenseVectorStats().getValueCount());
+            table.addCell(primaryStats.getDenseVectorStats() == null ? null : primaryStats.getDenseVectorStats().getValueCount());
 
             table.endRow();
         });

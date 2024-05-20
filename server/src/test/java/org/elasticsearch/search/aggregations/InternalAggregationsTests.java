@@ -86,27 +86,41 @@ public class InternalAggregationsTests extends ESTestCase {
 
     InternalAggregations toReduce(AtomicLong f1Reduced, AtomicLong f2Reduced, int k1, int k2, int k1k1, int k1k2, int k2k1, int k2k2) {
         class InternalFiltersForF2 extends InternalFilters {
-            InternalFiltersForF2(String name, List<InternalBucket> buckets, boolean keyed, Map<String, Object> metadata) {
-                super(name, buckets, keyed, metadata);
+            InternalFiltersForF2(
+                String name,
+                List<InternalBucket> buckets,
+                boolean keyed,
+                boolean keyedBucket,
+                Map<String, Object> metadata
+            ) {
+                super(name, buckets, keyed, keyedBucket, metadata);
             }
 
-            public InternalAggregation reduce(List<InternalAggregation> aggregations, AggregationReduceContext reduceContext) {
+            @Override
+            protected AggregatorReducer getLeaderReducer(AggregationReduceContext reduceContext, int size) {
                 assertThat(reduceContext.builder().getName(), equalTo("f2"));
                 assertThat(reduceContext.builder(), instanceOf(FiltersAggregationBuilder.class));
                 f2Reduced.incrementAndGet();
-                return super.reduce(aggregations, reduceContext);
+                return super.getLeaderReducer(reduceContext, size);
             }
         }
         class InternalFiltersForF1 extends InternalFilters {
-            InternalFiltersForF1(String name, List<InternalBucket> buckets, boolean keyed, Map<String, Object> metadata) {
-                super(name, buckets, keyed, metadata);
+            InternalFiltersForF1(
+                String name,
+                List<InternalBucket> buckets,
+                boolean keyed,
+                boolean keyedBucket,
+                Map<String, Object> metadata
+            ) {
+                super(name, buckets, keyed, keyedBucket, metadata);
             }
 
-            public InternalAggregation reduce(List<InternalAggregation> aggregations, AggregationReduceContext reduceContext) {
+            @Override
+            protected AggregatorReducer getLeaderReducer(AggregationReduceContext reduceContext, int size) {
                 assertThat(reduceContext.builder().getName(), equalTo("f1"));
                 assertThat(reduceContext.builder(), instanceOf(FiltersAggregationBuilder.class));
                 f1Reduced.incrementAndGet();
-                return super.reduce(aggregations, reduceContext);
+                return super.getLeaderReducer(reduceContext, size);
             }
         }
         return InternalAggregations.from(
@@ -122,14 +136,16 @@ public class InternalAggregationsTests extends ESTestCase {
                                     new InternalFiltersForF2(
                                         "f2",
                                         List.of(
-                                            new InternalFilters.InternalBucket("f2k1", k1k1, InternalAggregations.EMPTY, true),
-                                            new InternalFilters.InternalBucket("f2k2", k1k2, InternalAggregations.EMPTY, true)
+                                            new InternalFilters.InternalBucket("f2k1", k1k1, InternalAggregations.EMPTY, true, true),
+                                            new InternalFilters.InternalBucket("f2k2", k1k2, InternalAggregations.EMPTY, true, true)
                                         ),
+                                        true,
                                         true,
                                         null
                                     )
                                 )
                             ),
+                            true,
                             true
                         ),
                         new InternalFilters.InternalBucket(
@@ -140,17 +156,20 @@ public class InternalAggregationsTests extends ESTestCase {
                                     new InternalFiltersForF2(
                                         "f2",
                                         List.of(
-                                            new InternalFilters.InternalBucket("f2k1", k2k1, InternalAggregations.EMPTY, true),
-                                            new InternalFilters.InternalBucket("f2k2", k2k2, InternalAggregations.EMPTY, true)
+                                            new InternalFilters.InternalBucket("f2k1", k2k1, InternalAggregations.EMPTY, true, true),
+                                            new InternalFilters.InternalBucket("f2k2", k2k2, InternalAggregations.EMPTY, true, true)
                                         ),
+                                        true,
                                         true,
                                         null
                                     )
                                 )
                             ),
+                            true,
                             true
                         )
                     ),
+                    true,
                     true,
                     null
                 )
@@ -172,14 +191,16 @@ public class InternalAggregationsTests extends ESTestCase {
                                     new InternalFilters(
                                         "f2",
                                         List.of(
-                                            new InternalFilters.InternalBucket("f2k1", k1k1, InternalAggregations.EMPTY, true),
-                                            new InternalFilters.InternalBucket("f2k2", k1k2, InternalAggregations.EMPTY, true)
+                                            new InternalFilters.InternalBucket("f2k1", k1k1, InternalAggregations.EMPTY, true, true),
+                                            new InternalFilters.InternalBucket("f2k2", k1k2, InternalAggregations.EMPTY, true, true)
                                         ),
+                                        true,
                                         true,
                                         null
                                     )
                                 )
                             ),
+                            true,
                             true
                         ),
                         new InternalFilters.InternalBucket(
@@ -190,17 +211,20 @@ public class InternalAggregationsTests extends ESTestCase {
                                     new InternalFilters(
                                         "f2",
                                         List.of(
-                                            new InternalFilters.InternalBucket("f2k1", k2k1, InternalAggregations.EMPTY, true),
-                                            new InternalFilters.InternalBucket("f2k2", k2k2, InternalAggregations.EMPTY, true)
+                                            new InternalFilters.InternalBucket("f2k1", k2k1, InternalAggregations.EMPTY, true, true),
+                                            new InternalFilters.InternalBucket("f2k2", k2k2, InternalAggregations.EMPTY, true, true)
                                         ),
+                                        true,
                                         true,
                                         null
                                     )
                                 )
                             ),
+                            true,
                             true
                         )
                     ),
+                    true,
                     true,
                     null
                 )
@@ -225,7 +249,7 @@ public class InternalAggregationsTests extends ESTestCase {
         );
         List<InternalAggregations> aggs = singletonList(InternalAggregations.from(Collections.singletonList(terms)));
         InternalAggregations reducedAggs = InternalAggregations.topLevelReduce(aggs, maxBucketReduceContext().forPartialReduction());
-        assertEquals(1, reducedAggs.aggregations.size());
+        assertEquals(1, reducedAggs.asList().size());
     }
 
     public void testFinalReduceTopLevelPipelineAggs() {
@@ -246,7 +270,7 @@ public class InternalAggregationsTests extends ESTestCase {
 
         InternalAggregations aggs = InternalAggregations.from(Collections.singletonList(terms));
         InternalAggregations reducedAggs = InternalAggregations.topLevelReduce(List.of(aggs), maxBucketReduceContext().forFinalReduction());
-        assertEquals(2, reducedAggs.aggregations.size());
+        assertEquals(2, reducedAggs.asList().size());
     }
 
     private AggregationReduceContext.Builder maxBucketReduceContext() {
@@ -279,14 +303,14 @@ public class InternalAggregationsTests extends ESTestCase {
 
     public void testSerialization() throws Exception {
         InternalAggregations aggregations = createTestInstance();
-        writeToAndReadFrom(aggregations, TransportVersion.CURRENT, 0);
+        writeToAndReadFrom(aggregations, TransportVersion.current(), 0);
     }
 
     public void testSerializedSize() throws Exception {
         InternalAggregations aggregations = createTestInstance();
         assertThat(
             DelayableWriteable.getSerializedSize(aggregations),
-            equalTo((long) serialize(aggregations, TransportVersion.CURRENT).length)
+            equalTo((long) serialize(aggregations, TransportVersion.current()).length)
         );
     }
 
@@ -295,7 +319,7 @@ public class InternalAggregationsTests extends ESTestCase {
         try (StreamInput in = new NamedWriteableAwareStreamInput(StreamInput.wrap(serializedAggs.bytes), registry)) {
             in.setTransportVersion(version);
             InternalAggregations deserialized = InternalAggregations.readFrom(in);
-            assertEquals(aggregations.aggregations, deserialized.aggregations);
+            assertEquals(aggregations.asList(), deserialized.asList());
             if (iteration < 2) {
                 writeToAndReadFrom(deserialized, version, iteration + 1);
             }

@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.transform.persistence;
 
-import org.elasticsearch.action.index.IndexResponse;
+import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.search.SearchHit;
 
 import java.util.Objects;
@@ -24,7 +24,7 @@ public class SeqNoPrimaryTermAndIndex {
         return new SeqNoPrimaryTermAndIndex(hit.getSeqNo(), hit.getPrimaryTerm(), hit.getIndex());
     }
 
-    public static SeqNoPrimaryTermAndIndex fromIndexResponse(IndexResponse response) {
+    public static SeqNoPrimaryTermAndIndex fromIndexResponse(DocWriteResponse response) {
         return new SeqNoPrimaryTermAndIndex(response.getSeqNo(), response.getPrimaryTerm(), response.getIndex());
     }
 

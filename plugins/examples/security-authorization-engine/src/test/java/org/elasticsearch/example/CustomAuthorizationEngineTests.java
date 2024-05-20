@@ -8,13 +8,13 @@
 
 package org.elasticsearch.example;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexAbstraction.ConcreteIndex;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
@@ -118,7 +118,7 @@ public class CustomAuthorizationEngineTests extends ESTestCase {
         CustomAuthorizationEngine engine = new CustomAuthorizationEngine();
         Map<String, IndexAbstraction> indicesMap = new HashMap<>();
         indicesMap.put("index", new ConcreteIndex(IndexMetadata.builder("index")
-            .settings(Settings.builder().put("index.version.created", Version.CURRENT))
+            .settings(Settings.builder().put("index.version.created", IndexVersion.current()))
             .numberOfShards(1)
             .numberOfReplicas(0)
             .build(), null));

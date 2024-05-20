@@ -34,7 +34,7 @@ The vocabulary is stored in the index as described in
 
 `<model_id>`::
 (Required, string)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=model-id]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=model-id]
 
 [[ml-put-trained-model-vocabulary-request-body]]
 == {api-request-body-title}
@@ -47,6 +47,11 @@ The model vocabulary. Must not be empty.
 (Optional, array)
 The model merges used in byte-pair encoding. The merges must be sub-token pairs, space delimited, and in order of
 preference. Example: ["f o", "fo o"]. Must be provided for RoBERTa and BART style models.
+
+`scores`::
+(Optional, array)
+Vocabulary value scores used by sentence-piece tokenization. Must have the same length as `vocabulary`.
+Required for unigram sentence-piece tokenized models like XLMRoberta and T5.
 
 [[ml-put-trained-model-vocabulary-example]]
 == {api-examples-title}

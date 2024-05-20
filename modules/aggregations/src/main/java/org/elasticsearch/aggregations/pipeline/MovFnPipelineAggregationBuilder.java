@@ -9,6 +9,7 @@
 package org.elasticsearch.aggregations.pipeline;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -68,7 +69,7 @@ public class MovFnPipelineAggregationBuilder extends AbstractPipelineAggregation
             }
             throw new IllegalArgumentException("Unsupported token [" + p.currentToken() + "]");
         }, GAP_POLICY, ObjectParser.ValueType.STRING);
-    };
+    }
 
     public MovFnPipelineAggregationBuilder(String name, String bucketsPath, Script script, int window) {
         super(name, NAME, new String[] { bucketsPath });
@@ -190,25 +191,6 @@ public class MovFnPipelineAggregationBuilder extends AbstractPipelineAggregation
         return builder;
     }
 
-    /**
-     * Used for serialization testing, since pipeline aggs serialize themselves as a named object but are parsed
-     * as a regular object with the name passed in.
-     */
-    static MovFnPipelineAggregationBuilder parse(XContentParser parser) throws IOException {
-        parser.nextToken();
-        if (parser.currentToken().equals(XContentParser.Token.START_OBJECT)) {
-            parser.nextToken();
-            if (parser.currentToken().equals(XContentParser.Token.FIELD_NAME)) {
-                String aggName = parser.currentName();
-                parser.nextToken(); // "moving_fn"
-                parser.nextToken(); // start_object
-                return PARSER.apply(parser, aggName);
-            }
-        }
-
-        throw new IllegalStateException("Expected aggregation name but none found");
-    }
-
     @Override
     protected boolean overrideBucketsPath() {
         return true;
@@ -240,6 +222,6 @@ public class MovFnPipelineAggregationBuilder extends AbstractPipelineAggregation
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersion.ZERO;
+        return TransportVersions.ZERO;
     }
 }

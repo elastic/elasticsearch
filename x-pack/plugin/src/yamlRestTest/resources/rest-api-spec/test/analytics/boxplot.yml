@@ -55,9 +55,90 @@ setup:
 
   - match: { aggregations.plot.min: 2.0 }
   - match: { aggregations.plot.max: 15.0 }
+  - match: { aggregations.plot.q1: 3.0 }
+  - match: { aggregations.plot.q2: 5.0 }
+  - match: { aggregations.plot.q3: 10.0 }
+
+---
+"Search With Compression":
+
+  - do:
+      search:
+        index: "latency"
+        body:
+          size: 0
+          aggs:
+            plot:
+              boxplot:
+                field: "load_time"
+                compression: 200
+
+  - match: { aggregations.plot.min: 2.0 }
+  - match: { aggregations.plot.max: 15.0 }
+  - match: { aggregations.plot.q1: 3.0 }
+  - match: { aggregations.plot.q2: 5.0 }
+  - match: { aggregations.plot.q3: 10.0 }
+
+  - do:
+      catch: /\[compression\] must be greater than or equal to 0. Found \[-1.0\] in \[plot\]/
+      search:
+        index: "latency"
+        body:
+          size: 0
+          aggs:
+            plot:
+              boxplot:
+                field: "load_time"
+                compression: -1.0
+
+---
+"Search With Execution Hint":
+
+  - do:
+      search:
+        index: "latency"
+        body:
+          size: 0
+          aggs:
+            plot:
+              boxplot:
+                field: "load_time"
+                execution_hint: high_accuracy
+
+  - match: { aggregations.plot.min: 2.0 }
+  - match: { aggregations.plot.max: 15.0 }
   - match: { aggregations.plot.q1: 2.75 }
   - match: { aggregations.plot.q2: 5.0 }
   - match: { aggregations.plot.q3: 11.25 }
+
+  - do:
+      search:
+        index: "latency"
+        body:
+          size: 0
+          aggs:
+            plot:
+              boxplot:
+                field: "load_time"
+                execution_hint: default
+
+  - match: { aggregations.plot.min: 2.0 }
+  - match: { aggregations.plot.max: 15.0 }
+  - match: { aggregations.plot.q1: 3.0 }
+  - match: { aggregations.plot.q2: 5.0 }
+  - match: { aggregations.plot.q3: 10.0 }
+
+  - do:
+      catch: /Invalid execution_hint \[no_such_hint\], valid values are \[default, high_accuracy\]/
+      search:
+        index: "latency"
+        body:
+          size: 0
+          aggs:
+            plot:
+              boxplot:
+                field: "load_time"
+                execution_hint: no_such_hint
 
 ---
 "Search With Runtime Field":
@@ -84,9 +165,9 @@ setup:
 
   - match: { aggregations.plot.min: 20.0 }
   - match: { aggregations.plot.max: 10000.0 }
-  - match: { aggregations.plot.q1: 27.5 }
+  - match: { aggregations.plot.q1: 30.0 }
   - match: { aggregations.plot.q2: 50.0 }
-  - match: { aggregations.plot.q3: 2612.5 }
+  - match: { aggregations.plot.q3: 150.0 }
   - match: { aggregations.plot.lower: 20.0 }
   - match: { aggregations.plot.upper: 150.0 }
 
@@ -106,8 +187,71 @@ setup:
 
   - match: { aggregations.plot.min: 2.0 }
   - match: { aggregations.plot.max: 10000.0 }
-  - match: { aggregations.plot.q1: 3 }
+  - match: { aggregations.plot.q1: 3.5 }
   - match: { aggregations.plot.q2: 7.5 }
-  - match: { aggregations.plot.q3: 15.0 }
+  - match: { aggregations.plot.q3: 13.75 }
   - match: { aggregations.plot.lower: 2.0 }
   - match: { aggregations.plot.upper: 15.0 }
+
+---
+"Counter field":
+  - requires:
+      cluster_features: ["gte_v8.10.0"]
+      reason: "counter field support added in 8.10"
+      test_runner_features: close_to
+
+  - do:
+      indices.create:
+        index: test_counter
+        body:
+          settings:
+            index:
+              mode: time_series
+              routing_path: [ key ]
+              time_series:
+                start_time: 2021-01-01T00:00:00Z
+                end_time: 2021-01-31T00:00:00Z
+              number_of_shards: 1
+          mappings:
+            properties:
+              "@timestamp":
+                type: date
+              key:
+                type: keyword
+                time_series_dimension: true
+              counter:
+                type: long
+                time_series_metric: counter
+
+  - do:
+      bulk:
+        index: test_counter
+        refresh: true
+        body:
+          - '{ "index": {} }'
+          - '{ "@timestamp": "2021-01-01T00:01:00Z", "key": "bar", "counter": 10 }'
+          - '{ "index": {} }'
+          - '{ "@timestamp": "2021-01-01T00:02:00Z", "key": "bar", "counter": 20 }'
+          - '{ "index": {} }'
+          - '{ "@timestamp": "2021-01-01T00:03:00Z", "key": "bar", "counter": 22 }'
+          - '{ "index": {} }'
+          - '{ "@timestamp": "2021-01-01T00:04:00Z", "key": "bar", "counter": 28 }'
+
+  - do:
+      search:
+        index: test_counter
+        body:
+          aggs:
+            counter_boxplot:
+              boxplot:
+                field: counter
+
+  - match: { hits.total.value: 4 }
+  - length: { hits.hits: 4 }
+  - close_to: { aggregations.counter_boxplot.min: { value: 10.00, error: 0.01 } }
+  - close_to: { aggregations.counter_boxplot.max: { value: 28.00, error: 0.01 } }
+  - close_to: { aggregations.counter_boxplot.q1: { value: 17.50, error: 0.01 } }
+  - close_to: { aggregations.counter_boxplot.q2: { value: 21.00, error: 0.01 } }
+  - close_to: { aggregations.counter_boxplot.q3: { value: 23.50, error: 0.01 } }
+  - close_to: { aggregations.counter_boxplot.lower: { value: 10.00, error: 0.01 } }
+  - close_to: { aggregations.counter_boxplot.upper: { value: 28.00, error: 0.01 } }

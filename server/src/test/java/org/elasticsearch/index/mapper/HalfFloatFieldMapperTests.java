@@ -10,12 +10,12 @@ package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.sandbox.document.HalfFloatPoint;
 import org.elasticsearch.index.mapper.NumberFieldMapper.NumberType;
-import org.elasticsearch.index.mapper.NumberFieldTypeTests.OutOfRangeSpec;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.junit.AssumptionViolatedException;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.function.Function;
 
 public class HalfFloatFieldMapperTests extends NumberFieldMapperTests {
 
@@ -25,14 +25,14 @@ public class HalfFloatFieldMapperTests extends NumberFieldMapperTests {
     }
 
     @Override
-    protected List<OutOfRangeSpec> outOfRangeSpecs() {
+    protected List<NumberTypeOutOfRangeSpec> outOfRangeSpecs() {
         return List.of(
-            OutOfRangeSpec.of(NumberType.HALF_FLOAT, "65520", "[half_float] supports only finite values"),
-            OutOfRangeSpec.of(NumberType.HALF_FLOAT, "-65520", "[half_float] supports only finite values"),
-            OutOfRangeSpec.of(NumberType.HALF_FLOAT, "-65520", "[half_float] supports only finite values"),
-            OutOfRangeSpec.of(NumberType.HALF_FLOAT, Float.NaN, "[half_float] supports only finite values"),
-            OutOfRangeSpec.of(NumberType.HALF_FLOAT, Float.POSITIVE_INFINITY, "[half_float] supports only finite values"),
-            OutOfRangeSpec.of(NumberType.HALF_FLOAT, Float.NEGATIVE_INFINITY, "[half_float] supports only finite values")
+            NumberTypeOutOfRangeSpec.of(NumberType.HALF_FLOAT, "65520", "[half_float] supports only finite values"),
+            NumberTypeOutOfRangeSpec.of(NumberType.HALF_FLOAT, "-65520", "[half_float] supports only finite values"),
+            NumberTypeOutOfRangeSpec.of(NumberType.HALF_FLOAT, "-65520", "[half_float] supports only finite values"),
+            NumberTypeOutOfRangeSpec.of(NumberType.HALF_FLOAT, Float.NaN, "[half_float] supports only finite values"),
+            NumberTypeOutOfRangeSpec.of(NumberType.HALF_FLOAT, Float.POSITIVE_INFINITY, "[half_float] supports only finite values"),
+            NumberTypeOutOfRangeSpec.of(NumberType.HALF_FLOAT, Float.NEGATIVE_INFINITY, "[half_float] supports only finite values")
         );
     }
 
@@ -52,6 +52,17 @@ public class HalfFloatFieldMapperTests extends NumberFieldMapperTests {
             n -> HalfFloatPoint.sortableShortToHalfFloat(HalfFloatPoint.halfFloatToSortableShort(n.floatValue())),
             ignoreMalformed
         );
+    }
+
+    @Override
+    protected Function<Object, Object> loadBlockExpected() {
+        return v -> {
+            // The test converts the float into a string so we do do
+            Number n = (Number) v;
+            return Double.parseDouble(
+                Float.toString(HalfFloatPoint.sortableShortToHalfFloat(HalfFloatPoint.halfFloatToSortableShort(n.floatValue())))
+            );
+        };
     }
 
     @Override

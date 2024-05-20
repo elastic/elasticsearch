@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.core.ilm.action;
 
-import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
@@ -25,7 +24,7 @@ public class DeleteLifecycleAction extends ActionType<AcknowledgedResponse> {
     public static final String NAME = "cluster:admin/ilm/delete";
 
     protected DeleteLifecycleAction() {
-        super(NAME, AcknowledgedResponse::readFrom);
+        super(NAME);
     }
 
     public static class Request extends AcknowledgedRequest<Request> {
@@ -35,6 +34,7 @@ public class DeleteLifecycleAction extends ActionType<AcknowledgedResponse> {
         private String policyName;
 
         public Request(String policyName) {
+            super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT, DEFAULT_ACK_TIMEOUT);
             this.policyName = policyName;
         }
 
@@ -43,15 +43,12 @@ public class DeleteLifecycleAction extends ActionType<AcknowledgedResponse> {
             policyName = in.readString();
         }
 
-        public Request() {}
+        public Request() {
+            super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT, DEFAULT_ACK_TIMEOUT);
+        }
 
         public String getPolicyName() {
             return policyName;
-        }
-
-        @Override
-        public ActionRequestValidationException validate() {
-            return null;
         }
 
         @Override

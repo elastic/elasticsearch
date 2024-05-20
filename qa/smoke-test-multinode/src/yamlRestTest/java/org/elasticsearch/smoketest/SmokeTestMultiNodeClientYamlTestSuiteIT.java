@@ -27,6 +27,10 @@ public class SmokeTestMultiNodeClientYamlTestSuiteIT extends ESClientYamlSuiteTe
         .nodes(2)
         .module("mapper-extras")
         .module("ingest-common")
+        .module("reindex")
+        .module("analysis-common")
+        .module("health-shards-availability")
+        .module("data-streams")
         // The first node does not have the ingest role so we're sure ingest requests are forwarded:
         .node(0, n -> n.setting("node.roles", "[master,data,ml,remote_cluster_client,transform]"))
         .feature(FeatureFlag.TIME_SERIES_MODE)

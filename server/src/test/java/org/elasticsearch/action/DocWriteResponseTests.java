@@ -85,7 +85,7 @@ public class DocWriteResponseTests extends ESTestCase {
         ) {
             // DocWriteResponse is abstract so we have to sneak a subclass in here to test it.
         };
-        response.setShardInfo(new ShardInfo(1, 1));
+        response.setShardInfo(ShardInfo.allSuccessful(1));
         response.setForcedRefresh(false);
         try (XContentBuilder builder = JsonXContent.contentBuilder()) {
             response.toXContent(builder, ToXContent.EMPTY_PARAMS);

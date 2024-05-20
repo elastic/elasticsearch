@@ -17,6 +17,7 @@ import org.elasticsearch.core.Strings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.index.IndexModule;
+import org.elasticsearch.jdk.ModuleQualifiedExportsService;
 import org.elasticsearch.plugin.analysis.CharFilterFactory;
 import org.elasticsearch.plugins.scanners.PluginInfo;
 import org.elasticsearch.plugins.spi.BarPlugin;
@@ -46,6 +47,7 @@ import java.util.Map;
 import java.util.Set;
 
 import static org.hamcrest.Matchers.allOf;
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
@@ -63,7 +65,12 @@ public class PluginsServiceTests extends ESTestCase {
     public static class FilterablePlugin extends Plugin implements ScriptPlugin {}
 
     static PluginsService newPluginsService(Settings settings) {
-        return new PluginsService(settings, null, null, TestEnvironment.newEnvironment(settings).pluginsFile());
+        return new PluginsService(settings, null, null, TestEnvironment.newEnvironment(settings).pluginsFile()) {
+            @Override
+            protected void addServerExportsService(Map<String, List<ModuleQualifiedExportsService>> qualifiedExports) {
+                // tests don't run modular
+            }
+        };
     }
 
     static PluginsService newMockPluginsService(List<Class<? extends Plugin>> classpathPlugins) {
@@ -78,9 +85,8 @@ public class PluginsServiceTests extends ESTestCase {
     // This test uses a mock in order to use plugins from the classpath
     public void testFilterPlugins() {
         PluginsService service = newMockPluginsService(List.of(FakePlugin.class, FilterablePlugin.class));
-        List<ScriptPlugin> scriptPlugins = service.filterPlugins(ScriptPlugin.class);
-        assertEquals(1, scriptPlugins.size());
-        assertEquals(FilterablePlugin.class, scriptPlugins.get(0).getClass());
+        List<ScriptPlugin> scriptPlugins = service.filterPlugins(ScriptPlugin.class).toList();
+        assertThat(scriptPlugins, contains(instanceOf(FilterablePlugin.class)));
     }
 
     // This test uses a mock in order to use plugins from the classpath
@@ -454,10 +460,11 @@ public class PluginsServiceTests extends ESTestCase {
 
     public void testExtensiblePlugin() {
         TestExtensiblePlugin extensiblePlugin = new TestExtensiblePlugin();
+        var classname = "FakePlugin";
         PluginsService.loadExtensions(
             List.of(
                 new PluginsService.LoadedPlugin(
-                    new PluginDescriptor("extensible", null, null, null, null, null, null, List.of(), false, false, false, false),
+                    new PluginDescriptor("extensible", null, null, null, null, classname, null, List.of(), false, false, false, false),
                     extensiblePlugin
                 )
             )
@@ -471,11 +478,24 @@ public class PluginsServiceTests extends ESTestCase {
         PluginsService.loadExtensions(
             List.of(
                 new PluginsService.LoadedPlugin(
-                    new PluginDescriptor("extensible", null, null, null, null, null, null, List.of(), false, false, false, false),
+                    new PluginDescriptor("extensible", null, null, null, null, classname, null, List.of(), false, false, false, false),
                     extensiblePlugin
                 ),
                 new PluginsService.LoadedPlugin(
-                    new PluginDescriptor("test", null, null, null, null, null, null, List.of("extensible"), false, false, false, false),
+                    new PluginDescriptor(
+                        "test",
+                        null,
+                        null,
+                        null,
+                        null,
+                        classname,
+                        null,
+                        List.of("extensible"),
+                        false,
+                        false,
+                        false,
+                        false
+                    ),
                     testPlugin
                 )
             )
@@ -699,10 +719,10 @@ public class PluginsServiceTests extends ESTestCase {
             .instance();
 
         // We shouldn't find the FooTestService implementation with PluginOther
-        assertThat(MockPluginsService.createExtensions(TestService.class, othPlugin), empty());
+        assertThat(MockPluginsService.createExtensions(TestService.class, othPlugin, e -> false), empty());
 
         // We should find the FooTestService implementation when we use FooPlugin, because it matches the constructor arg.
-        var providers = MockPluginsService.createExtensions(TestService.class, fooPlugin);
+        var providers = MockPluginsService.createExtensions(TestService.class, fooPlugin, e -> false);
 
         assertThat(providers, allOf(hasSize(1), everyItem(instanceOf(BarTestService.class))));
     }

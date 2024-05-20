@@ -8,7 +8,6 @@
 
 package org.elasticsearch.action.admin.cluster.health;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
@@ -20,7 +19,7 @@ import org.elasticsearch.cluster.routing.ShardRoutingRoleStrategy;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.common.Randomness;
-import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESTestCase;
 
@@ -60,14 +59,14 @@ public class TransportClusterHealthActionTests extends ESTestCase {
         ClusterHealthResponse response = new ClusterHealthResponse("", indices, clusterState);
         assertThat(TransportClusterHealthAction.prepareResponse(request, response, clusterState, null), equalTo(0));
 
-        clusterState = ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY)).build();
+        clusterState = ClusterState.builder(ClusterName.DEFAULT).build();
         response = new ClusterHealthResponse("", indices, clusterState);
         assertThat(TransportClusterHealthAction.prepareResponse(request, response, clusterState, null), equalTo(1));
     }
 
     ClusterState randomClusterStateWithInitializingShards(String index, final int initializingShards) {
         final IndexMetadata indexMetadata = IndexMetadata.builder(index)
-            .settings(indexSettings(Version.CURRENT, between(1, 10), randomInt(20)))
+            .settings(indexSettings(IndexVersion.current(), between(1, 10), randomInt(20)))
             .build();
 
         final List<ShardRoutingState> shardRoutingStates = new ArrayList<>();
@@ -110,7 +109,7 @@ public class TransportClusterHealthActionTests extends ESTestCase {
             routingTable.addShard(TestShardRouting.newShardRouting(shardId, node, relocatingNode, false, state));
         }
 
-        return ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
+        return ClusterState.builder(ClusterName.DEFAULT)
             .metadata(Metadata.builder().put(indexMetadata, true))
             .routingTable(RoutingTable.builder().add(routingTable.build()).build())
             .build();

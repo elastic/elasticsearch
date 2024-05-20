@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.core.security.action.apikey;
 
-import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.common.Strings;
@@ -41,7 +41,7 @@ public final class InvalidateApiKeyRequest extends ActionRequest {
         super(in);
         realmName = textOrNull(in.readOptionalString());
         userName = textOrNull(in.readOptionalString());
-        if (in.getTransportVersion().onOrAfter(TransportVersion.V_7_10_0)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_7_10_0)) {
             ids = in.readOptionalStringArray();
         } else {
             final String id = in.readOptionalString();
@@ -49,7 +49,7 @@ public final class InvalidateApiKeyRequest extends ActionRequest {
         }
         validateIds(ids);
         name = textOrNull(in.readOptionalString());
-        if (in.getTransportVersion().onOrAfter(TransportVersion.V_7_4_0)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_7_4_0)) {
             ownedByAuthenticatedUser = in.readOptionalBoolean();
         } else {
             ownedByAuthenticatedUser = false;
@@ -209,7 +209,7 @@ public final class InvalidateApiKeyRequest extends ActionRequest {
         super.writeTo(out);
         out.writeOptionalString(realmName);
         out.writeOptionalString(userName);
-        if (out.getTransportVersion().onOrAfter(TransportVersion.V_7_10_0)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_7_10_0)) {
             out.writeOptionalStringArray(ids);
         } else {
             if (ids != null) {
@@ -223,7 +223,7 @@ public final class InvalidateApiKeyRequest extends ActionRequest {
             }
         }
         out.writeOptionalString(name);
-        if (out.getTransportVersion().onOrAfter(TransportVersion.V_7_4_0)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_7_4_0)) {
             out.writeOptionalBoolean(ownedByAuthenticatedUser);
         }
     }
@@ -246,10 +246,10 @@ public final class InvalidateApiKeyRequest extends ActionRequest {
 
     @Override
     public int hashCode() {
-        return Objects.hash(realmName, userName, ids, name, ownedByAuthenticatedUser);
+        return Objects.hash(realmName, userName, Arrays.hashCode(ids), name, ownedByAuthenticatedUser);
     }
 
-    private void validateIds(@Nullable String[] idsToValidate) {
+    private static void validateIds(@Nullable String[] idsToValidate) {
         if (idsToValidate != null) {
             if (idsToValidate.length == 0) {
                 final ActionRequestValidationException validationException = new ActionRequestValidationException();

@@ -114,7 +114,6 @@ public final class GeoPointScriptFieldDistanceFeatureQuery extends AbstractScrip
         private final TwoPhaseIterator twoPhase;
         private final DocIdSetIterator disi;
         private final float weight;
-        private double maxDistance = GeoUtils.EARTH_MEAN_RADIUS_METERS * Math.PI;
 
         protected DistanceScorer(Weight weight, AbstractLongFieldScript script, int maxDoc, float boost) {
             super(weight);

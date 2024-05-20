@@ -5,7 +5,6 @@ setup:
           body:
             settings:
               number_of_shards: 1
-              number_of_replicas: 0
             mappings:
               properties:
                 mentions:
@@ -25,16 +24,12 @@ setup:
 
 ---
 "Terms lookup gets cached":
-  - skip:
-      features: node_selector
-
   - do:
-      node_selector:
-        version: current # the version of the node that parsed the request is part of the cache key.
       search:
         rest_total_hits_as_int: true
         size: 0
         request_cache: true
+        preference: hit-same-shard-copy
         body:
           aggs:
             itemsNotify:
@@ -58,17 +53,16 @@ setup:
   # The first request will miss the cache
   - do:
       indices.stats: { index: test, metric: request_cache}
-  - match: { _shards.total: 1 }
+  - gte: { _shards.total: 1 }
   - match: { indices.test.total.request_cache.hit_count: 0 }
   - match: { indices.test.total.request_cache.miss_count: 1 }
 
   - do:
-      node_selector:
-        version: current # the version of the node that parsed the request is part of the cache key.
       search:
         rest_total_hits_as_int: true
         size: 0
         request_cache: true
+        preference: hit-same-shard-copy
         body:
           aggs:
             itemsNotify:
@@ -92,22 +86,18 @@ setup:
   # The second result with hit the cache
   - do:
       indices.stats: { index: test, metric: request_cache}
-  - match: { _shards.total: 1 }
+  - gte: { _shards.total: 1 }
   - match: { indices.test.total.request_cache.hit_count: 1 }
   - match: { indices.test.total.request_cache.miss_count: 1 }
 
 ---
 "Standard queries get cached":
-  - skip:
-      features: node_selector
-
   - do:
-      node_selector:
-        version: current # the version of the node that parsed the request is part of the cache key.
       search:
         rest_total_hits_as_int: true
         size: 0
         request_cache: true
+        preference: hit-same-shard-copy
         body:
           aggs:
             itemsNotify:
@@ -128,19 +118,18 @@ setup:
   # The first request will miss the cache
   - do:
       indices.stats: { index: test, metric: request_cache}
-  - match: { _shards.total: 1 }
+  - gte: { _shards.total: 1 }
   - match: { indices.test.total.request_cache.hit_count: 0 }
   - match: { indices.test.total.request_cache.miss_count: 1 }
   - is_true: indices.test
 
   # Try again - it'll cache
   - do:
-      node_selector:
-        version: current # the version of the node that parsed the request is part of the cache key.
       search:
         rest_total_hits_as_int: true
         size: 0
         request_cache: true
+        preference: hit-same-shard-copy
         body:
           aggs:
             itemsNotify:
@@ -161,7 +150,7 @@ setup:
   # The first request will miss the cache
   - do:
       indices.stats: { index: test, metric: request_cache}
-  - match: { _shards.total: 1 }
+  - gte: { _shards.total: 1 }
   - match: { indices.test.total.request_cache.hit_count: 1 }
   - match: { indices.test.total.request_cache.miss_count: 1 }
 
@@ -198,8 +187,8 @@ setup:
 
 ---
 "Sorting terms":
-  - skip:
-      version: " - 7.6.99"
+  - requires:
+      cluster_features: ["gte_v7.7.0"]
       reason: fixed in 7.7.0
 
   - do:

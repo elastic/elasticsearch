@@ -54,7 +54,6 @@ import org.apache.lucene.util.automaton.Automata;
 import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.CharacterRunAutomaton;
 import org.apache.lucene.util.automaton.Operations;
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
@@ -62,6 +61,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.lucene.index.SequentialStoredFieldsLeafReader;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.IOUtils;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.FieldNamesFieldMapper;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.test.ESTestCase;
@@ -209,7 +209,9 @@ public class FieldSubsetReaderTests extends ESTestCase {
 
         // Check that we can't see fieldB
         assertNull(leafReader.getFloatVectorValues("fieldB"));
-        assertNull(leafReader.searchNearestVectors("fieldB", new float[] { 1.0f, 1.0f, 1.0f }, 5, null, Integer.MAX_VALUE));
+        topDocs = leafReader.searchNearestVectors("fieldB", new float[] { 1.0f, 1.0f, 1.0f }, 5, null, Integer.MAX_VALUE);
+        assertEquals(0, topDocs.totalHits.value);
+        assertEquals(0, topDocs.scoreDocs.length);
 
         TestUtil.checkReader(ir);
         IOUtils.close(ir, iw, dir);
@@ -241,7 +243,9 @@ public class FieldSubsetReaderTests extends ESTestCase {
 
         // Check that we can't see fieldB
         assertNull(leafReader.getByteVectorValues("fieldB"));
-        assertNull(leafReader.searchNearestVectors("fieldB", new byte[] { 1, 1, 1 }, 5, null, Integer.MAX_VALUE));
+        topDocs = leafReader.searchNearestVectors("fieldB", new byte[] { 1, 1, 1 }, 5, null, Integer.MAX_VALUE);
+        assertEquals(0, topDocs.totalHits.value);
+        assertEquals(0, topDocs.scoreDocs.length);
 
         TestUtil.checkReader(ir);
         IOUtils.close(ir, iw, dir);
@@ -1143,7 +1147,7 @@ public class FieldSubsetReaderTests extends ESTestCase {
     @SuppressWarnings("unchecked")
     public void testMappingsFilteringDuelWithSourceFiltering() throws Exception {
         Metadata metadata = Metadata.builder()
-            .put(IndexMetadata.builder("index").settings(indexSettings(Version.CURRENT, 1, 0)).putMapping(MAPPING_TEST_ITEM))
+            .put(IndexMetadata.builder("index").settings(indexSettings(IndexVersion.current(), 1, 0)).putMapping(MAPPING_TEST_ITEM))
             .build();
 
         {

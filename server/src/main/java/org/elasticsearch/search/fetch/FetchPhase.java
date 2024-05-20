@@ -14,6 +14,7 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.index.fieldvisitor.LeafStoredFieldLoader;
 import org.elasticsearch.index.fieldvisitor.StoredFieldLoader;
+import org.elasticsearch.index.mapper.IdLoader;
 import org.elasticsearch.index.mapper.SourceLoader;
 import org.elasticsearch.search.LeafNestedDocuments;
 import org.elasticsearch.search.NestedDocuments;
@@ -29,6 +30,7 @@ import org.elasticsearch.search.lookup.Source;
 import org.elasticsearch.search.lookup.SourceProvider;
 import org.elasticsearch.search.profile.ProfileResult;
 import org.elasticsearch.search.profile.Profilers;
+import org.elasticsearch.search.profile.Timer;
 import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.xcontent.XContentType;
 
@@ -44,7 +46,7 @@ import java.util.function.Supplier;
  * Fetch phase of a search request, used to fetch the actual top matching documents to be returned to the client, identified
  * after reducing all of the matches returned by the query phase
  */
-public class FetchPhase {
+public final class FetchPhase {
     private static final Logger LOGGER = LogManager.getLogger(FetchPhase.class);
 
     private final FetchSubPhase[] fetchSubPhases;
@@ -54,7 +56,7 @@ public class FetchPhase {
         this.fetchSubPhases[fetchSubPhases.size()] = new InnerHitsPhase(this);
     }
 
-    public void execute(SearchContext context) {
+    public void execute(SearchContext context, int[] docIdsToLoad) {
         if (LOGGER.isTraceEnabled()) {
             LOGGER.trace("{}", new SearchContextSourcePrinter(context));
         }
@@ -63,23 +65,24 @@ public class FetchPhase {
             throw new TaskCancelledException("cancelled");
         }
 
-        if (context.docIdsToLoad() == null || context.docIdsToLoad().length == 0) {
+        if (docIdsToLoad == null || docIdsToLoad.length == 0) {
             // no individual hits to process, so we shortcut
-            SearchHits hits = new SearchHits(new SearchHit[0], context.queryResult().getTotalHits(), context.queryResult().getMaxScore());
-            context.fetchResult().shardResult(hits, null);
+            context.fetchResult()
+                .shardResult(SearchHits.empty(context.queryResult().getTotalHits(), context.queryResult().getMaxScore()), null);
             return;
         }
 
         Profiler profiler = context.getProfilers() == null ? Profiler.NOOP : Profilers.startProfilingFetchPhase();
         SearchHits hits = null;
         try {
-            hits = buildSearchHits(context, profiler);
+            hits = buildSearchHits(context, docIdsToLoad, profiler);
         } finally {
             // Always finish profiling
             ProfileResult profileResult = profiler.finish();
             // Only set the shardResults if building search hits was successful
             if (hits != null) {
                 context.fetchResult().shardResult(hits, profileResult);
+                hits.decRef();
             }
         }
     }
@@ -89,29 +92,39 @@ public class FetchPhase {
         Source source;
 
         @Override
-        public Source getSource(LeafReaderContext ctx, int doc) throws IOException {
+        public Source getSource(LeafReaderContext ctx, int doc) {
             return source;
         }
     }
 
-    private SearchHits buildSearchHits(SearchContext context, Profiler profiler) {
+    private SearchHits buildSearchHits(SearchContext context, int[] docIdsToLoad, Profiler profiler) {
 
         FetchContext fetchContext = new FetchContext(context);
         SourceLoader sourceLoader = context.newSourceLoader();
 
-        List<FetchSubPhaseProcessor> processors = getProcessors(context.shardTarget(), fetchContext, profiler);
+        PreloadedSourceProvider sourceProvider = new PreloadedSourceProvider();
+        PreloadedFieldLookupProvider fieldLookupProvider = new PreloadedFieldLookupProvider();
+        // The following relies on the fact that we fetch sequentially one segment after another, from a single thread
+        // This needs to be revised once we add concurrency to the fetch phase, and needs a work-around for situations
+        // where we run fetch as part of the query phase, where inter-segment concurrency is leveraged.
+        // One problem is the global setLookupProviders call against the shared execution context.
+        // Another problem is that the above provider implementations are not thread-safe
+        context.getSearchExecutionContext().setLookupProviders(sourceProvider, ctx -> fieldLookupProvider);
 
+        List<FetchSubPhaseProcessor> processors = getProcessors(context.shardTarget(), fetchContext, profiler);
         StoredFieldsSpec storedFieldsSpec = StoredFieldsSpec.build(processors, FetchSubPhaseProcessor::storedFieldsSpec);
         storedFieldsSpec = storedFieldsSpec.merge(new StoredFieldsSpec(false, false, sourceLoader.requiredStoredFields()));
+        // Ideally the required stored fields would be provided as constructor argument a few lines above, but that requires moving
+        // the getProcessors call to before the setLookupProviders call, which causes weird issues in InnerHitsPhase.
+        // setLookupProviders resets the SearchLookup used throughout the rest of the fetch phase, which StoredValueFetchers rely on
+        // to retrieve stored fields, and InnerHitsPhase is the last sub-fetch phase and re-runs the entire fetch phase.
+        fieldLookupProvider.setPreloadedStoredFieldNames(storedFieldsSpec.requiredStoredFields());
 
         StoredFieldLoader storedFieldLoader = profiler.storedFields(StoredFieldLoader.fromSpec(storedFieldsSpec));
+        IdLoader idLoader = context.newIdLoader();
         boolean requiresSource = storedFieldsSpec.requiresSource();
 
         NestedDocuments nestedDocuments = context.getSearchExecutionContext().getNestedDocuments();
-
-        PreloadedSourceProvider sourceProvider = new PreloadedSourceProvider();
-        PreloadedFieldLookupProvider fieldLookupProvider = new PreloadedFieldLookupProvider();
-        context.getSearchExecutionContext().setLookupProviders(sourceProvider, ctx -> fieldLookupProvider);
 
         FetchPhaseDocsIterator docsIterator = new FetchPhaseDocsIterator() {
 
@@ -119,19 +132,23 @@ public class FetchPhase {
             LeafNestedDocuments leafNestedDocuments;
             LeafStoredFieldLoader leafStoredFieldLoader;
             SourceLoader.Leaf leafSourceLoader;
+            IdLoader.Leaf leafIdLoader;
 
             @Override
             protected void setNextReader(LeafReaderContext ctx, int[] docsInLeaf) throws IOException {
-                profiler.startNextReader();
+                Timer timer = profiler.startNextReader();
                 this.ctx = ctx;
                 this.leafNestedDocuments = nestedDocuments.getLeafNestedDocuments(ctx);
                 this.leafStoredFieldLoader = storedFieldLoader.getLoader(ctx, docsInLeaf);
                 this.leafSourceLoader = sourceLoader.leaf(ctx.reader(), docsInLeaf);
+                this.leafIdLoader = idLoader.leaf(leafStoredFieldLoader, ctx.reader(), docsInLeaf);
                 fieldLookupProvider.setNextReader(ctx);
                 for (FetchSubPhaseProcessor processor : processors) {
                     processor.setNextReader(ctx);
                 }
-                profiler.stopNextReader();
+                if (timer != null) {
+                    timer.stop();
+                }
             }
 
             @Override
@@ -147,20 +164,33 @@ public class FetchPhase {
                     leafStoredFieldLoader,
                     doc,
                     ctx,
-                    leafSourceLoader
+                    leafSourceLoader,
+                    leafIdLoader
                 );
-                sourceProvider.source = hit.source();
-                fieldLookupProvider.storedFields = hit.loadedFields();
-                for (FetchSubPhaseProcessor processor : processors) {
-                    processor.process(hit);
+                boolean success = false;
+                try {
+                    sourceProvider.source = hit.source();
+                    fieldLookupProvider.setPreloadedStoredFieldValues(hit.hit().getId(), hit.loadedFields());
+                    for (FetchSubPhaseProcessor processor : processors) {
+                        processor.process(hit);
+                    }
+                    success = true;
+                    return hit.hit();
+                } finally {
+                    if (success == false) {
+                        hit.hit().decRef();
+                    }
                 }
-                return hit.hit();
             }
         };
 
-        SearchHit[] hits = docsIterator.iterate(context.shardTarget(), context.searcher().getIndexReader(), context.docIdsToLoad());
+        SearchHit[] hits = docsIterator.iterate(context.shardTarget(), context.searcher().getIndexReader(), docIdsToLoad);
 
         if (context.isCancelled()) {
+            for (SearchHit hit : hits) {
+                // release all hits that would otherwise become owned and eventually released by SearchHits below
+                hit.decRef();
+            }
             throw new TaskCancelledException("cancelled");
         }
 
@@ -191,10 +221,19 @@ public class FetchPhase {
         LeafStoredFieldLoader leafStoredFieldLoader,
         int docId,
         LeafReaderContext subReaderContext,
-        SourceLoader.Leaf sourceLoader
+        SourceLoader.Leaf sourceLoader,
+        IdLoader.Leaf idLoader
     ) throws IOException {
         if (nestedDocuments.advance(docId - subReaderContext.docBase) == null) {
-            return prepareNonNestedHitContext(requiresSource, profiler, leafStoredFieldLoader, docId, subReaderContext, sourceLoader);
+            return prepareNonNestedHitContext(
+                requiresSource,
+                profiler,
+                leafStoredFieldLoader,
+                docId,
+                subReaderContext,
+                sourceLoader,
+                idLoader
+            );
         } else {
             return prepareNestedHitContext(
                 context,
@@ -221,25 +260,30 @@ public class FetchPhase {
         LeafStoredFieldLoader leafStoredFieldLoader,
         int docId,
         LeafReaderContext subReaderContext,
-        SourceLoader.Leaf sourceLoader
+        SourceLoader.Leaf sourceLoader,
+        IdLoader.Leaf idLoader
     ) throws IOException {
         int subDocId = docId - subReaderContext.docBase;
 
         leafStoredFieldLoader.advanceTo(subDocId);
 
-        if (leafStoredFieldLoader.id() == null) {
-            SearchHit hit = new SearchHit(docId, null);
+        String id = idLoader.getId(subDocId);
+        if (id == null) {
+            SearchHit hit = new SearchHit(docId);
+            // TODO: can we use real pooled buffers here as well?
             Source source = Source.lazy(lazyStoredSourceLoader(profiler, subReaderContext, subDocId));
             return new HitContext(hit, subReaderContext, subDocId, Map.of(), source);
         } else {
-            SearchHit hit = new SearchHit(docId, leafStoredFieldLoader.id());
+            SearchHit hit = new SearchHit(docId, id);
             Source source;
             if (requiresSource) {
+                Timer timer = profiler.startLoadingSource();
                 try {
-                    profiler.startLoadingSource();
                     source = sourceLoader.source(leafStoredFieldLoader, subDocId);
                 } finally {
-                    profiler.stopLoadingSource();
+                    if (timer != null) {
+                        timer.stop();
+                    }
                 }
             } else {
                 source = Source.lazy(lazyStoredSourceLoader(profiler, subReaderContext, subDocId));
@@ -318,13 +362,9 @@ public class FetchPhase {
 
         StoredFieldLoader storedFields(StoredFieldLoader storedFieldLoader);
 
-        void startLoadingSource();
+        Timer startLoadingSource();
 
-        void stopLoadingSource();
-
-        void startNextReader();
-
-        void stopNextReader();
+        Timer startNextReader();
 
         Profiler NOOP = new Profiler() {
             @Override
@@ -343,16 +383,14 @@ public class FetchPhase {
             }
 
             @Override
-            public void startLoadingSource() {}
+            public Timer startLoadingSource() {
+                return null;
+            }
 
             @Override
-            public void stopLoadingSource() {}
-
-            @Override
-            public void startNextReader() {}
-
-            @Override
-            public void stopNextReader() {}
+            public Timer startNextReader() {
+                return null;
+            }
 
             @Override
             public String toString() {

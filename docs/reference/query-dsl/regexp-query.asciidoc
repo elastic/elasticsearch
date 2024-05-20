@@ -30,7 +30,7 @@ GET /_search
         "flags": "ALL",
         "case_insensitive": true,
         "max_determinized_states": 10000,
-        "rewrite": "constant_score"
+        "rewrite": "constant_score_blended"
       }
     }
   }

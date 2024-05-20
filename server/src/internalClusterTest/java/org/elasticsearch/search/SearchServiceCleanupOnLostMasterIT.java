@@ -13,15 +13,16 @@ import org.elasticsearch.cluster.coordination.FollowersChecker;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.transport.MockTransportService;
-import org.elasticsearch.transport.TransportService;
 import org.hamcrest.Matchers;
 
 import java.util.Collection;
 import java.util.List;
 
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.CoreMatchers.notNullValue;
 
@@ -48,11 +49,8 @@ public class SearchServiceCleanupOnLostMasterIT extends ESIntegTestCase {
 
     public void testDroppedOutNode() throws Exception {
         testLostMaster((master, dataNode) -> {
-            final MockTransportService masterTransportService = (MockTransportService) internalCluster().getInstance(
-                TransportService.class,
-                master
-            );
-            final TransportService dataTransportService = internalCluster().getInstance(TransportService.class, dataNode);
+            final var masterTransportService = MockTransportService.getInstance(master);
+            final var dataTransportService = MockTransportService.getInstance(dataNode);
             masterTransportService.addFailToSendNoConnectRule(dataTransportService, FollowersChecker.FOLLOWER_CHECK_ACTION_NAME);
 
             assertBusy(() -> {
@@ -73,8 +71,10 @@ public class SearchServiceCleanupOnLostMasterIT extends ESIntegTestCase {
 
         index("test", "test", "{}");
 
-        assertThat(client().prepareSearch("test").setScroll("30m").get().getScrollId(), is(notNullValue()));
-
+        assertResponse(
+            prepareSearch("test").setScroll(TimeValue.timeValueMinutes(30)),
+            response -> assertThat(response.getScrollId(), is(notNullValue()))
+        );
         loseMaster.accept(master, dataNode);
         // in the past, this failed because the search context for the scroll would prevent the shard lock from being released.
         ensureYellow();

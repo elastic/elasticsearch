@@ -19,13 +19,14 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 
+import static org.elasticsearch.test.hamcrest.OptionalMatchers.isPresent;
 import static org.elasticsearch.xpack.enrich.AbstractEnrichTestCase.createSourceIndices;
 import static org.elasticsearch.xpack.enrich.EnrichMultiNodeIT.DECORATE_FIELDS;
 import static org.elasticsearch.xpack.enrich.EnrichMultiNodeIT.MATCH_FIELD;
 import static org.elasticsearch.xpack.enrich.EnrichMultiNodeIT.POLICY_NAME;
 import static org.elasticsearch.xpack.enrich.EnrichMultiNodeIT.SOURCE_INDEX_NAME;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.hasSize;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0, numClientNodes = 0)
 public class EnrichRestartIT extends ESIntegTestCase {
@@ -72,14 +73,14 @@ public class EnrichRestartIT extends ESIntegTestCase {
     private static void verifyPolicies(int numPolicies, EnrichPolicy enrichPolicy) {
         GetEnrichPolicyAction.Response response = client().execute(GetEnrichPolicyAction.INSTANCE, new GetEnrichPolicyAction.Request())
             .actionGet();
-        assertThat(response.getPolicies().size(), equalTo(numPolicies));
+        assertThat(response.getPolicies(), hasSize(numPolicies));
         for (int i = 0; i < numPolicies; i++) {
             String policyName = POLICY_NAME + i;
             Optional<EnrichPolicy.NamedPolicy> result = response.getPolicies()
                 .stream()
                 .filter(namedPolicy -> namedPolicy.getName().equals(policyName))
                 .findFirst();
-            assertThat(result.isPresent(), is(true));
+            assertThat(result, isPresent());
             assertThat(result.get().getPolicy(), equalTo(enrichPolicy));
         }
     }

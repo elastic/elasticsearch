@@ -209,13 +209,13 @@ class VersionEncoder {
         builder.setAccept(lastState, true);
         a = builder.finish();
 
-        assert a.isDeterministic();
         assert Operations.hasDeadStates(a) == false;
 
         a = Operations.concatenate(a, Automata.makeAnyBinary());
-        a = MinimizationOperations.minimize(a, Integer.MAX_VALUE);
+        assert a.isDeterministic();
+        a = MinimizationOperations.minimize(a, 0);
 
-        return new CompiledAutomaton(a, null, true, Operations.DEFAULT_DETERMINIZE_WORK_LIMIT, true);
+        return new CompiledAutomaton(a, null, true, 0, true);
     }
 
     static class EncodedVersion {

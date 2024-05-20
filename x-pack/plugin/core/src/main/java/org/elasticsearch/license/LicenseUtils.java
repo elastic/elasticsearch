@@ -7,20 +7,25 @@
 package org.elasticsearch.license;
 
 import org.elasticsearch.ElasticsearchSecurityException;
-import org.elasticsearch.Version;
-import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.hash.MessageDigests;
+import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.license.License.LicenseType;
+import org.elasticsearch.license.internal.XPackLicenseStatus;
 import org.elasticsearch.protocol.xpack.license.LicenseStatus;
 import org.elasticsearch.rest.RestStatus;
 
 import java.nio.charset.StandardCharsets;
+import java.time.Clock;
 import java.util.HashMap;
+import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
+import java.util.concurrent.TimeUnit;
 
 public class LicenseUtils {
 
     public static final String EXPIRED_FEATURE_METADATA = "es.license.expired.feature";
+    public static final DateFormatter DATE_FORMATTER = DateFormatter.forPattern("EEEE, MMMM dd, yyyy");
 
     /**
      * Exception to be thrown when a feature action requires a valid license, but license
@@ -56,27 +61,24 @@ public class LicenseUtils {
      * Checks if the signature of a self generated license with older version needs to be
      * recreated with the new key
      */
-    public static boolean signatureNeedsUpdate(License license, DiscoveryNodes currentNodes) {
+    public static boolean signatureNeedsUpdate(License license) {
         assert License.VERSION_ENTERPRISE == License.VERSION_CURRENT : "update this method when adding a new version";
 
         String typeName = license.type();
-        return (LicenseType.isBasic(typeName) || LicenseType.isTrial(typeName)) &&
-        // only upgrade signature when all nodes are ready to deserialize the new signature
-            (license.version() < License.VERSION_CRYPTO_ALGORITHMS
-                && compatibleLicenseVersion(currentNodes) >= License.VERSION_CRYPTO_ALGORITHMS);
+        return (LicenseType.isBasic(typeName) || LicenseType.isTrial(typeName))
+            && license.version() < License.VERSION_CRYPTO_ALGORITHMS
+            && getMaxCompatibleLicenseVersion() >= License.VERSION_CRYPTO_ALGORITHMS;// only upgrade signature when all nodes are ready to
+                                                                                     // deserialize the new signature
     }
 
-    public static int compatibleLicenseVersion(DiscoveryNodes currentNodes) {
-        return getMaxLicenseVersion(currentNodes.getMinNodeVersion());
-    }
-
-    public static int getMaxLicenseVersion(Version version) {
-        if (version != null && version.before(Version.V_7_6_0)) {
-            return License.VERSION_CRYPTO_ALGORITHMS;
-        } else {
-            assert License.VERSION_ENTERPRISE == License.VERSION_CURRENT : "update this method when adding a new version";
-            return License.VERSION_ENTERPRISE;
-        }
+    /**
+     * Gets the maximum license version this cluster is compatible with. This is semantically different from {@link License#VERSION_CURRENT}
+     * as that field is the maximum that can be handled _by this node_, whereas this method determines the maximum license version
+     * that can be handled _by this cluster_.
+     */
+    public static int getMaxCompatibleLicenseVersion() {
+        assert License.VERSION_ENTERPRISE == License.VERSION_CURRENT : "update this method when adding a new version";
+        return License.VERSION_ENTERPRISE;
     }
 
     /**
@@ -102,6 +104,29 @@ public class LicenseUtils {
         return LicenseStatus.ACTIVE;
     }
 
+    /**
+     * Derive the status from the {@link License} for use with {@link XPackLicenseState}
+     * @param license The license used to derive the returned {@link XPackLicenseStatus}
+     * @param clock The clock used for expiry checks. Will typically be Clock.systemUTC();
+     * @return The status for use with {@link XPackLicenseState}
+     */
+    public static XPackLicenseStatus getXPackLicenseStatus(License license, Clock clock) {
+        long now = clock.millis();
+        Objects.requireNonNull(license, "license must not be null");
+        Objects.requireNonNull(clock, "clock must not be null");
+        if (license == LicensesMetadata.LICENSE_TOMBSTONE) {
+            return new XPackLicenseStatus(License.OperationMode.MISSING, false, getExpiryWarning(LicenseUtils.getExpiryDate(license), now));
+        } else {
+            final boolean active;
+            if (LicenseUtils.getExpiryDate(license) == LicenseSettings.BASIC_SELF_GENERATED_LICENSE_EXPIRATION_MILLIS) {
+                active = true;
+            } else {
+                active = now >= license.issueDate() && now < LicenseUtils.getExpiryDate(license);
+            }
+            return new XPackLicenseStatus(license.operationMode(), active, getExpiryWarning(LicenseUtils.getExpiryDate(license), now));
+        }
+    }
+
     public static Map<String, String[]> getAckMessages(License newLicense, License currentLicense) {
         Map<String, String[]> acknowledgeMessages = new HashMap<>();
         if (License.isAutoGeneratedLicense(currentLicense.signature()) == false // current license is not auto-generated
@@ -120,5 +145,22 @@ public class LicenseUtils {
             }
         });
         return acknowledgeMessages;
+    }
+
+    public static String getExpiryWarning(long licenseExpiryDate, long currentTime) {
+        final long diff = licenseExpiryDate - currentTime;
+        if (LicenseSettings.LICENSE_EXPIRATION_WARNING_PERIOD.getMillis() > diff) {
+            final long days = TimeUnit.MILLISECONDS.toDays(diff);
+            final String expiryMessage = (days == 0 && diff > 0)
+                ? "expires today"
+                : (diff > 0
+                    ? String.format(Locale.ROOT, "will expire in [%d] days", days)
+                    : String.format(Locale.ROOT, "expired on [%s]", LicenseUtils.DATE_FORMATTER.formatMillis(licenseExpiryDate)));
+            return "Your license "
+                + expiryMessage
+                + ". "
+                + "Contact your administrator or update your license for continued use of features";
+        }
+        return null;
     }
 }

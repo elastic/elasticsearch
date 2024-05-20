@@ -31,7 +31,7 @@ public class GlobalCheckpointSyncActionIT extends ESRestTestCase {
         .setting("xpack.ml.enabled", "false")
         .setting("xpack.license.self_generated.type", "trial")
         .rolesFile(Resource.fromClasspath("roles.yml"))
-        .user("test-user", "x-pack-test-password", "test")
+        .user("test-user", "x-pack-test-password", "test", false)
         .user("super-user", "x-pack-super-password")
         .build();
 

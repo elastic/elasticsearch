@@ -11,7 +11,6 @@ package org.elasticsearch.dissect;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.EnumSet;
 import java.util.Iterator;
 import java.util.LinkedHashSet;
@@ -130,7 +129,6 @@ public final class DissectParser {
         Set<String> appendKeyNames = dissectPairs.stream()
             .filter(dissectPair -> APPEND_MODIFIERS.contains(dissectPair.key().getModifier()))
             .map(KEY_NAME)
-            .distinct()
             .collect(Collectors.toSet());
         if (appendKeyNames.size() > 0) {
             List<DissectPair> modifiedMatchPairs = new ArrayList<>(dissectPairs.size());
@@ -161,7 +159,7 @@ public final class DissectParser {
         }
 
         referenceCount = referenceGroupings.size() * 2;
-        this.matchPairs = Collections.unmodifiableList(dissectPairs);
+        this.matchPairs = List.copyOf(dissectPairs);
     }
 
     /**

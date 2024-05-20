@@ -42,6 +42,7 @@ import org.elasticsearch.xpack.core.ilm.IndexLifecycleMetadata;
 import org.elasticsearch.xpack.core.ilm.LifecyclePolicy;
 import org.elasticsearch.xpack.core.ilm.LifecycleSettings;
 import org.elasticsearch.xpack.core.ilm.OperationMode;
+import org.elasticsearch.xpack.core.ilm.OperationModeUpdateTask;
 import org.elasticsearch.xpack.core.ilm.SetSingleNodeAllocateStep;
 import org.elasticsearch.xpack.core.ilm.ShrinkAction;
 import org.elasticsearch.xpack.core.ilm.ShrinkStep;
@@ -89,6 +90,7 @@ public class IndexLifecycleService
     private final LongSupplier nowSupplier;
     private SchedulerEngine.Job scheduledJob;
 
+    @SuppressWarnings("this-escape")
     public IndexLifecycleService(
         Settings settings,
         Client client,
@@ -179,8 +181,8 @@ public class IndexLifecycleService
             // If we just became master, we need to kick off any async actions that
             // may have not been run due to master rollover
             for (IndexMetadata idxMeta : clusterState.metadata().indices().values()) {
-                String policyName = idxMeta.getLifecyclePolicyName();
-                if (Strings.hasText(policyName)) {
+                if (clusterState.metadata().isIndexManagedByILM(idxMeta)) {
+                    String policyName = idxMeta.getLifecyclePolicyName();
                     final LifecycleExecutionState lifecycleState = idxMeta.getLifecycleExecutionState();
                     StepKey stepKey = Step.getCurrentStepKey(lifecycleState);
 
@@ -392,8 +394,8 @@ public class IndexLifecycleService
         // managed by the Index Lifecycle Service they have a index.lifecycle.name setting
         // associated to a policy
         for (IndexMetadata idxMeta : clusterState.metadata().indices().values()) {
-            String policyName = idxMeta.getLifecyclePolicyName();
-            if (Strings.hasText(policyName)) {
+            if (clusterState.metadata().isIndexManagedByILM(idxMeta)) {
+                String policyName = idxMeta.getLifecyclePolicyName();
                 final LifecycleExecutionState lifecycleState = idxMeta.getLifecycleExecutionState();
                 StepKey stepKey = Step.getCurrentStepKey(lifecycleState);
 
@@ -494,6 +496,7 @@ public class IndexLifecycleService
         final Set<String> shutdownNodes = PluginShutdownService.shutdownTypeNodes(
             state,
             SingleNodeShutdownMetadata.Type.REMOVE,
+            SingleNodeShutdownMetadata.Type.SIGTERM,
             SingleNodeShutdownMetadata.Type.REPLACE
         );
         if (shutdownNodes.isEmpty()) {
@@ -541,6 +544,7 @@ public class IndexLifecycleService
                 return true;
             case REPLACE:
             case REMOVE:
+            case SIGTERM:
                 Set<String> indices = indicesOnShuttingDownNodesInDangerousStep(clusterService.state(), nodeId);
                 return indices.isEmpty();
             default:

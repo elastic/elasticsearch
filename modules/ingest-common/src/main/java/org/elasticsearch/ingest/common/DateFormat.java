@@ -96,7 +96,8 @@ enum DateFormat {
                 // fill the rest of the date up with the parsed date
                 if (accessor.isSupported(ChronoField.YEAR) == false
                     && accessor.isSupported(ChronoField.YEAR_OF_ERA) == false
-                    && accessor.isSupported(WeekFields.of(locale).weekBasedYear()) == false) {
+                    && accessor.isSupported(WeekFields.of(locale).weekBasedYear()) == false
+                    && accessor.isSupported(ChronoField.INSTANT_SECONDS) == false) {
                     int year = LocalDate.now(ZoneOffset.UTC).getYear();
                     ZonedDateTime newTime = Instant.EPOCH.atZone(ZoneOffset.UTC).withYear(year);
                     for (ChronoField field : FIELDS) {
@@ -125,6 +126,10 @@ enum DateFormat {
     abstract Function<String, ZonedDateTime> getFunction(String format, ZoneId timezone, Locale locale);
 
     static DateFormat fromString(String format) {
+        // note: the ALL_CAPS format names here (UNIX_MS, etc) are present for historical reasons:
+        // they are the format literals that are supported by the logstash date filter plugin
+        // (see https://www.elastic.co/guide/en/logstash/current/plugins-filters-date.html#plugins-filters-date-match).
+        // don't extend this list with new special keywords (unless logstash has grown the same keyword).
         return switch (format) {
             case "ISO8601" -> Iso8601;
             case "UNIX" -> Unix;

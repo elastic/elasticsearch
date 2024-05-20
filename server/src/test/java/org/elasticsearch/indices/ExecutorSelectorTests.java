@@ -28,7 +28,7 @@ public class ExecutorSelectorTests extends ESTestCase {
                     new SystemIndices.Feature(
                         "normal",
                         "normal system index",
-                        Collections.singletonList(new SystemIndexDescriptor(".non-critical-system-index*", "test index"))
+                        Collections.singletonList(SystemIndexDescriptorUtils.createUnmanaged(".non-critical-system-index*", "test index"))
                     )
                 )
             )
@@ -77,15 +77,10 @@ public class ExecutorSelectorTests extends ESTestCase {
                                 ".test-data-stream",
                                 "a data stream for testing",
                                 SystemDataStreamDescriptor.Type.INTERNAL,
-                                new ComposableIndexTemplate(
-                                    List.of(".system-data-stream"),
-                                    null,
-                                    null,
-                                    null,
-                                    null,
-                                    null,
-                                    new ComposableIndexTemplate.DataStreamTemplate()
-                                ),
+                                ComposableIndexTemplate.builder()
+                                    .indexPatterns(List.of(".system-data-stream"))
+                                    .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate())
+                                    .build(),
                                 Map.of(),
                                 Collections.singletonList("test"),
                                 null
@@ -114,15 +109,10 @@ public class ExecutorSelectorTests extends ESTestCase {
                                 ".test-data-stream",
                                 "a data stream for testing",
                                 SystemDataStreamDescriptor.Type.INTERNAL,
-                                new ComposableIndexTemplate(
-                                    List.of(".system-data-stream"),
-                                    null,
-                                    null,
-                                    null,
-                                    null,
-                                    null,
-                                    new ComposableIndexTemplate.DataStreamTemplate()
-                                ),
+                                ComposableIndexTemplate.builder()
+                                    .indexPatterns(List.of(".system-data-stream"))
+                                    .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate())
+                                    .build(),
                                 Map.of(),
                                 Collections.singletonList("test"),
                                 new ExecutorNames(

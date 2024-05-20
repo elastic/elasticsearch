@@ -9,11 +9,12 @@ package org.elasticsearch.xpack.transform.utils;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.bulk.BulkItemResponse;
+import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.search.SearchContextMissingException;
+import org.elasticsearch.tasks.TaskCancelledException;
 
-import java.util.Arrays;
 import java.util.Collection;
-import java.util.HashSet;
 import java.util.Set;
 
 /**
@@ -24,17 +25,15 @@ public final class ExceptionRootCauseFinder {
     /**
      * List of rest statuses that we consider irrecoverable
      */
-    public static final Set<RestStatus> IRRECOVERABLE_REST_STATUSES = new HashSet<>(
-        Arrays.asList(
-            RestStatus.GONE,
-            RestStatus.NOT_IMPLEMENTED,
-            RestStatus.NOT_FOUND,
-            RestStatus.BAD_REQUEST,
-            RestStatus.UNAUTHORIZED,
-            RestStatus.FORBIDDEN,
-            RestStatus.METHOD_NOT_ALLOWED,
-            RestStatus.NOT_ACCEPTABLE
-        )
+    static final Set<RestStatus> IRRECOVERABLE_REST_STATUSES = Set.of(
+        RestStatus.GONE,
+        RestStatus.NOT_IMPLEMENTED,
+        RestStatus.NOT_FOUND,
+        RestStatus.BAD_REQUEST,
+        RestStatus.UNAUTHORIZED,
+        RestStatus.FORBIDDEN,
+        RestStatus.METHOD_NOT_ALLOWED,
+        RestStatus.NOT_ACCEPTABLE
     );
 
     /**
@@ -65,7 +64,7 @@ public final class ExceptionRootCauseFinder {
             }
 
             if (unwrappedThrowable instanceof ElasticsearchException elasticsearchException) {
-                if (IRRECOVERABLE_REST_STATUSES.contains(elasticsearchException.status())) {
+                if (isExceptionIrrecoverable(elasticsearchException) && isNotIndexNotFoundException(elasticsearchException)) {
                     return elasticsearchException;
                 }
             }
@@ -74,6 +73,34 @@ public final class ExceptionRootCauseFinder {
         return null;
     }
 
-    private ExceptionRootCauseFinder() {}
+    /**
+     * We can safely recover from IndexNotFoundExceptions on Bulk responses.
+     * If the transform is running, the next checkpoint will recreate the index.
+     * If the transform is not running, the next start request will recreate the index.
+     */
+    private static boolean isNotIndexNotFoundException(ElasticsearchException elasticsearchException) {
+        return elasticsearchException instanceof IndexNotFoundException == false;
+    }
 
+    public static boolean isExceptionIrrecoverable(ElasticsearchException elasticsearchException) {
+        if (IRRECOVERABLE_REST_STATUSES.contains(elasticsearchException.status())) {
+
+            // Even if the status indicates the exception is irrecoverable, some exceptions
+            // with these status are worth retrying on.
+
+            // A TaskCancelledException occurs if a sub-action of a search encounters a circuit
+            // breaker exception. In this case the overall search task is cancelled.
+            if (elasticsearchException instanceof TaskCancelledException) {
+                return false;
+            }
+            // We can safely retry SearchContextMissingException instead of failing the transform.
+            if (elasticsearchException instanceof SearchContextMissingException) {
+                return false;
+            }
+            return true;
+        }
+        return false;
+    }
+
+    private ExceptionRootCauseFinder() {}
 }

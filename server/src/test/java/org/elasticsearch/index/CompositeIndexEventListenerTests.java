@@ -17,8 +17,7 @@ import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.index.shard.IndexEventListener;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardTestCase;
-import org.elasticsearch.test.MockLogAppender;
-import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.test.MockLog;
 import org.hamcrest.Matchers;
 
 import java.util.concurrent.TimeUnit;
@@ -40,8 +39,7 @@ public class CompositeIndexEventListenerTests extends IndexShardTestCase {
 
     public void testBeforeIndexShardRecoveryInOrder() throws Exception {
         var shard = newShard(randomBoolean());
-        var appender = new MockLogAppender();
-        try (var ignored = appender.capturing(CompositeIndexEventListener.class)) {
+        try (var mockLog = MockLog.capture(CompositeIndexEventListener.class)) {
             final var stepNumber = new AtomicInteger();
             final var stepCount = between(0, 20);
             final var failAtStep = new AtomicInteger(-1);
@@ -60,9 +58,7 @@ public class CompositeIndexEventListenerTests extends IndexShardTestCase {
                             listener.onResponse(null);
                         } else {
                             // fails the listener sometimes
-                            shard.getThreadPool()
-                                .executor(randomFrom(ThreadPool.Names.GENERIC, ThreadPool.Names.SAME))
-                                .execute(ActionRunnable.run(listener, this::runStep));
+                            randomExecutor(shard.getThreadPool()).execute(ActionRunnable.run(listener, this::runStep));
                         }
                     }
 
@@ -89,8 +85,8 @@ public class CompositeIndexEventListenerTests extends IndexShardTestCase {
             assertEquals(stepCount, stepNumber.getAndSet(0));
 
             if (stepCount > 0) {
-                appender.addExpectation(
-                    new MockLogAppender.SeenEventExpectation(
+                mockLog.addExpectation(
+                    new MockLog.SeenEventExpectation(
                         "warning",
                         CompositeIndexEventListener.class.getCanonicalName(),
                         Level.WARN,
@@ -102,7 +98,69 @@ public class CompositeIndexEventListenerTests extends IndexShardTestCase {
                 final var rootCause = getRootCause(expectThrows(ElasticsearchException.class, beforeIndexShardRecoveryRunner::run));
                 assertEquals("simulated failure at step " + failAtStep.get(), rootCause.getMessage());
                 assertEquals(failAtStep.get() + 1, stepNumber.getAndSet(0));
-                appender.assertAllExpectationsMatched();
+                mockLog.assertAllExpectationsMatched();
+            }
+
+        } finally {
+            closeShards(shard);
+        }
+    }
+
+    public void testAfterIndexShardRecoveryInOrder() throws Exception {
+        var shard = newShard(randomBoolean());
+        try (var mockLog = MockLog.capture(CompositeIndexEventListener.class)) {
+            final var stepNumber = new AtomicInteger();
+            final var stepCount = between(0, 20);
+            final var failAtStep = new AtomicInteger(-1);
+            final var indexEventListener = new CompositeIndexEventListener(
+                shard.indexSettings(),
+                IntStream.range(0, stepCount).mapToObj(step -> new IndexEventListener() {
+
+                    @Override
+                    public void afterIndexShardRecovery(IndexShard indexShard, ActionListener<Void> listener) {
+                        if (randomBoolean()) {
+                            // throws an exception sometimes
+                            runStep();
+                            listener.onResponse(null);
+                        } else {
+                            // fails the listener sometimes
+                            randomExecutor(shard.getThreadPool()).execute(ActionRunnable.run(listener, this::runStep));
+                        }
+                    }
+
+                    private void runStep() {
+                        assertThat(step, Matchers.lessThanOrEqualTo(failAtStep.get()));
+                        assertTrue(stepNumber.compareAndSet(step, step + 1));
+                        if (step == failAtStep.get()) {
+                            throw new ElasticsearchException("simulated failure at step " + step);
+                        }
+                    }
+                }).collect(Collectors.toList())
+            );
+
+            final CheckedRunnable<Exception> afterIndexShardRecoveryRunner = () -> assertNull(
+                PlainActionFuture.<Void, Exception>get(fut -> indexEventListener.afterIndexShardRecovery(shard, fut), 10, TimeUnit.SECONDS)
+            );
+
+            failAtStep.set(stepCount);
+            afterIndexShardRecoveryRunner.run();
+            assertEquals(stepCount, stepNumber.getAndSet(0));
+
+            if (stepCount > 0) {
+                mockLog.addExpectation(
+                    new MockLog.SeenEventExpectation(
+                        "warning",
+                        CompositeIndexEventListener.class.getCanonicalName(),
+                        Level.WARN,
+                        "*failed to invoke the listener after the shard recovery for [index][0]"
+                    )
+                );
+
+                failAtStep.set(between(0, stepCount - 1));
+                final var rootCause = getRootCause(expectThrows(ElasticsearchException.class, afterIndexShardRecoveryRunner::run));
+                assertEquals("simulated failure at step " + failAtStep.get(), rootCause.getMessage());
+                assertEquals(failAtStep.get() + 1, stepNumber.getAndSet(0));
+                mockLog.assertAllExpectationsMatched();
             }
 
         } finally {

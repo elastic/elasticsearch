@@ -12,13 +12,13 @@ import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.common.ReferenceDocs;
 import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.common.logging.ChunkedLoggingStreamTests;
+import org.elasticsearch.common.logging.ChunkedLoggingStreamTestUtils;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.MockLogAppender;
+import org.elasticsearch.test.MockLog;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
@@ -36,19 +36,18 @@ public class HttpTracerTests extends ESTestCase {
 
     @TestLogging(reason = "testing trace logging", value = HTTP_TRACER_LOGGER + ":TRACE," + HTTP_BODY_TRACER_LOGGER + ":INFO")
     public void testLogging() {
-        MockLogAppender appender = new MockLogAppender();
-        try (var ignored = appender.capturing(HttpTracer.class)) {
+        try (var mockLog = MockLog.capture(HttpTracer.class)) {
 
-            appender.addExpectation(
-                new MockLogAppender.PatternSeenEventExpectation(
+            mockLog.addExpectation(
+                new MockLog.PatternSeenEventExpectation(
                     "request log",
                     HTTP_TRACER_LOGGER,
                     Level.TRACE,
                     "\\[\\d+]\\[idHeader]\\[GET]\\[uri] received request from \\[.*] trace.id: 4bf92f3577b34da6a3ce929d0e0e4736"
                 )
             );
-            appender.addExpectation(
-                new MockLogAppender.PatternSeenEventExpectation(
+            mockLog.addExpectation(
+                new MockLog.PatternSeenEventExpectation(
                     "response log",
                     HTTP_TRACER_LOGGER,
                     Level.TRACE,
@@ -81,7 +80,7 @@ public class HttpTracerTests extends ESTestCase {
                 true
             );
 
-            appender.assertAllExpectationsMatched();
+            mockLog.assertAllExpectationsMatched();
         }
     }
 
@@ -98,7 +97,7 @@ public class HttpTracerTests extends ESTestCase {
 
         assertEquals(
             responseBody,
-            ChunkedLoggingStreamTests.getDecodedLoggedBody(
+            ChunkedLoggingStreamTestUtils.getDecodedLoggedBody(
                 LogManager.getLogger(HTTP_BODY_TRACER_LOGGER),
                 Level.TRACE,
                 "[" + request.getRequestId() + "] request body",

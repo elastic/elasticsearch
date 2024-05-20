@@ -9,9 +9,10 @@
 package org.elasticsearch.cluster;
 
 import org.apache.lucene.search.join.ScoreMode;
-import org.elasticsearch.action.admin.cluster.configuration.AddVotingConfigExclusionsAction;
 import org.elasticsearch.action.admin.cluster.configuration.AddVotingConfigExclusionsRequest;
+import org.elasticsearch.action.admin.cluster.configuration.TransportAddVotingConfigExclusionsAction;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.discovery.MasterNotDiscoveredException;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -36,12 +37,9 @@ public class SpecificMasterNodesIT extends ESIntegTestCase {
         internalCluster().startNode(Settings.builder().put(dataOnlyNode()).put("discovery.initial_state_timeout", "1s"));
         try {
             assertThat(
-                client().admin()
-                    .cluster()
-                    .prepareState()
-                    .setMasterNodeTimeout("100ms")
-                    .execute()
-                    .actionGet()
+                clusterAdmin().prepareState()
+                    .setMasterNodeTimeout(TimeValue.timeValueMillis(100))
+                    .get()
                     .getState()
                     .nodes()
                     .getMasterNodeId(),
@@ -54,29 +52,11 @@ public class SpecificMasterNodesIT extends ESIntegTestCase {
         logger.info("--> start master node");
         final String masterNodeName = internalCluster().startMasterOnlyNode();
         assertThat(
-            internalCluster().nonMasterClient()
-                .admin()
-                .cluster()
-                .prepareState()
-                .execute()
-                .actionGet()
-                .getState()
-                .nodes()
-                .getMasterNode()
-                .getName(),
+            internalCluster().nonMasterClient().admin().cluster().prepareState().get().getState().nodes().getMasterNode().getName(),
             equalTo(masterNodeName)
         );
         assertThat(
-            internalCluster().masterClient()
-                .admin()
-                .cluster()
-                .prepareState()
-                .execute()
-                .actionGet()
-                .getState()
-                .nodes()
-                .getMasterNode()
-                .getName(),
+            internalCluster().masterClient().admin().cluster().prepareState().get().getState().nodes().getMasterNode().getName(),
             equalTo(masterNodeName)
         );
 
@@ -86,12 +66,9 @@ public class SpecificMasterNodesIT extends ESIntegTestCase {
 
         try {
             assertThat(
-                client().admin()
-                    .cluster()
-                    .prepareState()
-                    .setMasterNodeTimeout("100ms")
-                    .execute()
-                    .actionGet()
+                clusterAdmin().prepareState()
+                    .setMasterNodeTimeout(TimeValue.timeValueMillis(100))
+                    .get()
                     .getState()
                     .nodes()
                     .getMasterNodeId(),
@@ -107,29 +84,11 @@ public class SpecificMasterNodesIT extends ESIntegTestCase {
             Settings.builder().put(nonDataNode(masterNode())).put(masterDataPathSettings)
         );
         assertThat(
-            internalCluster().nonMasterClient()
-                .admin()
-                .cluster()
-                .prepareState()
-                .execute()
-                .actionGet()
-                .getState()
-                .nodes()
-                .getMasterNode()
-                .getName(),
+            internalCluster().nonMasterClient().admin().cluster().prepareState().get().getState().nodes().getMasterNode().getName(),
             equalTo(nextMasterEligibleNodeName)
         );
         assertThat(
-            internalCluster().masterClient()
-                .admin()
-                .cluster()
-                .prepareState()
-                .execute()
-                .actionGet()
-                .getState()
-                .nodes()
-                .getMasterNode()
-                .getName(),
+            internalCluster().masterClient().admin().cluster().prepareState().get().getState().nodes().getMasterNode().getName(),
             equalTo(nextMasterEligibleNodeName)
         );
     }
@@ -140,12 +99,9 @@ public class SpecificMasterNodesIT extends ESIntegTestCase {
         internalCluster().startNode(Settings.builder().put(dataOnlyNode()).put("discovery.initial_state_timeout", "1s"));
         try {
             assertThat(
-                client().admin()
-                    .cluster()
-                    .prepareState()
-                    .setMasterNodeTimeout("100ms")
-                    .execute()
-                    .actionGet()
+                clusterAdmin().prepareState()
+                    .setMasterNodeTimeout(TimeValue.timeValueMillis(100))
+                    .get()
                     .getState()
                     .nodes()
                     .getMasterNodeId(),
@@ -158,130 +114,45 @@ public class SpecificMasterNodesIT extends ESIntegTestCase {
         logger.info("--> start master node (1)");
         final String masterNodeName = internalCluster().startMasterOnlyNode();
         assertThat(
-            internalCluster().nonMasterClient()
-                .admin()
-                .cluster()
-                .prepareState()
-                .execute()
-                .actionGet()
-                .getState()
-                .nodes()
-                .getMasterNode()
-                .getName(),
+            internalCluster().nonMasterClient().admin().cluster().prepareState().get().getState().nodes().getMasterNode().getName(),
             equalTo(masterNodeName)
         );
         assertThat(
-            internalCluster().masterClient()
-                .admin()
-                .cluster()
-                .prepareState()
-                .execute()
-                .actionGet()
-                .getState()
-                .nodes()
-                .getMasterNode()
-                .getName(),
+            internalCluster().masterClient().admin().cluster().prepareState().get().getState().nodes().getMasterNode().getName(),
             equalTo(masterNodeName)
         );
 
         logger.info("--> start master node (2)");
         final String nextMasterEligableNodeName = internalCluster().startMasterOnlyNode();
         assertThat(
-            internalCluster().nonMasterClient()
-                .admin()
-                .cluster()
-                .prepareState()
-                .execute()
-                .actionGet()
-                .getState()
-                .nodes()
-                .getMasterNode()
-                .getName(),
+            internalCluster().nonMasterClient().admin().cluster().prepareState().get().getState().nodes().getMasterNode().getName(),
             equalTo(masterNodeName)
         );
         assertThat(
-            internalCluster().nonMasterClient()
-                .admin()
-                .cluster()
-                .prepareState()
-                .execute()
-                .actionGet()
-                .getState()
-                .nodes()
-                .getMasterNode()
-                .getName(),
-            equalTo(masterNodeName)
-        );
-        assertThat(
-            internalCluster().masterClient()
-                .admin()
-                .cluster()
-                .prepareState()
-                .execute()
-                .actionGet()
-                .getState()
-                .nodes()
-                .getMasterNode()
-                .getName(),
+            internalCluster().masterClient().admin().cluster().prepareState().get().getState().nodes().getMasterNode().getName(),
             equalTo(masterNodeName)
         );
 
         logger.info("--> closing master node (1)");
-        client().execute(AddVotingConfigExclusionsAction.INSTANCE, new AddVotingConfigExclusionsRequest(masterNodeName)).get();
+        client().execute(TransportAddVotingConfigExclusionsAction.TYPE, new AddVotingConfigExclusionsRequest(masterNodeName)).get();
         // removing the master from the voting configuration immediately triggers the master to step down
         assertBusy(() -> {
             assertThat(
-                internalCluster().nonMasterClient()
-                    .admin()
-                    .cluster()
-                    .prepareState()
-                    .execute()
-                    .actionGet()
-                    .getState()
-                    .nodes()
-                    .getMasterNode()
-                    .getName(),
+                internalCluster().nonMasterClient().admin().cluster().prepareState().get().getState().nodes().getMasterNode().getName(),
                 equalTo(nextMasterEligableNodeName)
             );
             assertThat(
-                internalCluster().masterClient()
-                    .admin()
-                    .cluster()
-                    .prepareState()
-                    .execute()
-                    .actionGet()
-                    .getState()
-                    .nodes()
-                    .getMasterNode()
-                    .getName(),
+                internalCluster().masterClient().admin().cluster().prepareState().get().getState().nodes().getMasterNode().getName(),
                 equalTo(nextMasterEligableNodeName)
             );
         });
         internalCluster().stopNode(masterNodeName);
         assertThat(
-            internalCluster().nonMasterClient()
-                .admin()
-                .cluster()
-                .prepareState()
-                .execute()
-                .actionGet()
-                .getState()
-                .nodes()
-                .getMasterNode()
-                .getName(),
+            internalCluster().nonMasterClient().admin().cluster().prepareState().get().getState().nodes().getMasterNode().getName(),
             equalTo(nextMasterEligableNodeName)
         );
         assertThat(
-            internalCluster().masterClient()
-                .admin()
-                .cluster()
-                .prepareState()
-                .execute()
-                .actionGet()
-                .getState()
-                .nodes()
-                .getMasterNode()
-                .getName(),
+            internalCluster().masterClient().admin().cluster().prepareState().get().getState().nodes().getMasterNode().getName(),
             equalTo(nextMasterEligableNodeName)
         );
     }
@@ -310,9 +181,7 @@ public class SpecificMasterNodesIT extends ESIntegTestCase {
                 }
               }
             }"""));
-        client().admin()
-            .indices()
-            .prepareAliases()
+        indicesAdmin().prepareAliases()
             .addAlias(
                 "test",
                 "a_test",

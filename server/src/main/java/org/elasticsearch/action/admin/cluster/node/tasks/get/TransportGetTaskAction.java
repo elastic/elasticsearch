@@ -9,11 +9,11 @@
 package org.elasticsearch.action.admin.cluster.node.tasks.get;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.support.ActionFilters;
@@ -25,6 +25,7 @@ import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.TimeValue;
@@ -44,7 +45,6 @@ import org.elasticsearch.xcontent.XContentParser;
 import java.io.IOException;
 
 import static java.util.Objects.requireNonNullElse;
-import static org.elasticsearch.action.admin.cluster.node.tasks.get.GetTaskAction.TASKS_ORIGIN;
 import static org.elasticsearch.core.TimeValue.timeValueSeconds;
 
 /**
@@ -59,6 +59,8 @@ import static org.elasticsearch.core.TimeValue.timeValueSeconds;
  */
 public class TransportGetTaskAction extends HandledTransportAction<GetTaskRequest, GetTaskResponse> {
 
+    public static final String TASKS_ORIGIN = "tasks";
+    public static final ActionType<GetTaskResponse> TYPE = new ActionType<>("cluster:monitor/task/get");
     private static final TimeValue DEFAULT_WAIT_FOR_COMPLETION_TIMEOUT = timeValueSeconds(30);
 
     private final ThreadPool threadPool;
@@ -76,7 +78,7 @@ public class TransportGetTaskAction extends HandledTransportAction<GetTaskReques
         Client client,
         NamedXContentRegistry xContentRegistry
     ) {
-        super(GetTaskAction.NAME, transportService, actionFilters, GetTaskRequest::new);
+        super(TYPE.name(), transportService, actionFilters, GetTaskRequest::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         this.threadPool = threadPool;
         this.clusterService = clusterService;
         this.transportService = transportService;
@@ -120,10 +122,10 @@ public class TransportGetTaskAction extends HandledTransportAction<GetTaskReques
         GetTaskRequest nodeRequest = request.nodeRequest(clusterService.localNode().getId(), thisTask.getId());
         transportService.sendRequest(
             node,
-            GetTaskAction.NAME,
+            TYPE.name(),
             nodeRequest,
             TransportRequestOptions.timeout(request.getTimeout()),
-            new ActionListenerResponseHandler<>(listener, GetTaskResponse::new, ThreadPool.Names.SAME)
+            new ActionListenerResponseHandler<>(listener, GetTaskResponse::new, EsExecutors.DIRECT_EXECUTOR_SERVICE)
         );
     }
 
@@ -151,34 +153,23 @@ public class TransportGetTaskAction extends HandledTransportAction<GetTaskReques
                     future.onResponse(null);
                 }
                 final ActionListener<Void> waitedForCompletionListener = ActionListener.runBefore(
-                    ActionListener.wrap(
-                        v -> waitedForCompletion(
-                            thisTask,
-                            request,
-                            runningTask.taskInfo(clusterService.localNode().getId(), true),
-                            listener
-                        ),
-                        listener::onFailure
+                    listener.delegateFailureAndWrap(
+                        (l, v) -> waitedForCompletion(thisTask, request, runningTask.taskInfo(clusterService.localNode().getId(), true), l)
                     ),
                     () -> taskManager.unregisterRemovedTaskListener(removedTaskListener)
                 );
-                if (future.isDone()) {
-                    // The task has already finished, we can run the completion listener in the same thread
-                    waitedForCompletionListener.onResponse(null);
-                } else {
-                    future.addListener(
-                        new ContextPreservingActionListener<>(
-                            threadPool.getThreadContext().newRestorableContext(false),
-                            waitedForCompletionListener
-                        )
-                    );
-                    var failByTimeout = threadPool.schedule(
-                        () -> future.onFailure(new ElasticsearchTimeoutException("Timed out waiting for completion of task")),
-                        requireNonNullElse(request.getTimeout(), DEFAULT_WAIT_FOR_COMPLETION_TIMEOUT),
-                        ThreadPool.Names.SAME
-                    );
-                    future.addListener(ActionListener.running(failByTimeout::cancel));
-                }
+
+                future.addListener(
+                    new ContextPreservingActionListener<>(
+                        threadPool.getThreadContext().newRestorableContext(false),
+                        waitedForCompletionListener
+                    )
+                );
+                future.addTimeout(
+                    requireNonNullElse(request.getTimeout(), DEFAULT_WAIT_FOR_COMPLETION_TIMEOUT),
+                    threadPool,
+                    EsExecutors.DIRECT_EXECUTOR_SERVICE
+                );
             } else {
                 TaskInfo info = runningTask.taskInfo(clusterService.localNode().getId(), true);
                 listener.onResponse(new GetTaskResponse(new TaskResult(false, info)));
@@ -220,7 +211,7 @@ public class TransportGetTaskAction extends HandledTransportAction<GetTaskReques
 
         client.get(get, ActionListener.wrap(r -> onGetFinishedTaskFromIndex(r, listener), e -> {
             if (ExceptionsHelper.unwrap(e, IndexNotFoundException.class) != null) {
-                // We haven't yet created the index for the task results so it can't be found.
+                // We haven't yet created the index for the task results, so it can't be found.
                 listener.onFailure(
                     new ResourceNotFoundException("task [{}] isn't running and hasn't stored its results", e, request.getTaskId())
                 );

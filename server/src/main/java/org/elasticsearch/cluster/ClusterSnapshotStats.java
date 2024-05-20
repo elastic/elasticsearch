@@ -39,10 +39,10 @@ public record ClusterSnapshotStats(
 
     public static ClusterSnapshotStats of(ClusterState clusterState, long currentTimeMillis) {
         return of(
-            clusterState.metadata().custom(RepositoriesMetadata.TYPE, RepositoriesMetadata.EMPTY),
-            clusterState.custom(SnapshotsInProgress.TYPE, SnapshotsInProgress.EMPTY),
-            clusterState.custom(SnapshotDeletionsInProgress.TYPE, SnapshotDeletionsInProgress.EMPTY),
-            clusterState.custom(RepositoryCleanupInProgress.TYPE, RepositoryCleanupInProgress.EMPTY),
+            RepositoriesMetadata.get(clusterState),
+            SnapshotsInProgress.get(clusterState),
+            SnapshotDeletionsInProgress.get(clusterState),
+            RepositoryCleanupInProgress.get(clusterState),
             currentTimeMillis
         );
     }
@@ -106,9 +106,9 @@ public record ClusterSnapshotStats(
 
             for (SnapshotDeletionsInProgress.Entry entry : snapshotDeletionsInProgress.getEntries()) {
                 if (entry.repository().equals(repositoryName)) {
-                    firstStartTimeMillis = Math.min(firstStartTimeMillis, entry.getStartTime());
+                    firstStartTimeMillis = Math.min(firstStartTimeMillis, entry.startTime());
                     deletionsCount += 1;
-                    snapshotDeletionsCount += entry.getSnapshots().size();
+                    snapshotDeletionsCount += entry.snapshots().size();
                     if (entry.state() == SnapshotDeletionsInProgress.State.STARTED) {
                         activeDeletionsCount += 1;
                     }
@@ -175,7 +175,7 @@ public record ClusterSnapshotStats(
         out.writeVInt(incompleteShardSnapshotCount);
         out.writeVInt(deletionsInProgressCount);
         out.writeVInt(cleanupsInProgressCount);
-        out.writeList(statsByRepository);
+        out.writeCollection(statsByRepository);
     }
 
     public static ClusterSnapshotStats readFrom(StreamInput in) throws IOException {
@@ -184,7 +184,7 @@ public record ClusterSnapshotStats(
             in.readVInt(),
             in.readVInt(),
             in.readVInt(),
-            in.readList(PerRepositoryStats::readFrom)
+            in.readCollectionAsList(PerRepositoryStats::readFrom)
         );
     }
 

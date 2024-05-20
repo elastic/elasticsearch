@@ -9,7 +9,6 @@
 package org.elasticsearch.index.mapper;
 
 import org.elasticsearch.index.mapper.NumberFieldMapper.NumberType;
-import org.elasticsearch.index.mapper.NumberFieldTypeTests.OutOfRangeSpec;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.junit.AssumptionViolatedException;
 
@@ -24,12 +23,12 @@ public class ShortFieldMapperTests extends WholeNumberFieldMapperTests {
     }
 
     @Override
-    protected List<OutOfRangeSpec> outOfRangeSpecs() {
+    protected List<NumberTypeOutOfRangeSpec> outOfRangeSpecs() {
         return List.of(
-            OutOfRangeSpec.of(NumberType.SHORT, "32768", "is out of range for a short"),
-            OutOfRangeSpec.of(NumberType.SHORT, "-32769", "is out of range for a short"),
-            OutOfRangeSpec.of(NumberType.SHORT, 32768, "out of range of Java short"),
-            OutOfRangeSpec.of(NumberType.SHORT, -32769, "out of range of Java short")
+            NumberTypeOutOfRangeSpec.of(NumberType.SHORT, "32768", "is out of range for a short"),
+            NumberTypeOutOfRangeSpec.of(NumberType.SHORT, "-32769", "is out of range for a short"),
+            NumberTypeOutOfRangeSpec.of(NumberType.SHORT, 32768, "out of range of Java short"),
+            NumberTypeOutOfRangeSpec.of(NumberType.SHORT, -32769, "out of range of Java short")
         );
     }
 

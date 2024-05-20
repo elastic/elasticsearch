@@ -170,7 +170,11 @@ public class AnalyticsProcessManager {
                 .setFetchSource(false)
                 .setQuery(QueryBuilders.idsQuery().addIds(config.getAnalysis().getStateDocIdPrefix(config.getId()) + "1"))
                 .get();
-            return searchResponse.getHits().getHits().length == 1;
+            try {
+                return searchResponse.getHits().getHits().length == 1;
+            } finally {
+                searchResponse.decRef();
+            }
         }
     }
 
@@ -235,8 +239,11 @@ public class AnalyticsProcessManager {
         }
     }
 
-    private void writeDataRows(DataFrameDataExtractor dataExtractor, AnalyticsProcess<AnalyticsResult> process, DataFrameAnalyticsTask task)
-        throws IOException {
+    private static void writeDataRows(
+        DataFrameDataExtractor dataExtractor,
+        AnalyticsProcess<AnalyticsResult> process,
+        DataFrameAnalyticsTask task
+    ) throws IOException {
         ProgressTracker progressTracker = task.getStatsHolder().getProgressTracker();
         DataCountsTracker dataCountsTracker = task.getStatsHolder().getDataCountsTracker();
 
@@ -270,7 +277,7 @@ public class AnalyticsProcessManager {
         }
     }
 
-    private void writeHeaderRecord(
+    private static void writeHeaderRecord(
         DataFrameDataExtractor dataExtractor,
         AnalyticsProcess<AnalyticsResult> process,
         DataFrameAnalyticsTask task

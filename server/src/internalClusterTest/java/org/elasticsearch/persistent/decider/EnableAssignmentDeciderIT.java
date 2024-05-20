@@ -36,11 +36,6 @@ public class EnableAssignmentDeciderIT extends ESIntegTestCase {
         return singletonList(TestPersistentTasksPlugin.class);
     }
 
-    @Override
-    protected boolean ignoreExternalCluster() {
-        return true;
-    }
-
     /**
      * Test that the {@link EnableAssignmentDecider#CLUSTER_TASKS_ALLOCATION_ENABLE_SETTING} setting correctly
      * prevents persistent tasks to be assigned after a cluster restart.
@@ -56,6 +51,7 @@ public class EnableAssignmentDeciderIT extends ESIntegTestCase {
                 "task_" + i,
                 TestPersistentTasksExecutor.NAME,
                 new TestParams(randomAlphaOfLength(10)),
+                null,
                 ActionListener.running(latch::countDown)
             );
         }
@@ -67,11 +63,7 @@ public class EnableAssignmentDeciderIT extends ESIntegTestCase {
 
         logger.trace("waiting for the tasks to be running");
         assertBusy(() -> {
-            ListTasksResponse listTasks = client().admin()
-                .cluster()
-                .prepareListTasks()
-                .setActions(TestPersistentTasksExecutor.NAME + "[c]")
-                .get();
+            ListTasksResponse listTasks = clusterAdmin().prepareListTasks().setActions(TestPersistentTasksExecutor.NAME + "[c]").get();
             assertThat(listTasks.getTasks().size(), equalTo(numberOfTasks));
         });
 
@@ -97,11 +89,7 @@ public class EnableAssignmentDeciderIT extends ESIntegTestCase {
                     .count()
             );
 
-            ListTasksResponse runningTasks = client().admin()
-                .cluster()
-                .prepareListTasks()
-                .setActions(TestPersistentTasksExecutor.NAME + "[c]")
-                .get();
+            ListTasksResponse runningTasks = clusterAdmin().prepareListTasks().setActions(TestPersistentTasksExecutor.NAME + "[c]").get();
             assertThat(runningTasks.getTasks().size(), equalTo(0));
 
             logger.trace("enable persistent tasks assignment");
@@ -112,11 +100,7 @@ public class EnableAssignmentDeciderIT extends ESIntegTestCase {
             }
 
             assertBusy(() -> {
-                ListTasksResponse listTasks = client().admin()
-                    .cluster()
-                    .prepareListTasks()
-                    .setActions(TestPersistentTasksExecutor.NAME + "[c]")
-                    .get();
+                ListTasksResponse listTasks = clusterAdmin().prepareListTasks().setActions(TestPersistentTasksExecutor.NAME + "[c]").get();
                 assertThat(listTasks.getTasks().size(), equalTo(numberOfTasks));
             });
 
@@ -126,7 +110,7 @@ public class EnableAssignmentDeciderIT extends ESIntegTestCase {
     }
 
     private void assertEnableAssignmentSetting(final Allocation expected) {
-        ClusterStateResponse clusterStateResponse = client().admin().cluster().prepareState().clear().setMetadata(true).get();
+        ClusterStateResponse clusterStateResponse = clusterAdmin().prepareState().clear().setMetadata(true).get();
         Settings settings = clusterStateResponse.getState().getMetadata().settings();
 
         String value = settings.get(CLUSTER_TASKS_ALLOCATION_ENABLE_SETTING.getKey());

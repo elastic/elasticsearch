@@ -39,7 +39,7 @@ public class SyncPluginsCliProvider implements CliToolProvider {
                 if (Files.exists(env.configFile().resolve(ELASTICSEARCH_PLUGINS_YML)) == false) {
                     return;
                 }
-                if (Build.CURRENT.type() != Build.Type.DOCKER) {
+                if (Build.current().type() != Build.Type.DOCKER) {
                     throw new UserException(
                         ExitCodes.CONFIG,
                         "Can only use [elasticsearch-plugins.yml] config file with distribution type [docker]"

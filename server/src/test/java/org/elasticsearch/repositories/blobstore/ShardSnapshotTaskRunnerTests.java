@@ -9,13 +9,13 @@
 package org.elasticsearch.repositories.blobstore;
 
 import org.apache.lucene.store.ByteBuffersDirectory;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.RefCountingRunnable;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.snapshots.IndexShardSnapshotStatus;
@@ -23,6 +23,7 @@ import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.store.StoreFileMetadata;
 import org.elasticsearch.repositories.IndexId;
+import org.elasticsearch.repositories.SnapshotIndexCommit;
 import org.elasticsearch.repositories.SnapshotShardContext;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.test.DummyShardLock;
@@ -100,7 +101,7 @@ public class ShardSnapshotTaskRunnerTests extends ESTestCase {
 
     public static BlobStoreIndexShardSnapshot.FileInfo dummyFileInfo() {
         String filename = randomAlphaOfLength(10);
-        StoreFileMetadata metadata = new StoreFileMetadata(filename, 10, "CHECKSUM", Version.CURRENT.luceneVersion.toString());
+        StoreFileMetadata metadata = new StoreFileMetadata(filename, 10, "CHECKSUM", IndexVersion.current().luceneVersion().toString());
         return new BlobStoreIndexShardSnapshot.FileInfo(filename, metadata, null);
     }
 
@@ -111,13 +112,8 @@ public class ShardSnapshotTaskRunnerTests extends ESTestCase {
     public static SnapshotShardContext dummyContext(final SnapshotId snapshotId, final long startTime) {
         IndexId indexId = new IndexId(randomAlphaOfLength(10), UUIDs.randomBase64UUID());
         ShardId shardId = new ShardId(indexId.getName(), indexId.getId(), 1);
-        Settings settings = Settings.builder()
-            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
-            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-            .build();
         IndexSettings indexSettings = new IndexSettings(
-            IndexMetadata.builder(indexId.getName()).settings(settings).build(),
+            IndexMetadata.builder(indexId.getName()).settings(indexSettings(IndexVersion.current(), 1, 0)).build(),
             Settings.EMPTY
         );
         Store dummyStore = new Store(shardId, indexSettings, new ByteBuffersDirectory(), new DummyShardLock(shardId));
@@ -126,10 +122,10 @@ public class ShardSnapshotTaskRunnerTests extends ESTestCase {
             null,
             snapshotId,
             indexId,
-            new Engine.IndexCommitRef(null, () -> {}),
+            new SnapshotIndexCommit(new Engine.IndexCommitRef(null, () -> {})),
             null,
             IndexShardSnapshotStatus.newInitializing(null),
-            Version.CURRENT,
+            IndexVersion.current(),
             startTime,
             ActionListener.noop()
         );

@@ -6,10 +6,12 @@
  */
 package org.elasticsearch.upgrades;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
+import org.elasticsearch.xpack.core.ml.MlConfigIndex;
+import org.elasticsearch.xpack.core.ml.annotations.AnnotationIndex;
+import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
 import org.elasticsearch.xpack.test.rest.IndexMappingTemplateAsserter;
 import org.elasticsearch.xpack.test.rest.XPackRestTestConstants;
 import org.elasticsearch.xpack.test.rest.XPackRestTestHelper;
@@ -128,7 +130,10 @@ public class MlMappingsUpgradeIT extends AbstractUpgradeTestCase {
             }
             assertNotNull(indexLevel);
 
-            assertEquals(Version.CURRENT.toString(), extractValue("mappings._meta.version", indexLevel));
+            assertEquals(
+                AnomalyDetectorsIndex.RESULTS_INDEX_MAPPINGS_VERSION,
+                extractValue("mappings._meta.managed_index_mappings_version", indexLevel)
+            );
 
             // TODO: as the years go by, the field we assert on here should be changed
             // to the most recent field we've added that is NOT of type "keyword"
@@ -161,7 +166,10 @@ public class MlMappingsUpgradeIT extends AbstractUpgradeTestCase {
             }
             assertNotNull(indexLevel);
 
-            assertEquals(Version.CURRENT.toString(), extractValue("mappings._meta.version", indexLevel));
+            assertEquals(
+                AnnotationIndex.ANNOTATION_INDEX_MAPPINGS_VERSION,
+                extractValue("mappings._meta.managed_index_mappings_version", indexLevel)
+            );
 
             // TODO: as the years go by, the field we assert on here should be changed
             // to the most recent field we've added that would be incorrectly mapped by dynamic
@@ -215,7 +223,10 @@ public class MlMappingsUpgradeIT extends AbstractUpgradeTestCase {
             Map<String, Object> indexLevel = (Map<String, Object>) responseLevel.get(".ml-config");
             assertNotNull(indexLevel);
 
-            assertEquals(Version.CURRENT.toString(), extractValue("mappings._meta.version", indexLevel));
+            assertEquals(
+                MlConfigIndex.CONFIG_INDEX_MAPPINGS_VERSION,
+                extractValue("mappings._meta.managed_index_mappings_version", indexLevel)
+            );
 
             // TODO: as the years go by, the field we assert on here should be changed
             // to the most recent field we've added that is NOT of type "keyword"

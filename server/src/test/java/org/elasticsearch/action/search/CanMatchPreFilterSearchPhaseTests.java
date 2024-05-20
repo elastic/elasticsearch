@@ -9,10 +9,10 @@
 package org.elasticsearch.action.search;
 
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.search.CanMatchNodeResponse.ResponseOrFailure;
+import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.DataStream;
@@ -20,37 +20,40 @@ import org.elasticsearch.cluster.metadata.DataStreamTestHelper;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.routing.GroupShardsIterator;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.DateFieldMapper;
-import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.CoordinatorRewriteContextProvider;
+import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.RangeQueryBuilder;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.index.shard.IndexLongFieldRange;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardLongFieldRange;
 import org.elasticsearch.search.CanMatchShardResponse;
+import org.elasticsearch.search.aggregations.AggregationBuilder;
+import org.elasticsearch.search.aggregations.bucket.terms.SignificantTermsAggregationBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.search.sort.MinAndMax;
 import org.elasticsearch.search.sort.SortBuilders;
 import org.elasticsearch.search.sort.SortOrder;
+import org.elasticsearch.search.suggest.SuggestBuilder;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
@@ -99,8 +102,8 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
         );
 
         Map<String, Transport.Connection> lookup = new ConcurrentHashMap<>();
-        DiscoveryNode primaryNode = new DiscoveryNode("node_1", buildNewFakeTransportAddress(), Version.CURRENT);
-        DiscoveryNode replicaNode = randomBoolean() ? null : new DiscoveryNode("node_2", buildNewFakeTransportAddress(), Version.CURRENT);
+        DiscoveryNode primaryNode = DiscoveryNodeUtils.create("node_1");
+        DiscoveryNode replicaNode = randomBoolean() ? null : DiscoveryNodeUtils.create("node_2");
         lookup.put("node1", new SearchAsyncActionTests.MockConnection(primaryNode));
         lookup.put("node2", new SearchAsyncActionTests.MockConnection(replicaNode));
         final boolean shard1 = randomBoolean();
@@ -146,19 +149,15 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
             Collections.emptyMap(),
             threadPool.executor(ThreadPool.Names.SEARCH_COORDINATION),
             searchRequest,
-            null,
             shardsIter,
             timeProvider,
             null,
-            (iter) -> new SearchPhase("test") {
-                @Override
-                public void run() throws IOException {
-                    result.set(iter);
-                    latch.countDown();
-                }
-            },
-            SearchResponse.Clusters.EMPTY,
-            EMPTY_CONTEXT_PROVIDER
+            true,
+            EMPTY_CONTEXT_PROVIDER,
+            ActionTestUtils.assertNoFailureListener(iter -> {
+                result.set(iter);
+                latch.countDown();
+            })
         );
 
         canMatchPhase.start();
@@ -188,8 +187,8 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
             System::nanoTime
         );
         Map<String, Transport.Connection> lookup = new ConcurrentHashMap<>();
-        DiscoveryNode primaryNode = new DiscoveryNode("node_1", buildNewFakeTransportAddress(), Version.CURRENT);
-        DiscoveryNode replicaNode = new DiscoveryNode("node_2", buildNewFakeTransportAddress(), Version.CURRENT);
+        DiscoveryNode primaryNode = DiscoveryNodeUtils.create("node_1");
+        DiscoveryNode replicaNode = DiscoveryNodeUtils.create("node_2");
         lookup.put("node1", new SearchAsyncActionTests.MockConnection(primaryNode));
         lookup.put("node2", new SearchAsyncActionTests.MockConnection(replicaNode));
         final boolean shard1 = randomBoolean();
@@ -248,19 +247,15 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
             Collections.emptyMap(),
             threadPool.executor(ThreadPool.Names.SEARCH_COORDINATION),
             searchRequest,
-            null,
             shardsIter,
             timeProvider,
             null,
-            (iter) -> new SearchPhase("test") {
-                @Override
-                public void run() throws IOException {
-                    result.set(iter);
-                    latch.countDown();
-                }
-            },
-            SearchResponse.Clusters.EMPTY,
-            EMPTY_CONTEXT_PROVIDER
+            true,
+            EMPTY_CONTEXT_PROVIDER,
+            ActionTestUtils.assertNoFailureListener(iter -> {
+                result.set(iter);
+                latch.countDown();
+            })
         );
 
         canMatchPhase.start();
@@ -284,8 +279,8 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
         );
 
         Map<String, Transport.Connection> lookup = new ConcurrentHashMap<>();
-        DiscoveryNode primaryNode = new DiscoveryNode("node_1", buildNewFakeTransportAddress(), Version.CURRENT);
-        DiscoveryNode replicaNode = new DiscoveryNode("node_2", buildNewFakeTransportAddress(), Version.CURRENT);
+        DiscoveryNode primaryNode = DiscoveryNodeUtils.create("node_1");
+        DiscoveryNode replicaNode = DiscoveryNodeUtils.create("node_2");
         lookup.put("node1", new SearchAsyncActionTests.MockConnection(primaryNode));
         lookup.put("node2", new SearchAsyncActionTests.MockConnection(replicaNode));
 
@@ -345,19 +340,15 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
                 Collections.emptyMap(),
                 threadPool.executor(ThreadPool.Names.SEARCH_COORDINATION),
                 searchRequest,
-                null,
                 shardsIter,
                 timeProvider,
                 null,
-                (iter) -> new SearchPhase("test") {
-                    @Override
-                    public void run() {
-                        result.set(iter);
-                        latch.countDown();
-                    }
-                },
-                SearchResponse.Clusters.EMPTY,
-                EMPTY_CONTEXT_PROVIDER
+                true,
+                EMPTY_CONTEXT_PROVIDER,
+                ActionTestUtils.assertNoFailureListener(iter -> {
+                    result.set(iter);
+                    latch.countDown();
+                })
             );
 
             canMatchPhase.start();
@@ -387,8 +378,8 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
         );
 
         Map<String, Transport.Connection> lookup = new ConcurrentHashMap<>();
-        DiscoveryNode primaryNode = new DiscoveryNode("node_1", buildNewFakeTransportAddress(), Version.CURRENT);
-        DiscoveryNode replicaNode = new DiscoveryNode("node_2", buildNewFakeTransportAddress(), Version.CURRENT);
+        DiscoveryNode primaryNode = DiscoveryNodeUtils.create("node_1");
+        DiscoveryNode replicaNode = DiscoveryNodeUtils.create("node_2");
         lookup.put("node1", new SearchAsyncActionTests.MockConnection(primaryNode));
         lookup.put("node2", new SearchAsyncActionTests.MockConnection(replicaNode));
 
@@ -451,19 +442,15 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
                 Collections.emptyMap(),
                 threadPool.executor(ThreadPool.Names.SEARCH_COORDINATION),
                 searchRequest,
-                null,
                 shardsIter,
                 timeProvider,
                 null,
-                (iter) -> new SearchPhase("test") {
-                    @Override
-                    public void run() {
-                        result.set(iter);
-                        latch.countDown();
-                    }
-                },
-                SearchResponse.Clusters.EMPTY,
-                EMPTY_CONTEXT_PROVIDER
+                shardsIter.size() > shardToSkip.size(),
+                EMPTY_CONTEXT_PROVIDER,
+                ActionTestUtils.assertNoFailureListener(iter -> {
+                    result.set(iter);
+                    latch.countDown();
+                })
             );
 
             canMatchPhase.start();
@@ -487,12 +474,16 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
         long indexMinTimestamp = randomLongBetween(0, 5000);
         long indexMaxTimestamp = randomLongBetween(indexMinTimestamp, 5000 * 2);
         StaticCoordinatorRewriteContextProviderBuilder contextProviderBuilder = new StaticCoordinatorRewriteContextProviderBuilder();
-        String timestampFieldName = dataStream.getTimeStampField().getName();
         for (Index dataStreamIndex : dataStream.getIndices()) {
-            contextProviderBuilder.addIndexMinMaxTimestamps(dataStreamIndex, timestampFieldName, indexMinTimestamp, indexMaxTimestamp);
+            contextProviderBuilder.addIndexMinMaxTimestamps(
+                dataStreamIndex,
+                DataStream.TIMESTAMP_FIELD_NAME,
+                indexMinTimestamp,
+                indexMaxTimestamp
+            );
         }
 
-        RangeQueryBuilder rangeQueryBuilder = new RangeQueryBuilder(timestampFieldName);
+        RangeQueryBuilder rangeQueryBuilder = new RangeQueryBuilder(DataStream.TIMESTAMP_FIELD_NAME);
         // We query a range outside of the timestamp range covered by both datastream indices
         rangeQueryBuilder.from(indexMaxTimestamp + 1).to(indexMaxTimestamp + 2);
 
@@ -509,14 +500,14 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
             regularIndices,
             contextProviderBuilder.build(),
             queryBuilder,
+            List.of(),
+            null,
             (updatedSearchShardIterators, requests) -> {
                 List<SearchShardIterator> skippedShards = updatedSearchShardIterators.stream().filter(SearchShardIterator::skip).toList();
-                ;
 
                 List<SearchShardIterator> nonSkippedShards = updatedSearchShardIterators.stream()
                     .filter(searchShardIterator -> searchShardIterator.skip() == false)
                     .toList();
-                ;
 
                 int regularIndexShardCount = (int) updatedSearchShardIterators.stream()
                     .filter(s -> regularIndices.contains(s.shardId().getIndex()))
@@ -554,12 +545,16 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
         long indexMinTimestamp = randomLongBetween(0, 5000);
         long indexMaxTimestamp = randomLongBetween(indexMinTimestamp, 5000 * 2);
         StaticCoordinatorRewriteContextProviderBuilder contextProviderBuilder = new StaticCoordinatorRewriteContextProviderBuilder();
-        String timestampFieldName = dataStream.getTimeStampField().getName();
         for (Index dataStreamIndex : dataStream.getIndices()) {
-            contextProviderBuilder.addIndexMinMaxTimestamps(dataStreamIndex, timestampFieldName, indexMinTimestamp, indexMaxTimestamp);
+            contextProviderBuilder.addIndexMinMaxTimestamps(
+                dataStreamIndex,
+                DataStream.TIMESTAMP_FIELD_NAME,
+                indexMinTimestamp,
+                indexMaxTimestamp
+            );
         }
 
-        RangeQueryBuilder rangeQueryBuilder = new RangeQueryBuilder(timestampFieldName);
+        RangeQueryBuilder rangeQueryBuilder = new RangeQueryBuilder(DataStream.TIMESTAMP_FIELD_NAME);
         // Query with a non default date format
         rangeQueryBuilder.from("2020-1-01").to("2021-1-01");
 
@@ -576,6 +571,8 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
             regularIndices,
             contextProviderBuilder.build(),
             queryBuilder,
+            List.of(),
+            null,
             this::assertAllShardsAreQueried
         );
     }
@@ -591,16 +588,20 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
         long indexMinTimestamp = 10;
         long indexMaxTimestamp = 20;
         StaticCoordinatorRewriteContextProviderBuilder contextProviderBuilder = new StaticCoordinatorRewriteContextProviderBuilder();
-        String timestampFieldName = dataStream.getTimeStampField().getName();
         for (Index dataStreamIndex : dataStream.getIndices()) {
-            contextProviderBuilder.addIndexMinMaxTimestamps(dataStreamIndex, timestampFieldName, indexMinTimestamp, indexMaxTimestamp);
+            contextProviderBuilder.addIndexMinMaxTimestamps(
+                dataStreamIndex,
+                DataStream.TIMESTAMP_FIELD_NAME,
+                indexMinTimestamp,
+                indexMaxTimestamp
+            );
         }
 
         BoolQueryBuilder queryBuilder = new BoolQueryBuilder();
         // Query inside of the data stream index range
         if (randomBoolean()) {
             // Query generation
-            RangeQueryBuilder rangeQueryBuilder = new RangeQueryBuilder(timestampFieldName);
+            RangeQueryBuilder rangeQueryBuilder = new RangeQueryBuilder(DataStream.TIMESTAMP_FIELD_NAME);
             // We query a range within the timestamp range covered by both datastream indices
             rangeQueryBuilder.from(indexMinTimestamp).to(indexMaxTimestamp);
 
@@ -613,7 +614,7 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
             }
         } else {
             // We query a range outside of the timestamp range covered by both datastream indices
-            RangeQueryBuilder rangeQueryBuilder = new RangeQueryBuilder(timestampFieldName).from(indexMaxTimestamp + 1)
+            RangeQueryBuilder rangeQueryBuilder = new RangeQueryBuilder(DataStream.TIMESTAMP_FIELD_NAME).from(indexMaxTimestamp + 1)
                 .to(indexMaxTimestamp + 2);
 
             TermQueryBuilder termQueryBuilder = new TermQueryBuilder("fake", "value");
@@ -628,6 +629,99 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
             regularIndices,
             contextProviderBuilder.build(),
             queryBuilder,
+            List.of(),
+            null,
+            this::assertAllShardsAreQueried
+        );
+    }
+
+    public void testCanMatchFilteringOnCoordinator_withSignificantTermsAggregation_withDefaultBackgroundFilter() throws Exception {
+        Index index1 = new Index("index1", UUIDs.base64UUID());
+        Index index2 = new Index("index2", UUIDs.base64UUID());
+        Index index3 = new Index("index3", UUIDs.base64UUID());
+
+        StaticCoordinatorRewriteContextProviderBuilder contextProviderBuilder = new StaticCoordinatorRewriteContextProviderBuilder();
+        contextProviderBuilder.addIndexMinMaxTimestamps(index1, DataStream.TIMESTAMP_FIELD_NAME, 0, 999);
+        contextProviderBuilder.addIndexMinMaxTimestamps(index2, DataStream.TIMESTAMP_FIELD_NAME, 1000, 1999);
+        contextProviderBuilder.addIndexMinMaxTimestamps(index3, DataStream.TIMESTAMP_FIELD_NAME, 2000, 2999);
+
+        QueryBuilder query = new BoolQueryBuilder().filter(new RangeQueryBuilder(DataStream.TIMESTAMP_FIELD_NAME).from(2100).to(2200));
+        AggregationBuilder aggregation = new SignificantTermsAggregationBuilder("significant_terms");
+
+        assignShardsAndExecuteCanMatchPhase(
+            List.of(),
+            List.of(index1, index2, index3),
+            contextProviderBuilder.build(),
+            query,
+            List.of(aggregation),
+            null,
+            // The default background filter matches the whole index, so all shards must be queried.
+            this::assertAllShardsAreQueried
+        );
+    }
+
+    public void testCanMatchFilteringOnCoordinator_withSignificantTermsAggregation_withBackgroundFilter() throws Exception {
+        Index index1 = new Index("index1", UUIDs.base64UUID());
+        Index index2 = new Index("index2", UUIDs.base64UUID());
+        Index index3 = new Index("index3", UUIDs.base64UUID());
+        Index index4 = new Index("index4", UUIDs.base64UUID());
+
+        StaticCoordinatorRewriteContextProviderBuilder contextProviderBuilder = new StaticCoordinatorRewriteContextProviderBuilder();
+        contextProviderBuilder.addIndexMinMaxTimestamps(index1, DataStream.TIMESTAMP_FIELD_NAME, 0, 999);
+        contextProviderBuilder.addIndexMinMaxTimestamps(index2, DataStream.TIMESTAMP_FIELD_NAME, 1000, 1999);
+        contextProviderBuilder.addIndexMinMaxTimestamps(index3, DataStream.TIMESTAMP_FIELD_NAME, 2000, 2999);
+        contextProviderBuilder.addIndexMinMaxTimestamps(index4, DataStream.TIMESTAMP_FIELD_NAME, 3000, 3999);
+
+        QueryBuilder query = new BoolQueryBuilder().filter(new RangeQueryBuilder(DataStream.TIMESTAMP_FIELD_NAME).from(3100).to(3200));
+        AggregationBuilder aggregation = new SignificantTermsAggregationBuilder("significant_terms").backgroundFilter(
+            new RangeQueryBuilder(DataStream.TIMESTAMP_FIELD_NAME).from(0).to(1999)
+        );
+
+        assignShardsAndExecuteCanMatchPhase(
+            List.of(),
+            List.of(index1, index2, index3),
+            contextProviderBuilder.build(),
+            query,
+            List.of(aggregation),
+            null,
+            (updatedSearchShardIterators, requests) -> {
+                // The search query matches index4, the background query matches index1 and index2,
+                // so index3 is the only one that must be skipped.
+                for (SearchShardIterator shard : updatedSearchShardIterators) {
+                    if (shard.shardId().getIndex().getName().equals("index3")) {
+                        assertTrue(shard.skip());
+                    } else {
+                        assertFalse(shard.skip());
+                    }
+                }
+            }
+        );
+    }
+
+    public void testCanMatchFilteringOnCoordinator_withSignificantTermsAggregation_withSuggest() throws Exception {
+        Index index1 = new Index("index1", UUIDs.base64UUID());
+        Index index2 = new Index("index2", UUIDs.base64UUID());
+        Index index3 = new Index("index3", UUIDs.base64UUID());
+
+        StaticCoordinatorRewriteContextProviderBuilder contextProviderBuilder = new StaticCoordinatorRewriteContextProviderBuilder();
+        contextProviderBuilder.addIndexMinMaxTimestamps(index1, DataStream.TIMESTAMP_FIELD_NAME, 0, 999);
+        contextProviderBuilder.addIndexMinMaxTimestamps(index2, DataStream.TIMESTAMP_FIELD_NAME, 1000, 1999);
+        contextProviderBuilder.addIndexMinMaxTimestamps(index3, DataStream.TIMESTAMP_FIELD_NAME, 2000, 2999);
+
+        QueryBuilder query = new BoolQueryBuilder().filter(new RangeQueryBuilder(DataStream.TIMESTAMP_FIELD_NAME).from(2100).to(2200));
+        AggregationBuilder aggregation = new SignificantTermsAggregationBuilder("significant_terms").backgroundFilter(
+            new RangeQueryBuilder(DataStream.TIMESTAMP_FIELD_NAME).from(2000).to(2300)
+        );
+        SuggestBuilder suggest = new SuggestBuilder().setGlobalText("test");
+
+        assignShardsAndExecuteCanMatchPhase(
+            List.of(),
+            List.of(index1, index2, index3),
+            contextProviderBuilder.build(),
+            query,
+            List.of(aggregation),
+            suggest,
+            // The query and aggregation and match only index3, but suggest should match everything.
             this::assertAllShardsAreQueried
         );
     }
@@ -673,6 +767,8 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
             List.of(),
             contextProviderBuilder.build(),
             queryBuilder,
+            List.of(),
+            null,
             (updatedSearchShardIterators, requests) -> {
                 var skippedShards = updatedSearchShardIterators.stream().filter(SearchShardIterator::skip).toList();
                 var nonSkippedShards = updatedSearchShardIterators.stream()
@@ -717,16 +813,18 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
         assertThat(requests.size(), equalTo(shardsWithPrimariesAssigned));
     }
 
-    private <QB extends AbstractQueryBuilder<QB>> void assignShardsAndExecuteCanMatchPhase(
+    private void assignShardsAndExecuteCanMatchPhase(
         List<DataStream> dataStreams,
         List<Index> regularIndices,
         CoordinatorRewriteContextProvider contextProvider,
-        AbstractQueryBuilder<QB> query,
+        QueryBuilder query,
+        List<AggregationBuilder> aggregations,
+        SuggestBuilder suggest,
         BiConsumer<List<SearchShardIterator>, List<ShardSearchRequest>> canMatchResultsConsumer
     ) throws Exception {
         Map<String, Transport.Connection> lookup = new ConcurrentHashMap<>();
-        DiscoveryNode primaryNode = new DiscoveryNode("node_1", buildNewFakeTransportAddress(), Version.CURRENT);
-        DiscoveryNode replicaNode = new DiscoveryNode("node_2", buildNewFakeTransportAddress(), Version.CURRENT);
+        DiscoveryNode primaryNode = DiscoveryNodeUtils.create("node_1");
+        DiscoveryNode replicaNode = DiscoveryNodeUtils.create("node_2");
         lookup.put("node1", new SearchAsyncActionTests.MockConnection(primaryNode));
         lookup.put("node2", new SearchAsyncActionTests.MockConnection(replicaNode));
 
@@ -768,14 +866,20 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
         searchRequest.allowPartialSearchResults(true);
 
         final AliasFilter aliasFilter;
-        if (randomBoolean()) {
+        if (aggregations.isEmpty() == false || randomBoolean()) {
             // Apply the query on the request body
             SearchSourceBuilder searchSourceBuilder = SearchSourceBuilder.searchSource();
             searchSourceBuilder.query(query);
+            for (AggregationBuilder aggregation : aggregations) {
+                searchSourceBuilder.aggregation(aggregation);
+            }
+            if (suggest != null) {
+                searchSourceBuilder.suggest(suggest);
+            }
             searchRequest.source(searchSourceBuilder);
 
             // Sometimes apply the same query in the alias filter too
-            aliasFilter = AliasFilter.of(randomBoolean() ? query : null, Strings.EMPTY_ARRAY);
+            aliasFilter = AliasFilter.of(aggregations.isEmpty() && randomBoolean() ? query : null, Strings.EMPTY_ARRAY);
         } else {
             // Apply the query as an alias filter
             aliasFilter = AliasFilter.of(query, Strings.EMPTY_ARRAY);
@@ -828,19 +932,15 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
             Collections.emptyMap(),
             threadPool.executor(ThreadPool.Names.SEARCH_COORDINATION),
             searchRequest,
-            null,
             shardsIter,
             timeProvider,
             null,
-            (iter) -> new SearchPhase("test") {
-                @Override
-                public void run() throws IOException {
-                    result.set(iter);
-                    latch.countDown();
-                }
-            },
-            SearchResponse.Clusters.EMPTY,
-            contextProvider
+            true,
+            contextProvider,
+            ActionTestUtils.assertNoFailureListener(iter -> {
+                result.set(iter);
+                latch.countDown();
+            })
         );
 
         canMatchPhase.start();
@@ -869,7 +969,7 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
                 ShardLongFieldRange.of(minTimeStamp, maxTimestamp)
             );
 
-            Settings.Builder indexSettings = settings(Version.CURRENT).put(IndexMetadata.SETTING_INDEX_UUID, index.getUUID());
+            Settings.Builder indexSettings = settings(IndexVersion.current()).put(IndexMetadata.SETTING_INDEX_UUID, index.getUUID());
 
             IndexMetadata.Builder indexMetadataBuilder = IndexMetadata.builder(index.getName())
                 .settings(indexSettings)
@@ -889,7 +989,7 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
                 throw new IllegalArgumentException("Min/Max timestamps for " + index + " were already defined");
             }
 
-            Settings.Builder indexSettings = settings(Version.CURRENT).put(IndexMetadata.SETTING_INDEX_UUID, index.getUUID())
+            Settings.Builder indexSettings = settings(IndexVersion.current()).put(IndexMetadata.SETTING_INDEX_UUID, index.getUUID())
                 .put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES)
                 .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "a_field")
                 .put(IndexSettings.TIME_SERIES_START_TIME.getKey(), DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.formatMillis(minTimestamp))
@@ -910,7 +1010,7 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
                 throw new IllegalArgumentException("Min/Max timestamps for " + index + " were already defined");
             }
 
-            Settings.Builder indexSettings = settings(Version.CURRENT).put(IndexMetadata.SETTING_INDEX_UUID, index.getUUID());
+            Settings.Builder indexSettings = settings(IndexVersion.current()).put(IndexMetadata.SETTING_INDEX_UUID, index.getUUID());
             IndexMetadata.Builder indexMetadataBuilder = IndexMetadata.builder(index.getName())
                 .settings(indexSettings)
                 .numberOfShards(1)
@@ -924,7 +1024,6 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
         public CoordinatorRewriteContextProvider build() {
             return new CoordinatorRewriteContextProvider(
                 XContentParserConfiguration.EMPTY,
-                mock(NamedWriteableRegistry.class),
                 mock(Client.class),
                 System::currentTimeMillis,
                 () -> clusterState,

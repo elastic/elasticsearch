@@ -7,7 +7,6 @@
 package org.elasticsearch.xpack.ilm;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -15,6 +14,7 @@ import org.elasticsearch.cluster.metadata.LifecycleExecutionState;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.ilm.ErrorStep;
 import org.elasticsearch.xpack.core.ilm.IndexLifecycleMetadata;
@@ -47,7 +47,7 @@ public class MoveToErrorStepUpdateTaskTests extends ESTestCase {
         policy = randomAlphaOfLength(10);
         LifecyclePolicy lifecyclePolicy = LifecyclePolicyTests.randomTestLifecyclePolicy(policy);
         IndexMetadata indexMetadata = IndexMetadata.builder(randomAlphaOfLength(5))
-            .settings(settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_NAME, policy))
+            .settings(settings(IndexVersion.current()).put(LifecycleSettings.LIFECYCLE_NAME, policy))
             .numberOfShards(randomIntBetween(1, 5))
             .numberOfReplicas(randomIntBetween(0, 5))
             .build();
@@ -60,7 +60,7 @@ public class MoveToErrorStepUpdateTaskTests extends ESTestCase {
             OperationMode.RUNNING
         );
         Metadata metadata = Metadata.builder()
-            .persistentSettings(settings(Version.CURRENT).build())
+            .persistentSettings(settings(IndexVersion.current()).build())
             .put(IndexMetadata.builder(indexMetadata))
             .putCustom(IndexLifecycleMetadata.TYPE, ilmMeta)
             .build();

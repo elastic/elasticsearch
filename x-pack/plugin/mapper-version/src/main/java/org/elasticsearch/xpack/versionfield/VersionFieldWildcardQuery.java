@@ -105,7 +105,7 @@ class VersionFieldWildcardQuery extends AutomatonQuery {
                     if (caseInsensitive == false) {
                         automata.add(Automata.makeChar(c));
                     } else {
-                        automata.add(AutomatonQueries.toCaseInsensitiveChar(c, Integer.MAX_VALUE));
+                        automata.add(AutomatonQueries.toCaseInsensitiveChar(c));
                     }
             }
             i += length;

@@ -45,7 +45,7 @@ public class MockAction implements LifecycleAction {
     }
 
     public MockAction(StreamInput in) throws IOException {
-        this.steps = in.readList(MockStep::new);
+        this.steps = in.readCollectionAsList(MockStep::new);
         this.safe = in.readBoolean();
     }
 
@@ -77,7 +77,7 @@ public class MockAction implements LifecycleAction {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeList(steps.stream().map(MockStep::new).collect(Collectors.toList()));
+        out.writeCollection(steps.stream().map(MockStep::new).collect(Collectors.toList()));
         out.writeBoolean(safe);
     }
 

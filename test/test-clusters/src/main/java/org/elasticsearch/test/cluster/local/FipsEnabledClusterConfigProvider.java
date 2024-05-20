@@ -13,7 +13,7 @@ import org.elasticsearch.test.cluster.util.resource.Resource;
 public class FipsEnabledClusterConfigProvider implements LocalClusterConfigProvider {
 
     @Override
-    public void apply(LocalClusterSpecBuilder builder) {
+    public void apply(LocalClusterSpecBuilder<?> builder) {
         if (isFipsEnabled()) {
             builder.configFile(
                 "fips_java.security",
@@ -33,6 +33,7 @@ public class FipsEnabledClusterConfigProvider implements LocalClusterConfigProvi
                 .setting("xpack.security.fips_mode.enabled", "true")
                 .setting("xpack.license.self_generated.type", "trial")
                 .setting("xpack.security.authc.password_hashing.algorithm", "pbkdf2_stretch")
+                .setting("xpack.security.fips_mode.required_providers", () -> "[BCFIPS, BCJSSE]", n -> n.getVersion().onOrAfter("8.13.0"))
                 .keystorePassword("keystore-password");
         }
     }

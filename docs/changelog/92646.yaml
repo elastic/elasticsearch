@@ -1,6 +1,0 @@
-pr: 92646
-summary: Introduce `DocumentParsingException`
-area: Search
-type: enhancement
-issues:
- - 85083

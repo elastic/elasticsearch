@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.core.ml.inference.trainedmodel;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -20,7 +21,6 @@ import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Optional;
 
 import static org.elasticsearch.xpack.core.ml.inference.trainedmodel.NlpConfig.RESULTS_FIELD;
 import static org.elasticsearch.xpack.core.ml.inference.trainedmodel.NlpConfig.TOKENIZATION;
@@ -100,33 +100,6 @@ public class TextExpansionConfigUpdate extends NlpConfigUpdate {
     }
 
     @Override
-    public InferenceConfig apply(InferenceConfig originalConfig) {
-        if (originalConfig instanceof TextExpansionConfig == false) {
-            throw ExceptionsHelper.badRequestException(
-                "Inference config of type [{}] can not be updated with a request of type [{}]",
-                originalConfig.getName(),
-                getName()
-            );
-        }
-        TextExpansionConfig textExpansionConfig = (TextExpansionConfig) originalConfig;
-        if (isNoop(textExpansionConfig)) {
-            return textExpansionConfig;
-        }
-
-        return new TextExpansionConfig(
-            textExpansionConfig.getVocabularyConfig(),
-            (tokenizationUpdate == null)
-                ? textExpansionConfig.getTokenization()
-                : tokenizationUpdate.apply(textExpansionConfig.getTokenization()),
-            Optional.ofNullable(resultsField).orElse(textExpansionConfig.getResultsField())
-        );
-    }
-
-    boolean isNoop(TextExpansionConfig originalConfig) {
-        return (this.resultsField == null || this.resultsField.equals(originalConfig.getResultsField())) && super.isNoop();
-    }
-
-    @Override
     public boolean isSupported(InferenceConfig config) {
         return config instanceof TextExpansionConfig;
     }
@@ -161,7 +134,7 @@ public class TextExpansionConfigUpdate extends NlpConfigUpdate {
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersion.V_8_7_0;
+        return TransportVersions.V_8_7_0;
     }
 
     public static class Builder implements InferenceConfigUpdate.Builder<TextExpansionConfigUpdate.Builder, TextExpansionConfigUpdate> {

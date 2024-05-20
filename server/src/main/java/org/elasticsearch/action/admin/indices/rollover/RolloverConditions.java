@@ -7,11 +7,11 @@
  */
 package org.elasticsearch.action.admin.indices.rollover;
 
+import org.elasticsearch.action.datastreams.autosharding.AutoShardingResult;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.Nullable;
@@ -28,9 +28,12 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 
+import static org.elasticsearch.action.datastreams.autosharding.AutoShardingType.DECREASE_SHARDS;
+import static org.elasticsearch.action.datastreams.autosharding.AutoShardingType.INCREASE_SHARDS;
+
 /**
  * Contains the conditions that determine if an index can be rolled over or not. It is used by the {@link RolloverRequest},
- * the Index Lifecycle Management and the Data Lifecycle Management.
+ * the Index Lifecycle Management and the Data Stream Lifecycle.
  */
 public class RolloverConditions implements Writeable, ToXContentObject {
     public static final ObjectParser<RolloverConditions.Builder, Void> PARSER = new ObjectParser<>("rollover_conditions");
@@ -114,11 +117,17 @@ public class RolloverConditions implements Writeable, ToXContentObject {
         return conditions.values().stream().anyMatch(c -> Condition.Type.MIN == c.type());
     }
 
+    /**
+     * Returns true if there is at least one condition of any type
+     */
+    public boolean hasConditions() {
+        return conditions.isEmpty() == false;
+    }
+
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeCollection(
-            conditions.values().stream().filter(c -> c.includedInVersion(out.getTransportVersion())).toList(),
-            StreamOutput::writeNamedWriteable
+        out.writeNamedWriteableCollection(
+            conditions.values().stream().filter(c -> c.includedInVersion(out.getTransportVersion())).toList()
         );
     }
 
@@ -238,7 +247,12 @@ public class RolloverConditions implements Writeable, ToXContentObject {
             .filter(c -> Condition.Type.MAX == c.type())
             .anyMatch(c -> conditionResults.getOrDefault(c.toString(), false));
 
-        return conditionResults.size() == 0 || (allMinConditionsMet && anyMaxConditionsMet);
+        boolean anyAutomaticConditionsMet = conditions.values()
+            .stream()
+            .filter(c -> Condition.Type.AUTOMATIC == c.type())
+            .anyMatch(c -> conditionResults.getOrDefault(c.toString(), false));
+
+        return conditionResults.size() == 0 || (allMinConditionsMet && anyMaxConditionsMet) || anyAutomaticConditionsMet;
     }
 
     public static RolloverConditions fromXContent(XContentParser parser) throws IOException {
@@ -250,69 +264,19 @@ public class RolloverConditions implements Writeable, ToXContentObject {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        for (Condition<?> condition : conditions.values()) {
-            condition.toXContent(builder, params);
-        }
+        toXContentFragment(builder, params);
         builder.endObject();
         return builder;
     }
 
     /**
-     * Parses a cluster setting configuration, it expects it to have the following format: "condition1=value1,condition2=value2"
-     * @throws SettingsException if the input is invalid, if there are unknown conditions or invalid format values.
-     * @throws IllegalArgumentException if the input is null or blank.
+     * This method adds the conditions as fields in an already existing object.
      */
-    public static RolloverConditions parseSetting(String input, String setting) {
-        if (Strings.isNullOrBlank(input)) {
-            throw new IllegalArgumentException("The rollover conditions cannot be null or blank");
+    public XContentBuilder toXContentFragment(XContentBuilder builder, Params params) throws IOException {
+        for (Condition<?> condition : conditions.values()) {
+            condition.toXContent(builder, params);
         }
-        String[] sConditions = input.split(",");
-        RolloverConditions.Builder builder = newBuilder();
-        for (String sCondition : sConditions) {
-            String[] keyValue = sCondition.split("=");
-            if (keyValue.length != 2) {
-                throw new SettingsException("Invalid condition: '{}', format must be 'condition=value'", sCondition);
-            }
-            var condition = keyValue[0];
-            var value = keyValue[1];
-            if (MAX_SIZE_FIELD.getPreferredName().equals(condition)) {
-                builder.addMaxIndexSizeCondition(ByteSizeValue.parseBytesSizeValue(value, setting));
-            } else if (MAX_PRIMARY_SHARD_SIZE_FIELD.getPreferredName().equals(condition)) {
-                builder.addMaxPrimaryShardSizeCondition(ByteSizeValue.parseBytesSizeValue(value, setting));
-            } else if (MAX_AGE_FIELD.getPreferredName().equals(condition)) {
-                builder.addMaxIndexAgeCondition(TimeValue.parseTimeValue(value, setting));
-            } else if (MAX_DOCS_FIELD.getPreferredName().equals(condition)) {
-                builder.addMaxIndexDocsCondition(parseLong(value, setting));
-            } else if (MAX_PRIMARY_SHARD_DOCS_FIELD.getPreferredName().equals(condition)) {
-                builder.addMaxPrimaryShardDocsCondition(parseLong(value, setting));
-            } else if (MIN_SIZE_FIELD.getPreferredName().equals(condition)) {
-                builder.addMinIndexSizeCondition(ByteSizeValue.parseBytesSizeValue(value, setting));
-            } else if (MIN_PRIMARY_SHARD_SIZE_FIELD.getPreferredName().equals(condition)) {
-                builder.addMinPrimaryShardSizeCondition(ByteSizeValue.parseBytesSizeValue(value, setting));
-            } else if (MIN_AGE_FIELD.getPreferredName().equals(condition)) {
-                builder.addMinIndexAgeCondition(TimeValue.parseTimeValue(value, setting));
-            } else if (MIN_DOCS_FIELD.getPreferredName().equals(condition)) {
-                builder.addMinIndexDocsCondition(parseLong(value, setting));
-            } else if (MIN_PRIMARY_SHARD_DOCS_FIELD.getPreferredName().equals(condition)) {
-                builder.addMinPrimaryShardDocsCondition(parseLong(value, condition));
-            } else {
-                throw new SettingsException("Unknown condition: '{}'", condition);
-            }
-        }
-        return builder.build();
-    }
-
-    private static Long parseLong(String sValue, String settingName) {
-        try {
-            return Long.parseLong(sValue);
-        } catch (NumberFormatException e) {
-            throw new SettingsException(
-                "Invalid value '{}' in setting '{}', the value is expected to be of type long",
-                sValue,
-                settingName,
-                e.getMessage()
-            );
-        }
+        return builder;
     }
 
     @Override
@@ -349,9 +313,6 @@ public class RolloverConditions implements Writeable, ToXContentObject {
         public Builder addMaxIndexAgeCondition(TimeValue age) {
             if (age != null) {
                 MaxAgeCondition maxAgeCondition = new MaxAgeCondition(age);
-                if (this.conditions.containsKey(maxAgeCondition.name)) {
-                    throw new IllegalArgumentException(maxAgeCondition.name + " condition is already set");
-                }
                 this.conditions.put(maxAgeCondition.name, maxAgeCondition);
             }
             return this;
@@ -363,9 +324,6 @@ public class RolloverConditions implements Writeable, ToXContentObject {
         public Builder addMaxIndexDocsCondition(Long numDocs) {
             if (numDocs != null) {
                 MaxDocsCondition maxDocsCondition = new MaxDocsCondition(numDocs);
-                if (this.conditions.containsKey(maxDocsCondition.name)) {
-                    throw new IllegalArgumentException(maxDocsCondition.name + " condition is already set");
-                }
                 this.conditions.put(maxDocsCondition.name, maxDocsCondition);
             }
             return this;
@@ -377,9 +335,6 @@ public class RolloverConditions implements Writeable, ToXContentObject {
         public Builder addMaxIndexSizeCondition(ByteSizeValue size) {
             if (size != null) {
                 MaxSizeCondition maxSizeCondition = new MaxSizeCondition(size);
-                if (this.conditions.containsKey(maxSizeCondition.name)) {
-                    throw new IllegalArgumentException(maxSizeCondition + " condition is already set");
-                }
                 this.conditions.put(maxSizeCondition.name, maxSizeCondition);
             }
             return this;
@@ -391,9 +346,6 @@ public class RolloverConditions implements Writeable, ToXContentObject {
         public Builder addMaxPrimaryShardSizeCondition(ByteSizeValue size) {
             if (size != null) {
                 MaxPrimaryShardSizeCondition maxPrimaryShardSizeCondition = new MaxPrimaryShardSizeCondition(size);
-                if (this.conditions.containsKey(maxPrimaryShardSizeCondition.name)) {
-                    throw new IllegalArgumentException(maxPrimaryShardSizeCondition + " condition is already set");
-                }
                 this.conditions.put(maxPrimaryShardSizeCondition.name, maxPrimaryShardSizeCondition);
             }
             return this;
@@ -405,9 +357,6 @@ public class RolloverConditions implements Writeable, ToXContentObject {
         public Builder addMaxPrimaryShardDocsCondition(Long numDocs) {
             if (numDocs != null) {
                 MaxPrimaryShardDocsCondition maxPrimaryShardDocsCondition = new MaxPrimaryShardDocsCondition(numDocs);
-                if (this.conditions.containsKey(maxPrimaryShardDocsCondition.name)) {
-                    throw new IllegalArgumentException(maxPrimaryShardDocsCondition.name + " condition is already set");
-                }
                 this.conditions.put(maxPrimaryShardDocsCondition.name, maxPrimaryShardDocsCondition);
             }
             return this;
@@ -419,9 +368,6 @@ public class RolloverConditions implements Writeable, ToXContentObject {
         public Builder addMinIndexAgeCondition(TimeValue age) {
             if (age != null) {
                 MinAgeCondition minAgeCondition = new MinAgeCondition(age);
-                if (this.conditions.containsKey(minAgeCondition.name)) {
-                    throw new IllegalArgumentException(minAgeCondition.name + " condition is already set");
-                }
                 this.conditions.put(minAgeCondition.name, minAgeCondition);
             }
             return this;
@@ -433,9 +379,6 @@ public class RolloverConditions implements Writeable, ToXContentObject {
         public Builder addMinIndexDocsCondition(Long numDocs) {
             if (numDocs != null) {
                 MinDocsCondition minDocsCondition = new MinDocsCondition(numDocs);
-                if (this.conditions.containsKey(minDocsCondition.name)) {
-                    throw new IllegalArgumentException(minDocsCondition.name + " condition is already set");
-                }
                 this.conditions.put(minDocsCondition.name, minDocsCondition);
             }
             return this;
@@ -447,9 +390,6 @@ public class RolloverConditions implements Writeable, ToXContentObject {
         public Builder addMinIndexSizeCondition(ByteSizeValue size) {
             if (size != null) {
                 MinSizeCondition minSizeCondition = new MinSizeCondition(size);
-                if (this.conditions.containsKey(minSizeCondition.name)) {
-                    throw new IllegalArgumentException(minSizeCondition + " condition is already set");
-                }
                 this.conditions.put(minSizeCondition.name, minSizeCondition);
             }
             return this;
@@ -461,9 +401,6 @@ public class RolloverConditions implements Writeable, ToXContentObject {
         public Builder addMinPrimaryShardSizeCondition(ByteSizeValue size) {
             if (size != null) {
                 MinPrimaryShardSizeCondition minPrimaryShardSizeCondition = new MinPrimaryShardSizeCondition(size);
-                if (this.conditions.containsKey(minPrimaryShardSizeCondition.name)) {
-                    throw new IllegalArgumentException(minPrimaryShardSizeCondition + " condition is already set");
-                }
                 this.conditions.put(minPrimaryShardSizeCondition.name, minPrimaryShardSizeCondition);
             }
             return this;
@@ -475,10 +412,20 @@ public class RolloverConditions implements Writeable, ToXContentObject {
         public Builder addMinPrimaryShardDocsCondition(Long numDocs) {
             if (numDocs != null) {
                 MinPrimaryShardDocsCondition minPrimaryShardDocsCondition = new MinPrimaryShardDocsCondition(numDocs);
-                if (this.conditions.containsKey(minPrimaryShardDocsCondition.name)) {
-                    throw new IllegalArgumentException(minPrimaryShardDocsCondition.name + " condition is already set");
-                }
                 this.conditions.put(minPrimaryShardDocsCondition.name, minPrimaryShardDocsCondition);
+            }
+            return this;
+        }
+
+        /**
+         * Adds an optimal shard count condition if the autosharding result is of type INCREASE or DECREASE_SHARDS, ignores it otherwise.
+         */
+        public Builder addOptimalShardCountCondition(AutoShardingResult autoShardingResult) {
+            if (autoShardingResult.type().equals(INCREASE_SHARDS) || autoShardingResult.type().equals(DECREASE_SHARDS)) {
+                OptimalShardCountCondition optimalShardCountCondition = new OptimalShardCountCondition(
+                    autoShardingResult.targetNumberOfShards()
+                );
+                this.conditions.put(optimalShardCountCondition.name, optimalShardCountCondition);
             }
             return this;
         }

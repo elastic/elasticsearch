@@ -130,7 +130,7 @@ public class FileSettingsRoleMappingsRestartIT extends SecurityIntegTestCase {
 
         ensureGreen();
 
-        var clusterStateResponse = client().admin().cluster().state(new ClusterStateRequest()).actionGet();
+        var clusterStateResponse = clusterAdmin().state(new ClusterStateRequest()).actionGet();
         assertThat(
             clusterStateResponse.getState()
                 .metadata()

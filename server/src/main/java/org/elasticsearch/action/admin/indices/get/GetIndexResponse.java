@@ -8,7 +8,7 @@
 
 package org.elasticsearch.action.admin.indices.get;
 
-import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
@@ -75,7 +75,7 @@ public class GetIndexResponse extends ActionResponse implements ChunkedToXConten
     GetIndexResponse(StreamInput in) throws IOException {
         super(in);
         this.indices = in.readStringArray();
-        mappings = in.readImmutableOpenMap(StreamInput::readString, in.getTransportVersion().before(TransportVersion.V_8_0_0) ? i -> {
+        mappings = in.readImmutableOpenMap(StreamInput::readString, in.getTransportVersion().before(TransportVersions.V_8_0_0) ? i -> {
             int numMappings = i.readVInt();
             assert numMappings == 0 || numMappings == 1 : "Expected 0 or 1 mappings but got " + numMappings;
             if (numMappings == 1) {
@@ -87,7 +87,7 @@ public class GetIndexResponse extends ActionResponse implements ChunkedToXConten
             }
         } : i -> i.readBoolean() ? new MappingMetadata(i) : MappingMetadata.EMPTY_MAPPINGS);
 
-        aliases = in.readImmutableOpenMap(StreamInput::readString, i -> i.readList(AliasMetadata::new));
+        aliases = in.readImmutableOpenMap(StreamInput::readString, i -> i.readCollectionAsList(AliasMetadata::new));
         settings = in.readImmutableOpenMap(StreamInput::readString, Settings::readSettingsFromStream);
         defaultSettings = in.readImmutableOpenMap(StreamInput::readString, Settings::readSettingsFromStream);
         dataStreams = in.readImmutableOpenMap(StreamInput::readString, StreamInput::readOptionalString);
@@ -173,17 +173,17 @@ public class GetIndexResponse extends ActionResponse implements ChunkedToXConten
     public void writeTo(StreamOutput out) throws IOException {
         out.writeStringArray(indices);
         MappingMetadata.writeMappingMetadata(out, mappings);
-        out.writeMap(aliases, StreamOutput::writeString, StreamOutput::writeList);
-        out.writeMap(settings, StreamOutput::writeString, (o, v) -> v.writeTo(o));
-        out.writeMap(defaultSettings, StreamOutput::writeString, (o, v) -> v.writeTo(o));
-        out.writeMap(dataStreams, StreamOutput::writeString, StreamOutput::writeOptionalString);
+        out.writeMap(aliases, StreamOutput::writeCollection);
+        out.writeMap(settings, StreamOutput::writeWriteable);
+        out.writeMap(defaultSettings, StreamOutput::writeWriteable);
+        out.writeMap(dataStreams, StreamOutput::writeOptionalString);
     }
 
     @Override
     public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params ignored) {
         return Iterators.concat(
             Iterators.single((builder, params) -> builder.startObject()),
-            Arrays.stream(indices).<ToXContent>map(index -> (builder, params) -> {
+            Iterators.map(Iterators.forArray(indices), index -> (builder, params) -> {
                 builder.startObject(index);
 
                 builder.startObject("aliases");
@@ -229,7 +229,7 @@ public class GetIndexResponse extends ActionResponse implements ChunkedToXConten
                 }
 
                 return builder.endObject();
-            }).iterator(),
+            }),
             Iterators.single((builder, params) -> builder.endObject())
         );
     }

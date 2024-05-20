@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.ml;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
@@ -24,7 +24,7 @@ public class MlAutoUpdateService implements ClusterStateListener {
     private static final Logger logger = LogManager.getLogger(MlAutoUpdateService.class);
 
     public interface UpdateAction {
-        boolean isMinNodeVersionSupported(Version minNodeVersion);
+        boolean isMinTransportVersionSupported(TransportVersion minTransportVersion);
 
         boolean isAbleToRun(ClusterState latestState);
 
@@ -54,9 +54,9 @@ public class MlAutoUpdateService implements ClusterStateListener {
             return;
         }
 
-        Version minNodeVersion = event.state().getNodes().getMinNodeVersion();
+        TransportVersion minTransportVersion = event.state().getMinTransportVersion();
         final List<UpdateAction> toRun = updateActions.stream()
-            .filter(action -> action.isMinNodeVersionSupported(minNodeVersion))
+            .filter(action -> action.isMinTransportVersionSupported(minTransportVersion))
             .filter(action -> completedUpdates.contains(action.getName()) == false)
             .filter(action -> action.isAbleToRun(event.state()))
             .filter(action -> currentlyUpdating.add(action.getName()))

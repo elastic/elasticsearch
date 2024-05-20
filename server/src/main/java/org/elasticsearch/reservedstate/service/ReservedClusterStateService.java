@@ -10,12 +10,14 @@ package org.elasticsearch.reservedstate.service;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.support.RefCountingListener;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.ReservedStateErrorMetadata;
 import org.elasticsearch.cluster.metadata.ReservedStateMetadata;
+import org.elasticsearch.cluster.routing.RerouteService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.MasterServiceTaskQueue;
 import org.elasticsearch.common.Priority;
@@ -40,6 +42,7 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.ExceptionsHelper.stackTrace;
+import static org.elasticsearch.cluster.metadata.ReservedStateMetadata.EMPTY_VERSION;
 import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.reservedstate.service.ReservedStateErrorTask.checkErrorVersion;
 import static org.elasticsearch.reservedstate.service.ReservedStateErrorTask.isNewError;
@@ -83,12 +86,16 @@ public class ReservedClusterStateService {
      * @param clusterService for fetching and saving the modified state
      * @param handlerList a list of reserved state handlers, which we use to transform the state
      */
-    public ReservedClusterStateService(ClusterService clusterService, List<ReservedClusterStateHandler<?>> handlerList) {
+    public ReservedClusterStateService(
+        ClusterService clusterService,
+        RerouteService rerouteService,
+        List<ReservedClusterStateHandler<?>> handlerList
+    ) {
         this.clusterService = clusterService;
         this.updateTaskQueue = clusterService.createTaskQueue(
             "reserved state update",
             Priority.URGENT,
-            new ReservedStateUpdateTaskExecutor(clusterService.getRerouteService())
+            new ReservedStateUpdateTaskExecutor(rerouteService)
         );
         this.errorTaskQueue = clusterService.createTaskQueue("reserved state error", Priority.URGENT, new ReservedStateErrorTaskExecutor());
         this.handlers = handlerList.stream().collect(Collectors.toMap(ReservedClusterStateHandler::name, Function.identity()));
@@ -106,7 +113,7 @@ public class ReservedClusterStateService {
         try {
             return stateChunkParser.apply(parser, null);
         } catch (Exception e) {
-            ErrorState errorState = new ErrorState(namespace, -1L, e, ReservedStateErrorMetadata.ErrorKind.PARSING);
+            ErrorState errorState = new ErrorState(namespace, EMPTY_VERSION, e, ReservedStateErrorMetadata.ErrorKind.PARSING);
             updateErrorState(errorState);
             logger.debug("error processing state change request for [{}] with the following errors [{}]", namespace, errorState);
 
@@ -128,7 +135,7 @@ public class ReservedClusterStateService {
         try {
             stateChunk = parse(namespace, parser);
         } catch (Exception e) {
-            ErrorState errorState = new ErrorState(namespace, -1L, e, ReservedStateErrorMetadata.ErrorKind.PARSING);
+            ErrorState errorState = new ErrorState(namespace, EMPTY_VERSION, e, ReservedStateErrorMetadata.ErrorKind.PARSING);
             updateErrorState(errorState);
             logger.debug("error processing state change request for [{}] with the following errors [{}]", namespace, errorState);
 
@@ -139,6 +146,26 @@ public class ReservedClusterStateService {
         }
 
         process(namespace, stateChunk, errorListener);
+    }
+
+    public void initEmpty(String namespace, ActionListener<ActionResponse.Empty> listener) {
+        var missingVersion = new ReservedStateVersion(EMPTY_VERSION, Version.CURRENT);
+        var emptyState = new ReservedStateChunk(Map.of(), missingVersion);
+        updateTaskQueue.submitTask(
+            "empty initial cluster state [" + namespace + "]",
+            new ReservedStateUpdateTask(
+                namespace,
+                emptyState,
+                List.of(),
+                Map.of(),
+                List.of(),
+                // error state should not be possible since there is no metadata being parsed or processed
+                errorState -> { throw new AssertionError(); },
+                listener
+            ),
+            null
+        );
+
     }
 
     /**
@@ -239,7 +266,7 @@ public class ReservedClusterStateService {
             @Override
             public void onFailure(Exception e) {
                 // If we encounter an error while runnin the non-state transforms, we avoid saving any cluster state.
-                errorListener.accept(checkAndReportError(namespace, List.of(e.getMessage()), reservedStateVersion));
+                errorListener.accept(checkAndReportError(namespace, List.of(stackTrace(e)), reservedStateVersion));
             }
         });
     }
@@ -344,7 +371,7 @@ public class ReservedClusterStateService {
      *
      * Package private for testing
      */
-    void executeNonStateTransformationSteps(
+    static void executeNonStateTransformationSteps(
         List<Consumer<ActionListener<NonStateTransformResult>>> nonStateTransforms,
         ActionListener<Collection<NonStateTransformResult>> listener
     ) {

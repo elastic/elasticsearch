@@ -21,7 +21,6 @@ public class DefaultSettingsProvider implements SettingsProvider {
     public Map<String, String> get(LocalNodeSpec nodeSpec) {
         Map<String, String> settings = new HashMap<>();
 
-        settings.put("node.name", nodeSpec.getName());
         settings.put("node.attr.testattr", "test");
         settings.put("node.portsfile", "true");
         settings.put("http.port", "0");

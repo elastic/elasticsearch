@@ -16,8 +16,11 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
+import org.elasticsearch.xpack.core.transform.transforms.DestAlias;
+import org.elasticsearch.xpack.core.transform.transforms.DestConfig;
 import org.elasticsearch.xpack.core.transform.transforms.QueryConfig;
 import org.elasticsearch.xpack.core.transform.transforms.SettingsConfig;
+import org.elasticsearch.xpack.core.transform.transforms.SourceConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TimeSyncConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
 import org.elasticsearch.xpack.core.transform.transforms.pivot.SingleGroupSource;
@@ -25,10 +28,11 @@ import org.elasticsearch.xpack.core.transform.transforms.pivot.TermsGroupSource;
 import org.junit.After;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
 
 import static java.util.stream.Collectors.toSet;
 import static org.elasticsearch.common.xcontent.support.XContentMapValues.extractValue;
@@ -42,14 +46,24 @@ import static org.hamcrest.Matchers.nullValue;
 
 public class TransformInsufficientPermissionsIT extends TransformRestTestCase {
 
-    private static final String TEST_ADMIN_USERNAME = "x_pack_rest_user";
-    private static final String TEST_ADMIN_HEADER = basicAuthHeaderValue(TEST_ADMIN_USERNAME, TEST_PASSWORD_SECURE_STRING);
-    private static final String JUNIOR_USERNAME = "john_junior";
-    private static final String JUNIOR_HEADER = basicAuthHeaderValue(JUNIOR_USERNAME, TEST_PASSWORD_SECURE_STRING);
-    private static final String SENIOR_USERNAME = "bill_senior";
-    private static final String SENIOR_HEADER = basicAuthHeaderValue(SENIOR_USERNAME, TEST_PASSWORD_SECURE_STRING);
-    private static final String NOT_A_TRANSFORM_ADMIN = "not_a_transform_admin";
-    private static final String NOT_A_TRANSFORM_ADMIN_HEADER = basicAuthHeaderValue(NOT_A_TRANSFORM_ADMIN, TEST_PASSWORD_SECURE_STRING);
+    private enum Users {
+        TEST_ADMIN("x_pack_rest_user", List.of()),
+        JUNIOR("john_junior", List.of("transform_admin")),
+        SENIOR("bill_senior", List.of("transform_admin", "source_index_access", "dest_index_access")),
+        SOURCE_AND_DEST_INDEX_ACCESS_ONLY("source_and_dest_index_access_only", List.of("source_index_access", "dest_index_access")),
+        TRANSFORM_USER_BUT_NOT_ADMIN("transform_user_but_not_admin", List.of("transform_user", "source_index_access", "dest_index_access")),
+        FLEET_ACCESS("fleet_access", List.of("transform_admin", "fleet_index_access", "dest_index_access"));
+
+        private final String username;
+        private final String effectiveRoles;
+        private final String header;
+
+        Users(String username, List<String> effectiveRoles) {
+            this.username = username;
+            this.effectiveRoles = effectiveRoles.stream().sorted().collect(Collectors.joining(","));
+            this.header = basicAuthHeaderValue(username, TEST_PASSWORD_SECURE_STRING);
+        }
+    }
 
     private static final int NUM_USERS = 28;
 
@@ -83,10 +97,10 @@ public class TransformInsufficientPermissionsIT extends TransformRestTestCase {
     private void testTransformPermissionsNoDefer(boolean unattended) throws Exception {
         String transformId = "transform-permissions-nodefer-" + (unattended ? 1 : 0);
         String sourceIndexName = transformId + "-index";
-        String destIndexName = sourceIndexName + "-dest";
+        String destIndexName = transformId + "-dest";
         createReviewsIndex(sourceIndexName, 10, NUM_USERS, TransformIT::getUserIdForRow, TransformIT::getDateStringForRow);
 
-        TransformConfig config = createConfig(transformId, sourceIndexName, destIndexName, unattended);
+        TransformConfig config = createConfig(transformId, sourceIndexName, destIndexName, null, unattended);
 
         ResponseException e = expectThrows(
             ResponseException.class,
@@ -94,7 +108,7 @@ public class TransformInsufficientPermissionsIT extends TransformRestTestCase {
                 transformId,
                 Strings.toString(config),
                 RequestOptions.DEFAULT.toBuilder()
-                    .addHeader(AUTH_KEY, JUNIOR_HEADER)
+                    .addHeader(AUTH_KEY, Users.JUNIOR.header)
                     .addParameter("defer_validation", String.valueOf(false))
                     .build()
             )
@@ -105,11 +119,11 @@ public class TransformInsufficientPermissionsIT extends TransformRestTestCase {
             containsString(
                 Strings.format(
                     "Cannot create transform [%s] because user %s lacks the required permissions "
-                        + "[%s:[read, view_index_metadata], %s:[create_index, index, read]]",
+                        + "[%s:[create_index, index, read], %s:[read, view_index_metadata]]",
                     transformId,
-                    JUNIOR_USERNAME,
-                    sourceIndexName,
-                    destIndexName
+                    Users.JUNIOR.username,
+                    destIndexName,
+                    sourceIndexName
                 )
             )
         );
@@ -118,12 +132,50 @@ public class TransformInsufficientPermissionsIT extends TransformRestTestCase {
             transformId,
             Strings.toString(config),
             RequestOptions.DEFAULT.toBuilder()
-                .addHeader(AUTH_KEY, SENIOR_HEADER)
+                .addHeader(AUTH_KEY, Users.SENIOR.header)
                 .addParameter("defer_validation", String.valueOf(false))
                 .build()
         );
 
         assertGreen(transformId);
+    }
+
+    public void testTransformWithDestinationAlias() throws Exception {
+        String transformId = "transform-permissions-with-destination-alias";
+        String sourceIndexName = transformId + "-index";
+        String destIndexName = transformId + "-dest";
+        String destAliasName = transformId + "-alias";
+        createReviewsIndex(sourceIndexName, 10, NUM_USERS, TransformIT::getUserIdForRow, TransformIT::getDateStringForRow);
+
+        TransformConfig config = createConfig(
+            transformId,
+            sourceIndexName,
+            destIndexName,
+            List.of(new DestAlias(destAliasName, false)),
+            false
+        );
+        ResponseException e = expectThrows(
+            ResponseException.class,
+            () -> putTransform(
+                transformId,
+                Strings.toString(config),
+                RequestOptions.DEFAULT.toBuilder().addHeader(AUTH_KEY, Users.SENIOR.header).build()
+            )
+        );
+        assertThat(e.getResponse().getStatusLine().getStatusCode(), is(equalTo(403)));
+        assertThat(
+            e.getMessage(),
+            containsString(
+                Strings.format(
+                    "Cannot create transform [%s] because user %s lacks the required permissions [%s:[manage], %s:[manage], %s:[]]",
+                    transformId,
+                    Users.SENIOR.username,
+                    destAliasName,
+                    destIndexName,
+                    sourceIndexName
+                )
+            )
+        );
     }
 
     /**
@@ -134,10 +186,10 @@ public class TransformInsufficientPermissionsIT extends TransformRestTestCase {
     public void testTransformPermissionsDeferNoUnattendedNoDest() throws Exception {
         String transformId = "transform-permissions-defer-nounattended";
         String sourceIndexName = transformId + "-index";
-        String destIndexName = sourceIndexName + "-dest";
+        String destIndexName = transformId + "-dest";
         createReviewsIndex(sourceIndexName, 10, NUM_USERS, TransformIT::getUserIdForRow, TransformIT::getDateStringForRow);
 
-        TransformConfig config = createConfig(transformId, sourceIndexName, destIndexName, false);
+        TransformConfig config = createConfig(transformId, sourceIndexName, destIndexName, null, false);
         putTransform(
             transformId,
             Strings.toString(config),
@@ -145,17 +197,17 @@ public class TransformInsufficientPermissionsIT extends TransformRestTestCase {
         );
         String authIssue = Strings.format(
             "Cannot create transform [%s] because user %s lacks the required permissions "
-                + "[%s:[read, view_index_metadata], %s:[create_index, index, read]]",
+                + "[%s:[create_index, index, read], %s:[read, view_index_metadata]]",
             transformId,
-            JUNIOR_USERNAME,
-            sourceIndexName,
-            destIndexName
+            Users.JUNIOR.username,
+            destIndexName,
+            sourceIndexName
         );
         assertRed(transformId, authIssue);
 
         ResponseException e = expectThrows(
             ResponseException.class,
-            () -> startTransform(config.getId(), RequestOptions.DEFAULT.toBuilder().addHeader(AUTH_KEY, JUNIOR_HEADER).build())
+            () -> startTransform(config.getId(), RequestOptions.DEFAULT.toBuilder().addHeader(AUTH_KEY, Users.JUNIOR.header).build())
         );
         assertThat(e.getResponse().getStatusLine().getStatusCode(), is(equalTo(403)));
         assertThat(e.getMessage(), containsString(authIssue));
@@ -164,7 +216,7 @@ public class TransformInsufficientPermissionsIT extends TransformRestTestCase {
 
         e = expectThrows(
             ResponseException.class,
-            () -> startTransform(config.getId(), RequestOptions.DEFAULT.toBuilder().addHeader(AUTH_KEY, SENIOR_HEADER).build())
+            () -> startTransform(config.getId(), RequestOptions.DEFAULT.toBuilder().addHeader(AUTH_KEY, Users.SENIOR.header).build())
         );
         assertThat(e.getResponse().getStatusLine().getStatusCode(), is(equalTo(403)));
         assertThat(e.getMessage(), containsString(authIssue));
@@ -172,7 +224,7 @@ public class TransformInsufficientPermissionsIT extends TransformRestTestCase {
         assertRed(transformId, authIssue);
 
         // update transform's credentials so that the transform has permission to access source/dest indices
-        updateConfig(transformId, "{}", RequestOptions.DEFAULT.toBuilder().addHeader(AUTH_KEY, SENIOR_HEADER).build());
+        updateConfig(transformId, "{}", RequestOptions.DEFAULT.toBuilder().addHeader(AUTH_KEY, Users.SENIOR.header).build());
 
         assertGreen(transformId);
 
@@ -191,12 +243,12 @@ public class TransformInsufficientPermissionsIT extends TransformRestTestCase {
     public void testTransformPermissionsDeferNoUnattendedDest() throws Exception {
         String transformId = "transform-permissions-defer-nounattended-dest-exists";
         String sourceIndexName = transformId + "-index";
-        String destIndexName = sourceIndexName + "-dest";
+        String destIndexName = transformId + "-dest";
         createReviewsIndex(sourceIndexName, 10, NUM_USERS, TransformIT::getUserIdForRow, TransformIT::getDateStringForRow);
 
         createIndex(adminClient(), destIndexName, Settings.EMPTY);
 
-        TransformConfig config = createConfig(transformId, sourceIndexName, destIndexName, false);
+        TransformConfig config = createConfig(transformId, sourceIndexName, destIndexName, null, false);
         putTransform(
             transformId,
             Strings.toString(config),
@@ -204,17 +256,17 @@ public class TransformInsufficientPermissionsIT extends TransformRestTestCase {
         );
         String authIssue = Strings.format(
             "Cannot create transform [%s] because user %s lacks the required permissions "
-                + "[%s:[read, view_index_metadata], %s:[index, read]]",
+                + "[%s:[index, read], %s:[read, view_index_metadata]]",
             transformId,
-            JUNIOR_USERNAME,
-            sourceIndexName,
-            destIndexName
+            Users.JUNIOR.username,
+            destIndexName,
+            sourceIndexName
         );
         assertRed(transformId, authIssue);
 
         ResponseException e = expectThrows(
             ResponseException.class,
-            () -> startTransform(config.getId(), RequestOptions.DEFAULT.toBuilder().addHeader(AUTH_KEY, JUNIOR_HEADER).build())
+            () -> startTransform(config.getId(), RequestOptions.DEFAULT.toBuilder().addHeader(AUTH_KEY, Users.JUNIOR.header).build())
         );
         assertThat(e.getResponse().getStatusLine().getStatusCode(), is(equalTo(403)));
         assertThat(e.getMessage(), containsString(authIssue));
@@ -223,7 +275,7 @@ public class TransformInsufficientPermissionsIT extends TransformRestTestCase {
 
         e = expectThrows(
             ResponseException.class,
-            () -> startTransform(config.getId(), RequestOptions.DEFAULT.toBuilder().addHeader(AUTH_KEY, SENIOR_HEADER).build())
+            () -> startTransform(config.getId(), RequestOptions.DEFAULT.toBuilder().addHeader(AUTH_KEY, Users.SENIOR.header).build())
         );
         assertThat(e.getResponse().getStatusLine().getStatusCode(), is(equalTo(403)));
         assertThat(e.getMessage(), containsString(authIssue));
@@ -231,7 +283,7 @@ public class TransformInsufficientPermissionsIT extends TransformRestTestCase {
         assertRed(transformId, authIssue);
 
         // update transform's credentials so that the transform has permission to access source/dest indices
-        updateConfig(transformId, "{}", RequestOptions.DEFAULT.toBuilder().addHeader(AUTH_KEY, SENIOR_HEADER).build());
+        updateConfig(transformId, "{}", RequestOptions.DEFAULT.toBuilder().addHeader(AUTH_KEY, Users.SENIOR.header).build());
 
         assertGreen(transformId);
 
@@ -243,36 +295,100 @@ public class TransformInsufficientPermissionsIT extends TransformRestTestCase {
     }
 
     /**
+     * defer_validation = false
+     * unattended       = false
+     */
+    public void testNoTransformAdminRoleNoDeferNoUnattended() throws Exception {
+        testNoTransformAdminRole(false, false);
+    }
+
+    /**
+     * defer_validation = false
+     * unattended       = true
+     */
+    public void testNoTransformAdminRoleNoDeferUnattended() throws Exception {
+        testNoTransformAdminRole(false, true);
+    }
+
+    /**
+     * defer_validation = true
+     * unattended       = false
+     */
+    public void testNoTransformAdminRoleDeferNoUnattended() throws Exception {
+        testNoTransformAdminRole(true, false);
+    }
+
+    /**
+     * defer_validation = true
+     * unattended       = true
+     */
+    public void testNoTransformAdminRoleDeferUnattended() throws Exception {
+        testNoTransformAdminRole(true, true);
+    }
+
+    private void testNoTransformAdminRole(boolean deferValidation, boolean unattended) throws Exception {
+        Users user = randomFrom(Users.SOURCE_AND_DEST_INDEX_ACCESS_ONLY, Users.TRANSFORM_USER_BUT_NOT_ADMIN);
+        String transformId = "transform-permissions-no-transform-role";
+        String sourceIndexName = transformId + "-index";
+        String destIndexName = transformId + "-dest";
+        createReviewsIndex(sourceIndexName, 10, NUM_USERS, TransformIT::getUserIdForRow, TransformIT::getDateStringForRow);
+
+        TransformConfig config = createConfig(transformId, sourceIndexName, destIndexName, null, unattended);
+
+        ResponseException e = expectThrows(
+            ResponseException.class,
+            () -> putTransform(
+                transformId,
+                Strings.toString(config),
+                RequestOptions.DEFAULT.toBuilder()
+                    .addHeader(AUTH_KEY, user.header)
+                    .addParameter("defer_validation", String.valueOf(deferValidation))
+                    .build()
+            )
+        );
+        assertThat(e.getResponse().getStatusLine().getStatusCode(), is(equalTo(403)));
+        assertThat(
+            e.getMessage(),
+            containsString(
+                Strings.format(
+                    "action [cluster:admin/transform/put] is unauthorized for user [%s] with effective roles [%s], "
+                        + "this action is granted by the cluster privileges [manage_data_frame_transforms,manage_transform,manage,all]",
+                    user.username,
+                    user.effectiveRoles
+                )
+            )
+        );
+    }
+
+    /**
      * defer_validation = true
      * unattended       = false
      */
     public void testNoTransformAdminRoleInSecondaryAuth() throws Exception {
-        String transformId = "transform-permissions-no-admin-role";
+        Users user = randomFrom(Users.SOURCE_AND_DEST_INDEX_ACCESS_ONLY, Users.TRANSFORM_USER_BUT_NOT_ADMIN);
+        String transformId = "transform-permissions-no-transform-role-in-sec-auth";
         String sourceIndexName = transformId + "-index";
-        String destIndexName = sourceIndexName + "-dest";
+        String destIndexName = transformId + "-dest";
         createReviewsIndex(sourceIndexName, 10, NUM_USERS, TransformIT::getUserIdForRow, TransformIT::getDateStringForRow);
 
-        TransformConfig config = createConfig(transformId, sourceIndexName, destIndexName, false);
+        TransformConfig config = createConfig(transformId, sourceIndexName, destIndexName, null, false);
 
-        // PUT with defer_validation should work even though the secondary auth does not have transform_admin role
+        // PUT with defer_validation should work even though the secondary auth does not have transform_admin nor transform_user role
         putTransform(
             transformId,
             Strings.toString(config),
             RequestOptions.DEFAULT.toBuilder()
-                .addHeader(SECONDARY_AUTH_KEY, NOT_A_TRANSFORM_ADMIN_HEADER)
+                .addHeader(SECONDARY_AUTH_KEY, user.header)
                 .addParameter("defer_validation", String.valueOf(true))
                 .build()
         );
 
-        // _update should work even though the secondary auth does not have transform_admin role
-        updateConfig(
-            transformId,
-            "{}",
-            RequestOptions.DEFAULT.toBuilder().addHeader(SECONDARY_AUTH_KEY, NOT_A_TRANSFORM_ADMIN_HEADER).build()
-        );
+        // _update should work even though the secondary auth does not have transform_admin nor transform_user role
+        updateConfig(transformId, "{}", RequestOptions.DEFAULT.toBuilder().addHeader(SECONDARY_AUTH_KEY, user.header).build());
 
-        // _start works because user not_a_transform_admin has data access
+        // _start works because user source_and_dest_index_access_only does have data access
         startTransform(config.getId(), RequestOptions.DEFAULT);
+        waitUntilCheckpoint(transformId, 1);
     }
 
     /**
@@ -283,10 +399,10 @@ public class TransformInsufficientPermissionsIT extends TransformRestTestCase {
     public void testTransformPermissionsDeferUnattendedNoDest() throws Exception {
         String transformId = "transform-permissions-defer-unattended";
         String sourceIndexName = transformId + "-index";
-        String destIndexName = sourceIndexName + "-dest";
+        String destIndexName = transformId + "-dest";
         createReviewsIndex(sourceIndexName, 10, NUM_USERS, TransformIT::getUserIdForRow, TransformIT::getDateStringForRow);
 
-        TransformConfig config = createConfig(transformId, sourceIndexName, destIndexName, true);
+        TransformConfig config = createConfig(transformId, sourceIndexName, destIndexName, null, true);
         putTransform(
             transformId,
             Strings.toString(config),
@@ -294,22 +410,28 @@ public class TransformInsufficientPermissionsIT extends TransformRestTestCase {
         );
         String authIssue = Strings.format(
             "Cannot create transform [%s] because user %s lacks the required permissions "
-                + "[%s:[read, view_index_metadata], %s:[create_index, index, read]]",
+                + "[%s:[create_index, index, read], %s:[read, view_index_metadata]]",
             transformId,
-            JUNIOR_USERNAME,
-            sourceIndexName,
-            destIndexName
+            Users.JUNIOR.username,
+            destIndexName,
+            sourceIndexName
         );
         assertRed(transformId, authIssue);
 
-        startTransform(config.getId(), RequestOptions.DEFAULT);
+        startTransform(transformId, RequestOptions.DEFAULT);
 
-        // transform is red with two issues
-        String noSuchIndexIssue = Strings.format("org.elasticsearch.index.IndexNotFoundException: no such index [%s]", destIndexName);
-        assertBusy(() -> assertRed(transformId, authIssue, noSuchIndexIssue), 10, TimeUnit.SECONDS);
+        var permissionIssues = Strings.format(
+            "org.elasticsearch.ElasticsearchSecurityException: Cannot start transform [%s] because user lacks required permissions, "
+                + "see privileges_check_failed issue for more details",
+            transformId
+        );
+        // transform's auth state status is still RED due to:
+        // - lacking permissions
+        // - and the inability to start the indexer (which is also a consequence of lacking permissions)
+        assertBusy(() -> { assertRed(transformId, authIssue, permissionIssues); });
 
         // update transform's credentials so that the transform has permission to access source/dest indices
-        updateConfig(transformId, "{}", RequestOptions.DEFAULT.toBuilder().addHeader(AUTH_KEY, SENIOR_HEADER).build());
+        updateConfig(transformId, "{}", RequestOptions.DEFAULT.toBuilder().addHeader(AUTH_KEY, Users.SENIOR.header).build());
         waitUntilCheckpoint(transformId, 1);
 
         // transform is green again
@@ -324,12 +446,12 @@ public class TransformInsufficientPermissionsIT extends TransformRestTestCase {
     public void testTransformPermissionsDeferUnattendedDest() throws Exception {
         String transformId = "transform-permissions-defer-unattended-dest-exists";
         String sourceIndexName = transformId + "-index";
-        String destIndexName = sourceIndexName + "-dest";
+        String destIndexName = transformId + "-dest";
         createReviewsIndex(sourceIndexName, 10, NUM_USERS, TransformIT::getUserIdForRow, TransformIT::getDateStringForRow);
 
         createIndex(adminClient(), destIndexName, Settings.EMPTY);
 
-        TransformConfig config = createConfig(transformId, sourceIndexName, destIndexName, true);
+        TransformConfig config = createConfig(transformId, sourceIndexName, destIndexName, null, true);
         putTransform(
             transformId,
             Strings.toString(config),
@@ -337,21 +459,28 @@ public class TransformInsufficientPermissionsIT extends TransformRestTestCase {
         );
         String authIssue = Strings.format(
             "Cannot create transform [%s] because user %s lacks the required permissions "
-                + "[%s:[read, view_index_metadata], %s:[index, read]]",
+                + "[%s:[index, read], %s:[read, view_index_metadata]]",
             transformId,
-            JUNIOR_USERNAME,
-            sourceIndexName,
-            destIndexName
+            Users.JUNIOR.username,
+            destIndexName,
+            sourceIndexName
         );
         assertRed(transformId, authIssue);
 
         startTransform(config.getId(), RequestOptions.DEFAULT);
 
-        // transform's auth state status is still RED, but the health status is GREEN (because dest index exists)
-        assertRed(transformId, authIssue);
+        var permissionIssues = Strings.format(
+            "org.elasticsearch.ElasticsearchSecurityException: Cannot start transform [%s] because user lacks required permissions, "
+                + "see privileges_check_failed issue for more details",
+            transformId
+        );
+        // transform's auth state status is still RED due to:
+        // - lacking permissions
+        // - and the inability to start the indexer (which is also a consequence of lacking permissions)
+        assertBusy(() -> { assertRed(transformId, authIssue, permissionIssues); });
 
         // update transform's credentials so that the transform has permission to access source/dest indices
-        updateConfig(transformId, "{}", RequestOptions.DEFAULT.toBuilder().addHeader(AUTH_KEY, SENIOR_HEADER).build());
+        updateConfig(transformId, "{}", RequestOptions.DEFAULT.toBuilder().addHeader(AUTH_KEY, Users.SENIOR.header).build());
         waitUntilCheckpoint(transformId, 1);
 
         // transform is green again
@@ -361,14 +490,17 @@ public class TransformInsufficientPermissionsIT extends TransformRestTestCase {
     public void testPreviewRequestFailsPermissionsCheck() throws Exception {
         String transformId = "transform-permissions-preview";
         String sourceIndexName = transformId + "-index";
-        String destIndexName = sourceIndexName + "-dest";
+        String destIndexName = transformId + "-dest";
         createReviewsIndex(sourceIndexName, 10, NUM_USERS, TransformIT::getUserIdForRow, TransformIT::getDateStringForRow);
 
-        TransformConfig config = createConfig(transformId, sourceIndexName, destIndexName, false);
+        TransformConfig config = createConfig(transformId, sourceIndexName, destIndexName, null, false);
 
         ResponseException e = expectThrows(
             ResponseException.class,
-            () -> previewTransform(Strings.toString(config), RequestOptions.DEFAULT.toBuilder().addHeader(AUTH_KEY, JUNIOR_HEADER).build())
+            () -> previewTransform(
+                Strings.toString(config),
+                RequestOptions.DEFAULT.toBuilder().addHeader(AUTH_KEY, Users.JUNIOR.header).build()
+            )
         );
         assertThat(e.getResponse().getStatusLine().getStatusCode(), is(equalTo(403)));
         assertThat(
@@ -376,30 +508,55 @@ public class TransformInsufficientPermissionsIT extends TransformRestTestCase {
             containsString(
                 Strings.format(
                     "Cannot preview transform [%s] because user %s lacks the required permissions "
-                        + "[%s:[read, view_index_metadata], %s:[create_index, index, read]]",
+                        + "[%s:[create_index, index, read], %s:[read, view_index_metadata]]",
                     transformId,
-                    JUNIOR_USERNAME,
-                    sourceIndexName,
-                    destIndexName
+                    Users.JUNIOR.username,
+                    destIndexName,
+                    sourceIndexName
                 )
             )
         );
 
-        previewTransform(Strings.toString(config), RequestOptions.DEFAULT.toBuilder().addHeader(AUTH_KEY, SENIOR_HEADER).build());
+        previewTransform(Strings.toString(config), RequestOptions.DEFAULT.toBuilder().addHeader(AUTH_KEY, Users.SENIOR.header).build());
+    }
+
+    public void testFleetIndicesAccess() throws Exception {
+        String transformId = "transform-permissions-fleet";
+        String sourceIndexPattern = ".fleet-agents*";
+        String destIndexName = transformId + "-dest";
+
+        TransformConfig config = createConfig(transformId, sourceIndexPattern, destIndexName, null, false);
+
+        ResponseException e = expectThrows(
+            ResponseException.class,
+            () -> previewTransform(
+                Strings.toString(config),
+                RequestOptions.DEFAULT.toBuilder().addHeader(AUTH_KEY, Users.FLEET_ACCESS.header).build()
+            )
+        );
+        // The _preview request got past the authorization step (which is what interests us in this test) but failed because the referenced
+        // source indices do not exist.
+        assertThat("Error was: " + e.getMessage(), e.getResponse().getStatusLine().getStatusCode(), is(equalTo(400)));
+        assertThat(e.getMessage(), containsString("Source indices have been deleted or closed."));
     }
 
     @Override
     protected Settings restAdminSettings() {
-        return Settings.builder().put(ThreadContext.PREFIX + ".Authorization", TEST_ADMIN_HEADER).build();
+        return Settings.builder().put(ThreadContext.PREFIX + ".Authorization", Users.TEST_ADMIN.header).build();
     }
 
     @Override
     protected Settings restClientSettings() {
-        return Settings.builder().put(ThreadContext.PREFIX + ".Authorization", JUNIOR_HEADER).build();
+        return Settings.builder().put(ThreadContext.PREFIX + ".Authorization", Users.JUNIOR.header).build();
     }
 
-    private TransformConfig createConfig(String transformId, String sourceIndexName, String destIndexName, boolean unattended)
-        throws Exception {
+    private TransformConfig createConfig(
+        String transformId,
+        String sourceIndexName,
+        String destIndexName,
+        List<DestAlias> aliases,
+        boolean unattended
+    ) throws Exception {
         Map<String, SingleGroupSource> groups = Map.of(
             "by-day",
             createDateHistogramGroupSourceWithCalendarInterval("timestamp", DateHistogramInterval.DAY, null),
@@ -413,7 +570,12 @@ public class TransformInsufficientPermissionsIT extends TransformRestTestCase {
             .addAggregator(AggregationBuilders.avg("review_score").field("stars"))
             .addAggregator(AggregationBuilders.max("timestamp").field("timestamp"));
 
-        TransformConfig config = createTransformConfigBuilder(transformId, destIndexName, QueryConfig.matchAll(), sourceIndexName)
+        TransformConfig config = TransformConfig.builder()
+            .setId(transformId)
+            .setSource(new SourceConfig(new String[] { sourceIndexName }, QueryConfig.matchAll(), Collections.emptyMap()))
+            .setDest(new DestConfig(destIndexName, aliases, null))
+            .setFrequency(TimeValue.timeValueSeconds(10))
+            .setDescription("Test transform config id: " + transformId)
             .setPivotConfig(createPivotConfig(groups, aggs))
             .setSyncConfig(new TimeSyncConfig("timestamp", TimeValue.timeValueSeconds(1)))
             .setSettings(new SettingsConfig.Builder().setAlignCheckpoints(false).setUnattended(unattended).build())
@@ -423,14 +585,15 @@ public class TransformInsufficientPermissionsIT extends TransformRestTestCase {
     }
 
     private void assertGreen(String transformId) throws IOException {
-        Map<String, Object> stats = getTransformStats(transformId);
+        Map<String, Object> stats = getBasicTransformStats(transformId);
         assertThat("Stats were: " + stats, extractValue(stats, "health", "status"), is(equalTo(GREEN)));
         assertThat("Stats were: " + stats, extractValue(stats, "health", "issues"), is(nullValue()));
     }
 
+    // We expect exactly the issues passed as "expectedHealthIssueDetails". Not more, not less.
     @SuppressWarnings("unchecked")
     private void assertRed(String transformId, String... expectedHealthIssueDetails) throws IOException {
-        Map<String, Object> stats = getTransformStats(transformId);
+        Map<String, Object> stats = getBasicTransformStats(transformId);
         assertThat("Stats were: " + stats, extractValue(stats, "health", "status"), is(equalTo(RED)));
         List<Object> issues = (List<Object>) extractValue(stats, "health", "issues");
         assertThat("Stats were: " + stats, issues, hasSize(expectedHealthIssueDetails.length));
@@ -438,5 +601,7 @@ public class TransformInsufficientPermissionsIT extends TransformRestTestCase {
             .map(issue -> (String) extractValue((Map<String, Object>) issue, "details"))
             .collect(toSet());
         assertThat("Stats were: " + stats, actualHealthIssueDetailsSet, containsInAnyOrder(expectedHealthIssueDetails));
+        // We should not progress beyond the 0th checkpoint until we correctly configure the Transform.
+        assertThat("Stats were: " + stats, getCheckpoint(stats), equalTo(0L));
     }
 }

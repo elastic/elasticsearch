@@ -17,6 +17,7 @@ import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.ReloadablePlugin;
 import org.elasticsearch.plugins.RepositoryPlugin;
+import org.elasticsearch.repositories.RepositoriesMetrics;
 import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 
@@ -30,6 +31,7 @@ public class GoogleCloudStoragePlugin extends Plugin implements RepositoryPlugin
     // package-private for tests
     final GoogleCloudStorageService storageService;
 
+    @SuppressWarnings("this-escape")
     public GoogleCloudStoragePlugin(final Settings settings) {
         this.storageService = createStorageService();
         // eagerly load client settings so that secure settings are readable (not closed)
@@ -47,7 +49,8 @@ public class GoogleCloudStoragePlugin extends Plugin implements RepositoryPlugin
         NamedXContentRegistry namedXContentRegistry,
         ClusterService clusterService,
         BigArrays bigArrays,
-        RecoverySettings recoverySettings
+        RecoverySettings recoverySettings,
+        RepositoriesMetrics repositoriesMetrics
     ) {
         return Collections.singletonMap(
             GoogleCloudStorageRepository.TYPE,

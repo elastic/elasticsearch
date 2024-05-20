@@ -10,6 +10,7 @@ package org.elasticsearch.cluster;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.test.AbstractChunkedSerializingTestCase;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 
 import java.util.HashMap;
@@ -105,5 +106,14 @@ public class ClusterInfoTests extends AbstractWireSerializingTestCase<ClusterInf
             builder.put(new ClusterInfo.NodeAndPath(randomAlphaOfLength(10), randomAlphaOfLength(10)), valueBuilder.build());
         }
         return builder;
+    }
+
+    public void testChunking() {
+        AbstractChunkedSerializingTestCase.assertChunkCount(createTestInstance(), ClusterInfoTests::getChunkCount);
+    }
+
+    // exposing this to tests in other packages
+    public static int getChunkCount(ClusterInfo clusterInfo) {
+        return clusterInfo.getChunkCount();
     }
 }

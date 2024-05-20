@@ -55,6 +55,4 @@ tasks.withType(Test).configureEach {
   testClassesDirs = sourceSets.javaRestTest.output.classesDirs
   // Security is explicitly disabled, do not run tests in FIPS mode
   BuildParams.withFipsEnabledOnly(it)
-  // TODO: AwaitsFix - https://github.com/elastic/elasticsearch/issues/94881
-  enabled = false
 }

@@ -8,8 +8,15 @@
 
 package org.elasticsearch.common.util;
 
+import org.apache.lucene.util.Accountable;
+import org.apache.lucene.util.RamUsageEstimator;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
+
+import java.io.IOException;
 
 /**
  * A bit array that is implemented using a growing {@link LongArray}
@@ -17,7 +24,10 @@ import org.elasticsearch.core.Releasables;
  * The underlying long array grows lazily based on the biggest index
  * that needs to be set.
  */
-public final class BitArray implements Releasable {
+public final class BitArray implements Accountable, Releasable, Writeable {
+
+    private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(BitArray.class);
+
     private final BigArrays bigArrays;
     private LongArray bits;
 
@@ -31,12 +41,48 @@ public final class BitArray implements Releasable {
     }
 
     /**
+     * Create a {@link BitArray} using {@link BigArrays} with bytes are written by {@link BitArray#writeTo}
+     */
+    public BitArray(BigArrays bigArrays, boolean readOnly, StreamInput in) throws IOException {
+        this.bigArrays = bigArrays;
+        final long numBits = in.readVLong();
+        this.bits = bigArrays.newLongArray(wordNum(numBits), readOnly == false);
+        boolean success = false;
+        try {
+            this.bits.fillWith(in);
+            success = true;
+        } finally {
+            if (success == false) {
+                this.bits.close();
+            }
+        }
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        out.writeVLong(size());
+        bits.writeTo(out);
+    }
+
+    /**
      * Set the {@code index}th bit.
      */
     public void set(long index) {
         long wordNum = wordNum(index);
         bits = bigArrays.grow(bits, wordNum + 1);
         bits.set(wordNum, bits.get(wordNum) | bitmask(index));
+    }
+
+    /**
+     * Set the {@code index}th bit and return {@code true} if the bit was set already.
+     */
+    public boolean getAndSet(long index) {
+        long wordNum = wordNum(index);
+        bits = bigArrays.grow(bits, wordNum + 1);
+        long word = bits.get(wordNum);
+        long bitMask = bitmask(index);
+        bits.set(wordNum, word | bitMask);
+        return (word & bitMask) != 0;
     }
 
     /** this = this OR other */
@@ -112,12 +158,21 @@ public final class BitArray implements Releasable {
         return (bits.get(wordNum) & bitmask) != 0;
     }
 
+    public long size() {
+        return bits.size() * (long) Long.BYTES * Byte.SIZE;
+    }
+
     private static long wordNum(long index) {
         return index >> 6;
     }
 
     private static long bitmask(long index) {
         return 1L << index;
+    }
+
+    @Override
+    public long ramBytesUsed() {
+        return BASE_RAM_BYTES_USED + RamUsageEstimator.sizeOf(bits);
     }
 
     @Override

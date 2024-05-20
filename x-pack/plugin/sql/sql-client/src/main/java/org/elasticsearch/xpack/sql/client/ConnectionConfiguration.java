@@ -116,6 +116,7 @@ public class ConnectionConfiguration {
 
     private final boolean allowPartialSearchResults;
 
+    @SuppressWarnings("this-escape")
     public ConnectionConfiguration(URI baseURI, String connectionString, Properties props) throws ClientException {
         this.connectionString = connectionString;
         Properties settings = props != null ? props : new Properties();

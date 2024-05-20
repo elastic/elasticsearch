@@ -114,6 +114,8 @@ public class IndexShardRoutingTable {
                 allShardsStarted = false;
             }
         }
+        assert shards.isEmpty() == false : "cannot have an empty shard routing table";
+        assert primary != null : shards;
         this.primary = primary;
         this.replicas = CollectionUtils.wrapUnmodifiableOrEmptySingleton(replicas);
         this.activeShards = CollectionUtils.wrapUnmodifiableOrEmptySingleton(activeShards);
@@ -477,7 +479,7 @@ public class IndexShardRoutingTable {
         IndexShardRoutingTable that = (IndexShardRoutingTable) o;
 
         if (shardId.equals(that.shardId) == false) return false;
-        return Arrays.equals(shards, that.shards) != false;
+        return Arrays.equals(shards, that.shards);
     }
 
     @Override

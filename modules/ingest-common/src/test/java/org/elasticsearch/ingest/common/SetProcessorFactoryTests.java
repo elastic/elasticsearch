@@ -41,6 +41,7 @@ public class SetProcessorFactoryTests extends ESTestCase {
         assertThat(setProcessor.getField().newInstance(Map.of()).execute(), equalTo("field1"));
         assertThat(setProcessor.getValue().copyAndResolve(Map.of()), equalTo("value1"));
         assertThat(setProcessor.isOverrideEnabled(), equalTo(true));
+        assertThat(setProcessor.isIgnoreEmptyValue(), equalTo(false));
     }
 
     public void testCreateWithOverride() throws Exception {
@@ -55,6 +56,20 @@ public class SetProcessorFactoryTests extends ESTestCase {
         assertThat(setProcessor.getField().newInstance(Map.of()).execute(), equalTo("field1"));
         assertThat(setProcessor.getValue().copyAndResolve(Map.of()), equalTo("value1"));
         assertThat(setProcessor.isOverrideEnabled(), equalTo(overrideEnabled));
+    }
+
+    public void testCreateWithIgnoreEmptyValue() throws Exception {
+        boolean ignoreEmptyValueEnabled = randomBoolean();
+        Map<String, Object> config = new HashMap<>();
+        config.put("field", "field1");
+        config.put("value", "value1");
+        config.put("ignore_empty_value", ignoreEmptyValueEnabled);
+        String processorTag = randomAlphaOfLength(10);
+        SetProcessor setProcessor = factory.create(null, processorTag, null, config);
+        assertThat(setProcessor.getTag(), equalTo(processorTag));
+        assertThat(setProcessor.getField().newInstance(Map.of()).execute(), equalTo("field1"));
+        assertThat(setProcessor.getValue().copyAndResolve(Map.of()), equalTo("value1"));
+        assertThat(setProcessor.isIgnoreEmptyValue(), equalTo(ignoreEmptyValueEnabled));
     }
 
     public void testCreateNoFieldPresent() throws Exception {
@@ -151,5 +166,18 @@ public class SetProcessorFactoryTests extends ESTestCase {
         config2.put("media_type", expectedMediaType);
         ElasticsearchException e = expectThrows(ElasticsearchException.class, () -> factory.create(null, processorTag, null, config2));
         assertThat(e.getMessage(), containsString("property does not contain a supported media type [" + expectedMediaType + "]"));
+    }
+
+    public void testCreateWithEmptyField() throws Exception {
+        // edge case: it's valid (according to the current validation) to *create* a set processor that has an empty string as its 'field'.
+        // it will fail at ingest execution time, but we don't reject it at pipeline creation time.
+        Map<String, Object> config = new HashMap<>();
+        config.put("field", "");
+        config.put("value", "value1");
+        String processorTag = randomAlphaOfLength(10);
+        SetProcessor setProcessor = factory.create(null, processorTag, null, config);
+        assertThat(setProcessor.getTag(), equalTo(processorTag));
+        assertThat(setProcessor.getField().newInstance(Map.of()).execute(), equalTo(""));
+        assertThat(setProcessor.getValue().copyAndResolve(Map.of()), equalTo("value1"));
     }
 }

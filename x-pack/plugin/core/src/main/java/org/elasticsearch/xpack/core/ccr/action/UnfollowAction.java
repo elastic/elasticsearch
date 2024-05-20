@@ -26,7 +26,7 @@ public class UnfollowAction extends ActionType<AcknowledgedResponse> {
     public static final String NAME = "indices:admin/xpack/ccr/unfollow";
 
     private UnfollowAction() {
-        super(NAME, AcknowledgedResponse::readFrom);
+        super(NAME);
     }
 
     public static class Request extends AcknowledgedRequest<Request> implements IndicesRequest {
@@ -34,6 +34,7 @@ public class UnfollowAction extends ActionType<AcknowledgedResponse> {
         private final String followerIndex;
 
         public Request(String followerIndex) {
+            super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT, DEFAULT_ACK_TIMEOUT);
             this.followerIndex = followerIndex;
         }
 

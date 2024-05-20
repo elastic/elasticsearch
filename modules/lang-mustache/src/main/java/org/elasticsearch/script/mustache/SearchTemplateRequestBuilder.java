@@ -17,12 +17,8 @@ import java.util.Map;
 
 public class SearchTemplateRequestBuilder extends ActionRequestBuilder<SearchTemplateRequest, SearchTemplateResponse> {
 
-    SearchTemplateRequestBuilder(ElasticsearchClient client, SearchTemplateAction action) {
-        super(client, action, new SearchTemplateRequest());
-    }
-
     public SearchTemplateRequestBuilder(ElasticsearchClient client) {
-        this(client, SearchTemplateAction.INSTANCE);
+        super(client, MustachePlugin.SEARCH_TEMPLATE_ACTION, new SearchTemplateRequest());
     }
 
     public SearchTemplateRequestBuilder setRequest(SearchRequest searchRequest) {

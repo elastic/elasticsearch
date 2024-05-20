@@ -65,6 +65,7 @@ import static java.util.Collections.singletonList;
 import static org.elasticsearch.xpack.ql.parser.ParserUtils.source;
 import static org.elasticsearch.xpack.ql.parser.ParserUtils.text;
 import static org.elasticsearch.xpack.ql.tree.Source.synthetic;
+import static org.elasticsearch.xpack.ql.type.DataTypes.INTEGER;
 
 public abstract class LogicalPlanBuilder extends ExpressionBuilder {
 
@@ -102,7 +103,7 @@ public abstract class LogicalPlanBuilder extends ExpressionBuilder {
             if (ctx.pipe().size() > 0) {
                 throw new ParsingException(source(ctx.pipe().get(0)), "Samples do not support pipes yet");
             }
-            return new LimitWithOffset(plan.source(), new Literal(Source.EMPTY, params.size(), DataTypes.INTEGER), 0, plan);
+            return new LimitWithOffset(plan.source(), new Literal(Source.EMPTY, params.size(), INTEGER), 0, plan);
         }
         //
         // Add implicit blocks
@@ -125,7 +126,7 @@ public abstract class LogicalPlanBuilder extends ExpressionBuilder {
         plan = new OrderBy(defaultOrderSource, plan, orders);
 
         // add the default limit only if specified
-        Literal defaultSize = new Literal(synthetic("<default-size>"), params.size(), DataTypes.INTEGER);
+        Literal defaultSize = new Literal(synthetic("<default-size>"), params.size(), INTEGER);
         Source defaultLimitSource = synthetic("<default-limit>");
 
         LogicalPlan previous = plan;
@@ -228,11 +229,14 @@ public abstract class LogicalPlanBuilder extends ExpressionBuilder {
 
     private KeyedFilter defaultUntil(Source source) {
         // no until declared means no results
-        return new KeyedFilter(source, new LocalRelation(source, emptyList()), emptyList(), UNSPECIFIED_FIELD, UNSPECIFIED_FIELD);
+        return new KeyedFilter(source, new LocalRelation(source, emptyList()), emptyList(), UNSPECIFIED_FIELD, UNSPECIFIED_FIELD, false);
     }
 
     public KeyedFilter visitJoinTerm(JoinTermContext ctx, List<Attribute> joinKeys, Attribute timestampField, Attribute tiebreakerField) {
-        return keyedFilter(joinKeys, ctx, ctx.by, ctx.subquery(), timestampField, tiebreakerField);
+        if (ctx.subquery().MISSING_EVENT_OPEN() != null) {
+            throw new ParsingException("Missing events are supported only for sequences");
+        }
+        return keyedFilter(joinKeys, ctx, ctx.by, ctx.subquery(), timestampField, tiebreakerField, false);
     }
 
     private KeyedFilter keyedFilter(
@@ -241,11 +245,12 @@ public abstract class LogicalPlanBuilder extends ExpressionBuilder {
         JoinKeysContext joinCtx,
         SubqueryContext subqueryCtx,
         Attribute timestampField,
-        Attribute tiebreakerField
+        Attribute tiebreakerField,
+        boolean missingEvent
     ) {
         List<Attribute> keys = CollectionUtils.combine(joinKeys, visitJoinKeys(joinCtx));
         LogicalPlan eventQuery = visitEventFilter(subqueryCtx.eventFilter());
-        return new KeyedFilter(source(ctx), eventQuery, keys, timestampField, tiebreakerField);
+        return new KeyedFilter(source(ctx), eventQuery, keys, timestampField, tiebreakerField, missingEvent);
     }
 
     @Override
@@ -330,11 +335,27 @@ public abstract class LogicalPlanBuilder extends ExpressionBuilder {
             until = defaultUntil(source);
         }
 
+        if (maxSpan.duration() < 0 && queries.stream().anyMatch(x -> x.isMissingEventFilter())) {
+            throw new ParsingException(source, "[maxspan] is required for sequences with missing events queries; found none");
+        }
+
+        if (queries.stream().allMatch(KeyedFilter::isMissingEventFilter)) {
+            throw new ParsingException(source, "A sequence requires at least one positive event query; found none");
+        }
+
         return new Sequence(source, queries, until, maxSpan, fieldTimestamp(), fieldTiebreaker(), resultPosition());
     }
 
     private KeyedFilter visitSequenceTerm(SequenceTermContext ctx, List<Attribute> joinKeys) {
-        return keyedFilter(joinKeys, ctx, ctx.by, ctx.subquery(), fieldTimestamp(), fieldTiebreaker());
+        return keyedFilter(
+            joinKeys,
+            ctx,
+            ctx.by,
+            ctx.subquery(),
+            fieldTimestamp(),
+            fieldTiebreaker(),
+            ctx.subquery().MISSING_EVENT_OPEN() != null
+        );
     }
 
     @Override
@@ -501,8 +522,16 @@ public abstract class LogicalPlanBuilder extends ExpressionBuilder {
 
     private Expression pipeIntArgument(Source source, String pipeName, List<BooleanExpressionContext> exps) {
         Expression expression = onlyOnePipeArgument(source, pipeName, exps);
+        boolean foldableInt = expression.foldable() && expression.dataType().isInteger();
+        Number value = null;
 
-        if (expression.dataType().isInteger() == false || expression.foldable() == false || (int) expression.fold() < 0) {
+        if (foldableInt) {
+            try {
+                value = (Number) expression.fold();
+            } catch (ArithmeticException ae) {}
+        }
+
+        if (foldableInt == false || value == null || value.intValue() != value.longValue() || value.intValue() < 0) {
             throw new ParsingException(
                 expression.source(),
                 "Pipe [{}] expects a positive integer but found [{}]",
@@ -511,6 +540,8 @@ public abstract class LogicalPlanBuilder extends ExpressionBuilder {
             );
         }
 
-        return expression;
+        // 2147483650 - 4 will yield an integer (Integer.MAX_VALUE - 1) but the expression itself (SUB) will be of type LONG
+        // and this type will be used when being folded later on
+        return new Literal(expression.source(), value.intValue(), INTEGER);
     }
 }

@@ -30,7 +30,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateApplier;
 import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateTaskListener;
-import org.elasticsearch.cluster.metadata.DataStream.TimestampField;
+import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
@@ -41,6 +41,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.MasterServiceTaskQueue;
 import org.elasticsearch.common.Priority;
+import org.elasticsearch.common.TriConsumer;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
@@ -53,12 +54,16 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.gateway.GatewayService;
+import org.elasticsearch.grok.MatcherWatchdog;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.node.ReportingService;
 import org.elasticsearch.plugins.IngestPlugin;
+import org.elasticsearch.plugins.internal.DocumentParsingProvider;
+import org.elasticsearch.plugins.internal.DocumentSizeObserver;
 import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -69,7 +74,6 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
-import java.util.LinkedHashSet;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Locale;
@@ -79,7 +83,9 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.Executor;
 import java.util.function.BiConsumer;
+import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.function.IntConsumer;
 import java.util.function.Predicate;
@@ -101,6 +107,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
     private final MasterServiceTaskQueue<PipelineClusterStateUpdateTask> taskQueue;
     private final ClusterService clusterService;
     private final ScriptService scriptService;
+    private final DocumentParsingProvider documentParsingProvider;
     private final Map<String, Processor.Factory> processorFactories;
     // Ideally this should be in IngestMetadata class, but we don't have the processor factories around there.
     // We know of all the processor factories when a node with all its plugin have been initialized. Also some
@@ -111,6 +118,18 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
     private final IngestMetric totalMetrics = new IngestMetric();
     private final List<Consumer<ClusterState>> ingestClusterStateListeners = new CopyOnWriteArrayList<>();
     private volatile ClusterState state;
+
+    private static BiFunction<Long, Runnable, Scheduler.ScheduledCancellable> createScheduler(ThreadPool threadPool) {
+        return (delay, command) -> threadPool.schedule(command, TimeValue.timeValueMillis(delay), threadPool.generic());
+    }
+
+    public static MatcherWatchdog createGrokThreadWatchdog(Environment env, ThreadPool threadPool) {
+        final Settings settings = env.settings();
+        final BiFunction<Long, Runnable, Scheduler.ScheduledCancellable> scheduler = createScheduler(threadPool);
+        long intervalMillis = IngestSettings.GROK_WATCHDOG_INTERVAL.get(settings).getMillis();
+        long maxExecutionTimeMillis = IngestSettings.GROK_WATCHDOG_INTERVAL.get(settings).getMillis();
+        return MatcherWatchdog.newInstance(intervalMillis, maxExecutionTimeMillis, threadPool::relativeTimeInMillis, scheduler::apply);
+    }
 
     /**
      * Cluster state task executor for ingest pipeline operations
@@ -155,6 +174,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
         }
     }
 
+    @SuppressWarnings("this-escape")
     public IngestService(
         ClusterService clusterService,
         ThreadPool threadPool,
@@ -162,10 +182,13 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
         ScriptService scriptService,
         AnalysisRegistry analysisRegistry,
         List<IngestPlugin> ingestPlugins,
-        Client client
+        Client client,
+        MatcherWatchdog matcherWatchdog,
+        DocumentParsingProvider documentParsingProvider
     ) {
         this.clusterService = clusterService;
         this.scriptService = scriptService;
+        this.documentParsingProvider = documentParsingProvider;
         this.processorFactories = processorFactories(
             ingestPlugins,
             new Processor.Parameters(
@@ -174,15 +197,31 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                 analysisRegistry,
                 threadPool.getThreadContext(),
                 threadPool::relativeTimeInMillis,
-                (delay, command) -> threadPool.schedule(command, TimeValue.timeValueMillis(delay), ThreadPool.Names.GENERIC),
+                createScheduler(threadPool),
                 this,
                 client,
-                threadPool.generic()::execute
+                threadPool.generic()::execute,
+                matcherWatchdog
             )
         );
-
         this.threadPool = threadPool;
         this.taskQueue = clusterService.createTaskQueue("ingest-pipelines", Priority.NORMAL, PIPELINE_TASK_EXECUTOR);
+    }
+
+    /**
+     * This copy constructor returns a copy of the given ingestService, using all of the same internal state. The returned copy is not
+     * registered to listen to any cluster state changes
+     * @param ingestService
+     */
+    IngestService(IngestService ingestService) {
+        this.clusterService = ingestService.clusterService;
+        this.scriptService = ingestService.scriptService;
+        this.documentParsingProvider = ingestService.documentParsingProvider;
+        this.processorFactories = ingestService.processorFactories;
+        this.threadPool = ingestService.threadPool;
+        this.taskQueue = ingestService.taskQueue;
+        this.pipelines = ingestService.pipelines;
+        this.state = ingestService.state;
     }
 
     private static Map<String, Processor.Factory> processorFactories(List<IngestPlugin> ingestPlugins, Processor.Parameters parameters) {
@@ -405,15 +444,15 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
             return;
         }
 
-        nodeInfoListener.accept(ActionListener.wrap(nodeInfos -> {
+        nodeInfoListener.accept(listener.delegateFailureAndWrap((l, nodeInfos) -> {
             validatePipelineRequest(request, nodeInfos);
 
             taskQueue.submitTask(
                 "put-pipeline-" + request.getId(),
-                new PutPipelineClusterStateUpdateTask(listener, request),
+                new PutPipelineClusterStateUpdateTask(l, request),
                 request.masterNodeTimeout()
             );
-        }, listener::onFailure));
+        }));
     }
 
     public void validatePipelineRequest(PutPipelineRequest request, NodesInfoResponse nodeInfos) throws Exception {
@@ -612,6 +651,14 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
         Pipeline pipeline = Pipeline.create(pipelineId, pipelineConfig, processorFactories, scriptService);
         List<Exception> exceptions = new ArrayList<>();
         for (Processor processor : pipeline.flattenAllProcessors()) {
+
+            // run post-construction extra validation (if any, the default implementation from the Processor interface is a no-op)
+            try {
+                processor.extraValidation();
+            } catch (Exception e) {
+                exceptions.add(e);
+            }
+
             for (Map.Entry<DiscoveryNode, IngestInfo> entry : ingestInfos.entrySet()) {
                 String type = processor.getType();
                 if (entry.getValue().containsProcessor(type) == false && ConditionalProcessor.TYPE.equals(type) == false) {
@@ -623,17 +670,48 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
         ExceptionsHelper.rethrowAndSuppress(exceptions);
     }
 
+    private record IngestPipelinesExecutionResult(boolean success, boolean shouldKeep, Exception exception, String failedIndex) {
+
+        private static final IngestPipelinesExecutionResult SUCCESSFUL_RESULT = new IngestPipelinesExecutionResult(true, true, null, null);
+        private static final IngestPipelinesExecutionResult DISCARD_RESULT = new IngestPipelinesExecutionResult(true, false, null, null);
+        private static IngestPipelinesExecutionResult failAndStoreFor(String index, Exception e) {
+            return new IngestPipelinesExecutionResult(false, true, e, index);
+        }
+    }
+
+    /**
+     * Executes all applicable pipelines for a collection of documents.
+     * @param numberOfActionRequests The total number of requests to process.
+     * @param actionRequests The collection of requests to be processed.
+     * @param onDropped A callback executed when a document is dropped by a pipeline.
+     *                  Accepts the slot in the collection of requests that the document occupies.
+     * @param shouldStoreFailure A predicate executed on each ingest failure to determine if the
+     *                           failure should be stored somewhere.
+     * @param onStoreFailure A callback executed when a document fails ingest but the failure should
+     *                       be persisted elsewhere. Accepts the slot in the collection of requests
+     *                       that the document occupies, the index name that the request was targeting
+     *                       at the time of failure, and the exception that the document encountered.
+     * @param onFailure A callback executed when a document fails ingestion and does not need to be
+     *                  persisted. Accepts the slot in the collection of requests that the document
+     *                  occupies, and the exception that the document encountered.
+     * @param onCompletion A callback executed once all documents have been processed. Accepts the thread
+     *                     that ingestion completed on or an exception in the event that the entire operation
+     *                     has failed.
+     * @param executor Which executor the bulk request should be executed on.
+     */
     public void executeBulkRequest(
         final int numberOfActionRequests,
         final Iterable<DocWriteRequest<?>> actionRequests,
         final IntConsumer onDropped,
+        final Predicate<String> shouldStoreFailure,
+        final TriConsumer<Integer, String, Exception> onStoreFailure,
         final BiConsumer<Integer, Exception> onFailure,
         final BiConsumer<Thread, Exception> onCompletion,
-        final String executorName
+        final Executor executor
     ) {
         assert numberOfActionRequests > 0 : "numberOfActionRequests must be greater than 0 but was [" + numberOfActionRequests + "]";
 
-        threadPool.executor(executorName).execute(new AbstractRunnable() {
+        executor.execute(new AbstractRunnable() {
 
             @Override
             public void onFailure(Exception e) {
@@ -653,6 +731,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                         }
 
                         PipelineIterator pipelines = getAndResetPipelines(indexRequest);
+                        Pipeline firstPipeline = pipelines.peekFirst();
                         if (pipelines.hasNext() == false) {
                             i++;
                             continue;
@@ -661,36 +740,56 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                         // start the stopwatch and acquire a ref to indicate that we're working on this document
                         final long startTimeInNanos = System.nanoTime();
                         totalMetrics.preIngest();
+                        if (firstPipeline != null) {
+                            firstPipeline.getMetrics().preIngestBytes(indexRequest.ramBytesUsed());
+                        }
                         final int slot = i;
                         final Releasable ref = refs.acquire();
+                        final DocumentSizeObserver documentSizeObserver = documentParsingProvider.newDocumentSizeObserver();
+                        final IngestDocument ingestDocument = newIngestDocument(indexRequest, documentSizeObserver);
+                        final org.elasticsearch.script.Metadata originalDocumentMetadata = ingestDocument.getMetadata().clone();
                         // the document listener gives us three-way logic: a document can fail processing (1), or it can
                         // be successfully processed. a successfully processed document can be kept (2) or dropped (3).
-                        final ActionListener<Boolean> documentListener = ActionListener.runAfter(new ActionListener<>() {
-                            @Override
-                            public void onResponse(Boolean kept) {
-                                assert kept != null;
-                                if (kept == false) {
-                                    onDropped.accept(slot);
+                        final ActionListener<IngestPipelinesExecutionResult> documentListener = ActionListener.runAfter(
+                            new ActionListener<>() {
+                                @Override
+                                public void onResponse(IngestPipelinesExecutionResult result) {
+                                    assert result != null;
+                                    if (result.success) {
+                                        if (result.shouldKeep == false) {
+                                            onDropped.accept(slot);
+                                        } else {
+                                            assert firstPipeline != null;
+                                            firstPipeline.getMetrics().postIngestBytes(indexRequest.ramBytesUsed());
+                                        }
+                                    } else {
+                                        // We were given a failure result in the onResponse method, so we must store the failure
+                                        // Recover the original document state, track a failed ingest, and pass it along
+                                        updateIndexRequestMetadata(indexRequest, originalDocumentMetadata);
+                                        totalMetrics.ingestFailed();
+                                        onStoreFailure.apply(slot, result.failedIndex, result.exception);
+                                    }
                                 }
-                            }
 
-                            @Override
-                            public void onFailure(Exception e) {
-                                totalMetrics.ingestFailed();
-                                onFailure.accept(slot, e);
+                                @Override
+                                public void onFailure(Exception e) {
+                                    totalMetrics.ingestFailed();
+                                    onFailure.accept(slot, e);
+                                }
+                            },
+                            () -> {
+                                // regardless of success or failure, we always stop the ingest "stopwatch" and release the ref to indicate
+                                // that we're finished with this document
+                                final long ingestTimeInNanos = System.nanoTime() - startTimeInNanos;
+                                totalMetrics.postIngest(ingestTimeInNanos);
+                                ref.close();
                             }
-                        }, () -> {
-                            // regardless of success or failure, we always stop the ingest "stopwatch" and release the ref to indicate
-                            // that we're finished with this document
-                            final long ingestTimeInNanos = System.nanoTime() - startTimeInNanos;
-                            totalMetrics.postIngest(ingestTimeInNanos);
-                            ref.close();
-                        });
+                        );
 
-                        IngestDocument ingestDocument = newIngestDocument(indexRequest);
-                        LinkedHashSet<String> indexRecursionDetection = new LinkedHashSet<>();
-                        indexRecursionDetection.add(indexRequest.index());
-                        executePipelines(pipelines, indexRequest, ingestDocument, documentListener, indexRecursionDetection);
+                        executePipelines(pipelines, indexRequest, ingestDocument, shouldStoreFailure, documentListener);
+                        indexRequest.setNormalisedBytesParsed(documentSizeObserver.normalisedBytesParsed());
+                        assert actionRequest.index() != null;
+
                         i++;
                     }
                 }
@@ -768,14 +867,18 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
         public PipelineSlot next() {
             return pipelineSlotIterator.next();
         }
+
+        public Pipeline peekFirst() {
+            return getPipeline(defaultPipeline != null ? defaultPipeline : finalPipeline);
+        }
     }
 
     private void executePipelines(
         final PipelineIterator pipelines,
         final IndexRequest indexRequest,
         final IngestDocument ingestDocument,
-        final ActionListener<Boolean> listener,
-        final Set<String> indexRecursionDetection
+        final Predicate<String> shouldStoreFailure,
+        final ActionListener<IngestPipelinesExecutionResult> listener
     ) {
         assert pipelines.hasNext();
         PipelineSlot slot = pipelines.next();
@@ -785,13 +888,20 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
 
         // reset the reroute flag, at the start of a new pipeline execution this document hasn't been rerouted yet
         ingestDocument.resetReroute();
+        final String originalIndex = indexRequest.indices()[0];
+        final Consumer<Exception> exceptionHandler = (Exception e) -> {
+            if (shouldStoreFailure.test(originalIndex)) {
+                listener.onResponse(IngestPipelinesExecutionResult.failAndStoreFor(originalIndex, e));
+            } else {
+                listener.onFailure(e);
+            }
+        };
 
         try {
             if (pipeline == null) {
                 throw new IllegalArgumentException("pipeline with id [" + pipelineId + "] does not exist");
             }
-
-            final String originalIndex = indexRequest.indices()[0];
+            indexRequest.addPipeline(pipelineId);
             executePipeline(ingestDocument, pipeline, (keep, e) -> {
                 assert keep != null;
 
@@ -805,12 +915,12 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                         ),
                         e
                     );
-                    listener.onFailure(e);
+                    exceptionHandler.accept(e);
                     return; // document failed!
                 }
 
                 if (keep == false) {
-                    listener.onResponse(false);
+                    listener.onResponse(IngestPipelinesExecutionResult.DISCARD_RESULT);
                     return; // document dropped!
                 }
 
@@ -825,7 +935,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                 } catch (IllegalArgumentException ex) {
                     // An IllegalArgumentException can be thrown when an ingest processor creates a source map that is self-referencing.
                     // In that case, we catch and wrap the exception, so we can include more details
-                    listener.onFailure(
+                    exceptionHandler.accept(
                         new IllegalArgumentException(
                             format(
                                 "Failed to generate the source document for ingest pipeline [%s] for document [%s/%s]",
@@ -845,7 +955,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                 if (Objects.equals(originalIndex, newIndex) == false) {
                     // final pipelines cannot change the target index (either directly or by way of a reroute)
                     if (isFinalPipeline) {
-                        listener.onFailure(
+                        exceptionHandler.accept(
                             new IllegalStateException(
                                 format(
                                     "final pipeline [%s] can't change the target index (from [%s] to [%s]) for document [%s]",
@@ -859,17 +969,18 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                         return; // document failed!
                     }
 
-                    // check for cycles in the visited indices
-                    if (indexRecursionDetection.add(newIndex) == false) {
-                        List<String> indexRoute = new ArrayList<>(indexRecursionDetection);
-                        indexRoute.add(newIndex);
-                        listener.onFailure(
+                    // add the index to the document's index history, and check for cycles in the visited indices
+                    boolean cycle = ingestDocument.updateIndexHistory(newIndex) == false;
+                    if (cycle) {
+                        List<String> indexCycle = new ArrayList<>(ingestDocument.getIndexHistory());
+                        indexCycle.add(newIndex);
+                        exceptionHandler.accept(
                             new IllegalStateException(
                                 format(
                                     "index cycle detected while processing pipeline [%s] for document [%s]: %s",
                                     pipelineId,
                                     indexRequest.id(),
-                                    indexRoute
+                                    indexCycle
                                 )
                             )
                         );
@@ -890,12 +1001,12 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                 }
 
                 if (newPipelines.hasNext()) {
-                    executePipelines(newPipelines, indexRequest, ingestDocument, listener, indexRecursionDetection);
+                    executePipelines(newPipelines, indexRequest, ingestDocument, shouldStoreFailure, listener);
                 } else {
                     // update the index request's source and (potentially) cache the timestamp for TSDB
                     updateIndexRequestSource(indexRequest, ingestDocument);
                     cacheRawTimestamp(indexRequest, ingestDocument);
-                    listener.onResponse(true); // document succeeded!
+                    listener.onResponse(IngestPipelinesExecutionResult.SUCCESSFUL_RESULT); // document succeeded!
                 }
             });
         } catch (Exception e) {
@@ -903,11 +1014,11 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                 () -> format("failed to execute pipeline [%s] for document [%s/%s]", pipelineId, indexRequest.index(), indexRequest.id()),
                 e
             );
-            listener.onFailure(e); // document failed!
+            exceptionHandler.accept(e); // document failed
         }
     }
 
-    private void executePipeline(
+    private static void executePipeline(
         final IngestDocument ingestDocument,
         final Pipeline pipeline,
         final BiConsumer<Boolean, Exception> handler
@@ -978,14 +1089,14 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
     /**
      * Builds a new ingest document from the passed-in index request.
      */
-    private static IngestDocument newIngestDocument(final IndexRequest request) {
+    private static IngestDocument newIngestDocument(final IndexRequest request, DocumentSizeObserver documentSizeObserver) {
         return new IngestDocument(
             request.index(),
             request.id(),
             request.version(),
             request.routing(),
             request.versionType(),
-            request.sourceAsMap()
+            request.sourceAsMap(documentSizeObserver)
         );
     }
 
@@ -1035,7 +1146,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
     private static void cacheRawTimestamp(final IndexRequest request, final IngestDocument document) {
         if (request.getRawTimestamp() == null) {
             // cache the @timestamp from the ingest document's source map if there is one
-            Object rawTimestamp = document.getSource().get(TimestampField.FIXED_TIMESTAMP_FIELD);
+            Object rawTimestamp = document.getSource().get(DataStream.TIMESTAMP_FIELD_NAME);
             if (rawTimestamp != null) {
                 request.setRawTimestamp(rawTimestamp);
             }

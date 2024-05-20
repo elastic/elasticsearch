@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.monitoring.exporter;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlocks;
@@ -322,7 +323,7 @@ public class ExportersTests extends ESTestCase {
         exporters = new Exporters(settings.build(), factories, clusterService, licenseState, threadContext, sslService);
 
         // synchronously checks the cluster state
-        exporters.wrapExportBulk(ActionListener.wrap(bulk -> assertThat(bulk, is(nullValue())), e -> fail(e.getMessage())));
+        exporters.wrapExportBulk(ActionTestUtils.assertNoFailureListener(bulk -> assertThat(bulk, is(nullValue()))));
 
         verify(state).blocks();
     }

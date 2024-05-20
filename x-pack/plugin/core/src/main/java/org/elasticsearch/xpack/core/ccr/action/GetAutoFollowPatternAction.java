@@ -27,14 +27,16 @@ public class GetAutoFollowPatternAction extends ActionType<GetAutoFollowPatternA
     public static final GetAutoFollowPatternAction INSTANCE = new GetAutoFollowPatternAction();
 
     private GetAutoFollowPatternAction() {
-        super(NAME, GetAutoFollowPatternAction.Response::new);
+        super(NAME);
     }
 
     public static class Request extends MasterNodeReadRequest<Request> {
 
         private String name;
 
-        public Request() {}
+        public Request() {
+            super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT);
+        }
 
         public Request(StreamInput in) throws IOException {
             super(in);
@@ -88,12 +90,12 @@ public class GetAutoFollowPatternAction extends ActionType<GetAutoFollowPatternA
 
         public Response(StreamInput in) throws IOException {
             super(in);
-            autoFollowPatterns = in.readMap(StreamInput::readString, AutoFollowPattern::readFrom);
+            autoFollowPatterns = in.readMap(AutoFollowPattern::readFrom);
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeMap(autoFollowPatterns, StreamOutput::writeString, (out1, value) -> value.writeTo(out1));
+            out.writeMap(autoFollowPatterns, StreamOutput::writeWriteable);
         }
 
         @Override

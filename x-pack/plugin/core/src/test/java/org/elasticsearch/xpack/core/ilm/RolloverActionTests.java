@@ -6,10 +6,9 @@
  */
 package org.elasticsearch.xpack.core.ilm;
 
-import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.admin.indices.rollover.RolloverConditions;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
-import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xcontent.XContentParser;
@@ -44,7 +43,7 @@ public class RolloverActionTests extends AbstractActionTestCase<RolloverAction> 
         ByteSizeValue minSize = randomBoolean() ? randomByteSizeValue() : null;
         ByteSizeValue minPrimaryShardSize = randomBoolean() ? randomByteSizeValue() : null;
         Long minDocs = randomBoolean() ? randomNonNegativeLong() : null;
-        TimeValue minAge = randomBoolean() ? TimeValue.parseTimeValue(randomPositiveTimeValue(), "rollover_action_test") : null;
+        TimeValue minAge = randomBoolean() ? randomPositiveTimeValue() : null;
         Long minPrimaryShardDocs = randomBoolean() ? randomNonNegativeLong() : null;
         return new RolloverAction(
             maxSize,
@@ -58,11 +57,6 @@ public class RolloverActionTests extends AbstractActionTestCase<RolloverAction> 
             minDocs,
             minPrimaryShardDocs
         );
-    }
-
-    private static ByteSizeValue randomByteSizeValue() {
-        ByteSizeUnit unit = randomFrom(ByteSizeUnit.values());
-        return new ByteSizeValue(randomNonNegativeLong() / unit.toBytes(1), unit);
     }
 
     @Override
@@ -156,12 +150,12 @@ public class RolloverActionTests extends AbstractActionTestCase<RolloverAction> 
     public void testBwcSerializationWithMaxPrimaryShardDocs() throws Exception {
         // In case of serializing to node with older version, replace maxPrimaryShardDocs with maxDocs.
         RolloverAction instance = new RolloverAction(null, null, null, null, 1L, null, null, null, null, null);
-        RolloverAction deserializedInstance = copyInstance(instance, TransportVersion.V_8_1_0);
+        RolloverAction deserializedInstance = copyInstance(instance, TransportVersions.V_8_1_0);
         assertThat(deserializedInstance.getConditions().getMaxPrimaryShardDocs(), nullValue());
 
         // But not if maxDocs is also specified:
         instance = new RolloverAction(null, null, null, 2L, 1L, null, null, null, null, null);
-        deserializedInstance = copyInstance(instance, TransportVersion.V_8_1_0);
+        deserializedInstance = copyInstance(instance, TransportVersions.V_8_1_0);
         assertThat(deserializedInstance.getConditions().getMaxPrimaryShardDocs(), nullValue());
         assertThat(deserializedInstance.getConditions().getMaxDocs(), equalTo(instance.getConditions().getMaxDocs()));
     }

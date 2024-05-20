@@ -23,6 +23,7 @@ import java.time.temporal.TemporalAccessor;
 import java.time.temporal.TemporalAdjusters;
 import java.time.temporal.TemporalQueries;
 import java.util.Objects;
+import java.util.function.Function;
 import java.util.function.LongSupplier;
 
 /**
@@ -34,15 +35,14 @@ import java.util.function.LongSupplier;
  */
 public class JavaDateMathParser implements DateMathParser {
 
-    private final JavaDateFormatter formatter;
     private final String format;
-    private final JavaDateFormatter roundupParser;
+    private final Function<String, TemporalAccessor> parser;
+    private final Function<String, TemporalAccessor> roundupParser;
 
-    JavaDateMathParser(String format, JavaDateFormatter formatter, JavaDateFormatter roundupParser) {
+    JavaDateMathParser(String format, Function<String, TemporalAccessor> parser, Function<String, TemporalAccessor> roundupParser) {
         this.format = format;
+        this.parser = Objects.requireNonNull(parser);
         this.roundupParser = roundupParser;
-        Objects.requireNonNull(formatter);
-        this.formatter = formatter;
     }
 
     @Override
@@ -201,15 +201,15 @@ public class JavaDateMathParser implements DateMathParser {
 
     private Instant parseDateTime(String value, ZoneId timeZone, boolean roundUpIfNoTime) {
         if (Strings.isNullOrEmpty(value)) {
-            throw new ElasticsearchParseException("cannot parse empty date");
+            throw new ElasticsearchParseException("cannot parse empty datetime");
         }
 
-        DateFormatter formatter = roundUpIfNoTime ? this.roundupParser : this.formatter;
+        Function<String, TemporalAccessor> formatter = roundUpIfNoTime ? roundupParser : this.parser;
         try {
             if (timeZone == null) {
-                return DateFormatters.from(formatter.parse(value)).toInstant();
+                return DateFormatters.from(formatter.apply(value)).toInstant();
             } else {
-                TemporalAccessor accessor = formatter.parse(value);
+                TemporalAccessor accessor = formatter.apply(value);
                 // Use the offset if provided, otherwise fall back to the zone, or null.
                 ZoneOffset offset = TemporalQueries.offset().queryFrom(accessor);
                 ZoneId zoneId = offset == null ? TemporalQueries.zoneId().queryFrom(accessor) : ZoneId.ofOffset("", offset);

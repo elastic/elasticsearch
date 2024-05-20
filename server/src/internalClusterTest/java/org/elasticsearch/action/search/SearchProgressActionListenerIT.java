@@ -18,6 +18,7 @@ import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.search.query.QuerySearchResult;
 import org.elasticsearch.search.sort.FieldSortBuilder;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.tasks.TaskId;
@@ -109,14 +110,15 @@ public class SearchProgressActionListenerIT extends ESSingleNodeTestCase {
                 List<SearchShard> searchShards,
                 List<SearchShard> skippedShards,
                 SearchResponse.Clusters clusters,
-                boolean fetchPhase
+                boolean fetchPhase,
+                TransportSearchAction.SearchTimeProvider timeProvider
             ) {
                 shardsListener.set(searchShards);
                 assertEquals(fetchPhase, hasFetchPhase);
             }
 
             @Override
-            public void onQueryResult(int shardIndex) {
+            public void onQueryResult(int shardIndex, QuerySearchResult result) {
                 assertThat(shardIndex, lessThan(shardsListener.get().size()));
                 numQueryResults.incrementAndGet();
             }
@@ -160,7 +162,7 @@ public class SearchProgressActionListenerIT extends ESSingleNodeTestCase {
                 throw new AssertionError();
             }
         };
-        client.executeLocally(SearchAction.INSTANCE, new SearchRequest(request) {
+        client.executeLocally(TransportSearchAction.TYPE, new SearchRequest(request) {
             @Override
             public SearchTask createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
                 SearchTask task = super.createTask(id, type, action, parentTaskId, headers);

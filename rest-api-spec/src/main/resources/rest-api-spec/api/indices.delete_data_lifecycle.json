@@ -1,22 +1,16 @@
 {
   "indices.delete_data_lifecycle":{
     "documentation":{
-      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/master/dlm-delete-lifecycle.html",
-      "description":"Deletes the data lifecycle of the selected data streams."
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/master/data-streams-delete-lifecycle.html",
+      "description":"Deletes the data stream lifecycle of the selected data streams."
     },
-    "stability":"stable",
+    "stability":"experimental",
     "visibility":"public",
     "headers":{
       "accept": [ "application/json"]
     },
     "url":{
       "paths":[
-        {
-          "path":"/_data_stream/_lifecycle",
-          "methods":[
-            "DELETE"
-          ]
-        },
         {
           "path":"/_data_stream/{name}/_lifecycle",
           "methods":[
@@ -25,7 +19,7 @@
           "parts":{
             "name":{
               "type":"list",
-              "description":"A comma-separated list of data streams of which the data lifecycle will be deleted; use `*` to get all data streams"
+              "description":"A comma-separated list of data streams of which the data stream lifecycle will be deleted; use `*` to get all data streams"
             }
           }
         }

@@ -19,7 +19,7 @@ import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequestBuilder;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.action.admin.indices.template.put.PutComponentTemplateAction;
-import org.elasticsearch.action.admin.indices.template.put.PutComposableIndexTemplateAction;
+import org.elasticsearch.action.admin.indices.template.put.TransportPutComposableIndexTemplateAction;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
@@ -124,7 +124,7 @@ public class FeatureMigrationIT extends AbstractFeatureMigrationIntegTest {
         createRequest.setWaitForActiveShards(ActiveShardCount.ALL);
         createRequest.setSettings(
             Settings.builder()
-                .put("index.version.created", NEEDS_UPGRADE_VERSION)
+                .put(IndexMetadata.SETTING_VERSION_CREATED, NEEDS_UPGRADE_INDEX_VERSION)
                 .put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 0)
                 .put("index.hidden", true) // So we don't get a warning
                 .build()
@@ -196,7 +196,7 @@ public class FeatureMigrationIT extends AbstractFeatureMigrationIntegTest {
         assertTrue("the pre-migration hook wasn't actually called", preUpgradeHookCalled.get());
         assertTrue("the post-migration hook wasn't actually called", postUpgradeHookCalled.get());
 
-        Metadata finalMetadata = client().admin().cluster().prepareState().get().getState().metadata();
+        Metadata finalMetadata = clusterAdmin().prepareState().get().getState().metadata();
         // Check that the results metadata is what we expect.
         FeatureMigrationResults currentResults = finalMetadata.custom(FeatureMigrationResults.TYPE);
         assertThat(currentResults, notNullValue());
@@ -330,9 +330,7 @@ public class FeatureMigrationIT extends AbstractFeatureMigrationIntegTest {
             createSystemIndexForDescriptor(descriptor);
         }
 
-        client().admin()
-            .indices()
-            .preparePutTemplate("bad_template")
+        indicesAdmin().preparePutTemplate("bad_template")
             .setPatterns(Collections.singletonList(templatePrefix + "*"))
             .addAlias(new Alias(templatePrefix + "-legacy-alias"))
             .get();
@@ -398,29 +396,33 @@ public class FeatureMigrationIT extends AbstractFeatureMigrationIntegTest {
         );
         client().execute(PutComponentTemplateAction.INSTANCE, new PutComponentTemplateAction.Request("a-ct").componentTemplate(ct)).get();
 
-        ComposableIndexTemplate cit = new ComposableIndexTemplate(
-            Collections.singletonList(prefix + "*"),
-            new Template(
-                null,
-                new CompressedXContent(
-                    "{\n"
-                        + "      \"dynamic\": false,\n"
-                        + "      \"properties\": {\n"
-                        + "        \"field2\": {\n"
-                        + "          \"type\": \"keyword\"\n"
-                        + "        }\n"
-                        + "      }\n"
-                        + "    }"
-                ),
-                null
-            ),
-            Collections.singletonList("a-ct"),
-            4L,
-            5L,
-            Collections.singletonMap("baz", "thud")
-        );
-        client().execute(PutComposableIndexTemplateAction.INSTANCE, new PutComposableIndexTemplateAction.Request("a-it").indexTemplate(cit))
-            .get();
+        ComposableIndexTemplate cit = ComposableIndexTemplate.builder()
+            .indexPatterns(Collections.singletonList(prefix + "*"))
+            .template(
+                new Template(
+                    null,
+                    new CompressedXContent(
+                        "{\n"
+                            + "      \"dynamic\": false,\n"
+                            + "      \"properties\": {\n"
+                            + "        \"field2\": {\n"
+                            + "          \"type\": \"keyword\"\n"
+                            + "        }\n"
+                            + "      }\n"
+                            + "    }"
+                    ),
+                    null
+                )
+            )
+            .componentTemplates(Collections.singletonList("a-ct"))
+            .priority(4L)
+            .version(5L)
+            .metadata(Collections.singletonMap("baz", "thud"))
+            .build();
+        client().execute(
+            TransportPutComposableIndexTemplateAction.TYPE,
+            new TransportPutComposableIndexTemplateAction.Request("a-it").indexTemplate(cit)
+        ).get();
 
         ensureGreen();
 

@@ -31,7 +31,8 @@ dependencies {
   api "com.wdtinc:mapbox-vector-tile:3.1.0"
   api "com.google.protobuf:protobuf-java:${versions.protobuf}"
   runtimeOnly("org.slf4j:slf4j-api:${versions.slf4j}")
-  runtimeOnly("org.apache.logging.log4j:log4j-slf4j-impl:${versions.log4j}")
+  runtimeOnly "org.slf4j:slf4j-nop:${versions.slf4j}"
+  //  runtimeOnly("org.apache.logging.log4j:log4j-slf4j-impl:${versions.log4j}") https://github.com/elastic/elasticsearch/issues/93714
   javaRestTestImplementation("com.wdtinc:mapbox-vector-tile:3.1.0")
   javaRestTestImplementation("com.google.protobuf:protobuf-java:${versions.protobuf}")
 }
@@ -54,9 +55,5 @@ tasks.named("thirdPartyAudit").configure {
     'com.google.protobuf.UnsafeUtil$MemoryAccessor'
   )
 
-  ignoreMissingClasses(
-    // [missing classes] SLF4j includes an optional class that depends on an extension class (!)
-    'org.slf4j.ext.EventData',
-  )
 }
 

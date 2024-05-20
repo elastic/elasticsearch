@@ -12,8 +12,13 @@ import org.gradle.api.Project;
 
 public class DistributionResolution {
     private Resolver resolver;
-    private String name;
+    private final String name;
     private int priority;
+
+    public DistributionResolution(String name, Resolver resolver) {
+        this(name);
+        this.resolver = resolver;
+    }
 
     public DistributionResolution(String name) {
         this.name = name;

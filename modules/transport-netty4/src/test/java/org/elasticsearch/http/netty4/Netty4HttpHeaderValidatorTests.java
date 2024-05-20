@@ -8,24 +8,30 @@
 
 package org.elasticsearch.http.netty4;
 
+import io.netty.buffer.ByteBuf;
+import io.netty.buffer.ByteBufUtil;
 import io.netty.buffer.Unpooled;
-import io.netty.channel.Channel;
 import io.netty.channel.embedded.EmbeddedChannel;
+import io.netty.handler.codec.DecoderResult;
+import io.netty.handler.codec.http.DefaultFullHttpRequest;
 import io.netty.handler.codec.http.DefaultHttpContent;
 import io.netty.handler.codec.http.DefaultHttpRequest;
 import io.netty.handler.codec.http.DefaultLastHttpContent;
 import io.netty.handler.codec.http.HttpHeaderNames;
 import io.netty.handler.codec.http.HttpMethod;
-import io.netty.handler.codec.http.HttpRequest;
 import io.netty.handler.codec.http.HttpVersion;
 import io.netty.handler.codec.http.LastHttpContent;
+import io.netty.util.AsciiString;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.common.TriConsumer;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.http.netty4.internal.HttpValidator;
 import org.elasticsearch.test.ESTestCase;
 
+import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -35,6 +41,8 @@ import static org.elasticsearch.http.netty4.Netty4HttpHeaderValidator.State.QUEU
 import static org.elasticsearch.http.netty4.Netty4HttpHeaderValidator.State.WAITING_TO_START;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
 
@@ -44,6 +52,7 @@ public class Netty4HttpHeaderValidatorTests extends ESTestCase {
     private final AtomicReference<ActionListener<Void>> listener = new AtomicReference<>();
     private EmbeddedChannel channel;
     private Netty4HttpHeaderValidator netty4HttpHeaderValidator;
+    private final AtomicReference<RuntimeException> validationException = new AtomicReference<>();
 
     @Override
     public void setUp() throws Exception {
@@ -55,11 +64,16 @@ public class Netty4HttpHeaderValidatorTests extends ESTestCase {
         channel = new EmbeddedChannel();
         header.set(null);
         listener.set(null);
-        TriConsumer<HttpRequest, Channel, ActionListener<Void>> validator = (httpRequest, channel, validationCompleteListener) -> {
+        validationException.set(null);
+        HttpValidator validator = (httpRequest, channel, validationCompleteListener) -> {
             header.set(httpRequest);
+            final var exception = validationException.get();
+            if (exception != null) {
+                throw exception;
+            }
             listener.set(validationCompleteListener);
         };
-        netty4HttpHeaderValidator = new Netty4HttpHeaderValidator(validator);
+        netty4HttpHeaderValidator = new Netty4HttpHeaderValidator(validator, new ThreadContext(Settings.EMPTY));
         channel.pipeline().addLast(netty4HttpHeaderValidator);
     }
 
@@ -245,6 +259,7 @@ public class Netty4HttpHeaderValidatorTests extends ESTestCase {
 
             final DefaultHttpRequest request = new DefaultHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.GET, "/uri");
             final DefaultHttpContent content = new DefaultHttpContent(Unpooled.buffer(4));
+
             channel.writeInbound(request);
             channel.writeInbound(content);
 
@@ -275,6 +290,43 @@ public class Netty4HttpHeaderValidatorTests extends ESTestCase {
 
             reset();
         }
+    }
+
+    public void testValidationExceptionForwardsAsDecoderErrorMessage() {
+        final var exception = new ElasticsearchException("Failure");
+        assertTrue(channel.config().isAutoRead());
+        assertThat(netty4HttpHeaderValidator.getState(), equalTo(WAITING_TO_START));
+
+        final DefaultHttpRequest request = new DefaultHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.GET, "/uri");
+
+        validationException.set(exception);
+        channel.writeInbound(request);
+
+        assertThat(header.get(), sameInstance(request));
+        assertThat(listener.get(), nullValue());
+
+        channel.runPendingTasks();
+        assertTrue(channel.config().isAutoRead());
+        DefaultHttpRequest failed = channel.readInbound();
+        assertThat(failed, sameInstance(request));
+        assertThat(failed.headers().get(HttpHeaderNames.CONNECTION), nullValue());
+        assertTrue(failed.decoderResult().isFailure());
+        Exception cause = (Exception) failed.decoderResult().cause();
+        assertThat(cause, equalTo(exception));
+        assertThat(netty4HttpHeaderValidator.getState(), equalTo(DROPPING_DATA_UNTIL_NEXT_REQUEST));
+
+        final DefaultHttpContent content = new DefaultHttpContent(Unpooled.buffer(4));
+        channel.writeInbound(content);
+
+        assertThat(channel.readInbound(), nullValue());
+        assertThat(content.refCnt(), equalTo(0));
+
+        DefaultLastHttpContent lastContent = new DefaultLastHttpContent(Unpooled.buffer(4));
+        channel.writeInbound(lastContent);
+        assertTrue(channel.config().isAutoRead());
+        assertThat(netty4HttpHeaderValidator.getState(), equalTo(WAITING_TO_START));
+        assertThat(channel.readInbound(), nullValue());
+        assertThat(lastContent.refCnt(), equalTo(0));
     }
 
     public void testValidationHandlesMultipleQueuedUpMessages() {
@@ -582,5 +634,110 @@ public class Netty4HttpHeaderValidatorTests extends ESTestCase {
         assertThat(channel.readInbound(), nullValue());
         assertThat(lastHttpContent.refCnt(), equalTo(0));
         assertThat(channel.readInbound(), nullValue());
+    }
+
+    public void testFullRequestValidationFailure() {
+        assertTrue(channel.config().isAutoRead());
+        assertThat(netty4HttpHeaderValidator.getState(), equalTo(WAITING_TO_START));
+
+        ByteBuf buf = channel.alloc().buffer();
+        ByteBufUtil.copy(AsciiString.of("test full http request"), buf);
+        final DefaultFullHttpRequest request = new DefaultFullHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.GET, "/uri", buf);
+        channel.writeInbound(request);
+
+        // request got through to validation
+        assertThat(header.get(), sameInstance(request));
+        // channel is paused
+        assertThat(channel.readInbound(), nullValue());
+        assertFalse(channel.config().isAutoRead());
+
+        // validation fails
+        Exception exception = new ElasticsearchException("Boom");
+        listener.get().onFailure(exception);
+        channel.runPendingTasks();
+
+        // channel is resumed and waiting for next request
+        assertTrue(channel.config().isAutoRead());
+        assertThat(netty4HttpHeaderValidator.getState(), equalTo(WAITING_TO_START));
+
+        DefaultFullHttpRequest throughRequest = channel.readInbound();
+        // "through request" contains a decoder exception
+        assertThat(throughRequest, not(sameInstance(request)));
+        assertTrue(throughRequest.decoderResult().isFailure());
+        // the content is cleared when validation fails
+        assertThat(new String(ByteBufUtil.getBytes(throughRequest.content()), StandardCharsets.UTF_8), is(""));
+        assertThat(buf.refCnt(), is(0));
+        Exception cause = (Exception) throughRequest.decoderResult().cause();
+        assertThat(cause, equalTo(exception));
+    }
+
+    public void testFullRequestValidationSuccess() {
+        assertTrue(channel.config().isAutoRead());
+        assertThat(netty4HttpHeaderValidator.getState(), equalTo(WAITING_TO_START));
+
+        ByteBuf buf = channel.alloc().buffer();
+        try {
+            ByteBufUtil.copy(AsciiString.of("test full http request"), buf);
+            final DefaultFullHttpRequest request = new DefaultFullHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.GET, "/uri", buf);
+            channel.writeInbound(request);
+
+            // request got through to validation
+            assertThat(header.get(), sameInstance(request));
+            // channel is paused
+            assertThat(channel.readInbound(), nullValue());
+            assertFalse(channel.config().isAutoRead());
+
+            // validation succeeds
+            listener.get().onResponse(null);
+            channel.runPendingTasks();
+
+            // channel is resumed and waiting for next request
+            assertTrue(channel.config().isAutoRead());
+            assertThat(netty4HttpHeaderValidator.getState(), equalTo(WAITING_TO_START));
+
+            DefaultFullHttpRequest throughRequest = channel.readInbound();
+            // request goes through unaltered
+            assertThat(throughRequest, sameInstance(request));
+            assertFalse(throughRequest.decoderResult().isFailure());
+            // the content is unaltered
+            assertThat(new String(ByteBufUtil.getBytes(throughRequest.content()), StandardCharsets.UTF_8), is("test full http request"));
+            assertThat(buf.refCnt(), is(1));
+            assertThat(throughRequest.decoderResult().cause(), nullValue());
+        } finally {
+            buf.release();
+        }
+    }
+
+    public void testFullRequestWithDecoderException() {
+        assertTrue(channel.config().isAutoRead());
+        assertThat(netty4HttpHeaderValidator.getState(), equalTo(WAITING_TO_START));
+
+        ByteBuf buf = channel.alloc().buffer();
+        try {
+            ByteBufUtil.copy(AsciiString.of("test full http request"), buf);
+            // a request with a decoder error prior to validation
+            final DefaultFullHttpRequest request = new DefaultFullHttpRequest(HttpVersion.HTTP_1_1, HttpMethod.GET, "/uri", buf);
+            Exception cause = new ElasticsearchException("Boom");
+            request.setDecoderResult(DecoderResult.failure(cause));
+            channel.writeInbound(request);
+
+            // request goes through without invoking the validator
+            assertThat(header.get(), nullValue());
+            assertThat(listener.get(), nullValue());
+            // channel is NOT paused
+            assertTrue(channel.config().isAutoRead());
+            assertThat(netty4HttpHeaderValidator.getState(), equalTo(WAITING_TO_START));
+
+            DefaultFullHttpRequest throughRequest = channel.readInbound();
+            // request goes through unaltered
+            assertThat(throughRequest, sameInstance(request));
+            assertTrue(throughRequest.decoderResult().isFailure());
+            assertThat(throughRequest.decoderResult().cause(), equalTo(cause));
+            // the content is unaltered
+            assertThat(new String(ByteBufUtil.getBytes(throughRequest.content()), StandardCharsets.UTF_8), is("test full http request"));
+            assertThat(buf.refCnt(), is(1));
+        } finally {
+            buf.release();
+        }
     }
 }

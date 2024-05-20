@@ -16,7 +16,6 @@ import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.test.rest.ObjectPath;
-import org.elasticsearch.transport.TcpTransport;
 import org.elasticsearch.xpack.security.authc.InternalRealms;
 
 import java.io.IOException;
@@ -30,6 +29,7 @@ import static org.hamcrest.Matchers.notNullValue;
 
 public class SecurityWithBasicLicenseIT extends SecurityInBasicRestTestCase {
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/99169")
     public void testWithBasicLicense() throws Exception {
         checkLicenseType("basic");
         checkSecurityEnabled(false);
@@ -50,6 +50,7 @@ public class SecurityWithBasicLicenseIT extends SecurityInBasicRestTestCase {
 
         assertUserProfileFeatures(false);
         checkRemoteIndicesXPackUsage();
+        assertFailToCreateAndUpdateCrossClusterApiKeys();
     }
 
     public void testWithTrialLicense() throws Exception {
@@ -80,6 +81,7 @@ public class SecurityWithBasicLicenseIT extends SecurityInBasicRestTestCase {
             assertReadWithApiKey(apiKeyCredentials2, "/index*/_search", true);
             assertUserProfileFeatures(true);
             checkRemoteIndicesXPackUsage();
+            assertSuccessToCreateAndUpdateCrossClusterApiKeys();
         } finally {
             revertTrial();
             assertAuthenticateWithToken(accessToken, false);
@@ -95,6 +97,7 @@ public class SecurityWithBasicLicenseIT extends SecurityInBasicRestTestCase {
             assertReadWithApiKey(apiKeyCredentials2, "/index1/_doc/1", false);
             assertUserProfileFeatures(false);
             checkRemoteIndicesXPackUsage();
+            assertFailToCreateAndUpdateCrossClusterApiKeys();
         }
     }
 
@@ -137,9 +140,6 @@ public class SecurityWithBasicLicenseIT extends SecurityInBasicRestTestCase {
     }
 
     private void checkRemoteIndicesXPackUsage() throws IOException {
-        if (false == TcpTransport.isUntrustedRemoteClusterEnabled()) {
-            return;
-        }
         final var putRoleRequest = new Request("PUT", "/_security/role/role1");
         putRoleRequest.setJsonEntity("""
             {
@@ -566,5 +566,47 @@ public class SecurityWithBasicLicenseIT extends SecurityInBasicRestTestCase {
             assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(403));
             assertThat(e.getMessage(), containsString("current license is non-compliant for [user-profile-collaboration]"));
         }
+    }
+
+    private void assertFailToCreateAndUpdateCrossClusterApiKeys() {
+        final Request createRequest = new Request("POST", "/_security/cross_cluster/api_key");
+        createRequest.setJsonEntity("""
+            {
+              "name": "cc-key",
+              "access": {
+                "search": [ { "names": ["*"] } ]
+              }
+            }""");
+        final ResponseException e1 = expectThrows(ResponseException.class, () -> adminClient().performRequest(createRequest));
+        assertThat(e1.getResponse().getStatusLine().getStatusCode(), equalTo(403));
+        assertThat(e1.getMessage(), containsString("current license is non-compliant for [advanced-remote-cluster-security]"));
+
+        final Request updateRequest = new Request("PUT", "/_security/cross_cluster/api_key/" + randomAlphaOfLength(20));
+        updateRequest.setJsonEntity("""
+            {
+              "metadata": { }
+            }""");
+        final ResponseException e2 = expectThrows(ResponseException.class, () -> adminClient().performRequest(updateRequest));
+        assertThat(e2.getResponse().getStatusLine().getStatusCode(), equalTo(403));
+        assertThat(e2.getMessage(), containsString("current license is non-compliant for [advanced-remote-cluster-security]"));
+    }
+
+    private void assertSuccessToCreateAndUpdateCrossClusterApiKeys() throws IOException {
+        final Request createRequest = new Request("POST", "/_security/cross_cluster/api_key");
+        createRequest.setJsonEntity("""
+            {
+              "name": "cc-key",
+              "access": {
+                "search": [ { "names": ["*"] } ]
+              }
+            }""");
+        final ObjectPath createResponse = assertOKAndCreateObjectPath(adminClient().performRequest(createRequest));
+
+        final Request updateRequest = new Request("PUT", "/_security/cross_cluster/api_key/" + createResponse.evaluate("id"));
+        updateRequest.setJsonEntity("""
+            {
+              "metadata": { }
+            }""");
+        assertOK(adminClient().performRequest(updateRequest));
     }
 }

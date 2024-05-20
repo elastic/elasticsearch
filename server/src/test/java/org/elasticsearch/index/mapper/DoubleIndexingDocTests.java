@@ -35,7 +35,7 @@ public class DoubleIndexingDocTests extends MapperServiceTestCase {
             iw.addDocument(doc.rootDoc());
             iw.addDocument(doc.rootDoc());
         }, reader -> {
-            IndexSearcher searcher = new IndexSearcher(reader);
+            IndexSearcher searcher = newSearcher(reader);
             TopDocs topDocs = searcher.search(mapperService.fieldType("field1").termQuery("value1", context), 10);
             assertThat(topDocs.totalHits.value, equalTo(2L));
 

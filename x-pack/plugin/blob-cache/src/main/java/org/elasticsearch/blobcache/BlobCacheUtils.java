@@ -9,6 +9,7 @@ package org.elasticsearch.blobcache;
 
 import org.apache.lucene.store.IndexInput;
 import org.elasticsearch.blobcache.common.ByteRange;
+import org.elasticsearch.blobcache.shared.SharedBytes;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.core.Streams;
 
@@ -31,8 +32,37 @@ public class BlobCacheUtils {
         return ByteSizeUnit.BYTES.toIntBytes(l);
     }
 
-    public static void throwEOF(long channelPos, long len, Object file) throws EOFException {
-        throw new EOFException(format("unexpected EOF reading [%d-%d] from %s", channelPos, channelPos + len, file));
+    /**
+     * Round down the size to the nearest aligned size &lt;= size.
+     */
+    public static long roundDownToAlignedSize(long size, long alignment) {
+        assert size >= 0;
+        assert alignment > 0;
+        return size / alignment * alignment;
+    }
+
+    /**
+     * Round up the size to the nearest aligned size &gt;= size
+     */
+    public static long roundUpToAlignedSize(long size, long alignment) {
+        assert size >= 0;
+        if (size == 0) {
+            return 0;
+        }
+        assert alignment > 0;
+        return (((size - 1) / alignment) + 1) * alignment;
+    }
+
+    /**
+     * Rounds the length up so that it is aligned on the next page size (defined by SharedBytes.PAGE_SIZE).
+     */
+    public static long toPageAlignedSize(long length) {
+        int alignment = SharedBytes.PAGE_SIZE;
+        return roundUpToAlignedSize(length, alignment);
+    }
+
+    public static void throwEOF(long channelPos, long len) throws EOFException {
+        throw new EOFException(format("unexpected EOF reading [%d-%d]", channelPos, channelPos + len));
     }
 
     public static void ensureSeek(long pos, IndexInput input) throws IOException {
@@ -44,10 +74,15 @@ public class BlobCacheUtils {
         }
     }
 
-    public static ByteRange computeRange(long rangeSize, long position, long length) {
-        long start = (position / rangeSize) * rangeSize;
-        long end = Math.min(start + rangeSize, length);
-        return ByteRange.of(start, end);
+    public static ByteRange computeRange(long rangeSize, long position, long size, long blobLength) {
+        return ByteRange.of(
+            roundDownToAlignedSize(position, rangeSize),
+            Math.min(roundUpToAlignedSize(position + size, rangeSize), blobLength)
+        );
+    }
+
+    public static ByteRange computeRange(long rangeSize, long position, long size) {
+        return ByteRange.of(roundDownToAlignedSize(position, rangeSize), roundUpToAlignedSize(position + size, rangeSize));
     }
 
     public static void ensureSlice(String sliceName, long sliceOffset, long sliceLength, IndexInput input) {
@@ -73,12 +108,11 @@ public class BlobCacheUtils {
      *
      * Most of its arguments are there simply to make the message of the {@link EOFException} more informative.
      */
-    public static int readSafe(InputStream inputStream, ByteBuffer copyBuffer, long rangeStart, long remaining, Object cacheFileReference)
-        throws IOException {
+    public static int readSafe(InputStream inputStream, ByteBuffer copyBuffer, long rangeStart, long remaining) throws IOException {
         final int len = (remaining < copyBuffer.remaining()) ? toIntBytes(remaining) : copyBuffer.remaining();
         final int bytesRead = Streams.read(inputStream, copyBuffer, len);
         if (bytesRead <= 0) {
-            throwEOF(rangeStart, remaining, cacheFileReference);
+            throwEOF(rangeStart, remaining);
         }
         return bytesRead;
     }

@@ -2,7 +2,7 @@
 === EC2 Discovery plugin
 
 The EC2 discovery plugin provides a list of seed addresses to the
-{ref}/modules-discovery-hosts-providers.html[discovery process] by querying the
+{ref}/discovery-hosts-providers.html[discovery process] by querying the
 https://github.com/aws/aws-sdk-java[AWS API] for a list of EC2 instances
 matching certain criteria determined by the <<discovery-ec2-usage,plugin
 settings>>.
@@ -96,6 +96,11 @@ The available settings for the EC2 discovery plugin are as follows.
     When the address of an HTTP proxy is given in `discovery.ec2.proxy.host`,
     this setting determines the port to use to connect to the proxy. Defaults to
     `80`.
+
+`discovery.ec2.proxy.scheme`::
+
+    The scheme to use when connecting to the EC2 service endpoint through proxy specified
+    in `discovery.ec2.proxy.host`. Valid values are `http` or `https`. Defaults to `http`.
 
 `discovery.ec2.proxy.username` ({ref}/secure-settings.html[Secure], {ref}/secure-settings.html#reloadable-secure-settings[reloadable])::
 

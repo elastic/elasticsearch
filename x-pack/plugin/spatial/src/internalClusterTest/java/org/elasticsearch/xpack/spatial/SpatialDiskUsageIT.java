@@ -8,9 +8,9 @@
 package org.elasticsearch.xpack.spatial;
 
 import org.apache.lucene.tests.geo.GeoTestUtil;
-import org.elasticsearch.action.admin.indices.diskusage.AnalyzeIndexDiskUsageAction;
 import org.elasticsearch.action.admin.indices.diskusage.AnalyzeIndexDiskUsageRequest;
 import org.elasticsearch.action.admin.indices.diskusage.AnalyzeIndexDiskUsageResponse;
+import org.elasticsearch.action.admin.indices.diskusage.TransportAnalyzeIndexDiskUsageAction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
@@ -72,9 +72,7 @@ public class SpatialDiskUsageIT extends ESIntegTestCase {
         mapping.endObject();
 
         final String index = "test-index";
-        client().admin()
-            .indices()
-            .prepareCreate(index)
+        indicesAdmin().prepareCreate(index)
             .setMapping(mapping)
             .setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, between(1, 5)))
             .get();
@@ -88,10 +86,10 @@ public class SpatialDiskUsageIT extends ESIntegTestCase {
                 .field("coordinates", new double[] { GeoTestUtil.nextLatitude(), GeoTestUtil.nextLongitude() })
                 .endObject()
                 .endObject();
-            client().prepareIndex(index).setId("id-" + i).setSource(doc).get();
+            prepareIndex(index).setId("id-" + i).setSource(doc).get();
         }
         AnalyzeIndexDiskUsageResponse resp = client().execute(
-            AnalyzeIndexDiskUsageAction.INSTANCE,
+            TransportAnalyzeIndexDiskUsageAction.TYPE,
             new AnalyzeIndexDiskUsageRequest(new String[] { index }, AnalyzeIndexDiskUsageRequest.DEFAULT_INDICES_OPTIONS, true)
         ).actionGet();
 

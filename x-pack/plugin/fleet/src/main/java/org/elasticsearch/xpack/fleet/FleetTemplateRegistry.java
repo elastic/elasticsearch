@@ -14,7 +14,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xpack.core.ClientHelper;
-import org.elasticsearch.xpack.core.ilm.LifecyclePolicy;
 import org.elasticsearch.xpack.core.template.IndexTemplateConfig;
 import org.elasticsearch.xpack.core.template.IndexTemplateRegistry;
 import org.elasticsearch.xpack.core.template.LifecyclePolicyConfig;
@@ -28,21 +27,39 @@ public class FleetTemplateRegistry extends IndexTemplateRegistry {
 
     public static final String TEMPLATE_VERSION_VARIABLE = "xpack.fleet.template.version";
 
-    private static final List<LifecyclePolicy> LIFECYCLE_POLICIES = List.of(
-        new LifecyclePolicyConfig(".fleet-actions-results-ilm-policy", "/fleet-actions-results-ilm-policy.json").load(
-            LifecyclePolicyConfig.DEFAULT_X_CONTENT_REGISTRY
-        ),
-        new LifecyclePolicyConfig(".fleet-file-data-ilm-policy", "/fleet-file-data-ilm-policy.json").load(
-            LifecyclePolicyConfig.DEFAULT_X_CONTENT_REGISTRY
-        ),
-        new LifecyclePolicyConfig(".fleet-files-ilm-policy", "/fleet-files-ilm-policy.json").load(
-            LifecyclePolicyConfig.DEFAULT_X_CONTENT_REGISTRY
-        )
+    private static final List<LifecyclePolicyConfig> LIFECYCLE_POLICIES_CONFIG = List.of(
+        new LifecyclePolicyConfig(".fleet-actions-results-ilm-policy", "/fleet-actions-results-ilm-policy.json"),
+        new LifecyclePolicyConfig(".fleet-file-tohost-data-ilm-policy", "/fleet-file-tohost-data-ilm-policy.json"),
+        new LifecyclePolicyConfig(".fleet-file-tohost-meta-ilm-policy", "/fleet-file-tohost-meta-ilm-policy.json"),
+        new LifecyclePolicyConfig(".fleet-file-fromhost-data-ilm-policy", "/fleet-file-fromhost-data-ilm-policy.json"),
+        new LifecyclePolicyConfig(".fleet-file-fromhost-meta-ilm-policy", "/fleet-file-fromhost-meta-ilm-policy.json")
     );
 
     public static final Map<String, ComposableIndexTemplate> COMPOSABLE_INDEX_TEMPLATE_CONFIGS = parseComposableTemplates(
-        new IndexTemplateConfig(".fleet-files", "/fleet-files.json", INDEX_TEMPLATE_VERSION, TEMPLATE_VERSION_VARIABLE),
-        new IndexTemplateConfig(".fleet-file-data", "/fleet-file-data.json", INDEX_TEMPLATE_VERSION, TEMPLATE_VERSION_VARIABLE)
+        new IndexTemplateConfig(
+            ".fleet-fileds-fromhost-meta",
+            "/fleet-file-fromhost-meta.json",
+            INDEX_TEMPLATE_VERSION,
+            TEMPLATE_VERSION_VARIABLE
+        ),
+        new IndexTemplateConfig(
+            ".fleet-fileds-fromhost-data",
+            "/fleet-file-fromhost-data.json",
+            INDEX_TEMPLATE_VERSION,
+            TEMPLATE_VERSION_VARIABLE
+        ),
+        new IndexTemplateConfig(
+            ".fleet-fileds-tohost-meta",
+            "/fleet-file-tohost-meta.json",
+            INDEX_TEMPLATE_VERSION,
+            TEMPLATE_VERSION_VARIABLE
+        ),
+        new IndexTemplateConfig(
+            ".fleet-fileds-tohost-data",
+            "/fleet-file-tohost-data.json",
+            INDEX_TEMPLATE_VERSION,
+            TEMPLATE_VERSION_VARIABLE
+        )
     );
 
     public FleetTemplateRegistry(
@@ -61,8 +78,8 @@ public class FleetTemplateRegistry extends IndexTemplateRegistry {
     }
 
     @Override
-    protected List<LifecyclePolicy> getPolicyConfigs() {
-        return LIFECYCLE_POLICIES;
+    protected List<LifecyclePolicyConfig> getLifecycleConfigs() {
+        return LIFECYCLE_POLICIES_CONFIG;
     }
 
     @Override

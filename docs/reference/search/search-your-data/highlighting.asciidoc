@@ -1,5 +1,5 @@
 [[highlighting]]
-== Highlighting
+=== Highlighting
 
 Highlighters enable you to get highlighted snippets from one or more fields
 in your search results so you can show users where the query matches are.
@@ -42,7 +42,7 @@ for each field.
 
 [discrete]
 [[unified-highlighter]]
-=== Unified highlighter
+==== Unified highlighter
 The `unified` highlighter uses the Lucene Unified Highlighter. This
 highlighter breaks the text into sentences and uses the BM25 algorithm to score
 individual sentences as if they were documents in the corpus. It also supports
@@ -51,7 +51,7 @@ default highlighter.
 
 [discrete]
 [[plain-highlighter]]
-=== Plain highlighter
+==== Plain highlighter
 The `plain` highlighter uses the standard Lucene highlighter. It attempts to
 reflect the query matching logic in terms of understanding word importance and
 any word positioning criteria in phrase queries.
@@ -67,7 +67,7 @@ queries, we recommend using the `unified` highlighter on `postings` or `term_vec
 
 [discrete]
 [[fast-vector-highlighter]]
-=== Fast vector highlighter
+==== Fast vector highlighter
 The `fvh` highlighter uses the Lucene Fast Vector highlighter.
 This highlighter can be used on fields with `term_vector` set to
 `with_positions_offsets` in the mapping. The fast vector highlighter:
@@ -87,7 +87,7 @@ span queries, try an alternative highlighter, such as the `unified` highlighter.
 
 [discrete]
 [[offsets-strategy]]
-=== Offsets strategy
+==== Offsets strategy
 To create meaningful search snippets from the terms being queried,
 the highlighter needs to know the start and end character offsets of each word
 in the original text. These offsets can be obtained from:
@@ -121,7 +121,7 @@ for a particular index with the index setting <<index-max-analyzed-offset,`index
 
 [discrete]
 [[highlighting-settings]]
-=== Highlighting settings
+==== Highlighting settings
 
 Highlighting settings can be set on a global level and overridden at
 the field level.
@@ -270,7 +270,7 @@ type:: The highlighter to use: `unified`, `plain`, or `fvh`. Defaults to
 
 [discrete]
 [[highlighting-examples]]
-=== Highlighting examples
+==== Highlighting examples
 
 * <<override-global-settings, Override global settings>>
 * <<specify-highlight-query, Specify a highlight query>>
@@ -313,7 +313,7 @@ GET /_search
 
 [discrete]
 [[specify-highlight-query]]
-== Specify a highlight query
+=== Specify a highlight query
 
 You can specify a `highlight_query` to take additional information into account
 when highlighting. For example, the following query includes both the search
@@ -382,7 +382,7 @@ GET /_search
 
 [discrete]
 [[set-highlighter-type]]
-== Set highlighter type
+=== Set highlighter type
 
 The `type` field allows to force a specific highlighter type.
 The allowed values are: `unified`, `plain` and `fvh`.
@@ -406,7 +406,7 @@ GET /_search
 
 [[configure-tags]]
 [discrete]
-== Configure highlighting tags
+=== Configure highlighting tags
 
 By default, the highlighting will wrap highlighted text in `<em>` and
 `</em>`. This can be controlled by setting `pre_tags` and `post_tags`,
@@ -472,7 +472,7 @@ GET /_search
 
 [[highlight-all]]
 [discrete]
-== Highlight in all fields
+=== Highlight in all fields
 
 By default, only fields that contains a query match are highlighted. Set
 `require_field_match` to `false` to highlight all fields.
@@ -496,7 +496,7 @@ GET /_search
 
 [[matched-fields]]
 [discrete]
-== Combine matches on multiple fields
+=== Combine matches on multiple fields
 
 WARNING: This is only supported by the `fvh` highlighter
 
@@ -630,7 +630,7 @@ to
 
 [[explicit-field-order]]
 [discrete]
-== Explicitly order highlighted fields
+=== Explicitly order highlighted fields
 Elasticsearch highlights the fields in the order that they are sent, but per the
 JSON spec, objects are unordered. If you need to be explicit about the order
 in which fields are highlighted specify the `fields` as an array:
@@ -657,7 +657,7 @@ fields are highlighted but a plugin might.
 
 [discrete]
 [[control-highlighted-frags]]
-== Control highlighted fragments
+=== Control highlighted fragments
 
 Each field highlighted can control the size of the highlighted fragment
 in characters (defaults to `100`), and the maximum number of fragments
@@ -754,7 +754,7 @@ GET /_search
 
 [discrete]
 [[highlight-postings-list]]
-== Highlight using the postings list
+=== Highlight using the postings list
 
 Here is an example of setting the `comment` field in the index mapping to
 allow for highlighting using the postings:
@@ -794,7 +794,7 @@ PUT /example
 
 [discrete]
 [[specify-fragmenter]]
-== Specify a fragmenter for the plain highlighter
+=== Specify a fragmenter for the plain highlighter
 
 When using the `plain` highlighter, you can choose between the `simple` and
 `span` fragmenters:
@@ -915,7 +915,7 @@ This is useful for highlighting the entire contents of a document or field.
 
 [discrete]
 [[how-es-highlighters-work-internally]]
-== How highlighters work internally
+=== How highlighters work internally
 
 Given a query and a text (the content of a document field), the goal of a
 highlighter is to find the best text fragments for the query, and highlight
@@ -927,7 +927,7 @@ address several questions:
 - How to highlight the query terms in a fragment?
 
 [discrete]
-=== How to break a text into fragments?
+==== How to break a text into fragments?
 Relevant settings: `fragment_size`, `fragmenter`, `type` of highlighter,
 `boundary_chars`, `boundary_max_scan`, `boundary_scanner`, `boundary_scanner_locale`.
 
@@ -945,7 +945,7 @@ fragments by utilizing Java's `BreakIterator`. This ensures that a fragment
 is a valid sentence as long as `fragment_size` allows for this.
 
 [discrete]
-=== How to find the best fragments?
+==== How to find the best fragments?
 Relevant settings: `number_of_fragments`.
 
 To find the best, most relevant, fragments, a highlighter needs to score
@@ -978,7 +978,7 @@ an in-memory index from the text. Unified highlighter uses the BM25 scoring mode
 to score fragments.
 
 [discrete]
-=== How to highlight the query terms in a fragment?
+==== How to highlight the query terms in a fragment?
 Relevant settings:  `pre-tags`, `post-tags`.
 
 The goal is to highlight only those terms that participated in generating the 'hit' on the document.
@@ -995,7 +995,7 @@ fragments in some raw form, and then populate them with actual text.
 A highlighter uses `pre-tags`, `post-tags` to encode highlighted terms.
 
 [discrete]
-=== An example of the work of the unified highlighter
+==== An example of the work of the unified highlighter
 
 Let's look in more details how unified highlighter works.
 

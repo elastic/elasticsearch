@@ -7,7 +7,7 @@
  */
 package org.elasticsearch.ingest.common;
 
-import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
@@ -19,7 +19,9 @@ import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.grok.GrokBuiltinPatterns;
+import org.elasticsearch.grok.PatternBank;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.Scope;
@@ -35,16 +37,14 @@ import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
 
+import static org.elasticsearch.grok.GrokBuiltinPatterns.ECS_COMPATIBILITY_DISABLED;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
-public class GrokProcessorGetAction extends ActionType<GrokProcessorGetAction.Response> {
+public class GrokProcessorGetAction {
 
-    static final GrokProcessorGetAction INSTANCE = new GrokProcessorGetAction();
-    static final String NAME = "cluster:admin/ingest/processor/grok/get";
+    static final ActionType<GrokProcessorGetAction.Response> INSTANCE = new ActionType<>("cluster:admin/ingest/processor/grok/get");
 
-    private GrokProcessorGetAction() {
-        super(NAME, Response::new);
-    }
+    private GrokProcessorGetAction() {/* no instances */}
 
     public static class Request extends ActionRequest {
 
@@ -59,7 +59,7 @@ public class GrokProcessorGetAction extends ActionType<GrokProcessorGetAction.Re
         Request(StreamInput in) throws IOException {
             super(in);
             this.sorted = in.readBoolean();
-            this.ecsCompatibility = in.getTransportVersion().onOrAfter(TransportVersion.V_8_0_0)
+            this.ecsCompatibility = in.getTransportVersion().onOrAfter(TransportVersions.V_8_0_0)
                 ? in.readString()
                 : GrokProcessor.DEFAULT_ECS_COMPATIBILITY_MODE;
         }
@@ -73,7 +73,7 @@ public class GrokProcessorGetAction extends ActionType<GrokProcessorGetAction.Re
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             out.writeBoolean(sorted);
-            if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_0_0)) {
+            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_0_0)) {
                 out.writeString(ecsCompatibility);
             }
         }
@@ -96,7 +96,7 @@ public class GrokProcessorGetAction extends ActionType<GrokProcessorGetAction.Re
 
         Response(StreamInput in) throws IOException {
             super(in);
-            grokPatterns = in.readMap(StreamInput::readString, StreamInput::readString);
+            grokPatterns = in.readMap(StreamInput::readString);
         }
 
         public Map<String, String> getGrokPatterns() {
@@ -114,7 +114,7 @@ public class GrokProcessorGetAction extends ActionType<GrokProcessorGetAction.Re
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeMap(grokPatterns, StreamOutput::writeString, StreamOutput::writeString);
+            out.writeMap(grokPatterns, StreamOutput::writeString);
         }
     }
 
@@ -134,13 +134,13 @@ public class GrokProcessorGetAction extends ActionType<GrokProcessorGetAction.Re
         TransportAction(
             TransportService transportService,
             ActionFilters actionFilters,
-            Map<String, String> legacyGrokPatterns,
-            Map<String, String> ecsV1GrokPatterns
+            PatternBank legacyGrokPatterns,
+            PatternBank ecsV1GrokPatterns
         ) {
-            super(NAME, transportService, actionFilters, Request::new);
-            this.legacyGrokPatterns = legacyGrokPatterns;
+            super(INSTANCE.name(), transportService, actionFilters, Request::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
+            this.legacyGrokPatterns = legacyGrokPatterns.bank();
             this.sortedLegacyGrokPatterns = new TreeMap<>(this.legacyGrokPatterns);
-            this.ecsV1GrokPatterns = ecsV1GrokPatterns;
+            this.ecsV1GrokPatterns = ecsV1GrokPatterns.bank();
             this.sortedEcsV1GrokPatterns = new TreeMap<>(this.ecsV1GrokPatterns);
         }
 
@@ -149,7 +149,7 @@ public class GrokProcessorGetAction extends ActionType<GrokProcessorGetAction.Re
             ActionListener.completeWith(
                 listener,
                 () -> new Response(
-                    request.getEcsCompatibility().equals(GrokBuiltinPatterns.ECS_COMPATIBILITY_MODES[0])
+                    request.getEcsCompatibility().equals(ECS_COMPATIBILITY_DISABLED)
                         ? request.sorted() ? sortedLegacyGrokPatterns : legacyGrokPatterns
                         : request.sorted() ? sortedEcsV1GrokPatterns
                         : ecsV1GrokPatterns

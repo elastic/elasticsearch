@@ -10,12 +10,12 @@ package org.elasticsearch.discovery;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.Version;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.coordination.Coordinator;
 import org.elasticsearch.cluster.coordination.ElectionStrategy;
 import org.elasticsearch.cluster.coordination.LeaderHeartbeatService;
+import org.elasticsearch.cluster.coordination.PreVoteCollector;
 import org.elasticsearch.cluster.coordination.Reconfigurator;
 import org.elasticsearch.cluster.coordination.StatefulPreVoteCollector;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -23,7 +23,9 @@ import org.elasticsearch.cluster.routing.RerouteService;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.service.ClusterApplier;
 import org.elasticsearch.cluster.service.MasterService;
+import org.elasticsearch.cluster.version.CompatibilityVersions;
 import org.elasticsearch.common.Randomness;
+import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
@@ -33,6 +35,8 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
+import org.elasticsearch.core.UpdateForV9;
+import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.gateway.GatewayMetaState;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.monitor.NodeHealthService;
@@ -48,6 +52,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Random;
 import java.util.Set;
 import java.util.function.BiConsumer;
@@ -59,7 +64,7 @@ import static org.elasticsearch.node.Node.NODE_NAME_SETTING;
 /**
  * A module for loading classes for node discovery.
  */
-public class DiscoveryModule {
+public class DiscoveryModule extends AbstractModule {
     private static final Logger logger = LogManager.getLogger(DiscoveryModule.class);
 
     public static final String MULTI_NODE_DISCOVERY_TYPE = "multi-node";
@@ -74,10 +79,8 @@ public class DiscoveryModule {
         Property.NodeScope
     );
 
-    public static final Setting<List<String>> DISCOVERY_SEED_PROVIDERS_SETTING = Setting.listSetting(
+    public static final Setting<List<String>> DISCOVERY_SEED_PROVIDERS_SETTING = Setting.stringListSetting(
         "discovery.seed_providers",
-        Collections.emptyList(),
-        Function.identity(),
         Property.NodeScope
     );
 
@@ -91,6 +94,7 @@ public class DiscoveryModule {
     );
 
     private final Coordinator coordinator;
+    private final Reconfigurator reconfigurator;
 
     public DiscoveryModule(
         Settings settings,
@@ -108,7 +112,9 @@ public class DiscoveryModule {
         GatewayMetaState gatewayMetaState,
         RerouteService rerouteService,
         NodeHealthService nodeHealthService,
-        CircuitBreakerService circuitBreakerService
+        CircuitBreakerService circuitBreakerService,
+        CompatibilityVersions compatibilityVersions,
+        FeatureService featureService
     ) {
         final Collection<BiConsumer<DiscoveryNode, ClusterState>> joinValidators = new ArrayList<>();
         final Map<String, Supplier<SeedHostsProvider>> hostProviders = new HashMap<>();
@@ -168,19 +174,11 @@ public class DiscoveryModule {
             throw new IllegalArgumentException("Unknown election strategy " + ELECTION_STRATEGY_SETTING.get(settings));
         }
 
-        if (LEGACY_MULTI_NODE_DISCOVERY_TYPE.equals(discoveryType)) {
-            assert Version.CURRENT.major == Version.V_7_0_0.major + 1;
-            DeprecationLogger.getLogger(DiscoveryModule.class)
-                .critical(
-                    DeprecationCategory.SETTINGS,
-                    "legacy-discovery-type",
-                    "Support for setting [{}] to [{}] is deprecated and will be removed in a future version. Set this setting to [{}] "
-                        + "instead.",
-                    DISCOVERY_TYPE_SETTING.getKey(),
-                    LEGACY_MULTI_NODE_DISCOVERY_TYPE,
-                    MULTI_NODE_DISCOVERY_TYPE
-                );
-        }
+        checkLegacyMultiNodeDiscoveryType(discoveryType);
+
+        this.reconfigurator = getReconfigurator(settings, clusterSettings, clusterCoordinationPlugins);
+        var preVoteCollectorFactory = getPreVoteCollectorFactory(clusterCoordinationPlugins);
+        var leaderHeartbeatService = getLeaderHeartbeatService(settings, clusterCoordinationPlugins);
 
         if (MULTI_NODE_DISCOVERY_TYPE.equals(discoveryType)
             || LEGACY_MULTI_NODE_DISCOVERY_TYPE.equals(discoveryType)
@@ -203,9 +201,11 @@ public class DiscoveryModule {
                 electionStrategy,
                 nodeHealthService,
                 circuitBreakerService,
-                new Reconfigurator(settings, clusterSettings),
-                LeaderHeartbeatService.NO_OP,
-                StatefulPreVoteCollector::new
+                reconfigurator,
+                leaderHeartbeatService,
+                preVoteCollectorFactory,
+                compatibilityVersions,
+                featureService
             );
         } else {
             throw new IllegalArgumentException("Unknown discovery type [" + discoveryType + "]");
@@ -214,11 +214,94 @@ public class DiscoveryModule {
         logger.info("using discovery type [{}] and seed hosts providers {}", discoveryType, seedProviderNames);
     }
 
+    @UpdateForV9
+    private static void checkLegacyMultiNodeDiscoveryType(String discoveryType) {
+        if (LEGACY_MULTI_NODE_DISCOVERY_TYPE.equals(discoveryType)) {
+            DeprecationLogger.getLogger(DiscoveryModule.class)
+                .critical(
+                    DeprecationCategory.SETTINGS,
+                    "legacy-discovery-type",
+                    "Support for setting [{}] to [{}] is deprecated and will be removed in a future version. Set this setting to [{}] "
+                        + "instead.",
+                    DISCOVERY_TYPE_SETTING.getKey(),
+                    LEGACY_MULTI_NODE_DISCOVERY_TYPE,
+                    MULTI_NODE_DISCOVERY_TYPE
+                );
+        }
+    }
+
+    // visible for testing
+    static Reconfigurator getReconfigurator(
+        Settings settings,
+        ClusterSettings clusterSettings,
+        List<ClusterCoordinationPlugin> clusterCoordinationPlugins
+    ) {
+        final var reconfiguratorFactories = clusterCoordinationPlugins.stream()
+            .map(ClusterCoordinationPlugin::getReconfiguratorFactory)
+            .flatMap(Optional::stream)
+            .toList();
+
+        if (reconfiguratorFactories.size() > 1) {
+            throw new IllegalStateException("multiple reconfigurator factories found: " + reconfiguratorFactories);
+        }
+
+        if (reconfiguratorFactories.size() == 1) {
+            return reconfiguratorFactories.get(0).newReconfigurator(settings, clusterSettings);
+        }
+
+        return new Reconfigurator(settings, clusterSettings);
+    }
+
+    // visible for testing
+    static PreVoteCollector.Factory getPreVoteCollectorFactory(List<ClusterCoordinationPlugin> clusterCoordinationPlugins) {
+        final var preVoteCollectorFactories = clusterCoordinationPlugins.stream()
+            .map(ClusterCoordinationPlugin::getPreVoteCollectorFactory)
+            .flatMap(Optional::stream)
+            .toList();
+
+        if (preVoteCollectorFactories.size() > 1) {
+            throw new IllegalStateException("multiple pre-vote collector factories found: " + preVoteCollectorFactories);
+        }
+
+        if (preVoteCollectorFactories.size() == 1) {
+            return preVoteCollectorFactories.get(0);
+        }
+
+        return StatefulPreVoteCollector::new;
+    }
+
+    static LeaderHeartbeatService getLeaderHeartbeatService(Settings settings, List<ClusterCoordinationPlugin> clusterCoordinationPlugins) {
+        final var heartbeatServices = clusterCoordinationPlugins.stream()
+            .map(plugin -> plugin.getLeaderHeartbeatService(settings))
+            .flatMap(Optional::stream)
+            .toList();
+
+        if (heartbeatServices.size() > 1) {
+            throw new IllegalStateException("multiple leader heart beat service factories found: " + heartbeatServices);
+        }
+
+        if (heartbeatServices.size() == 1) {
+            return heartbeatServices.get(0);
+        }
+
+        return LeaderHeartbeatService.NO_OP;
+    }
+
     public static boolean isSingleNodeDiscovery(Settings settings) {
         return SINGLE_NODE_DISCOVERY_TYPE.equals(DISCOVERY_TYPE_SETTING.get(settings));
     }
 
+    @Override
+    protected void configure() {
+        bind(Coordinator.class).toInstance(coordinator);
+        bind(Reconfigurator.class).toInstance(reconfigurator);
+    }
+
     public Coordinator getCoordinator() {
         return coordinator;
+    }
+
+    public Reconfigurator getReconfigurator() {
+        return reconfigurator;
     }
 }

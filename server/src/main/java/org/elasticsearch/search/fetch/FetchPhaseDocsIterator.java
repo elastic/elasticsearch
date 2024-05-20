@@ -67,9 +67,15 @@ abstract class FetchPhaseDocsIterator {
                     setNextReader(ctx, docsInLeaf);
                 }
                 currentDoc = docs[i].docId;
+                assert searchHits[docs[i].index] == null;
                 searchHits[docs[i].index] = nextDoc(docs[i].docId);
             }
         } catch (Exception e) {
+            for (SearchHit searchHit : searchHits) {
+                if (searchHit != null) {
+                    searchHit.decRef();
+                }
+            }
             throw new FetchPhaseExecutionException(shardTarget, "Error running fetch phase for doc [" + currentDoc + "]", e);
         }
         return searchHits;

@@ -3,6 +3,14 @@
 
 Also see <<breaking-changes-8.6,Breaking changes in 8.6>>.
 
+[[known-issues-8.6.1]]
+[float]
+=== Known issues
+
+include::8.6.0.asciidoc[tag=reconciliation-imbalance-known-issue]
+
+include::8.4.0.asciidoc[tag=ingest-processor-log4j-cluster-instability-known-issue]
+
 [[bug-8.6.1]]
 [float]
 === Bug fixes

@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.transform.transforms.scheduling;
 
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
+import org.elasticsearch.xpack.transform.Transform;
 import org.elasticsearch.xpack.transform.transforms.scheduling.TransformScheduler.Event;
 import org.hamcrest.Matchers;
 import org.junit.After;
@@ -197,7 +198,7 @@ public class TransformScheduledTaskQueueTests extends ESTestCase {
     private static TransformScheduledTask createTask(String transformId, long nextScheduledTimeMillis) {
         return new TransformScheduledTask(
             transformId,
-            null,
+            Transform.DEFAULT_SCHEDULER_FREQUENCY,
             null,
             0,
             nextScheduledTimeMillis,

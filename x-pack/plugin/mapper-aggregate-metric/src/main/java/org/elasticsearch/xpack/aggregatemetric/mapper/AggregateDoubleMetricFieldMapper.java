@@ -15,10 +15,12 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.SortedNumericSortField;
 import org.apache.lucene.util.NumericUtils;
-import org.elasticsearch.Version;
+import org.elasticsearch.common.logging.DeprecationCategory;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.time.DateMathParser;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
@@ -74,6 +76,8 @@ import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpect
 /** A {@link FieldMapper} for a field containing aggregate metrics such as min/max/value_count etc. */
 public class AggregateDoubleMetricFieldMapper extends FieldMapper {
 
+    private static final DeprecationLogger DEPRECATION_LOGGER = DeprecationLogger.getLogger(AggregateDoubleMetricFieldMapper.class);
+
     public static final String CONTENT_TYPE = "aggregate_metric_double";
     public static final String SUBFIELD_SEPARATOR = ".";
 
@@ -115,7 +119,7 @@ public class AggregateDoubleMetricFieldMapper extends FieldMapper {
         public static final EnumSet<Metric> METRICS = EnumSet.noneOf(Metric.class);
     }
 
-    public static class Builder extends FieldMapper.Builder {
+    public static final class Builder extends FieldMapper.Builder {
 
         private final Parameter<Map<String, String>> meta = Parameter.metaParam();
 
@@ -158,10 +162,10 @@ public class AggregateDoubleMetricFieldMapper extends FieldMapper {
             }
         }, m -> toType(m).defaultMetric, XContentBuilder::field, Objects::toString);
 
-        private final Version indexCreatedVersion;
+        private final IndexVersion indexCreatedVersion;
         private final IndexMode indexMode;
 
-        public Builder(String name, Boolean ignoreMalformedByDefault, Version indexCreatedVersion, IndexMode mode) {
+        public Builder(String name, Boolean ignoreMalformedByDefault, IndexVersion indexCreatedVersion, IndexMode mode) {
             super(name);
             this.ignoreMalformed = Parameter.boolParam(
                 Names.IGNORE_MALFORMED,
@@ -187,6 +191,13 @@ public class AggregateDoubleMetricFieldMapper extends FieldMapper {
 
         @Override
         public AggregateDoubleMetricFieldMapper build(MapperBuilderContext context) {
+            if (multiFieldsBuilder.hasMultiFields()) {
+                DEPRECATION_LOGGER.warn(
+                    DeprecationCategory.MAPPINGS,
+                    CONTENT_TYPE + "_multifields",
+                    "Adding multifields to [" + CONTENT_TYPE + "] mappers has no effect and will be forbidden in future"
+                );
+            }
             if (defaultMetric.isConfigured() == false) {
                 // If a single metric is contained, this should be the default
                 if (metrics.getValue().size() == 1) {
@@ -209,7 +220,7 @@ public class AggregateDoubleMetricFieldMapper extends FieldMapper {
             EnumMap<Metric, NumberFieldMapper> metricMappers = new EnumMap<>(Metric.class);
             // Instantiate one NumberFieldMapper instance for each metric
             for (Metric m : this.metrics.getValue()) {
-                String fieldName = subfieldName(name, m);
+                String fieldName = subfieldName(name(), m);
                 NumberFieldMapper.Builder builder;
 
                 if (m == Metric.value_count) {
@@ -245,14 +256,14 @@ public class AggregateDoubleMetricFieldMapper extends FieldMapper {
                 }, () -> new EnumMap<>(Metric.class)));
 
             AggregateDoubleMetricFieldType metricFieldType = new AggregateDoubleMetricFieldType(
-                context.buildFullName(name),
+                context.buildFullName(name()),
                 meta.getValue(),
                 timeSeriesMetric.getValue()
             );
             metricFieldType.setMetricFields(metricFields);
             metricFieldType.setDefaultMetric(defaultMetric.getValue());
 
-            return new AggregateDoubleMetricFieldMapper(name, metricFieldType, metricMappers, this);
+            return new AggregateDoubleMetricFieldMapper(name(), metricFieldType, metricMappers, this);
         }
     }
 
@@ -511,7 +522,7 @@ public class AggregateDoubleMetricFieldMapper extends FieldMapper {
 
     private final boolean ignoreMalformedByDefault;
 
-    private final Version indexCreatedVersion;
+    private final IndexVersion indexCreatedVersion;
 
     /** A set of metrics supported */
     private final EnumSet<Metric> metrics;
@@ -563,6 +574,11 @@ public class AggregateDoubleMetricFieldMapper extends FieldMapper {
     @Override
     public Iterator<Mapper> iterator() {
         return Collections.emptyIterator();
+    }
+
+    @Override
+    protected boolean supportsParsingObject() {
+        return true;
     }
 
     @Override
@@ -687,6 +703,11 @@ public class AggregateDoubleMetricFieldMapper extends FieldMapper {
             this.name = name;
             this.simpleName = simpleName;
             this.metrics = metrics;
+        }
+
+        @Override
+        public String fieldName() {
+            return name;
         }
 
         @Override

@@ -15,6 +15,8 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.Scope;
+import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestToXContentListener;
 
 import java.io.IOException;
@@ -22,7 +24,10 @@ import java.util.List;
 import java.util.Set;
 
 import static org.elasticsearch.rest.RestRequest.Method.PUT;
+import static org.elasticsearch.rest.RestUtils.getAckTimeout;
+import static org.elasticsearch.rest.RestUtils.getMasterNodeTimeout;
 
+@ServerlessScope(Scope.PUBLIC)
 public class RestUpdateSettingsAction extends BaseRestHandler {
 
     @Override
@@ -39,11 +44,14 @@ public class RestUpdateSettingsAction extends BaseRestHandler {
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         String[] indices = Strings.splitStringByCommaToArray(request.param("index"));
         UpdateSettingsRequest updateSettingsRequest = new UpdateSettingsRequest(indices);
-        updateSettingsRequest.timeout(request.paramAsTime("timeout", updateSettingsRequest.timeout()));
+        updateSettingsRequest.ackTimeout(getAckTimeout(request));
         updateSettingsRequest.setPreserveExisting(request.paramAsBoolean("preserve_existing", updateSettingsRequest.isPreserveExisting()));
-        updateSettingsRequest.masterNodeTimeout(request.paramAsTime("master_timeout", updateSettingsRequest.masterNodeTimeout()));
+        updateSettingsRequest.masterNodeTimeout(getMasterNodeTimeout(request));
         updateSettingsRequest.indicesOptions(IndicesOptions.fromRequest(request, updateSettingsRequest.indicesOptions()));
-        updateSettingsRequest.fromXContent(request.contentParser());
+        updateSettingsRequest.reopen(request.paramAsBoolean("reopen", false));
+        try (var parser = request.contentParser()) {
+            updateSettingsRequest.fromXContent(parser);
+        }
 
         return channel -> client.admin().indices().updateSettings(updateSettingsRequest, new RestToXContentListener<>(channel));
     }

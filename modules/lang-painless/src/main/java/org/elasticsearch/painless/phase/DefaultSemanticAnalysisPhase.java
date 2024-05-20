@@ -166,7 +166,7 @@ public class DefaultSemanticAnalysisPhase extends UserTreeBaseVisitor<SemanticSc
     /**
      * Decorates a user expression node with a PainlessCast.
      */
-    public void decorateWithCast(AExpression userExpressionNode, SemanticScope semanticScope) {
+    public static void decorateWithCast(AExpression userExpressionNode, SemanticScope semanticScope) {
         Location location = userExpressionNode.getLocation();
         Class<?> valueType = semanticScope.getDecoration(userExpressionNode, ValueType.class).valueType();
         Class<?> targetType = semanticScope.getDecoration(userExpressionNode, TargetType.class).targetType();

@@ -8,7 +8,6 @@
 
 package org.elasticsearch.action.get;
 
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 
@@ -25,16 +24,6 @@ public class MultiGetItemResponse implements Writeable {
     public MultiGetItemResponse(GetResponse response, MultiGetResponse.Failure failure) {
         this.response = response;
         this.failure = failure;
-    }
-
-    MultiGetItemResponse(StreamInput in) throws IOException {
-        if (in.readBoolean()) {
-            failure = new MultiGetResponse.Failure(in);
-            response = null;
-        } else {
-            response = new GetResponse(in);
-            failure = null;
-        }
     }
 
     /**

@@ -11,7 +11,7 @@ console. They are _not_ intended for use by applications. For application
 consumption, use the <<get-snapshot-api,get snapshot API>>.
 ====
 
-Returns information about the <<modules-snapshots,snapshots>> stored in one or
+Returns information about the <<snapshot-restore,snapshots>> stored in one or
 more repositories. A snapshot is a backup of an index or running {es} cluster.
 
 
@@ -46,9 +46,9 @@ If any repository fails during the request, {es} returns an error.
 [[cat-snapshots-query-params]]
 ==== {api-query-parms-title}
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=http-format]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=http-format]
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=cat-h]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=cat-h]
 +
 --
 If you do not specify which columns to include, the API returns the default
@@ -107,19 +107,19 @@ units>>.
 Reason for any snapshot failures.
 --
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=help]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=help]
 
 `ignore_unavailable`::
 (Optional, Boolean) If `true`, the response does not include information from
 unavailable snapshots. Defaults to `false`.
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=master-timeout]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=master-timeout]
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=cat-s]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=cat-s]
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=time]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=time]
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=cat-v]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=cat-v]
 
 
 [[cat-snapshots-api-example]]

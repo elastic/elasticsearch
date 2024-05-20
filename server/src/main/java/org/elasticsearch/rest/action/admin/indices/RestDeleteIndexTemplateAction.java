@@ -11,16 +11,14 @@ import org.elasticsearch.action.admin.indices.template.delete.DeleteIndexTemplat
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.rest.Scope;
-import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestToXContentListener;
 
 import java.io.IOException;
 import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.DELETE;
+import static org.elasticsearch.rest.RestUtils.getMasterNodeTimeout;
 
-@ServerlessScope(Scope.PUBLIC)
 public class RestDeleteIndexTemplateAction extends BaseRestHandler {
 
     @Override
@@ -36,7 +34,7 @@ public class RestDeleteIndexTemplateAction extends BaseRestHandler {
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         DeleteIndexTemplateRequest deleteIndexTemplateRequest = new DeleteIndexTemplateRequest(request.param("name"));
-        deleteIndexTemplateRequest.masterNodeTimeout(request.paramAsTime("master_timeout", deleteIndexTemplateRequest.masterNodeTimeout()));
+        deleteIndexTemplateRequest.masterNodeTimeout(getMasterNodeTimeout(request));
         return channel -> client.admin().indices().deleteTemplate(deleteIndexTemplateRequest, new RestToXContentListener<>(channel));
     }
 }

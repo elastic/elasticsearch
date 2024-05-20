@@ -8,8 +8,7 @@ package org.elasticsearch.xpack.core.ml.action;
 
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.xcontent.StatusToXContentObject;
-import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xpack.core.action.AbstractGetResourcesRequest;
 import org.elasticsearch.xpack.core.action.AbstractGetResourcesResponse;
 import org.elasticsearch.xpack.core.action.util.QueryPage;
@@ -25,10 +24,10 @@ public class GetFiltersAction extends ActionType<GetFiltersAction.Response> {
     public static final String NAME = "cluster:admin/xpack/ml/filters/get";
 
     private GetFiltersAction() {
-        super(NAME, Response::new);
+        super(NAME);
     }
 
-    public static class Request extends AbstractGetResourcesRequest {
+    public static final class Request extends AbstractGetResourcesRequest {
 
         public Request() {
             setAllowNoResources(true);
@@ -54,7 +53,7 @@ public class GetFiltersAction extends ActionType<GetFiltersAction.Response> {
         }
     }
 
-    public static class Response extends AbstractGetResourcesResponse<MlFilter> implements StatusToXContentObject {
+    public static class Response extends AbstractGetResourcesResponse<MlFilter> implements ToXContentObject {
 
         public Response(QueryPage<MlFilter> filters) {
             super(filters);
@@ -66,11 +65,6 @@ public class GetFiltersAction extends ActionType<GetFiltersAction.Response> {
 
         public QueryPage<MlFilter> getFilters() {
             return getResources();
-        }
-
-        @Override
-        public RestStatus status() {
-            return RestStatus.OK;
         }
 
         @Override

@@ -11,8 +11,6 @@ package org.elasticsearch.aggregations.pipeline;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.index.DirectoryReader;
-import org.apache.lucene.index.IndexReader;
-import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.store.Directory;
@@ -220,7 +218,7 @@ public class DerivativeAggregatorTests extends AggregatorTestCase {
             Object[] propertiesDocCounts = (Object[]) histogram.getProperty("_count");
             Object[] propertiesSumCounts = (Object[]) histogram.getProperty("sum.value");
 
-            Long expectedSumPreviousBucket = Long.MIN_VALUE; // start value, gets
+            long expectedSumPreviousBucket = Long.MIN_VALUE; // start value, gets
             // overwritten
             for (int i = 0; i < numValueBuckets; ++i) {
                 Histogram.Bucket bucket = buckets.get(i);
@@ -272,7 +270,7 @@ public class DerivativeAggregatorTests extends AggregatorTestCase {
             Object[] propertiesDocCounts = (Object[]) histogram.getProperty("_count");
             Object[] propertiesSumCounts = (Object[]) histogram.getProperty("stats.sum");
 
-            Long expectedSumPreviousBucket = Long.MIN_VALUE; // start value, gets
+            long expectedSumPreviousBucket = Long.MIN_VALUE; // start value, gets
             // overwritten
             for (int i = 0; i < numValueBuckets; ++i) {
                 Histogram.Bucket bucket = buckets.get(i);
@@ -666,15 +664,14 @@ public class DerivativeAggregatorTests extends AggregatorTestCase {
                 indexWriter.commit();
             }
 
-            try (IndexReader indexReader = DirectoryReader.open(directory)) {
-                IndexSearcher indexSearcher = newSearcher(indexReader, true, true);
-                searchAndReduce(indexSearcher, new AggTestConfig(aggBuilder).withQuery(query));
+            try (DirectoryReader indexReader = DirectoryReader.open(directory)) {
+                searchAndReduce(indexReader, new AggTestConfig(aggBuilder).withQuery(query));
             }
         }
     }
 
-    private Long getTotalDocCountAcrossBuckets(List<? extends Histogram.Bucket> buckets) {
-        Long count = 0L;
+    private long getTotalDocCountAcrossBuckets(List<? extends Histogram.Bucket> buckets) {
+        long count = 0L;
         for (Histogram.Bucket bucket : buckets) {
             count += bucket.getDocCount();
         }
@@ -717,14 +714,12 @@ public class DerivativeAggregatorTests extends AggregatorTestCase {
                 setup.accept(indexWriter);
             }
 
-            try (IndexReader indexReader = DirectoryReader.open(directory)) {
-                IndexSearcher indexSearcher = newSearcher(indexReader, true, true);
-
+            try (DirectoryReader indexReader = DirectoryReader.open(directory)) {
                 DateFieldMapper.DateFieldType fieldType = new DateFieldMapper.DateFieldType(SINGLE_VALUED_FIELD_NAME);
                 MappedFieldType valueFieldType = new NumberFieldMapper.NumberFieldType("value_field", NumberFieldMapper.NumberType.LONG);
 
                 InternalAggregation histogram = searchAndReduce(
-                    indexSearcher,
+                    indexReader,
                     new AggTestConfig(aggBuilder, fieldType, valueFieldType).withQuery(query)
                 );
                 verify.accept(histogram);

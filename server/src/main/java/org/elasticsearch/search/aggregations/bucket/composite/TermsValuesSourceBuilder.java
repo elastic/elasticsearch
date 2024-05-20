@@ -15,6 +15,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.search.DocValueFormat;
+import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
@@ -29,6 +30,7 @@ import java.io.IOException;
 import java.util.List;
 import java.util.function.LongConsumer;
 import java.util.function.LongUnaryOperator;
+import java.util.function.ToLongFunction;
 
 /**
  * A {@link CompositeValuesSourceBuilder} that builds a {@link ValuesSource} from a {@link Script} or
@@ -214,5 +216,14 @@ public class TermsValuesSourceBuilder extends CompositeValuesSourceBuilder<Terms
     protected CompositeValuesSourceConfig innerBuild(ValuesSourceRegistry registry, ValuesSourceConfig config) throws IOException {
         return registry.getAggregator(REGISTRY_KEY, config)
             .apply(config, name, script() != null, format(), missingBucket(), missingOrder(), order());
+    }
+
+    @Override
+    public boolean supportsParallelCollection(ToLongFunction<String> fieldCardinalityResolver) {
+        if (script() == null) {
+            long cardinality = fieldCardinalityResolver.applyAsLong(field());
+            return cardinality != -1 && cardinality <= TermsAggregationBuilder.KEY_ORDER_CONCURRENCY_THRESHOLD;
+        }
+        return false;
     }
 }

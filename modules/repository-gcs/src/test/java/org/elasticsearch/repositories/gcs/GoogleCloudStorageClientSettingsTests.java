@@ -132,7 +132,7 @@ public class GoogleCloudStorageClientSettingsTests extends ESTestCase {
     public void testLoadsProxySettings() throws Exception {
         final String clientName = randomAlphaOfLength(5);
         final ServiceAccountCredentials credential = randomCredential(clientName).v1();
-        var proxy = new Proxy(Proxy.Type.HTTP, new InetSocketAddress(InetAddress.getLoopbackAddress(), randomIntBetween(1024, 65536)));
+        var proxy = new Proxy(Proxy.Type.HTTP, new InetSocketAddress(InetAddress.getLoopbackAddress(), randomIntBetween(49152, 65535)));
         final GoogleCloudStorageClientSettings googleCloudStorageClientSettings = new GoogleCloudStorageClientSettings(
             credential,
             ENDPOINT_SETTING.getDefault(Settings.EMPTY),
@@ -318,7 +318,7 @@ public class GoogleCloudStorageClientSettingsTests extends ESTestCase {
     }
 
     private static TimeValue randomTimeout() {
-        return randomFrom(TimeValue.MINUS_ONE, TimeValue.ZERO, TimeValue.parseTimeValue(randomPositiveTimeValue(), "test"));
+        return randomFrom(TimeValue.MINUS_ONE, TimeValue.ZERO, randomPositiveTimeValue());
     }
 
     private static void assertGoogleCredential(ServiceAccountCredentials expected, ServiceAccountCredentials actual) {

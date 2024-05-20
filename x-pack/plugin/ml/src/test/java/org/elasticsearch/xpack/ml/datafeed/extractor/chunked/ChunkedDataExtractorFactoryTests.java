@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.ml.datafeed.extractor.chunked;
 
-import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
@@ -18,7 +17,6 @@ import org.elasticsearch.xpack.core.ml.job.config.AnalysisConfig;
 import org.elasticsearch.xpack.core.ml.job.config.DataDescription;
 import org.elasticsearch.xpack.core.ml.job.config.Detector;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
-import org.elasticsearch.xpack.ml.datafeed.DatafeedTimingStatsReporter;
 import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractorFactory;
 import org.junit.Before;
 
@@ -31,9 +29,7 @@ import static org.mockito.Mockito.mock;
 
 public class ChunkedDataExtractorFactoryTests extends ESTestCase {
 
-    private Client client;
     private DataExtractorFactory dataExtractorFactory;
-    private DatafeedTimingStatsReporter timingStatsReporter;
 
     @Override
     protected NamedXContentRegistry xContentRegistry() {
@@ -43,9 +39,7 @@ public class ChunkedDataExtractorFactoryTests extends ESTestCase {
 
     @Before
     public void setUpMocks() {
-        client = mock(Client.class);
         dataExtractorFactory = mock(DataExtractorFactory.class);
-        timingStatsReporter = mock(DatafeedTimingStatsReporter.class);
     }
 
     public void testNewExtractor_GivenAlignedTimes() {
@@ -53,8 +47,8 @@ public class ChunkedDataExtractorFactoryTests extends ESTestCase {
 
         ChunkedDataExtractor dataExtractor = (ChunkedDataExtractor) factory.newExtractor(2000, 5000);
 
-        assertThat(dataExtractor.getContext().start, equalTo(2000L));
-        assertThat(dataExtractor.getContext().end, equalTo(5000L));
+        assertThat(dataExtractor.getContext().start(), equalTo(2000L));
+        assertThat(dataExtractor.getContext().end(), equalTo(5000L));
     }
 
     public void testNewExtractor_GivenNonAlignedTimes() {
@@ -62,8 +56,8 @@ public class ChunkedDataExtractorFactoryTests extends ESTestCase {
 
         ChunkedDataExtractor dataExtractor = (ChunkedDataExtractor) factory.newExtractor(3980, 9200);
 
-        assertThat(dataExtractor.getContext().start, equalTo(4000L));
-        assertThat(dataExtractor.getContext().end, equalTo(9000L));
+        assertThat(dataExtractor.getContext().start(), equalTo(4000L));
+        assertThat(dataExtractor.getContext().end(), equalTo(9000L));
     }
 
     public void testIntervalTimeAligner() {
@@ -111,12 +105,10 @@ public class ChunkedDataExtractorFactoryTests extends ESTestCase {
         datafeedConfigBuilder.setParsedAggregations(aggs);
         datafeedConfigBuilder.setIndices(Arrays.asList("my_index"));
         return new ChunkedDataExtractorFactory(
-            client,
             datafeedConfigBuilder.build(),
             jobBuilder.build(new Date()),
             xContentRegistry(),
-            dataExtractorFactory,
-            timingStatsReporter
+            dataExtractorFactory
         );
     }
 }

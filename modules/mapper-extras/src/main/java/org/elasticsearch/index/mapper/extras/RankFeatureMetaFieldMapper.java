@@ -8,6 +8,7 @@
 
 package org.elasticsearch.index.mapper.extras;
 
+import org.apache.lucene.index.FieldInfos;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MetadataFieldMapper;
@@ -35,7 +36,8 @@ public class RankFeatureMetaFieldMapper extends MetadataFieldMapper {
 
         public static final RankFeatureMetaFieldType INSTANCE = new RankFeatureMetaFieldType();
 
-        private RankFeatureMetaFieldType() {
+        // made visible for tests
+        RankFeatureMetaFieldType() {
             super(NAME, false, false, false, TextSearchInfo.NONE, Collections.emptyMap());
         }
 
@@ -52,6 +54,11 @@ public class RankFeatureMetaFieldMapper extends MetadataFieldMapper {
         @Override
         public Query existsQuery(SearchExecutionContext context) {
             throw new UnsupportedOperationException("Cannot run exists query on [_feature]");
+        }
+
+        @Override
+        public boolean fieldHasValue(FieldInfos fieldInfos) {
+            return fieldInfos.fieldInfo(NAME) != null;
         }
 
         @Override

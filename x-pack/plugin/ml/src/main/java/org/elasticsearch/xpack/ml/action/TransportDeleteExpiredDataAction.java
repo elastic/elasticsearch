@@ -50,6 +50,7 @@ import java.time.Instant;
 import java.util.Arrays;
 import java.util.Iterator;
 import java.util.List;
+import java.util.concurrent.Executor;
 import java.util.function.BooleanSupplier;
 import java.util.stream.Collectors;
 
@@ -60,7 +61,7 @@ public class TransportDeleteExpiredDataAction extends HandledTransportAction<
     private static final Logger logger = LogManager.getLogger(TransportDeleteExpiredDataAction.class);
 
     private final ThreadPool threadPool;
-    private final String executor;
+    private final Executor executor;
     private final OriginSettingClient client;
     private final ClusterService clusterService;
     private final Clock clock;
@@ -81,7 +82,7 @@ public class TransportDeleteExpiredDataAction extends HandledTransportAction<
     ) {
         this(
             threadPool,
-            MachineLearning.UTILITY_THREAD_POOL_NAME,
+            threadPool.executor(MachineLearning.UTILITY_THREAD_POOL_NAME),
             transportService,
             actionFilters,
             client,
@@ -95,7 +96,7 @@ public class TransportDeleteExpiredDataAction extends HandledTransportAction<
 
     TransportDeleteExpiredDataAction(
         ThreadPool threadPool,
-        String executor,
+        Executor executor,
         TransportService transportService,
         ActionFilters actionFilters,
         Client client,
@@ -145,16 +146,15 @@ public class TransportDeleteExpiredDataAction extends HandledTransportAction<
                 false,
                 true,
                 null,
-                ActionListener.wrap(
-                    jobBuilders -> threadPool.executor(MachineLearning.UTILITY_THREAD_POOL_NAME)
-                        .execute(ActionRunnable.wrap(listener, l -> {
+                listener.delegateFailureAndWrap(
+                    (delegate, jobBuilders) -> threadPool.executor(MachineLearning.UTILITY_THREAD_POOL_NAME)
+                        .execute(ActionRunnable.wrap(delegate, l -> {
                             List<Job> jobs = jobBuilders.stream().map(Job.Builder::build).collect(Collectors.toList());
                             String[] jobIds = jobs.stream().map(Job::getId).toArray(String[]::new);
                             request.setExpandedJobIds(jobIds);
                             List<MlDataRemover> dataRemovers = createDataRemovers(jobs, taskId, anomalyDetectionAuditor);
                             deleteExpiredData(request, dataRemovers, l, isTimedOutSupplier);
-                        })),
-                    listener::onFailure
+                        }))
                 )
             );
         }
@@ -191,27 +191,22 @@ public class TransportDeleteExpiredDataAction extends HandledTransportAction<
     ) {
         if (haveAllPreviousDeletionsCompleted && mlDataRemoversIterator.hasNext()) {
             MlDataRemover remover = mlDataRemoversIterator.next();
-            ActionListener<Boolean> nextListener = ActionListener.wrap(
-                booleanResponse -> deleteExpiredData(
+            ActionListener<Boolean> nextListener = listener.delegateFailureAndWrap(
+                (delegate, booleanResponse) -> deleteExpiredData(
                     request,
                     mlDataRemoversIterator,
                     requestsPerSecond,
-                    listener,
+                    delegate,
                     isTimedOutSupplier,
                     booleanResponse
-                ),
-                listener::onFailure
+                )
             );
             // Removing expired ML data and artifacts requires multiple operations.
             // These are queued up and executed sequentially in the action listener,
             // the chained calls must all run the ML utility thread pool NOT the thread
             // the previous action returned in which in the case of a transport_client_boss
             // thread is a disaster.
-            remover.remove(
-                requestsPerSecond,
-                new ThreadedActionListener<>(threadPool.executor(executor), nextListener),
-                isTimedOutSupplier
-            );
+            remover.remove(requestsPerSecond, new ThreadedActionListener<>(executor, nextListener), isTimedOutSupplier);
         } else {
             if (haveAllPreviousDeletionsCompleted) {
                 logger.info("Completed deletion of expired ML data");

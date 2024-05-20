@@ -81,11 +81,11 @@ public final class DateProcessor extends AbstractProcessor {
         for (String format : formats) {
             DateFormat dateFormat = DateFormat.fromString(format);
             dateParsers.add((params) -> {
-                var documentZoneId = newDateTimeZone(params);
-                var documentLocale = newLocale(params);
+                var documentTimezone = timezone == null ? null : timezone.newInstance(params).execute();
+                var documentLocale = locale == null ? null : locale.newInstance(params).execute();
                 return Cache.INSTANCE.getOrCompute(
-                    new Cache.Key(format, documentZoneId, documentLocale),
-                    () -> dateFormat.getFunction(format, documentZoneId, documentLocale)
+                    new Cache.Key(format, documentTimezone, documentLocale),
+                    () -> dateFormat.getFunction(format, newDateTimeZone(documentTimezone), newLocale(documentLocale))
                 );
             });
         }
@@ -93,12 +93,12 @@ public final class DateProcessor extends AbstractProcessor {
         formatter = DateFormatter.forPattern(this.outputFormat);
     }
 
-    private ZoneId newDateTimeZone(Map<String, Object> params) {
-        return timezone == null ? ZoneOffset.UTC : ZoneId.of(timezone.newInstance(params).execute());
+    private static ZoneId newDateTimeZone(String timezone) {
+        return timezone == null ? ZoneOffset.UTC : ZoneId.of(timezone);
     }
 
-    private Locale newLocale(Map<String, Object> params) {
-        return locale == null ? Locale.ROOT : LocaleUtils.parse(locale.newInstance(params).execute());
+    private static Locale newLocale(String locale) {
+        return locale == null ? Locale.ROOT : LocaleUtils.parse(locale);
     }
 
     @Override
@@ -255,6 +255,6 @@ public final class DateProcessor extends AbstractProcessor {
             return fn;
         }
 
-        record Key(String format, ZoneId zoneId, Locale locale) {}
+        record Key(String format, String zoneId, String locale) {}
     }
 }

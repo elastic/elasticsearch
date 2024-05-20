@@ -11,11 +11,16 @@ package org.elasticsearch.plugins;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.coordination.CoordinationState;
 import org.elasticsearch.cluster.coordination.ElectionStrategy;
+import org.elasticsearch.cluster.coordination.LeaderHeartbeatService;
+import org.elasticsearch.cluster.coordination.PreVoteCollector;
+import org.elasticsearch.cluster.coordination.Reconfigurator;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.version.CompatibilityVersions;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.gateway.PersistedClusterStateService;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 
@@ -24,7 +29,6 @@ import java.util.Collections;
 import java.util.Map;
 import java.util.Optional;
 import java.util.function.BiConsumer;
-import java.util.function.LongSupplier;
 
 public interface ClusterCoordinationPlugin {
 
@@ -52,6 +56,18 @@ public interface ClusterCoordinationPlugin {
         return Optional.empty();
     }
 
+    default Optional<ReconfiguratorFactory> getReconfiguratorFactory() {
+        return Optional.empty();
+    }
+
+    default Optional<PreVoteCollector.Factory> getPreVoteCollectorFactory() {
+        return Optional.empty();
+    }
+
+    default Optional<LeaderHeartbeatService> getLeaderHeartbeatService(Settings settings) {
+        return Optional.empty();
+    }
+
     interface PersistedStateFactory {
         CoordinationState.PersistedState createPersistedState(
             Settings settings,
@@ -65,7 +81,12 @@ public interface ClusterCoordinationPlugin {
             NodeEnvironment nodeEnvironment,
             NamedXContentRegistry xContentRegistry,
             ClusterSettings clusterSettings,
-            LongSupplier relativeTimeMillisSupplier
+            ThreadPool threadPool,
+            CompatibilityVersions compatibilityVersions
         );
+    }
+
+    interface ReconfiguratorFactory {
+        Reconfigurator newReconfigurator(Settings settings, ClusterSettings clusterSettings);
     }
 }

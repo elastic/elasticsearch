@@ -161,11 +161,6 @@ public final class RetentionLease implements ToXContentObject, Writeable {
         return builder;
     }
 
-    @Override
-    public boolean isFragment() {
-        return false;
-    }
-
     /**
      * Parses a retention lease from {@link org.elasticsearch.xcontent.XContent}. This method assumes that the retention lease was
      * converted to {@link org.elasticsearch.xcontent.XContent} via {@link #toXContent(XContentBuilder, Params)}.

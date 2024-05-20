@@ -8,7 +8,6 @@
 
 package org.elasticsearch.index.shard;
 
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.indices.IndicesService;
@@ -26,6 +25,7 @@ import java.util.concurrent.atomic.AtomicLong;
 
 import static org.elasticsearch.index.seqno.SequenceNumbers.NO_OPS_PERFORMED;
 import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
+import static org.elasticsearch.index.shard.IndexShardTestCase.closeShardNoCheck;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.instanceOf;
@@ -40,7 +40,7 @@ public class GlobalCheckpointListenersIT extends ESSingleNodeTestCase {
     }
 
     public void testGlobalCheckpointListeners() throws Exception {
-        createIndex("test", Settings.builder().put("index.number_of_shards", 1).put("index.number_of_replicas", 0).build());
+        createIndex("test", indexSettings(1, 0).build());
         ensureGreen();
         final IndicesService indicesService = getInstanceFromNode(IndicesService.class);
         final IndexService test = indicesService.indexService(resolveIndex("test"));
@@ -64,7 +64,7 @@ public class GlobalCheckpointListenersIT extends ESSingleNodeTestCase {
                 }
 
             }, null);
-            client().prepareIndex("test").setId(Integer.toString(i)).setSource("{}", XContentType.JSON).get();
+            prepareIndex("test").setId(Integer.toString(i)).setSource("{}", XContentType.JSON).get();
             assertBusy(() -> assertThat(globalCheckpoint.get(), equalTo((long) index)));
             // adding a listener expecting a lower global checkpoint should fire immediately
             final AtomicLong immediateGlobalCheckpint = new AtomicLong();
@@ -102,12 +102,12 @@ public class GlobalCheckpointListenersIT extends ESSingleNodeTestCase {
             }
 
         }, null);
-        shard.close("closed", randomBoolean());
+        closeShardNoCheck(shard, randomBoolean());
         assertBusy(() -> assertTrue(invoked.get()));
     }
 
     public void testGlobalCheckpointListenerTimeout() throws InterruptedException {
-        createIndex("test", Settings.builder().put("index.number_of_shards", 1).put("index.number_of_replicas", 0).build());
+        createIndex("test", indexSettings(1, 0).build());
         ensureGreen();
         final IndicesService indicesService = getInstanceFromNode(IndicesService.class);
         final IndexService test = indicesService.indexService(resolveIndex("test"));

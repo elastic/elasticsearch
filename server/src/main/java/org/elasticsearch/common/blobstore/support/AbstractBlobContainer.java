@@ -13,7 +13,7 @@ import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobPath;
 
 /**
- * A base abstract blob container that implements higher level container methods.
+ * A base abstract blob container that adds some methods implementations that are often identical across many subclasses.
  */
 public abstract class AbstractBlobContainer implements BlobContainer {
 
@@ -39,4 +39,8 @@ public abstract class AbstractBlobContainer implements BlobContainer {
         return this.path;
     }
 
+    @Override
+    public String toString() {
+        return getClass() + "{" + path + "}";
+    }
 }

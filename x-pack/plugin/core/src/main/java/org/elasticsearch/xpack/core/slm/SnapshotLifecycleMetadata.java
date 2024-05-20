@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.core.slm;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.DiffableUtils;
 import org.elasticsearch.cluster.NamedDiff;
@@ -93,7 +94,7 @@ public class SnapshotLifecycleMetadata implements Metadata.Custom {
     }
 
     public SnapshotLifecycleMetadata(StreamInput in) throws IOException {
-        this.snapshotConfigurations = in.readMap(StreamInput::readString, SnapshotLifecyclePolicyMetadata::new);
+        this.snapshotConfigurations = in.readMap(SnapshotLifecyclePolicyMetadata::new);
         this.operationMode = in.readEnum(OperationMode.class);
         this.slmStats = new SnapshotLifecycleStats(in);
     }
@@ -131,12 +132,12 @@ public class SnapshotLifecycleMetadata implements Metadata.Custom {
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersion.V_7_4_0;
+        return TransportVersions.V_7_4_0;
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeMap(this.snapshotConfigurations, StreamOutput::writeString, (out1, value) -> value.writeTo(out1));
+        out.writeMap(this.snapshotConfigurations, StreamOutput::writeWriteable);
         out.writeEnum(this.operationMode);
         this.slmStats.writeTo(out);
     }
@@ -230,7 +231,7 @@ public class SnapshotLifecycleMetadata implements Metadata.Custom {
 
         @Override
         public TransportVersion getMinimalSupportedVersion() {
-            return TransportVersion.V_7_4_0;
+            return TransportVersions.V_7_4_0;
         }
 
     }

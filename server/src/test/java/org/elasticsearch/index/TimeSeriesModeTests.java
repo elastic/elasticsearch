@@ -174,8 +174,9 @@ public class TimeSeriesModeTests extends MapperServiceTestCase {
         assertThat(
             e.getMessage(),
             equalTo(
-                "All fields that match routing_path must be keywords with [time_series_dimension: true] "
-                    + "and without the [script] parameter. [dim.o] was [object]."
+                "All fields that match routing_path must be configured with [time_series_dimension: true] "
+                    + "or flattened fields with a list of dimensions in [time_series_dimensions] and "
+                    + "without the [script] parameter. [dim.o] was [object]."
             )
         );
     }
@@ -191,27 +192,21 @@ public class TimeSeriesModeTests extends MapperServiceTestCase {
         assertThat(
             e.getMessage(),
             equalTo(
-                "All fields that match routing_path must be keywords with [time_series_dimension: true] "
-                    + "and without the [script] parameter. [dim.non_dim] was not [time_series_dimension: true]."
+                "All fields that match routing_path must be configured with [time_series_dimension: true] "
+                    + "or flattened fields with a list of dimensions in [time_series_dimensions] and "
+                    + "without the [script] parameter. [dim.non_dim] was not a dimension."
             )
         );
     }
 
-    public void testRoutingPathMatchesNonKeyword() {
+    public void testRoutingPathMatchesNonKeyword() throws IOException {
         Settings s = getSettings(randomBoolean() ? "dim.non_kwd" : "dim.*");
-        Exception e = expectThrows(IllegalArgumentException.class, () -> createMapperService(s, mapping(b -> {
+        createMapperService(s, mapping(b -> {
             b.startObject("dim").startObject("properties");
             b.startObject("non_kwd").field("type", "integer").field("time_series_dimension", true).endObject();
             b.startObject("dim").field("type", "keyword").field("time_series_dimension", true).endObject();
             b.endObject().endObject();
-        })));
-        assertThat(
-            e.getMessage(),
-            equalTo(
-                "All fields that match routing_path must be keywords with [time_series_dimension: true] "
-                    + "and without the [script] parameter. [dim.non_kwd] was [integer]."
-            )
-        );
+        }));
     }
 
     public void testRoutingPathMatchesScriptedKeyword() {
@@ -226,8 +221,9 @@ public class TimeSeriesModeTests extends MapperServiceTestCase {
         assertThat(
             e.getMessage(),
             equalTo(
-                "All fields that match routing_path must be keywords with [time_series_dimension: true] "
-                    + "and without the [script] parameter. [dim.kwd] has a [script] parameter."
+                "All fields that match routing_path must be configured with [time_series_dimension: true] "
+                    + "or flattened fields with a list of dimensions in [time_series_dimensions] and "
+                    + "without the [script] parameter. [dim.kwd] has a [script] parameter."
             )
         );
     }
@@ -241,8 +237,9 @@ public class TimeSeriesModeTests extends MapperServiceTestCase {
         assertThat(
             e.getMessage(),
             equalTo(
-                "All fields that match routing_path must be keywords with [time_series_dimension: true] "
-                    + "and without the [script] parameter. [dim.kwd] was a runtime [keyword]."
+                "All fields that match routing_path must be configured with [time_series_dimension: true] "
+                    + "or flattened fields with a list of dimensions in [time_series_dimensions] and "
+                    + "without the [script] parameter. [dim.kwd] was a runtime [keyword]."
             )
         );
     }

@@ -20,6 +20,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
@@ -37,7 +38,7 @@ public class CoordinationDiagnosticsAction extends ActionType<CoordinationDiagno
     public static final String NAME = "internal:cluster/coordination_diagnostics/info";
 
     private CoordinationDiagnosticsAction() {
-        super(NAME, CoordinationDiagnosticsAction.Response::new);
+        super(NAME);
     }
 
     public static class Request extends ActionRequest {
@@ -125,7 +126,13 @@ public class CoordinationDiagnosticsAction extends ActionType<CoordinationDiagno
             ActionFilters actionFilters,
             CoordinationDiagnosticsService coordinationDiagnosticsService
         ) {
-            super(CoordinationDiagnosticsAction.NAME, transportService, actionFilters, CoordinationDiagnosticsAction.Request::new);
+            super(
+                CoordinationDiagnosticsAction.NAME,
+                transportService,
+                actionFilters,
+                CoordinationDiagnosticsAction.Request::new,
+                transportService.getThreadPool().executor(ThreadPool.Names.CLUSTER_COORDINATION)
+            );
             this.coordinationDiagnosticsService = coordinationDiagnosticsService;
         }
 

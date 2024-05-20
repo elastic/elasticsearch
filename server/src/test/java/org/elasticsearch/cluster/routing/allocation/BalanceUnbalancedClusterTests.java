@@ -8,7 +8,6 @@
 package org.elasticsearch.cluster.routing.allocation;
 
 import org.apache.lucene.tests.util.TestUtil;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ESAllocationTestCase;
@@ -19,6 +18,7 @@ import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.IndexVersion;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -49,7 +49,7 @@ public class BalanceUnbalancedClusterTests extends CatAllocationTestCase {
         String index = "tweets-2014-12-29:00";
         AllocationService strategy = createAllocationService(Settings.builder().build());
         Metadata metadata = Metadata.builder(state.metadata())
-            .put(IndexMetadata.builder(index).settings(settings(Version.CURRENT)).numberOfShards(5).numberOfReplicas(1))
+            .put(IndexMetadata.builder(index).settings(settings(IndexVersion.current())).numberOfShards(5).numberOfReplicas(1))
             .build();
 
         RoutingTable initialRoutingTable = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY, state.routingTable())

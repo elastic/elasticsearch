@@ -24,6 +24,8 @@ import org.elasticsearch.xcontent.XContentType;
 import java.io.IOException;
 import java.util.Objects;
 
+import static org.elasticsearch.xpack.application.analytics.AnalyticsConstants.EVENT_DATA_STREAM_INDEX_PREFIX;
+
 /**
  * The {@link AnalyticsCollection} model.
  */
@@ -68,7 +70,7 @@ public class AnalyticsCollection implements Writeable, ToXContentObject {
      * @return Event data stream name/
      */
     public String getEventDataStream() {
-        return AnalyticsTemplateRegistry.EVENT_DATA_STREAM_INDEX_PREFIX + name;
+        return EVENT_DATA_STREAM_INDEX_PREFIX + name;
     }
 
     /**
@@ -114,13 +116,13 @@ public class AnalyticsCollection implements Writeable, ToXContentObject {
     }
 
     public static AnalyticsCollection fromDataStreamName(String dataStreamName) {
-        if (dataStreamName.startsWith(AnalyticsTemplateRegistry.EVENT_DATA_STREAM_INDEX_PREFIX) == false) {
+        if (dataStreamName.startsWith(EVENT_DATA_STREAM_INDEX_PREFIX) == false) {
             throw new IllegalArgumentException(
-                "Data stream name (" + dataStreamName + " must start with " + AnalyticsTemplateRegistry.EVENT_DATA_STREAM_INDEX_PREFIX
+                "Data stream name (" + dataStreamName + " must start with " + EVENT_DATA_STREAM_INDEX_PREFIX
             );
         }
 
-        return new AnalyticsCollection(dataStreamName.replaceFirst(AnalyticsTemplateRegistry.EVENT_DATA_STREAM_INDEX_PREFIX, ""));
+        return new AnalyticsCollection(dataStreamName.replaceFirst(EVENT_DATA_STREAM_INDEX_PREFIX, ""));
     }
 
     @Override

@@ -44,8 +44,10 @@ import org.junit.Before;
 import java.io.IOException;
 import java.util.Date;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Set;
 
+import static org.elasticsearch.cluster.routing.TestShardRouting.shardRoutingBuilder;
 import static org.elasticsearch.common.xcontent.XContentHelper.convertToJson;
 import static org.elasticsearch.common.xcontent.XContentHelper.stripWhitespace;
 import static org.elasticsearch.xpack.core.ilm.CheckShrinkReadyStepTests.randomUnassignedInfo;
@@ -380,7 +382,7 @@ public class IndexStatsMonitoringDocTests extends BaseFilteredMonitoringDocTestC
 
         final CommonStats commonStats = new CommonStats(CommonStatsFlags.ALL);
         commonStats.getDocs().add(new DocsStats(++iota, no, randomNonNegativeLong()));
-        commonStats.getFieldData().add(new FieldDataStats(++iota, ++iota, null));
+        commonStats.getFieldData().add(new FieldDataStats(++iota, ++iota, null, new FieldDataStats.GlobalOrdinalsStats(0L, Map.of())));
         commonStats.getMerge().add(no, no, no, ++iota, no, no, no, no, no, no);
         commonStats.getQueryCache().add(new QueryCacheStats(++iota, ++iota, ++iota, ++iota, no));
         commonStats.getRequestCache().add(new RequestCacheStats(++iota, ++iota, ++iota, ++iota));
@@ -463,7 +465,7 @@ public class IndexStatsMonitoringDocTests extends BaseFilteredMonitoringDocTestC
                     state = ShardRoutingState.UNASSIGNED;
                 }
 
-                shard.addShard(TestShardRouting.newShardRouting(shardId, nodeId, null, true, state, unassignedInfo));
+                shard.addShard(shardRoutingBuilder(shardId, nodeId, true, state).withUnassignedInfo(unassignedInfo).build());
 
                 // mark all as unassigned
                 for (int j = 0; j < replicas; ++j) {

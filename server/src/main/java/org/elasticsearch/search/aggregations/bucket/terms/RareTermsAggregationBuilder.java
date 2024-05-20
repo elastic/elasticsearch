@@ -8,6 +8,7 @@
 package org.elasticsearch.search.aggregations.bucket.terms;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
@@ -162,13 +163,6 @@ public class RareTermsAggregationBuilder extends ValuesSourceAggregationBuilder<
     }
 
     /**
-     * Get the current false positive rate for individual cuckoo filters.
-     */
-    public double getPrecision() {
-        return precision;
-    }
-
-    /**
      * Set's the false-positive rate for individual cuckoo filters.  Does not dictate the overall fpp rate
      * since we use a "scaling" cuckoo filter which adds more filters as required, and the overall
      * error rate grows differently than individual filters
@@ -244,12 +238,7 @@ public class RareTermsAggregationBuilder extends ValuesSourceAggregationBuilder<
     }
 
     @Override
-    protected ValuesSourceRegistry.RegistryKey<?> getRegistryKey() {
-        return REGISTRY_KEY;
-    }
-
-    @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersion.V_7_3_0;
+        return TransportVersions.V_7_3_0;
     }
 }

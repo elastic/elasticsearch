@@ -8,7 +8,7 @@
 
 package org.elasticsearch.action.admin.indices.flush;
 
-import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.ActionFilters;
@@ -35,7 +35,7 @@ import java.io.IOException;
 public class TransportShardFlushAction extends TransportReplicationAction<ShardFlushRequest, ShardFlushRequest, ReplicationResponse> {
 
     public static final String NAME = FlushAction.NAME + "[s]";
-    public static final ActionType<ReplicationResponse> TYPE = new ActionType<>(NAME, ReplicationResponse::new);
+    public static final ActionType<ReplicationResponse> TYPE = new ActionType<>(NAME);
 
     @Inject
     public TransportShardFlushAction(
@@ -58,11 +58,11 @@ public class TransportShardFlushAction extends TransportReplicationAction<ShardF
             actionFilters,
             ShardFlushRequest::new,
             ShardFlushRequest::new,
-            ThreadPool.Names.FLUSH
+            threadPool.executor(ThreadPool.Names.FLUSH)
         );
         transportService.registerRequestHandler(
             PRE_SYNCED_FLUSH_ACTION_NAME,
-            ThreadPool.Names.FLUSH,
+            threadPool.executor(ThreadPool.Names.FLUSH),
             PreShardSyncedFlushRequest::new,
             new PreSyncedFlushTransportHandler(indicesService)
         );
@@ -79,20 +79,18 @@ public class TransportShardFlushAction extends TransportReplicationAction<ShardF
         IndexShard primary,
         ActionListener<PrimaryResult<ShardFlushRequest, ReplicationResponse>> listener
     ) {
-        ActionListener.completeWith(listener, () -> {
-            primary.flush(shardRequest.getRequest());
+        primary.flush(shardRequest.getRequest(), listener.map(flushed -> {
             logger.trace("{} flush request executed on primary", primary.shardId());
             return new PrimaryResult<>(shardRequest, new ReplicationResponse());
-        });
+        }));
     }
 
     @Override
     protected void shardOperationOnReplica(ShardFlushRequest request, IndexShard replica, ActionListener<ReplicaResult> listener) {
-        ActionListener.completeWith(listener, () -> {
-            replica.flush(request.getRequest());
+        replica.flush(request.getRequest(), listener.map(flushed -> {
             logger.trace("{} flush request executed on replica", replica.shardId());
             return new ReplicaResult();
-        });
+        }));
     }
 
     // TODO: Remove this transition in 9.0
@@ -103,7 +101,7 @@ public class TransportShardFlushAction extends TransportReplicationAction<ShardF
 
         private PreShardSyncedFlushRequest(StreamInput in) throws IOException {
             super(in);
-            assert in.getTransportVersion().before(TransportVersion.V_8_0_0) : "received pre_sync request from a new node";
+            assert in.getTransportVersion().before(TransportVersions.V_8_0_0) : "received pre_sync request from a new node";
             this.shardId = new ShardId(in);
         }
 

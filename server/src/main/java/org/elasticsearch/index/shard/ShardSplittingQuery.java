@@ -30,10 +30,11 @@ import org.apache.lucene.util.BitSet;
 import org.apache.lucene.util.BitSetIterator;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.FixedBitSet;
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.IndexRouting;
 import org.elasticsearch.common.lucene.search.Queries;
+import org.elasticsearch.core.Predicates;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.RoutingFieldMapper;
@@ -140,7 +141,12 @@ final class ShardSplittingQuery extends Query {
                              * of the document that contains them.
                              */
                             FixedBitSet hasRoutingValue = new FixedBitSet(leafReader.maxDoc());
-                            findSplitDocs(RoutingFieldMapper.NAME, ref -> false, leafReader, maybeWrapConsumer.apply(hasRoutingValue::set));
+                            findSplitDocs(
+                                RoutingFieldMapper.NAME,
+                                Predicates.never(),
+                                leafReader,
+                                maybeWrapConsumer.apply(hasRoutingValue::set)
+                            );
                             IntConsumer bitSetConsumer = maybeWrapConsumer.apply(bitSet::set);
                             findSplitDocs(IdFieldMapper.NAME, includeInShard, leafReader, docId -> {
                                 if (hasRoutingValue.get(docId) == false) {
@@ -340,7 +346,7 @@ final class ShardSplittingQuery extends Query {
      * than once. There is no point in using BitsetFilterCache#BitSetProducerWarmer since we use this only as a delete by query which is
      * executed on a recovery-private index writer. There is no point in caching it and it won't have a cache hit either.
      */
-    private static BitSetProducer newParentDocBitSetProducer(Version indexCreationVersion) {
+    private static BitSetProducer newParentDocBitSetProducer(IndexVersion indexCreationVersion) {
         return context -> BitsetFilterCache.bitsetFromQuery(Queries.newNonNestedFilter(indexCreationVersion), context);
     }
 }

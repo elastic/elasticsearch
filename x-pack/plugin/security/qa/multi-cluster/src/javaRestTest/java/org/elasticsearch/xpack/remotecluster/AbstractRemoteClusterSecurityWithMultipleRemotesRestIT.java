@@ -16,6 +16,7 @@ import org.elasticsearch.client.RestClient;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.search.SearchResponseUtils;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.xcontent.ObjectPath;
 import org.junit.AfterClass;
@@ -56,7 +57,7 @@ public abstract class AbstractRemoteClusterSecurityWithMultipleRemotesRestIT ext
     }
 
     public void testCrossClusterSearch() throws Exception {
-        configureRemoteClusters();
+        configureRemoteCluster();
         configureRolesOnClusters();
 
         // Fulfilling cluster
@@ -67,7 +68,8 @@ public abstract class AbstractRemoteClusterSecurityWithMultipleRemotesRestIT ext
                 { "index": { "_index": "cluster1_index1" } }
                 { "name": "doc1" }
                 { "index": { "_index": "cluster1_index2" } }
-                { "name": "doc2" }\n"""));
+                { "name": "doc2" }
+                """));
             assertOK(performRequestAgainstFulfillingCluster(bulkRequest));
         }
 
@@ -79,7 +81,8 @@ public abstract class AbstractRemoteClusterSecurityWithMultipleRemotesRestIT ext
                 { "index": { "_index": "cluster2_index1" } }
                 { "name": "doc1" }
                 { "index": { "_index": "cluster2_index2" } }
-                { "name": "doc2" }\n"""));
+                { "name": "doc2" }
+                """));
             assertOK(performRequestAgainstOtherFulfillingCluster(bulkRequest));
         }
 
@@ -212,11 +215,18 @@ public abstract class AbstractRemoteClusterSecurityWithMultipleRemotesRestIT ext
     static void searchAndAssertIndicesFound(String searchPath, String... expectedIndices) throws IOException {
         final Response response = performRequestWithRemoteSearchUser(new Request("GET", searchPath));
         assertOK(response);
-        final SearchResponse searchResponse = SearchResponse.fromXContent(responseAsParser(response));
-        final List<String> actualIndices = Arrays.stream(searchResponse.getHits().getHits())
-            .map(SearchHit::getIndex)
-            .collect(Collectors.toList());
-        assertThat(actualIndices, containsInAnyOrder(expectedIndices));
+        final SearchResponse searchResponse;
+        try (var parser = responseAsParser(response)) {
+            searchResponse = SearchResponseUtils.parseSearchResponse(parser);
+        }
+        try {
+            final List<String> actualIndices = Arrays.stream(searchResponse.getHits().getHits())
+                .map(SearchHit::getIndex)
+                .collect(Collectors.toList());
+            assertThat(actualIndices, containsInAnyOrder(expectedIndices));
+        } finally {
+            searchResponse.decRef();
+        }
     }
 
     static Response performRequestWithRemoteSearchUser(final Request request) throws IOException {

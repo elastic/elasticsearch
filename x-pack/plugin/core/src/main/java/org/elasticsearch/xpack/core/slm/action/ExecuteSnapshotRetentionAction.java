@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.core.slm.action;
 
-import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
@@ -22,20 +21,17 @@ public class ExecuteSnapshotRetentionAction extends ActionType<AcknowledgedRespo
     public static final String NAME = "cluster:admin/slm/execute-retention";
 
     protected ExecuteSnapshotRetentionAction() {
-        super(NAME, AcknowledgedResponse::readFrom);
+        super(NAME);
     }
 
     public static class Request extends AcknowledgedRequest<ExecuteSnapshotRetentionAction.Request> implements ToXContentObject {
 
-        public Request() {}
+        public Request() {
+            super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT, DEFAULT_ACK_TIMEOUT);
+        }
 
         public Request(StreamInput in) throws IOException {
             super(in);
-        }
-
-        @Override
-        public ActionRequestValidationException validate() {
-            return null;
         }
 
         @Override

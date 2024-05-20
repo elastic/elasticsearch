@@ -57,7 +57,7 @@ public class MockTransformAuditor extends TransformAuditor {
     private final List<AuditExpectation> expectations;
 
     public MockTransformAuditor(ClusterService clusterService) {
-        super(mock(Client.class), MOCK_NODE_NAME, clusterService);
+        super(mock(Client.class), MOCK_NODE_NAME, clusterService, true);
         expectations = new CopyOnWriteArrayList<>();
     }
 

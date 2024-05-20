@@ -29,7 +29,7 @@ public final class ResumeFollowAction extends ActionType<AcknowledgedResponse> {
     public static final String NAME = "cluster:admin/xpack/ccr/resume_follow";
 
     private ResumeFollowAction() {
-        super(NAME, AcknowledgedResponse::readFrom);
+        super(NAME);
     }
 
     public static class Request extends MasterNodeRequest<Request> implements ToXContentObject {
@@ -54,7 +54,9 @@ public final class ResumeFollowAction extends ActionType<AcknowledgedResponse> {
         private String followerIndex;
         private FollowParameters parameters = new FollowParameters();
 
-        public Request() {}
+        public Request() {
+            super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT);
+        }
 
         public String getFollowerIndex() {
             return followerIndex;

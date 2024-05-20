@@ -8,8 +8,9 @@
 
 package org.elasticsearch.cluster.routing.allocation;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.ActionTestUtils;
+import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ESAllocationTestCase;
 import org.elasticsearch.cluster.TestShardRoutingRoleStrategies;
@@ -25,8 +26,8 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.command.AllocateEmptyPrimaryAllocationCommand;
 import org.elasticsearch.cluster.routing.allocation.command.AllocationCommands;
 import org.elasticsearch.cluster.service.ClusterStateTaskExecutorUtils;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.index.IndexVersion;
 import org.junit.Before;
 
 import java.util.ArrayList;
@@ -54,11 +55,11 @@ public class InSyncAllocationIdTests extends ESAllocationTestCase {
     public void testInSyncAllocationIdsUpdated() {
         logger.info("creating an index with 1 shard, 2 replicas");
         Metadata metadata = Metadata.builder()
-            .put(IndexMetadata.builder("test").settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(2))
+            .put(IndexMetadata.builder("test").settings(settings(IndexVersion.current())).numberOfShards(1).numberOfReplicas(2))
             // add index metadata where we have no routing nodes to check that allocation ids are not removed
             .put(
                 IndexMetadata.builder("test-old")
-                    .settings(settings(Version.CURRENT))
+                    .settings(settings(IndexVersion.current()))
                     .numberOfShards(1)
                     .numberOfReplicas(2)
                     .putInSyncAllocationIds(0, Set.of("x", "y"))
@@ -68,9 +69,7 @@ public class InSyncAllocationIdTests extends ESAllocationTestCase {
             .addAsNew(metadata.index("test"))
             .addAsRecovery(metadata.index("test-old"))
             .build();
-        ClusterState clusterState = ClusterState.builder(
-            org.elasticsearch.cluster.ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY)
-        ).metadata(metadata).routingTable(routingTable).build();
+        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).metadata(metadata).routingTable(routingTable).build();
 
         logger.info("adding three nodes and performing rerouting");
         clusterState = ClusterState.builder(clusterState)
@@ -389,14 +388,12 @@ public class InSyncAllocationIdTests extends ESAllocationTestCase {
     private ClusterState createOnePrimaryOneReplicaClusterState(AllocationService allocation) {
         logger.info("creating an index with 1 shard, 1 replica");
         Metadata metadata = Metadata.builder()
-            .put(IndexMetadata.builder("test").settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(1))
+            .put(IndexMetadata.builder("test").settings(settings(IndexVersion.current())).numberOfShards(1).numberOfReplicas(1))
             .build();
         RoutingTable routingTable = RoutingTable.builder(TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY)
             .addAsNew(metadata.index("test"))
             .build();
-        ClusterState clusterState = ClusterState.builder(
-            org.elasticsearch.cluster.ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY)
-        ).metadata(metadata).routingTable(routingTable).build();
+        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).metadata(metadata).routingTable(routingTable).build();
 
         logger.info("adding two nodes and performing rerouting");
         clusterState = ClusterState.builder(clusterState)
@@ -423,6 +420,6 @@ public class InSyncAllocationIdTests extends ESAllocationTestCase {
     }
 
     private static <T> ActionListener<T> createTestListener() {
-        return ActionListener.running(() -> { throw new AssertionError("task should not complete"); });
+        return ActionTestUtils.assertNoFailureListener(t -> {});
     }
 }

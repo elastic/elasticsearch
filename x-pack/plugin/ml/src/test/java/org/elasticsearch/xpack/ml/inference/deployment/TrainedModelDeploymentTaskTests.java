@@ -33,17 +33,24 @@ import static org.mockito.Mockito.verify;
 
 public class TrainedModelDeploymentTaskTests extends ESTestCase {
 
-    void assertTrackingComplete(Consumer<TrainedModelDeploymentTask> method, String modelId) {
+    void assertTrackingComplete(Consumer<TrainedModelDeploymentTask> method, String modelId, String deploymentId) {
         XPackLicenseState licenseState = mock(XPackLicenseState.class);
         LicensedFeature.Persistent feature = mock(LicensedFeature.Persistent.class);
         TrainedModelAssignmentNodeService nodeService = mock(TrainedModelAssignmentNodeService.class);
 
         ArgumentCaptor<TrainedModelDeploymentTask> taskCaptor = ArgumentCaptor.forClass(TrainedModelDeploymentTask.class);
-        ArgumentCaptor<String> reasonCaptur = ArgumentCaptor.forClass(String.class);
+        ArgumentCaptor<String> reasonCaptor = ArgumentCaptor.forClass(String.class);
         doAnswer(invocation -> {
-            taskCaptor.getValue().markAsStopped(reasonCaptur.getValue());
+            taskCaptor.getValue().markAsStopped(reasonCaptor.getValue());
             return null;
-        }).when(nodeService).stopDeploymentAndNotify(taskCaptor.capture(), reasonCaptur.capture(), any());
+        }).when(nodeService).stopDeploymentAndNotify(taskCaptor.capture(), reasonCaptor.capture(), any());
+
+        ArgumentCaptor<TrainedModelDeploymentTask> taskCaptorGraceful = ArgumentCaptor.forClass(TrainedModelDeploymentTask.class);
+        ArgumentCaptor<String> reasonCaptorGraceful = ArgumentCaptor.forClass(String.class);
+        doAnswer(invocation -> {
+            taskCaptorGraceful.getValue().markAsStopped(reasonCaptorGraceful.getValue());
+            return null;
+        }).when(nodeService).gracefullyStopDeploymentAndNotify(taskCaptorGraceful.capture(), reasonCaptorGraceful.capture(), any());
 
         TrainedModelDeploymentTask task = new TrainedModelDeploymentTask(
             0,
@@ -53,12 +60,15 @@ public class TrainedModelDeploymentTaskTests extends ESTestCase {
             Map.of(),
             new StartTrainedModelDeploymentAction.TaskParams(
                 modelId,
+                deploymentId,
                 randomLongBetween(1, Long.MAX_VALUE),
                 randomInt(5),
                 randomInt(5),
                 randomInt(5),
                 randomBoolean() ? null : ByteSizeValue.ofBytes(randomLongBetween(1, Long.MAX_VALUE)),
-                Priority.NORMAL
+                Priority.NORMAL,
+                randomNonNegativeLong(),
+                randomNonNegativeLong()
             ),
             nodeService,
             licenseState,
@@ -72,26 +82,33 @@ public class TrainedModelDeploymentTaskTests extends ESTestCase {
     }
 
     public void testMarkAsStopped() {
-        assertTrackingComplete(t -> t.markAsStopped("foo"), randomAlphaOfLength(10));
+        assertTrackingComplete(t -> t.markAsStopped("foo"), randomAlphaOfLength(10), randomAlphaOfLength(10));
     }
 
     public void testOnStop() {
-        assertTrackingComplete(t -> t.stop("foo", ActionListener.noop()), randomAlphaOfLength(10));
+        assertTrackingComplete(t -> t.stop("foo", false, ActionListener.noop()), randomAlphaOfLength(10), randomAlphaOfLength(10));
+    }
+
+    public void testOnStopGracefully() {
+        assertTrackingComplete(t -> t.stop("foo", true, ActionListener.noop()), randomAlphaOfLength(10), randomAlphaOfLength(10));
     }
 
     public void testCancelled() {
-        assertTrackingComplete(TrainedModelDeploymentTask::onCancelled, randomAlphaOfLength(10));
+        assertTrackingComplete(TrainedModelDeploymentTask::onCancelled, randomAlphaOfLength(10), randomAlphaOfLength(10));
     }
 
     public void testUpdateNumberOfAllocations() {
         StartTrainedModelDeploymentAction.TaskParams initialParams = new StartTrainedModelDeploymentAction.TaskParams(
             "test-model",
+            "test-deployment",
             randomLongBetween(1, Long.MAX_VALUE),
             randomIntBetween(1, 32),
             randomIntBetween(1, 32),
             randomInt(5),
             randomBoolean() ? null : ByteSizeValue.ofBytes(randomLongBetween(1, Long.MAX_VALUE)),
-            randomFrom(Priority.values())
+            randomFrom(Priority.values()),
+            randomNonNegativeLong(),
+            randomNonNegativeLong()
         );
 
         TrainedModelDeploymentTask task = new TrainedModelDeploymentTask(
@@ -112,6 +129,7 @@ public class TrainedModelDeploymentTaskTests extends ESTestCase {
 
         StartTrainedModelDeploymentAction.TaskParams updatedParams = task.getParams();
         assertThat(updatedParams.getModelId(), equalTo(initialParams.getModelId()));
+        assertThat(updatedParams.getDeploymentId(), equalTo(initialParams.getDeploymentId()));
         assertThat(updatedParams.getModelBytes(), equalTo(initialParams.getModelBytes()));
         assertThat(updatedParams.getNumberOfAllocations(), equalTo(newNumberOfAllocations));
         assertThat(updatedParams.getThreadsPerAllocation(), equalTo(initialParams.getThreadsPerAllocation()));

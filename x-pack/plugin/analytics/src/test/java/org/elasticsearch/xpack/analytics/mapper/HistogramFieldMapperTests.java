@@ -38,6 +38,11 @@ public class HistogramFieldMapperTests extends MapperTestCase {
     }
 
     @Override
+    protected Object getSampleObjectForDocument() {
+        return getSampleValueForDocument();
+    }
+
+    @Override
     protected Collection<? extends Plugin> getPlugins() {
         return List.of(new AnalyticsPlugin());
     }
@@ -276,8 +281,8 @@ public class HistogramFieldMapperTests extends MapperTestCase {
                 .field("values", new double[] { 2, 2, 3 })
                 .endObject()
         );
-        Exception e = expectThrows(DocumentParsingException.class, () -> mapper.parse(source));
-        assertThat(e.getCause().getMessage(), containsString(" out of range of int"));
+        ParsedDocument doc = mapper.parse(source);
+        assertThat(doc.rootDoc().getField("field"), notNullValue());
     }
 
     public void testValuesNotInOrder() throws Exception {

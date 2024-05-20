@@ -13,8 +13,6 @@ import io.netty.handler.ssl.SslHandler;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.http.HttpChannel;
-import org.elasticsearch.http.netty4.Netty4HttpChannel;
 import org.elasticsearch.transport.TcpChannel;
 import org.elasticsearch.transport.netty4.Netty4TcpChannel;
 import org.elasticsearch.xpack.security.authc.pki.PkiRealm;
@@ -29,9 +27,9 @@ public class SSLEngineUtils {
 
     private SSLEngineUtils() {}
 
-    public static void extractClientCertificates(Logger logger, ThreadContext threadContext, HttpChannel httpChannel) {
-        SSLEngine sslEngine = getSSLEngine(httpChannel);
-        extract(logger, threadContext, sslEngine, httpChannel);
+    public static void extractClientCertificates(Logger logger, ThreadContext threadContext, Channel channel) {
+        SSLEngine sslEngine = getSSLEngine(channel);
+        extract(logger, threadContext, sslEngine, channel);
     }
 
     public static void extractClientCertificates(Logger logger, ThreadContext threadContext, TcpChannel tcpChannel) {
@@ -39,15 +37,10 @@ public class SSLEngineUtils {
         extract(logger, threadContext, sslEngine, tcpChannel);
     }
 
-    public static SSLEngine getSSLEngine(HttpChannel httpChannel) {
-        if (httpChannel instanceof Netty4HttpChannel) {
-            Channel nettyChannel = ((Netty4HttpChannel) httpChannel).getNettyChannel();
-            SslHandler handler = nettyChannel.pipeline().get(SslHandler.class);
-            assert handler != null : "Must have SslHandler";
-            return handler.engine();
-        } else {
-            throw new AssertionError("Unknown channel class type: " + httpChannel.getClass());
-        }
+    public static SSLEngine getSSLEngine(Channel channel) {
+        SslHandler handler = channel.pipeline().get(SslHandler.class);
+        assert handler != null : "Must have SslHandler";
+        return handler.engine();
     }
 
     public static SSLEngine getSSLEngine(TcpChannel tcpChannel) {

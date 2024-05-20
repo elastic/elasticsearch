@@ -14,11 +14,13 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.action.shard.ShardStateAction;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.shard.ShardId;
@@ -33,9 +35,9 @@ import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.BeforeClass;
+import org.mockito.Mockito;
 
 import java.io.IOException;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -46,12 +48,18 @@ import java.util.stream.Stream;
 
 import static org.elasticsearch.action.support.replication.ClusterStateCreationUtils.state;
 import static org.elasticsearch.action.support.replication.ClusterStateCreationUtils.stateWithAssignedPrimariesAndReplicas;
-import static org.elasticsearch.cluster.routing.TestShardRouting.newShardRouting;
+import static org.elasticsearch.cluster.routing.TestShardRouting.shardRoutingBuilder;
 import static org.elasticsearch.test.ClusterServiceUtils.createClusterService;
 import static org.elasticsearch.test.ClusterServiceUtils.setState;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyBoolean;
+import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.mock;
 
 public class TransportBroadcastUnpromotableActionTests extends ESTestCase {
 
@@ -60,6 +68,7 @@ public class TransportBroadcastUnpromotableActionTests extends ESTestCase {
     private TransportService transportService;
     private CapturingTransport transport;
     private TestTransportBroadcastUnpromotableAction broadcastUnpromotableAction;
+    private ShardStateAction shardStateAction;
 
     @BeforeClass
     public static void beforeClass() {
@@ -82,7 +91,16 @@ public class TransportBroadcastUnpromotableActionTests extends ESTestCase {
         );
         transportService.start();
         transportService.acceptIncomingRequests();
-        broadcastUnpromotableAction = new TestTransportBroadcastUnpromotableAction();
+
+        shardStateAction = mock(ShardStateAction.class);
+        Mockito.doAnswer(invocation -> {
+            ActionListener<Void> argument = invocation.getArgument(6);
+            argument.onResponse(null);
+            return null;
+        })
+            .when(shardStateAction)
+            .remoteShardFailed(any(ShardId.class), anyString(), anyLong(), anyBoolean(), anyString(), any(Exception.class), any());
+        broadcastUnpromotableAction = new TestTransportBroadcastUnpromotableAction(shardStateAction);
     }
 
     @Override
@@ -98,16 +116,19 @@ public class TransportBroadcastUnpromotableActionTests extends ESTestCase {
         THREAD_POOL = null;
     }
 
-    private class TestTransportBroadcastUnpromotableAction extends TransportBroadcastUnpromotableAction<TestBroadcastUnpromotableRequest> {
+    private class TestTransportBroadcastUnpromotableAction extends TransportBroadcastUnpromotableAction<
+        TestBroadcastUnpromotableRequest,
+        ActionResponse.Empty> {
 
-        TestTransportBroadcastUnpromotableAction() {
+        TestTransportBroadcastUnpromotableAction(ShardStateAction shardStateAction) {
             super(
                 "indices:admin/test",
                 TransportBroadcastUnpromotableActionTests.this.clusterService,
                 TransportBroadcastUnpromotableActionTests.this.transportService,
+                shardStateAction,
                 new ActionFilters(Set.of()),
                 TestBroadcastUnpromotableRequest::new,
-                ThreadPool.Names.SAME
+                EsExecutors.DIRECT_EXECUTOR_SERVICE
             );
         }
 
@@ -120,6 +141,20 @@ public class TransportBroadcastUnpromotableActionTests extends ESTestCase {
             assert false : "not reachable in these tests";
         }
 
+        @Override
+        protected ActionResponse.Empty combineUnpromotableShardResponses(List<ActionResponse.Empty> empties) {
+            return ActionResponse.Empty.INSTANCE;
+        }
+
+        @Override
+        protected ActionResponse.Empty readResponse(StreamInput in) {
+            return ActionResponse.Empty.INSTANCE;
+        }
+
+        @Override
+        protected ActionResponse.Empty emptyResponse() {
+            return ActionResponse.Empty.INSTANCE;
+        }
     }
 
     private static class TestBroadcastUnpromotableRequest extends BroadcastUnpromotableRequest {
@@ -132,6 +167,9 @@ public class TransportBroadcastUnpromotableActionTests extends ESTestCase {
             super(indexShardRoutingTable);
         }
 
+        TestBroadcastUnpromotableRequest(IndexShardRoutingTable indexShardRoutingTable, boolean failShardOnError) {
+            super(indexShardRoutingTable, failShardOnError);
+        }
     }
 
     private static List<ShardRouting.Role> getReplicaRoles(int numPromotableReplicas, int numSearchReplicas) {
@@ -146,10 +184,10 @@ public class TransportBroadcastUnpromotableActionTests extends ESTestCase {
     private static List<Tuple<ShardRoutingState, ShardRouting.Role>> getReplicaRolesWithRandomStates(
         int numPromotableReplicas,
         int numSearchReplicas,
-        List<ShardRoutingState> possibleStates
+        ShardRoutingState... possibleStates
     ) {
         return getReplicaRoles(numPromotableReplicas, numSearchReplicas).stream()
-            .map(role -> new Tuple<>(randomFrom(possibleStates), role))
+            .map(role -> new Tuple<>(getValidStateForRole(role, possibleStates), role))
             .collect(Collectors.toList());
     }
 
@@ -157,11 +195,16 @@ public class TransportBroadcastUnpromotableActionTests extends ESTestCase {
         int numPromotableReplicas,
         int numSearchReplicas
     ) {
-        return getReplicaRolesWithRandomStates(
-            numPromotableReplicas,
-            numSearchReplicas,
-            Arrays.stream(ShardRoutingState.values()).toList()
-        );
+        return getReplicaRolesWithRandomStates(numPromotableReplicas, numSearchReplicas, ShardRoutingState.values());
+    }
+
+    private static ShardRoutingState getValidStateForRole(ShardRouting.Role role, ShardRoutingState... possibleStates) {
+        ShardRoutingState state;
+        do {
+            state = randomFrom(possibleStates);
+            // relocation is not possible for unserchable shards until ES-4677 is implemented
+        } while (role.isSearchable() == false && state == ShardRoutingState.RELOCATING);
+        return state;
     }
 
     private static List<Tuple<ShardRoutingState, ShardRouting.Role>> getReplicaRolesWithState(
@@ -169,11 +212,11 @@ public class TransportBroadcastUnpromotableActionTests extends ESTestCase {
         int numSearchReplicas,
         ShardRoutingState state
     ) {
-        return getReplicaRolesWithRandomStates(numPromotableReplicas, numSearchReplicas, List.of(state));
+        return getReplicaRolesWithRandomStates(numPromotableReplicas, numSearchReplicas, state);
     }
 
     private int countRequestsForIndex(ClusterState state, String index) {
-        PlainActionFuture<ActionResponse.Empty> response = PlainActionFuture.newFuture();
+        PlainActionFuture<ActionResponse.Empty> response = new PlainActionFuture<>();
         state.routingTable().activePrimaryShardsGrouped(new String[] { index }, true).iterator().forEachRemaining(shardId -> {
             logger.debug("--> executing for primary shard id: {}", shardId.shardId());
             ActionTestUtils.execute(
@@ -193,7 +236,7 @@ public class TransportBroadcastUnpromotableActionTests extends ESTestCase {
         return totalRequests;
     }
 
-    public void testNotStartedPrimary() throws Exception {
+    public void testNotStartedPrimary() {
         final String index = "test";
         final int numPromotableReplicas = randomInt(2);
         final int numSearchReplicas = randomInt(2);
@@ -208,7 +251,7 @@ public class TransportBroadcastUnpromotableActionTests extends ESTestCase {
         assertThat(countRequestsForIndex(state, index), is(equalTo(0)));
     }
 
-    public void testMixOfStartedPromotableAndSearchReplicas() throws Exception {
+    public void testMixOfStartedPromotableAndSearchReplicas() {
         final String index = "test";
         final int numShards = 1 + randomInt(3);
         final int numPromotableReplicas = randomInt(2);
@@ -224,7 +267,7 @@ public class TransportBroadcastUnpromotableActionTests extends ESTestCase {
         assertThat(countRequestsForIndex(state, index), is(equalTo(numShards * numSearchReplicas)));
     }
 
-    public void testSearchReplicasWithRandomStates() throws Exception {
+    public void testSearchReplicasWithRandomStates() {
         final String index = "test";
         final int numPromotableReplicas = randomInt(2);
         final int numSearchReplicas = randomInt(6);
@@ -265,43 +308,75 @@ public class TransportBroadcastUnpromotableActionTests extends ESTestCase {
         IndexShardRoutingTable.Builder wrongRoutingTableBuilder = new IndexShardRoutingTable.Builder(shardId);
         for (int i = 0; i < routingTable.size(); i++) {
             ShardRouting shardRouting = routingTable.shard(i);
-            ShardRouting wrongShardRouting = newShardRouting(
-                shardId,
-                shardRouting.currentNodeId() + randomIntBetween(10, 100),
-                shardRouting.relocatingNodeId(),
-                shardRouting.primary(),
-                shardRouting.state(),
-                shardRouting.unassignedInfo(),
-                shardRouting.role()
-            );
+            String currentNodeId = shardRouting.currentNodeId() + randomIntBetween(10, 100);
+            ShardRouting wrongShardRouting = shardRoutingBuilder(shardId, currentNodeId, shardRouting.primary(), shardRouting.state())
+                .withRelocatingNodeId(shardRouting.relocatingNodeId())
+                .withUnassignedInfo(shardRouting.unassignedInfo())
+                .withRole(shardRouting.role())
+                .build();
             wrongRoutingTableBuilder.addShard(wrongShardRouting);
         }
         IndexShardRoutingTable wrongRoutingTable = wrongRoutingTableBuilder.build();
 
-        PlainActionFuture<ActionResponse.Empty> response = PlainActionFuture.newFuture();
+        PlainActionFuture<ActionResponse.Empty> response = new PlainActionFuture<>();
         logger.debug("--> executing for wrong shard routing table: {}", wrongRoutingTable);
+
+        // The request fails if we don't mark shards as stale
         assertThat(
-            expectThrows(
-                NodeNotConnectedException.class,
-                () -> PlainActionFuture.<ActionResponse.Empty, Exception>get(
-                    f -> ActionTestUtils.execute(
-                        broadcastUnpromotableAction,
-                        null,
-                        new TestBroadcastUnpromotableRequest(wrongRoutingTable),
-                        f
-                    ),
-                    10,
-                    TimeUnit.SECONDS
-                )
-            ).toString(),
+            expectThrows(NodeNotConnectedException.class, () -> brodcastUnpromotableRequest(wrongRoutingTable, false)).toString(),
+            containsString("discovery node must not be null")
+        );
+        Mockito.verifyNoInteractions(shardStateAction);
+
+        // We were able to mark shards as stale, so the request finishes successfully
+        assertThat(brodcastUnpromotableRequest(wrongRoutingTable, true), equalTo(ActionResponse.Empty.INSTANCE));
+        for (var shardRouting : wrongRoutingTable.unpromotableShards()) {
+            Mockito.verify(shardStateAction)
+                .remoteShardFailed(
+                    eq(shardRouting.shardId()),
+                    eq(shardRouting.allocationId().getId()),
+                    eq(state.metadata().index(index).primaryTerm(shardRouting.shardId().getId())),
+                    eq(true),
+                    eq("mark unpromotable copy as stale after refresh failure"),
+                    any(Exception.class),
+                    any()
+                );
+        }
+
+        Mockito.reset(shardStateAction);
+        // If we are unable to mark a shard as stale, then the request fails
+        Mockito.doAnswer(invocation -> {
+            Exception exception = invocation.getArgument(5);
+            ActionListener<Void> argument = invocation.getArgument(6);
+            argument.onFailure(exception);
+            return null;
+        })
+            .when(shardStateAction)
+            .remoteShardFailed(any(ShardId.class), anyString(), anyLong(), anyBoolean(), anyString(), any(Exception.class), any());
+        assertThat(
+            expectThrows(NodeNotConnectedException.class, () -> brodcastUnpromotableRequest(wrongRoutingTable, true)).toString(),
             containsString("discovery node must not be null")
         );
     }
 
-    public void testNullIndexShardRoutingTable() throws Exception {
-        PlainActionFuture<ActionResponse.Empty> response = PlainActionFuture.newFuture();
+    private ActionResponse brodcastUnpromotableRequest(IndexShardRoutingTable wrongRoutingTable, boolean failShardOnError)
+        throws Exception {
+        return PlainActionFuture.<ActionResponse.Empty, Exception>get(
+            f -> ActionTestUtils.execute(
+                broadcastUnpromotableAction,
+                null,
+                new TestBroadcastUnpromotableRequest(wrongRoutingTable, failShardOnError),
+                f
+            ),
+            10,
+            TimeUnit.SECONDS
+        );
+    }
+
+    public void testNullIndexShardRoutingTable() {
         IndexShardRoutingTable shardRoutingTable = null;
         assertThat(
+
             expectThrows(
                 NullPointerException.class,
                 () -> PlainActionFuture.<ActionResponse.Empty, Exception>get(

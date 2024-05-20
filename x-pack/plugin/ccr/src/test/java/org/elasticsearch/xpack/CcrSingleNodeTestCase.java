@@ -7,8 +7,8 @@
 
 package org.elasticsearch.xpack;
 
-import org.elasticsearch.action.admin.cluster.remote.RemoteInfoAction;
 import org.elasticsearch.action.admin.cluster.remote.RemoteInfoRequest;
+import org.elasticsearch.action.admin.cluster.remote.TransportRemoteInfoAction;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -66,7 +66,7 @@ public abstract class CcrSingleNodeTestCase extends ESSingleNodeTestCase {
         updateSettingsRequest.transientSettings(Settings.builder().put("cluster.remote.local.seeds", address));
         assertAcked(client().admin().cluster().updateSettings(updateSettingsRequest).actionGet());
 
-        List<RemoteConnectionInfo> infos = client().execute(RemoteInfoAction.INSTANCE, new RemoteInfoRequest()).get().getInfos();
+        List<RemoteConnectionInfo> infos = client().execute(TransportRemoteInfoAction.TYPE, new RemoteInfoRequest()).get().getInfos();
         assertThat(infos.size(), equalTo(1));
         assertTrue(infos.get(0).isConnected());
     }
@@ -89,7 +89,7 @@ public abstract class CcrSingleNodeTestCase extends ESSingleNodeTestCase {
         assertAcked(client().admin().cluster().updateSettings(updateSettingsRequest).actionGet());
 
         assertBusy(() -> {
-            List<RemoteConnectionInfo> infos = client().execute(RemoteInfoAction.INSTANCE, new RemoteInfoRequest()).get().getInfos();
+            List<RemoteConnectionInfo> infos = client().execute(TransportRemoteInfoAction.TYPE, new RemoteInfoRequest()).get().getInfos();
             assertThat(infos.size(), equalTo(0));
         });
     }
@@ -103,6 +103,9 @@ public abstract class CcrSingleNodeTestCase extends ESSingleNodeTestCase {
         request.setFollowerIndex(followerIndex);
         request.getParameters().setMaxRetryDelay(TimeValue.timeValueMillis(1));
         request.getParameters().setReadPollTimeout(TimeValue.timeValueMillis(1));
+        if (randomBoolean()) {
+            request.masterNodeTimeout(TimeValue.timeValueSeconds(randomFrom(10, 20, 30)));
+        }
         return request;
     }
 
@@ -114,6 +117,9 @@ public abstract class CcrSingleNodeTestCase extends ESSingleNodeTestCase {
         request.getParameters().setMaxRetryDelay(TimeValue.timeValueMillis(1));
         request.getParameters().setReadPollTimeout(TimeValue.timeValueMillis(1));
         request.waitForActiveShards(ActiveShardCount.ONE);
+        if (randomBoolean()) {
+            request.masterNodeTimeout(TimeValue.timeValueSeconds(randomFrom(10, 20, 30)));
+        }
         return request;
     }
 

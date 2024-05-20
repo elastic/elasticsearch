@@ -17,8 +17,6 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.rest.Scope;
-import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestToXContentListener;
 
 import java.io.IOException;
@@ -28,8 +26,8 @@ import java.util.Map;
 import static java.util.Arrays.asList;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 import static org.elasticsearch.rest.RestRequest.Method.PUT;
+import static org.elasticsearch.rest.RestUtils.getMasterNodeTimeout;
 
-@ServerlessScope(Scope.PUBLIC)
 public class RestPutIndexTemplateAction extends BaseRestHandler {
 
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(RestPutIndexTemplateAction.class);
@@ -65,7 +63,7 @@ public class RestPutIndexTemplateAction extends BaseRestHandler {
             putRequest.patterns(asList(request.paramAsStringArray("index_patterns", Strings.EMPTY_ARRAY)));
         }
         putRequest.order(request.paramAsInt("order", putRequest.order()));
-        putRequest.masterNodeTimeout(request.paramAsTime("master_timeout", putRequest.masterNodeTimeout()));
+        putRequest.masterNodeTimeout(getMasterNodeTimeout(request));
         putRequest.create(request.paramAsBoolean("create", false));
         putRequest.cause(request.param("cause", ""));
 

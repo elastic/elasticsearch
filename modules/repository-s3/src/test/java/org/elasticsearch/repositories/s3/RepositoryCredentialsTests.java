@@ -15,15 +15,11 @@ import com.amazonaws.services.s3.AmazonS3;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.client.internal.node.NodeClient;
-import org.elasticsearch.cluster.metadata.RepositoryMetadata;
-import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
-import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.env.Environment;
-import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.repositories.RepositoriesService;
@@ -33,7 +29,7 @@ import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.action.admin.cluster.RestGetRepositoriesAction;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.test.rest.FakeRestRequest;
-import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.watcher.ResourceWatcherService;
 
 import java.security.AccessController;
 import java.security.PrivilegedAction;
@@ -86,6 +82,7 @@ public class RepositoryCredentialsTests extends ESSingleNodeTestCase {
     public void testRepositoryCredentialsOverrideSecureCredentials() {
         final String repositoryName = "repo-creds-override";
         final Settings.Builder repositorySettings = Settings.builder()
+            .put(S3Repository.BUCKET_SETTING.getKey(), "bucket")
             // repository settings for credentials override node secure settings
             .put(S3Repository.ACCESS_KEY_SETTING.getKey(), "insecure_aws_key")
             .put(S3Repository.SECRET_KEY_SETTING.getKey(), "insecure_aws_secret");
@@ -119,7 +116,7 @@ public class RepositoryCredentialsTests extends ESSingleNodeTestCase {
     public void testReinitSecureCredentials() {
         final String clientName = randomFrom("default", "other");
 
-        final Settings.Builder repositorySettings = Settings.builder();
+        final Settings.Builder repositorySettings = Settings.builder().put(S3Repository.BUCKET_SETTING.getKey(), "bucket");
         final boolean hasInsecureSettings = randomBoolean();
         if (hasInsecureSettings) {
             // repository settings for credentials override node secure settings
@@ -157,10 +154,13 @@ public class RepositoryCredentialsTests extends ESSingleNodeTestCase {
             final MockSecureSettings newSecureSettings = new MockSecureSettings();
             newSecureSettings.setString("s3.client." + clientName + ".access_key", "new_secret_aws_key");
             newSecureSettings.setString("s3.client." + clientName + ".secret_key", "new_secret_aws_secret");
-            final Settings newSettings = Settings.builder().setSecureSettings(newSecureSettings).build();
+            final Settings newSettings = Settings.builder()
+                .put(S3Repository.BUCKET_SETTING.getKey(), "bucket")
+                .setSecureSettings(newSecureSettings)
+                .build();
             // reload S3 plugin settings
             final PluginsService plugins = getInstanceFromNode(PluginsService.class);
-            final ProxyS3RepositoryPlugin plugin = plugins.filterPlugins(ProxyS3RepositoryPlugin.class).get(0);
+            final ProxyS3RepositoryPlugin plugin = plugins.filterPlugins(ProxyS3RepositoryPlugin.class).findFirst().get();
             plugin.reload(newSettings);
 
             // check the not-yet-closed client reference still has the same credentials
@@ -206,6 +206,7 @@ public class RepositoryCredentialsTests extends ESSingleNodeTestCase {
         createRepository(
             repositoryName,
             Settings.builder()
+                .put(S3Repository.BUCKET_SETTING.getKey(), "bucket")
                 .put(S3Repository.ACCESS_KEY_SETTING.getKey(), "insecure_aws_key")
                 .put(S3Repository.SECRET_KEY_SETTING.getKey(), "insecure_aws_secret")
                 .build()
@@ -243,14 +244,7 @@ public class RepositoryCredentialsTests extends ESSingleNodeTestCase {
     }
 
     private void createRepository(final String name, final Settings repositorySettings) {
-        assertAcked(
-            client().admin()
-                .cluster()
-                .preparePutRepository(name)
-                .setType(S3Repository.TYPE)
-                .setVerify(false)
-                .setSettings(repositorySettings)
-        );
+        assertAcked(clusterAdmin().preparePutRepository(name).setType(S3Repository.TYPE).setVerify(false).setSettings(repositorySettings));
     }
 
     /**
@@ -263,24 +257,8 @@ public class RepositoryCredentialsTests extends ESSingleNodeTestCase {
         }
 
         @Override
-        protected S3Repository createRepository(
-            RepositoryMetadata metadata,
-            NamedXContentRegistry registry,
-            ClusterService clusterService,
-            BigArrays bigArrays,
-            RecoverySettings recoverySettings
-        ) {
-            return new S3Repository(metadata, registry, getService(), clusterService, bigArrays, recoverySettings) {
-                @Override
-                protected void assertSnapshotOrGenericThread() {
-                    // eliminate thread name check as we create repo manually on test/main threads
-                }
-            };
-        }
-
-        @Override
-        S3Service s3Service(Environment environment) {
-            return new ProxyS3Service(environment);
+        S3Service s3Service(Environment environment, Settings nodeSettings, ResourceWatcherService resourceWatcherService) {
+            return new ProxyS3Service(environment, nodeSettings, resourceWatcherService);
         }
 
         public static final class ClientAndCredentials extends AmazonS3Wrapper {
@@ -296,8 +274,8 @@ public class RepositoryCredentialsTests extends ESSingleNodeTestCase {
 
             private static final Logger logger = LogManager.getLogger(ProxyS3Service.class);
 
-            ProxyS3Service(Environment environment) {
-                super(environment);
+            ProxyS3Service(Environment environment, Settings nodeSettings, ResourceWatcherService resourceWatcherService) {
+                super(environment, nodeSettings, resourceWatcherService);
             }
 
             @Override

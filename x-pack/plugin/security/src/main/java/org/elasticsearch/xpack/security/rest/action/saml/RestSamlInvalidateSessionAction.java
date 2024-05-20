@@ -13,6 +13,8 @@ import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.rest.Scope;
+import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestBuilderListener;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
@@ -31,6 +33,7 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
  * Invalidates any security tokens associated with the provided SAML session.
  * The session identity is provided in a SAML {@code &lt;LogoutRequest&gt;}
  */
+@ServerlessScope(Scope.INTERNAL)
 public class RestSamlInvalidateSessionAction extends SamlBaseRestHandler {
 
     static final ObjectParser<SamlInvalidateSessionRequest, RestSamlInvalidateSessionAction> PARSER = new ObjectParser<>(

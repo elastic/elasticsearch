@@ -19,7 +19,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.Base64;
 import java.util.Set;
 
-import static org.elasticsearch.xpack.core.security.authz.RoleDescriptorTests.randomUniquelyNamedRoleDescriptors;
+import static org.elasticsearch.xpack.core.security.authz.RoleDescriptorTestHelper.randomUniquelyNamedRoleDescriptors;
 import static org.elasticsearch.xpack.security.authc.CrossClusterAccessHeaders.CROSS_CLUSTER_ACCESS_CREDENTIALS_HEADER_KEY;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -105,7 +105,7 @@ public class CrossClusterAccessHeadersTests extends ESTestCase {
     }
 
     // TODO centralize common usage of this across all tests
-    static String randomEncodedApiKeyHeader() {
+    public static String randomEncodedApiKeyHeader() {
         return encodedApiKeyWithPrefix(UUIDs.randomBase64UUID(), UUIDs.randomBase64UUID());
     }
 

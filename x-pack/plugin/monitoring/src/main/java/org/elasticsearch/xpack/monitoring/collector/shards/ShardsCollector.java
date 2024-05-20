@@ -98,7 +98,7 @@ public class ShardsCollector extends Collector {
         return Collections.unmodifiableCollection(results);
     }
 
-    private String[] expandIndexPattern(String[] indicesToMonitor, String[] indices) {
+    private static String[] expandIndexPattern(String[] indicesToMonitor, String[] indices) {
         final Set<String> expandedIndices = new HashSet<>();
 
         for (String indexOrPattern : indicesToMonitor) {

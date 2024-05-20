@@ -8,7 +8,9 @@
 
 package org.elasticsearch.indices.recovery;
 
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.seqno.SequenceNumbers;
@@ -28,6 +30,7 @@ public class StartRecoveryRequest extends TransportRequest {
     private final String targetAllocationId;
     private final DiscoveryNode sourceNode;
     private final DiscoveryNode targetNode;
+    private final long clusterStateVersion;
     private final Store.MetadataSnapshot metadataSnapshot;
     private final boolean primaryRelocation;
     private final long startingSeqNo;
@@ -40,6 +43,11 @@ public class StartRecoveryRequest extends TransportRequest {
         targetAllocationId = in.readString();
         sourceNode = new DiscoveryNode(in);
         targetNode = new DiscoveryNode(in);
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_11_X)) {
+            clusterStateVersion = in.readVLong();
+        } else {
+            clusterStateVersion = 0L; // bwc: do not wait for cluster state to be applied
+        }
         metadataSnapshot = Store.MetadataSnapshot.readFrom(in);
         primaryRelocation = in.readBoolean();
         startingSeqNo = in.readLong();
@@ -57,6 +65,7 @@ public class StartRecoveryRequest extends TransportRequest {
      * @param targetAllocationId       the allocation id of the target shard
      * @param sourceNode               the source node to remover from
      * @param targetNode               the target node to recover to
+     * @param clusterStateVersion      the cluster state version which initiated the recovery
      * @param metadataSnapshot         the Lucene metadata
      * @param primaryRelocation        whether or not the recovery is a primary relocation
      * @param recoveryId               the recovery ID
@@ -68,12 +77,14 @@ public class StartRecoveryRequest extends TransportRequest {
         final String targetAllocationId,
         final DiscoveryNode sourceNode,
         final DiscoveryNode targetNode,
+        final long clusterStateVersion,
         final Store.MetadataSnapshot metadataSnapshot,
         final boolean primaryRelocation,
         final long recoveryId,
         final long startingSeqNo,
         final boolean canDownloadSnapshotFiles
     ) {
+        this.clusterStateVersion = clusterStateVersion;
         this.recoveryId = recoveryId;
         this.shardId = shardId;
         this.targetAllocationId = targetAllocationId;
@@ -107,6 +118,10 @@ public class StartRecoveryRequest extends TransportRequest {
         return targetNode;
     }
 
+    public long clusterStateVersion() {
+        return clusterStateVersion;
+    }
+
     public boolean isPrimaryRelocation() {
         return primaryRelocation;
     }
@@ -124,6 +139,24 @@ public class StartRecoveryRequest extends TransportRequest {
     }
 
     @Override
+    public String getDescription() {
+        return Strings.format(
+            """
+                recovery of %s to %s \
+                [recoveryId=%d, targetAllocationId=%s, clusterStateVersion=%d, startingSeqNo=%d, \
+                primaryRelocation=%s, canDownloadSnapshotFiles=%s]""",
+            shardId,
+            targetNode.descriptionWithoutAttributes(),
+            recoveryId,
+            targetAllocationId,
+            clusterStateVersion,
+            startingSeqNo,
+            primaryRelocation,
+            canDownloadSnapshotFiles
+        );
+    }
+
+    @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeLong(recoveryId);
@@ -131,6 +164,9 @@ public class StartRecoveryRequest extends TransportRequest {
         out.writeString(targetAllocationId);
         sourceNode.writeTo(out);
         targetNode.writeTo(out);
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_11_X)) {
+            out.writeVLong(clusterStateVersion);
+        } // else bwc: just omit it, the receiver doesn't wait for a cluster state anyway
         metadataSnapshot.writeTo(out);
         out.writeBoolean(primaryRelocation);
         out.writeLong(startingSeqNo);

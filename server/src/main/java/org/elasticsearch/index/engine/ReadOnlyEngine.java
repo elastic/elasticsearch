@@ -18,14 +18,15 @@ import org.apache.lucene.index.SoftDeletesDirectoryReaderWrapper;
 import org.apache.lucene.search.ReferenceManager;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.Lock;
-import org.elasticsearch.Version;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeRequest;
 import org.elasticsearch.common.hash.MessageDigests;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
-import org.elasticsearch.common.util.concurrent.ReleasableLock;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.mapper.DocumentParser;
 import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.seqno.SeqNoStats;
@@ -92,6 +93,7 @@ public class ReadOnlyEngine extends Engine {
      * @param requireCompleteHistory indicates whether this engine permits an incomplete history (i.e. LCP &lt; MSN)
      * @param lazilyLoadSoftDeletes indicates whether this engine should load the soft-delete based liveDocs eagerly, or on first access
      */
+    @SuppressWarnings("this-escape")
     public ReadOnlyEngine(
         EngineConfig config,
         SeqNoStats seqNoStats,
@@ -173,8 +175,9 @@ public class ReadOnlyEngine extends Engine {
         // In addition to that we only execute the check if the index the engine belongs to has been
         // created after the refactoring of the Close Index API and its TransportVerifyShardBeforeCloseAction
         // that guarantee that all operations have been flushed to Lucene.
-        final Version indexVersionCreated = engineConfig.getIndexSettings().getIndexVersionCreated();
-        if (indexVersionCreated.onOrAfter(Version.V_7_2_0) || (seqNoStats.getGlobalCheckpoint() != SequenceNumbers.UNASSIGNED_SEQ_NO)) {
+        IndexVersion indexVersionCreated = engineConfig.getIndexSettings().getIndexVersionCreated();
+        if (indexVersionCreated.onOrAfter(IndexVersions.V_7_2_0)
+            || (seqNoStats.getGlobalCheckpoint() != SequenceNumbers.UNASSIGNED_SEQ_NO)) {
             assert assertMaxSeqNoEqualsToGlobalCheckpoint(seqNoStats.getMaxSeqNo(), seqNoStats.getGlobalCheckpoint());
             if (seqNoStats.getMaxSeqNo() != seqNoStats.getGlobalCheckpoint()) {
                 throw new IllegalStateException(
@@ -285,7 +288,7 @@ public class ReadOnlyEngine extends Engine {
     }
 
     @Override
-    protected SegmentInfos getLastCommittedSegmentInfos() {
+    public SegmentInfos getLastCommittedSegmentInfos() {
         return lastCommittedSegmentInfos;
     }
 
@@ -338,6 +341,11 @@ public class ReadOnlyEngine extends Engine {
     }
 
     @Override
+    public void asyncEnsureGlobalCheckpointSynced(long globalCheckpoint, Consumer<Exception> listener) {
+        listener.accept(null);
+    }
+
+    @Override
     public void syncTranslog() {}
 
     @Override
@@ -361,7 +369,7 @@ public class ReadOnlyEngine extends Engine {
         boolean singleConsumer,
         boolean accessStats
     ) {
-        return newEmptySnapshot();
+        return Translog.Snapshot.EMPTY;
     }
 
     @Override
@@ -421,6 +429,11 @@ public class ReadOnlyEngine extends Engine {
     }
 
     @Override
+    public List<Segment> segments(boolean includeVectorFormatsInfo) {
+        return Arrays.asList(getSegmentInfo(lastCommittedSegmentInfos, includeVectorFormatsInfo));
+    }
+
+    @Override
     public RefreshResult refresh(String source) {
         // we could allow refreshes if we want down the road the reader manager will then reflect changes to a rw-engine
         // opened side-by-side
@@ -428,12 +441,12 @@ public class ReadOnlyEngine extends Engine {
     }
 
     @Override
-    public RefreshResult maybeRefresh(String source) throws EngineException {
-        return RefreshResult.NO_REFRESH;
+    public void maybeRefresh(String source, ActionListener<RefreshResult> listener) throws EngineException {
+        listener.onResponse(RefreshResult.NO_REFRESH);
     }
 
     @Override
-    public void writeIndexingBuffer() throws EngineException {}
+    public void writeIndexingBuffer() {}
 
     @Override
     public boolean shouldPeriodicallyFlush() {
@@ -441,8 +454,8 @@ public class ReadOnlyEngine extends Engine {
     }
 
     @Override
-    public boolean flush(boolean force, boolean waitIfOngoing) throws EngineException {
-        return true; // noop
+    protected void flushHoldingLock(boolean force, boolean waitIfOngoing, ActionListener<FlushResult> listener) throws EngineException {
+        listener.onResponse(new FlushResult(true, lastCommittedSegmentInfos.getGeneration()));
     }
 
     @Override
@@ -512,16 +525,19 @@ public class ReadOnlyEngine extends Engine {
     }
 
     @Override
-    public Engine recoverFromTranslog(final TranslogRecoveryRunner translogRecoveryRunner, final long recoverUpToSeqNo) {
-        try (ReleasableLock lock = readLock.acquire()) {
-            ensureOpen();
-            try (Translog.Snapshot snapshot = newEmptySnapshot()) {
-                translogRecoveryRunner.run(this, snapshot);
+    public void recoverFromTranslog(
+        final TranslogRecoveryRunner translogRecoveryRunner,
+        final long recoverUpToSeqNo,
+        ActionListener<Void> listener
+    ) {
+        ActionListener.runWithResource(listener, this::acquireEnsureOpenRef, (l, ignoredRef) -> {
+            try {
+                translogRecoveryRunner.run(this, Translog.Snapshot.EMPTY);
             } catch (final Exception e) {
                 throw new EngineException(shardId, "failed to recover from empty translog snapshot", e);
             }
-        }
-        return this;
+            l.onResponse(null);
+        });
     }
 
     @Override
@@ -541,23 +557,6 @@ public class ReadOnlyEngine extends Engine {
     @Override
     public boolean refreshNeeded() {
         return false;
-    }
-
-    private static Translog.Snapshot newEmptySnapshot() {
-        return new Translog.Snapshot() {
-            @Override
-            public void close() {}
-
-            @Override
-            public int totalOperations() {
-                return 0;
-            }
-
-            @Override
-            public Translog.Operation next() {
-                return null;
-            }
-        };
     }
 
     @Override

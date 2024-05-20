@@ -15,13 +15,18 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestToXContentListener;
 
 import java.io.IOException;
 import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.PUT;
+import static org.elasticsearch.rest.RestUtils.getAckTimeout;
+import static org.elasticsearch.rest.RestUtils.getMasterNodeTimeout;
+import static org.elasticsearch.rest.Scope.PUBLIC;
 
+@ServerlessScope(PUBLIC)
 public class RestAddIndexBlockAction extends BaseRestHandler {
 
     @Override
@@ -40,8 +45,8 @@ public class RestAddIndexBlockAction extends BaseRestHandler {
             IndexMetadata.APIBlock.fromName(request.param("block")),
             Strings.splitStringByCommaToArray(request.param("index"))
         );
-        addIndexBlockRequest.masterNodeTimeout(request.paramAsTime("master_timeout", addIndexBlockRequest.masterNodeTimeout()));
-        addIndexBlockRequest.timeout(request.paramAsTime("timeout", addIndexBlockRequest.timeout()));
+        addIndexBlockRequest.masterNodeTimeout(getMasterNodeTimeout(request));
+        addIndexBlockRequest.ackTimeout(getAckTimeout(request));
         addIndexBlockRequest.indicesOptions(IndicesOptions.fromRequest(request, addIndexBlockRequest.indicesOptions()));
         return channel -> client.admin().indices().addBlock(addIndexBlockRequest, new RestToXContentListener<>(channel));
     }

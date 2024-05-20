@@ -8,14 +8,16 @@
 
 package org.elasticsearch.cluster.coordination;
 
-import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateTaskListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.version.CompatibilityVersions;
+import org.elasticsearch.common.collect.Iterators;
 
 import java.util.List;
 import java.util.Objects;
+import java.util.Set;
 import java.util.stream.Stream;
 
 public record JoinTask(List<NodeJoinTask> nodeJoinTasks, boolean isBecomingMaster, long term, ClusterState initialState)
@@ -24,12 +26,13 @@ public record JoinTask(List<NodeJoinTask> nodeJoinTasks, boolean isBecomingMaste
 
     public static JoinTask singleNode(
         DiscoveryNode node,
-        TransportVersion transportVersion,
+        CompatibilityVersions compatibilityVersions,
+        Set<String> features,
         JoinReason reason,
         ActionListener<Void> listener,
         long term
     ) {
-        return new JoinTask(List.of(new NodeJoinTask(node, transportVersion, reason, listener)), false, term, null);
+        return new JoinTask(List.of(new NodeJoinTask(node, compatibilityVersions, features, reason, listener)), false, term, null);
     }
 
     public static JoinTask completingElection(Stream<NodeJoinTask> nodeJoinTaskStream, long term) {
@@ -66,7 +69,7 @@ public record JoinTask(List<NodeJoinTask> nodeJoinTasks, boolean isBecomingMaste
     }
 
     public Iterable<DiscoveryNode> nodes() {
-        return () -> nodeJoinTasks.stream().map(j -> j.node).iterator();
+        return () -> Iterators.map(nodeJoinTasks.iterator(), j -> j.node);
     }
 
     public JoinTask alsoRefreshState(ClusterState latestState) {
@@ -74,11 +77,24 @@ public record JoinTask(List<NodeJoinTask> nodeJoinTasks, boolean isBecomingMaste
         return new JoinTask(nodeJoinTasks, isBecomingMaster, term, latestState);
     }
 
-    public record NodeJoinTask(DiscoveryNode node, TransportVersion transportVersion, JoinReason reason, ActionListener<Void> listener) {
+    public record NodeJoinTask(
+        DiscoveryNode node,
+        CompatibilityVersions compatibilityVersions,
+        Set<String> features,
+        JoinReason reason,
+        ActionListener<Void> listener
+    ) {
 
-        public NodeJoinTask(DiscoveryNode node, TransportVersion transportVersion, JoinReason reason, ActionListener<Void> listener) {
+        public NodeJoinTask(
+            DiscoveryNode node,
+            CompatibilityVersions compatibilityVersions,
+            Set<String> features,
+            JoinReason reason,
+            ActionListener<Void> listener
+        ) {
             this.node = Objects.requireNonNull(node);
-            this.transportVersion = Objects.requireNonNull(transportVersion);
+            this.compatibilityVersions = Objects.requireNonNull(compatibilityVersions);
+            this.features = Objects.requireNonNull(features);
             this.reason = reason;
             this.listener = listener;
         }

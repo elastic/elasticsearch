@@ -1,5 +1,0 @@
-pr: 94564
-summary: Add the ability to return the score of the named queries
-area: Search
-type: feature
-issues: [29606]

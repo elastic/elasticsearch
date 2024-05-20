@@ -29,7 +29,7 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * Response for {@link IndicesShardStoresAction}
+ * Response for {@link TransportIndicesShardStoresAction}
  *
  * Consists of {@link StoreStatus}s for requested indices grouped by
  * indices and shard ids and a list of encountered node {@link Failure}s
@@ -246,10 +246,9 @@ public class IndicesShardStoresResponse extends ActionResponse implements Chunke
     public IndicesShardStoresResponse(StreamInput in) throws IOException {
         super(in);
         storeStatuses = in.readImmutableMap(
-            StreamInput::readString,
-            i -> i.readImmutableMap(StreamInput::readInt, j -> j.readImmutableList(StoreStatus::new))
+            i -> i.readImmutableMap(StreamInput::readInt, j -> j.readCollectionAsImmutableList(StoreStatus::new))
         );
-        failures = in.readImmutableList(Failure::readFailure);
+        failures = in.readCollectionAsImmutableList(Failure::readFailure);
     }
 
     /**
@@ -270,12 +269,8 @@ public class IndicesShardStoresResponse extends ActionResponse implements Chunke
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeMap(
-            storeStatuses,
-            StreamOutput::writeString,
-            (o, v) -> o.writeMap(v, StreamOutput::writeInt, StreamOutput::writeCollection)
-        );
-        out.writeList(failures);
+        out.writeMap(storeStatuses, (o, v) -> o.writeMap(v, StreamOutput::writeInt, StreamOutput::writeCollection));
+        out.writeCollection(failures);
     }
 
     @Override
@@ -298,18 +293,15 @@ public class IndicesShardStoresResponse extends ActionResponse implements Chunke
                 indexShards -> Iterators.concat(
                     ChunkedToXContentHelper.startObject(indexShards.getKey()),
                     ChunkedToXContentHelper.startObject(Fields.SHARDS),
-                    Iterators.flatMap(
-                        indexShards.getValue().entrySet().iterator(),
-                        shardStatusesEntry -> Iterators.single((ToXContent) (builder, params) -> {
-                            builder.startObject(String.valueOf(shardStatusesEntry.getKey())).startArray(Fields.STORES);
-                            for (StoreStatus storeStatus : shardStatusesEntry.getValue()) {
-                                builder.startObject();
-                                storeStatus.toXContent(builder, params);
-                                builder.endObject();
-                            }
-                            return builder.endArray().endObject();
-                        })
-                    ),
+                    Iterators.map(indexShards.getValue().entrySet().iterator(), shardStatusesEntry -> (builder, params) -> {
+                        builder.startObject(String.valueOf(shardStatusesEntry.getKey())).startArray(Fields.STORES);
+                        for (StoreStatus storeStatus : shardStatusesEntry.getValue()) {
+                            builder.startObject();
+                            storeStatus.toXContent(builder, params);
+                            builder.endObject();
+                        }
+                        return builder.endArray().endObject();
+                    }),
                     ChunkedToXContentHelper.endObject(),
                     ChunkedToXContentHelper.endObject()
                 )

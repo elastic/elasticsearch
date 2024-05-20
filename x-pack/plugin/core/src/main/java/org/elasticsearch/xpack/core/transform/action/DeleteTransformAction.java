@@ -6,8 +6,7 @@
  */
 package org.elasticsearch.xpack.core.transform.action;
 
-import org.elasticsearch.TransportVersion;
-import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
@@ -26,7 +25,7 @@ public class DeleteTransformAction extends ActionType<AcknowledgedResponse> {
     public static final String NAME = "cluster:admin/transform/delete";
 
     private DeleteTransformAction() {
-        super(NAME, AcknowledgedResponse::readFrom);
+        super(NAME);
     }
 
     public static class Request extends AcknowledgedRequest<Request> {
@@ -35,7 +34,7 @@ public class DeleteTransformAction extends ActionType<AcknowledgedResponse> {
         private final boolean deleteDestIndex;
 
         public Request(String id, boolean force, boolean deleteDestIndex, TimeValue timeout) {
-            super(timeout);
+            super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT, timeout);
             this.id = ExceptionsHelper.requireNonNull(id, TransformField.ID.getPreferredName());
             this.force = force;
             this.deleteDestIndex = deleteDestIndex;
@@ -45,7 +44,7 @@ public class DeleteTransformAction extends ActionType<AcknowledgedResponse> {
             super(in);
             id = in.readString();
             force = in.readBoolean();
-            if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_8_0)) {
+            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0)) {
                 deleteDestIndex = in.readBoolean();
             } else {
                 deleteDestIndex = false;
@@ -69,20 +68,15 @@ public class DeleteTransformAction extends ActionType<AcknowledgedResponse> {
             super.writeTo(out);
             out.writeString(id);
             out.writeBoolean(force);
-            if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_8_0)) {
+            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0)) {
                 out.writeBoolean(deleteDestIndex);
             }
         }
 
         @Override
-        public ActionRequestValidationException validate() {
-            return null;
-        }
-
-        @Override
         public int hashCode() {
             // the base class does not implement hashCode, therefore we need to hash timeout ourselves
-            return Objects.hash(timeout(), id, force, deleteDestIndex);
+            return Objects.hash(ackTimeout(), id, force, deleteDestIndex);
         }
 
         @Override
@@ -99,7 +93,7 @@ public class DeleteTransformAction extends ActionType<AcknowledgedResponse> {
             return Objects.equals(id, other.id)
                 && force == other.force
                 && deleteDestIndex == other.deleteDestIndex
-                && timeout().equals(other.timeout());
+                && ackTimeout().equals(other.ackTimeout());
         }
     }
 }

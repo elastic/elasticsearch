@@ -14,6 +14,7 @@ import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.CharacterRunAutomaton;
 import org.apache.lucene.util.automaton.Operations;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.core.Predicates;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -44,7 +45,7 @@ public class Regex {
     }
 
     public static boolean isSuffixMatchPattern(String str) {
-        return str.length() > 1 && str.indexOf("*") == str.length() - 1;
+        return str.length() > 1 && str.indexOf('*') == str.length() - 1;
     }
 
     /** Return an {@link Automaton} that matches the given pattern. */
@@ -102,12 +103,12 @@ public class Regex {
      */
     public static Predicate<String> simpleMatcher(String... patterns) {
         if (patterns == null || patterns.length == 0) {
-            return str -> false;
+            return Predicates.never();
         }
         boolean hasWildcard = false;
         for (String pattern : patterns) {
             if (isMatchAllPattern(pattern)) {
-                return str -> true;
+                return Predicates.always();
             }
             if (isSimpleMatchPattern(pattern)) {
                 hasWildcard = true;
@@ -177,8 +178,12 @@ public class Regex {
                 // str.endsWith(pattern.substring(1)), but avoiding the construction of pattern.substring(1):
                 return str.regionMatches(str.length() - pattern.length() + 1, pattern, 1, pattern.length() - 1);
             } else if (nextIndex == 1) {
-                // Double wildcard "**" - skipping the first "*"
-                return simpleMatchWithNormalizedStrings(pattern.substring(1), str);
+                // Double wildcard "**" detected - skipping all "*"
+                int wildcards = nextIndex + 1;
+                while (wildcards < pattern.length() && pattern.charAt(wildcards) == '*') {
+                    wildcards++;
+                }
+                return simpleMatchWithNormalizedStrings(pattern.substring(wildcards - 1), str);
             }
             final String part = pattern.substring(1, nextIndex);
             int partIndex = str.indexOf(part);

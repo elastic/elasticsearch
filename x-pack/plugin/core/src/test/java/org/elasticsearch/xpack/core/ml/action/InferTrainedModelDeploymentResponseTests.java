@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.core.ml.action;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
@@ -67,7 +68,7 @@ public class InferTrainedModelDeploymentResponseTests extends AbstractBWCWireSer
         InferTrainedModelDeploymentAction.Response instance,
         TransportVersion version
     ) {
-        if (version.before(TransportVersion.V_8_6_1)) {
+        if (version.before(TransportVersions.V_8_6_1)) {
             return new InferTrainedModelDeploymentAction.Response(instance.getResults().subList(0, 1));
         }
 

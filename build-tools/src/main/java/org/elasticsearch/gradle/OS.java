@@ -7,10 +7,10 @@
  */
 package org.elasticsearch.gradle;
 
-import java.util.Arrays;
-import java.util.HashMap;
-import java.util.HashSet;
+import java.util.EnumMap;
+import java.util.EnumSet;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Supplier;
 
 public enum OS {
@@ -34,7 +34,7 @@ public enum OS {
 
     public static class Conditional<T> {
 
-        private final Map<OS, Supplier<T>> conditions = new HashMap<>();
+        private final Map<OS, Supplier<T>> conditions = new EnumMap<>(OS.class);
 
         public Conditional<T> onWindows(Supplier<T> supplier) {
             conditions.put(WINDOWS, supplier);
@@ -58,7 +58,7 @@ public enum OS {
         }
 
         public T supply() {
-            HashSet<OS> missingOS = new HashSet<>(Arrays.asList(OS.values()));
+            Set<OS> missingOS = EnumSet.allOf(OS.class);
             missingOS.removeAll(conditions.keySet());
             if (missingOS.isEmpty() == false) {
                 throw new IllegalArgumentException("No condition specified for " + missingOS);

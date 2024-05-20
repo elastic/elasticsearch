@@ -102,7 +102,7 @@ public class MigrateToDataTiersIT extends ESRestTestCase {
         warmActions.put(SetPriorityAction.NAME, new SetPriorityAction(50));
         warmActions.put(ForceMergeAction.NAME, new ForceMergeAction(1, null));
         warmActions.put(AllocateAction.NAME, new AllocateAction(null, null, singletonMap("data", "warm"), null, null));
-        warmActions.put(ShrinkAction.NAME, new ShrinkAction(1, null));
+        warmActions.put(ShrinkAction.NAME, new ShrinkAction(1, null, false));
         Map<String, LifecycleAction> coldActions = new HashMap<>();
         coldActions.put(SetPriorityAction.NAME, new SetPriorityAction(0));
         coldActions.put(AllocateAction.NAME, new AllocateAction(0, null, null, null, singletonMap("data", "cold")));
@@ -306,7 +306,7 @@ public class MigrateToDataTiersIT extends ESRestTestCase {
         String composableTemplate = "no_need_to_migrate_composable_template";
         {
             Request composableTemplateRequest = new Request("PUT", "/_index_template/" + composableTemplate);
-            Settings indexSettings = Settings.builder().put("index.number_of_shards", 1).put("index.number_of_replicas", 0).build();
+            Settings indexSettings = indexSettings(1, 0).build();
             composableTemplateRequest.setJsonEntity(
                 "{\"index_patterns\":  [\"1notreallyimportant-*\"], \"template\":{\"settings\":  " + Strings.toString(indexSettings) + "}}"
             );
@@ -378,7 +378,7 @@ public class MigrateToDataTiersIT extends ESRestTestCase {
         warmActions.put(SetPriorityAction.NAME, new SetPriorityAction(50));
         warmActions.put(ForceMergeAction.NAME, new ForceMergeAction(1, null));
         warmActions.put(AllocateAction.NAME, new AllocateAction(null, null, singletonMap("data", "warm"), null, null));
-        warmActions.put(ShrinkAction.NAME, new ShrinkAction(1, null));
+        warmActions.put(ShrinkAction.NAME, new ShrinkAction(1, null, false));
         Map<String, LifecycleAction> coldActions = new HashMap<>();
         coldActions.put(SetPriorityAction.NAME, new SetPriorityAction(0));
         coldActions.put(AllocateAction.NAME, new AllocateAction(0, null, null, null, singletonMap("data", "cold")));

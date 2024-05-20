@@ -252,8 +252,8 @@ public class FunctionScoreQueryBuilderTests extends AbstractQueryTestCase<Functi
                     Instant.ofEpochMilli(System.currentTimeMillis() - randomIntBetween(0, 1000000)),
                     ZoneOffset.UTC
                 ).toString();
-                scale = randomTimeValue(1, 1000, "d", "h", "ms", "s", "m");
-                offset = randomPositiveTimeValue();
+                scale = between(1, 1000) + randomFrom("d", "h", "ms", "s", "m");
+                offset = between(1, 1000) + randomFrom("d", "h", "ms", "s", "m", "micros", "nanos");
             }
             default -> {
                 origin = randomBoolean() ? randomInt() : randomFloat();
@@ -895,7 +895,7 @@ public class FunctionScoreQueryBuilderTests extends AbstractQueryTestCase<Functi
         Directory directory = newDirectory();
         RandomIndexWriter iw = new RandomIndexWriter(random(), directory);
         iw.addDocument(new Document());
-        final IndexSearcher searcher = new IndexSearcher(iw.getReader());
+        final IndexSearcher searcher = newSearcher(iw.getReader());
         iw.close();
         assertThat(searcher.getIndexReader().leaves().size(), greaterThan(0));
 

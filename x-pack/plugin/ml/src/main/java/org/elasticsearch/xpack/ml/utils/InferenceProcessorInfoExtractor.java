@@ -13,6 +13,7 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.ingest.ConfigurationUtils;
 import org.elasticsearch.ingest.IngestMetadata;
 import org.elasticsearch.ingest.Pipeline;
+import org.elasticsearch.transport.Transports;
 
 import java.util.HashMap;
 import java.util.LinkedHashSet;
@@ -21,8 +22,8 @@ import java.util.Map;
 import java.util.Set;
 import java.util.function.Consumer;
 
+import static org.elasticsearch.inference.InferenceResults.MODEL_ID_RESULTS_FIELD;
 import static org.elasticsearch.ingest.Pipeline.PROCESSORS_KEY;
-import static org.elasticsearch.xpack.core.ml.inference.results.InferenceResults.MODEL_ID_RESULTS_FIELD;
 import static org.elasticsearch.xpack.ml.inference.ingest.InferenceProcessor.TYPE;
 
 /**
@@ -70,11 +71,41 @@ public final class InferenceProcessorInfoExtractor {
     }
 
     /**
-     * @param state Current cluster state
-     * @return a map from Model IDs or Aliases to each pipeline referencing them.
+     * @param ingestMetadata The ingestMetadata of current ClusterState
+     * @return The set of model IDs referenced by inference processors
      */
     @SuppressWarnings("unchecked")
-    public static Map<String, Set<String>> pipelineIdsByModelIdsOrAliases(ClusterState state, Set<String> modelIds) {
+    public static Set<String> getModelIdsFromInferenceProcessors(IngestMetadata ingestMetadata) {
+        if (ingestMetadata == null) {
+            return Set.of();
+        }
+
+        Set<String> modelIds = new LinkedHashSet<>();
+        ingestMetadata.getPipelines().forEach((pipelineId, configuration) -> {
+            Map<String, Object> configMap = configuration.getConfigAsMap();
+            List<Map<String, Object>> processorConfigs = ConfigurationUtils.readList(null, null, configMap, PROCESSORS_KEY);
+            for (Map<String, Object> processorConfigWithKey : processorConfigs) {
+                for (Map.Entry<String, Object> entry : processorConfigWithKey.entrySet()) {
+                    addModelsAndPipelines(
+                        entry.getKey(),
+                        pipelineId,
+                        (Map<String, Object>) entry.getValue(),
+                        pam -> modelIds.add(pam.modelIdOrAlias()),
+                        0
+                    );
+                }
+            }
+        });
+        return modelIds;
+    }
+
+    /**
+     * @param state Current cluster state
+     * @return a map from Model or Deployment IDs or Aliases to each pipeline referencing them.
+     */
+    @SuppressWarnings("unchecked")
+    public static Map<String, Set<String>> pipelineIdsByResource(ClusterState state, Set<String> ids) {
+        assert Transports.assertNotTransportThread("non-trivial nested loops over cluster state structures");
         Map<String, Set<String>> pipelineIdsByModelIds = new HashMap<>();
         Metadata metadata = state.metadata();
         if (metadata == null) {
@@ -90,7 +121,7 @@ public final class InferenceProcessorInfoExtractor {
             for (Map<String, Object> processorConfigWithKey : processorConfigs) {
                 for (Map.Entry<String, Object> entry : processorConfigWithKey.entrySet()) {
                     addModelsAndPipelines(entry.getKey(), pipelineId, (Map<String, Object>) entry.getValue(), pam -> {
-                        if (modelIds.contains(pam.modelIdOrAlias)) {
+                        if (ids.contains(pam.modelIdOrAlias)) {
                             pipelineIdsByModelIds.computeIfAbsent(pam.modelIdOrAlias, m -> new LinkedHashSet<>()).add(pipelineId);
                         }
                     }, 0);

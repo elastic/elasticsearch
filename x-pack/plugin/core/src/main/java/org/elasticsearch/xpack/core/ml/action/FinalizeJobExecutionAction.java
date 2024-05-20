@@ -21,7 +21,7 @@ public class FinalizeJobExecutionAction extends ActionType<AcknowledgedResponse>
     public static final String NAME = "cluster:internal/xpack/ml/job/finalize_job_execution";
 
     private FinalizeJobExecutionAction() {
-        super(NAME, AcknowledgedResponse::readFrom);
+        super(NAME);
     }
 
     public static class Request extends MasterNodeRequest<Request> {
@@ -29,6 +29,7 @@ public class FinalizeJobExecutionAction extends ActionType<AcknowledgedResponse>
         private String[] jobIds;
 
         public Request(String[] jobIds) {
+            super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT);
             this.jobIds = jobIds;
         }
 

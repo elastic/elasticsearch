@@ -24,7 +24,6 @@ import org.elasticsearch.search.fetch.subphase.ScriptFieldsContext;
 import org.elasticsearch.search.fetch.subphase.highlight.SearchHighlightContext;
 import org.elasticsearch.search.internal.ContextIndexSearcher;
 import org.elasticsearch.search.internal.SearchContext;
-import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.search.lookup.Source;
 import org.elasticsearch.search.rescore.RescoreContext;
 
@@ -98,13 +97,6 @@ public class FetchContext {
      */
     public ContextIndexSearcher searcher() {
         return searchContext.searcher();
-    }
-
-    /**
-     * The {@code SearchLookup} for the this context
-     */
-    public SearchLookup searchLookup() {
-        return searchContext.getSearchExecutionContext().lookup();
     }
 
     /**

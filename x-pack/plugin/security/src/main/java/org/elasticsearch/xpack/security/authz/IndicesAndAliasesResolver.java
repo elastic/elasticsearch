@@ -11,6 +11,8 @@ import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.action.admin.indices.alias.get.GetAliasesRequest;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
+import org.elasticsearch.action.search.SearchContextId;
+import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
@@ -44,7 +46,6 @@ import java.util.SortedMap;
 import java.util.concurrent.CopyOnWriteArraySet;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
-import java.util.stream.Stream;
 
 import static org.elasticsearch.xpack.core.security.authz.IndicesAndAliasesResolverField.NO_INDEX_PLACEHOLDER;
 
@@ -118,7 +119,7 @@ class IndicesAndAliasesResolver {
      * @return The {@link ResolvedIndices} or null if wildcard expansion must be performed.
      */
     @Nullable
-    static ResolvedIndices tryResolveWithoutWildcards(String action, TransportRequest transportRequest) {
+    ResolvedIndices tryResolveWithoutWildcards(String action, TransportRequest transportRequest) {
         // We only take care of IndicesRequest
         if (false == transportRequest instanceof IndicesRequest) {
             return null;
@@ -143,7 +144,7 @@ class IndicesAndAliasesResolver {
         return false;
     }
 
-    static ResolvedIndices resolveIndicesAndAliasesWithoutWildcards(String action, IndicesRequest indicesRequest) {
+    ResolvedIndices resolveIndicesAndAliasesWithoutWildcards(String action, IndicesRequest indicesRequest) {
         assert false == requiresWildcardExpansion(indicesRequest) : "request must not require wildcard expansion";
         final String[] indices = indicesRequest.indices();
         if (indices == null || indices.length == 0) {
@@ -160,17 +161,11 @@ class IndicesAndAliasesResolver {
             );
         }
 
-        // TODO: Shard level requests have wildcard expanded already and do not need go through this check
-        final List<String> wildcards = Stream.of(indices).filter(Regex::isSimpleMatchPattern).toList();
-        if (wildcards.isEmpty() == false) {
-            throw new IllegalArgumentException(
-                "the action "
-                    + action
-                    + " does not support wildcards;"
-                    + " the provided index expression(s) ["
-                    + Strings.collectionToCommaDelimitedString(wildcards)
-                    + "] are not allowed"
-            );
+        final ResolvedIndices split;
+        if (indicesRequest instanceof IndicesRequest.SingleIndexNoWildcards single && single.allowsRemoteIndices()) {
+            split = remoteClusterResolver.splitLocalAndRemoteIndexNames(indicesRequest.indices());
+        } else {
+            split = new ResolvedIndices(Arrays.asList(indicesRequest.indices()), List.of());
         }
 
         // NOTE: shard level requests do support wildcards (as they hold the original indices options) but don't support
@@ -178,11 +173,47 @@ class IndicesAndAliasesResolver {
         // That is fine though because they never contain wildcards, as they get replaced as part of the authorization of their
         // corresponding parent request on the coordinating node. Hence wildcards don't need to get replaced nor exploded for
         // shard level requests.
-        final List<String> localIndices = new ArrayList<>(indices.length);
-        for (String name : indices) {
-            localIndices.add(IndexNameExpressionResolver.resolveDateMathExpression(name));
+        final List<String> localIndices = new ArrayList<>(split.getLocal().size());
+        for (String localName : split.getLocal()) {
+            // TODO: Shard level requests have wildcard expanded already and do not need go through this check
+            if (Regex.isSimpleMatchPattern(localName)) {
+                throwOnUnexpectedWildcards(action, split.getLocal());
+            }
+            localIndices.add(IndexNameExpressionResolver.resolveDateMathExpression(localName));
         }
-        return new ResolvedIndices(localIndices, List.of());
+
+        return new ResolvedIndices(localIndices, split.getRemote());
+    }
+
+    /**
+     * Returns the resolved indices from the {@link SearchContextId} within the provided {@link SearchRequest}.
+     */
+    ResolvedIndices resolvePITIndices(SearchRequest request) {
+        assert request.pointInTimeBuilder() != null;
+        var indices = SearchContextId.decodeIndices(request.pointInTimeBuilder().getEncodedId());
+        final ResolvedIndices split;
+        if (request.allowsRemoteIndices()) {
+            split = remoteClusterResolver.splitLocalAndRemoteIndexNames(indices);
+        } else {
+            split = new ResolvedIndices(Arrays.asList(indices), Collections.emptyList());
+        }
+        if (split.isEmpty()) {
+            return new ResolvedIndices(List.of(NO_INDEX_PLACEHOLDER), Collections.emptyList());
+        }
+        return split;
+    }
+
+    private static void throwOnUnexpectedWildcards(String action, List<String> indices) {
+        final List<String> wildcards = indices.stream().filter(Regex::isSimpleMatchPattern).toList();
+        assert wildcards.isEmpty() == false : "we already know that there's at least one wildcard in the indices";
+        throw new IllegalArgumentException(
+            "the action "
+                + action
+                + " does not support wildcards;"
+                + " the provided index expression(s) ["
+                + Strings.collectionToCommaDelimitedString(wildcards)
+                + "] are not allowed"
+        );
     }
 
     ResolvedIndices resolveIndicesAndAliases(

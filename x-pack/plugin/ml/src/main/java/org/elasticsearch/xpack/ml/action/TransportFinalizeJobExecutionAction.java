@@ -13,7 +13,7 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.AcknowledgedTransportMasterNodeAction;
-import org.elasticsearch.action.update.UpdateAction;
+import org.elasticsearch.action.update.TransportUpdateAction;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
@@ -22,6 +22,7 @@ import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -61,7 +62,7 @@ public class TransportFinalizeJobExecutionAction extends AcknowledgedTransportMa
             actionFilters,
             FinalizeJobExecutionAction.Request::new,
             indexNameExpressionResolver,
-            ThreadPool.Names.SAME
+            EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
         this.client = client;
     }
@@ -93,17 +94,17 @@ public class TransportFinalizeJobExecutionAction extends AcknowledgedTransportMa
                 executeAsyncWithOrigin(
                     client,
                     ML_ORIGIN,
-                    UpdateAction.INSTANCE,
+                    TransportUpdateAction.TYPE,
                     updateRequest,
-                    ActionListener.wrap(updateResponse -> chainedListener.onResponse(null), chainedListener::onFailure)
+                    chainedListener.delegateFailureAndWrap((l, updateResponse) -> l.onResponse(null))
                 );
             });
         }
 
-        voidChainTaskExecutor.execute(ActionListener.wrap(aVoids -> {
+        voidChainTaskExecutor.execute(listener.delegateFailureAndWrap((l, aVoids) -> {
             logger.debug("finalized job [{}]", jobIdString);
-            listener.onResponse(AcknowledgedResponse.TRUE);
-        }, listener::onFailure));
+            l.onResponse(AcknowledgedResponse.TRUE);
+        }));
     }
 
     @Override

@@ -40,6 +40,9 @@ public class UriPartsProcessorFactoryTests extends ESTestCase {
         boolean keepOriginal = randomBoolean();
         config.put("keep_original", keepOriginal);
 
+        boolean ignoreMissing = randomBoolean();
+        config.put("ignore_missing", ignoreMissing);
+
         String processorTag = randomAlphaOfLength(10);
         UriPartsProcessor uriPartsProcessor = factory.create(null, processorTag, null, config);
         assertThat(uriPartsProcessor.getTag(), equalTo(processorTag));
@@ -47,6 +50,7 @@ public class UriPartsProcessorFactoryTests extends ESTestCase {
         assertThat(uriPartsProcessor.getTargetField(), equalTo(targetField));
         assertThat(uriPartsProcessor.getRemoveIfSuccessful(), equalTo(removeIfSuccessful));
         assertThat(uriPartsProcessor.getKeepOriginal(), equalTo(keepOriginal));
+        assertThat(uriPartsProcessor.getIgnoreMissing(), equalTo(ignoreMissing));
     }
 
     public void testCreateNoFieldPresent() throws Exception {

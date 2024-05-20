@@ -7,21 +7,19 @@
 
 package org.elasticsearch.xpack.security.role;
 
-import org.elasticsearch.action.search.SearchAction;
+import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.transport.TcpTransport;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.security.SecurityOnTrialLicenseRestTestCase;
 import org.junit.After;
 import org.junit.Before;
-import org.junit.BeforeClass;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -38,11 +36,6 @@ public class RoleWithRemoteIndicesPrivilegesRestIT extends SecurityOnTrialLicens
     private static final String REMOTE_SEARCH_USER = "remote_search_user";
     private static final SecureString PASSWORD = new SecureString("super-secret-password".toCharArray());
     private static final String REMOTE_SEARCH_ROLE = "remote_search";
-
-    @BeforeClass
-    public static void checkFeatureFlag() {
-        assumeTrue("untrusted remote cluster feature flag must be enabled", TcpTransport.isUntrustedRemoteClusterEnabled());
-    }
 
     @Before
     public void setup() throws IOException {
@@ -94,7 +87,10 @@ public class RoleWithRemoteIndicesPrivilegesRestIT extends SecurityOnTrialLicens
                         .query("{\"match\":{\"field\":\"a\"}}")
                         .privileges("read")
                         .grantedFields("field")
-                        .build() }
+                        .build() },
+                null,
+                null,
+                null
             )
         );
 
@@ -107,7 +103,7 @@ public class RoleWithRemoteIndicesPrivilegesRestIT extends SecurityOnTrialLicens
         );
         final ResponseException e = expectThrows(ResponseException.class, () -> client().performRequest(searchRequest));
         assertEquals(403, e.getResponse().getStatusLine().getStatusCode());
-        assertThat(e.getMessage(), containsString("action [" + SearchAction.NAME + "] is unauthorized for user"));
+        assertThat(e.getMessage(), containsString("action [" + TransportSearchAction.TYPE.name() + "] is unauthorized for user"));
 
         // Add local privileges and check local authorization works
         putRoleRequest = new Request("PUT", "_security/role/" + REMOTE_SEARCH_ROLE);
@@ -166,7 +162,10 @@ public class RoleWithRemoteIndicesPrivilegesRestIT extends SecurityOnTrialLicens
                         .privileges("read")
                         .query("{\"match\":{\"field\":\"a\"}}")
                         .grantedFields("field")
-                        .build() }
+                        .build() },
+                null,
+                null,
+                null
             )
         );
     }
@@ -184,6 +183,12 @@ public class RoleWithRemoteIndicesPrivilegesRestIT extends SecurityOnTrialLicens
                   "field_security": {
                     "grant": ["field"]
                   }
+                }
+              ],
+              "remote_cluster": [
+                {
+                  "privileges": ["monitor_enrich"],
+                  "clusters": ["remote-a", "*"]
                 }
               ]
             }""");
@@ -208,6 +213,12 @@ public class RoleWithRemoteIndicesPrivilegesRestIT extends SecurityOnTrialLicens
                   "query": ["{\\"match\\":{\\"field\\":\\"a\\"}}"],
                   "field_security": [{"grant": ["field"]}]
                 }
+              ],
+              "remote_cluster": [
+                {
+                  "privileges": ["monitor_enrich"],
+                  "clusters": ["remote-a", "*"]
+                }
               ]
             }""")));
 
@@ -226,6 +237,12 @@ public class RoleWithRemoteIndicesPrivilegesRestIT extends SecurityOnTrialLicens
                   "names": ["index-a", "*"],
                   "privileges": ["read"],
                   "clusters": ["remote-a", "*"]
+                }
+              ],
+              "remote_cluster": [
+                {
+                  "privileges": ["monitor_enrich"],
+                  "clusters": ["remote-c"]
                 }
               ]
             }""");
@@ -253,6 +270,12 @@ public class RoleWithRemoteIndicesPrivilegesRestIT extends SecurityOnTrialLicens
                   "privileges": ["read"],
                   "allow_restricted_indices": false,
                   "clusters": ["remote-a", "*"]
+                }
+              ],
+              "remote_cluster": [
+                {
+                  "privileges": ["monitor_enrich"],
+                  "clusters": ["remote-c"]
                 }
               ]
             }""")));
@@ -328,7 +351,7 @@ public class RoleWithRemoteIndicesPrivilegesRestIT extends SecurityOnTrialLicens
         throws IOException {
         final Map<String, RoleDescriptor> actual = responseAsParser(getRoleResponse).map(
             HashMap::new,
-            p -> RoleDescriptor.parse(expectedRoleDescriptor.getName(), p, false)
+            p -> RoleDescriptor.parserBuilder().build().parse(expectedRoleDescriptor.getName(), p)
         );
         assertThat(actual, equalTo(Map.of(expectedRoleDescriptor.getName(), expectedRoleDescriptor)));
     }

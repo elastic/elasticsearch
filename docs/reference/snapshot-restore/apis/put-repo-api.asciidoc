@@ -17,6 +17,8 @@ PUT /_snapshot/my_repository
 }
 ----
 
+IMPORTANT: If you're migrating {ref}/searchable-snapshots.html[searchable snapshots], the repository's name must be identical in the source and destination clusters.
+
 [[put-snapshot-repo-api-request]]
 ==== {api-request-title}
 
@@ -50,15 +52,7 @@ IMPORTANT: Several options for this API can be specified using a query parameter
 or a request body parameter. If both parameters are specified, only the query
 parameter is used.
 
-`master_timeout`::
-(Optional, <<time-units, time units>>) Specifies the period of time to wait for
-a connection to the master node. If no response is received before the timeout
-expires, the request fails and returns an error. Defaults to `30s`.
-
-`timeout`::
-(Optional, <<time-units, time units>>) Specifies the period of time to wait for
-a response. If no response is received before the timeout expires, the request
-fails and returns an error. Defaults to `30s`.
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
 
 `verify`::
 (Optional, Boolean)

@@ -10,6 +10,7 @@ package org.elasticsearch.cluster.metadata;
 
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.DiffableUtils;
 import org.elasticsearch.cluster.NamedDiff;
@@ -88,7 +89,7 @@ public class DataStreamMetadata implements Metadata.Custom {
 
     public DataStreamMetadata(StreamInput in) throws IOException {
         this(
-            in.readImmutableOpenMap(StreamInput::readString, DataStream::new),
+            in.readImmutableOpenMap(StreamInput::readString, DataStream::read),
             in.readImmutableOpenMap(StreamInput::readString, DataStreamAlias::new)
         );
     }
@@ -216,13 +217,13 @@ public class DataStreamMetadata implements Metadata.Custom {
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersion.V_7_7_0;
+        return TransportVersions.V_7_7_0;
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeMap(this.dataStreams, StreamOutput::writeString, (stream, val) -> val.writeTo(stream));
-        out.writeMap(this.dataStreamAliases, StreamOutput::writeString, (stream, val) -> val.writeTo(stream));
+        out.writeMap(this.dataStreams, StreamOutput::writeWriteable);
+        out.writeMap(this.dataStreamAliases, StreamOutput::writeWriteable);
     }
 
     public static DataStreamMetadata fromXContent(XContentParser parser) throws IOException {
@@ -264,7 +265,7 @@ public class DataStreamMetadata implements Metadata.Custom {
     static class DataStreamMetadataDiff implements NamedDiff<Metadata.Custom> {
 
         private static final DiffableUtils.DiffableValueReader<String, DataStream> DS_DIFF_READER = new DiffableUtils.DiffableValueReader<>(
-            DataStream::new,
+            DataStream::read,
             DataStream::readDiffFrom
         );
 
@@ -313,7 +314,7 @@ public class DataStreamMetadata implements Metadata.Custom {
 
         @Override
         public TransportVersion getMinimalSupportedVersion() {
-            return TransportVersion.V_7_7_0;
+            return TransportVersions.V_7_7_0;
         }
     }
 }

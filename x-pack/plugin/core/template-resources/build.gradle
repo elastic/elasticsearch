@@ -1,0 +1,28 @@
+
+apply plugin: 'elasticsearch.build'
+
+base {
+  archivesName = 'x-pack-template-resources'
+}
+
+tasks.named('forbiddenApisMain').configure {
+  // lz4 does not depend on core, so only jdk signatures should be checked
+  replaceSignatureFiles 'jdk-signatures'
+}
+
+// also make the resources available as directory to resolve it directly
+// without the need for packing / unpacking when consumed
+var explodedBundleDir = project.getConfigurations().create("explodedBundleDir");
+explodedBundleDir.setCanBeResolved(false);
+explodedBundleDir.setCanBeConsumed(true);
+explodedBundleDir.getAttributes().attribute(ArtifactTypeDefinition.ARTIFACT_TYPE_ATTRIBUTE, ArtifactTypeDefinition.DIRECTORY_TYPE);
+
+sourceSets.main.output.classesDirs.each {
+  project.getArtifacts().add("explodedBundleDir", it) {
+    builtBy("classes")
+  }
+}
+
+project.getArtifacts().add("explodedBundleDir", sourceSets.main.output.resourcesDir) {
+  builtBy("classes")
+}

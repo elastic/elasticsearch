@@ -58,7 +58,7 @@ public class RemoveSettingsCommandIT extends ESIntegTestCase {
             Settings.builder().put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED_SETTING.getKey(), false)
         );
         assertThat(
-            client().admin().cluster().prepareState().get().getState().metadata().persistentSettings().keySet(),
+            clusterAdmin().prepareState().get().getState().metadata().persistentSettings().keySet(),
             contains(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED_SETTING.getKey())
         );
         Settings dataPathSettings = internalCluster().dataPathSettings(node);
@@ -84,7 +84,7 @@ public class RemoveSettingsCommandIT extends ESIntegTestCase {
 
         internalCluster().startNode(dataPathSettings);
         assertThat(
-            client().admin().cluster().prepareState().get().getState().metadata().persistentSettings().keySet(),
+            clusterAdmin().prepareState().get().getState().metadata().persistentSettings().keySet(),
             not(contains(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED_SETTING.getKey()))
         );
     }
@@ -96,7 +96,7 @@ public class RemoveSettingsCommandIT extends ESIntegTestCase {
             Settings.builder().put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED_SETTING.getKey(), false)
         );
         assertThat(
-            client().admin().cluster().prepareState().get().getState().metadata().persistentSettings().keySet(),
+            clusterAdmin().prepareState().get().getState().metadata().persistentSettings().keySet(),
             contains(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED_SETTING.getKey())
         );
         Settings dataPathSettings = internalCluster().dataPathSettings(node);

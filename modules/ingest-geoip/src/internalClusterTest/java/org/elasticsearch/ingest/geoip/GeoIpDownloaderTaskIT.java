@@ -17,14 +17,14 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.reindex.ReindexPlugin;
 import org.junit.After;
 
-import java.util.Arrays;
 import java.util.Collection;
+import java.util.List;
 
 public class GeoIpDownloaderTaskIT extends AbstractGeoIpIT {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Arrays.asList(ReindexPlugin.class, IngestGeoIpPlugin.class, IngestGeoIpSettingsPlugin.class);
+        return List.of(ReindexPlugin.class, IngestGeoIpPlugin.class, IngestGeoIpSettingsPlugin.class);
     }
 
     @Override
@@ -53,18 +53,12 @@ public class GeoIpDownloaderTaskIT extends AbstractGeoIpIT {
             assertTrue(task.isAssigned());
         });
         assertBusy(() -> {
-            ListTasksResponse tasks = client().admin()
-                .cluster()
-                .listTasks(new ListTasksRequest().setActions("geoip-downloader[c]"))
-                .actionGet();
+            ListTasksResponse tasks = clusterAdmin().listTasks(new ListTasksRequest().setActions("geoip-downloader[c]")).actionGet();
             assertEquals(1, tasks.getTasks().size());
         });
         updateClusterSettings(Settings.builder().put(GeoIpDownloaderTaskExecutor.ENABLED_SETTING.getKey(), false));
         assertBusy(() -> {
-            ListTasksResponse tasks2 = client().admin()
-                .cluster()
-                .listTasks(new ListTasksRequest().setActions("geoip-downloader[c]"))
-                .actionGet();
+            ListTasksResponse tasks2 = clusterAdmin().listTasks(new ListTasksRequest().setActions("geoip-downloader[c]")).actionGet();
             assertEquals(0, tasks2.getTasks().size());
         });
     }

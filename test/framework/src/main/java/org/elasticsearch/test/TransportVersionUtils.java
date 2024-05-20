@@ -9,6 +9,7 @@
 package org.elasticsearch.test;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.core.Nullable;
 
 import java.util.Collections;
@@ -75,8 +76,8 @@ public class TransportVersionUtils {
     }
 
     public static TransportVersion getPreviousVersion() {
-        TransportVersion version = getPreviousVersion(TransportVersion.CURRENT);
-        assert version.before(TransportVersion.CURRENT);
+        TransportVersion version = getPreviousVersion(TransportVersion.current());
+        assert version.before(TransportVersion.current());
         return version;
     }
 
@@ -94,6 +95,10 @@ public class TransportVersionUtils {
     }
 
     public static TransportVersion getNextVersion(TransportVersion version) {
+        return getNextVersion(version, false);
+    }
+
+    public static TransportVersion getNextVersion(TransportVersion version, boolean createIfNecessary) {
         int place = Collections.binarySearch(ALL_VERSIONS, version);
         if (place < 0) {
             // version does not exist - need the item at the index this version should be inserted
@@ -104,13 +109,18 @@ public class TransportVersionUtils {
         }
 
         if (place < 0 || place >= ALL_VERSIONS.size()) {
-            throw new IllegalArgumentException("couldn't find any released versions after [" + version + "]");
+            if (createIfNecessary) {
+                // create a new transport version one greater than specified
+                return new TransportVersion(version.id() + 1);
+            } else {
+                throw new IllegalArgumentException("couldn't find any released versions after [" + version + "]");
+            }
         }
         return ALL_VERSIONS.get(place);
     }
 
-    /** Returns a random {@code TransportVersion} that is compatible with {@link TransportVersion#CURRENT} */
+    /** Returns a random {@code TransportVersion} that is compatible with {@link TransportVersion#current()} */
     public static TransportVersion randomCompatibleVersion(Random random) {
-        return randomVersionBetween(random, TransportVersion.MINIMUM_COMPATIBLE, TransportVersion.CURRENT);
+        return randomVersionBetween(random, TransportVersions.MINIMUM_COMPATIBLE, TransportVersion.current());
     }
 }

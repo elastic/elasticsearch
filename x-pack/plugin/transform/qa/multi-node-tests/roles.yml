@@ -4,9 +4,8 @@ source_index_access:
     - cluster:monitor/main
     - cluster:monitor/tasks/lists
   indices:
-    # Give access to the source and destination indices because the transform roles alone do not provide access to
-    # non-transform indices
-    - names: [ 'transform-permissions-*' ]
+    # Give access to the source indices because the transform roles alone do not provide access to non-transform indices
+    - names: [ 'transform-permissions-*-index' ]
       privileges:
         - create_index
         - indices:admin/refresh
@@ -15,3 +14,24 @@ source_index_access:
         - view_index_metadata
         - indices:data/write/bulk
         - indices:data/write/index
+
+dest_index_access:
+  indices:
+    # Give access to the destination indices
+    - names: [ 'transform-permissions-*-dest' ]
+      privileges:
+        - create_index
+        - indices:admin/refresh
+        - read
+        - write
+        - view_index_metadata
+        - indices:data/write/bulk
+        - indices:data/write/index
+
+fleet_index_access:
+  indices:
+    # Give access to the Fleet indices (which are system indices)
+    - names: [ '.fleet*' ]
+      privileges:
+        - all
+      allow_restricted_indices: true

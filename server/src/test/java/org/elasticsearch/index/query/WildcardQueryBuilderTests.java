@@ -141,18 +141,20 @@ public class WildcardQueryBuilderTests extends AbstractQueryTestCase<WildcardQue
 
     public void testRewriteIndexQueryToMatchNone() throws IOException {
         WildcardQueryBuilder query = new WildcardQueryBuilder("_index", "does_not_exist");
-        SearchExecutionContext searchExecutionContext = createSearchExecutionContext();
-        QueryBuilder rewritten = query.rewrite(searchExecutionContext);
-        assertThat(rewritten, instanceOf(MatchNoneQueryBuilder.class));
+        for (QueryRewriteContext context : new QueryRewriteContext[] { createSearchExecutionContext(), createQueryRewriteContext() }) {
+            QueryBuilder rewritten = query.rewrite(context);
+            assertThat(rewritten, instanceOf(MatchNoneQueryBuilder.class));
+        }
     }
 
     public void testRewriteIndexQueryNotMatchNone() throws IOException {
         String fullIndexName = getIndex().getName();
         String firstHalfOfIndexName = fullIndexName.substring(0, fullIndexName.length() / 2);
         WildcardQueryBuilder query = new WildcardQueryBuilder("_index", firstHalfOfIndexName + "*");
-        SearchExecutionContext searchExecutionContext = createSearchExecutionContext();
-        QueryBuilder rewritten = query.rewrite(searchExecutionContext);
-        assertThat(rewritten, instanceOf(MatchAllQueryBuilder.class));
+        for (QueryRewriteContext context : new QueryRewriteContext[] { createSearchExecutionContext(), createQueryRewriteContext() }) {
+            QueryBuilder rewritten = query.rewrite(context);
+            assertThat(rewritten, instanceOf(MatchAllQueryBuilder.class));
+        }
     }
 
     @Override

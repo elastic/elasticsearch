@@ -114,11 +114,6 @@ public class ScriptMetadataTests extends AbstractChunkedSerializingTestCase<Scri
         assertTrue(ScriptMetadata.fromXContent(parser).getStoredScripts().isEmpty());
     }
 
-    @Override
-    protected boolean enableWarningsCheck() {
-        return true;
-    }
-
     private ScriptMetadata randomScriptMetadata(XContentType sourceContentType, int minNumberScripts) throws IOException {
         ScriptMetadata.Builder builder = new ScriptMetadata.Builder(null);
         int numScripts = scaledRandomIntBetween(minNumberScripts, 32);

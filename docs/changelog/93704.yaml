@@ -1,6 +1,0 @@
-pr: 93704
-summary: Merge two histograms usign the higher number of digits among all histograms
-area: Aggregations
-type: bug
-issues:
- - 92822

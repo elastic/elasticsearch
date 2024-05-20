@@ -6,4 +6,4 @@ for example machine learning. If one or more of these nodes are running out of s
 enough disk space to function. If the <<health-api, health API>> reports that a node that is not a master and does not
 contain data is out of space you need to increase the disk capacity of this node.
 
-include::{es-repo-dir}/tab-widgets/troubleshooting/disk/increase-other-node-capacity-widget.asciidoc[]
+include::{es-ref-dir}/tab-widgets/troubleshooting/disk/increase-other-node-capacity-widget.asciidoc[]

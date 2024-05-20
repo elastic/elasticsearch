@@ -1,0 +1,5 @@
+pr: 107196
+summary: Add metric for calculating index flush time excluding waiting on locks
+area: Engine
+type: enhancement
+issues: []

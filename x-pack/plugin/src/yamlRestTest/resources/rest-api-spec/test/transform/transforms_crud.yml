@@ -105,6 +105,41 @@ setup:
             }
           }
   - match: { acknowledged: true }
+
+---
+"Test put transform with invalid source index pattern":
+  - do:
+      # The transform can be created even though the source index pattern resolves to empty set of concrete indices.
+      transform.put_transform:
+        transform_id: "missing-source-transform-pattern"
+        body: >
+          {
+            "source": { "index": "missing-index*" },
+            "dest": { "index": "missing-source-dest" },
+            "pivot": {
+              "group_by": { "airline": {"terms": {"field": "airline"}}},
+              "aggs": {"avg_response": {"avg": {"field": "responsetime"}}}
+            }
+          }
+  - match: { acknowledged: true }
+
+  - do:
+      # The transform can be updated even though the source index pattern resolves to empty set of concrete indices.
+      transform.update_transform:
+        transform_id: "missing-source-transform-pattern"
+        body: >
+          {
+            "description": "updated description"
+          }
+  - match: { id: "missing-source-transform-pattern" }
+  - match: { description: "updated description" }
+
+  - do:
+      # The transform can be started even though the source index pattern resolves to empty set of concrete indices.
+      transform.start_transform:
+        transform_id: "missing-source-transform-pattern"
+  - match: { acknowledged: true }
+
 ---
 "Test basic transform crud":
   - do:

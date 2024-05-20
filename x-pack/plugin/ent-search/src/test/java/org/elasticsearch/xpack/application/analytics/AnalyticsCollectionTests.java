@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.application.analytics;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -26,6 +26,7 @@ import java.util.List;
 import static java.util.Collections.emptyList;
 import static org.elasticsearch.common.xcontent.XContentHelper.toXContent;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXContentEquivalent;
+import static org.elasticsearch.xpack.application.analytics.AnalyticsConstants.EVENT_DATA_STREAM_INDEX_PREFIX;
 import static org.hamcrest.CoreMatchers.equalTo;
 
 public class AnalyticsCollectionTests extends ESTestCase {
@@ -42,14 +43,14 @@ public class AnalyticsCollectionTests extends ESTestCase {
 
     public void testDataStreamName() {
         AnalyticsCollection collection = randomAnalyticsCollection();
-        String expectedDataStreamName = AnalyticsTemplateRegistry.EVENT_DATA_STREAM_INDEX_PREFIX + collection.getName();
+        String expectedDataStreamName = EVENT_DATA_STREAM_INDEX_PREFIX + collection.getName();
         assertEquals(expectedDataStreamName, collection.getEventDataStream());
     }
 
     public final void testRandomSerialization() throws IOException {
         for (int runs = 0; runs < 10; runs++) {
             AnalyticsCollection collection = randomAnalyticsCollection();
-            assertTransportSerialization(collection, Version.CURRENT);
+            assertTransportSerialization(collection, TransportVersion.current());
             assertXContent(collection, randomBoolean());
         }
     }
@@ -78,15 +79,16 @@ public class AnalyticsCollectionTests extends ESTestCase {
         return parsed;
     }
 
-    private AnalyticsCollection assertTransportSerialization(AnalyticsCollection testInstance, Version version) throws IOException {
+    private AnalyticsCollection assertTransportSerialization(AnalyticsCollection testInstance, TransportVersion version)
+        throws IOException {
         AnalyticsCollection deserializedInstance = copyInstance(testInstance, version);
         assertNotSame(testInstance, deserializedInstance);
         assertThat(testInstance, equalTo(deserializedInstance));
         return deserializedInstance;
     }
 
-    private AnalyticsCollection copyInstance(AnalyticsCollection instance, Version version) throws IOException {
-        return copyWriteable(instance, namedWriteableRegistry, AnalyticsCollection::new, version.transportVersion);
+    private AnalyticsCollection copyInstance(AnalyticsCollection instance, TransportVersion version) throws IOException {
+        return copyWriteable(instance, namedWriteableRegistry, AnalyticsCollection::new, version);
     }
 
     private static AnalyticsCollection randomAnalyticsCollection() {

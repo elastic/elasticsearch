@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.core.security.authz;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRequest;
@@ -246,6 +247,7 @@ public interface AuthorizationEngine {
      */
     default void getRoleDescriptorsIntersectionForRemoteCluster(
         final String remoteClusterAlias,
+        final TransportVersion remoteClusterVersion,
         final AuthorizationInfo authorizationInfo,
         final ActionListener<RoleDescriptorsIntersection> listener
     ) {
@@ -632,8 +634,7 @@ public interface AuthorizationEngine {
                     || Arrays.equals(IndicesAndAliasesResolverField.NO_INDICES_OR_ALIASES_ARRAY, indices)) {
                     return null;
                 }
-                Set<String> deniedIndices = Arrays.asList(indices)
-                    .stream()
+                Set<String> deniedIndices = Arrays.stream(indices)
                     .filter(index -> false == indicesAccessControl.hasIndexPermissions(index))
                     .collect(Collectors.toSet());
                 return getFailureDescription(deniedIndices, restrictedIndices);

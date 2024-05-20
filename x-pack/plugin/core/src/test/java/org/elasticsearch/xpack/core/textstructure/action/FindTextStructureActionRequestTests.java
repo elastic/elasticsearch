@@ -14,6 +14,7 @@ import org.elasticsearch.xpack.core.textstructure.structurefinder.TextStructure;
 
 import java.util.Arrays;
 
+import static org.elasticsearch.grok.GrokBuiltinPatterns.ECS_COMPATIBILITY_DISABLED;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.startsWith;
 
@@ -173,7 +174,7 @@ public class FindTextStructureActionRequestTests extends AbstractWireSerializing
         request.setSample(new BytesArray("foo\n"));
 
         ActionRequestValidationException e = request.validate();
-        if (FindStructureAction.ECS_COMPATIBILITY_DISABLED.equalsIgnoreCase(ecsCompatibility) == false) {
+        if (ECS_COMPATIBILITY_DISABLED.equalsIgnoreCase(ecsCompatibility) == false) {
             assertNotNull(e);
             assertThat(e.getMessage(), startsWith("Validation Failed: "));
             assertThat(e.getMessage(), containsString(" [ecs_compatibility] must be one of [disabled, v1] if specified"));

@@ -79,11 +79,6 @@ public class ClearRolesCacheTests extends NativeRealmIntegTestCase {
         }
     }
 
-    @Override
-    protected boolean addMockHttpTransport() {
-        return false; // enable http
-    }
-
     public void testModifyingViaApiClearsCache() throws Exception {
         final TestSecurityClient securityClient = new TestSecurityClient(getRestClient(), SECURITY_REQUEST_OPTIONS);
         int modifiedRolesCount = randomIntBetween(1, roles.length);

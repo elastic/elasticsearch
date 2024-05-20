@@ -6,9 +6,8 @@
  */
 package org.elasticsearch.xpack.security.authz;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.resolve.ResolveIndexAction;
-import org.elasticsearch.action.search.SearchAction;
+import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.metadata.DataStream;
@@ -18,6 +17,7 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
@@ -70,7 +70,7 @@ public class AuthorizedIndicesTests extends ESTestCase {
             new IndicesPrivileges[] { IndicesPrivileges.builder().indices("b").privileges("READ").build() },
             null
         );
-        Settings indexSettings = Settings.builder().put("index.version.created", Version.CURRENT).build();
+        Settings indexSettings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()).build();
         final String internalSecurityIndex = randomFrom(
             TestRestrictedIndices.INTERNAL_SECURITY_MAIN_INDEX_6,
             TestRestrictedIndices.INTERNAL_SECURITY_MAIN_INDEX_7
@@ -110,7 +110,7 @@ public class AuthorizedIndicesTests extends ESTestCase {
         Role roles = future.actionGet();
         AuthorizedIndices authorizedIndices = RBACEngine.resolveAuthorizedIndicesFromRole(
             roles,
-            getRequestInfo(SearchAction.NAME),
+            getRequestInfo(TransportSearchAction.TYPE.name()),
             metadata.getIndicesLookup(),
             () -> ignore -> {}
         );
@@ -129,7 +129,7 @@ public class AuthorizedIndicesTests extends ESTestCase {
         Role role = Role.builder(RESTRICTED_INDICES, "role").add(IndexPrivilege.ALL, "*").build();
         AuthorizedIndices authorizedIndices = RBACEngine.resolveAuthorizedIndicesFromRole(
             role,
-            getRequestInfo(SearchAction.NAME),
+            getRequestInfo(TransportSearchAction.TYPE.name()),
             Metadata.EMPTY_METADATA.getIndicesLookup(),
             () -> ignore -> {}
         );
@@ -140,7 +140,7 @@ public class AuthorizedIndicesTests extends ESTestCase {
         Role role = Role.builder(RESTRICTED_INDICES, "user_role").add(IndexPrivilege.ALL, "*").cluster(Set.of("all"), Set.of()).build();
         AuthorizedIndices authorizedIndices = RBACEngine.resolveAuthorizedIndicesFromRole(
             role,
-            getRequestInfo(SearchAction.NAME),
+            getRequestInfo(TransportSearchAction.TYPE.name()),
             Metadata.EMPTY_METADATA.getIndicesLookup(),
             () -> ignore -> {}
         );
@@ -152,7 +152,7 @@ public class AuthorizedIndicesTests extends ESTestCase {
             .add(IndexPrivilege.ALL, "*")
             .cluster(Set.of("all"), Set.of())
             .build();
-        Settings indexSettings = Settings.builder().put("index.version.created", Version.CURRENT).build();
+        Settings indexSettings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()).build();
         final String internalSecurityIndex = randomFrom(
             TestRestrictedIndices.INTERNAL_SECURITY_MAIN_INDEX_6,
             TestRestrictedIndices.INTERNAL_SECURITY_MAIN_INDEX_7
@@ -172,7 +172,7 @@ public class AuthorizedIndicesTests extends ESTestCase {
 
         AuthorizedIndices authorizedIndices = RBACEngine.resolveAuthorizedIndicesFromRole(
             role,
-            getRequestInfo(SearchAction.NAME),
+            getRequestInfo(TransportSearchAction.TYPE.name()),
             metadata.getIndicesLookup(),
             () -> ignore -> {}
         );
@@ -190,7 +190,7 @@ public class AuthorizedIndicesTests extends ESTestCase {
             .add(FieldPermissions.DEFAULT, null, IndexPrivilege.ALL, true, "*")
             .cluster(Set.of("all"), Set.of())
             .build();
-        Settings indexSettings = Settings.builder().put("index.version.created", Version.CURRENT).build();
+        Settings indexSettings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()).build();
         final String internalSecurityIndex = randomFrom(
             TestRestrictedIndices.INTERNAL_SECURITY_MAIN_INDEX_6,
             TestRestrictedIndices.INTERNAL_SECURITY_MAIN_INDEX_7
@@ -210,7 +210,7 @@ public class AuthorizedIndicesTests extends ESTestCase {
 
         AuthorizedIndices authorizedIndices = RBACEngine.resolveAuthorizedIndicesFromRole(
             role,
-            getRequestInfo(SearchAction.NAME),
+            getRequestInfo(TransportSearchAction.TYPE.name()),
             metadata.getIndicesLookup(),
             () -> ignore -> {}
         );
@@ -221,7 +221,7 @@ public class AuthorizedIndicesTests extends ESTestCase {
 
         AuthorizedIndices authorizedIndicesSuperUser = RBACEngine.resolveAuthorizedIndicesFromRole(
             role,
-            getRequestInfo(SearchAction.NAME),
+            getRequestInfo(TransportSearchAction.TYPE.name()),
             metadata.getIndicesLookup(),
             () -> ignore -> {}
         );
@@ -244,7 +244,7 @@ public class AuthorizedIndicesTests extends ESTestCase {
             new IndicesPrivileges[] { IndicesPrivileges.builder().indices("b").privileges("READ").build() },
             null
         );
-        Settings indexSettings = Settings.builder().put("index.version.created", Version.CURRENT).build();
+        Settings indexSettings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()).build();
         final String internalSecurityIndex = randomFrom(
             TestRestrictedIndices.INTERNAL_SECURITY_MAIN_INDEX_6,
             TestRestrictedIndices.INTERNAL_SECURITY_MAIN_INDEX_7
@@ -292,7 +292,7 @@ public class AuthorizedIndicesTests extends ESTestCase {
         Role roles = future.actionGet();
         AuthorizedIndices authorizedIndices = RBACEngine.resolveAuthorizedIndicesFromRole(
             roles,
-            getRequestInfo(SearchAction.NAME),
+            getRequestInfo(TransportSearchAction.TYPE.name()),
             metadata.getIndicesLookup(),
             () -> ignore -> {}
         );
@@ -327,7 +327,7 @@ public class AuthorizedIndicesTests extends ESTestCase {
             new IndicesPrivileges[] { IndicesPrivileges.builder().indices("b").privileges("READ").build() },
             null
         );
-        Settings indexSettings = Settings.builder().put("index.version.created", Version.CURRENT).build();
+        Settings indexSettings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()).build();
         final String internalSecurityIndex = randomFrom(
             TestRestrictedIndices.INTERNAL_SECURITY_MAIN_INDEX_6,
             TestRestrictedIndices.INTERNAL_SECURITY_MAIN_INDEX_7
@@ -374,7 +374,7 @@ public class AuthorizedIndicesTests extends ESTestCase {
         );
         Role roles = future.actionGet();
         TransportRequest request = new ResolveIndexAction.Request(new String[] { "a*" });
-        AuthorizationEngine.RequestInfo requestInfo = getRequestInfo(request, SearchAction.NAME);
+        AuthorizationEngine.RequestInfo requestInfo = getRequestInfo(request, TransportSearchAction.TYPE.name());
         AuthorizedIndices authorizedIndices = RBACEngine.resolveAuthorizedIndicesFromRole(
             roles,
             requestInfo,

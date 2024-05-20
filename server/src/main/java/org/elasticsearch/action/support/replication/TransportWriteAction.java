@@ -22,8 +22,10 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexingPressure;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.mapper.MapperParsingException;
@@ -37,6 +39,7 @@ import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
+import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
@@ -59,7 +62,7 @@ public abstract class TransportWriteAction<
     protected final ExecutorSelector executorSelector;
 
     protected final PostWriteRefresh postWriteRefresh;
-    private final BiFunction<ExecutorSelector, IndexShard, String> executorFunction;
+    private final BiFunction<ExecutorSelector, IndexShard, Executor> executorFunction;
 
     protected TransportWriteAction(
         Settings settings,
@@ -72,7 +75,7 @@ public abstract class TransportWriteAction<
         ActionFilters actionFilters,
         Writeable.Reader<Request> request,
         Writeable.Reader<ReplicaRequest> replicaRequest,
-        BiFunction<ExecutorSelector, IndexShard, String> executorFunction,
+        BiFunction<ExecutorSelector, IndexShard, Executor> executorFunction,
         boolean forceExecutionOnPrimary,
         IndexingPressure indexingPressure,
         SystemIndices systemIndices
@@ -90,7 +93,7 @@ public abstract class TransportWriteAction<
             actionFilters,
             request,
             replicaRequest,
-            ThreadPool.Names.SAME,
+            EsExecutors.DIRECT_EXECUTOR_SERVICE,
             true,
             forceExecutionOnPrimary
         );
@@ -101,7 +104,7 @@ public abstract class TransportWriteAction<
         this.postWriteRefresh = new PostWriteRefresh(transportService);
     }
 
-    protected String executor(IndexShard shard) {
+    protected Executor executor(IndexShard shard) {
         return executorFunction.apply(executorSelector, shard);
     }
 
@@ -208,7 +211,7 @@ public abstract class TransportWriteAction<
         IndexShard primary,
         ActionListener<PrimaryResult<ReplicaRequest, Response>> listener
     ) {
-        threadPool.executor(executorFunction.apply(executorSelector, primary)).execute(new ActionRunnable<>(listener) {
+        executorFunction.apply(executorSelector, primary).execute(new ActionRunnable<>(listener) {
             @Override
             protected void doRun() {
                 dispatchedShardOperationOnPrimary(request, primary, listener);
@@ -236,7 +239,7 @@ public abstract class TransportWriteAction<
      */
     @Override
     protected void shardOperationOnReplica(ReplicaRequest request, IndexShard replica, ActionListener<ReplicaResult> listener) {
-        threadPool.executor(executorFunction.apply(executorSelector, replica)).execute(new ActionRunnable<>(listener) {
+        executorFunction.apply(executorSelector, replica).execute(new ActionRunnable<>(listener) {
             @Override
             protected void doRun() {
                 dispatchedShardOperationOnReplica(request, replica, listener);
@@ -421,10 +424,11 @@ public abstract class TransportWriteAction<
         private final Logger logger;
         private final PostWriteRefresh postWriteRefresh;
         private final Consumer<Runnable> postWriteAction;
+        private final TimeValue postWriteRefreshTimeout;
 
         AsyncAfterWriteAction(
             final IndexShard indexShard,
-            final WriteRequest<?> request,
+            final ReplicatedWriteRequest<?> request,
             @Nullable final Translog.Location location,
             final RespondingWriteResult respond,
             final Logger logger,
@@ -448,6 +452,7 @@ public abstract class TransportWriteAction<
                 pendingOps.incrementAndGet();
             }
             this.logger = logger;
+            this.postWriteRefreshTimeout = request.timeout();
             assert pendingOps.get() >= 0 && pendingOps.get() <= 3 : "pendingOps was: " + pendingOps.get();
         }
 
@@ -499,15 +504,21 @@ public abstract class TransportWriteAction<
                 };
                 // If the post refresh action is null, this is just the replica and we only call the static method
                 if (postWriteRefresh != null) {
-                    postWriteRefresh.refreshShard(request.getRefreshPolicy(), indexShard, location, refreshListener);
+                    postWriteRefresh.refreshShard(
+                        request.getRefreshPolicy(),
+                        indexShard,
+                        location,
+                        refreshListener,
+                        postWriteRefreshTimeout
+                    );
                 } else {
                     PostWriteRefresh.refreshReplicaShard(request.getRefreshPolicy(), indexShard, location, refreshListener);
                 }
             }
             if (sync) {
                 assert pendingOps.get() > 0;
-                indexShard.sync(location, (ex) -> {
-                    syncFailure.set(ex);
+                indexShard.syncAfterWrite(location, e -> {
+                    syncFailure.set(e);
                     maybeFinish();
                 });
             }

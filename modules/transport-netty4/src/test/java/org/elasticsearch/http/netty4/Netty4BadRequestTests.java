@@ -23,10 +23,10 @@ import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.telemetry.tracing.Tracer;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.tracing.Tracer;
 import org.elasticsearch.transport.netty4.SharedGroupFactory;
 import org.elasticsearch.transport.netty4.TLSConfig;
 import org.junit.After;
@@ -88,7 +88,7 @@ public class Netty4BadRequestTests extends ESTestCase {
                 Tracer.NOOP,
                 TLSConfig.noTLS(),
                 null,
-                randomFrom(Netty4HttpHeaderValidator.NOOP_VALIDATOR, null)
+                randomFrom((httpPreRequest, channel, listener) -> listener.onResponse(null), null)
             )
         ) {
             httpServerTransport.start();

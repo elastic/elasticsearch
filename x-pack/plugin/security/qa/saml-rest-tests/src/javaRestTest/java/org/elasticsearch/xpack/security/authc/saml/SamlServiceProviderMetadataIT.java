@@ -13,7 +13,6 @@ import com.sun.net.httpserver.HttpsServer;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -21,6 +20,7 @@ import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.http.PemHttpsConfigurator;
 import org.elasticsearch.mocksocket.MockHttpServer;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
+import org.elasticsearch.test.cluster.local.model.User;
 import org.elasticsearch.test.cluster.util.resource.Resource;
 import org.elasticsearch.test.junit.RunnableTestRuleAdapter;
 import org.elasticsearch.test.rest.ESRestTestCase;
@@ -107,28 +107,28 @@ public class SamlServiceProviderMetadataIT extends ESRestTestCase {
             .setting("xpack.security.transport.ssl.certificate_authorities", "ca.crt")
             .setting("xpack.security.transport.ssl.verification_mode", "certificate")
             .keystore("bootstrap.password", "x-pack-test-password")
-            .user("test_admin", "x-pack-test-password", "_es_test_root")
-            .user("rest_test", "rest_password")
+            .user("test_admin", "x-pack-test-password", User.ROOT_USER_ROLE, true)
+            .user("rest_test", "rest_password", User.ROOT_USER_ROLE, false)
             .configFile("node.key", Resource.fromClasspath("ssl/node.key"))
             .configFile("node.crt", Resource.fromClasspath("ssl/node.crt"))
             .configFile("ca.crt", Resource.fromClasspath("ssl/ca.crt"))
             .settings(node -> {
                 var samlWebServerAddress = httpsServer.getAddress();
                 var https = "https://" + samlWebServerAddress.getHostName() + ":" + samlWebServerAddress.getPort() + "/";
-                var settings = new MapBuilder<String, String>();
+                var settings = new HashMap<String, String>();
                 for (int realmNumber : List.of(1, 2, 3)) {
                     var prefix = "xpack.security.authc.realms.saml.saml" + realmNumber;
                     var idpEntityId = getIdpEntityId(realmNumber);
-                    settings.put(prefix + ".order", String.valueOf(realmNumber))
-                        .put(prefix + ".idp.entity_id", idpEntityId)
-                        .put(prefix + ".idp.metadata.path", https + "metadata/" + realmNumber + ".xml")
-                        .put(prefix + ".sp.entity_id", "https://sp" + realmNumber + ".example.org/")
-                        .put(prefix + ".sp.acs", https + "acs/" + realmNumber)
-                        .put(prefix + ".attributes.principal", "urn:oid:2.5.4.3")
-                        .put(prefix + ".ssl.certificate_authorities", "ca.crt");
+                    settings.put(prefix + ".order", String.valueOf(realmNumber));
+                    settings.put(prefix + ".idp.entity_id", idpEntityId);
+                    settings.put(prefix + ".idp.metadata.path", https + "metadata/" + realmNumber + ".xml");
+                    settings.put(prefix + ".sp.entity_id", "https://sp" + realmNumber + ".example.org/");
+                    settings.put(prefix + ".sp.acs", https + "acs/" + realmNumber);
+                    settings.put(prefix + ".attributes.principal", "urn:oid:2.5.4.3");
+                    settings.put(prefix + ".ssl.certificate_authorities", "ca.crt");
 
                 }
-                return settings.map();
+                return settings;
             })
             .build();
     }

@@ -6,7 +6,9 @@
 
 The `path_hierarchy` tokenizer takes a hierarchical value like a filesystem
 path, splits on the path separator, and emits a term for each component in the
-tree.
+tree. The `path_hierarcy` tokenizer uses Lucene's
+https://lucene.apache.org/core/{lucene_version_path}/analysis/common/org/apache/lucene/analysis/path/PathHierarchyTokenizer.html[PathHierarchyTokenizer]
+underneath.
 
 [discrete]
 === Example output
@@ -81,7 +83,9 @@ The `path_hierarchy` tokenizer accepts the following parameters:
     text has been consumed. It is advisable not to change this setting.
 
 `reverse`::
-    If set to `true`, emits the tokens in reverse order. Defaults to `false`.
+    If `true`, uses Lucene's
+    http://lucene.apache.org/core/{lucene_version_path}/analysis/common/org/apache/lucene/analysis/path/ReversePathHierarchyTokenizer.html[ReversePathHierarchyTokenizer],
+    which is suitable for domain–like hierarchies. Defaults to `false`.
 
 `skip`::
     The number of initial tokens to skip. Defaults to `0`.

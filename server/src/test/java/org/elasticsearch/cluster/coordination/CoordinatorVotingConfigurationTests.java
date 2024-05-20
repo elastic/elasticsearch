@@ -13,7 +13,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.discovery.DiscoveryModule;
-import org.elasticsearch.test.MockLogAppender;
+import org.elasticsearch.test.MockLog;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 
 import java.util.HashSet;
@@ -22,6 +22,7 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.cluster.coordination.AbstractCoordinatorTestCase.Cluster.DEFAULT_DELAY_VARIABILITY;
+import static org.elasticsearch.cluster.coordination.AbstractCoordinatorTestCase.Cluster.EXTREME_DELAY_VARIABILITY;
 import static org.elasticsearch.cluster.coordination.Coordinator.Mode.CANDIDATE;
 import static org.elasticsearch.cluster.coordination.ElectionSchedulerFactory.ELECTION_INITIAL_TIMEOUT_SETTING;
 import static org.elasticsearch.cluster.coordination.Reconfigurator.CLUSTER_AUTO_SHRINK_VOTING_CONFIGURATION;
@@ -457,23 +458,23 @@ public class CoordinatorVotingConfigurationTests extends AbstractCoordinatorTest
         value = "org.elasticsearch.cluster.coordination.ClusterBootstrapService:INFO"
     )
     public void testClusterUUIDLogging() {
-        final var mockAppender = new MockLogAppender();
-        mockAppender.addExpectation(
-            new MockLogAppender.SeenEventExpectation(
-                "fresh node message",
-                ClusterBootstrapService.class.getCanonicalName(),
-                Level.INFO,
-                "this node has not joined a bootstrapped cluster yet; [cluster.initial_master_nodes] is set to []"
-            )
-        );
-        try (var ignored = mockAppender.capturing(ClusterBootstrapService.class); var cluster = new Cluster(randomIntBetween(1, 3))) {
+        try (var mockLog = MockLog.capture(ClusterBootstrapService.class); var cluster = new Cluster(randomIntBetween(1, 3))) {
+            mockLog.addExpectation(
+                new MockLog.SeenEventExpectation(
+                    "fresh node message",
+                    ClusterBootstrapService.class.getCanonicalName(),
+                    Level.INFO,
+                    "this node has not joined a bootstrapped cluster yet; [cluster.initial_master_nodes] is set to []"
+                )
+            );
+
             cluster.runRandomly();
             cluster.stabilise();
-            mockAppender.assertAllExpectationsMatched();
+            mockLog.assertAllExpectationsMatched();
 
             final var restartingNode = cluster.getAnyNode();
-            mockAppender.addExpectation(
-                new MockLogAppender.SeenEventExpectation(
+            mockLog.addExpectation(
+                new MockLog.SeenEventExpectation(
                     "restarted node message",
                     ClusterBootstrapService.class.getCanonicalName(),
                     Level.INFO,
@@ -485,7 +486,38 @@ public class CoordinatorVotingConfigurationTests extends AbstractCoordinatorTest
             restartingNode.close();
             cluster.clusterNodes.replaceAll(cn -> cn == restartingNode ? cn.restartedNode() : cn);
             cluster.stabilise();
-            mockAppender.assertAllExpectationsMatched();
+            mockLog.assertAllExpectationsMatched();
+        }
+    }
+
+    public void testDiscoveryUsesNodesFromLastClusterState() {
+
+        // This test only applies when using proper majority-based voting configurations. If we permit non-overlapping configurations then
+        // the isolated node can form a one-node cluster when it is healed, and the other nodes won't know be able to discover it without a
+        // proper discovery config since it wasn't in their last cluster states.
+        //
+        // (if we wanted this to work without a proper discovery config then we could e.g. record the master's publish address in the
+        // heartbeat blob, but we can assume that discovery is properly configured when using an atomic-register coordinator, and therefore
+        // there's no need for this extra complexity)
+
+        try (Cluster cluster = new Cluster(randomIntBetween(3, 5))) {
+            cluster.runRandomly();
+            cluster.stabilise();
+
+            final Cluster.ClusterNode partitionedNode = cluster.getAnyNode();
+            if (randomBoolean()) {
+                logger.info("--> blackholing {}", partitionedNode);
+                partitionedNode.blackhole();
+            } else {
+                logger.info("--> disconnecting {}", partitionedNode);
+                partitionedNode.disconnect();
+            }
+            cluster.setEmptySeedHostsList();
+            cluster.stabilise();
+
+            partitionedNode.heal();
+            cluster.runRandomly(false, true, EXTREME_DELAY_VARIABILITY);
+            cluster.stabilise();
         }
     }
 }

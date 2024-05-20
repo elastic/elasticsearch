@@ -7,7 +7,6 @@
  */
 package org.elasticsearch.cluster.routing.allocation;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ESAllocationTestCase;
@@ -21,15 +20,16 @@ import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.TestShardRouting;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.ShardId;
 
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
+import static org.elasticsearch.cluster.routing.TestShardRouting.shardRoutingBuilder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
@@ -41,13 +41,13 @@ public class StartedShardsRoutingTests extends ESAllocationTestCase {
         logger.info("--> building initial cluster state");
         AllocationId allocationId = AllocationId.newRelocation(AllocationId.newInitializing());
         final IndexMetadata indexMetadata = IndexMetadata.builder("test")
-            .settings(settings(Version.CURRENT))
+            .settings(settings(IndexVersion.current()))
             .numberOfShards(2)
             .numberOfReplicas(0)
             .putInSyncAllocationIds(1, Collections.singleton(allocationId.getId()))
             .build();
         final Index index = indexMetadata.getIndex();
-        ClusterState.Builder stateBuilder = ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
+        ClusterState.Builder stateBuilder = ClusterState.builder(ClusterName.DEFAULT)
             .nodes(DiscoveryNodes.builder().add(newNode("node1")).add(newNode("node2")))
             .metadata(Metadata.builder().put(indexMetadata, false));
 
@@ -57,14 +57,10 @@ public class StartedShardsRoutingTests extends ESAllocationTestCase {
             true,
             ShardRoutingState.INITIALIZING
         );
-        final ShardRouting relocatingShard = TestShardRouting.newShardRouting(
-            new ShardId(index, 1),
-            "node1",
-            "node2",
-            true,
-            ShardRoutingState.RELOCATING,
-            allocationId
-        );
+        final ShardRouting relocatingShard = shardRoutingBuilder(new ShardId(index, 1), "node1", true, ShardRoutingState.RELOCATING)
+            .withRelocatingNodeId("node2")
+            .withAllocationId(allocationId)
+            .build();
         stateBuilder.routingTable(
             RoutingTable.builder()
                 .add(
@@ -112,7 +108,7 @@ public class StartedShardsRoutingTests extends ESAllocationTestCase {
         }
 
         final IndexMetadata indexMetadata = IndexMetadata.builder("test")
-            .settings(settings(Version.CURRENT))
+            .settings(settings(IndexVersion.current()))
             .numberOfShards(1)
             .numberOfReplicas(1)
             .putInSyncAllocationIds(
@@ -121,26 +117,20 @@ public class StartedShardsRoutingTests extends ESAllocationTestCase {
             )
             .build();
         final Index index = indexMetadata.getIndex();
-        ClusterState.Builder stateBuilder = ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
+        ClusterState.Builder stateBuilder = ClusterState.builder(ClusterName.DEFAULT)
             .nodes(DiscoveryNodes.builder().add(newNode("node1")).add(newNode("node2")).add(newNode("node3")).add(newNode("node4")))
             .metadata(Metadata.builder().put(indexMetadata, false));
 
-        final ShardRouting relocatingPrimary = TestShardRouting.newShardRouting(
-            new ShardId(index, 0),
-            "node1",
-            "node2",
-            true,
-            ShardRoutingState.RELOCATING,
-            primaryId
-        );
-        final ShardRouting replica = TestShardRouting.newShardRouting(
+        final ShardRouting relocatingPrimary = shardRoutingBuilder(new ShardId(index, 0), "node1", true, ShardRoutingState.RELOCATING)
+            .withRelocatingNodeId("node2")
+            .withAllocationId(primaryId)
+            .build();
+        final ShardRouting replica = shardRoutingBuilder(
             new ShardId(index, 0),
             "node3",
-            relocatingReplica ? "node4" : null,
             false,
-            relocatingReplica ? ShardRoutingState.RELOCATING : ShardRoutingState.INITIALIZING,
-            replicaId
-        );
+            relocatingReplica ? ShardRoutingState.RELOCATING : ShardRoutingState.INITIALIZING
+        ).withRelocatingNodeId(relocatingReplica ? "node4" : null).withAllocationId(replicaId).build();
 
         stateBuilder.routingTable(
             RoutingTable.builder()

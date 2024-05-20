@@ -9,6 +9,7 @@
 package org.elasticsearch.search.aggregations.bucket.missing;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
@@ -114,12 +115,7 @@ public class MissingAggregationBuilder extends ValuesSourceAggregationBuilder<Mi
     }
 
     @Override
-    protected ValuesSourceRegistry.RegistryKey<?> getRegistryKey() {
-        return REGISTRY_KEY;
-    }
-
-    @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersion.ZERO;
+        return TransportVersions.ZERO;
     }
 }

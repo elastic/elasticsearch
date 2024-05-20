@@ -2,10 +2,6 @@
 [[breaking_80_index_setting_changes]]
 ==== Index setting changes
 
-//NOTE: The notable-breaking-changes tagged regions are re-used in the
-//Installation and Upgrade Guide
-
-//tag::notable-breaking-changes[]
 [[deprecation-system-indices]]
 .Direct access to system indices is deprecated.
 [%collapsible]
@@ -124,4 +120,3 @@ Discontinue use of the `index.translog.retention.age` and
 `index.translog.retention.size` index settings. Requests that
 include these settings will return an error.
 ====
-//end::notable-breaking-changes[]

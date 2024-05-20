@@ -12,10 +12,12 @@ import org.elasticsearch.client.Response;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.test.NotEqualMessageBuilder;
+import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.sql.qa.rest.BaseRestSqlTestCase;
+import org.junit.ClassRule;
 
 import java.io.IOException;
 import java.nio.charset.UnsupportedCharsetException;
@@ -34,6 +36,14 @@ import static org.elasticsearch.xpack.sql.qa.rest.RestSqlTestCase.columnInfo;
  * Tests specific to multiple nodes.
  */
 public class RestSqlMultinodeIT extends ESRestTestCase {
+    @ClassRule
+    public static final ElasticsearchCluster cluster = SqlTestCluster.getCluster();
+
+    @Override
+    protected String getTestRestCluster() {
+        return cluster.getHttpAddresses();
+    }
+
     /**
      * Tests count of index run across multiple nodes.
      */

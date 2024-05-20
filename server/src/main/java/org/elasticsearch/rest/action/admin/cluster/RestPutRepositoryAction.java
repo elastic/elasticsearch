@@ -15,6 +15,8 @@ import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.repositories.RepositoryConflictException;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.Scope;
+import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xcontent.XContentParser;
 
@@ -23,10 +25,13 @@ import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 import static org.elasticsearch.rest.RestRequest.Method.PUT;
+import static org.elasticsearch.rest.RestUtils.getAckTimeout;
+import static org.elasticsearch.rest.RestUtils.getMasterNodeTimeout;
 
 /**
  * Registers repositories
  */
+@ServerlessScope(Scope.INTERNAL)
 public class RestPutRepositoryAction extends BaseRestHandler {
 
     @Override
@@ -47,8 +52,8 @@ public class RestPutRepositoryAction extends BaseRestHandler {
             putRepositoryRequest.source(parser.mapOrdered());
         }
         putRepositoryRequest.verify(request.paramAsBoolean("verify", true));
-        putRepositoryRequest.masterNodeTimeout(request.paramAsTime("master_timeout", putRepositoryRequest.masterNodeTimeout()));
-        putRepositoryRequest.timeout(request.paramAsTime("timeout", putRepositoryRequest.timeout()));
+        putRepositoryRequest.masterNodeTimeout(getMasterNodeTimeout(request));
+        putRepositoryRequest.ackTimeout(getAckTimeout(request));
         return channel -> client.admin()
             .cluster()
             .putRepository(

@@ -9,8 +9,10 @@
 package org.elasticsearch.search.lookup;
 
 import org.apache.lucene.index.LeafReaderContext;
-import org.elasticsearch.index.fieldvisitor.LeafStoredFieldLoader;
 import org.elasticsearch.index.fieldvisitor.StoredFieldLoader;
+import org.elasticsearch.index.mapper.Mapping;
+import org.elasticsearch.index.mapper.SourceFieldMetrics;
+import org.elasticsearch.index.mapper.SourceLoader;
 
 import java.io.IOException;
 
@@ -26,33 +28,26 @@ public interface SourceProvider {
 
     /**
      * A SourceProvider that loads source from stored fields
+     *
+     * The returned SourceProvider is thread-safe across segments, in that it may be
+     * safely used by a searcher that searches different segments on different threads,
+     * but it is not safe to use this to access documents from the same segment across
+     * multiple threads.
      */
     static SourceProvider fromStoredFields() {
         StoredFieldLoader storedFieldLoader = StoredFieldLoader.sequentialSource();
-        return new SourceProvider() {
+        return new StoredFieldSourceProvider(storedFieldLoader);
+    }
 
-            // TODO we can make this segment thread safe by keeping an array of LeafStoredFieldLoader/doc/Source
-            // records, indexed by the ordinal of the LeafReaderContext
-
-            LeafReaderContext ctx;
-            int doc;
-            LeafStoredFieldLoader leafStoredFieldLoader;
-            Source source;
-
-            @Override
-            public Source getSource(LeafReaderContext ctx, int doc) throws IOException {
-                if (this.ctx == ctx) {
-                    if (this.doc == doc) {
-                        return source;
-                    }
-                } else {
-                    leafStoredFieldLoader = storedFieldLoader.getLoader(ctx, null);
-                }
-                this.ctx = ctx;
-                this.doc = doc;
-                leafStoredFieldLoader.advanceTo(doc);
-                return source = Source.fromBytes(leafStoredFieldLoader.source());
-            }
-        };
+    /**
+     * A SourceProvider that loads source from synthetic source
+     *
+     * The returned SourceProvider is thread-safe across segments, in that it may be
+     * safely used by a searcher that searches different segments on different threads,
+     * but it is not safe to use this to access documents from the same segment across
+     * multiple threads.
+     */
+    static SourceProvider fromSyntheticSource(Mapping mapping, SourceFieldMetrics metrics) {
+        return new SyntheticSourceProvider(new SourceLoader.Synthetic(mapping, metrics));
     }
 }

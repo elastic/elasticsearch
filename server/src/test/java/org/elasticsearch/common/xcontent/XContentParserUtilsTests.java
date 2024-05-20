@@ -21,11 +21,15 @@ import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
+import org.hamcrest.Matchers;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Base64;
 import java.util.List;
@@ -284,5 +288,36 @@ public class XContentParserUtilsTests extends ESTestCase {
                 assertEquals("Failed to parse object: empty key", exception.getMessage());
             }
         }
+    }
+
+    public void testParseListWithIndex_IncrementsIndexBy1ForEachEntryInList() throws IOException {
+        String jsonString = """
+            ["a", "b", "c"]
+            """;
+
+        var parserConfig = XContentParserConfiguration.EMPTY.withDeprecationHandler(LoggingDeprecationHandler.INSTANCE);
+
+        List<String> results;
+        var indices = new ArrayList<Integer>();
+
+        try (
+            XContentParser jsonParser = XContentFactory.xContent(XContentType.JSON)
+                .createParser(parserConfig, jsonString.getBytes(StandardCharsets.UTF_8))
+        ) {
+            if (jsonParser.currentToken() == null) {
+                jsonParser.nextToken();
+            }
+
+            results = XContentParserUtils.parseList(jsonParser, (parser, index) -> {
+                XContentParser.Token token = parser.currentToken();
+                XContentParserUtils.ensureExpectedToken(XContentParser.Token.VALUE_STRING, token, parser);
+                indices.add(index);
+
+                return parser.text();
+            });
+        }
+
+        assertThat(results, Matchers.is(List.of("a", "b", "c")));
+        assertThat(indices, Matchers.is(List.of(0, 1, 2)));
     }
 }

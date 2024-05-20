@@ -48,8 +48,8 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.FixedBitSet;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.replication.ReplicationResponse;
 import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -64,6 +64,7 @@ import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.concurrent.UncategorizedExecutionException;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
@@ -71,6 +72,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.MapperTestUtils;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.codec.CodecService;
@@ -98,6 +100,7 @@ import org.elasticsearch.index.translog.TranslogConfig;
 import org.elasticsearch.index.translog.TranslogDeletionPolicy;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
+import org.elasticsearch.plugins.internal.DocumentSizeObserver;
 import org.elasticsearch.test.DummyShardLock;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
@@ -123,6 +126,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.BiFunction;
@@ -185,7 +190,7 @@ public abstract class EngineTestCase extends ESTestCase {
         return Settings.builder()
             .put(IndexSettings.INDEX_GC_DELETES_SETTING.getKey(), "1h") // make sure this doesn't kick in on us
             .put(EngineConfig.INDEX_CODEC_SETTING.getKey(), codecName)
-            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+            .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
             .put(
                 IndexSettings.MAX_REFRESH_LISTENERS_PER_SHARD.getKey(),
                 between(10, 10 * IndexSettings.MAX_REFRESH_LISTENERS_PER_SHARD.get(Settings.EMPTY))
@@ -221,6 +226,7 @@ public abstract class EngineTestCase extends ESTestCase {
 
         assertEquals(engine.config().getCodec().getName(), codecService.codec(codecName).getName());
         assertEquals(currentIndexWriterConfig.getCodec().getName(), codecService.codec(codecName).getName());
+        assertEquals(engine.getLiveVersionMap().getArchive(), LiveVersionMapArchive.NOOP_ARCHIVE);
         if (randomBoolean()) {
             engine.config().setEnableGcDeletes(false);
         }
@@ -412,7 +418,17 @@ public abstract class EngineTestCase extends ESTestCase {
         } else {
             document.add(new StoredField(SourceFieldMapper.NAME, ref.bytes, ref.offset, ref.length));
         }
-        return new ParsedDocument(versionField, seqID, id, routing, Arrays.asList(document), source, XContentType.JSON, mappingUpdate);
+        return new ParsedDocument(
+            versionField,
+            seqID,
+            id,
+            routing,
+            Arrays.asList(document),
+            source,
+            XContentType.JSON,
+            mappingUpdate,
+            DocumentSizeObserver.EMPTY_INSTANCE
+        );
     }
 
     public static CheckedBiFunction<String, Integer, ParsedDocument, IOException> nestedParsedDocFactory() throws Exception {
@@ -620,7 +636,7 @@ public abstract class EngineTestCase extends ESTestCase {
 
         }
         InternalEngine internalEngine = createInternalEngine(indexWriterFactory, localCheckpointTrackerSupplier, seqNoForOperation, config);
-        internalEngine.recoverFromTranslog(translogHandler, Long.MAX_VALUE);
+        recoverFromTranslog(internalEngine, translogHandler, Long.MAX_VALUE);
         return internalEngine;
     }
 
@@ -1168,11 +1184,7 @@ public abstract class EngineTestCase extends ESTestCase {
         for (int i = 0; i < thread.length; i++) {
             thread[i] = new Thread(() -> {
                 startGun.countDown();
-                try {
-                    startGun.await();
-                } catch (InterruptedException e) {
-                    throw new AssertionError(e);
-                }
+                safeAwait(startGun);
                 int docOffset;
                 while ((docOffset = offset.incrementAndGet()) < ops.size()) {
                     try {
@@ -1341,7 +1353,7 @@ public abstract class EngineTestCase extends ESTestCase {
             assertThat(luceneOp.toString(), luceneOp.primaryTerm(), equalTo(translogOp.primaryTerm()));
             assertThat(luceneOp.opType(), equalTo(translogOp.opType()));
             if (luceneOp.opType() == Translog.Operation.Type.INDEX) {
-                assertThat(luceneOp.source(), equalTo(translogOp.source()));
+                assertThat(((Translog.Index) luceneOp).source(), equalTo(((Translog.Index) translogOp).source()));
             }
         }
     }
@@ -1400,7 +1412,7 @@ public abstract class EngineTestCase extends ESTestCase {
         IndexMetadata indexMetadata = IndexMetadata.builder("test")
             .settings(
                 Settings.builder()
-                    .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+                    .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
                     .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
                     .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
             )
@@ -1443,10 +1455,10 @@ public abstract class EngineTestCase extends ESTestCase {
         assertBusy(() -> assertThat(engine.getLocalCheckpointTracker().getProcessedCheckpoint(), greaterThanOrEqualTo(seqNo)));
     }
 
-    public static boolean hasSnapshottedCommits(Engine engine) {
+    public static boolean hasAcquiredIndexCommits(Engine engine) {
         assert engine instanceof InternalEngine : "only InternalEngines have snapshotted commits, got: " + engine.getClass();
         InternalEngine internalEngine = (InternalEngine) engine;
-        return internalEngine.hasSnapshottedCommits();
+        return internalEngine.hasAcquiredIndexCommits();
     }
 
     public static final class PrimaryTermSupplier implements LongSupplier {
@@ -1616,5 +1628,36 @@ public abstract class EngineTestCase extends ESTestCase {
      */
     protected long relativeTimeInNanos() {
         return System.nanoTime();
+    }
+
+    /**
+     * Call {@link Engine#recoverFromTranslog} and block until it succeeds.
+     */
+    public static void recoverFromTranslog(Engine engine, Engine.TranslogRecoveryRunner translogRecoveryRunner, long recoverUpToSeqNo)
+        throws IOException {
+        // This is an adapter between the older synchronous (blocking) code and the newer (async) API. Callers expect exceptions to be
+        // thrown directly, so we must undo the layers of wrapping added by future#get and friends.
+        try {
+            PlainActionFuture.<Void, RuntimeException>get(
+                future -> engine.recoverFromTranslog(translogRecoveryRunner, recoverUpToSeqNo, future),
+                30,
+                TimeUnit.SECONDS
+            );
+        } catch (UncategorizedExecutionException e) {
+            if (e.getCause() instanceof ExecutionException executionException
+                && executionException.getCause() instanceof IOException ioException) {
+                throw ioException;
+            } else {
+                fail(e);
+            }
+        } catch (RuntimeException e) {
+            throw e;
+        } catch (Exception e) {
+            fail(e);
+        }
+    }
+
+    public static void ensureOpen(Engine engine) {
+        engine.ensureOpen();
     }
 }

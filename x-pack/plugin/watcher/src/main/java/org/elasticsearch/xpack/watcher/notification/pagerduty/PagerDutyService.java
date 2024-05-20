@@ -44,6 +44,7 @@ public class PagerDutyService extends NotificationService<PagerDutyAccount> {
 
     private final HttpClient httpClient;
 
+    @SuppressWarnings("this-escape")
     public PagerDutyService(Settings settings, HttpClient httpClient, ClusterSettings clusterSettings) {
         super("pagerduty", settings, clusterSettings, PagerDutyService.getDynamicSettings(), PagerDutyService.getSecureSettings());
         this.httpClient = httpClient;

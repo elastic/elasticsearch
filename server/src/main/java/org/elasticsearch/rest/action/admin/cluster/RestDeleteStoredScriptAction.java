@@ -11,13 +11,18 @@ import org.elasticsearch.action.admin.cluster.storedscripts.DeleteStoredScriptRe
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.Scope;
+import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestToXContentListener;
 
 import java.io.IOException;
 import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.DELETE;
+import static org.elasticsearch.rest.RestUtils.getAckTimeout;
+import static org.elasticsearch.rest.RestUtils.getMasterNodeTimeout;
 
+@ServerlessScope(Scope.PUBLIC)
 public class RestDeleteStoredScriptAction extends BaseRestHandler {
 
     @Override
@@ -34,8 +39,8 @@ public class RestDeleteStoredScriptAction extends BaseRestHandler {
     public RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
         String id = request.param("id");
         DeleteStoredScriptRequest deleteStoredScriptRequest = new DeleteStoredScriptRequest(id);
-        deleteStoredScriptRequest.timeout(request.paramAsTime("timeout", deleteStoredScriptRequest.timeout()));
-        deleteStoredScriptRequest.masterNodeTimeout(request.paramAsTime("master_timeout", deleteStoredScriptRequest.masterNodeTimeout()));
+        deleteStoredScriptRequest.ackTimeout(getAckTimeout(request));
+        deleteStoredScriptRequest.masterNodeTimeout(getMasterNodeTimeout(request));
 
         return channel -> client.admin().cluster().deleteStoredScript(deleteStoredScriptRequest, new RestToXContentListener<>(channel));
     }

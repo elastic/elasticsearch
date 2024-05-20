@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.core.ilm;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
@@ -19,6 +18,7 @@ import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.TestShardRouting;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.xpack.core.ilm.Step.StepKey;
 import org.elasticsearch.xpack.core.ilm.step.info.SingleMessageFieldInfo;
@@ -73,7 +73,7 @@ public class WaitForIndexColorStepTests extends AbstractStepTestCase<WaitForInde
 
     public void testConditionMetForGreen() {
         IndexMetadata indexMetadata = IndexMetadata.builder(randomAlphaOfLength(5))
-            .settings(settings(Version.CURRENT))
+            .settings(settings(IndexVersion.current()))
             .numberOfShards(1)
             .numberOfReplicas(2)
             .build();
@@ -99,7 +99,7 @@ public class WaitForIndexColorStepTests extends AbstractStepTestCase<WaitForInde
 
     public void testConditionNotMetForGreen() {
         IndexMetadata indexMetadata = IndexMetadata.builder(randomAlphaOfLength(5))
-            .settings(settings(Version.CURRENT))
+            .settings(settings(IndexVersion.current()))
             .numberOfShards(1)
             .numberOfReplicas(0)
             .build();
@@ -127,7 +127,7 @@ public class WaitForIndexColorStepTests extends AbstractStepTestCase<WaitForInde
 
     public void testConditionNotMetNoIndexRoutingTable() {
         IndexMetadata indexMetadata = IndexMetadata.builder(randomAlphaOfLength(5))
-            .settings(settings(Version.CURRENT))
+            .settings(settings(IndexVersion.current()))
             .numberOfShards(1)
             .numberOfReplicas(0)
             .build();
@@ -147,7 +147,7 @@ public class WaitForIndexColorStepTests extends AbstractStepTestCase<WaitForInde
 
     public void testConditionMetForYellow() {
         IndexMetadata indexMetadata = IndexMetadata.builder("former-follower-index")
-            .settings(settings(Version.CURRENT))
+            .settings(settings(IndexVersion.current()))
             .numberOfShards(1)
             .numberOfReplicas(0)
             .build();
@@ -173,7 +173,7 @@ public class WaitForIndexColorStepTests extends AbstractStepTestCase<WaitForInde
 
     public void testConditionNotMetForYellow() {
         IndexMetadata indexMetadata = IndexMetadata.builder("former-follower-index")
-            .settings(settings(Version.CURRENT))
+            .settings(settings(IndexVersion.current()))
             .numberOfShards(1)
             .numberOfReplicas(0)
             .build();
@@ -201,7 +201,7 @@ public class WaitForIndexColorStepTests extends AbstractStepTestCase<WaitForInde
 
     public void testConditionNotMetNoIndexRoutingTableForYellow() {
         IndexMetadata indexMetadata = IndexMetadata.builder("former-follower-index")
-            .settings(settings(Version.CURRENT))
+            .settings(settings(IndexVersion.current()))
             .numberOfShards(1)
             .numberOfReplicas(0)
             .build();
@@ -221,7 +221,7 @@ public class WaitForIndexColorStepTests extends AbstractStepTestCase<WaitForInde
 
     public void testStepReturnsFalseIfTargetIndexIsMissing() {
         IndexMetadata originalIndex = IndexMetadata.builder(randomAlphaOfLength(5))
-            .settings(settings(Version.CURRENT))
+            .settings(settings(IndexVersion.current()))
             .numberOfShards(1)
             .numberOfReplicas(2)
             .build();
@@ -262,7 +262,7 @@ public class WaitForIndexColorStepTests extends AbstractStepTestCase<WaitForInde
 
     public void testStepWaitsForTargetIndexHealthWhenPrefixConfigured() {
         IndexMetadata originalIndex = IndexMetadata.builder(randomAlphaOfLength(5))
-            .settings(settings(Version.CURRENT))
+            .settings(settings(IndexVersion.current()))
             .numberOfShards(1)
             .numberOfReplicas(2)
             .build();
@@ -280,7 +280,7 @@ public class WaitForIndexColorStepTests extends AbstractStepTestCase<WaitForInde
         String indexPrefix = randomAlphaOfLengthBetween(5, 10) + "-";
         String targetIndexName = indexPrefix + originalIndex.getIndex().getName();
         IndexMetadata targetIndex = IndexMetadata.builder(targetIndexName)
-            .settings(settings(Version.CURRENT))
+            .settings(settings(IndexVersion.current()))
             .numberOfShards(1)
             .numberOfReplicas(2)
             .build();

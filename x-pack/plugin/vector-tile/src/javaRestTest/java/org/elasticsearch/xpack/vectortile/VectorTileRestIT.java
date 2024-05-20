@@ -14,6 +14,7 @@ import org.apache.http.client.methods.HttpDelete;
 import org.apache.http.client.methods.HttpGet;
 import org.apache.http.client.methods.HttpPost;
 import org.apache.http.client.methods.HttpPut;
+import org.elasticsearch.Build;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
@@ -897,7 +898,7 @@ public class VectorTileRestIT extends ESRestTestCase {
                   "percentiles": {
                      "field": "value1",
                      "percents": [95, 99, 99.9]
-                    }
+                  }
                 }
               }
             }""");
@@ -927,6 +928,37 @@ public class VectorTileRestIT extends ESRestTestCase {
         assertLayer(tile, HITS_LAYER, 4096, 33, 2);
         assertLayer(tile, AGGS_LAYER, 4096, 1, 2);
         assertLayer(tile, META_LAYER, 4096, 1, 13);
+    }
+
+    public void testPartialResult() throws Exception {
+        assumeTrue("[error_query] is only available in snapshot builds", Build.current().isSnapshot());
+        final Request mvtRequest = new Request(getHttpMethod(), INDEX_POINTS_SHAPES + "/_mvt/location/" + z + "/" + x + "/" + y);
+        mvtRequest.setJsonEntity("""
+            {
+              "query": {
+                "error_query": {
+                  "indices": [
+                    {
+                      "error_type": "exception",
+                      "message": "local shard failure message 123",
+                      "name": "index-points"
+                    }
+                  ]
+                }
+              }
+            }""");
+        final VectorTile.Tile tile = execute(mvtRequest);
+        assertThat(tile.getLayersCount(), Matchers.equalTo(3));
+        assertLayer(tile, HITS_LAYER, 4096, 1, 2);
+        assertLayer(tile, AGGS_LAYER, 4096, 65536, 2);
+        assertLayer(tile, META_LAYER, 4096, 1, 22);
+        assertStringTag(getLayer(tile, HITS_LAYER), getLayer(tile, HITS_LAYER).getFeatures(0), "_index", INDEX_POLYGON);
+        assertStringTag(
+            getLayer(tile, META_LAYER),
+            getLayer(tile, META_LAYER).getFeatures(0),
+            "_shards.failures.0.reason.caused_by.reason",
+            "[index-points][0] local shard failure message 123"
+        );
     }
 
     private String getHttpMethod() {
@@ -1007,7 +1039,7 @@ public class VectorTileRestIT extends ESRestTestCase {
             String thisTag = layer.getKeys(feature.getTags(i));
             if (tag.equals(thisTag)) {
                 VectorTile.Tile.Value thisValue = layer.getValues(feature.getTags(i + 1));
-                assertEquals(thisValue.getStringValue(), value);
+                assertEquals(value, thisValue.getStringValue());
                 return;
             }
         }

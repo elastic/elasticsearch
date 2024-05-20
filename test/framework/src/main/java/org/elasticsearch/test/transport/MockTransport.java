@@ -21,8 +21,8 @@ import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.tasks.TaskManager;
+import org.elasticsearch.telemetry.tracing.Tracer;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.tracing.Tracer;
 import org.elasticsearch.transport.CloseableConnection;
 import org.elasticsearch.transport.ClusterConnectionManager;
 import org.elasticsearch.transport.RemoteTransportException;
@@ -78,6 +78,7 @@ public class MockTransport extends StubbableTransport {
         );
     }
 
+    @SuppressWarnings("this-escape")
     public MockTransport() {
         super(new FakeTransport());
         setDefaultConnectBehavior(
@@ -100,8 +101,6 @@ public class MockTransport extends StubbableTransport {
                 );
             } catch (IOException | UnsupportedOperationException e) {
                 throw new AssertionError("failed to serialize/deserialize response " + response, e);
-            } finally {
-                response.decRef();
             }
             try {
                 transportResponseHandler.handleResponse(deliveredResponse);
@@ -180,7 +179,7 @@ public class MockTransport extends StubbableTransport {
 
             @Override
             public TransportVersion getTransportVersion() {
-                return TransportVersion.CURRENT;
+                return TransportVersion.current();
             }
 
             @Override

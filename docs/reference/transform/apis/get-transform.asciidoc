@@ -24,7 +24,7 @@ Retrieves configuration information for {transforms}.
 [[get-transform-prereqs]]
 == {api-prereq-title}
 
-Requires the `monitor_transform` cluster privilege. This privilege is included 
+Requires the `monitor_transform` cluster privilege. This privilege is included
 in the `transform_user` built-in role.
 
 [[get-transform-desc]]
@@ -40,14 +40,14 @@ specifying `*` as the `<transform_id>`, or by omitting the `<transform_id>`.
 
 `<transform_id>`::
 (Optional, string)
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=transform-id-wildcard]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=transform-id-wildcard]
 
 [[get-transform-query-parms]]
 == {api-query-parms-title}
 
 `allow_no_match`::
 (Optional, Boolean)
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=allow-no-match-transforms1]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=allow-no-match-transforms1]
 
 `exclude_generated`::
 (Optional, Boolean)
@@ -57,11 +57,11 @@ and then added to another cluster. Default is false.
 
 `from`::
 (Optional, integer)
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=from-transforms]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=from-transforms]
 
 `size`::
 (Optional, integer)
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=size-transforms]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=size-transforms]
 
 
 
@@ -77,8 +77,12 @@ value in ascending order. For the full list of properties, see
 This property is informational; you cannot change its value.
 
 `version`::
-(string) The version of {es} that existed on the node when the {transform} was
-created.
+(string) The {transform} configuration version number at which the trained model was created.
+
+NOTE: From {es} 8.10.0,  a new version number is used to
+track the configuration and state changes in the {transform} plugin. This new
+version number is decoupled from the product version and will increment
+independently. The `version` value represents the new version number.
 
 [[get-transform-response-codes]]
 == {api-response-codes-title}

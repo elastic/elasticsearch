@@ -22,6 +22,7 @@ import org.apache.lucene.search.similarities.Similarity;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.QueryBuilder;
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -49,7 +50,7 @@ import java.util.TreeMap;
  * A query that matches on multiple text fields, as if the field contents had been indexed
  * into a single combined field.
  */
-public class CombinedFieldsQueryBuilder extends AbstractQueryBuilder<CombinedFieldsQueryBuilder> {
+public final class CombinedFieldsQueryBuilder extends AbstractQueryBuilder<CombinedFieldsQueryBuilder> {
     public static final String NAME = "combined_fields";
 
     private static final ParseField QUERY_FIELD = new ParseField("query");
@@ -459,6 +460,6 @@ public class CombinedFieldsQueryBuilder extends AbstractQueryBuilder<CombinedFie
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersion.V_7_13_0;
+        return TransportVersions.V_7_13_0;
     }
 }

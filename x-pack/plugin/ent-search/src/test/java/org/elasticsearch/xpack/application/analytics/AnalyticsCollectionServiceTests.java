@@ -23,6 +23,7 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.TriFunction;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.client.NoOpClient;
@@ -40,6 +41,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
+import static org.elasticsearch.xpack.application.analytics.AnalyticsConstants.EVENT_DATA_STREAM_INDEX_PREFIX;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.mockito.ArgumentMatchers.eq;
@@ -124,10 +126,7 @@ public class AnalyticsCollectionServiceTests extends ESTestCase {
         client.setVerifier((action, request, listener) -> {
             if (action instanceof CreateDataStreamAction) {
                 CreateDataStreamAction.Request createDataStreamRequest = (CreateDataStreamAction.Request) request;
-                assertThat(
-                    createDataStreamRequest.getName(),
-                    equalTo(AnalyticsTemplateRegistry.EVENT_DATA_STREAM_INDEX_PREFIX + collectionName)
-                );
+                assertThat(createDataStreamRequest.getName(), equalTo(EVENT_DATA_STREAM_INDEX_PREFIX + collectionName));
                 calledTimes.incrementAndGet();
                 return AcknowledgedResponse.TRUE;
             } else {
@@ -243,7 +242,7 @@ public class AnalyticsCollectionServiceTests extends ESTestCase {
 
     public void testDeleteAnalyticsCollection() throws Exception {
         String collectionName = randomIdentifier();
-        String dataStreamName = AnalyticsTemplateRegistry.EVENT_DATA_STREAM_INDEX_PREFIX + collectionName;
+        String dataStreamName = EVENT_DATA_STREAM_INDEX_PREFIX + collectionName;
         ClusterState clusterState = createClusterState();
 
         AnalyticsCollectionResolver analyticsCollectionResolver = mock(AnalyticsCollectionResolver.class);
@@ -402,7 +401,7 @@ public class AnalyticsCollectionServiceTests extends ESTestCase {
         ClusterState clusterState,
         String... collectionName
     ) throws Exception {
-        GetAnalyticsCollectionAction.Request request = new GetAnalyticsCollectionAction.Request(collectionName);
+        GetAnalyticsCollectionAction.Request request = new GetAnalyticsCollectionAction.Request(TimeValue.THIRTY_SECONDS, collectionName);
         return new Executor<>(clusterState, analyticsCollectionService::getAnalyticsCollection).execute(request).getAnalyticsCollections();
     }
 
@@ -411,7 +410,7 @@ public class AnalyticsCollectionServiceTests extends ESTestCase {
         ClusterState clusterState,
         String collectionName
     ) throws Exception {
-        PutAnalyticsCollectionAction.Request request = new PutAnalyticsCollectionAction.Request(collectionName);
+        PutAnalyticsCollectionAction.Request request = new PutAnalyticsCollectionAction.Request(TimeValue.THIRTY_SECONDS, collectionName);
         return new Executor<>(clusterState, analyticsCollectionService::putAnalyticsCollection).execute(request);
     }
 
@@ -420,7 +419,10 @@ public class AnalyticsCollectionServiceTests extends ESTestCase {
         ClusterState clusterState,
         String collectionName
     ) throws Exception {
-        DeleteAnalyticsCollectionAction.Request request = new DeleteAnalyticsCollectionAction.Request(collectionName);
+        DeleteAnalyticsCollectionAction.Request request = new DeleteAnalyticsCollectionAction.Request(
+            TimeValue.THIRTY_SECONDS,
+            collectionName
+        );
         return new Executor<>(clusterState, analyticsCollectionService::deleteAnalyticsCollection).execute(request);
     }
 

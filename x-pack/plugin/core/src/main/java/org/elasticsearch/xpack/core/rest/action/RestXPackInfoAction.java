@@ -13,6 +13,8 @@ import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.protocol.xpack.XPackInfoRequest;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.Scope;
+import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xpack.core.action.XPackInfoRequestBuilder;
 
@@ -24,6 +26,7 @@ import static org.elasticsearch.core.RestApiVersion.onOrAfter;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.HEAD;
 
+@ServerlessScope(Scope.INTERNAL)
 public class RestXPackInfoAction extends BaseRestHandler {
 
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(RestXPackInfoAction.class);

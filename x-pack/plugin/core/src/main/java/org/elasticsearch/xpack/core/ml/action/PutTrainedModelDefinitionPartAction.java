@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.core.ml.action;
 
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
@@ -33,7 +34,7 @@ public class PutTrainedModelDefinitionPartAction extends ActionType<Acknowledged
     public static final String NAME = "cluster:admin/xpack/ml/trained_models/part/put";
 
     private PutTrainedModelDefinitionPartAction() {
-        super(NAME, AcknowledgedResponse::readFrom);
+        super(NAME);
     }
 
     public static class Request extends AcknowledgedRequest<Request> {
@@ -54,7 +55,7 @@ public class PutTrainedModelDefinitionPartAction extends ActionType<Acknowledged
         }
 
         public static Request parseRequest(String modelId, int part, XContentParser parser) {
-            return PARSER.apply(parser, null).build(modelId, part);
+            return PARSER.apply(parser, null).build(modelId, part, false);
         }
 
         private final String modelId;
@@ -62,13 +63,26 @@ public class PutTrainedModelDefinitionPartAction extends ActionType<Acknowledged
         private final int part;
         private final long totalDefinitionLength;
         private final int totalParts;
+        /**
+         * An internal flag to determining if the part can be overwritten when storing it
+         */
+        private final boolean allowOverwriting;
 
-        public Request(String modelId, BytesReference definition, int part, long totalDefinitionLength, int totalParts) {
+        public Request(
+            String modelId,
+            BytesReference definition,
+            int part,
+            long totalDefinitionLength,
+            int totalParts,
+            boolean allowOverwriting
+        ) {
+            super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT, DEFAULT_ACK_TIMEOUT);
             this.modelId = ExceptionsHelper.requireNonNull(modelId, TrainedModelConfig.MODEL_ID);
             this.definition = ExceptionsHelper.requireNonNull(definition, DEFINITION);
             this.part = part;
             this.totalDefinitionLength = totalDefinitionLength;
             this.totalParts = totalParts;
+            this.allowOverwriting = allowOverwriting;
         }
 
         public Request(StreamInput in) throws IOException {
@@ -78,6 +92,11 @@ public class PutTrainedModelDefinitionPartAction extends ActionType<Acknowledged
             this.part = in.readVInt();
             this.totalDefinitionLength = in.readVLong();
             this.totalParts = in.readVInt();
+            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_10_X)) {
+                this.allowOverwriting = in.readBoolean();
+            } else {
+                this.allowOverwriting = false;
+            }
         }
 
         @Override
@@ -112,13 +131,14 @@ public class PutTrainedModelDefinitionPartAction extends ActionType<Acknowledged
             return part == request.part
                 && totalDefinitionLength == request.totalDefinitionLength
                 && totalParts == request.totalParts
+                && allowOverwriting == request.allowOverwriting
                 && Objects.equals(modelId, request.modelId)
                 && Objects.equals(definition, request.definition);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(modelId, definition, part, totalDefinitionLength, totalParts);
+            return Objects.hash(modelId, definition, part, totalDefinitionLength, totalParts, allowOverwriting);
         }
 
         @Override
@@ -129,6 +149,9 @@ public class PutTrainedModelDefinitionPartAction extends ActionType<Acknowledged
             out.writeVInt(part);
             out.writeVLong(totalDefinitionLength);
             out.writeVInt(totalParts);
+            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_10_X)) {
+                out.writeBoolean(allowOverwriting);
+            }
         }
 
         public String getModelId() {
@@ -151,6 +174,10 @@ public class PutTrainedModelDefinitionPartAction extends ActionType<Acknowledged
             return totalParts;
         }
 
+        public boolean isOverwritingAllowed() {
+            return allowOverwriting;
+        }
+
         public static class Builder {
             private BytesReference definition;
             private long totalDefinitionLength;
@@ -171,8 +198,8 @@ public class PutTrainedModelDefinitionPartAction extends ActionType<Acknowledged
                 return this;
             }
 
-            public Request build(String modelId, int part) {
-                return new Request(modelId, definition, part, totalDefinitionLength, totalParts);
+            public Request build(String modelId, int part, boolean allowOverwriting) {
+                return new Request(modelId, definition, part, totalDefinitionLength, totalParts, allowOverwriting);
             }
         }
     }

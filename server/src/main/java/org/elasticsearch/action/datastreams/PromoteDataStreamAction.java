@@ -27,7 +27,7 @@ public class PromoteDataStreamAction extends ActionType<AcknowledgedResponse> {
     public static final String NAME = "indices:admin/data_stream/promote";
 
     private PromoteDataStreamAction() {
-        super(NAME, AcknowledgedResponse::readFrom);
+        super(NAME);
     }
 
     public static class Request extends MasterNodeRequest<PromoteDataStreamAction.Request> implements IndicesRequest {
@@ -35,6 +35,7 @@ public class PromoteDataStreamAction extends ActionType<AcknowledgedResponse> {
         private final String name;
 
         public Request(String name) {
+            super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT);
             this.name = Objects.requireNonNull(name);
         }
 

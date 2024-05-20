@@ -50,8 +50,8 @@ public class AggregationDataExtractorFactoryTests extends ESTestCase {
 
         AggregationDataExtractor dataExtractor = (AggregationDataExtractor) factory.newExtractor(2000, 5000);
 
-        assertThat(dataExtractor.getContext().start, equalTo(2000L));
-        assertThat(dataExtractor.getContext().end, equalTo(5000L));
+        assertThat(dataExtractor.getContext().queryContext.start, equalTo(2000L));
+        assertThat(dataExtractor.getContext().queryContext.end, equalTo(5000L));
     }
 
     public void testNewExtractor_GivenNonAlignedTimes() {
@@ -59,8 +59,8 @@ public class AggregationDataExtractorFactoryTests extends ESTestCase {
 
         AggregationDataExtractor dataExtractor = (AggregationDataExtractor) factory.newExtractor(3980, 9200);
 
-        assertThat(dataExtractor.getContext().start, equalTo(4000L));
-        assertThat(dataExtractor.getContext().end, equalTo(9000L));
+        assertThat(dataExtractor.getContext().queryContext.start, equalTo(4000L));
+        assertThat(dataExtractor.getContext().queryContext.end, equalTo(9000L));
     }
 
     private AggregationDataExtractorFactory createFactory(long histogramInterval) {
@@ -86,6 +86,7 @@ public class AggregationDataExtractorFactoryTests extends ESTestCase {
         return new AggregationDataExtractorFactory(
             client,
             datafeedConfigBuilder.build(),
+            null,
             jobBuilder.build(new Date()),
             xContentRegistry(),
             timingStatsReporter

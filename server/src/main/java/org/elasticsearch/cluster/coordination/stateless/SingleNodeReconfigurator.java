@@ -49,4 +49,10 @@ public class SingleNodeReconfigurator extends Reconfigurator {
             )
             .build();
     }
+
+    @Override
+    public void ensureVotingConfigCanBeModified() {
+        assert false;
+        throw new IllegalStateException("Voting configuration cannot be modified using atomic-register based coordination");
+    }
 }

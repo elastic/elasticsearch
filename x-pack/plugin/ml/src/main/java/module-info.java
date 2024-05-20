@@ -17,6 +17,7 @@ module org.elasticsearch.ml {
     requires org.elasticsearch.grok;
     requires org.elasticsearch.server;
     requires org.elasticsearch.xcontent;
+    requires org.elasticsearch.mustache;
     requires org.apache.httpcomponents.httpcore;
     requires org.apache.httpcomponents.httpclient;
     requires org.apache.httpcomponents.httpasyncclient;
@@ -24,7 +25,9 @@ module org.elasticsearch.ml {
     requires org.apache.logging.log4j;
     requires org.apache.lucene.core;
     requires org.apache.lucene.join;
+    requires org.apache.lucene.analysis.kuromoji;
     requires commons.math3;
+    requires ojalgo;
 
     opens org.elasticsearch.xpack.ml to org.elasticsearch.painless.spi; // whitelist resource access
     opens org.elasticsearch.xpack.ml.utils; // for exact.properties access
@@ -35,4 +38,5 @@ module org.elasticsearch.ml {
     exports org.elasticsearch.xpack.ml;
     exports org.elasticsearch.xpack.ml.action;
     exports org.elasticsearch.xpack.ml.autoscaling;
+    exports org.elasticsearch.xpack.ml.notifications;
 }

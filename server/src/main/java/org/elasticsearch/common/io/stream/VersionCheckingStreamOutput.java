@@ -17,7 +17,7 @@ import java.io.IOException;
  * This {@link StreamOutput} writes nowhere. It can be used to check if serialization would
  * be successful writing to a specific version.
  */
-public class VersionCheckingStreamOutput extends StreamOutput {
+public final class VersionCheckingStreamOutput extends StreamOutput {
 
     public VersionCheckingStreamOutput(TransportVersion version) {
         setTransportVersion(version);
@@ -67,9 +67,9 @@ public class VersionCheckingStreamOutput extends StreamOutput {
                 "["
                     + namedWriteable.getWriteableName()
                     + "] was released first in version "
-                    + namedWriteable.getMinimalSupportedVersion()
+                    + namedWriteable.getMinimalSupportedVersion().toReleaseVersion()
                     + ", failed compatibility check trying to send it to node with version "
-                    + getTransportVersion()
+                    + getTransportVersion().toReleaseVersion()
             );
         }
     }

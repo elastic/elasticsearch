@@ -6,7 +6,7 @@
 These files are created by running the tests in `JwtRealmGenerateTests`.
 
 Those tests generate the yaml settings, the keystore settings and the JWK Sets
-for each sample reaml
+for each sample realm.
 
 Copy the output from the test output into the applicable file (you may wish to
 run it through `jq` first in order to make it more readable).

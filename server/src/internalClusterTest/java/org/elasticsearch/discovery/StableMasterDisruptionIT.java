@@ -8,7 +8,6 @@
 
 package org.elasticsearch.discovery;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterChangedEvent;
@@ -21,7 +20,7 @@ import org.elasticsearch.cluster.coordination.FollowersChecker;
 import org.elasticsearch.cluster.coordination.LeaderChecker;
 import org.elasticsearch.cluster.coordination.MasterHistoryService;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.node.DiscoveryNodeRole;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
@@ -549,17 +548,7 @@ public class StableMasterDisruptionIT extends ESIntegTestCase {
                 new DiscoveryNodes.Builder().masterNodeId(null)
             ).build();
             ClusterState previousState = new ClusterState.Builder(new ClusterName(internalCluster().getClusterName())).nodes(
-                new DiscoveryNodes.Builder().masterNodeId("test")
-                    .add(
-                        new DiscoveryNode(
-                            "test",
-                            "test",
-                            buildNewFakeTransportAddress(),
-                            Collections.emptyMap(),
-                            DiscoveryNodeRole.roles(),
-                            Version.CURRENT
-                        )
-                    )
+                new DiscoveryNodes.Builder().masterNodeId("test").add(DiscoveryNodeUtils.create("test", "test"))
             ).build();
             ClusterChangedEvent clusterChangedEvent = new ClusterChangedEvent("test", state, previousState);
             masterHistoryService.getLocalMasterHistory().clusterChanged(clusterChangedEvent);

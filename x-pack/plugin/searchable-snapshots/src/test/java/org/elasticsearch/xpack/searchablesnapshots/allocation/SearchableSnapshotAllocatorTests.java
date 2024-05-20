@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.searchablesnapshots.allocation;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
@@ -33,6 +32,7 @@ import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
 import org.elasticsearch.index.IndexModule;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.snapshots.SearchableSnapshotsSettings;
@@ -215,7 +215,7 @@ public class SearchableSnapshotAllocatorTests extends ESAllocationTestCase {
                 IndexMetadata.builder(shardId.getIndexName())
                     .settings(
                         extraSettings.apply(
-                            settings(Version.CURRENT).put(
+                            settings(IndexVersion.current()).put(
                                 ExistingShardsAllocator.EXISTING_SHARDS_ALLOCATOR_SETTING.getKey(),
                                 SearchableSnapshotAllocator.ALLOCATOR_NAME
                             ).put(IndexModule.INDEX_STORE_TYPE_SETTING.getKey(), SearchableSnapshotsSettings.SEARCHABLE_SNAPSHOT_STORE_TYPE)
@@ -233,7 +233,7 @@ public class SearchableSnapshotAllocatorTests extends ESAllocationTestCase {
         for (DiscoveryNode node : nodes) {
             nodesBuilder.add(node);
         }
-        return ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY))
+        return ClusterState.builder(ClusterName.DEFAULT)
             .metadata(metadata)
             .routingTable(routingTableBuilder.build())
             .nodes(nodesBuilder)
@@ -265,7 +265,7 @@ public class SearchableSnapshotAllocatorTests extends ESAllocationTestCase {
         return new RecoverySource.SnapshotRecoverySource(
             UUIDs.randomBase64UUID(random()),
             new Snapshot("test-repo", new SnapshotId("test-snap", UUIDs.randomBase64UUID(random()))),
-            Version.CURRENT,
+            IndexVersion.current(),
             new IndexId(shardId.getIndexName(), UUIDs.randomBase64UUID(random()))
         );
     }

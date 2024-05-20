@@ -14,14 +14,40 @@ setup:
                       "postings":
                         "type": "text"
                         "index_options": "offsets"
+                "nested":
+                  "type": "nested"
+                  "properties":
+                    "text":
+                      "type": "text"
+                "vectors":
+                  "type": "dense_vector"
+                  "dims": 2
+                  "index": true
+                  "similarity": "l2_norm"
+
   - do:
       index:
         index: test
         id:    "1"
         body:
             "text" : "The quick brown fox is brown."
+            "nested":
+              "text": "The quick brown fox is brown."
+            "vectors": [1, 2]
   - do:
       indices.refresh: {}
+
+---
+teardown:
+  - requires:
+      cluster_features: ["gte_v8.10.0"]
+      reason: "setting added in 8.10.0"
+
+  - do:
+      indices.put_settings:
+        index: test
+        body:
+          index.highlight.weight_matches_mode.enabled: null
 
 ---
 "Basic multi_match query":
@@ -31,14 +57,15 @@ setup:
           "query" : { "multi_match" : { "query" : "quick brown fox", "fields" : [ "text*"] } },
           "highlight" : { "type" : "unified", "fields" : { "*" : {} } } }
 
+  - length: { hits.hits.0.highlight: 3 }
   - match: {hits.hits.0.highlight.text.0: "The <em>quick</em> <em>brown</em> <em>fox</em> is <em>brown</em>."}
   - match: {hits.hits.0.highlight.text\.fvh.0: "The <em>quick</em> <em>brown</em> <em>fox</em> is <em>brown</em>."}
   - match: {hits.hits.0.highlight.text\.postings.0: "The <em>quick</em> <em>brown</em> <em>fox</em> is <em>brown</em>."}
 
 ---
 "Basic combined_fields query":
-  - skip:
-      version: " - 7.12.99"
+  - requires:
+      cluster_features: ["gte_v7.13.0"]
       reason: "combined fields query was introduced in 7.13"
   - do:
       search:
@@ -46,6 +73,115 @@ setup:
           "query" : { "combined_fields" : { "query" : "quick brown fox", "fields" : [ "text*"] } },
           "highlight" : { "type" : "unified", "fields" : { "*" : {} } } }
 
+  - length: { hits.hits.0.highlight: 3 }
   - match: {hits.hits.0.highlight.text.0: "The <em>quick</em> <em>brown</em> <em>fox</em> is <em>brown</em>."}
   - match: {hits.hits.0.highlight.text\.fvh.0: "The <em>quick</em> <em>brown</em> <em>fox</em> is <em>brown</em>."}
   - match: {hits.hits.0.highlight.text\.postings.0: "The <em>quick</em> <em>brown</em> <em>fox</em> is <em>brown</em>."}
+
+---
+"Disable weight matches":
+  - requires:
+      cluster_features: ["gte_v8.10.0"]
+      reason: "support for weight matches was added in 8.10"
+
+  - do:
+      search:
+        body: {
+          "query": { "multi_match": { "query": "quick brown fox", "type": "phrase", "fields": [ "text*" ] } },
+          "highlight": { "type": "unified", "fields": { "*": { } } }
+        }
+
+  - length: { hits.hits.0.highlight: 3 }
+  - match:  { hits.hits.0.highlight.text.0: "The <em>quick brown fox</em> is brown." }
+  - match:  { hits.hits.0.highlight.text\.fvh.0: "The <em>quick brown fox</em> is brown." }
+  - match:  { hits.hits.0.highlight.text\.postings.0: "The <em>quick brown fox</em> is brown." }
+
+  - do:
+      indices.put_settings:
+        index: test
+        body:
+          index.highlight.weight_matches_mode.enabled: "false"
+
+  - do:
+      search:
+        body: {
+          "query" : { "multi_match" : { "query" : "quick brown fox", "type": "phrase", "fields" : [ "text*"] } },
+          "highlight" : { "type" : "unified", "fields" : { "*" : {} } } }
+
+  - length: { hits.hits.0.highlight: 3 }
+  - match: {hits.hits.0.highlight.text.0: "The <em>quick</em> <em>brown</em> <em>fox</em> is brown."}
+  - match: {hits.hits.0.highlight.text\.fvh.0: "The <em>quick</em> <em>brown</em> <em>fox</em> is brown."}
+  - match: {hits.hits.0.highlight.text\.postings.0: "The <em>quick</em> <em>brown</em> <em>fox</em> is brown."}
+---
+"Test hybrid search with knn where automatically disables weighted mode":
+  - requires:
+      cluster_features: "gte_v8.12.0"
+      reason: 'kNN was not correctly skipped until 8.12'
+
+  - do:
+      search:
+        index: test
+        body: {
+          "query": { "multi_match": { "query": "quick brown fox", "type": "phrase", "fields": [ "text*" ] } },
+          "highlight": { "type": "unified", "fields": { "text*": { } } },
+          "knn": { "field": "vectors", "query_vector": [1, 2], "k": 10, "num_candidates": 10 } }
+
+  - length: { hits.hits.0.highlight: 3 }
+  - match: { hits.hits.0.highlight.text.0: "The <em>quick</em> <em>brown</em> <em>fox</em> is brown." }
+  - match: { hits.hits.0.highlight.text\.fvh.0: "The <em>quick</em> <em>brown</em> <em>fox</em> is brown." }
+  - match: { hits.hits.0.highlight.text\.postings.0: "The <em>quick</em> <em>brown</em> <em>fox</em> is brown." }
+
+---
+"Test nested queries automatically disable weighted mode":
+  - requires:
+      cluster_features: "gte_v8.15.0"
+      reason: 'nested was not correctly skipped until 8.15'
+
+  - do:
+      search:
+        index: test
+        body: {
+          "query": {
+            "nested": {
+              "path": "nested",
+              "query": {
+                "multi_match": {
+                  "query": "quick brown fox",
+                  "type": "phrase",
+                  "fields": [ "nested.text" ]
+                }
+              }
+            }
+          },
+          "highlight": { "type": "unified", "fields": { "*": { } } }
+        }
+
+  - length: { hits.hits.0.highlight: 1 }
+  - match: { hits.hits.0.highlight.nested\.text.0: "The <em>quick</em> <em>brown</em> <em>fox</em> is brown." }
+
+  - do:
+      search:
+        index: test
+        body: {
+          "query": {
+            "bool": {
+              "must_not": {
+                "nested": {
+                  "path": "nested",
+                  "query": {
+                    "multi_match": { "query": "quick red fox", "type": "phrase", "fields": [ "nested.text" ] }
+                  }
+                }
+              },
+              "should": {
+                "multi_match": { "query": "quick brown fox", "type": "phrase", "fields": [ "text*" ] }
+              }
+            }
+          },
+          "highlight": { "type": "unified", "fields": { "text*": { } } }
+        }
+
+  - length: { hits.hits.0.highlight: 3 }
+  - match: { hits.hits.0.highlight.text.0: "The <em>quick</em> <em>brown</em> <em>fox</em> is brown." }
+  - match: { hits.hits.0.highlight.text\.fvh.0: "The <em>quick</em> <em>brown</em> <em>fox</em> is brown." }
+  - match: { hits.hits.0.highlight.text\.postings.0: "The <em>quick</em> <em>brown</em> <em>fox</em> is brown." }

@@ -18,6 +18,7 @@ import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -59,7 +60,7 @@ public class TransportUpdateTrainedModelDeploymentAction extends TransportMaster
             UpdateTrainedModelDeploymentAction.Request::new,
             indexNameExpressionResolver,
             CreateTrainedModelAssignmentAction.Response::new,
-            ThreadPool.Names.SAME
+            EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
         this.trainedModelAssignmentClusterService = Objects.requireNonNull(trainedModelAssignmentClusterService);
         this.auditor = Objects.requireNonNull(auditor);
@@ -75,17 +76,17 @@ public class TransportUpdateTrainedModelDeploymentAction extends TransportMaster
         logger.debug(
             () -> format(
                 "[%s] received request to update number of allocations to [%s]",
-                request.getModelId(),
+                request.getDeploymentId(),
                 request.getNumberOfAllocations()
             )
         );
 
         trainedModelAssignmentClusterService.updateNumberOfAllocations(
-            request.getModelId(),
+            request.getDeploymentId(),
             request.getNumberOfAllocations(),
             ActionListener.wrap(updatedAssignment -> {
                 auditor.info(
-                    request.getModelId(),
+                    request.getDeploymentId(),
                     Messages.getMessage(Messages.INFERENCE_DEPLOYMENT_UPDATED_NUMBER_OF_ALLOCATIONS, request.getNumberOfAllocations())
                 );
                 listener.onResponse(new CreateTrainedModelAssignmentAction.Response(updatedAssignment));

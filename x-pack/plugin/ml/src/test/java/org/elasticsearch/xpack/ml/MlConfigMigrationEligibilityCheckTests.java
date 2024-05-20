@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.ml;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
@@ -22,6 +21,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.test.ESTestCase;
@@ -116,7 +116,7 @@ public class MlConfigMigrationEligibilityCheckTests extends ESTestCase {
         indexMetadata.settings(
             Settings.builder()
                 .put(IndexMetadata.SETTING_INDEX_UUID, uuid)
-                .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+                .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
                 .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
                 .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
         );

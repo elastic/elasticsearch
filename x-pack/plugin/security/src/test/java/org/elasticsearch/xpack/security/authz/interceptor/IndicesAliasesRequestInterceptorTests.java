@@ -8,8 +8,8 @@ package org.elasticsearch.xpack.security.authz.interceptor;
 
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.admin.indices.alias.IndicesAliasesAction;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
+import org.elasticsearch.action.admin.indices.alias.TransportIndicesAliasesAction;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -77,7 +77,7 @@ public class IndicesAliasesRequestInterceptorTests extends ESTestCase {
         } else {
             queries = null;
         }
-        final String action = IndicesAliasesAction.NAME;
+        final String action = TransportIndicesAliasesAction.NAME;
         IndicesAccessControl accessControl = new IndicesAccessControl(
             true,
             Collections.singletonMap(
@@ -133,7 +133,7 @@ public class IndicesAliasesRequestInterceptorTests extends ESTestCase {
             .user(new User("john", "role"))
             .realmRef(new RealmRef("look_name", "look_type", "node"))
             .build();
-        final String action = IndicesAliasesAction.NAME;
+        final String action = TransportIndicesAliasesAction.NAME;
         IndicesAccessControl accessControl = new IndicesAccessControl(true, Collections.emptyMap());
         new SecurityContext(Settings.EMPTY, threadContext).putIndicesAccessControl(accessControl);
         IndicesAliasesRequestInterceptor interceptor = new IndicesAliasesRequestInterceptor(threadContext, licenseState, auditTrailService);

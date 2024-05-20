@@ -8,14 +8,14 @@
 
 package org.elasticsearch.action.admin.indices.template.get;
 
-import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
-import org.elasticsearch.action.admin.indices.rollover.RolloverConditions;
+import org.elasticsearch.action.admin.indices.rollover.RolloverConfiguration;
 import org.elasticsearch.action.support.master.MasterNodeReadRequest;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
-import org.elasticsearch.cluster.metadata.DataLifecycle;
+import org.elasticsearch.cluster.metadata.DataStreamGlobalRetention;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
@@ -33,7 +33,7 @@ public class GetComposableIndexTemplateAction extends ActionType<GetComposableIn
     public static final String NAME = "indices:admin/index_template/get";
 
     private GetComposableIndexTemplateAction() {
-        super(NAME, GetComposableIndexTemplateAction.Response::new);
+        super(NAME);
     }
 
     /**
@@ -49,6 +49,7 @@ public class GetComposableIndexTemplateAction extends ActionType<GetComposableIn
          * @param name A template name or pattern, or {@code null} to retrieve all templates.
          */
         public Request(@Nullable String name) {
+            super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT);
             if (name != null && name.contains(",")) {
                 throw new IllegalArgumentException("template name may not contain ','");
             }
@@ -59,7 +60,7 @@ public class GetComposableIndexTemplateAction extends ActionType<GetComposableIn
         public Request(StreamInput in) throws IOException {
             super(in);
             name = in.readOptionalString();
-            if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_8_0) && DataLifecycle.isEnabled()) {
+            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_9_X)) {
                 includeDefaults = in.readBoolean();
             } else {
                 includeDefaults = false;
@@ -70,7 +71,7 @@ public class GetComposableIndexTemplateAction extends ActionType<GetComposableIn
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             out.writeOptionalString(name);
-            if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_8_0) && DataLifecycle.isEnabled()) {
+            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_9_X)) {
                 out.writeBoolean(includeDefaults);
             }
         }
@@ -119,37 +120,56 @@ public class GetComposableIndexTemplateAction extends ActionType<GetComposableIn
         public static final ParseField INDEX_TEMPLATE = new ParseField("index_template");
 
         private final Map<String, ComposableIndexTemplate> indexTemplates;
-        private final RolloverConditions rolloverConditions;
+        @Nullable
+        private final RolloverConfiguration rolloverConfiguration;
+        @Nullable
+        private final DataStreamGlobalRetention globalRetention;
 
         public Response(StreamInput in) throws IOException {
             super(in);
-            indexTemplates = in.readMap(StreamInput::readString, ComposableIndexTemplate::new);
-            if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_8_0) && DataLifecycle.isEnabled()) {
-                rolloverConditions = in.readOptionalWriteable(RolloverConditions::new);
+            indexTemplates = in.readMap(ComposableIndexTemplate::new);
+            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_9_X)) {
+                rolloverConfiguration = in.readOptionalWriteable(RolloverConfiguration::new);
             } else {
-                rolloverConditions = null;
+                rolloverConfiguration = null;
+            }
+            if (in.getTransportVersion().onOrAfter(TransportVersions.USE_DATA_STREAM_GLOBAL_RETENTION)) {
+                globalRetention = in.readOptionalWriteable(DataStreamGlobalRetention::read);
+            } else {
+                globalRetention = null;
             }
         }
 
-        public Response(Map<String, ComposableIndexTemplate> indexTemplates) {
-            this.indexTemplates = indexTemplates;
-            this.rolloverConditions = null;
+        public Response(Map<String, ComposableIndexTemplate> indexTemplates, @Nullable DataStreamGlobalRetention globalRetention) {
+            this(indexTemplates, null, globalRetention);
         }
 
-        public Response(Map<String, ComposableIndexTemplate> indexTemplates, RolloverConditions rolloverConditions) {
+        public Response(
+            Map<String, ComposableIndexTemplate> indexTemplates,
+            @Nullable RolloverConfiguration rolloverConfiguration,
+            @Nullable DataStreamGlobalRetention globalRetention
+        ) {
             this.indexTemplates = indexTemplates;
-            this.rolloverConditions = rolloverConditions;
+            this.rolloverConfiguration = rolloverConfiguration;
+            this.globalRetention = globalRetention;
         }
 
         public Map<String, ComposableIndexTemplate> indexTemplates() {
             return indexTemplates;
         }
 
+        public DataStreamGlobalRetention getGlobalRetention() {
+            return globalRetention;
+        }
+
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeMap(indexTemplates, StreamOutput::writeString, (o, v) -> v.writeTo(o));
-            if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_8_0) && DataLifecycle.isEnabled()) {
-                out.writeOptionalWriteable(rolloverConditions);
+            out.writeMap(indexTemplates, StreamOutput::writeWriteable);
+            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_9_X)) {
+                out.writeOptionalWriteable(rolloverConfiguration);
+            }
+            if (out.getTransportVersion().onOrAfter(TransportVersions.USE_DATA_STREAM_GLOBAL_RETENTION)) {
+                out.writeOptionalWriteable(globalRetention);
             }
         }
 
@@ -158,12 +178,14 @@ public class GetComposableIndexTemplateAction extends ActionType<GetComposableIn
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             GetComposableIndexTemplateAction.Response that = (GetComposableIndexTemplateAction.Response) o;
-            return Objects.equals(indexTemplates, that.indexTemplates) && Objects.equals(rolloverConditions, that.rolloverConditions);
+            return Objects.equals(indexTemplates, that.indexTemplates)
+                && Objects.equals(rolloverConfiguration, that.rolloverConfiguration)
+                && Objects.equals(globalRetention, that.globalRetention);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(indexTemplates, rolloverConditions);
+            return Objects.hash(indexTemplates, rolloverConfiguration, globalRetention);
         }
 
         @Override
@@ -174,7 +196,7 @@ public class GetComposableIndexTemplateAction extends ActionType<GetComposableIn
                 builder.startObject();
                 builder.field(NAME.getPreferredName(), indexTemplate.getKey());
                 builder.field(INDEX_TEMPLATE.getPreferredName());
-                indexTemplate.getValue().toXContent(builder, params, rolloverConditions);
+                indexTemplate.getValue().toXContent(builder, params, rolloverConfiguration);
                 builder.endObject();
             }
             builder.endArray();

@@ -7,19 +7,21 @@
 
 package org.elasticsearch.xpack.security.authz;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.ElasticsearchRoleRestrictionException;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.admin.cluster.health.ClusterHealthAction;
+import org.elasticsearch.action.admin.cluster.health.TransportClusterHealthAction;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateAction;
-import org.elasticsearch.action.admin.cluster.stats.ClusterStatsAction;
-import org.elasticsearch.action.admin.indices.mapping.put.PutMappingAction;
+import org.elasticsearch.action.admin.cluster.stats.TransportClusterStatsAction;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
-import org.elasticsearch.action.delete.DeleteAction;
-import org.elasticsearch.action.index.IndexAction;
-import org.elasticsearch.action.search.SearchAction;
+import org.elasticsearch.action.admin.indices.mapping.put.TransportPutMappingAction;
+import org.elasticsearch.action.delete.TransportDeleteAction;
+import org.elasticsearch.action.index.TransportIndexAction;
 import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.client.internal.ElasticsearchClient;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.DataStreamTestHelper;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
@@ -27,13 +29,12 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.license.GetLicenseAction;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.transport.TcpTransport;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.XPackPlugin;
@@ -41,10 +42,11 @@ import org.elasticsearch.xpack.core.security.action.apikey.GetApiKeyAction;
 import org.elasticsearch.xpack.core.security.action.apikey.GetApiKeyRequest;
 import org.elasticsearch.xpack.core.security.action.user.AuthenticateAction;
 import org.elasticsearch.xpack.core.security.action.user.AuthenticateRequest;
-import org.elasticsearch.xpack.core.security.action.user.ChangePasswordAction;
 import org.elasticsearch.xpack.core.security.action.user.ChangePasswordRequest;
-import org.elasticsearch.xpack.core.security.action.user.ChangePasswordRequestBuilder;
 import org.elasticsearch.xpack.core.security.action.user.DeleteUserAction;
+import org.elasticsearch.xpack.core.security.action.user.GetUserPrivilegesAction;
+import org.elasticsearch.xpack.core.security.action.user.GetUserPrivilegesRequest;
+import org.elasticsearch.xpack.core.security.action.user.GetUserPrivilegesRequestBuilder;
 import org.elasticsearch.xpack.core.security.action.user.GetUserPrivilegesResponse;
 import org.elasticsearch.xpack.core.security.action.user.HasPrivilegesAction;
 import org.elasticsearch.xpack.core.security.action.user.HasPrivilegesRequest;
@@ -54,6 +56,7 @@ import org.elasticsearch.xpack.core.security.action.user.UserRequest;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationTestHelper;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationTests;
+import org.elasticsearch.xpack.core.security.authc.CrossClusterAccessSubjectInfo;
 import org.elasticsearch.xpack.core.security.authc.esnative.NativeRealmSettings;
 import org.elasticsearch.xpack.core.security.authc.file.FileRealmSettings;
 import org.elasticsearch.xpack.core.security.authc.ldap.LdapRealmSettings;
@@ -71,6 +74,7 @@ import org.elasticsearch.xpack.core.security.authz.RestrictedIndices;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor.ApplicationResourcePrivileges;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor.IndicesPrivileges;
+import org.elasticsearch.xpack.core.security.authz.RoleDescriptorTestHelper;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptorsIntersection;
 import org.elasticsearch.xpack.core.security.authz.permission.ApplicationPermission;
 import org.elasticsearch.xpack.core.security.authz.permission.ClusterPermission;
@@ -78,6 +82,8 @@ import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissions;
 import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissionsCache;
 import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissionsDefinition;
 import org.elasticsearch.xpack.core.security.authz.permission.IndicesPermission;
+import org.elasticsearch.xpack.core.security.authz.permission.RemoteClusterPermissionGroup;
+import org.elasticsearch.xpack.core.security.authz.permission.RemoteClusterPermissions;
 import org.elasticsearch.xpack.core.security.authz.permission.RemoteIndicesPermission;
 import org.elasticsearch.xpack.core.security.authz.permission.ResourcePrivileges;
 import org.elasticsearch.xpack.core.security.authz.permission.Role;
@@ -93,6 +99,8 @@ import org.elasticsearch.xpack.core.security.authz.store.ReservedRolesStore;
 import org.elasticsearch.xpack.core.security.support.Automatons;
 import org.elasticsearch.xpack.core.security.test.TestRestrictedIndices;
 import org.elasticsearch.xpack.core.security.user.User;
+import org.elasticsearch.xpack.security.action.user.ChangePasswordRequestBuilder;
+import org.elasticsearch.xpack.security.action.user.TransportChangePasswordAction;
 import org.elasticsearch.xpack.security.authc.esnative.ReservedRealm;
 import org.elasticsearch.xpack.security.authz.RBACEngine.RBACAuthorizationInfo;
 import org.elasticsearch.xpack.security.authz.store.CompositeRolesStore;
@@ -105,7 +113,6 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -113,16 +120,19 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.concurrent.ExecutionException;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static java.util.Collections.emptyMap;
+import static java.util.Map.entry;
 import static org.elasticsearch.common.util.set.Sets.newHashSet;
 import static org.elasticsearch.test.ActionListenerUtils.anyActionListener;
 import static org.elasticsearch.xpack.core.security.test.TestRestrictedIndices.RESTRICTED_INDICES;
 import static org.elasticsearch.xpack.security.authz.AuthorizedIndicesTests.getRequestInfo;
 import static org.hamcrest.Matchers.aMapWithSize;
 import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.emptyArray;
 import static org.hamcrest.Matchers.emptyIterable;
 import static org.hamcrest.Matchers.equalTo;
@@ -184,6 +194,46 @@ public class RBACEngineTests extends ESTestCase {
         assertThat((String[]) authorizationInfo.getAuthenticatedUserAuthorizationInfo().asMap().get("user.roles"), emptyArray());
     }
 
+    public void testResolveAuthorizationInfoForEmptyRestrictedRolesWithAuthentication() {
+        doAnswer(invocation -> {
+            @SuppressWarnings("unchecked")
+            final var listener = (ActionListener<Tuple<Role, Role>>) invocation.getArgument(1);
+            final Supplier<Role> randomRoleSupplier = () -> Role.buildFromRoleDescriptor(
+                RoleDescriptorTestHelper.builder()
+                    .allowReservedMetadata(randomBoolean())
+                    .allowRemoteIndices(false)
+                    .allowRestriction(randomBoolean())
+                    .allowDescription(randomBoolean())
+                    .allowRemoteClusters(false)
+                    .build(),
+                new FieldPermissionsCache(Settings.EMPTY),
+                RESTRICTED_INDICES,
+                List.of()
+            );
+            switch (randomIntBetween(1, 3)) {
+                case 1 -> listener.onResponse(new Tuple<>(Role.EMPTY_RESTRICTED_BY_WORKFLOW, Role.EMPTY_RESTRICTED_BY_WORKFLOW));
+                case 2 -> listener.onResponse(new Tuple<>(randomRoleSupplier.get(), Role.EMPTY_RESTRICTED_BY_WORKFLOW));
+                case 3 -> listener.onResponse(new Tuple<>(Role.EMPTY_RESTRICTED_BY_WORKFLOW, randomRoleSupplier.get()));
+                default -> throw new IllegalStateException("unexpected test case!");
+            }
+            return null;
+        }).when(rolesStore).getRoles(any(), anyActionListener());
+
+        final PlainActionFuture<AuthorizationInfo> future = new PlainActionFuture<>();
+        engine.resolveAuthorizationInfo(
+            new RequestInfo(
+                AuthenticationTestHelper.builder().build(),
+                mock(TransportRequest.class),
+                randomAlphaOfLengthBetween(20, 30),
+                null
+            ),
+            future
+        );
+
+        ElasticsearchRoleRestrictionException e = expectThrows(ElasticsearchRoleRestrictionException.class, future::actionGet);
+        assertThat(e.getMessage(), containsString("access restricted by workflow"));
+    }
+
     public void testResolveAuthorizationInfoForEmptyRoleWithSubject() {
         doAnswer(invocation -> {
             @SuppressWarnings("unchecked")
@@ -206,7 +256,7 @@ public class RBACEngineTests extends ESTestCase {
         final TransportRequest request = changePasswordRequest
             ? new ChangePasswordRequestBuilder(mock(Client.class)).username(user.principal()).request()
             : new HasPrivilegesRequestBuilder(mock(Client.class)).username(user.principal()).request();
-        final String action = changePasswordRequest ? ChangePasswordAction.NAME : HasPrivilegesAction.NAME;
+        final String action = changePasswordRequest ? TransportChangePasswordAction.TYPE.name() : HasPrivilegesAction.NAME;
         final Authentication.RealmRef authenticatedBy = new Authentication.RealmRef(
             randomAlphaOfLengthBetween(3, 8),
             changePasswordRequest ? randomFrom(ReservedRealm.TYPE, NativeRealmSettings.TYPE) : randomAlphaOfLengthBetween(4, 12),
@@ -226,7 +276,7 @@ public class RBACEngineTests extends ESTestCase {
         final TransportRequest request = changePasswordRequest
             ? new ChangePasswordRequestBuilder(mock(Client.class)).username(username).request()
             : new HasPrivilegesRequestBuilder(mock(Client.class)).username(username).request();
-        final String action = changePasswordRequest ? ChangePasswordAction.NAME : HasPrivilegesAction.NAME;
+        final String action = changePasswordRequest ? TransportChangePasswordAction.TYPE.name() : HasPrivilegesAction.NAME;
 
         final Authentication.RealmRef authenticatedBy = new Authentication.RealmRef(
             randomAlphaOfLengthBetween(3, 8),
@@ -271,9 +321,9 @@ public class RBACEngineTests extends ESTestCase {
         final String action = randomFrom(
             PutUserAction.NAME,
             DeleteUserAction.NAME,
-            ClusterHealthAction.NAME,
+            TransportClusterHealthAction.NAME,
             ClusterStateAction.NAME,
-            ClusterStatsAction.NAME,
+            TransportClusterStatsAction.TYPE.name(),
             GetLicenseAction.NAME
         );
         final Authentication authentication = AuthenticationTestHelper.builder().build();
@@ -290,7 +340,7 @@ public class RBACEngineTests extends ESTestCase {
         final TransportRequest request = changePasswordRequest
             ? new ChangePasswordRequestBuilder(mock(Client.class)).username(username).request()
             : new HasPrivilegesRequestBuilder(mock(Client.class)).username(username).request();
-        final String action = changePasswordRequest ? ChangePasswordAction.NAME : AuthenticateAction.NAME;
+        final String action = changePasswordRequest ? TransportChangePasswordAction.TYPE.name() : AuthenticateAction.NAME;
 
         final Authentication.RealmRef authenticatedBy = AuthenticationTestHelper.randomRealmRef(false);
         final Authentication.RealmRef lookedUpBy = new Authentication.RealmRef(
@@ -326,7 +376,7 @@ public class RBACEngineTests extends ESTestCase {
         final ChangePasswordRequest request = new ChangePasswordRequestBuilder(mock(Client.class)).username(
             authentication.getEffectiveSubject().getUser().principal()
         ).request();
-        final String action = ChangePasswordAction.NAME;
+        final String action = TransportChangePasswordAction.TYPE.name();
 
         assertThat(request, instanceOf(UserRequest.class));
         assertFalse(RBACEngine.checkSameUserPermissions(action, request, authentication));
@@ -337,7 +387,7 @@ public class RBACEngineTests extends ESTestCase {
         final ChangePasswordRequest request = new ChangePasswordRequestBuilder(mock(Client.class)).username(
             authentication.getEffectiveSubject().getUser().principal()
         ).request();
-        final String action = ChangePasswordAction.NAME;
+        final String action = TransportChangePasswordAction.TYPE.name();
 
         assertThat(request, instanceOf(UserRequest.class));
         assertFalse(RBACEngine.checkSameUserPermissions(action, request, authentication));
@@ -348,7 +398,7 @@ public class RBACEngineTests extends ESTestCase {
         final ChangePasswordRequest request = new ChangePasswordRequestBuilder(mock(Client.class)).username(
             authentication.getEffectiveSubject().getUser().principal()
         ).request();
-        final String action = ChangePasswordAction.NAME;
+        final String action = TransportChangePasswordAction.TYPE.name();
 
         assertThat(request, instanceOf(UserRequest.class));
         assertFalse(RBACEngine.checkSameUserPermissions(action, request, authentication));
@@ -375,7 +425,7 @@ public class RBACEngineTests extends ESTestCase {
         final ChangePasswordRequest request = new ChangePasswordRequestBuilder(mock(Client.class)).username(
             authentication.getEffectiveSubject().getUser().principal()
         ).request();
-        final String action = ChangePasswordAction.NAME;
+        final String action = TransportChangePasswordAction.TYPE.name();
 
         assertThat(request, instanceOf(UserRequest.class));
         assertFalse(RBACEngine.checkSameUserPermissions(action, request, authentication));
@@ -414,9 +464,25 @@ public class RBACEngineTests extends ESTestCase {
         assertFalse(RBACEngine.checkSameUserPermissions(GetApiKeyAction.NAME, request, authentication));
     }
 
+    public void testSameUserPermissionForCrossClusterAccess() {
+        final CrossClusterAccessSubjectInfo ccaSubjectInfo = AuthenticationTestHelper.randomCrossClusterAccessSubjectInfo();
+        final Authentication authentication = AuthenticationTestHelper.builder().apiKey().build().toCrossClusterAccess(ccaSubjectInfo);
+
+        // HasPrivileges is allowed
+        final HasPrivilegesRequest hasPrivilegesRequest = new HasPrivilegesRequest();
+        hasPrivilegesRequest.username(ccaSubjectInfo.getAuthentication().getEffectiveSubject().getUser().principal());
+        assertTrue(RBACEngine.checkSameUserPermissions(HasPrivilegesAction.NAME, hasPrivilegesRequest, authentication));
+
+        // Other actions, e.g. GetUserPrivilegesAction, are not allowed even if they are allowed when performing within a single cluster
+        final GetUserPrivilegesRequest getUserPrivilegesRequest = new GetUserPrivilegesRequestBuilder(mock(ElasticsearchClient.class))
+            .username(ccaSubjectInfo.getAuthentication().getEffectiveSubject().getUser().principal())
+            .request();
+        assertFalse(RBACEngine.checkSameUserPermissions(GetUserPrivilegesAction.NAME, getUserPrivilegesRequest, authentication));
+    }
+
     /**
      * This tests that action names in the request are considered "matched" by the relevant named privilege
-     * (in this case that {@link DeleteAction} and {@link IndexAction} are satisfied by {@link IndexPrivilege#WRITE}).
+     * (in this case that {@link TransportDeleteAction} and {@link TransportIndexAction} are satisfied by {@link IndexPrivilege#WRITE}).
      */
     public void testNamedIndexPrivilegesMatchApplicableActions() throws Exception {
         Role role = Role.builder(RESTRICTED_INDICES, "test1")
@@ -426,24 +492,24 @@ public class RBACEngineTests extends ESTestCase {
         RBACAuthorizationInfo authzInfo = new RBACAuthorizationInfo(role, null);
 
         final PrivilegesCheckResult result = hasPrivileges(
-            IndicesPrivileges.builder().indices("academy").privileges(DeleteAction.NAME, IndexAction.NAME).build(),
+            IndicesPrivileges.builder().indices("academy").privileges(TransportDeleteAction.NAME, TransportIndexAction.NAME).build(),
             authzInfo,
             List.of(),
-            new String[] { ClusterHealthAction.NAME }
+            new String[] { TransportClusterHealthAction.NAME }
         );
 
         assertThat(result, notNullValue());
         assertThat(result.allChecksSuccess(), is(true));
 
         assertThat(result.getDetails().cluster(), aMapWithSize(1));
-        assertThat(result.getDetails().cluster().get(ClusterHealthAction.NAME), equalTo(true));
+        assertThat(result.getDetails().cluster().get(TransportClusterHealthAction.NAME), equalTo(true));
 
         assertThat(result.getDetails().index().values(), Matchers.iterableWithSize(1));
         final ResourcePrivileges resourcePrivileges = result.getDetails().index().values().iterator().next();
         assertThat(resourcePrivileges.getResource(), equalTo("academy"));
         assertThat(resourcePrivileges.getPrivileges(), aMapWithSize(2));
-        assertThat(resourcePrivileges.getPrivileges().get(DeleteAction.NAME), equalTo(true));
-        assertThat(resourcePrivileges.getPrivileges().get(IndexAction.NAME), equalTo(true));
+        assertThat(resourcePrivileges.getPrivileges().get(TransportDeleteAction.NAME), equalTo(true));
+        assertThat(resourcePrivileges.getPrivileges().get(TransportIndexAction.NAME), equalTo(true));
     }
 
     /**
@@ -615,13 +681,9 @@ public class RBACEngineTests extends ESTestCase {
                 ResourcePrivileges.builder("log*").addPrivileges(Collections.singletonMap("manage", false)).build(),
                 ResourcePrivileges.builder("foo?").addPrivileges(Collections.singletonMap("read", true)).build(),
                 ResourcePrivileges.builder("foo*").addPrivileges(Collections.singletonMap("read", false)).build(),
-                ResourcePrivileges.builder("abcd*").addPrivileges(mapBuilder().put("read", true).put("write", false).map()).build(),
-                ResourcePrivileges.builder("abc*xyz")
-                    .addPrivileges(mapBuilder().put("read", true).put("write", true).put("manage", false).map())
-                    .build(),
-                ResourcePrivileges.builder("a*xyz")
-                    .addPrivileges(mapBuilder().put("read", false).put("write", true).put("manage", false).map())
-                    .build()
+                ResourcePrivileges.builder("abcd*").addPrivileges(Map.of("read", true, "write", false)).build(),
+                ResourcePrivileges.builder("abc*xyz").addPrivileges(Map.of("read", true, "write", true, "manage", false)).build(),
+                ResourcePrivileges.builder("a*xyz").addPrivileges(Map.of("read", false, "write", true, "manage", false)).build()
             )
         );
         assertThat(response.getDetails().application().entrySet(), Matchers.iterableWithSize(1));
@@ -631,7 +693,7 @@ public class RBACEngineTests extends ESTestCase {
             Strings.collectionToCommaDelimitedString(kibanaPrivileges),
             kibanaPrivileges,
             containsInAnyOrder(
-                ResourcePrivileges.builder("*").addPrivileges(mapBuilder().put("read", true).put("write", false).map()).build(),
+                ResourcePrivileges.builder("*").addPrivileges(Map.of("read", true, "write", false)).build(),
                 ResourcePrivileges.builder("space/engineering/project-*")
                     .addPrivileges(Collections.singletonMap("space:view/dashboard", true))
                     .build(),
@@ -672,32 +734,12 @@ public class RBACEngineTests extends ESTestCase {
             response.getDetails().index().values(),
             containsInAnyOrder(
                 ResourcePrivileges.builder("apache-2016-12")
-                    .addPrivileges(
-                        MapBuilder.newMapBuilder(new TreeMap<String, Boolean>())
-                            .put("create_doc", true)
-                            .put("index", true)
-                            .put("delete", true)
-                            .map()
-                    )
+                    .addPrivileges(Map.of("create_doc", true, "index", true, "delete", true))
                     .build(),
                 ResourcePrivileges.builder("apache-2017-01")
-                    .addPrivileges(
-                        MapBuilder.newMapBuilder(new TreeMap<String, Boolean>())
-                            .put("create_doc", true)
-                            .put("index", true)
-                            .put("delete", false)
-                            .map()
-                    )
+                    .addPrivileges(Map.of("create_doc", true, "index", true, "delete", false))
                     .build(),
-                ResourcePrivileges.builder("other")
-                    .addPrivileges(
-                        MapBuilder.newMapBuilder(new TreeMap<String, Boolean>())
-                            .put("create_doc", true)
-                            .put("index", false)
-                            .put("delete", false)
-                            .map()
-                    )
-                    .build()
+                ResourcePrivileges.builder("other").addPrivileges(Map.of("create_doc", true, "index", false, "delete", false)).build()
             )
         );
 
@@ -722,22 +764,10 @@ public class RBACEngineTests extends ESTestCase {
             response.getDetails().index().values(),
             containsInAnyOrder(
                 ResourcePrivileges.builder("apache-2016-12")
-                    .addPrivileges(
-                        MapBuilder.newMapBuilder(new TreeMap<String, Boolean>())
-                            .put("create_doc", true)
-                            .put("create", true)
-                            .put("index", true)
-                            .map()
-                    )
+                    .addPrivileges(Map.of("create_doc", true, "create", true, "index", true))
                     .build(),
                 ResourcePrivileges.builder("apache-2017-01")
-                    .addPrivileges(
-                        MapBuilder.newMapBuilder(new TreeMap<String, Boolean>())
-                            .put("create_doc", true)
-                            .put("create", true)
-                            .put("index", true)
-                            .map()
-                    )
+                    .addPrivileges(Map.of("create_doc", true, "create", true, "index", true))
                     .build()
             )
         );
@@ -764,11 +794,7 @@ public class RBACEngineTests extends ESTestCase {
         assertThat(response.getDetails().index().values(), Matchers.iterableWithSize(1));
         assertThat(
             response.getDetails().index().values(),
-            containsInAnyOrder(
-                ResourcePrivileges.builder(prePatternPrefix)
-                    .addPrivileges(MapBuilder.newMapBuilder(new LinkedHashMap<String, Boolean>()).put("index", false).map())
-                    .build()
-            )
+            containsInAnyOrder(ResourcePrivileges.builder(prePatternPrefix).addPrivileges(Map.of("index", false)).build())
         );
 
         String matchesPatternPrefix = XPackPlugin.ASYNC_RESULTS_INDEX.substring(0, patternPrefix.length() + 1);
@@ -782,11 +808,7 @@ public class RBACEngineTests extends ESTestCase {
         assertThat(response.getDetails().index().values(), Matchers.iterableWithSize(1));
         assertThat(
             response.getDetails().index().values(),
-            containsInAnyOrder(
-                ResourcePrivileges.builder(matchesPatternPrefix + "*")
-                    .addPrivileges(MapBuilder.newMapBuilder(new LinkedHashMap<String, Boolean>()).put("index", true).map())
-                    .build()
-            )
+            containsInAnyOrder(ResourcePrivileges.builder(matchesPatternPrefix + "*").addPrivileges(Map.of("index", true)).build())
         );
         response = hasPrivileges(
             IndicesPrivileges.builder().indices(matchesPatternPrefix + "*").allowRestrictedIndices(true).privileges("index").build(),
@@ -798,11 +820,7 @@ public class RBACEngineTests extends ESTestCase {
         assertThat(response.getDetails().index().values(), Matchers.iterableWithSize(1));
         assertThat(
             response.getDetails().index().values(),
-            containsInAnyOrder(
-                ResourcePrivileges.builder(matchesPatternPrefix + "*")
-                    .addPrivileges(MapBuilder.newMapBuilder(new LinkedHashMap<String, Boolean>()).put("index", false).map())
-                    .build()
-            )
+            containsInAnyOrder(ResourcePrivileges.builder(matchesPatternPrefix + "*").addPrivileges(Map.of("index", false)).build())
         );
         response = hasPrivileges(
             IndicesPrivileges.builder().indices(matchesPatternPrefix).allowRestrictedIndices(randomBoolean()).privileges("index").build(),
@@ -814,11 +832,7 @@ public class RBACEngineTests extends ESTestCase {
         assertThat(response.getDetails().index().values(), Matchers.iterableWithSize(1));
         assertThat(
             response.getDetails().index().values(),
-            containsInAnyOrder(
-                ResourcePrivileges.builder(matchesPatternPrefix)
-                    .addPrivileges(MapBuilder.newMapBuilder(new LinkedHashMap<String, Boolean>()).put("index", true).map())
-                    .build()
-            )
+            containsInAnyOrder(ResourcePrivileges.builder(matchesPatternPrefix).addPrivileges(Map.of("index", true)).build())
         );
 
         final String restrictedIndexMatchingWildcard = XPackPlugin.ASYNC_RESULTS_INDEX + randomAlphaOfLengthBetween(0, 2);
@@ -837,9 +851,7 @@ public class RBACEngineTests extends ESTestCase {
         assertThat(
             response.getDetails().index().values(),
             containsInAnyOrder(
-                ResourcePrivileges.builder(restrictedIndexMatchingWildcard + "*")
-                    .addPrivileges(MapBuilder.newMapBuilder(new LinkedHashMap<String, Boolean>()).put("index", false).map())
-                    .build()
+                ResourcePrivileges.builder(restrictedIndexMatchingWildcard + "*").addPrivileges(Map.of("index", false)).build()
             )
         );
         response = hasPrivileges(
@@ -857,9 +869,7 @@ public class RBACEngineTests extends ESTestCase {
         assertThat(
             response.getDetails().index().values(),
             containsInAnyOrder(
-                ResourcePrivileges.builder(restrictedIndexMatchingWildcard + "*")
-                    .addPrivileges(MapBuilder.newMapBuilder(new LinkedHashMap<String, Boolean>()).put("index", false).map())
-                    .build()
+                ResourcePrivileges.builder(restrictedIndexMatchingWildcard + "*").addPrivileges(Map.of("index", false)).build()
             )
         );
         response = hasPrivileges(
@@ -876,11 +886,7 @@ public class RBACEngineTests extends ESTestCase {
         assertThat(response.getDetails().index().values(), Matchers.iterableWithSize(1));
         assertThat(
             response.getDetails().index().values(),
-            containsInAnyOrder(
-                ResourcePrivileges.builder(restrictedIndexMatchingWildcard)
-                    .addPrivileges(MapBuilder.newMapBuilder(new LinkedHashMap<String, Boolean>()).put("index", false).map())
-                    .build()
-            )
+            containsInAnyOrder(ResourcePrivileges.builder(restrictedIndexMatchingWildcard).addPrivileges(Map.of("index", false)).build())
         );
 
         role = Role.builder(RESTRICTED_INDICES, "role")
@@ -901,11 +907,7 @@ public class RBACEngineTests extends ESTestCase {
         assertThat(response.getDetails().index().values(), Matchers.iterableWithSize(1));
         assertThat(
             response.getDetails().index().values(),
-            containsInAnyOrder(
-                ResourcePrivileges.builder(matchesPatternPrefix + "*")
-                    .addPrivileges(MapBuilder.newMapBuilder(new LinkedHashMap<String, Boolean>()).put("index", true).map())
-                    .build()
-            )
+            containsInAnyOrder(ResourcePrivileges.builder(matchesPatternPrefix + "*").addPrivileges(Map.of("index", true)).build())
         );
     }
 
@@ -935,17 +937,10 @@ public class RBACEngineTests extends ESTestCase {
             response.getDetails().index().values(),
             containsInAnyOrder(
                 ResourcePrivileges.builder(".secret-non-restricted") // matches ".sec*" but not ".security*"
-                    .addPrivileges(
-                        MapBuilder.newMapBuilder(new LinkedHashMap<String, Boolean>()).put("index", true).put("monitor", false).map()
-                    )
+                    .addPrivileges(Map.of("index", true, "monitor", false))
                     .build(),
                 ResourcePrivileges.builder(explicitRestrictedIndex) // matches both ".sec*" and ".security*"
-                    .addPrivileges(
-                        MapBuilder.newMapBuilder(new LinkedHashMap<String, Boolean>())
-                            .put("index", restrictedIndexPermission)
-                            .put("monitor", restrictedMonitorPermission)
-                            .map()
-                    )
+                    .addPrivileges(Map.of("index", restrictedIndexPermission, "monitor", restrictedMonitorPermission))
                     .build()
             )
         );
@@ -967,17 +962,10 @@ public class RBACEngineTests extends ESTestCase {
             response.getDetails().index().values(),
             containsInAnyOrder(
                 ResourcePrivileges.builder(".secret-non-restricted") // matches ".sec*" but not ".security*"
-                    .addPrivileges(
-                        MapBuilder.newMapBuilder(new LinkedHashMap<String, Boolean>()).put("index", true).put("monitor", false).map()
-                    )
+                    .addPrivileges(Map.of("index", true, "monitor", false))
                     .build(),
                 ResourcePrivileges.builder(explicitRestrictedIndex) // matches both ".sec*" and ".security*"
-                    .addPrivileges(
-                        MapBuilder.newMapBuilder(new LinkedHashMap<String, Boolean>())
-                            .put("index", restrictedIndexPermission)
-                            .put("monitor", restrictedMonitorPermission)
-                            .map()
-                    )
+                    .addPrivileges(Map.of("index", restrictedIndexPermission, "monitor", restrictedMonitorPermission))
                     .build()
             )
         );
@@ -1001,16 +989,8 @@ public class RBACEngineTests extends ESTestCase {
         assertThat(
             response.getDetails().index().values(),
             containsInAnyOrder(
-                ResourcePrivileges.builder(".sec*")
-                    .addPrivileges(
-                        MapBuilder.newMapBuilder(new LinkedHashMap<String, Boolean>()).put("index", true).put("monitor", false).map()
-                    )
-                    .build(),
-                ResourcePrivileges.builder(".security*")
-                    .addPrivileges(
-                        MapBuilder.newMapBuilder(new LinkedHashMap<String, Boolean>()).put("index", true).put("monitor", true).map()
-                    )
-                    .build()
+                ResourcePrivileges.builder(".sec*").addPrivileges(Map.of("index", true, "monitor", false)).build(),
+                ResourcePrivileges.builder(".security*").addPrivileges(Map.of("index", true, "monitor", true)).build()
             )
         );
 
@@ -1025,16 +1005,8 @@ public class RBACEngineTests extends ESTestCase {
         assertThat(
             response.getDetails().index().values(),
             containsInAnyOrder(
-                ResourcePrivileges.builder(".sec*")
-                    .addPrivileges(
-                        MapBuilder.newMapBuilder(new LinkedHashMap<String, Boolean>()).put("index", false).put("monitor", false).map()
-                    )
-                    .build(),
-                ResourcePrivileges.builder(".security*")
-                    .addPrivileges(
-                        MapBuilder.newMapBuilder(new LinkedHashMap<String, Boolean>()).put("index", false).put("monitor", true).map()
-                    )
-                    .build()
+                ResourcePrivileges.builder(".sec*").addPrivileges(Map.of("index", false, "monitor", false)).build(),
+                ResourcePrivileges.builder(".security*").addPrivileges(Map.of("index", false, "monitor", true)).build()
             )
         );
 
@@ -1055,16 +1027,8 @@ public class RBACEngineTests extends ESTestCase {
         assertThat(
             response.getDetails().index().values(),
             containsInAnyOrder(
-                ResourcePrivileges.builder(".sec*")
-                    .addPrivileges(
-                        MapBuilder.newMapBuilder(new LinkedHashMap<String, Boolean>()).put("index", true).put("monitor", false).map()
-                    )
-                    .build(),
-                ResourcePrivileges.builder(".security*")
-                    .addPrivileges(
-                        MapBuilder.newMapBuilder(new LinkedHashMap<String, Boolean>()).put("index", true).put("monitor", true).map()
-                    )
-                    .build()
+                ResourcePrivileges.builder(".sec*").addPrivileges(Map.of("index", true, "monitor", false)).build(),
+                ResourcePrivileges.builder(".security*").addPrivileges(Map.of("index", true, "monitor", true)).build()
             )
         );
 
@@ -1079,16 +1043,8 @@ public class RBACEngineTests extends ESTestCase {
         assertThat(
             response.getDetails().index().values(),
             containsInAnyOrder(
-                ResourcePrivileges.builder(".sec*")
-                    .addPrivileges(
-                        MapBuilder.newMapBuilder(new LinkedHashMap<String, Boolean>()).put("index", true).put("monitor", false).map()
-                    )
-                    .build(),
-                ResourcePrivileges.builder(".security*")
-                    .addPrivileges(
-                        MapBuilder.newMapBuilder(new LinkedHashMap<String, Boolean>()).put("index", true).put("monitor", false).map()
-                    )
-                    .build()
+                ResourcePrivileges.builder(".sec*").addPrivileges(Map.of("index", true, "monitor", false)).build(),
+                ResourcePrivileges.builder(".security*").addPrivileges(Map.of("index", true, "monitor", false)).build()
             )
         );
     }
@@ -1141,42 +1097,10 @@ public class RBACEngineTests extends ESTestCase {
             Strings.collectionToCommaDelimitedString(app1),
             app1,
             containsInAnyOrder(
-                ResourcePrivileges.builder("foo/1")
-                    .addPrivileges(
-                        MapBuilder.newMapBuilder(new LinkedHashMap<String, Boolean>())
-                            .put("read", true)
-                            .put("write", false)
-                            .put("all", false)
-                            .map()
-                    )
-                    .build(),
-                ResourcePrivileges.builder("foo/bar/2")
-                    .addPrivileges(
-                        MapBuilder.newMapBuilder(new LinkedHashMap<String, Boolean>())
-                            .put("read", true)
-                            .put("write", false)
-                            .put("all", false)
-                            .map()
-                    )
-                    .build(),
-                ResourcePrivileges.builder("foo/bar/baz")
-                    .addPrivileges(
-                        MapBuilder.newMapBuilder(new LinkedHashMap<String, Boolean>())
-                            .put("read", true)
-                            .put("write", true)
-                            .put("all", true)
-                            .map()
-                    )
-                    .build(),
-                ResourcePrivileges.builder("baz/bar/foo")
-                    .addPrivileges(
-                        MapBuilder.newMapBuilder(new LinkedHashMap<String, Boolean>())
-                            .put("read", false)
-                            .put("write", false)
-                            .put("all", false)
-                            .map()
-                    )
-                    .build()
+                ResourcePrivileges.builder("foo/1").addPrivileges(Map.of("read", true, "write", false, "all", false)).build(),
+                ResourcePrivileges.builder("foo/bar/2").addPrivileges(Map.of("read", true, "write", false, "all", false)).build(),
+                ResourcePrivileges.builder("foo/bar/baz").addPrivileges(Map.of("read", true, "write", true, "all", true)).build(),
+                ResourcePrivileges.builder("baz/bar/foo").addPrivileges(Map.of("read", false, "write", false, "all", false)).build()
             )
         );
         final Collection<ResourcePrivileges> app2 = response.getDetails().application().get("app2");
@@ -1185,42 +1109,10 @@ public class RBACEngineTests extends ESTestCase {
             Strings.collectionToCommaDelimitedString(app2),
             app2,
             containsInAnyOrder(
-                ResourcePrivileges.builder("foo/1")
-                    .addPrivileges(
-                        MapBuilder.newMapBuilder(new LinkedHashMap<String, Boolean>())
-                            .put("read", false)
-                            .put("write", false)
-                            .put("all", false)
-                            .map()
-                    )
-                    .build(),
-                ResourcePrivileges.builder("foo/bar/2")
-                    .addPrivileges(
-                        MapBuilder.newMapBuilder(new LinkedHashMap<String, Boolean>())
-                            .put("read", true)
-                            .put("write", true)
-                            .put("all", false)
-                            .map()
-                    )
-                    .build(),
-                ResourcePrivileges.builder("foo/bar/baz")
-                    .addPrivileges(
-                        MapBuilder.newMapBuilder(new LinkedHashMap<String, Boolean>())
-                            .put("read", true)
-                            .put("write", true)
-                            .put("all", false)
-                            .map()
-                    )
-                    .build(),
-                ResourcePrivileges.builder("baz/bar/foo")
-                    .addPrivileges(
-                        MapBuilder.newMapBuilder(new LinkedHashMap<String, Boolean>())
-                            .put("read", false)
-                            .put("write", true)
-                            .put("all", false)
-                            .map()
-                    )
-                    .build()
+                ResourcePrivileges.builder("foo/1").addPrivileges(Map.of("read", false, "write", false, "all", false)).build(),
+                ResourcePrivileges.builder("foo/bar/2").addPrivileges(Map.of("read", true, "write", true, "all", false)).build(),
+                ResourcePrivileges.builder("foo/bar/baz").addPrivileges(Map.of("read", true, "write", true, "all", false)).build(),
+                ResourcePrivileges.builder("baz/bar/foo").addPrivileges(Map.of("read", false, "write", true, "all", false)).build()
             )
         );
     }
@@ -1259,13 +1151,13 @@ public class RBACEngineTests extends ESTestCase {
             containsInAnyOrder(
                 ResourcePrivileges.builder("user/hawkeye/name")
                     .addPrivileges(
-                        MapBuilder.newMapBuilder(new LinkedHashMap<String, Boolean>())
-                            .put("DATA:read/user/*", true)
-                            .put("ACTION:" + action1, true)
-                            .put("ACTION:" + action2, false)
-                            .put(action1, true)
-                            .put(action2, false)
-                            .map()
+                        Map.ofEntries(
+                            entry("DATA:read/user/*", true),
+                            entry("ACTION:" + action1, true),
+                            entry("ACTION:" + action2, false),
+                            entry(action1, true),
+                            entry(action2, false)
+                        )
                     )
                     .build()
             )
@@ -1408,8 +1300,8 @@ public class RBACEngineTests extends ESTestCase {
             )
             .addApplicationPrivilege(ApplicationPrivilegeTests.createPrivilege("app01", "read", "data:read"), Collections.singleton("*"))
             .runAs(new Privilege(Sets.newHashSet("user01", "user02"), "user01", "user02"))
-            .addRemoteGroup(Set.of("remote-1"), FieldPermissions.DEFAULT, null, IndexPrivilege.READ, false, "remote-index-1")
-            .addRemoteGroup(
+            .addRemoteIndicesGroup(Set.of("remote-1"), FieldPermissions.DEFAULT, null, IndexPrivilege.READ, false, "remote-index-1")
+            .addRemoteIndicesGroup(
                 Set.of("remote-2", "remote-3"),
                 new FieldPermissions(new FieldPermissionsDefinition(new String[] { "public.*" }, new String[0])),
                 Collections.singleton(query),
@@ -1417,6 +1309,20 @@ public class RBACEngineTests extends ESTestCase {
                 randomBoolean(),
                 "remote-index-2",
                 "remote-index-3"
+            )
+            .addRemoteClusterPermissions(
+                new RemoteClusterPermissions().addGroup(
+                    new RemoteClusterPermissionGroup(
+                        RemoteClusterPermissions.getSupportedRemoteClusterPermissions().toArray(new String[0]),
+                        new String[] { "remote-1" }
+                    )
+                )
+                    .addGroup(
+                        new RemoteClusterPermissionGroup(
+                            RemoteClusterPermissions.getSupportedRemoteClusterPermissions().toArray(new String[0]),
+                            new String[] { "remote-2", "remote-3" }
+                        )
+                    )
             )
             .build();
 
@@ -1474,6 +1380,30 @@ public class RBACEngineTests extends ESTestCase {
             containsInAnyOrder(new FieldPermissionsDefinition.FieldGrantExcludeGroup(new String[] { "public.*" }, new String[0]))
         );
         assertThat(remoteIndex2.indices().getQueries(), containsInAnyOrder(query));
+
+        RemoteClusterPermissions remoteClusterPermissions = response.getRemoteClusterPermissions();
+        String[] allRemoteClusterPermissions = RemoteClusterPermissions.getSupportedRemoteClusterPermissions().toArray(new String[0]);
+        assert allRemoteClusterPermissions.length == 1
+            : "if more remote cluster permissions are added this test needs to be updated to ensure the correct remotes receive the "
+                + "correct permissions. ";
+        // 2 groups with 3 aliases
+        assertThat(response.getRemoteClusterPermissions().groups(), iterableWithSize(2));
+        assertEquals(
+            3,
+            response.getRemoteClusterPermissions()
+                .groups()
+                .stream()
+                .map(RemoteClusterPermissionGroup::remoteClusterAliases)
+                .flatMap(Arrays::stream)
+                .distinct()
+                .count()
+        );
+
+        for (String permission : RemoteClusterPermissions.getSupportedRemoteClusterPermissions()) {
+            assertThat(Arrays.asList(remoteClusterPermissions.privilegeNames("remote-1", TransportVersion.current())), hasItem(permission));
+            assertThat(Arrays.asList(remoteClusterPermissions.privilegeNames("remote-2", TransportVersion.current())), hasItem(permission));
+            assertThat(Arrays.asList(remoteClusterPermissions.privilegeNames("remote-3", TransportVersion.current())), hasItem(permission));
+        }
     }
 
     public void testBackingIndicesAreIncludedForAuthorizedDataStreams() {
@@ -1502,7 +1432,7 @@ public class RBACEngineTests extends ESTestCase {
         SearchRequest request = new SearchRequest("*");
         AuthorizedIndices authorizedIndices = RBACEngine.resolveAuthorizedIndicesFromRole(
             role,
-            getRequestInfo(request, SearchAction.NAME),
+            getRequestInfo(request, TransportSearchAction.TYPE.name()),
             lookup,
             () -> ignore -> {}
         );
@@ -1545,7 +1475,7 @@ public class RBACEngineTests extends ESTestCase {
         request.source("{ \"properties\": { \"message\": { \"type\": \"text\" } } }", XContentType.JSON);
         AuthorizedIndices authorizedIndices = RBACEngine.resolveAuthorizedIndicesFromRole(
             role,
-            getRequestInfo(request, PutMappingAction.NAME),
+            getRequestInfo(request, TransportPutMappingAction.TYPE.name()),
             lookup,
             () -> ignore -> {}
         );
@@ -1595,8 +1525,6 @@ public class RBACEngineTests extends ESTestCase {
     }
 
     public void testGetRoleDescriptorsIntersectionForRemoteCluster() throws ExecutionException, InterruptedException {
-        assumeTrue("untrusted remote cluster feature flag must be enabled", TcpTransport.isUntrustedRemoteClusterEnabled());
-
         final RemoteIndicesPermission.Builder remoteIndicesBuilder = RemoteIndicesPermission.builder();
         final String concreteClusterAlias = randomAlphaOfLength(10);
         final int numGroups = randomIntBetween(1, 3);
@@ -1649,7 +1577,7 @@ public class RBACEngineTests extends ESTestCase {
         when(authorizationInfo.getRole()).thenReturn(role);
 
         final PlainActionFuture<RoleDescriptorsIntersection> future = new PlainActionFuture<>();
-        engine.getRoleDescriptorsIntersectionForRemoteCluster(concreteClusterAlias, authorizationInfo, future);
+        engine.getRoleDescriptorsIntersectionForRemoteCluster(concreteClusterAlias, TransportVersion.current(), authorizationInfo, future);
         final RoleDescriptorsIntersection actual = future.get();
 
         assertThat(
@@ -1677,8 +1605,6 @@ public class RBACEngineTests extends ESTestCase {
 
     public void testGetRoleDescriptorsIntersectionForRemoteClusterHasDeterministicOrderForIndicesPrivileges() throws ExecutionException,
         InterruptedException {
-        assumeTrue("untrusted remote cluster feature flag must be enabled", TcpTransport.isUntrustedRemoteClusterEnabled());
-
         final RemoteIndicesPermission.Builder remoteIndicesBuilder = RemoteIndicesPermission.builder();
         final String concreteClusterAlias = randomAlphaOfLength(10);
         final int numGroups = randomIntBetween(2, 5);
@@ -1706,7 +1632,12 @@ public class RBACEngineTests extends ESTestCase {
         final RBACAuthorizationInfo authorizationInfo1 = mock(RBACAuthorizationInfo.class);
         when(authorizationInfo1.getRole()).thenReturn(role1);
         final PlainActionFuture<RoleDescriptorsIntersection> future1 = new PlainActionFuture<>();
-        engine.getRoleDescriptorsIntersectionForRemoteCluster(concreteClusterAlias, authorizationInfo1, future1);
+        engine.getRoleDescriptorsIntersectionForRemoteCluster(
+            concreteClusterAlias,
+            TransportVersion.current(),
+            authorizationInfo1,
+            future1
+        );
         final RoleDescriptorsIntersection actual1 = future1.get();
 
         // Randomize the order of both remote indices groups and each of the indices permissions groups each group holds
@@ -1726,7 +1657,12 @@ public class RBACEngineTests extends ESTestCase {
         final RBACAuthorizationInfo authorizationInfo2 = mock(RBACAuthorizationInfo.class);
         when(authorizationInfo2.getRole()).thenReturn(role2);
         final PlainActionFuture<RoleDescriptorsIntersection> future2 = new PlainActionFuture<>();
-        engine.getRoleDescriptorsIntersectionForRemoteCluster(concreteClusterAlias, authorizationInfo2, future2);
+        engine.getRoleDescriptorsIntersectionForRemoteCluster(
+            concreteClusterAlias,
+            TransportVersion.current(),
+            authorizationInfo2,
+            future2
+        );
         final RoleDescriptorsIntersection actual2 = future2.get();
 
         assertThat(actual1, equalTo(actual2));
@@ -1734,8 +1670,6 @@ public class RBACEngineTests extends ESTestCase {
     }
 
     public void testGetRoleDescriptorsIntersectionForRemoteClusterWithoutMatchingGroups() throws ExecutionException, InterruptedException {
-        assumeTrue("untrusted remote cluster feature flag must be enabled", TcpTransport.isUntrustedRemoteClusterEnabled());
-
         final String concreteClusterAlias = randomAlphaOfLength(10);
         final Role role = createSimpleRoleWithRemoteIndices(
             RemoteIndicesPermission.builder()
@@ -1755,6 +1689,7 @@ public class RBACEngineTests extends ESTestCase {
         final PlainActionFuture<RoleDescriptorsIntersection> future = new PlainActionFuture<>();
         engine.getRoleDescriptorsIntersectionForRemoteCluster(
             randomValueOtherThan(concreteClusterAlias, () -> randomAlphaOfLength(10)),
+            TransportVersion.current(),
             authorizationInfo,
             future
         );
@@ -1764,8 +1699,6 @@ public class RBACEngineTests extends ESTestCase {
 
     public void testGetRoleDescriptorsIntersectionForRemoteClusterWithoutRemoteIndicesPermissions() throws ExecutionException,
         InterruptedException {
-        assumeTrue("untrusted remote cluster feature flag must be enabled", TcpTransport.isUntrustedRemoteClusterEnabled());
-
         final String concreteClusterAlias = randomAlphaOfLength(10);
         final Role role = createSimpleRoleWithRemoteIndices(RemoteIndicesPermission.NONE);
         final RBACAuthorizationInfo authorizationInfo = mock(RBACAuthorizationInfo.class);
@@ -1774,6 +1707,7 @@ public class RBACEngineTests extends ESTestCase {
         final PlainActionFuture<RoleDescriptorsIntersection> future = new PlainActionFuture<>();
         engine.getRoleDescriptorsIntersectionForRemoteCluster(
             randomValueOtherThan(concreteClusterAlias, () -> randomAlphaOfLength(10)),
+            TransportVersion.current(),
             authorizationInfo,
             future
         );
@@ -1782,29 +1716,32 @@ public class RBACEngineTests extends ESTestCase {
     }
 
     public void testGetRoleDescriptorsForRemoteClusterForReservedRoles() {
-        assumeTrue("untrusted remote cluster feature flag must be enabled", TcpTransport.isUntrustedRemoteClusterEnabled());
-
         final ReservedRolesStore reservedRolesStore = new ReservedRolesStore();
         final FieldPermissionsCache fieldPermissionsCache = new FieldPermissionsCache(Settings.EMPTY);
 
         // superuser
         {
             final SimpleRole role = Role.buildFromRoleDescriptor(
-                reservedRolesStore.roleDescriptor("superuser"),
+                ReservedRolesStore.roleDescriptor("superuser"),
                 fieldPermissionsCache,
                 RESTRICTED_INDICES
             );
             final RBACAuthorizationInfo authorizationInfo = mock(RBACAuthorizationInfo.class);
             when(authorizationInfo.getRole()).thenReturn(role);
             final PlainActionFuture<RoleDescriptorsIntersection> future = new PlainActionFuture<>();
-            engine.getRoleDescriptorsIntersectionForRemoteCluster(randomAlphaOfLengthBetween(5, 20), authorizationInfo, future);
+            engine.getRoleDescriptorsIntersectionForRemoteCluster(
+                randomAlphaOfLengthBetween(5, 20),
+                TransportVersion.current(),
+                authorizationInfo,
+                future
+            );
             assertThat(
                 future.actionGet(),
                 equalTo(
                     new RoleDescriptorsIntersection(
                         new RoleDescriptor(
                             Role.REMOTE_USER_ROLE_NAME,
-                            null,
+                            RemoteClusterPermissions.getSupportedRemoteClusterPermissions().toArray(new String[0]),
                             new IndicesPrivileges[] {
                                 IndicesPrivileges.builder().indices("*").privileges("all").allowRestrictedIndices(false).build(),
                                 IndicesPrivileges.builder()
@@ -1826,14 +1763,19 @@ public class RBACEngineTests extends ESTestCase {
         // kibana_system
         {
             final SimpleRole role = Role.buildFromRoleDescriptor(
-                reservedRolesStore.roleDescriptor("kibana_system"),
+                ReservedRolesStore.roleDescriptor("kibana_system"),
                 fieldPermissionsCache,
                 RESTRICTED_INDICES
             );
             final RBACAuthorizationInfo authorizationInfo = mock(RBACAuthorizationInfo.class);
             when(authorizationInfo.getRole()).thenReturn(role);
             final PlainActionFuture<RoleDescriptorsIntersection> future = new PlainActionFuture<>();
-            engine.getRoleDescriptorsIntersectionForRemoteCluster(randomAlphaOfLengthBetween(5, 20), authorizationInfo, future);
+            engine.getRoleDescriptorsIntersectionForRemoteCluster(
+                randomAlphaOfLengthBetween(5, 20),
+                TransportVersion.current(),
+                authorizationInfo,
+                future
+            );
             assertThat(
                 future.actionGet(),
                 equalTo(
@@ -1862,14 +1804,19 @@ public class RBACEngineTests extends ESTestCase {
         // monitoring_user
         {
             final SimpleRole role = Role.buildFromRoleDescriptor(
-                reservedRolesStore.roleDescriptor("monitoring_user"),
+                ReservedRolesStore.roleDescriptor("monitoring_user"),
                 fieldPermissionsCache,
                 RESTRICTED_INDICES
             );
             final RBACAuthorizationInfo authorizationInfo = mock(RBACAuthorizationInfo.class);
             when(authorizationInfo.getRole()).thenReturn(role);
             final PlainActionFuture<RoleDescriptorsIntersection> future = new PlainActionFuture<>();
-            engine.getRoleDescriptorsIntersectionForRemoteCluster(randomAlphaOfLengthBetween(5, 20), authorizationInfo, future);
+            engine.getRoleDescriptorsIntersectionForRemoteCluster(
+                randomAlphaOfLengthBetween(5, 20),
+                TransportVersion.current(),
+                authorizationInfo,
+                future
+            );
             assertThat(
                 future.actionGet(),
                 equalTo(
@@ -1879,6 +1826,10 @@ public class RBACEngineTests extends ESTestCase {
                             null,
                             new IndicesPrivileges[] {
                                 IndicesPrivileges.builder().indices(".monitoring-*").privileges("read", "read_cross_cluster").build(),
+                                IndicesPrivileges.builder()
+                                    .indices("/metrics-(beats|elasticsearch|enterprisesearch|kibana|logstash).*/")
+                                    .privileges("read", "read_cross_cluster")
+                                    .build(),
                                 IndicesPrivileges.builder().indices("metricbeat-*").privileges("read", "read_cross_cluster").build() },
                             null,
                             null,
@@ -1896,8 +1847,10 @@ public class RBACEngineTests extends ESTestCase {
         final String[] indices = { "test-index" };
         final Role role = Mockito.spy(Role.builder(RESTRICTED_INDICES, "test-role").add(IndexPrivilege.READ, indices).build());
 
-        final String action = randomFrom(PreAuthorizationUtils.CHILD_ACTIONS_PRE_AUTHORIZED_BY_PARENT.get(SearchAction.NAME));
-        final ParentActionAuthorization parentAuthorization = new ParentActionAuthorization(SearchAction.NAME);
+        final String action = randomFrom(
+            PreAuthorizationUtils.CHILD_ACTIONS_PRE_AUTHORIZED_BY_PARENT.get(TransportSearchAction.TYPE.name())
+        );
+        final ParentActionAuthorization parentAuthorization = new ParentActionAuthorization(TransportSearchAction.TYPE.name());
 
         authorizeIndicesAction(indices, role, action, parentAuthorization, new ActionListener<IndexAuthorizationResult>() {
             @Override
@@ -1919,7 +1872,9 @@ public class RBACEngineTests extends ESTestCase {
         final String[] indices = { "test-index" };
         final Role role = Mockito.spy(Role.builder(RESTRICTED_INDICES, "test-role").add(IndexPrivilege.READ, indices).build());
 
-        final String action = randomFrom(PreAuthorizationUtils.CHILD_ACTIONS_PRE_AUTHORIZED_BY_PARENT.get(SearchAction.NAME));
+        final String action = randomFrom(
+            PreAuthorizationUtils.CHILD_ACTIONS_PRE_AUTHORIZED_BY_PARENT.get(TransportSearchAction.TYPE.name())
+        );
         final ParentActionAuthorization parentAuthorization = null;
 
         authorizeIndicesAction(indices, role, action, parentAuthorization, new ActionListener<IndexAuthorizationResult>() {
@@ -1953,8 +1908,10 @@ public class RBACEngineTests extends ESTestCase {
                 .build()
         );
 
-        final String action = randomFrom(PreAuthorizationUtils.CHILD_ACTIONS_PRE_AUTHORIZED_BY_PARENT.get(SearchAction.NAME));
-        final ParentActionAuthorization parentAuthorization = new ParentActionAuthorization(SearchAction.NAME);
+        final String action = randomFrom(
+            PreAuthorizationUtils.CHILD_ACTIONS_PRE_AUTHORIZED_BY_PARENT.get(TransportSearchAction.TYPE.name())
+        );
+        final ParentActionAuthorization parentAuthorization = new ParentActionAuthorization(TransportSearchAction.TYPE.name());
 
         authorizeIndicesAction(indices, role, action, parentAuthorization, new ActionListener<IndexAuthorizationResult>() {
             @Override
@@ -1975,8 +1932,8 @@ public class RBACEngineTests extends ESTestCase {
         final String[] indices = { "test-index" };
         final Role role = Mockito.spy(Role.builder(RESTRICTED_INDICES, "test-role").add(IndexPrivilege.READ, indices).build());
 
-        final String action = SearchAction.NAME + "[" + randomAlphaOfLength(3) + "]";
-        final ParentActionAuthorization parentAuthorization = new ParentActionAuthorization(SearchAction.NAME);
+        final String action = TransportSearchAction.TYPE.name() + "[" + randomAlphaOfLength(3) + "]";
+        final ParentActionAuthorization parentAuthorization = new ParentActionAuthorization(TransportSearchAction.TYPE.name());
 
         authorizeIndicesAction(indices, role, action, parentAuthorization, new ActionListener<IndexAuthorizationResult>() {
             @Override
@@ -2010,7 +1967,9 @@ public class RBACEngineTests extends ESTestCase {
             .collect(
                 Collectors.toMap(
                     i -> i,
-                    v -> new IndexAbstraction.ConcreteIndex(IndexMetadata.builder(v).settings(indexSettings(Version.CURRENT, 1, 0)).build())
+                    v -> new IndexAbstraction.ConcreteIndex(
+                        IndexMetadata.builder(v).settings(indexSettings(IndexVersion.current(), 1, 0)).build()
+                    )
                 )
             );
 
@@ -2120,10 +2079,6 @@ public class RBACEngineTests extends ESTestCase {
         }
     }
 
-    private static MapBuilder<String, Boolean> mapBuilder() {
-        return MapBuilder.newMapBuilder();
-    }
-
     private BytesArray randomDlsQuery() {
         return new BytesArray(
             "{ \"term\": { \"" + randomAlphaOfLengthBetween(3, 24) + "\" : \"" + randomAlphaOfLengthBetween(3, 24) + "\" }"
@@ -2140,7 +2095,7 @@ public class RBACEngineTests extends ESTestCase {
         remoteIndicesPermission.remoteIndicesGroups().forEach(group -> {
             group.indicesPermissionGroups()
                 .forEach(
-                    p -> roleBuilder.addRemoteGroup(
+                    p -> roleBuilder.addRemoteIndicesGroup(
                         group.remoteClusterAliases(),
                         p.getFieldPermissions(),
                         p.getQuery(),

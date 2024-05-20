@@ -8,7 +8,7 @@
 
 package org.elasticsearch.windows.service;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.Build;
 import org.elasticsearch.cli.ExitCodes;
 import org.elasticsearch.cli.ProcessInfo;
 import org.elasticsearch.cli.Terminal;
@@ -47,7 +47,7 @@ class WindowsServiceInstallCommand extends ProcrunCommand {
         addArg(
             args,
             "--DisplayName",
-            pinfo.envVars().getOrDefault("SERVICE_DISPLAY_NAME", "Elasticsearch %s (%s)".formatted(Version.CURRENT, serviceId))
+            pinfo.envVars().getOrDefault("SERVICE_DISPLAY_NAME", "Elasticsearch %s (%s)".formatted(Build.current().version(), serviceId))
         );
         addArg(
             args,
@@ -55,7 +55,7 @@ class WindowsServiceInstallCommand extends ProcrunCommand {
             pinfo.envVars()
                 .getOrDefault(
                     "SERVICE_DESCRIPTION",
-                    String.format(java.util.Locale.ROOT, "Elasticsearch %s Windows Service - https://elastic.co", Version.CURRENT)
+                    String.format(java.util.Locale.ROOT, "Elasticsearch %s Windows Service - https://elastic.co", Build.current().version())
                 )
         );
         addQuotedArg(args, "--Jvm", quote(getJvmDll(getJavaHome(pinfo.sysprops())).toString()));

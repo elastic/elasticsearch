@@ -7,10 +7,14 @@
 package org.elasticsearch.xpack.spatial;
 
 import org.elasticsearch.ElasticsearchSecurityException;
+import org.elasticsearch.common.io.stream.GenericNamedWriteable;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.license.License;
 import org.elasticsearch.license.TestUtils;
 import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.license.internal.XPackLicenseStatus;
 import org.elasticsearch.plugins.SearchPlugin;
+import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.CardinalityUpperBound;
 import org.elasticsearch.search.aggregations.bucket.geogrid.GeoHashGridAggregationBuilder;
@@ -32,7 +36,9 @@ import org.elasticsearch.xpack.spatial.search.aggregations.support.GeoShapeValue
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Set;
 import java.util.function.Consumer;
+import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -128,11 +134,25 @@ public class SpatialPluginTests extends ESTestCase {
         }, "cartesian_bounds", "shape");
     }
 
+    public void testGenericNamedWriteables() {
+        SearchModule module = new SearchModule(Settings.EMPTY, List.of(new SpatialPlugin()));
+        Set<String> names = module.getNamedWriteables()
+            .stream()
+            .filter(e -> e.categoryClass.equals(GenericNamedWriteable.class))
+            .map(e -> e.name)
+            .collect(Collectors.toSet());
+        assertThat(
+            "Expect both Geo and Cartesian BoundingBox and ShapeValue",
+            names,
+            equalTo(Set.of("GeoBoundingBox", "CartesianBoundingBox", "GeoShapeValue", "CartesianShapeValue"))
+        );
+    }
+
     private SpatialPlugin getPluginWithOperationMode(License.OperationMode operationMode) {
         return new SpatialPlugin() {
             protected XPackLicenseState getLicenseState() {
                 TestUtils.UpdatableLicenseState licenseState = new TestUtils.UpdatableLicenseState();
-                licenseState.update(operationMode, true, null);
+                licenseState.update(new XPackLicenseStatus(operationMode, true, null));
                 return licenseState;
             }
         };
@@ -155,7 +175,7 @@ public class SpatialPluginTests extends ESTestCase {
             ValuesSourceRegistry registry = registryBuilder.build();
             T aggregator = registry.getAggregator(
                 registryKey,
-                new ValuesSourceConfig(sourceType, null, true, null, null, null, null, null, null)
+                new ValuesSourceConfig(sourceType, null, true, null, null, null, null, null)
             );
             NullPointerException exception = expectThrows(NullPointerException.class, () -> builder.accept(aggregator));
             assertThat(
@@ -183,7 +203,7 @@ public class SpatialPluginTests extends ESTestCase {
             ValuesSourceRegistry registry = registryBuilder.build();
             T aggregator = registry.getAggregator(
                 registryKey,
-                new ValuesSourceConfig(sourceType, null, true, null, null, null, null, null, null)
+                new ValuesSourceConfig(sourceType, null, true, null, null, null, null, null)
             );
             if (License.OperationMode.TRIAL != operationMode
                 && License.OperationMode.compare(operationMode, License.OperationMode.GOLD) < 0) {
@@ -209,7 +229,7 @@ public class SpatialPluginTests extends ESTestCase {
 
     private static class TestValuesSourceConfig extends ValuesSourceConfig {
         private TestValuesSourceConfig(ValuesSourceType sourceType) {
-            super(sourceType, null, true, null, null, null, null, null, null);
+            super(sourceType, null, true, null, null, null, null, null);
         }
     }
 }

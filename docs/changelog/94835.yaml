@@ -1,6 +1,0 @@
-pr: 94835
-summary: Downsample ILM action should skip non-time-series indices
-area: "ILM+SLM"
-type: bug
-issues:
- - 93123

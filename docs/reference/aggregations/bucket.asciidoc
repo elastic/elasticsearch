@@ -78,6 +78,9 @@ include::bucket/significanttext-aggregation.asciidoc[]
 
 include::bucket/terms-aggregation.asciidoc[]
 
+// PREVIEW
+include::bucket/time-series-aggregation.asciidoc[]
+
 include::bucket/variablewidthhistogram-aggregation.asciidoc[]
 
 include::bucket/range-field-note.asciidoc[]

@@ -8,7 +8,7 @@
 package org.elasticsearch.xpack.core.security.authc;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
@@ -20,7 +20,7 @@ import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.TransportVersionUtils;
-import org.elasticsearch.test.VersionUtils;
+import org.elasticsearch.transport.RemoteClusterPortSettings;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
@@ -555,7 +555,7 @@ public class AuthenticationTests extends ESTestCase {
         assertThat(test.isAssignedToDomain(), is(true));
         assertThat(test.getDomain(), is(lookupRealmRef.getDomain()));
         // api key run-as
-        test = randomApiKeyAuthentication(randomUser(), randomAlphaOfLengthBetween(10, 20), TransportVersion.CURRENT);
+        test = randomApiKeyAuthentication(randomUser(), randomAlphaOfLengthBetween(10, 20), TransportVersion.current());
         assertThat(test.isAssignedToDomain(), is(false));
         assertThat(test.getDomain(), nullValue());
         if (randomBoolean()) {
@@ -663,10 +663,10 @@ public class AuthenticationTests extends ESTestCase {
         }
 
         try (BytesStreamOutput out = new BytesStreamOutput()) {
-            out.setTransportVersion(TransportVersion.V_8_0_0);
+            out.setTransportVersion(TransportVersions.V_8_0_0);
             test.writeTo(out);
             StreamInput in = out.bytes().streamInput();
-            in.setTransportVersion(TransportVersion.V_8_0_0);
+            in.setTransportVersion(TransportVersions.V_8_0_0);
             Authentication testBack = new Authentication(in);
             assertThat(testBack.getDomain(), nullValue());
             assertThat(testBack.isAssignedToDomain(), is(false));
@@ -821,10 +821,9 @@ public class AuthenticationTests extends ESTestCase {
         assertThat(authenticationV6.encode(), equalTo(headerV6));
 
         // Rewrite for a different version
-        final Version nodeVersion = VersionUtils.randomIndexCompatibleVersion(random());// TODO are we going to use transport version for
-                                                                                        // index compatibility?
-        final Authentication rewrittenAuthentication = authenticationV6.maybeRewriteForOlderVersion(nodeVersion.transportVersion);
-        assertThat(rewrittenAuthentication.getEffectiveSubject().getTransportVersion(), equalTo(nodeVersion.transportVersion));
+        final TransportVersion newVersion = TransportVersionUtils.randomCompatibleVersion(random());
+        final Authentication rewrittenAuthentication = authenticationV6.maybeRewriteForOlderVersion(newVersion);
+        assertThat(rewrittenAuthentication.getEffectiveSubject().getTransportVersion(), equalTo(newVersion));
         assertThat(rewrittenAuthentication.getEffectiveSubject().getUser(), equalTo(authenticationV6.getEffectiveSubject().getUser()));
         assertThat(rewrittenAuthentication.getAuthenticationType(), equalTo(Authentication.AuthenticationType.REALM));
         assertThat(rewrittenAuthentication.isRunAs(), is(false));
@@ -844,40 +843,40 @@ public class AuthenticationTests extends ESTestCase {
             ? AuthenticationTestHelper.builder().crossClusterAccess().build()
             : AuthenticationTestHelper.builder().build();
 
-        final Version versionBeforeCrossClusterAccessRealm = VersionUtils.getPreviousVersion(Version.V_8_8_0);
-        final Version version = VersionUtils.randomVersionBetween(
+        final TransportVersion versionBeforeCrossClusterAccessRealm = TransportVersionUtils.getPreviousVersion(
+            RemoteClusterPortSettings.TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY
+        );
+        final TransportVersion version = TransportVersionUtils.randomVersionBetween(
             random(),
-            versionBeforeCrossClusterAccessRealm.minimumCompatibilityVersion(),
+            TransportVersions.V_7_17_0,  // the minimum compatible version of 8.x
             versionBeforeCrossClusterAccessRealm
         );
 
         if (authentication.isCrossClusterAccess()) {
-            final var ex = expectThrows(
-                IllegalArgumentException.class,
-                () -> authentication.maybeRewriteForOlderVersion(version.transportVersion)
-            );
+            final var ex = expectThrows(IllegalArgumentException.class, () -> authentication.maybeRewriteForOlderVersion(version));
             assertThat(
                 ex.getMessage(),
                 containsString(
                     "versions of Elasticsearch before ["
-                        + Authentication.VERSION_CROSS_CLUSTER_ACCESS_REALM
+                        + RemoteClusterPortSettings.TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY.toReleaseVersion()
                         + "] can't handle cross cluster access authentication and attempted to rewrite for ["
-                        + version.transportVersion
+                        + version.toReleaseVersion()
                         + "]"
                 )
             );
         } else {
             // Assert that rewriting took place; the details of rewriting logic are checked in other tests
-            assertThat(authentication.maybeRewriteForOlderVersion(version.transportVersion), not(equalTo(authentication)));
+            assertThat(authentication.maybeRewriteForOlderVersion(version), not(equalTo(authentication)));
         }
     }
 
     public void testMaybeRewriteForOlderVersionWithCrossClusterAccessRewritesAuthenticationInMetadata() throws IOException {
-        final TransportVersion crossClusterAccessRealmVersion = Authentication.VERSION_CROSS_CLUSTER_ACCESS_REALM;
+        final TransportVersion crossClusterAccessRealmVersion =
+            RemoteClusterPortSettings.TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY;
         final TransportVersion version = TransportVersionUtils.randomVersionBetween(
             random(),
             crossClusterAccessRealmVersion,
-            TransportVersion.CURRENT
+            TransportVersion.current()
         );
         final Authentication innerAuthentication = AuthenticationTestHelper.builder().transportVersion(version).build();
         final Authentication authentication = AuthenticationTestHelper.builder()
@@ -911,7 +910,7 @@ public class AuthenticationTests extends ESTestCase {
         // pick a version before that of the authentication instance to force a rewrite
         final TransportVersion olderVersion = TransportVersionUtils.randomVersionBetween(
             random(),
-            TransportVersion.MINIMUM_COMPATIBLE,
+            TransportVersions.MINIMUM_COMPATIBLE,
             TransportVersionUtils.getPreviousVersion(authentication.getEffectiveSubject().getTransportVersion())
         );
 
@@ -954,7 +953,7 @@ public class AuthenticationTests extends ESTestCase {
     public void testMaybeRewriteForOlderVersionErasesDomainForVersionsBeforeDomains() {
         final TransportVersion olderVersion = TransportVersionUtils.randomVersionBetween(
             random(),
-            TransportVersion.V_7_17_0,
+            TransportVersions.V_7_17_0,
             TransportVersionUtils.getPreviousVersion(Authentication.VERSION_REALM_DOMAINS)
         );
         final Authentication authentication = AuthenticationTestHelper.builder()
@@ -981,7 +980,7 @@ public class AuthenticationTests extends ESTestCase {
         final Authentication authentication = AuthenticationTestHelper.builder()
             .realm() // randomize to test both when realm is null on the original auth and non-null, instead of setting `underDomain`
             // Use CURRENT to force newer version in case randomVersionBetween above picks olderVersion
-            .transportVersion(transportVersion.equals(olderVersion) ? TransportVersion.CURRENT : transportVersion)
+            .transportVersion(transportVersion.equals(olderVersion) ? TransportVersion.current() : transportVersion)
             .build();
 
         final Authentication actual = authentication.maybeRewriteForOlderVersion(olderVersion);
@@ -1064,7 +1063,7 @@ public class AuthenticationTests extends ESTestCase {
         final Authentication original = AuthenticationTestHelper.builder()
             .apiKey()
             .metadata(metadata)
-            .transportVersion(Authentication.TRANSPORT_VERSION_API_KEYS_WITH_REMOTE_INDICES)
+            .transportVersion(RemoteClusterPortSettings.TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY)
             .build();
 
         // pick a version before that of the authentication instance to force a rewrite
@@ -1173,8 +1172,8 @@ public class AuthenticationTests extends ESTestCase {
             realmRef = randomRealmRef(false);
         }
         // If the realm is expected to have a domain, we need a version that's at least compatible with domains
-        final TransportVersion minVersion = realmRef.getDomain() != null ? Authentication.VERSION_REALM_DOMAINS : TransportVersion.V_7_0_0;
-        final TransportVersion version = TransportVersionUtils.randomVersionBetween(random(), minVersion, TransportVersion.CURRENT);
+        final TransportVersion minVersion = realmRef.getDomain() != null ? Authentication.VERSION_REALM_DOMAINS : TransportVersions.V_7_0_0;
+        final TransportVersion version = TransportVersionUtils.randomVersionBetween(random(), minVersion, TransportVersion.current());
         final Map<String, Object> metadata;
         if (randomBoolean()) {
             metadata = Map.of(randomAlphaOfLengthBetween(3, 8), randomAlphaOfLengthBetween(3, 8));
@@ -1190,7 +1189,7 @@ public class AuthenticationTests extends ESTestCase {
         return randomApiKeyAuthentication(
             user,
             apiKeyId,
-            TransportVersionUtils.randomVersionBetween(random(), TransportVersion.V_7_0_0, TransportVersion.CURRENT)
+            TransportVersionUtils.randomVersionBetween(random(), TransportVersions.V_7_0_0, TransportVersion.current())
         );
     }
 

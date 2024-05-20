@@ -41,14 +41,17 @@ public class DeleteStep extends AsyncRetryDuringSnapshotActionStep {
 
         if (dataStream != null) {
             assert dataStream.getWriteIndex() != null : dataStream.getName() + " has no write index";
-            if (dataStream.getIndices().size() == 1 && dataStream.getIndices().get(0).equals(indexMetadata.getIndex())) {
+
+            // using index name equality across this if/else branch as the UUID of the index might change via restoring a data stream
+            // with one index from snapshot
+            if (dataStream.getIndices().size() == 1 && dataStream.getWriteIndex().getName().equals(indexName)) {
                 // This is the last index in the data stream, the entire stream
                 // needs to be deleted, because we can't have an empty data stream
                 DeleteDataStreamAction.Request deleteReq = new DeleteDataStreamAction.Request(new String[] { dataStream.getName() });
                 getClient().execute(
                     DeleteDataStreamAction.INSTANCE,
                     deleteReq,
-                    ActionListener.wrap(response -> listener.onResponse(null), listener::onFailure)
+                    listener.delegateFailureAndWrap((l, response) -> l.onResponse(null))
                 );
                 return;
             } else if (dataStream.getWriteIndex().getName().equals(indexName)) {
@@ -62,7 +65,8 @@ public class DeleteStep extends AsyncRetryDuringSnapshotActionStep {
                     policyName
                 );
                 logger.debug(errorMessage);
-                throw new IllegalStateException(errorMessage);
+                listener.onFailure(new IllegalStateException(errorMessage));
+                return;
             }
         }
 
@@ -70,7 +74,7 @@ public class DeleteStep extends AsyncRetryDuringSnapshotActionStep {
             .indices()
             .delete(
                 new DeleteIndexRequest(indexName).masterNodeTimeout(TimeValue.MAX_VALUE),
-                ActionListener.wrap(response -> listener.onResponse(null), listener::onFailure)
+                listener.delegateFailureAndWrap((l, response) -> l.onResponse(null))
             );
     }
 

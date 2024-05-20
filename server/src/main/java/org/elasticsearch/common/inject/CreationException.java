@@ -27,7 +27,7 @@ import java.util.Collection;
  *
  * @author crazybob@google.com (Bob Lee)
  */
-public class CreationException extends RuntimeException {
+public final class CreationException extends RuntimeException {
     private final Collection<Message> messages;
 
     /**

@@ -1,7 +1,7 @@
 ---
 "Test pipeline versioned updates":
-  - skip:
-      version: " - 7.15.99"
+  - requires:
+      cluster_features: ["gte_v7.16.0"]
       reason: "added versioned updates in 7.16.0"
 
   - do:

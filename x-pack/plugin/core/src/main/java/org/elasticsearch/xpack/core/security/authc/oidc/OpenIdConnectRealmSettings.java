@@ -18,7 +18,6 @@ import org.elasticsearch.xpack.core.ssl.SSLConfigurationSettings;
 
 import java.net.URI;
 import java.net.URISyntaxException;
-import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -102,7 +101,7 @@ public class OpenIdConnectRealmSettings {
     public static final Setting.AffixSetting<List<String>> RP_REQUESTED_SCOPES = Setting.affixKeySetting(
         RealmSettings.realmSettingPrefix(TYPE),
         "rp.requested_scopes",
-        key -> Setting.listSetting(key, Collections.singletonList("openid"), Function.identity(), Setting.Property.NodeScope)
+        key -> Setting.stringListSetting(key, List.of("openid"), Setting.Property.NodeScope)
     );
     public static final Setting.AffixSetting<String> RP_CLIENT_AUTH_METHOD = Setting.affixKeySetting(
         RealmSettings.realmSettingPrefix(TYPE),

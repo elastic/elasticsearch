@@ -44,6 +44,8 @@ public final class InactiveApiKeysRemover extends AbstractRunnable {
     private final AtomicBoolean inProgress = new AtomicBoolean(false);
     private final TimeValue timeout;
     private final AtomicLong retentionPeriodInMs;
+    private final AtomicLong deleteIntervalInMs;
+    private volatile long lastRunMs = -1;
 
     InactiveApiKeysRemover(Settings settings, Client client, ClusterService clusterService) {
         this.client = client;
@@ -53,6 +55,12 @@ public final class InactiveApiKeysRemover extends AbstractRunnable {
             .addSettingsUpdateConsumer(
                 ApiKeyService.DELETE_RETENTION_PERIOD,
                 newRetentionPeriod -> this.retentionPeriodInMs.set(newRetentionPeriod.getMillis())
+            );
+        this.deleteIntervalInMs = new AtomicLong(ApiKeyService.DELETE_INTERVAL.get(settings).getMillis());
+        clusterService.getClusterSettings()
+            .addSettingsUpdateConsumer(
+                ApiKeyService.DELETE_INTERVAL,
+                newDeleteInterval -> this.deleteIntervalInMs.set(newDeleteInterval.getMillis())
             );
     }
 
@@ -85,10 +93,17 @@ public final class InactiveApiKeysRemover extends AbstractRunnable {
         }, this::onFailure));
     }
 
-    void submit(ThreadPool threadPool) {
-        if (inProgress.compareAndSet(false, true)) {
-            threadPool.executor(Names.GENERIC).submit(this);
+    void maybeSubmit(ThreadPool threadPool) {
+        if (lastRunMs == -1 || threadPool.relativeTimeInMillis() - lastRunMs > deleteIntervalInMs.get()) {
+            if (inProgress.compareAndSet(false, true)) {
+                threadPool.executor(Names.GENERIC).submit(this);
+            }
+            lastRunMs = client.threadPool().relativeTimeInMillis();
         }
+    }
+
+    long getLastRunTimestamp() {
+        return lastRunMs;
     }
 
     private static void debugDbqResponse(BulkByScrollResponse response) {

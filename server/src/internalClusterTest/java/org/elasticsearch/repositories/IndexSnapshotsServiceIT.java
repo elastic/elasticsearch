@@ -8,18 +8,19 @@
 
 package org.elasticsearch.repositories;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
-import org.elasticsearch.action.admin.cluster.snapshots.get.shard.GetShardSnapshotAction;
 import org.elasticsearch.action.admin.cluster.snapshots.get.shard.GetShardSnapshotRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.get.shard.GetShardSnapshotResponse;
+import org.elasticsearch.action.admin.cluster.snapshots.get.shard.TransportGetShardSnapshotAction;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.repositories.fs.FsRepository;
 import org.elasticsearch.snapshots.AbstractSnapshotIntegTestCase;
@@ -36,8 +37,8 @@ import java.util.Map;
 import java.util.Optional;
 
 import static org.elasticsearch.snapshots.SnapshotsService.NO_FEATURE_STATES_VALUE;
-import static org.elasticsearch.test.VersionUtils.randomVersionBetween;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.test.index.IndexVersionUtils.randomVersionBetween;
 import static org.hamcrest.Matchers.anEmptyMap;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
@@ -63,7 +64,7 @@ public class IndexSnapshotsServiceIT extends AbstractSnapshotIntegTestCase {
                 );
             }
         } else {
-            expectThrows(RepositoryException.class, responseFuture::actionGet);
+            expectThrows(RepositoryException.class, responseFuture);
         }
 
         disableRepoConsistencyCheck("This test checks an empty repository");
@@ -113,7 +114,7 @@ public class IndexSnapshotsServiceIT extends AbstractSnapshotIntegTestCase {
 
         final boolean useBwCFormat = randomBoolean();
         if (useBwCFormat) {
-            final Version version = randomVersionBetween(random(), Version.V_7_5_0, Version.CURRENT);
+            final IndexVersion version = randomVersionBetween(random(), IndexVersions.V_7_5_0, IndexVersion.current());
             initWithSnapshotVersion(repoName, repoPath, version);
         }
 
@@ -136,7 +137,7 @@ public class IndexSnapshotsServiceIT extends AbstractSnapshotIntegTestCase {
             final SnapshotInfo snapshotInfo = createSnapshot(repoName, Strings.format("snap-%03d", i), snapshotIndices);
             if (snapshotInfo.indices().contains(indexName)) {
                 lastSnapshot = snapshotInfo;
-                ClusterStateResponse clusterStateResponse = admin().cluster().prepareState().execute().actionGet();
+                ClusterStateResponse clusterStateResponse = admin().cluster().prepareState().get();
                 IndexMetadata indexMetadata = clusterStateResponse.getState().metadata().index(indexName);
                 expectedIndexMetadataId = IndexMetaDataGenerations.buildUniqueIdentifier(indexMetadata);
             }
@@ -175,9 +176,7 @@ public class IndexSnapshotsServiceIT extends AbstractSnapshotIntegTestCase {
         blockAllDataNodes(fsRepoName);
 
         final String snapshotName = "snap-1";
-        final ActionFuture<CreateSnapshotResponse> snapshotFuture = client().admin()
-            .cluster()
-            .prepareCreateSnapshot(fsRepoName, snapshotName)
+        final ActionFuture<CreateSnapshotResponse> snapshotFuture = clusterAdmin().prepareCreateSnapshot(fsRepoName, snapshotName)
             .setIndices(indexName)
             .setWaitForCompletion(true)
             .execute();
@@ -293,9 +292,7 @@ public class IndexSnapshotsServiceIT extends AbstractSnapshotIntegTestCase {
             ((MockRepository) repositoriesService.repository(repoName)).setBlockAndFailOnWriteSnapFiles();
         }
 
-        client().admin()
-            .cluster()
-            .prepareCreateSnapshot(repoName, "snap")
+        clusterAdmin().prepareCreateSnapshot(repoName, "snap")
             .setIndices(indexName)
             .setWaitForCompletion(false)
             .setFeatureStates(NO_FEATURE_STATES_VALUE)
@@ -341,7 +338,7 @@ public class IndexSnapshotsServiceIT extends AbstractSnapshotIntegTestCase {
         boolean useAllRepositoriesRequest
     ) {
         ShardId shardId = new ShardId(new Index(indexName, "__na__"), shard);
-        PlainActionFuture<GetShardSnapshotResponse> future = PlainActionFuture.newFuture();
+        PlainActionFuture<GetShardSnapshotResponse> future = new PlainActionFuture<>();
         final GetShardSnapshotRequest request;
         if (useAllRepositoriesRequest && randomBoolean()) {
             request = GetShardSnapshotRequest.latestSnapshotInAllRepositories(shardId);
@@ -349,7 +346,7 @@ public class IndexSnapshotsServiceIT extends AbstractSnapshotIntegTestCase {
             request = GetShardSnapshotRequest.latestSnapshotInRepositories(shardId, repositories);
         }
 
-        client().execute(GetShardSnapshotAction.INSTANCE, request, future);
+        client().execute(TransportGetShardSnapshotAction.TYPE, request, future);
         return future;
     }
 }

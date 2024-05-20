@@ -1,0 +1,9 @@
+{
+  "range": {
+    "indices": "ages",
+    "match_field": "age_range",
+    "enrich_fields": [
+      "description"
+    ]
+  }
+}

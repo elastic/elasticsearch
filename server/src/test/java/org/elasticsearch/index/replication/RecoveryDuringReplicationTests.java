@@ -134,10 +134,10 @@ public class RecoveryDuringReplicationTests extends ESIndexLevelReplicationTestC
                 new SourceToParse("replica", new BytesArray("{}"), XContentType.JSON)
             );
             shards.promoteReplicaToPrimary(promotedReplica).get();
-            oldPrimary.close("demoted", randomBoolean());
+            closeShardNoCheck(oldPrimary, randomBoolean());
             oldPrimary.store().close();
             shards.removeReplica(remainingReplica);
-            remainingReplica.close("disconnected", false);
+            closeShardNoCheck(remainingReplica);
             remainingReplica.store().close();
             // randomly introduce a conflicting document
             final boolean extra = randomBoolean();
@@ -260,7 +260,7 @@ public class RecoveryDuringReplicationTests extends ESIndexLevelReplicationTestC
                 newPrimary.flush(new FlushRequest());
             }
 
-            oldPrimary.close("demoted", false);
+            closeShardNoCheck(oldPrimary);
             oldPrimary.store().close();
 
             IndexShard newReplica = shards.addReplicaWithExistingPath(oldPrimary.shardPath(), oldPrimary.routingEntry().currentNodeId());
@@ -306,7 +306,7 @@ public class RecoveryDuringReplicationTests extends ESIndexLevelReplicationTestC
             shards.promoteReplicaToPrimary(newPrimary).get();
             // Recover a replica should rollback the stale documents
             shards.removeReplica(replica);
-            replica.close("recover replica - first time", false);
+            closeShardNoCheck(replica);
             replica.store().close();
             replica = shards.addReplicaWithExistingPath(replica.shardPath(), replica.routingEntry().currentNodeId());
             shards.recoverReplica(replica);
@@ -317,7 +317,7 @@ public class RecoveryDuringReplicationTests extends ESIndexLevelReplicationTestC
             assertThat(replica.getLastSyncedGlobalCheckpoint(), equalTo(replica.seqNoStats().getMaxSeqNo()));
             // Recover a replica again should also rollback the stale documents.
             shards.removeReplica(replica);
-            replica.close("recover replica - second time", false);
+            closeShardNoCheck(replica);
             replica.store().close();
             IndexShard anotherReplica = shards.addReplicaWithExistingPath(replica.shardPath(), replica.routingEntry().currentNodeId());
             shards.recoverReplica(anotherReplica);
@@ -392,7 +392,7 @@ public class RecoveryDuringReplicationTests extends ESIndexLevelReplicationTestC
                     translogOperations++;
                     assertThat("unexpected op: " + next, (int) next.seqNo(), lessThan(initialDocs + extraDocs));
                     assertThat("unexpected primaryTerm: " + next.primaryTerm(), next.primaryTerm(), is(oldPrimary.getPendingPrimaryTerm()));
-                    assertThat(next.source().utf8ToString(), is("{ \"f\": \"normal\"}"));
+                    assertThat(((Translog.Index) next).source().utf8ToString(), is("{ \"f\": \"normal\"}"));
                 }
             }
             assertThat(translogOperations, either(equalTo(initialDocs + extraDocs)).or(equalTo(task.getResyncedOperations())));
@@ -452,7 +452,7 @@ public class RecoveryDuringReplicationTests extends ESIndexLevelReplicationTestC
             AtomicBoolean recoveryDone = new AtomicBoolean(false);
             final Future<Void> recoveryFuture = shards.asyncRecoverReplica(newReplica, (indexShard, node) -> {
                 recoveryStart.countDown();
-                return new RecoveryTarget(indexShard, node, null, null, recoveryListener) {
+                return new RecoveryTarget(indexShard, node, 0L, null, null, recoveryListener) {
                     @Override
                     public void finalizeRecovery(long globalCheckpoint, long trimAboveSeqNo, ActionListener<Void> listener) {
                         recoveryDone.set(true);
@@ -506,7 +506,7 @@ public class RecoveryDuringReplicationTests extends ESIndexLevelReplicationTestC
             final IndexShard replica = shards.addReplica();
             final Future<Void> recoveryFuture = shards.asyncRecoverReplica(
                 replica,
-                (indexShard, node) -> new RecoveryTarget(indexShard, node, null, null, recoveryListener) {
+                (indexShard, node) -> new RecoveryTarget(indexShard, node, 0L, null, null, recoveryListener) {
                     @Override
                     public void indexTranslogOperations(
                         final List<Translog.Operation> operations,
@@ -538,11 +538,7 @@ public class RecoveryDuringReplicationTests extends ESIndexLevelReplicationTestC
                         } catch (final Exception e) {
                             throw new AssertionError(e);
                         }
-                        try {
-                            phaseTwoStartLatch.await();
-                        } catch (InterruptedException e) {
-                            throw new AssertionError(e);
-                        }
+                        safeAwait(phaseTwoStartLatch);
                         super.indexTranslogOperations(
                             operations,
                             totalTranslogOps,
@@ -784,7 +780,7 @@ public class RecoveryDuringReplicationTests extends ESIndexLevelReplicationTestC
             PeerRecoveryTargetService.RecoveryListener listener,
             Logger logger
         ) {
-            super(shard, sourceNode, null, null, listener);
+            super(shard, sourceNode, 0L, null, null, listener);
             this.recoveryBlocked = recoveryBlocked;
             this.releaseRecovery = releaseRecovery;
             this.stageToBlock = stageToBlock;
@@ -898,11 +894,7 @@ public class RecoveryDuringReplicationTests extends ESIndexLevelReplicationTestC
                         if (latch != null) {
                             latch.countDown();
                         }
-                        try {
-                            block.await();
-                        } catch (InterruptedException e) {
-                            throw new AssertionError(e);
-                        }
+                        safeAwait(block);
                     }
                     return super.addDocument(doc);
                 }

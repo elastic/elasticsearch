@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.autoscaling.storage;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterInfo;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
@@ -18,6 +17,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.xpack.autoscaling.AutoscalingTestCase;
 import org.elasticsearch.xpack.autoscaling.capacity.AutoscalingDeciderContext;
@@ -38,7 +38,7 @@ public class FrozenStorageDeciderServiceTests extends AutoscalingTestCase {
         final int shards = between(1, 10);
         final int replicas = between(0, 9);
         final IndexMetadata indexMetadata = IndexMetadata.builder(randomAlphaOfLength(5))
-            .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT))
+            .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()))
             .numberOfShards(shards)
             .numberOfReplicas(replicas)
             .build();

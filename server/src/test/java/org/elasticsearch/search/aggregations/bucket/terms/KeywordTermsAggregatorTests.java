@@ -12,8 +12,6 @@ import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexOptions;
-import org.apache.lucene.index.IndexReader;
-import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
@@ -119,9 +117,7 @@ public class KeywordTermsAggregatorTests extends AggregatorTestCase {
                 }
             }
 
-            try (IndexReader indexReader = DirectoryReader.open(directory)) {
-                IndexSearcher indexSearcher = newIndexSearcher(indexReader);
-
+            try (DirectoryReader indexReader = DirectoryReader.open(directory)) {
                 TermsAggregationBuilder aggregationBuilder = new TermsAggregationBuilder("_name");
                 if (valueType != null) {
                     aggregationBuilder.userValueTypeHint(valueType);
@@ -131,7 +127,7 @@ public class KeywordTermsAggregatorTests extends AggregatorTestCase {
                 }
 
                 InternalMappedTerms<?, ?> rareTerms = searchAndReduce(
-                    indexSearcher,
+                    indexReader,
                     new AggTestConfig(aggregationBuilder, keywordFieldType).withQuery(query)
                 );
                 verify.accept(rareTerms);

@@ -9,9 +9,6 @@ package org.elasticsearch.indices;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
-import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.routing.RoutingNodesHelper;
-import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.allocation.command.MoveAllocationCommand;
 import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
@@ -29,7 +26,6 @@ import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
 import org.elasticsearch.test.MockIndexEventListener;
-import org.hamcrest.Matchers;
 
 import java.util.Arrays;
 import java.util.Collection;
@@ -51,8 +47,8 @@ import static org.elasticsearch.index.shard.IndexShardState.RECOVERING;
 import static org.elasticsearch.index.shard.IndexShardState.STARTED;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.CoreMatchers.equalTo;
+import static org.hamcrest.CoreMatchers.notNullValue;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
-import static org.hamcrest.Matchers.hasSize;
 
 @ClusterScope(scope = Scope.TEST, numDataNodes = 0)
 public class IndicesLifecycleListenerIT extends ESIntegTestCase {
@@ -95,12 +91,11 @@ public class IndicesLifecycleListenerIT extends ESIntegTestCase {
         assertThat("beforeIndexCreated called on each data node", allCreatedCount.get(), greaterThanOrEqualTo(3));
 
         try {
-            client().admin().indices().prepareCreate("failed").setSettings(Settings.builder().put("index.fail", true)).get();
+            indicesAdmin().prepareCreate("failed").setSettings(Settings.builder().put("index.fail", true)).get();
             fail("should have thrown an exception during creation");
         } catch (Exception e) {
             assertTrue(e.getMessage().contains("failing on purpose"));
-            ClusterStateResponse resp = client().admin().cluster().prepareState().get();
-            assertFalse(resp.getState().routingTable().indicesRouting().keySet().contains("failed"));
+            assertFalse(clusterAdmin().prepareState().get().getState().routingTable().hasIndex("failed"));
         }
     }
 
@@ -120,12 +115,15 @@ public class IndicesLifecycleListenerIT extends ESIntegTestCase {
                     throw new RuntimeException("FAIL");
                 }
             });
-        client().admin().cluster().prepareReroute().add(new MoveAllocationCommand("index1", 0, node1, node2)).get();
+        clusterAdmin().prepareReroute().add(new MoveAllocationCommand("index1", 0, node1, node2)).get();
         ensureGreen("index1");
-        ClusterState state = client().admin().cluster().prepareState().get().getState();
-        List<ShardRouting> shard = RoutingNodesHelper.shardsWithState(state.getRoutingNodes(), ShardRoutingState.STARTED);
-        assertThat(shard, hasSize(1));
-        assertThat(state.nodes().resolveNode(shard.get(0).currentNodeId()).getName(), Matchers.equalTo(node1));
+
+        var state = clusterAdmin().prepareState().get().getState();
+        logger.info("Final routing is {}", state.getRoutingNodes().toString());
+        var shard = state.routingTable().index("index1").shard(0).primaryShard();
+        assertThat(shard, notNullValue());
+        assertThat(shard.state(), equalTo(ShardRoutingState.STARTED));
+        assertThat(state.nodes().get(shard.currentNodeId()).getName(), equalTo(node1));
     }
 
     public void testRelocationFailureNotRetriedForever() {
@@ -143,6 +141,13 @@ public class IndicesLifecycleListenerIT extends ESIntegTestCase {
         }
         updateIndexSettings(Settings.builder().put(INDEX_ROUTING_EXCLUDE_GROUP_PREFIX + "._name", node1), "index1");
         ensureGreen("index1");
+
+        var state = clusterAdmin().prepareState().get().getState();
+        logger.info("Final routing is {}", state.getRoutingNodes().toString());
+        var shard = state.routingTable().index("index1").shard(0).primaryShard();
+        assertThat(shard, notNullValue());
+        assertThat(shard.state(), equalTo(ShardRoutingState.STARTED));
+        assertThat(state.nodes().get(shard.currentNodeId()).getName(), equalTo(node1));
     }
 
     public void testIndexStateShardChanged() throws Throwable {
@@ -154,15 +159,13 @@ public class IndicesLifecycleListenerIT extends ESIntegTestCase {
 
         // create an index that should fail
         try {
-            client().admin()
-                .indices()
-                .prepareCreate("failed")
+            indicesAdmin().prepareCreate("failed")
                 .setSettings(Settings.builder().put(SETTING_NUMBER_OF_SHARDS, 1).put("index.fail", true))
                 .get();
             fail("should have thrown an exception");
         } catch (ElasticsearchException e) {
             assertTrue(e.getMessage().contains("failing on purpose"));
-            ClusterStateResponse resp = client().admin().cluster().prepareState().get();
+            ClusterStateResponse resp = clusterAdmin().prepareState().get();
             assertFalse(resp.getState().routingTable().indicesRouting().keySet().contains("failed"));
         }
 
@@ -202,7 +205,7 @@ public class IndicesLifecycleListenerIT extends ESIntegTestCase {
         assertShardStatesMatch(stateChangeListenerNode2, 3, CREATED, RECOVERING, POST_RECOVERY, STARTED);
 
         // close the index
-        assertAcked(client().admin().indices().prepareClose("test"));
+        assertAcked(indicesAdmin().prepareClose("test"));
 
         assertThat(stateChangeListenerNode1.afterCloseSettings.getAsInt(SETTING_NUMBER_OF_SHARDS, -1), equalTo(6));
         assertThat(stateChangeListenerNode1.afterCloseSettings.getAsInt(SETTING_NUMBER_OF_REPLICAS, -1), equalTo(1));

@@ -1,0 +1,11 @@
+config:
+  allow-labels: test-release
+steps:
+  - label: release-tests
+    command: .buildkite/scripts/release-tests.sh
+    timeout_in_minutes: 300
+    agents:
+      provider: gcp
+      image: family/elasticsearch-ubuntu-2004
+      diskSizeGb: 350
+      machineType: custom-32-98304

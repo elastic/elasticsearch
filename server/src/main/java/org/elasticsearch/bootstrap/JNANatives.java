@@ -39,13 +39,6 @@ class JNANatives {
     // Set to true, in case policy can be applied to all threads of the process (even existing ones)
     // otherwise they are only inherited for new threads (ES app threads)
     static boolean LOCAL_SYSTEM_CALL_FILTER_ALL = false;
-    // set to the maximum number of threads that can be created for
-    // the user ID that owns the running Elasticsearch process
-    static long MAX_NUMBER_OF_THREADS = -1;
-
-    static long MAX_SIZE_VIRTUAL_MEMORY = Long.MIN_VALUE;
-
-    static long MAX_FILE_SIZE = Long.MIN_VALUE;
 
     static void tryMlockall() {
         int errno = Integer.MIN_VALUE;
@@ -105,64 +98,12 @@ class JNANatives {
         }
     }
 
-    static void trySetMaxNumberOfThreads() {
-        if (Constants.LINUX) {
-            // this is only valid on Linux and the value *is* different on OS X
-            // see /usr/include/sys/resource.h on OS X
-            // on Linux the resource RLIMIT_NPROC means *the number of threads*
-            // this is in opposition to BSD-derived OSes
-            final int rlimit_nproc = 6;
-
-            final JNACLibrary.Rlimit rlimit = new JNACLibrary.Rlimit();
-            if (JNACLibrary.getrlimit(rlimit_nproc, rlimit) == 0) {
-                MAX_NUMBER_OF_THREADS = rlimit.rlim_cur.longValue();
-            } else {
-                logger.warn("unable to retrieve max number of threads [" + JNACLibrary.strerror(Native.getLastError()) + "]");
-            }
-        }
-    }
-
-    static void trySetMaxSizeVirtualMemory() {
-        if (Constants.LINUX || Constants.MAC_OS_X) {
-            final JNACLibrary.Rlimit rlimit = new JNACLibrary.Rlimit();
-            if (JNACLibrary.getrlimit(JNACLibrary.RLIMIT_AS, rlimit) == 0) {
-                MAX_SIZE_VIRTUAL_MEMORY = rlimit.rlim_cur.longValue();
-            } else {
-                logger.warn("unable to retrieve max size virtual memory [" + JNACLibrary.strerror(Native.getLastError()) + "]");
-            }
-        }
-    }
-
-    static void trySetMaxFileSize() {
-        if (Constants.LINUX || Constants.MAC_OS_X) {
-            final JNACLibrary.Rlimit rlimit = new JNACLibrary.Rlimit();
-            if (JNACLibrary.getrlimit(JNACLibrary.RLIMIT_FSIZE, rlimit) == 0) {
-                MAX_FILE_SIZE = rlimit.rlim_cur.longValue();
-            } else {
-                logger.warn("unable to retrieve max file size [" + JNACLibrary.strerror(Native.getLastError()) + "]");
-            }
-        }
-    }
-
     static String rlimitToString(long value) {
         assert Constants.LINUX || Constants.MAC_OS_X;
         if (value == JNACLibrary.RLIM_INFINITY) {
             return "unlimited";
         } else {
             return Long.toUnsignedString(value);
-        }
-    }
-
-    /** Returns true if user is root, false if not, or if we don't know */
-    static boolean definitelyRunningAsRoot() {
-        if (Constants.WINDOWS) {
-            return false; // don't know
-        }
-        try {
-            return JNACLibrary.geteuid() == 0;
-        } catch (UnsatisfiedLinkError e) {
-            // this will have already been logged by Kernel32Library, no need to repeat it
-            return false;
         }
     }
 

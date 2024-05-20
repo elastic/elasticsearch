@@ -17,6 +17,7 @@ import java.util.Map;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.hasEntry;
+import static org.hamcrest.Matchers.hasSize;
 
 public class UriPartsProcessorTests extends ESTestCase {
 
@@ -180,9 +181,34 @@ public class UriPartsProcessorTests extends ESTestCase {
         );
     }
 
+    public void testDotPathWithoutExtension() throws Exception {
+        testUriParsing(
+            "https://www.google.com/path.withdot/filenamewithoutextension",
+            Map.of("scheme", "https", "domain", "www.google.com", "path", "/path.withdot/filenamewithoutextension")
+        );
+    }
+
+    public void testDotPathWithExtension() throws Exception {
+        testUriParsing(
+            "https://www.google.com/path.withdot/filenamewithextension.txt",
+            Map.of("scheme", "https", "domain", "www.google.com", "path", "/path.withdot/filenamewithextension.txt", "extension", "txt")
+        );
+    }
+
+    /**
+     * This test verifies that we return an empty extension instead of <code>null</code> if the URI ends with a period. This is probably
+     * not behaviour we necessarily want to keep forever, but this test ensures that we're conscious about changing that behaviour.
+     */
+    public void testEmptyExtension() throws Exception {
+        testUriParsing(
+            "https://www.google.com/foo/bar.",
+            Map.of("scheme", "https", "domain", "www.google.com", "path", "/foo/bar.", "extension", "")
+        );
+    }
+
     public void testRemoveIfSuccessfulDoesNotRemoveTargetField() throws Exception {
         String field = "field";
-        UriPartsProcessor processor = new UriPartsProcessor(null, null, field, field, true, false);
+        UriPartsProcessor processor = new UriPartsProcessor(null, null, field, field, true, false, false);
 
         Map<String, Object> source = new HashMap<>();
         source.put(field, "http://www.google.com");
@@ -198,7 +224,7 @@ public class UriPartsProcessorTests extends ESTestCase {
 
     public void testInvalidUri() {
         String uri = "not:\\/_a_valid_uri";
-        UriPartsProcessor processor = new UriPartsProcessor(null, null, "field", "url", true, false);
+        UriPartsProcessor processor = new UriPartsProcessor(null, null, "field", "url", true, false, false);
 
         Map<String, Object> source = new HashMap<>();
         source.put("field", uri);
@@ -208,13 +234,50 @@ public class UriPartsProcessorTests extends ESTestCase {
         assertThat(e.getMessage(), containsString("unable to parse URI [" + uri + "]"));
     }
 
+    public void testNullValue() {
+        Map<String, Object> source = new HashMap<>();
+        source.put("field", null);
+        IngestDocument input = TestIngestDocument.withDefaultVersion(source);
+
+        UriPartsProcessor processor = new UriPartsProcessor(null, null, "field", "url", true, false, false);
+
+        expectThrows(NullPointerException.class, () -> processor.execute(input));
+    }
+
+    public void testMissingField() {
+        Map<String, Object> source = new HashMap<>();
+        IngestDocument input = TestIngestDocument.withDefaultVersion(source);
+
+        UriPartsProcessor processor = new UriPartsProcessor(null, null, "field", "url", true, false, false);
+
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> processor.execute(input));
+        assertThat(e.getMessage(), containsString("field [field] not present as part of path [field]"));
+    }
+
+    public void testIgnoreMissingField() throws Exception {
+        Map<String, Object> source = new HashMap<>();
+        // Adding a random field, so we can check the doc is leaved unchanged.
+        source.put(randomIdentifier(), randomIdentifier());
+        IngestDocument input = TestIngestDocument.withDefaultVersion(source);
+        Map<String, Object> expectedSourceAndMetadata = Map.copyOf(input.getSourceAndMetadata());
+
+        UriPartsProcessor processor = new UriPartsProcessor(null, null, "field", "url", true, false, true);
+        IngestDocument output = processor.execute(input);
+
+        assertThat(output.getSourceAndMetadata().entrySet(), hasSize(expectedSourceAndMetadata.size()));
+
+        for (Map.Entry<String, Object> entry : expectedSourceAndMetadata.entrySet()) {
+            assertThat(output.getSourceAndMetadata(), hasEntry(entry.getKey(), entry.getValue()));
+        }
+    }
+
     private void testUriParsing(String uri, Map<String, Object> expectedValues) throws Exception {
         testUriParsing(false, false, uri, expectedValues);
     }
 
     private void testUriParsing(boolean keepOriginal, boolean removeIfSuccessful, String uri, Map<String, Object> expectedValues)
         throws Exception {
-        UriPartsProcessor processor = new UriPartsProcessor(null, null, "field", "url", removeIfSuccessful, keepOriginal);
+        UriPartsProcessor processor = new UriPartsProcessor(null, null, "field", "url", removeIfSuccessful, keepOriginal, false);
 
         Map<String, Object> source = new HashMap<>();
         source.put("field", uri);

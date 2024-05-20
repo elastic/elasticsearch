@@ -10,8 +10,8 @@ package org.elasticsearch.ingest;
 
 import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
-import org.elasticsearch.action.ingest.PutPipelineAction;
 import org.elasticsearch.action.ingest.PutPipelineRequest;
+import org.elasticsearch.action.ingest.PutPipelineTransportAction;
 import org.elasticsearch.action.ingest.ReservedPipelineAction;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterStateListener;
@@ -157,10 +157,9 @@ public class IngestFileSettingsIT extends ESIntegTestCase {
         boolean awaitSuccessful = savedClusterState.await(20, TimeUnit.SECONDS);
         assertTrue(awaitSuccessful);
 
-        final ClusterStateResponse clusterStateResponse = client().admin()
-            .cluster()
-            .state(new ClusterStateRequest().waitForMetadataVersion(metadataVersion.get()))
-            .get();
+        final ClusterStateResponse clusterStateResponse = clusterAdmin().state(
+            new ClusterStateRequest().waitForMetadataVersion(metadataVersion.get())
+        ).get();
 
         ReservedStateMetadata reservedState = clusterStateResponse.getState()
             .metadata()
@@ -178,7 +177,7 @@ public class IngestFileSettingsIT extends ESIntegTestCase {
                 + "[[my_ingest_pipeline] set as read-only by [file_settings]]",
             expectThrows(
                 IllegalArgumentException.class,
-                () -> client().execute(PutPipelineAction.INSTANCE, sampleRestRequest("my_ingest_pipeline")).actionGet()
+                client().execute(PutPipelineTransportAction.TYPE, sampleRestRequest("my_ingest_pipeline"))
             ).getMessage()
         );
     }
@@ -222,7 +221,7 @@ public class IngestFileSettingsIT extends ESIntegTestCase {
         assertTrue(awaitSuccessful);
 
         // This should succeed, nothing was reserved
-        client().execute(PutPipelineAction.INSTANCE, sampleRestRequest("my_ingest_pipeline_bad")).get();
+        client().execute(PutPipelineTransportAction.TYPE, sampleRestRequest("my_ingest_pipeline_bad")).get();
     }
 
     public void testErrorSaved() throws Exception {

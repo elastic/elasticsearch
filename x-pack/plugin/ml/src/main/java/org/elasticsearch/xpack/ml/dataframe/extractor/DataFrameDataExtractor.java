@@ -9,9 +9,9 @@ package org.elasticsearch.xpack.ml.dataframe.extractor;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.util.CachedSupplier;
 import org.elasticsearch.core.Nullable;
@@ -19,6 +19,7 @@ import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.fetch.StoredFieldsContext;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.xpack.core.ClientHelper;
@@ -86,7 +87,7 @@ public class DataFrameDataExtractor {
         context.extractedFields.getAllFields().forEach(f -> this.extractedFieldsByName.put(f.getName(), f));
         hasNext = true;
         hasPreviousSearchFailed = false;
-        this.trainTestSplitter = new CachedSupplier<>(context.trainTestSplitterFactory::create);
+        this.trainTestSplitter = CachedSupplier.wrap(context.trainTestSplitterFactory::create);
     }
 
     public Map<String, String> getHeaders() {
@@ -127,7 +128,7 @@ public class DataFrameDataExtractor {
      */
     public void preview(ActionListener<List<Row>> listener) {
 
-        SearchRequestBuilder searchRequestBuilder = new SearchRequestBuilder(client, SearchAction.INSTANCE)
+        SearchRequestBuilder searchRequestBuilder = new SearchRequestBuilder(client)
             // This ensures the search throws if there are failures and the scroll context gets cleared automatically
             .setAllowPartialSearchResults(false)
             .setIndices(context.indices)
@@ -146,22 +147,22 @@ public class DataFrameDataExtractor {
             context.headers,
             ClientHelper.ML_ORIGIN,
             client,
-            SearchAction.INSTANCE,
+            TransportSearchAction.TYPE,
             searchRequestBuilder.request(),
-            ActionListener.wrap(searchResponse -> {
+            listener.delegateFailureAndWrap((delegate, searchResponse) -> {
                 if (searchResponse.getHits().getHits().length == 0) {
-                    listener.onResponse(Collections.emptyList());
+                    delegate.onResponse(Collections.emptyList());
                     return;
                 }
 
-                final SearchHit[] hits = searchResponse.getHits().getHits();
-                List<Row> rows = new ArrayList<>(hits.length);
-                for (SearchHit hit : hits) {
-                    String[] extractedValues = extractValues(hit);
-                    rows.add(extractedValues == null ? new Row(null, hit, true) : new Row(extractedValues, hit, false));
+                List<Row> rows = new ArrayList<>(searchResponse.getHits().getHits().length);
+                for (SearchHit hit : searchResponse.getHits().getHits()) {
+                    var unpooled = hit.asUnpooled();
+                    String[] extractedValues = extractValues(unpooled);
+                    rows.add(extractedValues == null ? new Row(null, unpooled, true) : new Row(extractedValues, unpooled, false));
                 }
-                listener.onResponse(rows);
-            }, listener::onFailure)
+                delegate.onResponse(rows);
+            })
         );
     }
 
@@ -175,14 +176,18 @@ public class DataFrameDataExtractor {
             // We've set allow_partial_search_results to false which means if something
             // goes wrong the request will throw.
             SearchResponse searchResponse = request.get();
-            LOGGER.trace(() -> "[" + context.jobId + "] Search response was obtained");
+            try {
+                LOGGER.trace(() -> "[" + context.jobId + "] Search response was obtained");
 
-            List<Row> rows = processSearchResponse(searchResponse);
+                List<Row> rows = processSearchResponse(searchResponse);
 
-            // Request was successfully executed and processed so we can restore the flag to retry if a future failure occurs
-            hasPreviousSearchFailed = false;
+                // Request was successfully executed and processed so we can restore the flag to retry if a future failure occurs
+                hasPreviousSearchFailed = false;
 
-            return rows;
+                return rows;
+            } finally {
+                searchResponse.decRef();
+            }
         } catch (Exception e) {
             if (hasPreviousSearchFailed) {
                 throw e;
@@ -203,7 +208,7 @@ public class DataFrameDataExtractor {
 
         LOGGER.trace(() -> format("[%s] Searching docs with [%s] in [%s, %s)", context.jobId, INCREMENTAL_ID, from, to));
 
-        SearchRequestBuilder searchRequestBuilder = new SearchRequestBuilder(client, SearchAction.INSTANCE)
+        SearchRequestBuilder searchRequestBuilder = new SearchRequestBuilder(client)
             // This ensures the search throws if there are failures and the scroll context gets cleared automatically
             .setAllowPartialSearchResults(false)
             .addSort(DestinationIndex.INCREMENTAL_ID, SortOrder.ASC)
@@ -247,8 +252,8 @@ public class DataFrameDataExtractor {
             return null;
         }
 
-        SearchHit[] hits = searchResponse.getHits().getHits();
-        List<Row> rows = new ArrayList<>(hits.length);
+        SearchHits hits = searchResponse.getHits();
+        List<Row> rows = new ArrayList<>(hits.getHits().length);
         for (SearchHit hit : hits) {
             if (isCancelled) {
                 hasNext = false;
@@ -313,12 +318,13 @@ public class DataFrameDataExtractor {
     }
 
     private Row createRow(SearchHit hit) {
-        String[] extractedValues = extractValues(hit);
+        var unpooled = hit.asUnpooled();
+        String[] extractedValues = extractValues(unpooled);
         if (extractedValues == null) {
-            return new Row(null, hit, true);
+            return new Row(null, unpooled, true);
         }
         boolean isTraining = trainTestSplitter.get().isTraining(extractedValues);
-        Row row = new Row(extractedValues, hit, isTraining);
+        Row row = new Row(extractedValues, unpooled, isTraining);
         LOGGER.trace(
             () -> format(
                 "[%s] Extracted row: sort key = [%s], is_training = [%s], values = %s",
@@ -370,9 +376,13 @@ public class DataFrameDataExtractor {
     public DataSummary collectDataSummary() {
         SearchRequestBuilder searchRequestBuilder = buildDataSummarySearchRequestBuilder();
         SearchResponse searchResponse = executeSearchRequest(searchRequestBuilder);
-        long rows = searchResponse.getHits().getTotalHits().value;
-        LOGGER.debug(() -> format("[%s] Data summary rows [%s]", context.jobId, rows));
-        return new DataSummary(rows, organicFeatures.length + processedFeatures.length);
+        try {
+            long rows = searchResponse.getHits().getTotalHits().value;
+            LOGGER.debug(() -> format("[%s] Data summary rows [%s]", context.jobId, rows));
+            return new DataSummary(rows, organicFeatures.length + processedFeatures.length);
+        } finally {
+            searchResponse.decRef();
+        }
     }
 
     public void collectDataSummaryAsync(ActionListener<DataSummary> dataSummaryActionListener) {
@@ -383,13 +393,10 @@ public class DataFrameDataExtractor {
             context.headers,
             ClientHelper.ML_ORIGIN,
             client,
-            SearchAction.INSTANCE,
+            TransportSearchAction.TYPE,
             searchRequestBuilder.request(),
-            ActionListener.wrap(
-                searchResponse -> dataSummaryActionListener.onResponse(
-                    new DataSummary(searchResponse.getHits().getTotalHits().value, numberOfFields)
-                ),
-                dataSummaryActionListener::onFailure
+            dataSummaryActionListener.delegateFailureAndWrap(
+                (l, searchResponse) -> l.onResponse(new DataSummary(searchResponse.getHits().getTotalHits().value, numberOfFields))
             )
         );
     }
@@ -401,7 +408,7 @@ public class DataFrameDataExtractor {
             summaryQuery = QueryBuilders.boolQuery().filter(summaryQuery).filter(allExtractedFieldsExistQuery());
         }
 
-        return new SearchRequestBuilder(client, SearchAction.INSTANCE).setAllowPartialSearchResults(false)
+        return new SearchRequestBuilder(client).setAllowPartialSearchResults(false)
             .setIndices(context.indices)
             .setSize(0)
             .setQuery(summaryQuery)

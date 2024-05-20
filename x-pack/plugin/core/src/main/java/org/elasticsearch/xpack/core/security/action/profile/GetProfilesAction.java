@@ -15,6 +15,6 @@ public class GetProfilesAction extends ActionType<GetProfilesResponse> {
     public static final GetProfilesAction INSTANCE = new GetProfilesAction();
 
     public GetProfilesAction() {
-        super(NAME, GetProfilesResponse::new);
+        super(NAME);
     }
 }

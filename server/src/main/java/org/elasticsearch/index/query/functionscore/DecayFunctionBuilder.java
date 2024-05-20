@@ -26,6 +26,7 @@ import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.fielddata.FieldData;
+import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexGeoPointFieldData;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
 import org.elasticsearch.index.fielddata.MultiGeoPointValues;
@@ -35,10 +36,8 @@ import org.elasticsearch.index.fielddata.SortingNumericDoubleValues;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.GeoPointFieldMapper.GeoPointFieldType;
 import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.MultiValueMode;
-import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
@@ -72,6 +71,7 @@ public abstract class DecayFunctionBuilder<DFB extends DecayFunctionBuilder<DFB>
     /**
      * Convenience constructor that converts its parameters into json to parse on the data nodes.
      */
+    @SuppressWarnings("this-escape")
     protected DecayFunctionBuilder(String fieldName, Object origin, Object scale, Object offset, double decay) {
         if (fieldName == null) {
             throw new IllegalArgumentException("decay function: field name must not be null");
@@ -184,9 +184,11 @@ public abstract class DecayFunctionBuilder<DFB extends DecayFunctionBuilder<DFB>
         AbstractDistanceScoreFunction scoreFunction;
         // EMPTY is safe because parseVariable doesn't use namedObject
         try (
-            InputStream stream = functionBytes.streamInput();
-            XContentParser parser = XContentFactory.xContent(XContentHelper.xContentType(functionBytes))
-                .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, stream)
+            XContentParser parser = XContentHelper.createParserNotCompressed(
+                LoggingDeprecationHandler.XCONTENT_PARSER_CONFIG,
+                functionBytes,
+                XContentFactory.xContent(XContentHelper.xContentType(functionBytes)).type()
+            )
         ) {
             scoreFunction = parseVariable(fieldName, parser, context, multiValueMode);
         }
@@ -217,15 +219,8 @@ public abstract class DecayFunctionBuilder<DFB extends DecayFunctionBuilder<DFB>
             return parseDateVariable(parser, context, fieldType, mode);
         } else if (fieldType instanceof GeoPointFieldType) {
             return parseGeoVariable(parser, context, fieldType, mode);
-        } else if (fieldType instanceof NumberFieldMapper.NumberFieldType) {
-            return parseNumberVariable(parser, context, fieldType, mode);
         } else {
-            throw new ParsingException(
-                parser.getTokenLocation(),
-                "field [{}] is of type [{}], but only numeric types are supported.",
-                fieldName,
-                fieldType
-            );
+            return parseNumberVariable(parser, context, fieldType, mode);
         }
     }
 
@@ -267,8 +262,15 @@ public abstract class DecayFunctionBuilder<DFB extends DecayFunctionBuilder<DFB>
                 DecayFunctionBuilder.ORIGIN
             );
         }
-        IndexNumericFieldData numericFieldData = context.getForField(fieldType, MappedFieldType.FielddataOperation.SEARCH);
-        return new NumericFieldDataScoreFunction(origin, scale, decay, offset, getDecayFunction(), numericFieldData, mode);
+
+        IndexFieldData<?> indexFieldData = context.getForField(fieldType, MappedFieldType.FielddataOperation.SEARCH);
+        if (indexFieldData instanceof IndexNumericFieldData numericFieldData) {
+            return new NumericFieldDataScoreFunction(origin, scale, decay, offset, getDecayFunction(), numericFieldData, mode);
+        } else {
+            throw new IllegalArgumentException(
+                "field [" + fieldName + "] is of type [" + fieldType + "], but only numeric types are supported."
+            );
+        }
     }
 
     private AbstractDistanceScoreFunction parseGeoVariable(

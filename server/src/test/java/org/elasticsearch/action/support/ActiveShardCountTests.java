@@ -8,7 +8,6 @@
 
 package org.elasticsearch.action.support;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.TestShardRoutingRoleStrategies;
@@ -22,6 +21,7 @@ import org.elasticsearch.cluster.routing.ShardRoutingRoleStrategy;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.io.stream.ByteBufferStreamInput;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
@@ -254,7 +254,7 @@ public class ActiveShardCountTests extends ESTestCase {
     private ClusterState initializeWithNewIndex(String indexName, int numShards, int numReplicas, ShardRoutingRoleStrategy strategy) {
         // initial index creation and new routing table info
         final IndexMetadata indexMetadata = IndexMetadata.builder(indexName)
-            .settings(settings(Version.CURRENT).put(IndexMetadata.SETTING_INDEX_UUID, UUIDs.randomBase64UUID()))
+            .settings(settings(IndexVersion.current()).put(IndexMetadata.SETTING_INDEX_UUID, UUIDs.randomBase64UUID()))
             .numberOfShards(numShards)
             .numberOfReplicas(numReplicas)
             .build();
@@ -265,7 +265,7 @@ public class ActiveShardCountTests extends ESTestCase {
 
     private ClusterState initializeWithClosedIndex(final String indexName, final int numShards, final int numReplicas) {
         final IndexMetadata indexMetadata = IndexMetadata.builder(indexName)
-            .settings(settings(Version.CURRENT).put(IndexMetadata.SETTING_INDEX_UUID, UUIDs.randomBase64UUID()))
+            .settings(settings(IndexVersion.current()).put(IndexMetadata.SETTING_INDEX_UUID, UUIDs.randomBase64UUID()))
             .numberOfShards(numShards)
             .numberOfReplicas(numReplicas)
             .state(IndexMetadata.State.CLOSE)

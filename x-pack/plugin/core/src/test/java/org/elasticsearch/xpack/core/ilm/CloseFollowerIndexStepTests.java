@@ -6,12 +6,12 @@
  */
 package org.elasticsearch.xpack.core.ilm;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.close.CloseIndexRequest;
 import org.elasticsearch.action.admin.indices.close.CloseIndexResponse;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.index.IndexVersion;
 import org.mockito.Mockito;
 
 import java.util.Collections;
@@ -24,7 +24,7 @@ public class CloseFollowerIndexStepTests extends AbstractStepTestCase<CloseFollo
 
     private static IndexMetadata getIndexMetadata() {
         return IndexMetadata.builder("follower-index")
-            .settings(settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_INDEXING_COMPLETE, "true"))
+            .settings(settings(IndexVersion.current()).put(LifecycleSettings.LIFECYCLE_INDEXING_COMPLETE, "true"))
             .putCustom(CCR_METADATA_KEY, Collections.emptyMap())
             .numberOfShards(1)
             .numberOfReplicas(0)
@@ -94,7 +94,7 @@ public class CloseFollowerIndexStepTests extends AbstractStepTestCase<CloseFollo
 
     public void testCloseFollowerIndexIsNoopForAlreadyClosedIndex() throws Exception {
         IndexMetadata indexMetadata = IndexMetadata.builder("follower-index")
-            .settings(settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_INDEXING_COMPLETE, "true"))
+            .settings(settings(IndexVersion.current()).put(LifecycleSettings.LIFECYCLE_INDEXING_COMPLETE, "true"))
             .putCustom(CCR_METADATA_KEY, Collections.emptyMap())
             .state(IndexMetadata.State.CLOSE)
             .numberOfShards(1)

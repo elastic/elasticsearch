@@ -7,7 +7,7 @@
  */
 package org.elasticsearch.datastreams;
 
-import org.elasticsearch.action.admin.indices.template.put.PutComposableIndexTemplateAction;
+import org.elasticsearch.action.admin.indices.template.put.TransportPutComposableIndexTemplateAction;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.routing.allocation.DataTier;
 import org.elasticsearch.common.settings.Settings;
@@ -33,41 +33,35 @@ public class DataTierDataStreamIT extends ESIntegTestCase {
         startHotOnlyNode();
         ensureGreen();
 
-        ComposableIndexTemplate template = new ComposableIndexTemplate(
-            Collections.singletonList(index),
-            null,
-            null,
-            null,
-            null,
-            null,
-            new ComposableIndexTemplate.DataStreamTemplate(),
-            null
-        );
+        ComposableIndexTemplate template = ComposableIndexTemplate.builder()
+            .indexPatterns(Collections.singletonList(index))
+
+            .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate())
+            .build();
         client().execute(
-            PutComposableIndexTemplateAction.INSTANCE,
-            new PutComposableIndexTemplateAction.Request("template").indexTemplate(template)
+            TransportPutComposableIndexTemplateAction.TYPE,
+            new TransportPutComposableIndexTemplateAction.Request("template").indexTemplate(template)
         ).actionGet();
 
-        var dsIndexName = client().prepareIndex(index)
-            .setCreate(true)
+        var dsIndexName = prepareIndex(index).setCreate(true)
             .setId("1")
             .setSource("@timestamp", "2020-09-09")
             .setWaitForActiveShards(0)
             .get()
             .getIndex();
-        var idxSettings = client().admin().indices().prepareGetIndex().addIndices(index).get().getSettings().get(dsIndexName);
+        var idxSettings = indicesAdmin().prepareGetIndex().addIndices(index).get().getSettings().get(dsIndexName);
         assertThat(DataTier.TIER_PREFERENCE_SETTING.get(idxSettings), equalTo(DataTier.DATA_HOT));
 
         logger.info("--> waiting for {} to be yellow", index);
         ensureYellow(index);
 
         // Roll over index and ensure the second index also went to the "hot" tier
-        var rolledOverIndexName = client().admin().indices().prepareRolloverIndex(index).get().getNewIndex();
+        var rolledOverIndexName = indicesAdmin().prepareRolloverIndex(index).get().getNewIndex();
 
         // new index name should have the rolled over name
         assertNotEquals(dsIndexName, rolledOverIndexName);
 
-        idxSettings = client().admin().indices().prepareGetIndex().addIndices(index).get().getSettings().get(rolledOverIndexName);
+        idxSettings = indicesAdmin().prepareGetIndex().addIndices(index).get().getSettings().get(rolledOverIndexName);
         assertThat(DataTier.TIER_PREFERENCE_SETTING.get(idxSettings), equalTo(DataTier.DATA_HOT));
     }
 

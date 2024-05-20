@@ -9,7 +9,10 @@ esplugin {
   classname 'org.elasticsearch.xpack.wildcard.Wildcard'
   extendedPlugins = ['x-pack-core', 'lang-painless']
 }
-archivesBaseName = 'x-pack-wildcard'
+
+base {
+  archivesName = 'x-pack-wildcard'
+}
 
 dependencies {
   compileOnly project(':modules:lang-painless:spi')

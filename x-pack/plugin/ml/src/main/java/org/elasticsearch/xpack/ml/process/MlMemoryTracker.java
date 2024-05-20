@@ -26,12 +26,12 @@ import org.elasticsearch.xpack.core.ml.action.StartDataFrameAnalyticsAction;
 import org.elasticsearch.xpack.core.ml.action.StartTrainedModelDeploymentAction;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfig;
 import org.elasticsearch.xpack.core.ml.inference.assignment.TrainedModelAssignment;
+import org.elasticsearch.xpack.core.ml.inference.assignment.TrainedModelAssignmentMetadata;
 import org.elasticsearch.xpack.core.ml.job.config.AnalysisLimits;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.snapshot.upgrade.SnapshotUpgradeTaskParams;
 import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.dataframe.persistence.DataFrameAnalyticsConfigProvider;
-import org.elasticsearch.xpack.ml.inference.assignment.TrainedModelAssignmentMetadata;
 import org.elasticsearch.xpack.ml.job.JobManager;
 import org.elasticsearch.xpack.ml.job.persistence.JobResultsProvider;
 
@@ -71,7 +71,7 @@ public class MlMemoryTracker implements LocalNodeMasterListener {
     private static final Duration RECENT_UPDATE_THRESHOLD = Duration.ofMinutes(1);
     private static final Duration DEFAULT_AUTOSCALING_CHECK_INTERVAL = Duration.ofMinutes(5);
 
-    private final Logger logger = LogManager.getLogger(MlMemoryTracker.class);
+    private static final Logger logger = LogManager.getLogger(MlMemoryTracker.class);
     private final Map<String, Long> memoryRequirementByAnomalyDetectorJob = new ConcurrentHashMap<>();
     private final Map<String, Long> memoryRequirementByDataFrameAnalyticsJob = new ConcurrentHashMap<>();
     private final Map<String, Map<String, Long>> memoryRequirementByTaskName;
@@ -266,7 +266,7 @@ public class MlMemoryTracker implements LocalNodeMasterListener {
             return null;
         }
 
-        return Optional.ofNullable(TrainedModelAssignmentMetadata.fromState(clusterService.state()).modelAssignments().get(modelId))
+        return Optional.ofNullable(TrainedModelAssignmentMetadata.fromState(clusterService.state()).allAssignments().get(modelId))
             .map(TrainedModelAssignment::getTaskParams)
             .map(StartTrainedModelDeploymentAction.TaskParams::estimateMemoryUsageBytes)
             .orElse(null);
@@ -366,7 +366,7 @@ public class MlMemoryTracker implements LocalNodeMasterListener {
         refresh(
             clusterService.state().getMetadata().custom(PersistentTasksCustomMetadata.TYPE),
             Collections.singleton(jobId),
-            ActionListener.wrap(aVoid -> refreshAnomalyDetectorJobMemory(jobId, listener), listener::onFailure)
+            listener.delegateFailureAndWrap((l, aVoid) -> refreshAnomalyDetectorJobMemory(jobId, l))
         );
     }
 
@@ -503,15 +503,15 @@ public class MlMemoryTracker implements LocalNodeMasterListener {
             .map(task -> ((StartDataFrameAnalyticsAction.TaskParams) task.getParams()).getId())
             .collect(Collectors.toSet());
 
-        configProvider.getConfigsForJobsWithTasksLeniently(jobsWithTasks, ActionListener.wrap(analyticsConfigs -> {
+        configProvider.getConfigsForJobsWithTasksLeniently(jobsWithTasks, listener.delegateFailureAndWrap((delegate, analyticsConfigs) -> {
             for (DataFrameAnalyticsConfig analyticsConfig : analyticsConfigs) {
                 memoryRequirementByDataFrameAnalyticsJob.put(
                     analyticsConfig.getId(),
                     analyticsConfig.getModelMemoryLimit().getBytes() + DataFrameAnalyticsConfig.PROCESS_MEMORY_OVERHEAD.getBytes()
                 );
             }
-            listener.onResponse(null);
-        }, listener::onFailure));
+            delegate.onResponse(null);
+        }));
     }
 
     /**

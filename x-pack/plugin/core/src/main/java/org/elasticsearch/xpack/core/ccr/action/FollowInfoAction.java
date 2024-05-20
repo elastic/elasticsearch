@@ -34,14 +34,16 @@ public class FollowInfoAction extends ActionType<FollowInfoAction.Response> {
     public static final FollowInfoAction INSTANCE = new FollowInfoAction();
 
     private FollowInfoAction() {
-        super(NAME, FollowInfoAction.Response::new);
+        super(NAME);
     }
 
     public static class Request extends MasterNodeReadRequest<Request> {
 
         private String[] followerIndices;
 
-        public Request() {}
+        public Request() {
+            super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT);
+        }
 
         public String[] getFollowerIndices() {
             return followerIndices;
@@ -97,12 +99,12 @@ public class FollowInfoAction extends ActionType<FollowInfoAction.Response> {
 
         public Response(StreamInput in) throws IOException {
             super(in);
-            followInfos = in.readList(FollowerInfo::new);
+            followInfos = in.readCollectionAsList(FollowerInfo::new);
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeList(followInfos);
+            out.writeCollection(followInfos);
         }
 
         @Override

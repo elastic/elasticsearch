@@ -19,17 +19,18 @@ import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.DateFieldMapper.DateFieldType;
 import org.elasticsearch.index.mapper.RangeFieldMapper.RangeFieldType;
 import org.elasticsearch.index.query.QueryShardException;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.index.query.SearchExecutionContextHelper;
 import org.elasticsearch.lucene.queries.BinaryDocValuesRangeQuery;
 import org.elasticsearch.test.IndexSettingsModule;
 import org.junit.Before;
@@ -43,7 +44,6 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
-import static java.util.Collections.emptyMap;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.instanceOf;
 
@@ -88,6 +88,7 @@ public class RangeFieldTypeTests extends FieldTypeTestCase {
     /**
      * test the queries are correct if from/to are adjacent and the range is exclusive of those values
      */
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/86284")
     public void testRangeQueryIntersectsAdjacentValues() throws Exception {
         SearchExecutionContext context = createContext();
         ShapeRelation relation = randomFrom(ShapeRelation.values());
@@ -201,29 +202,9 @@ public class RangeFieldTypeTests extends FieldTypeTestCase {
     }
 
     private SearchExecutionContext createContext() {
-        Settings indexSettings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT).build();
+        Settings indexSettings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()).build();
         IndexSettings idxSettings = IndexSettingsModule.newIndexSettings(randomAlphaOfLengthBetween(1, 10), indexSettings);
-        return new SearchExecutionContext(
-            0,
-            0,
-            idxSettings,
-            null,
-            null,
-            null,
-            null,
-            null,
-            null,
-            parserConfig(),
-            writableRegistry(),
-            null,
-            null,
-            () -> nowInMillis,
-            null,
-            null,
-            () -> true,
-            null,
-            emptyMap()
-        );
+        return SearchExecutionContextHelper.createSimple(idxSettings, parserConfig(), writableRegistry());
     }
 
     public void testDateRangeQueryUsingMappingFormat() {
@@ -252,12 +233,12 @@ public class RangeFieldTypeTests extends FieldTypeTestCase {
 
         RangeFieldType fieldType = new RangeFieldType("field", formatter);
         final Query query = fieldType.rangeQuery(from, to, true, true, relation, null, fieldType.dateMathParser(), context);
-        assertEquals("field:<ranges:[1465975790000 : 1466062190999]>", query.toString());
+        assertThat(query.toString(), containsString("field:<ranges:[1465975790000 : 1466062190999]>"));
 
         // compare lower and upper bounds with what we would get on a `date` field
         DateFieldType dateFieldType = new DateFieldType("field", DateFieldMapper.Resolution.MILLISECONDS, formatter);
         final Query queryOnDateField = dateFieldType.rangeQuery(from, to, true, true, relation, null, fieldType.dateMathParser(), context);
-        assertEquals("field:[1465975790000 TO 1466062190999]", queryOnDateField.toString());
+        assertThat(queryOnDateField.toString(), containsString("field:[1465975790000 TO 1466062190999]"));
     }
 
     /**
@@ -505,26 +486,28 @@ public class RangeFieldTypeTests extends FieldTypeTestCase {
     }
 
     public void testFetchSourceValue() throws IOException {
-        MappedFieldType longMapper = new RangeFieldMapper.Builder("field", RangeType.LONG, true).build(MapperBuilderContext.root(false))
-            .fieldType();
+        MappedFieldType longMapper = new RangeFieldMapper.Builder("field", RangeType.LONG, true).build(
+            MapperBuilderContext.root(false, false)
+        ).fieldType();
         Map<String, Object> longRange = Map.of("gte", 3.14, "lt", "42.9");
         assertEquals(List.of(Map.of("gte", 3L, "lt", 42L)), fetchSourceValue(longMapper, longRange));
 
         MappedFieldType dateMapper = new RangeFieldMapper.Builder("field", RangeType.DATE, true).format("yyyy/MM/dd||epoch_millis")
-            .build(MapperBuilderContext.root(false))
+            .build(MapperBuilderContext.root(false, false))
             .fieldType();
         Map<String, Object> dateRange = Map.of("lt", "1990/12/29", "gte", 597429487111L);
         assertEquals(List.of(Map.of("lt", "1990/12/29", "gte", "1988/12/06")), fetchSourceValue(dateMapper, dateRange));
     }
 
     public void testParseSourceValueWithFormat() throws IOException {
-        MappedFieldType longMapper = new RangeFieldMapper.Builder("field", RangeType.LONG, true).build(MapperBuilderContext.root(false))
-            .fieldType();
+        MappedFieldType longMapper = new RangeFieldMapper.Builder("field", RangeType.LONG, true).build(
+            MapperBuilderContext.root(false, false)
+        ).fieldType();
         Map<String, Object> longRange = Map.of("gte", 3.14, "lt", "42.9");
         assertEquals(List.of(Map.of("gte", 3L, "lt", 42L)), fetchSourceValue(longMapper, longRange));
 
         MappedFieldType dateMapper = new RangeFieldMapper.Builder("field", RangeType.DATE, true).format("strict_date_time")
-            .build(MapperBuilderContext.root(false))
+            .build(MapperBuilderContext.root(false, false))
             .fieldType();
         Map<String, Object> dateRange = Map.of("lt", "1990-12-29T00:00:00.000Z");
         assertEquals(List.of(Map.of("lt", "1990/12/29")), fetchSourceValue(dateMapper, dateRange, "yyy/MM/dd"));

@@ -14,6 +14,7 @@ import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.VersionType;
+import org.elasticsearch.index.mapper.MapperMetrics;
 import org.elasticsearch.index.mapper.MapperRegistry;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.SourceToParse;
@@ -26,7 +27,6 @@ import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 
 import java.io.IOException;
-import java.util.Map;
 import java.util.concurrent.atomic.AtomicLong;
 
 import static java.util.Collections.emptyList;
@@ -46,7 +46,7 @@ public class TranslogHandler implements Engine.TranslogRecoveryRunner {
         SimilarityService similarityService = new SimilarityService(indexSettings, null, emptyMap());
         MapperRegistry mapperRegistry = new IndicesModule(emptyList()).getMapperRegistry();
         mapperService = new MapperService(
-            () -> TransportVersion.CURRENT,
+            () -> TransportVersion.current(),
             indexSettings,
             (type, name) -> Lucene.STANDARD_ANALYZER,
             XContentParserConfiguration.EMPTY.withRegistry(xContentRegistry).withDeprecationHandler(LoggingDeprecationHandler.INSTANCE),
@@ -54,11 +54,12 @@ public class TranslogHandler implements Engine.TranslogRecoveryRunner {
             mapperRegistry,
             () -> null,
             indexSettings.getMode().idFieldMapperWithoutFieldData(),
-            null
+            null,
+            MapperMetrics.NOOP
         );
     }
 
-    private void applyOperation(Engine engine, Engine.Operation operation) throws IOException {
+    private static void applyOperation(Engine engine, Engine.Operation operation) throws IOException {
         switch (operation.operationType()) {
             case INDEX -> engine.index((Engine.Index) operation);
             case DELETE -> engine.delete((Engine.Delete) operation);
@@ -88,7 +89,7 @@ public class TranslogHandler implements Engine.TranslogRecoveryRunner {
                 final Translog.Index index = (Translog.Index) operation;
                 final Engine.Index engineIndex = IndexShard.prepareIndex(
                     mapperService,
-                    new SourceToParse(index.id(), index.source(), XContentHelper.xContentType(index.source()), index.routing(), Map.of()),
+                    new SourceToParse(index.id(), index.source(), XContentHelper.xContentType(index.source()), index.routing()),
                     index.seqNo(),
                     index.primaryTerm(),
                     index.version(),

@@ -10,15 +10,15 @@ package org.elasticsearch.action.admin.cluster.stats;
 
 import org.elasticsearch.Build;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStatsTests;
-import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Strings;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.stats.IndexingPressureStats;
 import org.elasticsearch.monitor.fs.FsInfo;
 import org.elasticsearch.test.ESTestCase;
@@ -64,20 +64,20 @@ public class ClusterStatsNodesTests extends ESTestCase {
     public void testIngestStats() throws Exception {
         NodeStats nodeStats = randomValueOtherThanMany(n -> n.getIngestStats() == null, NodeStatsTests::createNodeStats);
         SortedMap<String, long[]> processorStats = new TreeMap<>();
-        nodeStats.getIngestStats().getProcessorStats().values().forEach(stats -> {
+        nodeStats.getIngestStats().processorStats().values().forEach(stats -> {
             stats.forEach(stat -> {
-                processorStats.compute(stat.getType(), (key, value) -> {
+                processorStats.compute(stat.type(), (key, value) -> {
                     if (value == null) {
                         return new long[] {
-                            stat.getStats().getIngestCount(),
-                            stat.getStats().getIngestFailedCount(),
-                            stat.getStats().getIngestCurrent(),
-                            stat.getStats().getIngestTimeInMillis() };
+                            stat.stats().ingestCount(),
+                            stat.stats().ingestFailedCount(),
+                            stat.stats().ingestCurrent(),
+                            stat.stats().ingestTimeInMillis() };
                     } else {
-                        value[0] += stat.getStats().getIngestCount();
-                        value[1] += stat.getStats().getIngestFailedCount();
-                        value[2] += stat.getStats().getIngestCurrent();
-                        value[3] += stat.getStats().getIngestTimeInMillis();
+                        value[0] += stat.stats().ingestCount();
+                        value[1] += stat.stats().ingestFailedCount();
+                        value[2] += stat.stats().ingestCurrent();
+                        value[3] += stat.stats().ingestTimeInMillis();
                         return value;
                     }
                 });
@@ -85,7 +85,7 @@ public class ClusterStatsNodesTests extends ESTestCase {
         });
 
         ClusterStatsNodes.IngestStats stats = new ClusterStatsNodes.IngestStats(List.of(nodeStats));
-        assertThat(stats.pipelineCount, equalTo(nodeStats.getIngestStats().getProcessorStats().size()));
+        assertThat(stats.pipelineCount, equalTo(nodeStats.getIngestStats().processorStats().size()));
         StringBuilder processorStatsString = new StringBuilder("{");
         Iterator<Map.Entry<String, long[]>> iter = processorStats.entrySet().iterator();
         while (iter.hasNext()) {
@@ -113,7 +113,7 @@ public class ClusterStatsNodesTests extends ESTestCase {
             randomValueOtherThanMany(n -> n.getIndexingPressureStats() == null, NodeStatsTests::createNodeStats),
             randomValueOtherThanMany(n -> n.getIndexingPressureStats() == null, NodeStatsTests::createNodeStats)
         );
-        long[] expectedStats = new long[12];
+        long[] expectedStats = new long[13];
         for (NodeStats nodeStat : nodeStats) {
             IndexingPressureStats indexingPressureStats = nodeStat.getIndexingPressureStats();
             if (indexingPressureStats != null) {
@@ -130,8 +130,9 @@ public class ClusterStatsNodesTests extends ESTestCase {
                 expectedStats[8] += indexingPressureStats.getCoordinatingRejections();
                 expectedStats[9] += indexingPressureStats.getPrimaryRejections();
                 expectedStats[10] += indexingPressureStats.getReplicaRejections();
+                expectedStats[11] += indexingPressureStats.getPrimaryDocumentRejections();
 
-                expectedStats[11] += indexingPressureStats.getMemoryLimit();
+                expectedStats[12] += indexingPressureStats.getMemoryLimit();
             }
         }
 
@@ -181,9 +182,12 @@ public class ClusterStatsNodesTests extends ESTestCase {
                     + ","
                     + "\"replica_rejections\":"
                     + expectedStats[10]
+                    + ","
+                    + "\"primary_document_rejections\":"
+                    + expectedStats[11]
                     + "},"
                     + "\"limit_in_bytes\":"
-                    + expectedStats[11]
+                    + expectedStats[12]
                     + "}"
                     + "}}"
             )
@@ -321,10 +325,12 @@ public class ClusterStatsNodesTests extends ESTestCase {
             settings.put(randomFrom(NetworkModule.HTTP_TYPE_KEY, NetworkModule.HTTP_TYPE_DEFAULT_KEY), httpType);
         }
         return new NodeInfo(
-            Version.CURRENT,
-            TransportVersion.CURRENT,
-            Build.CURRENT,
-            new DiscoveryNode(nodeId, buildNewFakeTransportAddress(), null),
+            Build.current().version(),
+            TransportVersion.current(),
+            IndexVersion.current(),
+            Map.of(),
+            Build.current(),
+            DiscoveryNodeUtils.create(nodeId, buildNewFakeTransportAddress()),
             settings.build(),
             null,
             null,

@@ -22,7 +22,6 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
-import java.util.stream.Collectors;
 
 import static org.elasticsearch.ingest.ConfigurationUtils.newConfigurationException;
 import static org.elasticsearch.ingest.ConfigurationUtils.readBooleanProperty;
@@ -126,7 +125,7 @@ public class NetworkDirectionProcessor extends AbstractProcessor {
             }
             networks.addAll(stringList);
         } else {
-            networks = internalNetworks.stream().map(network -> d.renderTemplate(network)).collect(Collectors.toList());
+            networks = internalNetworks.stream().map(network -> d.renderTemplate(network)).toList();
         }
 
         String sourceIpAddrString = d.getFieldValue(sourceIpField, String.class, ignoreMissing);
@@ -154,7 +153,7 @@ public class NetworkDirectionProcessor extends AbstractProcessor {
         return DIRECTION_EXTERNAL;
     }
 
-    private boolean isInternal(List<String> networks, String ip) {
+    private static boolean isInternal(List<String> networks, String ip) {
         for (String network : networks) {
             if (inNetwork(ip, network)) {
                 return true;
@@ -163,7 +162,7 @@ public class NetworkDirectionProcessor extends AbstractProcessor {
         return false;
     }
 
-    private boolean inNetwork(String ip, String network) {
+    private static boolean inNetwork(String ip, String network) {
         InetAddress address = InetAddresses.forString(ip);
         return switch (network) {
             case LOOPBACK_NAMED_NETWORK -> isLoopback(address);

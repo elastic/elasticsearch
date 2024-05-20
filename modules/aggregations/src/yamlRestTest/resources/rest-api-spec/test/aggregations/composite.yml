@@ -66,8 +66,6 @@ setup:
       indices.create:
         index: date_histogram_timezone_test
         body:
-          settings:
-            number_of_replicas: 0
           mappings:
             properties:
               date:
@@ -268,7 +266,7 @@ setup:
   - match: { aggregations.test.buckets.1.doc_count: 2 }
 
 ---
-"Nested Composite aggregation":
+"Composite aggregation with multiple terms sources":
   - do:
       search:
         rest_total_hits_as_int: true
@@ -311,6 +309,104 @@ setup:
   - match: { aggregations.test.buckets.4.key.long: 1000 }
   - match: { aggregations.test.buckets.4.key.kw: "bar" }
   - match: { aggregations.test.buckets.4.doc_count: 1 }
+---
+"Basic numeric histogram":
+  - requires:
+      cluster_features: ["gte_v8.4.0"]
+      reason:  Multivalue Handling changed in 8.4
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test
+        body:
+          aggregations:
+            test:
+              composite:
+                sources: [
+                  "histo": {
+                    "histogram": {
+                      "field": "long",
+                      "interval": 50
+                    }
+                  }
+                ]
+
+  - match: {hits.total: 6}
+  - length: { aggregations.test.buckets: 3 }
+  - match: { aggregations.test.buckets.0.key.histo: 0}
+  - match: { aggregations.test.buckets.0.doc_count: 3}
+  - match: { aggregations.test.buckets.1.key.histo: 100}
+  - match: { aggregations.test.buckets.1.doc_count: 1}
+  - match: { aggregations.test.buckets.2.key.histo: 1000}
+  - match: { aggregations.test.buckets.2.doc_count: 1}
+---
+"Basic numeric histogram with missing bucket":
+  - requires:
+      cluster_features: ["gte_v8.4.0"]
+      reason:  Multivalue Handling changed in 8.4
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test
+        body:
+          aggregations:
+            test:
+              composite:
+                sources: [
+                  "histo": {
+                    "histogram": {
+                      "field": "long",
+                      "interval": 50,
+                      "missing_bucket": true
+                    }
+                  }
+                ]
+
+  - match: {hits.total: 6}
+  - length: { aggregations.test.buckets: 4 }
+  - match: { aggregations.test.buckets.0.key.histo: null}
+  - match: { aggregations.test.buckets.0.doc_count: 3}
+  - match: { aggregations.test.buckets.1.key.histo: 0}
+  - match: { aggregations.test.buckets.1.doc_count: 3}
+  - match: { aggregations.test.buckets.2.key.histo: 100}
+  - match: { aggregations.test.buckets.2.doc_count: 1}
+  - match: { aggregations.test.buckets.3.key.histo: 1000}
+  - match: { aggregations.test.buckets.3.doc_count: 1}
+---
+"Basic numeric histogram with missing bucket order desc":
+  - requires:
+      cluster_features: ["gte_v8.4.0"]
+      reason:  Multivalue Handling changed in 8.4
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test
+        body:
+          aggregations:
+            test:
+              composite:
+                sources: [
+                  "histo": {
+                    "histogram": {
+                      "field": "long",
+                      "interval": 50,
+                      "order": "desc",
+                      "missing_bucket": true
+                    }
+                  }
+                ]
+
+  - match: {hits.total: 6}
+  - length: { aggregations.test.buckets: 4 }
+  - match: { aggregations.test.buckets.3.key.histo: null}
+  - match: { aggregations.test.buckets.3.doc_count: 3}
+  - match: { aggregations.test.buckets.2.key.histo: 0}
+  - match: { aggregations.test.buckets.2.doc_count: 3}
+  - match: { aggregations.test.buckets.1.key.histo: 100}
+  - match: { aggregations.test.buckets.1.doc_count: 1}
+  - match: { aggregations.test.buckets.0.key.histo: 1000}
+  - match: { aggregations.test.buckets.0.doc_count: 1}
+
 
 ---
 "Aggregate After":
@@ -402,8 +498,8 @@ setup:
 
 ---
 "Composite aggregation with format and calendar_interval":
-  - skip:
-      version: " - 7.1.99"
+  - requires:
+      cluster_features: ["gte_v7.2.0"]
       reason:  calendar_interval introduced in 7.2.0
 
   - do:
@@ -463,8 +559,8 @@ setup:
 
 ---
 "Composite aggregation with invalid format":
-  - skip:
-      version: " - 7.13.99"
+  - requires:
+      cluster_features: ["gte_v7.14.0"]
       reason:  After key parse checking added in 7.14
 
   - do:
@@ -491,8 +587,8 @@ setup:
 
 ---
 "Composite aggregation with lossy format":
-  - skip:
-      version: " - 7.13.99"
+  - requires:
+      cluster_features: ["gte_v7.14.0"]
       reason:  After key parse checking added in 7.14
 
   - do:
@@ -518,8 +614,8 @@ setup:
                 ]
 ---
 "Composite aggregation with date_histogram offset":
-  - skip:
-      version: " - 7.5.99"
+  - requires:
+      cluster_features: ["gte_v7.6.0"]
       reason:  offset introduced in 7.6.0
 
   - do:
@@ -599,8 +695,8 @@ setup:
 
 ---
 "Composite aggregation with unmapped field":
-  - skip:
-      version: " - 7.1.99"
+  - requires:
+      cluster_features: ["gte_v7.2.0"]
       reason:  starting in 7.2.0 the composite aggregation handles unmapped fields as keywords
 
   - do:
@@ -680,8 +776,8 @@ setup:
 
 ---
 "Missing source":
-  - skip:
-      version: " - 7.1.99"
+  - requires:
+      cluster_features: ["gte_v7.2.0"]
       reason:  null/empty sources disallowed in 7.2
 
   - do:
@@ -709,8 +805,8 @@ setup:
 
 ---
 "Duplicate sources":
-  - skip:
-      version: " - 7.1.99"
+  - requires:
+      cluster_features: ["gte_v7.2.0"]
       reason:  duplicate names disallowed in 7.2
 
   - do:
@@ -741,8 +837,8 @@ setup:
 
 ---
 "Simple Composite aggregation with GeoTile grid":
-  - skip:
-      version: " - 7.4.99"
+  - requires:
+      cluster_features: ["gte_v7.5.0"]
       reason: geotile_grid is not supported until 7.5.0
   - do:
       search:
@@ -785,8 +881,8 @@ setup:
 
 ---
 "Simple Composite aggregation with geotile grid add aggregate after":
-  - skip:
-      version: " - 7.4.99"
+  - requires:
+      cluster_features: ["gte_v7.5.0"]
       reason: geotile_grid is not supported until 7.5.0
   - do:
       search:
@@ -827,8 +923,8 @@ setup:
 
 ---
 "Mixed ip and unmapped fields":
-  - skip:
-      version: " - 7.5.99"
+  - requires:
+      cluster_features: ["gte_v7.6.0"]
       reason: This was fixed in 7.6.0
   # It is important that the index *without* the ip field be sorted *before*
   # the index *with* the ip field because that has caused bugs in the past.
@@ -873,8 +969,8 @@ setup:
 
 ---
 "date_histogram with time_zone":
-  - skip:
-      version: " - 7.6.0"
+  - requires:
+      cluster_features: ["gte_v7.6.1"]
       reason: Fixed in 7.6.0
   - do:
       index:
@@ -943,8 +1039,8 @@ setup:
 "date_histogram with time_zone epoch format":
 # Same as above, but with a different format.  We had a bug about this specifically:
 # https://github.com/elastic/elasticsearch/issues/68963
-  - skip:
-      version: " - 7.6.0"
+  - requires:
+      cluster_features: ["gte_v7.6.1"]
       reason: Fixed in 7.6.0
   - do:
       index:
@@ -1011,8 +1107,8 @@ setup:
 
 ---
 "date_histogram on date_nanos":
-  - skip:
-      version: " - 7.6.99"
+  - requires:
+      cluster_features: ["gte_v7.7.0"]
       reason: Fixed in 7.7.0
   - do:
       index:
@@ -1102,8 +1198,8 @@ setup:
 
 ---
 "Terms source from part of sorted":
-  - skip:
-      version: " - 7.6.99"
+  - requires:
+      cluster_features: ["gte_v7.7.0"]
       reason:  fixed in 7.7.0.
 
   - do:
@@ -1244,8 +1340,8 @@ setup:
 
 ---
 "Nested then filter then nested then terms":
-  - skip:
-      version: " - 7.12.99"
+  - requires:
+      cluster_features: ["gte_v7.13.0"]
       reason:  Filter support added in 7.13
   - do:
       search:
@@ -1288,8 +1384,8 @@ setup:
 
 ---
 "Filter without nesting":
-  - skip:
-      version: " - 7.12.99"
+  - requires:
+      cluster_features: ["gte_v7.13.0"]
       reason:  Filter added in 7.13
   - do:
       search:
@@ -1342,8 +1438,8 @@ setup:
 
 ---
 "Simple Composite aggregation with missing_order":
-  - skip:
-      version: " - 7.15.99"
+  - requires:
+      cluster_features: ["gte_v7.16.0"]
       reason: "`missing_order` has been introduced in 7.16"
   - do:
       search:
@@ -1369,8 +1465,8 @@ setup:
 
 ---
 "missing_order with missing_bucket = false":
-  - skip:
-      version: " - 7.15.99"
+  - requires:
+      cluster_features: ["gte_v7.16.0"]
       reason: "`missing_order` has been introduced in 7.16"
   - do:
       catch: /missingOrder can only be set if missingBucket is true/
@@ -1393,8 +1489,8 @@ setup:
 
 ---
 "missing_order without missing_bucket":
-  - skip:
-      version: " - 7.15.99"
+  - requires:
+      cluster_features: ["gte_v7.16.0"]
       reason: "`missing_order` has been introduced in 7.16"
   - do:
       catch: /missingOrder can only be set if missingBucket is true/
@@ -1416,8 +1512,8 @@ setup:
 
 ---
 "Nested Composite aggregation with missing_order":
-  - skip:
-      version: " - 7.15.99"
+  - requires:
+      cluster_features: ["gte_v7.16.0"]
       reason: "`missing_order` has been introduced in 7.16"
   - do:
       search:
@@ -1461,8 +1557,8 @@ setup:
 
 ---
 "date_histogram and date_histogram_composite timezone":
-  - skip:
-      version: " - 7.16.99"
+  - requires:
+      cluster_features: ["gte_v7.17.0"]
       reason: bug fixed somewhere between 7.2 and 7.17
   - do:
       search:
@@ -1523,8 +1619,6 @@ setup:
       indices.create:
         index: date_field_type_date
         body:
-          settings:
-            number_of_replicas: 0
           mappings:
             properties:
               date_field:
@@ -1534,8 +1628,6 @@ setup:
       indices.create:
         index: date_field_type_date_nanos
         body:
-          settings:
-            number_of_replicas: 0
           mappings:
             properties:
               date_field:

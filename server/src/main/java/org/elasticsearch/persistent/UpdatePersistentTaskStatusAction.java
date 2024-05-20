@@ -11,10 +11,8 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.action.support.master.MasterNodeOperationRequestBuilder;
 import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
-import org.elasticsearch.client.internal.ElasticsearchClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
@@ -38,7 +36,7 @@ public class UpdatePersistentTaskStatusAction extends ActionType<PersistentTaskR
     public static final String NAME = "cluster:admin/persistent/update_status";
 
     private UpdatePersistentTaskStatusAction() {
-        super(NAME, PersistentTaskResponse::new);
+        super(NAME);
     }
 
     public static class Request extends MasterNodeRequest<Request> {
@@ -47,7 +45,9 @@ public class UpdatePersistentTaskStatusAction extends ActionType<PersistentTaskR
         private long allocationId = -1L;
         private PersistentTaskState state;
 
-        public Request() {}
+        public Request() {
+            super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT);
+        }
 
         public Request(StreamInput in) throws IOException {
             super(in);
@@ -57,6 +57,7 @@ public class UpdatePersistentTaskStatusAction extends ActionType<PersistentTaskR
         }
 
         public Request(String taskId, long allocationId, PersistentTaskState state) {
+            super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT);
             this.taskId = taskId;
             this.allocationId = allocationId;
             this.state = state;
@@ -66,12 +67,24 @@ public class UpdatePersistentTaskStatusAction extends ActionType<PersistentTaskR
             this.taskId = taskId;
         }
 
+        public String getTaskId() {
+            return taskId;
+        }
+
         public void setAllocationId(long allocationId) {
             this.allocationId = allocationId;
         }
 
+        public long getAllocationId() {
+            return allocationId;
+        }
+
         public void setState(PersistentTaskState state) {
             this.state = state;
+        }
+
+        public PersistentTaskState getState() {
+            return state;
         }
 
         @Override
@@ -110,26 +123,6 @@ public class UpdatePersistentTaskStatusAction extends ActionType<PersistentTaskR
         }
     }
 
-    public static class RequestBuilder extends MasterNodeOperationRequestBuilder<
-        UpdatePersistentTaskStatusAction.Request,
-        PersistentTaskResponse,
-        UpdatePersistentTaskStatusAction.RequestBuilder> {
-
-        protected RequestBuilder(ElasticsearchClient client, UpdatePersistentTaskStatusAction action) {
-            super(client, action, new Request());
-        }
-
-        public final RequestBuilder setTaskId(String taskId) {
-            request.setTaskId(taskId);
-            return this;
-        }
-
-        public final RequestBuilder setState(PersistentTaskState state) {
-            request.setState(state);
-            return this;
-        }
-    }
-
     public static class TransportAction extends TransportMasterNodeAction<Request, PersistentTaskResponse> {
 
         private final PersistentTasksClusterService persistentTasksClusterService;
@@ -152,7 +145,7 @@ public class UpdatePersistentTaskStatusAction extends ActionType<PersistentTaskR
                 Request::new,
                 indexNameExpressionResolver,
                 PersistentTaskResponse::new,
-                ThreadPool.Names.MANAGEMENT
+                threadPool.executor(ThreadPool.Names.MANAGEMENT)
             );
             this.persistentTasksClusterService = persistentTasksClusterService;
         }

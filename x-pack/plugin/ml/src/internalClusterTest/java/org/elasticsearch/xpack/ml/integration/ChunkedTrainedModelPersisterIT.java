@@ -7,18 +7,21 @@
 package org.elasticsearch.xpack.ml.integration;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.Version;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.license.License;
 import org.elasticsearch.xpack.core.action.util.PageParams;
+import org.elasticsearch.xpack.core.ml.MlConfigVersion;
 import org.elasticsearch.xpack.core.ml.action.GetTrainedModelsAction;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfig;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsDest;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsSource;
 import org.elasticsearch.xpack.core.ml.dataframe.analyses.Regression;
+import org.elasticsearch.xpack.core.ml.inference.ModelAliasMetadata;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfig;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelDefinition;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelDefinitionTests;
@@ -36,9 +39,9 @@ import org.elasticsearch.xpack.ml.dataframe.process.results.TrainedModelDefiniti
 import org.elasticsearch.xpack.ml.extractor.DocValueField;
 import org.elasticsearch.xpack.ml.extractor.ExtractedField;
 import org.elasticsearch.xpack.ml.extractor.ExtractedFields;
-import org.elasticsearch.xpack.ml.inference.ModelAliasMetadata;
 import org.elasticsearch.xpack.ml.inference.modelsize.ModelSizeInfo;
 import org.elasticsearch.xpack.ml.inference.modelsize.ModelSizeInfoTests;
+import org.elasticsearch.xpack.ml.inference.persistence.TrainedModelCacheMetadataService;
 import org.elasticsearch.xpack.ml.inference.persistence.TrainedModelProvider;
 import org.elasticsearch.xpack.ml.notifications.DataFrameAnalyticsAuditor;
 import org.junit.Before;
@@ -57,14 +60,23 @@ import java.util.stream.Stream;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.startsWith;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.mock;
 
 public class ChunkedTrainedModelPersisterIT extends MlSingleNodeTestCase {
 
     private TrainedModelProvider trainedModelProvider;
 
     @Before
+    @SuppressWarnings("unchecked")
     public void createComponents() throws Exception {
-        trainedModelProvider = new TrainedModelProvider(client(), xContentRegistry());
+        TrainedModelCacheMetadataService modelCacheMetadataService = mock(TrainedModelCacheMetadataService.class);
+        doAnswer(invocationOnMock -> {
+            invocationOnMock.getArgument(0, ActionListener.class).onResponse(AcknowledgedResponse.TRUE);
+            return Void.TYPE;
+        }).when(modelCacheMetadataService).updateCacheVersion(any(ActionListener.class));
+        trainedModelProvider = new TrainedModelProvider(client(), modelCacheMetadataService, xContentRegistry());
         waitForMlTemplates();
     }
 
@@ -113,6 +125,7 @@ public class ChunkedTrainedModelPersisterIT extends MlSingleNodeTestCase {
             Collections.emptySet(),
             ModelAliasMetadata.EMPTY,
             null,
+            Collections.emptySet(),
             getIdsFuture
         );
         Tuple<Long, Map<String, Set<String>>> ids = getIdsFuture.actionGet();
@@ -184,6 +197,7 @@ public class ChunkedTrainedModelPersisterIT extends MlSingleNodeTestCase {
             Collections.emptySet(),
             ModelAliasMetadata.EMPTY,
             null,
+            Collections.emptySet(),
             getIdsFuture
         );
         Tuple<Long, Map<String, Set<String>>> ids = getIdsFuture.actionGet();
@@ -219,7 +233,7 @@ public class ChunkedTrainedModelPersisterIT extends MlSingleNodeTestCase {
             .setDescription("trained model config for test")
             .setModelId(modelId)
             .setModelType(TrainedModelType.TREE_ENSEMBLE)
-            .setVersion(Version.CURRENT)
+            .setVersion(MlConfigVersion.CURRENT)
             .setLicenseLevel(License.OperationMode.PLATINUM.description())
             .setModelSize(bytesUsed)
             .setEstimatedOperations(operations)

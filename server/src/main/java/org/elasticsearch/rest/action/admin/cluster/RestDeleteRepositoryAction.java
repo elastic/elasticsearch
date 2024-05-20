@@ -15,16 +15,21 @@ import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.repositories.RepositoryConflictException;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.Scope;
+import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestToXContentListener;
 
 import java.io.IOException;
 import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.DELETE;
+import static org.elasticsearch.rest.RestUtils.getAckTimeout;
+import static org.elasticsearch.rest.RestUtils.getMasterNodeTimeout;
 
 /**
  * Unregisters a repository
  */
+@ServerlessScope(Scope.INTERNAL)
 public class RestDeleteRepositoryAction extends BaseRestHandler {
 
     @Override
@@ -41,8 +46,8 @@ public class RestDeleteRepositoryAction extends BaseRestHandler {
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         String name = request.param("repository");
         DeleteRepositoryRequest deleteRepositoryRequest = new DeleteRepositoryRequest(name);
-        deleteRepositoryRequest.timeout(request.paramAsTime("timeout", deleteRepositoryRequest.timeout()));
-        deleteRepositoryRequest.masterNodeTimeout(request.paramAsTime("master_timeout", deleteRepositoryRequest.masterNodeTimeout()));
+        deleteRepositoryRequest.ackTimeout(getAckTimeout(request));
+        deleteRepositoryRequest.masterNodeTimeout(getMasterNodeTimeout(request));
         return channel -> client.admin()
             .cluster()
             .deleteRepository(

@@ -54,6 +54,7 @@ public class Reconfigurator {
 
     private volatile boolean autoShrinkVotingConfiguration;
 
+    @SuppressWarnings("this-escape")
     public Reconfigurator(Settings settings, ClusterSettings clusterSettings) {
         autoShrinkVotingConfiguration = CLUSTER_AUTO_SHRINK_VOTING_CONFIGURATION.get(settings);
         clusterSettings.addSettingsUpdateConsumer(CLUSTER_AUTO_SHRINK_VOTING_CONFIGURATION, this::setAutoShrinkVotingConfiguration);
@@ -146,6 +147,11 @@ public class Reconfigurator {
 
     public ClusterState maybeReconfigureAfterNewMasterIsElected(ClusterState clusterState) {
         return clusterState;
+    }
+
+    public void ensureVotingConfigCanBeModified() {
+        // Temporary workaround until #98055 is tackled
+        // no-op
     }
 
     record VotingConfigNode(String id, boolean live, boolean currentMaster, boolean inCurrentConfig)

@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.watcher.actions;
 
-import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.protocol.xpack.watcher.PutWatchResponse;
@@ -21,6 +20,7 @@ import org.elasticsearch.xpack.watcher.test.AbstractWatcherIntegrationTestCase;
 import java.util.Map;
 
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 import static org.elasticsearch.xpack.watcher.actions.ActionBuilders.indexAction;
 import static org.elasticsearch.xpack.watcher.actions.ActionBuilders.loggingAction;
 import static org.elasticsearch.xpack.watcher.client.WatchSourceBuilders.watchBuilder;
@@ -94,29 +94,35 @@ public class TimeThrottleIntegrationTests extends AbstractWatcherIntegrationTest
 
     private void assertLatestHistoryEntry(String id, String expectedValue) throws Exception {
         assertBusy(() -> {
+            ensureGreen(HistoryStoreField.DATA_STREAM);
             refresh(HistoryStoreField.DATA_STREAM + "*");
-
-            SearchResponse searchResponse = client().prepareSearch(HistoryStoreField.DATA_STREAM + "*")
-                .setSize(1)
-                .setSource(new SearchSourceBuilder().query(QueryBuilders.boolQuery().must(termQuery("watch_id", id))))
-                .addSort(SortBuilders.fieldSort("result.execution_time").order(SortOrder.DESC))
-                .get();
-            assertThat(searchResponse.getHits().getHits().length, greaterThan(0));
-            Map<String, Object> map = searchResponse.getHits().getHits()[0].getSourceAsMap();
-            assertNotNull(map);
-            String actionId = ObjectPath.eval("result.actions.0.id", map);
-            assertThat(actionId, is("my-logging-action"));
-            String actionStatus = ObjectPath.eval("result.actions.0.status", map);
-            assertThat(actionStatus, is(expectedValue));
+            assertResponse(
+                prepareSearch(HistoryStoreField.DATA_STREAM + "*").setSize(1)
+                    .setSource(new SearchSourceBuilder().query(QueryBuilders.boolQuery().must(termQuery("watch_id", id))))
+                    .addSort(SortBuilders.fieldSort("result.execution_time").order(SortOrder.DESC)),
+                searchResponse -> {
+                    assertThat(searchResponse.getHits().getHits().length, greaterThan(0));
+                    Map<String, Object> map = searchResponse.getHits().getHits()[0].getSourceAsMap();
+                    assertNotNull(map);
+                    String actionId = ObjectPath.eval("result.actions.0.id", map);
+                    assertThat(actionId, is("my-logging-action"));
+                    String actionStatus = ObjectPath.eval("result.actions.0.status", map);
+                    assertThat(actionStatus, is(expectedValue));
+                }
+            );
         });
     }
 
-    private void assertTotalHistoryEntries(String id, long expectedCount) {
-        SearchResponse searchResponse = client().prepareSearch(HistoryStoreField.DATA_STREAM + "*")
-            .setSize(0)
-            .setSource(new SearchSourceBuilder().query(QueryBuilders.boolQuery().must(termQuery("watch_id", id))))
-            .get();
+    private void assertTotalHistoryEntries(String id, long expectedCount) throws Exception {
+        assertBusy(() -> {
+            // Watcher history is now written asynchronously, so we check this in an assertBusy
+            ensureGreen(HistoryStoreField.DATA_STREAM);
+            assertResponse(
+                prepareSearch(HistoryStoreField.DATA_STREAM + "*").setSize(0)
+                    .setSource(new SearchSourceBuilder().query(QueryBuilders.boolQuery().must(termQuery("watch_id", id)))),
+                searchResponse -> assertThat(searchResponse.getHits().getTotalHits().value, is(oneOf(expectedCount, expectedCount + 1)))
+            );
+        });
 
-        assertThat(searchResponse.getHits().getTotalHits().value, is(oneOf(expectedCount, expectedCount + 1)));
     }
 }

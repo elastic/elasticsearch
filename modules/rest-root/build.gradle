@@ -1,0 +1,28 @@
+import org.elasticsearch.gradle.internal.info.BuildParams
+
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
+ */
+apply plugin: 'elasticsearch.internal-yaml-rest-test'
+apply plugin: 'elasticsearch.yaml-rest-compat-test'
+apply plugin: 'elasticsearch.internal-cluster-test'
+
+esplugin {
+  description 'Adds HEAD and GET / endpoint to Elasticsearch'
+  classname 'org.elasticsearch.rest.root.MainRestPlugin'
+}
+
+restResources {
+  restApi {
+    include '_common','info', 'ping'
+  }
+}
+
+artifacts {
+  restTests(new File(projectDir, "src/yamlRestTest/resources/rest-api-spec/test"))
+}
+

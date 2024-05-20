@@ -32,6 +32,7 @@ import org.elasticsearch.xpack.core.ilm.IndexLifecycleMetadata;
 import org.elasticsearch.xpack.core.ilm.InitializePolicyContextStep;
 import org.elasticsearch.xpack.core.ilm.LifecyclePolicy;
 import org.elasticsearch.xpack.core.ilm.LifecyclePolicyMetadata;
+import org.elasticsearch.xpack.core.ilm.LifecyclePolicySecurityClient;
 import org.elasticsearch.xpack.core.ilm.Phase;
 import org.elasticsearch.xpack.core.ilm.PhaseExecutionInfo;
 import org.elasticsearch.xpack.core.ilm.Step;

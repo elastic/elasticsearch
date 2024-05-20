@@ -1,5 +1,0 @@
-pr: 94136
-summary: Add level parameter validation in REST layer 
-area: Infra/REST API
-type: bug
-issues: [93981]

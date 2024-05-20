@@ -11,6 +11,7 @@ package org.elasticsearch.index.mapper;
 import org.elasticsearch.index.query.SearchExecutionContext;
 
 import java.util.Collections;
+import java.util.List;
 
 // this sucks how much must be overridden just do get a dummy field mapper...
 public class MockFieldMapper extends FieldMapper {
@@ -21,6 +22,10 @@ public class MockFieldMapper extends FieldMapper {
 
     public MockFieldMapper(MappedFieldType fieldType) {
         this(findSimpleName(fieldType.name()), fieldType, MultiFields.empty(), CopyTo.empty());
+    }
+
+    public MockFieldMapper(MappedFieldType fieldType, String simpleName) {
+        super(simpleName, fieldType, MultiFields.empty(), CopyTo.empty(), false, null);
     }
 
     public MockFieldMapper(String fullName, MappedFieldType fieldType, MultiFields multifields, CopyTo copyTo) {
@@ -80,14 +85,14 @@ public class MockFieldMapper extends FieldMapper {
         }
 
         public Builder copyTo(String field) {
-            this.copyTo.add(field);
+            this.copyTo = copyTo.withAddedFields(List.of(field));
             return this;
         }
 
         @Override
         public MockFieldMapper build(MapperBuilderContext context) {
             MultiFields multiFields = multiFieldsBuilder.build(this, context);
-            return new MockFieldMapper(name(), fieldType, multiFields, copyTo.build());
+            return new MockFieldMapper(name(), fieldType, multiFields, copyTo);
         }
     }
 }

@@ -9,18 +9,19 @@
 package org.elasticsearch.search.suggest;
 
 import org.apache.lucene.analysis.core.SimpleAnalyzer;
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.analysis.AnalyzerScope;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.MapperMetrics;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.Mapping;
 import org.elasticsearch.index.mapper.MappingLookup;
@@ -152,7 +153,7 @@ public abstract class AbstractSuggestionBuilderTestCase<SB extends SuggestionBui
     public void testBuild() throws IOException {
         for (int runs = 0; runs < NUMBER_OF_TESTBUILDERS; runs++) {
             SB suggestionBuilder = randomTestBuilder();
-            Settings indexSettings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT).build();
+            Settings indexSettings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()).build();
             IndexSettings idxSettings = IndexSettingsModule.newIndexSettings(
                 new Index(randomAlphaOfLengthBetween(1, 10), "_na_"),
                 indexSettings
@@ -167,7 +168,7 @@ public abstract class AbstractSuggestionBuilderTestCase<SB extends SuggestionBui
                 invocation -> new TestTemplateService.MockTemplateScript.Factory(((Script) invocation.getArguments()[0]).getIdOrCode())
             );
             List<FieldMapper> mappers = Collections.singletonList(new MockFieldMapper(fieldType));
-            MappingLookup lookup = MappingLookup.fromMappers(Mapping.EMPTY, mappers, emptyList(), emptyList());
+            MappingLookup lookup = MappingLookup.fromMappers(Mapping.EMPTY, mappers, emptyList());
             SearchExecutionContext mockContext = new SearchExecutionContext(
                 0,
                 0,
@@ -187,7 +188,8 @@ public abstract class AbstractSuggestionBuilderTestCase<SB extends SuggestionBui
                 null,
                 () -> true,
                 null,
-                emptyMap()
+                emptyMap(),
+                MapperMetrics.NOOP
             );
 
             SuggestionContext suggestionContext = suggestionBuilder.build(mockContext);
@@ -214,7 +216,7 @@ public abstract class AbstractSuggestionBuilderTestCase<SB extends SuggestionBui
     }
 
     public void testBuildWithUnmappedField() {
-        Settings.Builder builder = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT);
+        Settings.Builder builder = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current());
         if (randomBoolean()) {
             builder.put(IndexSettings.ALLOW_UNMAPPED.getKey(), randomBoolean());
         }
@@ -243,7 +245,8 @@ public abstract class AbstractSuggestionBuilderTestCase<SB extends SuggestionBui
             null,
             () -> true,
             null,
-            emptyMap()
+            emptyMap(),
+            MapperMetrics.NOOP
         );
         if (randomBoolean()) {
             mockContext.setAllowUnmappedFields(randomBoolean());

@@ -17,12 +17,12 @@ public class AnalyzeRequestBuilder extends SingleShardOperationRequestBuilder<
     AnalyzeAction.Response,
     AnalyzeRequestBuilder> {
 
-    public AnalyzeRequestBuilder(ElasticsearchClient client, AnalyzeAction action) {
-        super(client, action, new AnalyzeAction.Request());
+    public AnalyzeRequestBuilder(ElasticsearchClient client) {
+        super(client, AnalyzeAction.INSTANCE, new AnalyzeAction.Request());
     }
 
-    public AnalyzeRequestBuilder(ElasticsearchClient client, AnalyzeAction action, String index, String... text) {
-        super(client, action, new AnalyzeAction.Request(index).text(text));
+    public AnalyzeRequestBuilder(ElasticsearchClient client, String index, String... text) {
+        super(client, AnalyzeAction.INSTANCE, new AnalyzeAction.Request(index).text(text));
     }
 
     /**

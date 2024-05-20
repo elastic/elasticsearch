@@ -6,6 +6,8 @@
  */
 package org.elasticsearch.xpack.security.authc;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.cache.Cache;
@@ -18,6 +20,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.http.HttpPreRequest;
 import org.elasticsearch.node.Node;
+import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
@@ -66,6 +69,8 @@ public class AuthenticationService {
         Property.NodeScope
     );
 
+    private static final Logger logger = LogManager.getLogger(AuthenticationService.class);
+
     private final Realms realms;
     private final AuditTrailService auditTrailService;
     private final AuthenticationFailureHandler failureHandler;
@@ -84,7 +89,8 @@ public class AuthenticationService {
         TokenService tokenService,
         ApiKeyService apiKeyService,
         ServiceAccountService serviceAccountService,
-        OperatorPrivilegesService operatorPrivilegesService
+        OperatorPrivilegesService operatorPrivilegesService,
+        MeterRegistry meterRegistry
     ) {
         this.realms = realms;
         this.auditTrailService = auditTrailService;
@@ -105,10 +111,10 @@ public class AuthenticationService {
             operatorPrivilegesService,
             anonymousUser,
             new AuthenticationContextSerializer(),
-            new ServiceAccountAuthenticator(serviceAccountService, nodeName),
-            new OAuth2TokenAuthenticator(tokenService),
-            new ApiKeyAuthenticator(apiKeyService, nodeName),
-            new RealmsAuthenticator(numInvalidation, lastSuccessfulAuthCache)
+            new ServiceAccountAuthenticator(serviceAccountService, nodeName, meterRegistry),
+            new OAuth2TokenAuthenticator(tokenService, meterRegistry),
+            new ApiKeyAuthenticator(apiKeyService, nodeName, meterRegistry),
+            new RealmsAuthenticator(numInvalidation, lastSuccessfulAuthCache, meterRegistry)
         );
     }
 
@@ -211,12 +217,10 @@ public class AuthenticationService {
         final Authenticator.Context context = new Authenticator.Context(
             threadContext,
             new AuditableTransportRequest(auditTrailService.get(), failureHandler, threadContext, action, transportRequest),
-            null,
-            true,
-            realms
+            realms,
+            token
         );
-        context.addAuthenticationToken(token);
-        authenticatorChain.authenticateAsync(context, listener);
+        authenticatorChain.authenticate(context, listener);
     }
 
     public void expire(String principal) {
@@ -243,18 +247,21 @@ public class AuthenticationService {
         }
     }
 
-    Authenticator.Context newContext(final String action, final TransportRequest request, final boolean allowAnonymous) {
+    /**
+     * Returns an authenticator context for verifying only the provided {@param authenticationToken} without trying
+     * to extract any other tokens from the thread context.
+     */
+    Authenticator.Context newContext(final String action, final TransportRequest request, AuthenticationToken authenticationToken) {
         return new Authenticator.Context(
             threadContext,
             new AuditableTransportRequest(auditTrailService.get(), failureHandler, threadContext, action, request),
-            null,
-            allowAnonymous,
-            realms
+            realms,
+            authenticationToken
         );
     }
 
     void authenticate(final Authenticator.Context context, final ActionListener<Authentication> listener) {
-        authenticatorChain.authenticateAsync(context, listener);
+        authenticatorChain.authenticate(context, listener);
     }
 
     // pkg private method for testing
@@ -262,7 +269,7 @@ public class AuthenticationService {
         return numInvalidation.get();
     }
 
-    abstract static class AuditableRequest {
+    public abstract static class AuditableRequest {
 
         final AuditTrail auditTrail;
         final AuthenticationFailureHandler failureHandler;

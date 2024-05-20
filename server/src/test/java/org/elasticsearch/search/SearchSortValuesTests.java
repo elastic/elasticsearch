@@ -90,7 +90,7 @@ public class SearchSortValuesTests extends AbstractXContentSerializingTestCase<S
 
     @Override
     protected Writeable.Reader<SearchSortValues> instanceReader() {
-        return SearchSortValues::new;
+        return SearchSortValues::readFrom;
     }
 
     @Override

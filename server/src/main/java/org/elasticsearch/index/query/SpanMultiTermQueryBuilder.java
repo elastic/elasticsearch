@@ -15,6 +15,7 @@ import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TopTermsRewrite;
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -188,6 +189,6 @@ public class SpanMultiTermQueryBuilder extends AbstractQueryBuilder<SpanMultiTer
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersion.ZERO;
+        return TransportVersions.ZERO;
     }
 }

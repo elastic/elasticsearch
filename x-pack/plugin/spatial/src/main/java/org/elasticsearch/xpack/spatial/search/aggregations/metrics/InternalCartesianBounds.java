@@ -11,13 +11,13 @@ import org.elasticsearch.common.geo.BoundingBox;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.aggregations.AggregationReduceContext;
+import org.elasticsearch.search.aggregations.AggregatorReducer;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.metrics.InternalBounds;
 import org.elasticsearch.xpack.spatial.common.CartesianBoundingBox;
 import org.elasticsearch.xpack.spatial.common.CartesianPoint;
 
 import java.io.IOException;
-import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
@@ -50,26 +50,44 @@ public class InternalCartesianBounds extends InternalBounds<CartesianPoint> impl
         out.writeDouble(right);
     }
 
+    static InternalCartesianBounds empty(String name, Map<String, Object> metadata) {
+        return new InternalCartesianBounds(
+            name,
+            Double.NEGATIVE_INFINITY,
+            Double.POSITIVE_INFINITY,
+            Double.POSITIVE_INFINITY,
+            Double.NEGATIVE_INFINITY,
+            metadata
+        );
+    }
+
     @Override
     public String getWriteableName() {
         return CartesianBoundsAggregationBuilder.NAME;
     }
 
     @Override
-    public InternalAggregation reduce(List<InternalAggregation> aggregations, AggregationReduceContext reduceContext) {
-        double top = Double.NEGATIVE_INFINITY;
-        double bottom = Double.POSITIVE_INFINITY;
-        double left = Double.POSITIVE_INFINITY;
-        double right = Double.NEGATIVE_INFINITY;
+    protected AggregatorReducer getLeaderReducer(AggregationReduceContext reduceContext, int size) {
+        return new AggregatorReducer() {
+            double top = Double.NEGATIVE_INFINITY;
+            double bottom = Double.POSITIVE_INFINITY;
+            double left = Double.POSITIVE_INFINITY;
+            double right = Double.NEGATIVE_INFINITY;
 
-        for (InternalAggregation aggregation : aggregations) {
-            InternalCartesianBounds bounds = (InternalCartesianBounds) aggregation;
-            top = max(top, bounds.top);
-            bottom = min(bottom, bounds.bottom);
-            left = min(left, bounds.left);
-            right = max(right, bounds.right);
-        }
-        return new InternalCartesianBounds(name, top, bottom, left, right, getMetadata());
+            @Override
+            public void accept(InternalAggregation aggregation) {
+                InternalCartesianBounds bounds = (InternalCartesianBounds) aggregation;
+                top = max(top, bounds.top);
+                bottom = min(bottom, bounds.bottom);
+                left = min(left, bounds.left);
+                right = max(right, bounds.right);
+            }
+
+            @Override
+            public InternalAggregation get() {
+                return new InternalCartesianBounds(name, top, bottom, left, right, getMetadata());
+            }
+        };
     }
 
     @Override

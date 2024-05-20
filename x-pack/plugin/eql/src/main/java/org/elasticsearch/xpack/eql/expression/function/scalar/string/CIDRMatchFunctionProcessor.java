@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.eql.expression.function.scalar.string;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.network.CIDRUtils;
-import org.elasticsearch.xpack.eql.EqlIllegalArgumentException;
+import org.elasticsearch.xpack.ql.InvalidArgumentException;
 import org.elasticsearch.xpack.ql.expression.gen.processor.Processor;
 import org.elasticsearch.xpack.ql.util.Check;
 
@@ -32,13 +32,13 @@ public class CIDRMatchFunctionProcessor implements Processor {
 
     public CIDRMatchFunctionProcessor(StreamInput in) throws IOException {
         source = in.readNamedWriteable(Processor.class);
-        addresses = in.readNamedWriteableList(Processor.class);
+        addresses = in.readNamedWriteableCollectionAsList(Processor.class);
     }
 
     @Override
     public final void writeTo(StreamOutput out) throws IOException {
         out.writeNamedWriteable(source);
-        out.writeNamedWriteableList(addresses);
+        out.writeNamedWriteableCollection(addresses);
     }
 
     @Override
@@ -72,7 +72,7 @@ public class CIDRMatchFunctionProcessor implements Processor {
         try {
             return CIDRUtils.isInRange((String) source, arr);
         } catch (IllegalArgumentException e) {
-            throw new EqlIllegalArgumentException(e.getMessage());
+            throw new InvalidArgumentException(e.getMessage());
         }
     }
 

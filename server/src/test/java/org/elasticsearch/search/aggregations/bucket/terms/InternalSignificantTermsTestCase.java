@@ -9,7 +9,6 @@
 package org.elasticsearch.search.aggregations.bucket.terms;
 
 import org.elasticsearch.search.aggregations.InternalAggregations;
-import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation;
 import org.elasticsearch.search.aggregations.bucket.terms.heuristic.ChiSquare;
 import org.elasticsearch.search.aggregations.bucket.terms.heuristic.GND;
 import org.elasticsearch.search.aggregations.bucket.terms.heuristic.JLHScore;
@@ -142,42 +141,6 @@ public abstract class InternalSignificantTermsTestCase extends InternalMultiBuck
             expectedReducedCounts.keySet().retainAll(reducedCounts.keySet());
             assertEquals(expectedReducedCounts, reducedCounts);
         }
-    }
-
-    @Override
-    protected void assertMultiBucketsAggregation(MultiBucketsAggregation expected, MultiBucketsAggregation actual, boolean checkOrder) {
-        super.assertMultiBucketsAggregation(expected, actual, checkOrder);
-
-        assertTrue(expected instanceof InternalSignificantTerms);
-        assertTrue(actual instanceof ParsedSignificantTerms);
-
-        InternalSignificantTerms<?, ?> expectedSigTerms = (InternalSignificantTerms<?, ?>) expected;
-        ParsedSignificantTerms actualSigTerms = (ParsedSignificantTerms) actual;
-        assertEquals(expectedSigTerms.getSubsetSize(), actualSigTerms.getSubsetSize());
-        assertEquals(expectedSigTerms.getSupersetSize(), actualSigTerms.getSupersetSize());
-
-        for (SignificantTerms.Bucket bucket : (SignificantTerms) expected) {
-            String key = bucket.getKeyAsString();
-            assertBucket(expectedSigTerms.getBucketByKey(key), actualSigTerms.getBucketByKey(key), checkOrder);
-        }
-    }
-
-    @Override
-    protected void assertBucket(MultiBucketsAggregation.Bucket expected, MultiBucketsAggregation.Bucket actual, boolean checkOrder) {
-        super.assertBucket(expected, actual, checkOrder);
-
-        assertTrue(expected instanceof InternalSignificantTerms.Bucket);
-        assertTrue(actual instanceof ParsedSignificantTerms.ParsedBucket);
-
-        SignificantTerms.Bucket expectedSigTerm = (SignificantTerms.Bucket) expected;
-        SignificantTerms.Bucket actualSigTerm = (SignificantTerms.Bucket) actual;
-
-        assertEquals(expectedSigTerm.getSignificanceScore(), actualSigTerm.getSignificanceScore(), 0.0);
-        assertEquals(expectedSigTerm.getSubsetDf(), actualSigTerm.getSubsetDf());
-        assertEquals(expectedSigTerm.getDocCount(), actualSigTerm.getSubsetDf());
-        assertEquals(expectedSigTerm.getSupersetDf(), actualSigTerm.getSupersetDf());
-        assertEquals(expectedSigTerm.getSubsetSize(), actualSigTerm.getSubsetSize());
-        assertEquals(expectedSigTerm.getSupersetSize(), actualSigTerm.getSupersetSize());
     }
 
     private static Map<Object, Long> toCounts(

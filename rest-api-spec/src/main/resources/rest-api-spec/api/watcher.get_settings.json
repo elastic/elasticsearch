@@ -1,0 +1,23 @@
+{
+  "watcher.get_settings":{
+    "documentation":{
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/watcher-api-get-settings.html",
+      "description":"Retrieve settings for the watcher system index"
+    },
+    "stability":"stable",
+    "visibility":"public",
+    "headers":{
+      "accept": [ "application/json"],
+      "content_type": ["application/json"]
+    },
+    "url":{
+      "paths":[
+        {
+          "path":"/_watcher/settings",
+          "methods":["GET"]
+        }
+      ]
+    },
+    "params":{}
+  }
+}

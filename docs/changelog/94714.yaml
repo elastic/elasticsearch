@@ -1,5 +1,0 @@
-pr: 94714
-summary: Fix role transformation to include missing properties
-area: Authorization
-type: bug
-issues: []

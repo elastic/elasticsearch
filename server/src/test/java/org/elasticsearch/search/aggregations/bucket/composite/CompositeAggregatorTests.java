@@ -19,13 +19,12 @@ import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.document.StringField;
 import org.apache.lucene.index.DirectoryReader;
-import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.IndexableField;
+import org.apache.lucene.index.LogDocMergePolicy;
 import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.FieldExistsQuery;
-import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.Sort;
@@ -163,7 +162,7 @@ public class CompositeAggregatorTests extends AggregatorTestCase {
     }
 
     @Override
-    protected IndexReader wrapDirectoryReader(DirectoryReader reader) throws IOException {
+    protected DirectoryReader wrapDirectoryReader(DirectoryReader reader) throws IOException {
         if (false == objectMappers().isEmpty()) {
             return wrapInMockESDirectoryReader(reader);
         }
@@ -768,7 +767,10 @@ public class CompositeAggregatorTests extends AggregatorTestCase {
             assertEquals(2L, result.getBuckets().get(1).getDocCount());
             assertEquals("{keyword=d}", result.getBuckets().get(2).getKeyAsString());
             assertEquals(1L, result.getBuckets().get(2).getDocCount());
-        }, new AggTestConfig(new CompositeAggregationBuilder("name", Collections.singletonList(terms)), FIELD_TYPES));
+        },
+            new AggTestConfig(new CompositeAggregationBuilder("name", Collections.singletonList(terms)), FIELD_TYPES)
+                .withLogDocMergePolicy()
+        );
     }
 
     /**
@@ -821,7 +823,7 @@ public class CompositeAggregatorTests extends AggregatorTestCase {
                 builder,
                 new KeywordFieldMapper.KeywordFieldType(nestedPath + "." + leafNameField),
                 new NumberFieldMapper.NumberFieldType("price", NumberFieldMapper.NumberType.LONG)
-            )
+            ).withLogDocMergePolicy()
         );
     }
 
@@ -876,7 +878,7 @@ public class CompositeAggregatorTests extends AggregatorTestCase {
                 builder,
                 new KeywordFieldMapper.KeywordFieldType(nestedPath + "." + leafNameField),
                 new NumberFieldMapper.NumberFieldType("price", NumberFieldMapper.NumberType.LONG)
-            )
+            ).withLogDocMergePolicy()
         );
     }
 
@@ -3097,17 +3099,16 @@ public class CompositeAggregatorTests extends AggregatorTestCase {
 
     public void testParentFactoryValidation() throws Exception {
         try (Directory directory = newDirectory()) {
-            try (RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory)) {
+            try (RandomIndexWriter indexWriter = newRandomIndexWriterWithLogDocMergePolicy(directory)) {
                 Document document = new Document();
                 document.clear();
                 addToDocument(0, document, createDocument("term-field", "a", "long", 100L));
                 indexWriter.addDocument(document);
             }
-            try (IndexReader indexReader = DirectoryReader.open(directory)) {
-                IndexSearcher indexSearcher = newSearcher(indexReader, true, true);
+            try (DirectoryReader indexReader = DirectoryReader.open(directory)) {
                 try (
                     AggregationContext context = createAggregationContext(
-                        indexSearcher,
+                        indexReader,
                         new MatchAllDocsQuery(),
                         keywordField("term-field"),
                         longField("time")
@@ -3653,6 +3654,9 @@ public class CompositeAggregatorTests extends AggregatorTestCase {
             }
             if (forceMerge == false) {
                 config.setMergePolicy(NoMergePolicy.INSTANCE);
+            } else {
+                // Use LogDocMergePolicy to avoid randomization issues with the doc retrieval order.
+                config.setMergePolicy(new LogDocMergePolicy());
             }
             try (RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory, config)) {
                 Document document = new Document();
@@ -3680,11 +3684,10 @@ public class CompositeAggregatorTests extends AggregatorTestCase {
 
                 }
             }
-            try (IndexReader indexReader = DirectoryReader.open(directory)) {
-                IndexSearcher indexSearcher = new IndexSearcher(indexReader);
+            try (DirectoryReader indexReader = DirectoryReader.open(directory)) {
                 for (int i = 0; i < create.size(); i++) {
                     verify.get(i)
-                        .accept(searchAndReduce(indexSearcher, new AggTestConfig(create.get(i).get(), FIELD_TYPES).withQuery(query)));
+                        .accept(searchAndReduce(indexReader, new AggTestConfig(create.get(i).get(), FIELD_TYPES).withQuery(query)));
                 }
             }
         }

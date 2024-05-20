@@ -15,6 +15,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.SizeValue;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -47,7 +48,7 @@ public class ThreadPoolSerializationTests extends ESTestCase {
             TimeValue.timeValueMillis(3000),
             SizeValue.parseSizeValue("10k")
         );
-        output.setTransportVersion(TransportVersion.CURRENT);
+        output.setTransportVersion(TransportVersion.current());
         info.writeTo(output);
 
         StreamInput input = output.bytes().streamInput();
@@ -58,7 +59,7 @@ public class ThreadPoolSerializationTests extends ESTestCase {
 
     public void testThatNegativeQueueSizesCanBeSerialized() throws Exception {
         ThreadPool.Info info = new ThreadPool.Info("foo", threadPoolType, 1, 10, TimeValue.timeValueMillis(3000), null);
-        output.setTransportVersion(TransportVersion.CURRENT);
+        output.setTransportVersion(TransportVersion.current());
         info.writeTo(output);
 
         StreamInput input = output.bytes().streamInput();
@@ -84,7 +85,7 @@ public class ThreadPoolSerializationTests extends ESTestCase {
 
     public void testThatNegativeSettingAllowsToStart() throws InterruptedException {
         Settings settings = Settings.builder().put("node.name", "write").put("thread_pool.write.queue_size", "-1").build();
-        ThreadPool threadPool = new ThreadPool(settings);
+        ThreadPool threadPool = new ThreadPool(settings, MeterRegistry.NOOP);
         assertThat(threadPool.info("write").getQueueSize(), is(nullValue()));
         terminate(threadPool);
     }
@@ -113,7 +114,7 @@ public class ThreadPoolSerializationTests extends ESTestCase {
 
     public void testThatThreadPoolTypeIsSerializedCorrectly() throws IOException {
         ThreadPool.Info info = new ThreadPool.Info("foo", threadPoolType);
-        output.setTransportVersion(TransportVersion.CURRENT);
+        output.setTransportVersion(TransportVersion.current());
         info.writeTo(output);
 
         StreamInput input = output.bytes().streamInput();

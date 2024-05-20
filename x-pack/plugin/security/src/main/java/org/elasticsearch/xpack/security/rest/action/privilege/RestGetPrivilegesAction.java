@@ -15,6 +15,8 @@ import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.rest.Scope;
+import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestBuilderListener;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.security.action.privilege.GetPrivilegesRequestBuilder;
@@ -35,6 +37,7 @@ import static org.elasticsearch.rest.RestRequest.Method.GET;
 /**
  * Rest action to retrieve an application privilege from the security index
  */
+@ServerlessScope(Scope.INTERNAL)
 public class RestGetPrivilegesAction extends SecurityBaseRestHandler {
 
     public RestGetPrivilegesAction(Settings settings, XPackLicenseState licenseState) {

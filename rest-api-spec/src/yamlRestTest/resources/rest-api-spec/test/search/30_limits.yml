@@ -28,8 +28,8 @@ setup:
 ---
 "Request with negative from value url parameter":
 
-  - skip:
-      version: " - 7.99.99"
+  - requires:
+      cluster_features: ["gte_v8.0.0"]
       reason: change was only made in 8.0.0
 
   - do:
@@ -42,8 +42,8 @@ setup:
 ---
 "Request with negative from value in body":
 
-  - skip:
-      version: " - 7.99.99"
+  - requires:
+      cluster_features: ["gte_v8.0.0"]
       reason: change was only made in 8.0.0
 
   - do:

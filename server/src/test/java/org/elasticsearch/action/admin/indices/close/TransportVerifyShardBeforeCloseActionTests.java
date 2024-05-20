@@ -154,11 +154,11 @@ public class TransportVerifyShardBeforeCloseActionTests extends ESTestCase {
             phase1,
             taskId
         );
-        final PlainActionFuture<Void> res = PlainActionFuture.newFuture();
-        action.shardOperationOnPrimary(request, indexShard, ActionListener.wrap(r -> {
+        final PlainActionFuture<Void> res = new PlainActionFuture<>();
+        action.shardOperationOnPrimary(request, indexShard, res.delegateFailureAndWrap((l, r) -> {
             assertNotNull(r);
-            res.onResponse(null);
-        }, res::onFailure));
+            l.onResponse(null);
+        }));
         try {
             res.get();
         } catch (InterruptedException e) {

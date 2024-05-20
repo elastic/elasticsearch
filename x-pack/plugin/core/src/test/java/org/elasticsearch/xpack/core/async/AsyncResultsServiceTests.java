@@ -8,7 +8,7 @@ package org.elasticsearch.xpack.core.async;
 
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.index.IndexResponse;
+import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.update.UpdateResponse;
@@ -90,12 +90,13 @@ public class AsyncResultsServiceTests extends ESSingleNodeTestCase {
             return this.expirationTimeMillis;
         }
 
-        public synchronized void addListener(ActionListener<TestAsyncResponse> listener, TimeValue timeout) {
+        public synchronized boolean addListener(ActionListener<TestAsyncResponse> listener, TimeValue timeout) {
             if (timeout.getMillis() < 0) {
                 listener.onResponse(new TestAsyncResponse(null, expirationTimeMillis));
             } else {
                 assertThat(listeners.put(listener, timeout), nullValue());
             }
+            return true;
         }
 
         private synchronized void onResponse(String response) {
@@ -185,7 +186,7 @@ public class AsyncResultsServiceTests extends ESSingleNodeTestCase {
 
             if (updateInitialResultsInStore) {
                 // we need to store initial result
-                PlainActionFuture<IndexResponse> future = new PlainActionFuture<>();
+                PlainActionFuture<DocWriteResponse> future = new PlainActionFuture<>();
                 indexService.createResponse(
                     task.getExecutionId().getDocId(),
                     task.getOriginHeaders(),
@@ -233,7 +234,7 @@ public class AsyncResultsServiceTests extends ESSingleNodeTestCase {
 
             if (updateInitialResultsInStore) {
                 // we need to store initial result
-                PlainActionFuture<IndexResponse> future = new PlainActionFuture<>();
+                PlainActionFuture<DocWriteResponse> future = new PlainActionFuture<>();
                 indexService.createResponse(
                     task.getExecutionId().getDocId(),
                     task.getOriginHeaders(),
@@ -275,7 +276,7 @@ public class AsyncResultsServiceTests extends ESSingleNodeTestCase {
 
             if (updateInitialResultsInStore) {
                 // we need to store initial result
-                PlainActionFuture<IndexResponse> futureCreate = new PlainActionFuture<>();
+                PlainActionFuture<DocWriteResponse> futureCreate = new PlainActionFuture<>();
                 indexService.createResponse(
                     task.getExecutionId().getDocId(),
                     task.getOriginHeaders(),
@@ -293,7 +294,7 @@ public class AsyncResultsServiceTests extends ESSingleNodeTestCase {
                 );
                 futureUpdate.actionGet(TimeValue.timeValueSeconds(10));
             } else {
-                PlainActionFuture<IndexResponse> futureCreate = new PlainActionFuture<>();
+                PlainActionFuture<DocWriteResponse> futureCreate = new PlainActionFuture<>();
                 indexService.createResponse(
                     task.getExecutionId().getDocId(),
                     task.getOriginHeaders(),

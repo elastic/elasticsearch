@@ -28,6 +28,7 @@ import org.elasticsearch.index.mapper.ProvidedIdFieldMapper;
 import org.elasticsearch.index.mapper.RoutingFieldMapper;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.mapper.TimeSeriesIdFieldMapper;
+import org.elasticsearch.index.mapper.TimeSeriesRoutingHashFieldMapper;
 import org.elasticsearch.index.mapper.TsidExtractingIdFieldMapper;
 
 import java.io.IOException;
@@ -93,6 +94,12 @@ public enum IndexMode {
         }
 
         @Override
+        public MetadataFieldMapper timeSeriesRoutingHashFieldMapper() {
+            // non time-series indices must not have a TimeSeriesRoutingIdFieldMapper
+            return null;
+        }
+
+        @Override
         public IdFieldMapper idFieldMapperWithoutFieldData() {
             return ProvidedIdFieldMapper.NO_FIELD_DATA;
         }
@@ -114,6 +121,11 @@ public enum IndexMode {
 
         @Override
         public void validateSourceFieldMapper(SourceFieldMapper sourceFieldMapper) {}
+
+        @Override
+        public boolean isSyntheticSourceEnabled() {
+            return false;
+        }
     },
     TIME_SERIES("time_series") {
         @Override
@@ -180,6 +192,11 @@ public enum IndexMode {
             return TimeSeriesIdFieldMapper.INSTANCE;
         }
 
+        @Override
+        public MetadataFieldMapper timeSeriesRoutingHashFieldMapper() {
+            return TimeSeriesRoutingHashFieldMapper.INSTANCE;
+        }
+
         public IdFieldMapper idFieldMapperWithoutFieldData() {
             return TsidExtractingIdFieldMapper.INSTANCE;
         }
@@ -207,6 +224,11 @@ public enum IndexMode {
                 throw new IllegalArgumentException("time series indices only support synthetic source");
             }
         }
+
+        @Override
+        public boolean isSyntheticSourceEnabled() {
+            return true;
+        }
     };
 
     protected static String tsdbMode() {
@@ -225,6 +247,7 @@ public enum IndexMode {
                     .startObject("properties")
                     .startObject(DataStreamTimestampFieldMapper.DEFAULT_PATH)
                     .field("type", DateFieldMapper.CONTENT_TYPE)
+                    .field("ignore_malformed", "false")
                     .endObject()
                     .endObject()
                     .endObject())
@@ -299,7 +322,7 @@ public enum IndexMode {
 
     /**
      * @return the time range based on the provided index metadata and index mode implementation.
-     *         Otherwise <code>null</code> is returned.
+     * Otherwise <code>null</code> is returned.
      */
     @Nullable
     public abstract TimestampBounds getTimestampBound(IndexMetadata indexMetadata);
@@ -310,6 +333,13 @@ public enum IndexMode {
      * field mappers for the index.
      */
     public abstract MetadataFieldMapper timeSeriesIdFieldMapper();
+
+    /**
+     * Return an instance of the {@link TimeSeriesRoutingHashFieldMapper} that generates
+     * the _ts_routing_hash field. The field mapper will be added to the list of the metadata
+     * field mappers for the index.
+     */
+    public abstract MetadataFieldMapper timeSeriesRoutingHashFieldMapper();
 
     /**
      * How {@code time_series_dimension} fields are handled by indices in this mode.
@@ -325,6 +355,11 @@ public enum IndexMode {
      * Validates the source field mapper
      */
     public abstract void validateSourceFieldMapper(SourceFieldMapper sourceFieldMapper);
+
+    /**
+     * @return whether synthetic source is the only allowed source mode.
+     */
+    public abstract boolean isSyntheticSourceEnabled();
 
     /**
      * Parse a string into an {@link IndexMode}.

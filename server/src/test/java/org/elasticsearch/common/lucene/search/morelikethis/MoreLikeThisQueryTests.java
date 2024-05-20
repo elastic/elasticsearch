@@ -42,7 +42,7 @@ public class MoreLikeThisQueryTests extends ESTestCase {
         indexWriter.addDocument(document);
 
         IndexReader reader = DirectoryReader.open(indexWriter);
-        IndexSearcher searcher = new IndexSearcher(reader);
+        IndexSearcher searcher = newSearcher(reader);
 
         MoreLikeThisQuery mltQuery = new MoreLikeThisQuery("lucene", new String[] { "text" }, Lucene.STANDARD_ANALYZER);
         mltQuery.setLikeText("lucene");

@@ -9,6 +9,7 @@
 package org.elasticsearch.search.aggregations.metrics;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -20,7 +21,6 @@ import org.elasticsearch.script.FieldScript;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.search.aggregations.AbstractAggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
-import org.elasticsearch.search.aggregations.AggregationInitializationException;
 import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
@@ -129,10 +129,8 @@ public class TopHitsAggregationBuilder extends AbstractAggregationBuilder<TopHit
         trackScores = in.readBoolean();
         version = in.readBoolean();
         seqNoAndPrimaryTerm = in.readBoolean();
-        if (in.getTransportVersion().onOrAfter(TransportVersion.V_7_10_0)) {
-            if (in.readBoolean()) {
-                fetchFields = in.readList(FieldAndFormat::new);
-            }
+        if (in.readBoolean()) {
+            fetchFields = in.readCollectionAsList(FieldAndFormat::new);
         }
     }
 
@@ -143,7 +141,7 @@ public class TopHitsAggregationBuilder extends AbstractAggregationBuilder<TopHit
         boolean hasFieldDataFields = docValueFields != null;
         out.writeBoolean(hasFieldDataFields);
         if (hasFieldDataFields) {
-            out.writeList(docValueFields);
+            out.writeCollection(docValueFields);
         }
         out.writeOptionalWriteable(storedFieldsContext);
         out.writeVInt(from);
@@ -157,16 +155,14 @@ public class TopHitsAggregationBuilder extends AbstractAggregationBuilder<TopHit
         boolean hasSorts = sorts != null;
         out.writeBoolean(hasSorts);
         if (hasSorts) {
-            out.writeNamedWriteableList(sorts);
+            out.writeNamedWriteableCollection(sorts);
         }
         out.writeBoolean(trackScores);
         out.writeBoolean(version);
         out.writeBoolean(seqNoAndPrimaryTerm);
-        if (out.getTransportVersion().onOrAfter(TransportVersion.V_7_10_0)) {
-            out.writeBoolean(fetchFields != null);
-            if (fetchFields != null) {
-                out.writeList(fetchFields);
-            }
+        out.writeBoolean(fetchFields != null);
+        if (fetchFields != null) {
+            out.writeCollection(fetchFields);
         }
     }
 
@@ -271,17 +267,8 @@ public class TopHitsAggregationBuilder extends AbstractAggregationBuilder<TopHit
         if (this.sorts == null) {
             this.sorts = new ArrayList<>();
         }
-        for (SortBuilder<?> sort : sorts) {
-            this.sorts.add(sort);
-        }
+        this.sorts.addAll(sorts);
         return this;
-    }
-
-    /**
-     * Gets the bytes representing the sort builders for this request.
-     */
-    public List<SortBuilder<?>> sorts() {
-        return sorts;
     }
 
     /**
@@ -292,23 +279,6 @@ public class TopHitsAggregationBuilder extends AbstractAggregationBuilder<TopHit
             throw new IllegalArgumentException("[highlightBuilder] must not be null: [" + name + "]");
         }
         this.highlightBuilder = highlightBuilder;
-        return this;
-    }
-
-    /**
-     * Gets the highlighter builder for this request.
-     */
-    public HighlightBuilder highlighter() {
-        return highlightBuilder;
-    }
-
-    /**
-     * Indicates whether the response should contain the stored _source for
-     * every hit
-     */
-    public TopHitsAggregationBuilder fetchSource(boolean fetch) {
-        FetchSourceContext fetchSourceContext = this.fetchSourceContext != null ? this.fetchSourceContext : FetchSourceContext.FETCH_SOURCE;
-        this.fetchSourceContext = FetchSourceContext.of(fetch, fetchSourceContext.includes(), fetchSourceContext.excludes());
         return this;
     }
 
@@ -362,14 +332,6 @@ public class TopHitsAggregationBuilder extends AbstractAggregationBuilder<TopHit
     }
 
     /**
-     * Gets the {@link FetchSourceContext} which defines how the _source
-     * should be fetched.
-     */
-    public FetchSourceContext fetchSource() {
-        return fetchSourceContext;
-    }
-
-    /**
      * Adds a stored field to load and return (note, it must be stored) as part of the search request.
      * To disable the stored fields entirely (source and metadata fields) use {@code storedField("_none_")}.
      */
@@ -391,13 +353,6 @@ public class TopHitsAggregationBuilder extends AbstractAggregationBuilder<TopHit
             storedFieldsContext.addFieldNames(fields);
         }
         return this;
-    }
-
-    /**
-     * Gets the stored fields context
-     */
-    public StoredFieldsContext storedFields() {
-        return storedFieldsContext;
     }
 
     /**
@@ -424,13 +379,6 @@ public class TopHitsAggregationBuilder extends AbstractAggregationBuilder<TopHit
     }
 
     /**
-     * Gets the field-data fields.
-     */
-    public List<FieldAndFormat> docValueFields() {
-        return docValueFields;
-    }
-
-    /**
      * Adds a field to load and return as part of the search request.
      */
     public TopHitsAggregationBuilder fetchField(FieldAndFormat fieldAndFormat) {
@@ -449,13 +397,6 @@ public class TopHitsAggregationBuilder extends AbstractAggregationBuilder<TopHit
      */
     public TopHitsAggregationBuilder fetchField(String field) {
         return fetchField(new FieldAndFormat(field, null, null));
-    }
-
-    /**
-     * Gets the fields to load and return as part of the search request.
-     */
-    public List<FieldAndFormat> fetchFields() {
-        return fetchFields;
     }
 
     /**
@@ -511,27 +452,12 @@ public class TopHitsAggregationBuilder extends AbstractAggregationBuilder<TopHit
     }
 
     /**
-     * Gets the script fields.
-     */
-    public Set<ScriptField> scriptFields() {
-        return scriptFields;
-    }
-
-    /**
      * Should each {@link org.elasticsearch.search.SearchHit} be returned
      * with an explanation of the hit (ranking).
      */
     public TopHitsAggregationBuilder explain(boolean explain) {
         this.explain = explain;
         return this;
-    }
-
-    /**
-     * Indicates whether each search hit will be returned with an
-     * explanation of the hit (ranking)
-     */
-    public boolean explain() {
-        return explain;
     }
 
     /**
@@ -544,28 +470,12 @@ public class TopHitsAggregationBuilder extends AbstractAggregationBuilder<TopHit
     }
 
     /**
-     * Indicates whether the document's version will be included in the
-     * search hits.
-     */
-    public boolean version() {
-        return version;
-    }
-
-    /**
      * Should each {@link org.elasticsearch.search.SearchHit} be returned with the
      * sequence number and primary term of the last modification of the document.
      */
     public TopHitsAggregationBuilder seqNoAndPrimaryTerm(Boolean seqNoAndPrimaryTerm) {
         this.seqNoAndPrimaryTerm = seqNoAndPrimaryTerm;
         return this;
-    }
-
-    /**
-     * Indicates whether {@link org.elasticsearch.search.SearchHit}s should be returned with the
-     * sequence number and primary term of the last modification of the document.
-     */
-    public Boolean seqNoAndPrimaryTerm() {
-        return seqNoAndPrimaryTerm;
     }
 
     /**
@@ -577,18 +487,9 @@ public class TopHitsAggregationBuilder extends AbstractAggregationBuilder<TopHit
         return this;
     }
 
-    /**
-     * Indicates whether scores will be tracked for this request.
-     */
-    public boolean trackScores() {
-        return trackScores;
-    }
-
     @Override
     public TopHitsAggregationBuilder subAggregations(Builder subFactories) {
-        throw new AggregationInitializationException(
-            "Aggregator [" + name + "] of type [" + getType() + "] cannot accept sub-aggregations"
-        );
+        throw new IllegalArgumentException("Aggregator [" + name + "] of type [" + getType() + "] cannot accept sub-aggregations");
     }
 
     @Override
@@ -918,6 +819,6 @@ public class TopHitsAggregationBuilder extends AbstractAggregationBuilder<TopHit
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersion.ZERO;
+        return TransportVersions.ZERO;
     }
 }

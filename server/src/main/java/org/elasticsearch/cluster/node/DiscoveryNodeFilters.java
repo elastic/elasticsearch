@@ -76,7 +76,7 @@ public class DiscoveryNodeFilters {
 
     private static boolean matchByIP(String[] values, @Nullable String hostIp, @Nullable String publishIp) {
         for (String ipOrHost : values) {
-            String value = InetAddresses.isInetAddress(ipOrHost) ? NetworkAddress.format(InetAddresses.forString(ipOrHost)) : ipOrHost;
+            String value = InetAddresses.getIpOrHost(ipOrHost);
             boolean matchIp = Regex.simpleMatch(value, hostIp) || Regex.simpleMatch(value, publishIp);
             if (matchIp) {
                 return matchIp;

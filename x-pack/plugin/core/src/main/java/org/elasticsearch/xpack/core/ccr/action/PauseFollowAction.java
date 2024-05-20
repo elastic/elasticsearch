@@ -23,7 +23,7 @@ public class PauseFollowAction extends ActionType<AcknowledgedResponse> {
     public static final String NAME = "cluster:admin/xpack/ccr/pause_follow";
 
     private PauseFollowAction() {
-        super(NAME, AcknowledgedResponse::readFrom);
+        super(NAME);
     }
 
     public static class Request extends MasterNodeRequest<Request> {
@@ -31,6 +31,7 @@ public class PauseFollowAction extends ActionType<AcknowledgedResponse> {
         private final String followIndex;
 
         public Request(String followIndex) {
+            super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT);
             this.followIndex = Objects.requireNonNull(followIndex, "followIndex");
         }
 

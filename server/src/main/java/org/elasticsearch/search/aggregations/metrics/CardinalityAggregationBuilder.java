@@ -9,6 +9,7 @@
 package org.elasticsearch.search.aggregations.metrics;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
@@ -85,7 +86,7 @@ public final class CardinalityAggregationBuilder extends ValuesSourceAggregation
         if (in.readBoolean()) {
             precisionThreshold = in.readLong();
         }
-        if (in.getTransportVersion().onOrAfter(TransportVersion.V_8_4_0)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_4_0)) {
             executionHint = in.readOptionalString();
         }
     }
@@ -102,7 +103,7 @@ public final class CardinalityAggregationBuilder extends ValuesSourceAggregation
         if (hasPrecisionThreshold) {
             out.writeLong(precisionThreshold);
         }
-        if (out.getTransportVersion().onOrAfter(TransportVersion.V_8_4_0)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_4_0)) {
             out.writeOptionalString(executionHint);
         }
     }
@@ -129,25 +130,6 @@ public final class CardinalityAggregationBuilder extends ValuesSourceAggregation
         }
         this.precisionThreshold = precisionThreshold;
         return this;
-    }
-
-    /**
-     * Get the precision threshold. Higher values improve accuracy but also
-     * increase memory usage. Will return <code>null</code> if the
-     * precisionThreshold has not been set yet.
-     */
-    public Long precisionThreshold() {
-        return precisionThreshold;
-    }
-
-    /**
-     * Get the execution hint.  This is an optional user specified hint that
-     * will be used to decide on the specific collection algorithm.  Since this
-     * is a hint, the implementation may choose to ignore it (typically when
-     * the specified method is not applicable to the given field type)
-     */
-    public String ExecutionHint() {
-        return executionHint;
     }
 
     /**
@@ -213,12 +195,7 @@ public final class CardinalityAggregationBuilder extends ValuesSourceAggregation
     }
 
     @Override
-    protected ValuesSourceRegistry.RegistryKey<?> getRegistryKey() {
-        return REGISTRY_KEY;
-    }
-
-    @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersion.ZERO;
+        return TransportVersions.ZERO;
     }
 }

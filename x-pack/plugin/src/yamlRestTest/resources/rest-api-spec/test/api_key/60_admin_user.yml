@@ -1,0 +1,525 @@
+####
+# These tests verify API key functionality without using any create user/role features
+####
+---
+setup:
+  - skip:
+      features: headers
+
+  - do:
+      cluster.health:
+          wait_for_status: yellow
+
+  # Create app privileges
+  - do:
+      security.put_privileges:
+        body: >
+          {
+            "myapp": {
+              "read": {
+                "application": "myapp",
+                "name": "read",
+                "actions": [ "data:read/*" ]
+              },
+              "write": {
+                "application": "myapp",
+                "name": "write",
+                "actions": [ "data:write/*" ]
+              }
+            }
+          }
+
+---
+teardown:
+  - do:
+      security.delete_privileges:
+        application: myapp
+        name: "read,write"
+        ignore: 404
+
+---
+"Test create api key":
+
+  - do:
+      security.create_api_key:
+        body:  >
+            {
+              "name": "api-key-1",
+              "expiration": "1d",
+              "role_descriptors": {
+                "role-a": {
+                  "cluster": ["all"],
+                  "index": [
+                    {
+                      "names": ["index-a"],
+                      "privileges": ["read"]
+                    }
+                  ]
+                },
+                "role-b": {
+                  "cluster": ["manage"],
+                  "index": [
+                    {
+                      "names": ["index-b"],
+                      "privileges": ["all"]
+                    }
+                  ]
+                }
+              }
+            }
+  - match: { name: "api-key-1" }
+  - is_true: id
+  - is_true: api_key
+  - is_true: expiration
+  - set:
+      id: api_key_id
+      encoded: credentials
+
+  - do:
+      security.authenticate: {}
+  - set:
+      username: owner_name
+
+  - do:
+      headers:
+        Authorization: ApiKey ${credentials}
+      security.authenticate: {}
+
+  - match: { username: "${owner_name}" }
+  - length: { roles: 0 }
+  - match: { authentication_realm.name: "_es_api_key" }
+  - match: { authentication_realm.type: "_es_api_key" }
+  - match: { api_key.id: "${api_key_id}" }
+  - match: { api_key.name: "api-key-1" }
+
+  - do:
+      security.clear_api_key_cache:
+        ids: "${api_key_id}"
+
+  - match: { _nodes.failed: 0 }
+
+---
+"Test get api key (with role descriptors + metadata)":
+
+  - do:
+      security.create_api_key:
+        body:  >
+            {
+              "name": "api-key-2",
+              "expiration": "1d",
+              "role_descriptors": {
+                "role-a": {
+                  "cluster": ["all"],
+                  "index": [
+                    {
+                      "names": ["index-a"],
+                      "privileges": ["read"]
+                    }
+                  ]
+                }
+              },
+              "metadata": {
+                "string": "bean",
+                "number": 5,
+                "boolean": true
+              }
+            }
+  - match: { name: "api-key-2" }
+  - is_true: id
+  - is_true: api_key
+  - is_true: expiration
+  - set:
+      id: api_key_id
+      name: api_key_name
+      encoded: credentials
+
+  - do:
+      security.authenticate: {}
+  - set:
+      username: owner_name
+
+  - do:
+      security.get_api_key:
+        id: "$api_key_id"
+  - match: { "api_keys.0.id": "$api_key_id" }
+  - match: { "api_keys.0.name": "$api_key_name" }
+  - match: { "api_keys.0.username": "$owner_name" }
+  - match: { "api_keys.0.invalidated": false }
+  - is_true: "api_keys.0.creation"
+  - match: { "api_keys.0.metadata.string": "bean" }
+  - match: { "api_keys.0.metadata.number": 5 }
+  - match: { "api_keys.0.metadata.boolean": true }
+  - match: { "api_keys.0.role_descriptors": {
+      "role-a": {
+        "cluster": [
+          "all"
+        ],
+        "indices": [
+          {
+            "names": [
+              "index-a"
+            ],
+            "privileges": [
+              "read"
+            ],
+            "allow_restricted_indices": false
+          }
+        ],
+        "applications": [ ],
+        "run_as": [ ],
+        "metadata": { },
+        "transient_metadata": {
+          "enabled": true
+        }
+      }
+    }
+  }
+  - is_false: api_keys.0.access
+  - is_false: api_keys.0.limited_by
+
+  - do:
+      security.get_api_key:
+        owner: true
+  - length: { "api_keys" : 1 }
+  - match: { "api_keys.0.username": "$owner_name" }
+  - match: { "api_keys.0.name": "$api_key_name" }
+  - match: { "api_keys.0.id": "$api_key_id" }
+  - match: { "api_keys.0.invalidated": false }
+  - is_true: "api_keys.0.creation"
+
+  # Get using API Key as credential
+  - do:
+      headers:
+        Authorization: ApiKey ${credentials}
+      security.get_api_key:
+        id: "$api_key_id"
+  - length: { "api_keys" : 1 }
+  - match: { "api_keys.0.id": "$api_key_id" }
+  - match: { "api_keys.0.name": "$api_key_name" }
+  - match: { "api_keys.0.username": "$owner_name" }
+
+---
+"Test invalidate api keys":
+
+  - do:
+      security.create_api_key:
+        body:  >
+            {
+              "name": "api-key-delete-1",
+              "expiration": "1d",
+              "role_descriptors": { }
+            }
+  - match: { name: "api-key-delete-1" }
+  - set: { id: api_key_id_1 }
+
+  - do:
+      security.create_api_key:
+        body:  >
+            {
+              "name": "api-key-delete-2",
+              "expiration": "1d",
+              "role_descriptors": { }
+            }
+  - match: { name: "api-key-delete-2" }
+  - set: { id: api_key_id_2 }
+
+  - do:
+      security.invalidate_api_key:
+        body:  >
+          {
+            "ids": [ "${api_key_id_1}", "${api_key_id_2}" ]
+          }
+  - length: { "invalidated_api_keys" : 2 }
+  - match: { "invalidated_api_keys.0" : "/^(${api_key_id_1}|${api_key_id_2})$/" }
+  - match: { "invalidated_api_keys.1" : "/^(${api_key_id_1}|${api_key_id_2})$/" }
+  - length: { "previously_invalidated_api_keys" : 0 }
+  - match: { "error_count" : 0 }
+
+---
+"Test has privileges API for api key":
+  - do:
+      security.create_api_key:
+        body:  >
+            {
+              "name": "my-api-key",
+              "expiration": "1d",
+              "role_descriptors": {
+                "role-a": {
+                  "cluster": ["all"],
+                  "index": [
+                    {
+                      "names": ["index-a"],
+                      "privileges": ["read"]
+                    }
+                  ],
+                  "applications": [
+                    {
+                      "application": "myapp",
+                      "privileges": ["read"],
+                      "resources": ["*"]
+                    }
+                  ]
+                },
+                "role-b": {
+                  "cluster": ["manage"],
+                  "index": [
+                    {
+                      "names": ["index-b"],
+                      "privileges": ["all"]
+                    }
+                  ]
+                }
+              }
+            }
+  - set:
+      id: api_key_id
+      encoded: credentials
+
+  - do:
+      security.authenticate: {}
+  - set:
+      username: owner_name
+
+  - do:
+      headers:
+        Authorization: ApiKey ${credentials}
+      security.has_privileges:
+        user: null
+        body: >
+          {
+            "index": [
+              {
+                "names" :[ "*", "index-a" ],
+                "privileges" : [ "read", "index", "write" ]
+              },
+              {
+                "names" :[ "index-a", "index-b" ],
+                "privileges" : [ "read", "write" ]
+              }
+            ],
+            "application": [
+              {
+                "application" : "myapp",
+                "resources" : [ "*", "some-other-res" ],
+                "privileges" : [ "data:read/me", "data:write/me" ]
+              }
+            ]
+          }
+  - match: { "username" : "$owner_name" }
+  - match: { "has_all_requested" : false }
+  - match: { "index" : {
+      "*" : {
+        "read": false,
+        "index": false,
+        "write": false
+      },
+      "index-a" : {
+        "read": true,
+        "index": false,
+        "write": false
+      },
+      "index-b" : {
+        "read": true,
+        "write": true
+      }
+    } }
+  - match: { "application" : {
+      "myapp" : {
+        "*" : {
+          "data:read/me" : true,
+          "data:write/me" : false
+        },
+        "some-other-res" : {
+          "data:read/me" : true,
+          "data:write/me" : false
+        }
+      }
+    } }
+
+---
+"Test update api keys":
+
+  - do:
+      security.create_api_key:
+        body:  >
+          {
+            "name": "api-key-update",
+            "expiration": "1d",
+            "role_descriptors": {
+              "access": { "cluster": ["monitor"] }
+            },
+            "metadata": {
+              "step": 1
+            }
+          }
+  - match: { name: "api-key-update" }
+  - set:
+      id: api_key_id
+      encoded: credentials
+
+  - do:
+      security.authenticate: {}
+  - set:
+      username: owner_name
+
+  - do:
+      security.get_api_key:
+        id: "$api_key_id"
+  - length: { "api_keys" : 1 }
+  - match: { "api_keys.0.id": "$api_key_id" }
+  - match: { "api_keys.0.name": "api-key-update" }
+  - match: { "api_keys.0.username": "$owner_name" }
+  - match: { "api_keys.0.metadata.step": 1 }
+
+  # Check API key does not have manage access
+  - do:
+      headers:
+        Authorization: ApiKey ${credentials}
+      security.has_privileges:
+        user: null
+        body: >
+          {
+            "cluster": ["manage"]
+          }
+  - match: { "has_all_requested": false }
+
+  # Update API key privileges + metadata
+  - do:
+      security.update_api_key:
+        id: "$api_key_id"
+        body: >
+          {
+            "role_descriptors": {
+              "access": { "cluster": ["manage"] }
+            },
+            "metadata": {
+              "step": 2
+            }
+          }
+  - match: { updated: true }
+
+  # Check metadata changed
+  - do:
+      security.get_api_key:
+        id: "$api_key_id"
+  - length: { "api_keys" : 1 }
+  - match: { "api_keys.0.id": "$api_key_id" }
+  - match: { "api_keys.0.name": "api-key-update" }
+  - match: { "api_keys.0.username": "$owner_name" }
+  - match: { "api_keys.0.metadata.step": 2 }
+
+  # Check API key does have manage access now
+  - do:
+      headers:
+        Authorization: ApiKey ${credentials}
+      security.has_privileges:
+        user: null
+        body: >
+          {
+            "cluster": ["manage"]
+          }
+  - match: { "has_all_requested": true }
+
+---
+"Test query api keys":
+
+  - do:
+      security.create_api_key:
+        body:  >
+          {
+            "name": "query-key-1",
+            "expiration": "1d",
+            "role_descriptors": {},
+            "metadata": {
+              "search": "this"
+            }
+          }
+  - match: { name: "query-key-1" }
+  - is_true: id
+  - is_true: api_key
+  - is_true: expiration
+  - set:
+      id: api_key_id_1
+
+  - do:
+      security.create_api_key:
+        body:  >
+          {
+            "name": "query-key-2",
+            "expiration": "2d",
+            "role_descriptors": {
+              "role-a": { "cluster": [ "monitor"] }
+            },
+            "metadata": {
+              "search": false
+            }
+          }
+  - match: { name: "query-key-2" }
+  - is_true: id
+  - is_true: api_key
+  - is_true: expiration
+  - set:
+      id: api_key_id_2
+
+  - do:
+      security.create_api_key:
+        body:  >
+          {
+            "name": "query-key-3",
+            "expiration": "3d"
+          }
+  - match: { name: "query-key-3" }
+  - is_true: id
+  - is_true: api_key
+  - is_true: expiration
+  - set:
+      id: api_key_id_3
+
+  - do:
+      security.authenticate: {}
+  - set:
+      username: owner_name
+
+  - do:
+      security.query_api_keys:
+        body: {}
+  - match: { total: 3 }
+  - match: { count: 3 }
+
+  - do:
+      security.query_api_keys:
+        body: >
+          {
+            "query": { "wildcard": {"name": "*-2"} }
+          }
+  - match: { total: 1 }
+  - match: { count: 1 }
+  - match: { api_keys.0.id: "${api_key_id_2}" }
+
+  - do:
+      security.query_api_keys:
+        body: >
+          {
+            "query": { "bool": {
+              "must": [
+                { "wildcard": {"name": "*key*"} },
+                { "term": {"username": "$owner_name"} }
+              ]
+            }},
+            "sort": [ {"name": {"order": "desc"}} ],
+            "size": 2
+          }
+  - match: { total: 3 }
+  - match: { count: 2 }
+  - match: { api_keys.0.id: "$api_key_id_3" }
+  - match: { api_keys.1.id: "$api_key_id_2" }
+
+  - do:
+      security.query_api_keys:
+        body: >
+          {
+            "query": { "term": {"metadata.search": "this"} }
+          }
+  - match: { total: 1 }
+  - match: { count: 1 }
+  - match: { api_keys.0.id: "${api_key_id_1}" }

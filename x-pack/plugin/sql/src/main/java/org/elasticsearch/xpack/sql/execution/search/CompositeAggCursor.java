@@ -80,7 +80,7 @@ public class CompositeAggCursor implements Cursor {
         nextQuery = new SearchSourceBuilder(in);
         limit = in.readVInt();
 
-        extractors = in.readNamedWriteableList(BucketExtractor.class);
+        extractors = in.readNamedWriteableCollectionAsList(BucketExtractor.class);
         mask = BitSet.valueOf(in.readByteArray());
         includeFrozen = in.readBoolean();
     }
@@ -91,7 +91,7 @@ public class CompositeAggCursor implements Cursor {
         nextQuery.writeTo(out);
         out.writeVInt(limit);
 
-        out.writeNamedWriteableList(extractors);
+        out.writeNamedWriteableCollection(extractors);
         out.writeByteArray(mask.toByteArray());
         out.writeBoolean(includeFrozen);
     }

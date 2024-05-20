@@ -49,7 +49,7 @@ public class PainlessExecuteRequestTests extends AbstractWireSerializingTestCase
 
             try (XContentBuilder builder = XContentBuilder.builder(xContent)) {
                 builder.value(testInstance);
-                try (XContentParser parser = createParser(xContent, BytesReference.bytes(builder).streamInput())) {
+                try (XContentParser parser = createParser(xContent, BytesReference.bytes(builder))) {
                     PainlessExecuteAction.Request result = PainlessExecuteAction.Request.parse(parser);
                     assertThat(result, equalTo(testInstance));
                 }

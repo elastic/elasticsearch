@@ -76,7 +76,10 @@ public enum LuceneFilesExtensions {
     // kNN vectors format
     VEC("vec", "Vector Data", false, true),
     VEX("vex", "Vector Index", false, true),
-    VEM("vem", "Vector Metadata", true, false);
+    VEM("vem", "Vector Metadata", true, false),
+    VEMF("vemf", "Flat Vector Metadata", true, false),
+    VEMQ("vemq", "Scalar Quantized Vector Metadata", true, false),
+    VEQ("veq", "Scalar Quantized Vector Data", false, true);
 
     /**
      * Allow plugin developers of custom codecs to opt out of the assertion in {@link #fromExtension}

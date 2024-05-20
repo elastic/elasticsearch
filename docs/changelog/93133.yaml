@@ -1,5 +1,0 @@
-pr: 93133
-summary: Add request/response body logging to HTTP tracer
-area: Network
-type: enhancement
-issues: []

@@ -24,10 +24,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
-import java.util.function.Function;
 import java.util.stream.Stream;
 
-import static java.util.Collections.emptyList;
 import static java.util.stream.Collectors.toList;
 
 /**
@@ -74,10 +72,8 @@ public class AwarenessAllocationDecider extends AllocationDecider {
 
     public static final String NAME = "awareness";
 
-    public static final Setting<List<String>> CLUSTER_ROUTING_ALLOCATION_AWARENESS_ATTRIBUTE_SETTING = Setting.listSetting(
+    public static final Setting<List<String>> CLUSTER_ROUTING_ALLOCATION_AWARENESS_ATTRIBUTE_SETTING = Setting.stringListSetting(
         "cluster.routing.allocation.awareness.attributes",
-        emptyList(),
-        Function.identity(),
         Property.Dynamic,
         Property.NodeScope
     );

@@ -10,7 +10,7 @@
 A common requirement when dealing with date/time in general revolves around
 the notion of `interval`, a topic that is worth exploring in the context of {es} and {es-sql}.
 
-{es} has comprehensive support for <<date-math, date math>> both inside <<date-math-index-names, index names>> and <<mapping-date-format, queries>>.
+{es} has comprehensive support for <<date-math, date math>> both inside <<api-date-math-index-names, index names>> and <<mapping-date-format, queries>>.
 Inside {es-sql} the former is supported as is by passing the expression in the table name, while the latter is supported through the standard SQL `INTERVAL`.
 
 The table below shows the mapping between {es} and {es-sql}:

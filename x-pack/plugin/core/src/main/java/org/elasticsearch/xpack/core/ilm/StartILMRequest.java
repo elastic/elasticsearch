@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.core.ilm;
 
-import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 
@@ -20,11 +19,8 @@ public class StartILMRequest extends AcknowledgedRequest<StartILMRequest> {
 
     }
 
-    public StartILMRequest() {}
-
-    @Override
-    public ActionRequestValidationException validate() {
-        return null;
+    public StartILMRequest() {
+        super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT, DEFAULT_ACK_TIMEOUT);
     }
 
     @Override

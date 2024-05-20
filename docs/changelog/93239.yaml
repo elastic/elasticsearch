@@ -1,7 +1,0 @@
-pr: 93239
-summary: Support ignore malformed in boolean fields
-area: Search
-type: bug
-issues:
- - 89542
-

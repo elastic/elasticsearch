@@ -40,7 +40,7 @@ public class BucketSortPipelineAggregationBuilderTests extends BasePipelineAggre
             sorts.add(fieldSortBuilder);
         }
         BucketSortPipelineAggregationBuilder factory = new BucketSortPipelineAggregationBuilder(randomAlphaOfLengthBetween(3, 20), sorts);
-        Integer from = randomIntBetween(0, 20);
+        int from = randomIntBetween(0, 20);
         Integer size = randomBoolean() ? randomIntBetween(1, 1000) : null;
         if (randomBoolean()) {
             factory.from(from);

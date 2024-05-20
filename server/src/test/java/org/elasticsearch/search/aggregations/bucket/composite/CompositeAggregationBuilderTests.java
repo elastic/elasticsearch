@@ -13,10 +13,13 @@ import org.elasticsearch.script.Script;
 import org.elasticsearch.search.aggregations.BaseAggregationTestCase;
 import org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileUtils;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
+import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
 import org.elasticsearch.search.sort.SortOrder;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
+import java.util.function.ToLongFunction;
 
 public class CompositeAggregationBuilderTests extends BaseAggregationTestCase<CompositeAggregationBuilder> {
     private DateHistogramValuesSourceBuilder randomDateHistogramSourceBuilder() {
@@ -93,11 +96,9 @@ public class CompositeAggregationBuilderTests extends BaseAggregationTestCase<Co
     @Override
     protected CompositeAggregationBuilder createTestAggregatorBuilder() {
         int numSources = randomIntBetween(1, 10);
-        numSources = 1;
         List<CompositeValuesSourceBuilder<?>> sources = new ArrayList<>();
         for (int i = 0; i < numSources; i++) {
             int type = randomIntBetween(0, 3);
-            type = 3;
             switch (type) {
                 case 0 -> sources.add(randomTermsSourceBuilder());
                 case 1 -> sources.add(randomDateHistogramSourceBuilder());
@@ -107,5 +108,52 @@ public class CompositeAggregationBuilderTests extends BaseAggregationTestCase<Co
             }
         }
         return new CompositeAggregationBuilder(randomAlphaOfLength(10), sources);
+    }
+
+    public void testSupportsParallelCollection() {
+        assertTrue(
+            new CompositeAggregationBuilder(randomAlphaOfLength(10), Collections.singletonList(randomDateHistogramSourceBuilder()))
+                .supportsParallelCollection(null)
+        );
+        assertTrue(
+            new CompositeAggregationBuilder(randomAlphaOfLength(10), Collections.singletonList(randomHistogramSourceBuilder()))
+                .supportsParallelCollection(null)
+        );
+        CompositeAggregationBuilder builder = new CompositeAggregationBuilder(
+            randomAlphaOfLength(10),
+            Collections.singletonList(randomGeoTileGridValuesSourceBuilder())
+        );
+        assertTrue(builder.supportsParallelCollection(null));
+        builder.subAggregation(new TermsAggregationBuilder("name") {
+            @Override
+            public boolean supportsParallelCollection(ToLongFunction<String> fieldCardinalityResolver) {
+                return false;
+            }
+        });
+        assertFalse(builder.supportsParallelCollection(null));
+        assertFalse(
+            new CompositeAggregationBuilder(randomAlphaOfLength(10), Collections.singletonList(new TermsValuesSourceBuilder("name")))
+                .supportsParallelCollection(field -> -1)
+        );
+        assertTrue(
+            new CompositeAggregationBuilder(randomAlphaOfLength(10), Collections.singletonList(new TermsValuesSourceBuilder("name")))
+                .supportsParallelCollection(field -> randomIntBetween(0, 50))
+        );
+        assertFalse(
+            new CompositeAggregationBuilder(randomAlphaOfLength(10), Collections.singletonList(new TermsValuesSourceBuilder("name")))
+                .supportsParallelCollection(field -> randomIntBetween(51, 100))
+        );
+        assertFalse(
+            new CompositeAggregationBuilder(
+                randomAlphaOfLength(10),
+                Collections.singletonList(new TermsValuesSourceBuilder("name").script(new Script("id")))
+            ).supportsParallelCollection(field -> randomIntBetween(-1, 100))
+        );
+        assertFalse(
+            new CompositeAggregationBuilder(
+                randomAlphaOfLength(10),
+                List.of(randomDateHistogramSourceBuilder(), new TermsValuesSourceBuilder("name"))
+            ).supportsParallelCollection(field -> randomIntBetween(51, 100))
+        );
     }
 }

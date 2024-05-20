@@ -11,7 +11,8 @@ package org.elasticsearch.gradle;
 import org.elasticsearch.gradle.distribution.ElasticsearchDistributionTypes;
 import org.gradle.api.Action;
 import org.gradle.api.Buildable;
-import org.gradle.api.artifacts.Configuration;
+import org.gradle.api.file.ConfigurableFileCollection;
+import org.gradle.api.file.FileCollection;
 import org.gradle.api.model.ObjectFactory;
 import org.gradle.api.provider.Property;
 import org.gradle.api.tasks.TaskDependency;
@@ -44,7 +45,7 @@ public class ElasticsearchDistribution implements Buildable, Iterable<File> {
     private final String name;
     private final Property<Boolean> dockerAvailability;
     // pkg private so plugin can configure
-    final Configuration configuration;
+    final FileCollection configuration;
 
     private final Property<Architecture> architecture;
     private final Property<String> version;
@@ -52,16 +53,17 @@ public class ElasticsearchDistribution implements Buildable, Iterable<File> {
     private final Property<Platform> platform;
     private final Property<Boolean> bundledJdk;
     private final Property<Boolean> failIfUnavailable;
-    private final Configuration extracted;
-    private Action<ElasticsearchDistribution> distributionFinalizer;
+    private final Property<Boolean> preferArchive;
+    private final ConfigurableFileCollection extracted;
+    private transient Action<ElasticsearchDistribution> distributionFinalizer;
     private boolean frozen = false;
 
     ElasticsearchDistribution(
         String name,
         ObjectFactory objectFactory,
         Property<Boolean> dockerAvailability,
-        Configuration fileConfiguration,
-        Configuration extractedConfiguration,
+        ConfigurableFileCollection fileConfiguration,
+        ConfigurableFileCollection extractedConfiguration,
         Action<ElasticsearchDistribution> distributionFinalizer
     ) {
         this.name = name;
@@ -74,6 +76,7 @@ public class ElasticsearchDistribution implements Buildable, Iterable<File> {
         this.platform = objectFactory.property(Platform.class);
         this.bundledJdk = objectFactory.property(Boolean.class);
         this.failIfUnavailable = objectFactory.property(Boolean.class).convention(true);
+        this.preferArchive = objectFactory.property(Boolean.class).convention(false);
         this.extracted = extractedConfiguration;
         this.distributionFinalizer = distributionFinalizer;
     }
@@ -140,6 +143,14 @@ public class ElasticsearchDistribution implements Buildable, Iterable<File> {
         this.failIfUnavailable.set(failIfUnavailable);
     }
 
+    public boolean getPreferArchive() {
+        return preferArchive.get();
+    }
+
+    public void setPreferArchive(boolean preferArchive) {
+        this.preferArchive.set(preferArchive);
+    }
+
     public void setArchitecture(Architecture architecture) {
         this.architecture.set(architecture);
     }
@@ -172,7 +183,7 @@ public class ElasticsearchDistribution implements Buildable, Iterable<File> {
         return configuration.getSingleFile().toString();
     }
 
-    public Configuration getExtracted() {
+    public ConfigurableFileCollection getExtracted() {
         if (getType().shouldExtract() == false) {
             throw new UnsupportedOperationException(
                 "distribution type [" + getType().getName() + "] for " + "elasticsearch distribution [" + name + "] cannot be extracted"
@@ -187,7 +198,9 @@ public class ElasticsearchDistribution implements Buildable, Iterable<File> {
             return task -> Collections.emptySet();
         } else {
             maybeFreeze();
-            return getType().shouldExtract() ? extracted.getBuildDependencies() : configuration.getBuildDependencies();
+            return getType().shouldExtract() && (preferArchive.get() == false)
+                ? extracted.getBuildDependencies()
+                : configuration.getBuildDependencies();
         }
     }
 
@@ -251,14 +264,5 @@ public class ElasticsearchDistribution implements Buildable, Iterable<File> {
         platform.finalizeValue();
         type.finalizeValue();
         bundledJdk.finalizeValue();
-    }
-
-    public TaskDependency getArchiveDependencies() {
-        if (skippingDockerDistributionBuild()) {
-            return task -> Collections.emptySet();
-        } else {
-            maybeFreeze();
-            return configuration.getBuildDependencies();
-        }
     }
 }

@@ -11,10 +11,8 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.action.support.master.MasterNodeOperationRequestBuilder;
 import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
-import org.elasticsearch.client.internal.ElasticsearchClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
@@ -42,7 +40,7 @@ public class CompletionPersistentTaskAction extends ActionType<PersistentTaskRes
     public static final String NAME = "cluster:admin/persistent/completion";
 
     private CompletionPersistentTaskAction() {
-        super(NAME, PersistentTaskResponse::new);
+        super(NAME);
     }
 
     public static class Request extends MasterNodeRequest<Request> {
@@ -55,7 +53,9 @@ public class CompletionPersistentTaskAction extends ActionType<PersistentTaskRes
 
         private String localAbortReason;
 
-        public Request() {}
+        public Request() {
+            super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT);
+        }
 
         public Request(StreamInput in) throws IOException {
             super(in);
@@ -66,6 +66,7 @@ public class CompletionPersistentTaskAction extends ActionType<PersistentTaskRes
         }
 
         public Request(String taskId, long allocationId, Exception exception, String localAbortReason) {
+            super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT);
             this.taskId = taskId;
             this.exception = exception;
             this.allocationId = allocationId;
@@ -113,16 +114,6 @@ public class CompletionPersistentTaskAction extends ActionType<PersistentTaskRes
         }
     }
 
-    public static class RequestBuilder extends MasterNodeOperationRequestBuilder<
-        CompletionPersistentTaskAction.Request,
-        PersistentTaskResponse,
-        CompletionPersistentTaskAction.RequestBuilder> {
-
-        protected RequestBuilder(ElasticsearchClient client, CompletionPersistentTaskAction action) {
-            super(client, action, new Request());
-        }
-    }
-
     public static class TransportAction extends TransportMasterNodeAction<Request, PersistentTaskResponse> {
 
         private final PersistentTasksClusterService persistentTasksClusterService;
@@ -145,7 +136,7 @@ public class CompletionPersistentTaskAction extends ActionType<PersistentTaskRes
                 Request::new,
                 indexNameExpressionResolver,
                 PersistentTaskResponse::new,
-                ThreadPool.Names.GENERIC
+                threadPool.executor(ThreadPool.Names.GENERIC)
             );
             this.persistentTasksClusterService = persistentTasksClusterService;
         }

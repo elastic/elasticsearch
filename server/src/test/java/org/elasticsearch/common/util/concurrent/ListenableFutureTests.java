@@ -83,7 +83,7 @@ public class ListenableFutureTests extends ESTestCase {
             1000,
             EsExecutors.daemonThreadFactory("listener"),
             threadContext,
-            false
+            EsExecutors.TaskTrackingConfig.DO_NOT_TRACK
         );
         final CyclicBarrier barrier = new CyclicBarrier(1 + numberOfThreads);
         final CountDownLatch listenersLatch = new CountDownLatch(numberOfThreads - 1);
@@ -158,7 +158,7 @@ public class ListenableFutureTests extends ESTestCase {
             1,
             EsExecutors.daemonThreadFactory("testRejection"),
             threadContext,
-            false
+            EsExecutors.TaskTrackingConfig.DO_NOT_TRACK
         );
 
         try {

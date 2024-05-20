@@ -104,12 +104,12 @@ class JdkPosixCLibrary implements PosixCLibrary {
 
         @Override
         public long rlim_cur() {
-            return (long) rlim_cur$vh.get(segment, 0L);
+            return (long) rlim_cur$vh.get(segment);
         }
 
         @Override
         public long rlim_max() {
-            return (long) rlim_max$vh.get(segment, 0L);
+            return (long) rlim_max$vh.get(segment);
         }
 
         @Override

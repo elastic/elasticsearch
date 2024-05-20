@@ -10,7 +10,6 @@ package org.elasticsearch.nativeaccess.jdk;
 
 import java.lang.foreign.Arena;
 import java.lang.foreign.MemorySegment;
-import java.lang.invoke.MethodHandles;
 import java.lang.invoke.VarHandle;
 
 /**
@@ -27,9 +26,9 @@ class MemorySegmentUtil {
     }
 
     // MemorySegment.varHandle changed between 21 and 22. The resulting varHandle now requires an additional
-    // long offset parameter. We pass the offset in at runtime, and drop this offset for 21.
+    // long offset parameter. We omit the offset at runtime, instead binding to the VarHandle in JDK 22.
     static VarHandle varHandleDropOffset(VarHandle varHandle) {
-        return MethodHandles.dropCoordinates(varHandle, 1, Long.class);
+        return varHandle;
     }
 
     private MemorySegmentUtil() {}

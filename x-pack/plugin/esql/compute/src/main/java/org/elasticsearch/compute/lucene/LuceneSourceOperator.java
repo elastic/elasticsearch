@@ -119,14 +119,19 @@ public class LuceneSourceOperator extends LuceneOperator {
             if (scorer == null) {
                 return null;
             }
-            scorer.scoreNextRange(
-                leafCollector,
-                scorer.leafReaderContext().reader().getLiveDocs(),
-                // Note: if (maxPageSize - currentPagePos) is a small "remaining" interval, this could lead to slow collection with a
-                // highly selective filter. Having a large "enough" difference between max- and minPageSize (and thus currentPagePos)
-                // alleviates this issue.
-                maxPageSize - currentPagePos
-            );
+            try {
+                scorer.scoreNextRange(
+                    leafCollector,
+                    scorer.leafReaderContext().reader().getLiveDocs(),
+                    // Note: if (maxPageSize - currentPagePos) is a small "remaining" interval, this could lead to slow collection with a
+                    // highly selective filter. Having a large "enough" difference between max- and minPageSize (and thus currentPagePos)
+                    // alleviates this issue.
+                    maxPageSize - currentPagePos
+                );
+            } catch (CollectionTerminatedException ex) {
+                // The leaf collector terminated the execution
+                scorer.markAsDone();
+            }
             Page page = null;
             if (currentPagePos >= minPageSize || remainingDocs <= 0 || scorer.isDone()) {
                 pagesEmitted++;

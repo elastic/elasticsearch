@@ -48,7 +48,7 @@ import static org.elasticsearch.xpack.ql.type.DataTypeConverter.safeToInt;
  * in multiples of the unit specified in the first argument.
  * If the second argument (start) is greater than the third argument (end), then negative values are returned.
  */
-public class DateDiff extends EsqlScalarFunction implements OptionalArgument {
+public class DateDiff extends EsqlScalarFunction {
 
     public static final ZoneId UTC = ZoneId.of("Z");
 

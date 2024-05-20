@@ -35,6 +35,7 @@ import java.util.TreeSet;
 import java.util.function.Consumer;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
+import static org.elasticsearch.rest.RestUtils.getTimeout;
 
 @ServerlessScope(Scope.INTERNAL)
 public class RestNodesStatsAction extends BaseRestHandler {
@@ -90,7 +91,7 @@ public class RestNodesStatsAction extends BaseRestHandler {
         Set<String> metrics = Strings.tokenizeByCommaToSet(request.param("metric", "_all"));
 
         NodesStatsRequest nodesStatsRequest = new NodesStatsRequest(nodesIds);
-        nodesStatsRequest.timeout(request.paramAsTime("timeout", null));
+        nodesStatsRequest.timeout(getTimeout(request));
         // level parameter validation
         nodesStatsRequest.setIncludeShardsStats(NodeStatsLevel.of(request, NodeStatsLevel.NODE) != NodeStatsLevel.NODE);
 

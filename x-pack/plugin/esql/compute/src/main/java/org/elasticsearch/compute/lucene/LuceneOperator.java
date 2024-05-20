@@ -11,6 +11,7 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.BulkScorer;
 import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.DocIdSetIterator;
+import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.LeafCollector;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreMode;
@@ -80,16 +81,22 @@ public abstract class LuceneOperator extends SourceOperator {
         protected final int limit;
         protected final LuceneSliceQueue sliceQueue;
 
+        /**
+         * Build the factory.
+         *
+         * @param scoreMode the {@link ScoreMode} passed to {@link IndexSearcher#createWeight}
+         */
         protected Factory(
             List<? extends ShardContext> contexts,
             Function<ShardContext, Query> queryFunction,
             DataPartitioning dataPartitioning,
             int taskConcurrency,
-            int limit
+            int limit,
+            ScoreMode scoreMode
         ) {
             this.limit = limit;
             this.dataPartitioning = dataPartitioning;
-            var weightFunction = weightFunction(queryFunction, ScoreMode.COMPLETE_NO_SCORES);
+            var weightFunction = weightFunction(queryFunction, scoreMode);
             this.sliceQueue = LuceneSliceQueue.create(contexts, weightFunction, dataPartitioning, taskConcurrency);
             this.taskConcurrency = Math.min(sliceQueue.totalSlices(), taskConcurrency);
         }

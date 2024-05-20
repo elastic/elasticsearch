@@ -54,4 +54,9 @@ public final class Int7DotProduct extends AbstractInt7ScalarQuantizedVectorScore
             return Math.max(fallbackScore(firstByteOffset, secondByteOffset), 0f);
         }
     }
+
+    @Override
+    public Int7DotProduct copy() {
+        return new Int7DotProduct(dims, maxOrd, scoreCorrectionConstant, input.clone());
+    }
 }

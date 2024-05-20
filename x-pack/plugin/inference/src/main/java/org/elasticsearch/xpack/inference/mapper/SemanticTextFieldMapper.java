@@ -77,7 +77,7 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
 
     public static final TypeParser PARSER = new TypeParser(
         (n, c) -> new Builder(n, c.indexVersionCreated()),
-        notInMultiFields(CONTENT_TYPE)
+        List.of(notInMultiFields(CONTENT_TYPE), notFromDynamicTemplates(CONTENT_TYPE))
     );
 
     public static class Builder extends FieldMapper.Builder {

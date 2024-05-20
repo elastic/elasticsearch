@@ -203,6 +203,7 @@ public class ComputeService {
             RefCountingListener refs = new RefCountingListener(listener.map(unused -> new Result(collectedPages, collectedProfiles)))
         ) {
             // run compute on the coordinator
+            exchangeSource.addCompletionListener(refs.acquire());
             runCompute(
                 rootTask,
                 new ComputeContext(sessionId, RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY, List.of(), configuration, exchangeSource, null),
@@ -741,6 +742,7 @@ public class ComputeService {
             RefCountingListener refs = new RefCountingListener(listener.map(unused -> new ComputeResponse(collectedProfiles)))
         ) {
             exchangeSink.addCompletionListener(refs.acquire());
+            exchangeSource.addCompletionListener(refs.acquire());
             PhysicalPlan coordinatorPlan = new ExchangeSinkExec(
                 plan.source(),
                 plan.output(),

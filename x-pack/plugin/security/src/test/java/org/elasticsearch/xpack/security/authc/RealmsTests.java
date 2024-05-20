@@ -25,7 +25,7 @@ import org.elasticsearch.license.LicensedFeature;
 import org.elasticsearch.license.MockLicenseState;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.MockLogAppender;
+import org.elasticsearch.test.MockLog;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.ResourceWatcherService;
@@ -935,13 +935,12 @@ public class RealmsTests extends ESTestCase {
         verify(licenseState).enableUsageTracking(Security.CUSTOM_REALMS_FEATURE, "custom_realm_2");
 
         final Logger realmsLogger = LogManager.getLogger(Realms.class);
-        final MockLogAppender appender = new MockLogAppender();
 
         when(licenseState.statusDescription()).thenReturn("mock license");
-        try (var ignored = appender.capturing(Realms.class)) {
+        try (var mockLog = MockLog.capture(Realms.class)) {
             for (String realmId : List.of("kerberos.kerberos_realm", "type_0.custom_realm_1", "type_1.custom_realm_2")) {
-                appender.addExpectation(
-                    new MockLogAppender.SeenEventExpectation(
+                mockLog.addExpectation(
+                    new MockLog.SeenEventExpectation(
                         "Realm [" + realmId + "] disabled",
                         realmsLogger.getName(),
                         Level.WARN,
@@ -950,7 +949,7 @@ public class RealmsTests extends ESTestCase {
                 );
             }
             allowOnlyStandardRealms();
-            appender.assertAllExpectationsMatched();
+            mockLog.assertAllExpectationsMatched();
         }
 
         final List<String> unlicensedRealmNames = realms.getUnlicensedRealms().stream().map(r -> r.name()).collect(Collectors.toList());

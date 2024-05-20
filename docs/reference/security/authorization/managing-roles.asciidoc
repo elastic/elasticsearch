@@ -1,4 +1,4 @@
-ole="xpack"]
+[role="xpack"]
 [[defining-roles]]
 === Defining roles
 

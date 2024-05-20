@@ -46,7 +46,7 @@ version of {es}.
 of {es}.
 
 `remote_cluster`:: (array of string) The list of
-remote_cluster privileges that are understood by this version
+<<roles-remote-cluster-priv, remote_cluster>> privileges that are understood by this version
 of {es}.
 
 [[security-api-get-builtin-privileges-example]]

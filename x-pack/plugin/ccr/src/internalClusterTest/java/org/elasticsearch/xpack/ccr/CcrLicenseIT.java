@@ -133,9 +133,7 @@ public class CcrLicenseIT extends CcrSingleNodeTestCase {
 
     public void testAutoFollowCoordinatorLogsSkippingAutoFollowCoordinationWithNonCompliantLicense() throws Exception {
         final Logger logger = LogManager.getLogger(AutoFollowCoordinator.class);
-        final MockLogAppender appender = new MockLogAppender();
-
-        try (var ignored = appender.capturing(AutoFollowCoordinator.class)) {
+        try (var appender = MockLogAppender.capture(AutoFollowCoordinator.class)) {
             appender.addExpectation(
                 new MockLogAppender.ExceptionSeenEventExpectation(
                     getTestName(),

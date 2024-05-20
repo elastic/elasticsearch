@@ -31,6 +31,7 @@ import org.elasticsearch.core.Releasables;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 
 import java.io.IOException;
+import java.io.InputStream;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
@@ -413,7 +414,7 @@ public class MockBigArrays extends BigArrays {
         }
 
         @Override
-        public void fillWith(StreamInput streamInput) throws IOException {
+        public void fillWith(InputStream streamInput) throws IOException {
             in.fillWith(streamInput);
         }
 

@@ -35,8 +35,7 @@ public class MockLogAppender implements Releasable {
 
     private static final Map<String, List<MockLogAppender>> mockAppenders = new ConcurrentHashMap<>();
     private static final RealMockAppender parent = new RealMockAppender();
-    // TODO: this can become final once the ctor is made private
-    private List<String> loggers = List.of();
+    private final List<String> loggers;
     private final List<WrappedLoggingExpectation> expectations;
     private volatile boolean isAlive = true;
 
@@ -84,17 +83,13 @@ public class MockLogAppender implements Releasable {
         }
     }
 
-    public MockLogAppender() {
+    private MockLogAppender(List<String> loggers) {
         /*
          * We use a copy-on-write array list since log messages could be appended while we are setting up expectations. When that occurs,
          * we would run into a concurrent modification exception from the iteration over the expectations in #append, concurrent with a
          * modification from #addExpectation.
          */
         expectations = new CopyOnWriteArrayList<>();
-    }
-
-    private MockLogAppender(List<String> loggers) {
-        this();
         this.loggers = loggers;
     }
 
@@ -294,18 +289,6 @@ public class MockLogAppender implements Releasable {
         }
     }
 
-    public Releasable capturing(Class<?>... classes) {
-        this.loggers = Arrays.stream(classes).map(Class::getCanonicalName).toList();
-        addToMockAppenders(this, loggers);
-        return this;
-    }
-
-    public Releasable capturing(String... names) {
-        this.loggers = Arrays.asList(names);
-        addToMockAppenders(this, loggers);
-        return this;
-    }
-
     /**
      * Adds the list of class loggers to this {@link MockLogAppender}.
      *
@@ -343,9 +326,11 @@ public class MockLogAppender implements Releasable {
     /**
      * Executes an action and verifies expectations against the provided logger
      */
-    public static void assertThatLogger(Runnable action, Class<?> loggerOwner, MockLogAppender.LoggingExpectation expectation) {
+    public static void assertThatLogger(Runnable action, Class<?> loggerOwner, MockLogAppender.LoggingExpectation... expectations) {
         try (var mockAppender = MockLogAppender.capture(loggerOwner)) {
-            mockAppender.addExpectation(expectation);
+            for (var expectation : expectations) {
+                mockAppender.addExpectation(expectation);
+            }
             action.run();
             mockAppender.assertAllExpectationsMatched();
         }

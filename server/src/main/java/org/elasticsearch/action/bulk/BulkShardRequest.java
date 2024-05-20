@@ -58,6 +58,7 @@ public final class BulkShardRequest extends ReplicatedWriteRequest<BulkShardRequ
         this.items = items;
         this.isSimulated = isSimulated;
         setRefreshPolicy(refreshPolicy);
+        this.isSimulated = isSimulated;
     }
 
     /**
@@ -207,5 +208,9 @@ public final class BulkShardRequest extends ReplicatedWriteRequest<BulkShardRequ
             sum += item.ramBytesUsed();
         }
         return sum;
+    }
+
+    public boolean isSimulated() {
+        return isSimulated;
     }
 }

@@ -15,6 +15,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -54,7 +55,7 @@ public class SimulateIndexResponse extends IndexResponse {
         BytesReference source,
         XContentType sourceXContentType,
         List<String> pipelines,
-        Exception exception
+        @Nullable Exception exception
     ) {
         // We don't actually care about most of the IndexResponse fields:
         super(new ShardId(index, "", 0), id == null ? "<n/a>" : id, 0, 0, version, true, pipelines);

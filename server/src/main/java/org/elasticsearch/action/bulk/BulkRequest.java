@@ -464,7 +464,11 @@ public class BulkRequest extends ActionRequest
         return Collections.unmodifiableSet(indices);
     }
 
+    /**
+     * Returns true if this is a request for a simulation rather than a real bulk request.
+     * @return true if this is a simulated bulk request
+     */
     public boolean isSimulated() {
-        return false;
+        return false; // Always false, but may be overridden by a subclass
     }
 }

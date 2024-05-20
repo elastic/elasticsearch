@@ -12,10 +12,11 @@ import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.get.GetRequest;
-import org.elasticsearch.action.get.TransportGetAction;
+import org.elasticsearch.action.get.GetResponse;
+import org.elasticsearch.action.get.MultiGetItemResponse;
+import org.elasticsearch.action.get.MultiGetRequest;
+import org.elasticsearch.action.get.TransportMultiGetAction;
 import org.elasticsearch.common.ParsingException;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.logging.HeaderWarning;
@@ -40,6 +41,7 @@ import java.util.Objects;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
+import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 import static org.elasticsearch.xpack.core.ClientHelper.ENT_SEARCH_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 import static org.elasticsearch.xpack.searchbusinessrules.PinnedQueryBuilder.MAX_NUM_PINNED_HITS;
@@ -57,10 +59,13 @@ public class RuleQueryBuilder extends AbstractQueryBuilder<RuleQueryBuilder> {
     public static final String NAME_PRE_8_15 = "rule_query";
 
     private static final ParseField RULESET_ID_FIELD = new ParseField("ruleset_id");
+    private static final ParseField RULESET_IDS_FIELD = new ParseField("ruleset_ids");
     static final ParseField MATCH_CRITERIA_FIELD = new ParseField("match_criteria");
     private static final ParseField ORGANIC_QUERY_FIELD = new ParseField("organic");
 
-    private final String rulesetId;
+    public static final int MAX_NUM_RULESETS = 10;
+
+    private final List<String> rulesetIds;
     private final Map<String, Object> matchCriteria;
     private final QueryBuilder organicQuery;
 
@@ -72,16 +77,18 @@ public class RuleQueryBuilder extends AbstractQueryBuilder<RuleQueryBuilder> {
         return TransportVersions.V_8_10_X;
     }
 
-    public RuleQueryBuilder(QueryBuilder organicQuery, Map<String, Object> matchCriteria, String rulesetId) {
-        this(organicQuery, matchCriteria, rulesetId, null, null);
+    public RuleQueryBuilder(QueryBuilder organicQuery, Map<String, Object> matchCriteria, List<String> rulesetIds) {
+        this(organicQuery, matchCriteria, rulesetIds, null, null);
     }
 
     public RuleQueryBuilder(StreamInput in) throws IOException {
         super(in);
         organicQuery = in.readNamedWriteable(QueryBuilder.class);
         matchCriteria = in.readGenericMap();
-        rulesetId = in.readString();
-        if (in.getTransportVersion().before(TransportVersions.RULE_QUERY_RENAME)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.RULE_QUERY_RENAME)) {
+            rulesetIds = in.readStringCollectionAsList();
+        } else {
+            rulesetIds = List.of(in.readString());
             in.readOptionalStringCollectionAsList();
             in.readOptionalCollectionAsList(Item::new);
         }
@@ -92,7 +99,7 @@ public class RuleQueryBuilder extends AbstractQueryBuilder<RuleQueryBuilder> {
     private RuleQueryBuilder(
         QueryBuilder organicQuery,
         Map<String, Object> matchCriteria,
-        String rulesetId,
+        List<String> rulesetIds,
         Supplier<List<String>> pinnedIdsSupplier,
         Supplier<List<Item>> pinnedDocsSupplier
 
@@ -103,13 +110,21 @@ public class RuleQueryBuilder extends AbstractQueryBuilder<RuleQueryBuilder> {
         if (matchCriteria == null || matchCriteria.isEmpty()) {
             throw new IllegalArgumentException("matchCriteria must not be null or empty");
         }
-        if (Strings.isNullOrEmpty(rulesetId)) {
-            throw new IllegalArgumentException("rulesetId must not be null or empty");
+        if (rulesetIds == null || rulesetIds.isEmpty()) {
+            throw new IllegalArgumentException("rulesetIds must not be null or empty");
+        }
+
+        if (rulesetIds.size() > MAX_NUM_RULESETS) {
+            throw new IllegalArgumentException("rulesetIds must not contain more than " + MAX_NUM_RULESETS + " rulesets");
+        }
+
+        if (rulesetIds.stream().anyMatch(ruleset -> ruleset == null || ruleset.isEmpty())) {
+            throw new IllegalArgumentException("rulesetIds must not contain null or empty values");
         }
 
         this.organicQuery = organicQuery;
         this.matchCriteria = matchCriteria;
-        this.rulesetId = rulesetId;
+        this.rulesetIds = rulesetIds;
         this.pinnedIdsSupplier = pinnedIdsSupplier;
         this.pinnedDocsSupplier = pinnedDocsSupplier;
     }
@@ -125,16 +140,18 @@ public class RuleQueryBuilder extends AbstractQueryBuilder<RuleQueryBuilder> {
 
         out.writeNamedWriteable(organicQuery);
         out.writeGenericMap(matchCriteria);
-        out.writeString(rulesetId);
 
-        if (out.getTransportVersion().before(TransportVersions.RULE_QUERY_RENAME)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.RULE_QUERY_RENAME)) {
+            out.writeStringCollection(rulesetIds);
+        } else {
+            out.writeString(rulesetIds.get(0));
             out.writeOptionalStringCollection(null);
             out.writeOptionalCollection(null);
         }
     }
 
-    public String rulesetId() {
-        return rulesetId;
+    public List<String> rulesetIds() {
+        return rulesetIds;
     }
 
     public Map<String, Object> matchCriteria() {
@@ -152,7 +169,7 @@ public class RuleQueryBuilder extends AbstractQueryBuilder<RuleQueryBuilder> {
         builder.startObject(MATCH_CRITERIA_FIELD.getPreferredName());
         builder.mapContents(matchCriteria);
         builder.endObject();
-        builder.field(RULESET_ID_FIELD.getPreferredName(), rulesetId);
+        builder.array(RULESET_IDS_FIELD.getPreferredName(), rulesetIds.toArray());
         boostAndQueryNameToXContent(builder);
         builder.endObject();
     }
@@ -198,32 +215,56 @@ public class RuleQueryBuilder extends AbstractQueryBuilder<RuleQueryBuilder> {
             }
         }
 
-        // Identify matching rules and apply them as applicable
-        GetRequest getRequest = new GetRequest(QueryRulesIndexService.QUERY_RULES_ALIAS_NAME, rulesetId);
         SetOnce<List<String>> pinnedIdsSetOnce = new SetOnce<>();
         SetOnce<List<Item>> pinnedDocsSetOnce = new SetOnce<>();
         AppliedQueryRules appliedRules = new AppliedQueryRules();
 
+        // Identify matching rules and apply them as applicable
+        MultiGetRequest multiGetRequest = new MultiGetRequest();
+        for (String rulesetId : rulesetIds) {
+            multiGetRequest.add(QueryRulesIndexService.QUERY_RULES_ALIAS_NAME, rulesetId);
+        }
         queryRewriteContext.registerAsyncAction((client, listener) -> {
-            executeAsyncWithOrigin(client, ENT_SEARCH_ORIGIN, TransportGetAction.TYPE, getRequest, ActionListener.wrap(getResponse -> {
+            executeAsyncWithOrigin(
+                client,
+                ENT_SEARCH_ORIGIN,
+                TransportMultiGetAction.TYPE,
+                multiGetRequest,
+                ActionListener.wrap(multiGetResponse -> {
 
-                if (getResponse.isExists() == false) {
-                    listener.onFailure(new ResourceNotFoundException("query ruleset " + rulesetId + " not found"));
-                    return;
-                }
+                    if (multiGetResponse.getResponses() == null || multiGetResponse.getResponses().length == 0) {
+                        listener.onFailure(new ResourceNotFoundException("query rulesets " + String.join(",", rulesetIds) + " not found"));
+                        return;
+                    }
 
-                QueryRuleset queryRuleset = QueryRuleset.fromXContentBytes(rulesetId, getResponse.getSourceAsBytesRef(), XContentType.JSON);
-                for (QueryRule rule : queryRuleset.rules()) {
-                    rule.applyRule(appliedRules, matchCriteria);
-                }
-                pinnedIdsSetOnce.set(appliedRules.pinnedIds().stream().distinct().toList());
-                pinnedDocsSetOnce.set(appliedRules.pinnedDocs().stream().distinct().toList());
-                listener.onResponse(null);
+                    for (MultiGetItemResponse item : multiGetResponse) {
+                        String rulesetId = item.getId();
+                        GetResponse getResponse = item.getResponse();
 
-            }, listener::onFailure));
+                        if (getResponse.isExists() == false) {
+                            listener.onFailure(new ResourceNotFoundException("query ruleset " + rulesetId + " not found"));
+                            return;
+                        }
+
+                        QueryRuleset queryRuleset = QueryRuleset.fromXContentBytes(
+                            rulesetId,
+                            getResponse.getSourceAsBytesRef(),
+                            XContentType.JSON
+                        );
+                        for (QueryRule rule : queryRuleset.rules()) {
+                            rule.applyRule(appliedRules, matchCriteria);
+                        }
+                    }
+
+                    pinnedIdsSetOnce.set(appliedRules.pinnedIds().stream().distinct().toList());
+                    pinnedDocsSetOnce.set(appliedRules.pinnedDocs().stream().distinct().toList());
+                    listener.onResponse(null);
+
+                }, listener::onFailure)
+            );
         });
 
-        return new RuleQueryBuilder(organicQuery, matchCriteria, this.rulesetId, pinnedIdsSetOnce::get, pinnedDocsSetOnce::get).boost(
+        return new RuleQueryBuilder(organicQuery, matchCriteria, this.rulesetIds, pinnedIdsSetOnce::get, pinnedDocsSetOnce::get).boost(
             this.boost
         ).queryName(this.queryName);
     }
@@ -242,7 +283,7 @@ public class RuleQueryBuilder extends AbstractQueryBuilder<RuleQueryBuilder> {
     protected boolean doEquals(RuleQueryBuilder other) {
         if (this == other) return true;
         if (other == null || getClass() != other.getClass()) return false;
-        return Objects.equals(rulesetId, other.rulesetId)
+        return Objects.equals(rulesetIds, other.rulesetIds)
             && Objects.equals(matchCriteria, other.matchCriteria)
             && Objects.equals(organicQuery, other.organicQuery)
             && Objects.equals(pinnedIdsSupplier, other.pinnedIdsSupplier)
@@ -251,7 +292,7 @@ public class RuleQueryBuilder extends AbstractQueryBuilder<RuleQueryBuilder> {
 
     @Override
     protected int doHashCode() {
-        return Objects.hash(rulesetId, matchCriteria, organicQuery, pinnedIdsSupplier, pinnedDocsSupplier);
+        return Objects.hash(rulesetIds, matchCriteria, organicQuery, pinnedIdsSupplier, pinnedDocsSupplier);
     }
 
     private static final ConstructingObjectParser<RuleQueryBuilder, Void> PARSER = new ConstructingObjectParser<>(NAME, a -> {
@@ -259,12 +300,21 @@ public class RuleQueryBuilder extends AbstractQueryBuilder<RuleQueryBuilder> {
         @SuppressWarnings("unchecked")
         Map<String, Object> matchCriteria = (Map<String, Object>) a[1];
         String rulesetId = (String) a[2];
-        return new RuleQueryBuilder(organicQuery, matchCriteria, rulesetId);
+        @SuppressWarnings("unchecked")
+        List<String> rulesetIds = (List<String>) a[3];
+        if (rulesetId == null && rulesetIds == null) {
+            throw new IllegalArgumentException("no ruleset specified");
+        }
+        if (rulesetIds == null) {
+            rulesetIds = List.of(rulesetId);
+        }
+        return new RuleQueryBuilder(organicQuery, matchCriteria, rulesetIds);
     });
     static {
         PARSER.declareObject(constructorArg(), (p, c) -> parseInnerQueryBuilder(p), ORGANIC_QUERY_FIELD);
         PARSER.declareObject(constructorArg(), (p, c) -> p.map(), MATCH_CRITERIA_FIELD);
-        PARSER.declareString(constructorArg(), RULESET_ID_FIELD);
+        PARSER.declareString(optionalConstructorArg(), RULESET_ID_FIELD);
+        PARSER.declareStringArray(optionalConstructorArg(), RULESET_IDS_FIELD);
         declareStandardFields(PARSER);
     }
 

@@ -17,7 +17,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.MockLogAppender;
+import org.elasticsearch.test.MockLog;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationTestHelper;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine;
@@ -130,7 +130,7 @@ public class LoadAuthorizedIndicesTimeCheckerTests extends ESTestCase {
         );
         final int elapsedMs = warnMs + randomIntBetween(1, 100);
 
-        final MockLogAppender.PatternSeenEventExpectation expectation = new MockLogAppender.PatternSeenEventExpectation(
+        final MockLog.PatternSeenEventExpectation expectation = new MockLog.PatternSeenEventExpectation(
             "WARN-Slow Index Resolution",
             timerLogger.getName(),
             Level.WARN,
@@ -156,7 +156,7 @@ public class LoadAuthorizedIndicesTimeCheckerTests extends ESTestCase {
         );
         final int elapsedMs = infoMs + randomIntBetween(1, 100);
 
-        final MockLogAppender.PatternSeenEventExpectation expectation = new MockLogAppender.PatternSeenEventExpectation(
+        final MockLog.PatternSeenEventExpectation expectation = new MockLog.PatternSeenEventExpectation(
             "INFO-Slow Index Resolution",
             timerLogger.getName(),
             Level.INFO,
@@ -171,7 +171,7 @@ public class LoadAuthorizedIndicesTimeCheckerTests extends ESTestCase {
     private void testLogging(
         LoadAuthorizedIndicesTimeChecker.Thresholds thresholds,
         int elapsedMs,
-        MockLogAppender.PatternSeenEventExpectation expectation
+        MockLog.PatternSeenEventExpectation expectation
     ) throws IllegalAccessException {
         final User user = new User("slow-user", "slow-role");
         final Authentication authentication = AuthenticationTestHelper.builder()
@@ -192,10 +192,10 @@ public class LoadAuthorizedIndicesTimeCheckerTests extends ESTestCase {
             requestInfo,
             thresholds
         );
-        try (var mockAppender = MockLogAppender.capture(timerLogger.getName())) {
-            mockAppender.addExpectation(expectation);
+        try (var mockLog = MockLog.capture(timerLogger.getName())) {
+            mockLog.addExpectation(expectation);
             checker.accept(List.of());
-            mockAppender.assertAllExpectationsMatched();
+            mockLog.assertAllExpectationsMatched();
         }
     }
 

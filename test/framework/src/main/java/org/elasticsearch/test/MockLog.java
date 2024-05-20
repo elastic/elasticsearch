@@ -31,10 +31,10 @@ import static org.hamcrest.Matchers.is;
 /**
  * Test appender that can be used to verify that certain events were logged correctly
  */
-public class MockLogAppender implements Releasable {
+public class MockLog implements Releasable {
 
-    private static final Map<String, List<MockLogAppender>> mockAppenders = new ConcurrentHashMap<>();
-    private static final RealMockAppender parent = new RealMockAppender();
+    private static final Map<String, List<MockLog>> mockLogs = new ConcurrentHashMap<>();
+    private static final MockAppender appender = new MockAppender();
     private final List<String> loggers;
     private final List<WrappedLoggingExpectation> expectations;
     private volatile boolean isAlive = true;
@@ -43,7 +43,7 @@ public class MockLogAppender implements Releasable {
     public void close() {
         isAlive = false;
         for (String logger : loggers) {
-            mockAppenders.compute(logger, (k, v) -> {
+            mockLogs.compute(logger, (k, v) -> {
                 assert v != null;
                 v.remove(this);
                 return v.isEmpty() ? null : v;
@@ -59,20 +59,20 @@ public class MockLogAppender implements Releasable {
         }
     }
 
-    private static class RealMockAppender extends AbstractAppender {
+    private static class MockAppender extends AbstractAppender {
 
-        RealMockAppender() {
+        MockAppender() {
             super("mock", null, null, false, Property.EMPTY_ARRAY);
         }
 
         @Override
         public void append(LogEvent event) {
-            List<MockLogAppender> appenders = mockAppenders.get(event.getLoggerName());
+            List<MockLog> appenders = mockLogs.get(event.getLoggerName());
             if (appenders == null) {
                 // check if there is a root appender
-                appenders = mockAppenders.getOrDefault("", List.of());
+                appenders = mockLogs.getOrDefault("", List.of());
             }
-            for (MockLogAppender appender : appenders) {
+            for (MockLog appender : appenders) {
                 if (appender.isAlive == false) {
                     continue;
                 }
@@ -83,7 +83,7 @@ public class MockLogAppender implements Releasable {
         }
     }
 
-    private MockLogAppender(List<String> loggers) {
+    private MockLog(List<String> loggers) {
         /*
          * We use a copy-on-write array list since log messages could be appended while we are setting up expectations. When that occurs,
          * we would run into a concurrent modification exception from the iteration over the expectations in #append, concurrent with a
@@ -97,8 +97,8 @@ public class MockLogAppender implements Releasable {
      * Initialize the mock log appender with the log4j system.
      */
     public static void init() {
-        parent.start();
-        Loggers.addAppender(LogManager.getLogger(""), parent);
+        appender.start();
+        Loggers.addAppender(LogManager.getLogger(""), appender);
     }
 
     public void addExpectation(LoggingExpectation expectation) {
@@ -290,34 +290,34 @@ public class MockLogAppender implements Releasable {
     }
 
     /**
-     * Adds the list of class loggers to this {@link MockLogAppender}.
+     * Adds the list of class loggers to this {@link MockLog}.
      *
-     * Stops and runs some checks on the {@link MockLogAppender} once the returned object is released.
+     * Stops and runs some checks on the {@link MockLog} once the returned object is released.
      */
-    public static MockLogAppender capture(Class<?>... classes) {
+    public static MockLog capture(Class<?>... classes) {
         return create(Arrays.stream(classes).map(Class::getCanonicalName).toList());
     }
 
     /**
      * Same as above except takes string class names of each logger.
      */
-    public static MockLogAppender capture(String... names) {
+    public static MockLog capture(String... names) {
         return create(Arrays.asList(names));
     }
 
-    private static MockLogAppender create(List<String> loggers) {
-        MockLogAppender appender = new MockLogAppender(loggers);
-        addToMockAppenders(appender, loggers);
+    private static MockLog create(List<String> loggers) {
+        MockLog appender = new MockLog(loggers);
+        addToMockLogs(appender, loggers);
         return appender;
     }
 
-    private static void addToMockAppenders(MockLogAppender appender, List<String> loggers) {
+    private static void addToMockLogs(MockLog mockLog, List<String> loggers) {
         for (String logger : loggers) {
-            mockAppenders.compute(logger, (k, v) -> {
+            mockLogs.compute(logger, (k, v) -> {
                 if (v == null) {
                     v = new CopyOnWriteArrayList<>();
                 }
-                v.add(appender);
+                v.add(mockLog);
                 return v;
             });
         }
@@ -326,13 +326,13 @@ public class MockLogAppender implements Releasable {
     /**
      * Executes an action and verifies expectations against the provided logger
      */
-    public static void assertThatLogger(Runnable action, Class<?> loggerOwner, MockLogAppender.LoggingExpectation... expectations) {
-        try (var mockAppender = MockLogAppender.capture(loggerOwner)) {
+    public static void assertThatLogger(Runnable action, Class<?> loggerOwner, MockLog.LoggingExpectation... expectations) {
+        try (var mockLog = MockLog.capture(loggerOwner)) {
             for (var expectation : expectations) {
-                mockAppender.addExpectation(expectation);
+                mockLog.addExpectation(expectation);
             }
             action.run();
-            mockAppender.assertAllExpectationsMatched();
+            mockLog.assertAllExpectationsMatched();
         }
     }
 }

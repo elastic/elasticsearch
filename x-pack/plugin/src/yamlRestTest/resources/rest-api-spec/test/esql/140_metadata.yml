@@ -5,7 +5,7 @@ setup:
         - method: POST
           path: /_query
           parameters: [method, path, parameters, capabilities]
-          capabilities: [metadata_field_ignored]
+          capabilities: [metadata_fields, metadata_field_ignored]
       reason: "Ignored metadata field capability required"
 
   - do:

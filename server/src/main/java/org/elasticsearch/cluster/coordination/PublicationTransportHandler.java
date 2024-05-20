@@ -157,41 +157,7 @@ public class PublicationTransportHandler {
                     incompatibleClusterStateDiffReceivedCount.incrementAndGet();
                     throw new IncompatibleClusterStateVersionException("have no local cluster state");
                 } else {
-                    ClusterState incomingState;
-                    try {
-                        final Diff<ClusterState> diff;
-                        final boolean includesLastCommittedData = request.version().onOrAfter(INCLUDES_LAST_COMMITTED_DATA_VERSION);
-                        final boolean clusterUuidCommitted;
-                        final CoordinationMetadata.VotingConfiguration lastCommittedConfiguration;
-
-                        // Close stream early to release resources used by the de-compression as early as possible
-                        try (StreamInput input = in) {
-                            diff = ClusterState.readDiffFrom(input, lastSeen.nodes().getLocalNode());
-                            if (includesLastCommittedData) {
-                                clusterUuidCommitted = in.readBoolean();
-                                lastCommittedConfiguration = new CoordinationMetadata.VotingConfiguration(in);
-                            } else {
-                                clusterUuidCommitted = false;
-                                lastCommittedConfiguration = null;
-                            }
-                            assert input.read() == -1;
-                        }
-                        incomingState = diff.apply(lastSeen); // might throw IncompatibleClusterStateVersionException
-                        if (includesLastCommittedData) {
-                            final var adjustedMetadata = incomingState.metadata()
-                                .withLastCommittedValues(clusterUuidCommitted, lastCommittedConfiguration);
-                            if (adjustedMetadata != incomingState.metadata()) {
-                                incomingState = ClusterState.builder(incomingState).metadata(adjustedMetadata).build();
-                            }
-                        }
-                    } catch (IncompatibleClusterStateVersionException e) {
-                        incompatibleClusterStateDiffReceivedCount.incrementAndGet();
-                        throw e;
-                    } catch (Exception e) {
-                        logger.warn("unexpected error while deserializing an incoming cluster state", e);
-                        assert false : e;
-                        throw e;
-                    }
+                    final ClusterState incomingState = deserializeAndApplyDiff(request, in, lastSeen);
                     compatibleClusterStateDiffReceivedCount.incrementAndGet();
                     logger.debug(
                         "received diff cluster state version [{}] with uuid [{}], diff size [{}]",
@@ -199,13 +165,52 @@ public class PublicationTransportHandler {
                         incomingState.stateUUID(),
                         request.bytes().length()
                     );
-                    final ClusterState stateToApply = incomingState;
-                    acceptState(stateToApply, ActionListener.runBefore(actionListener, () -> lastSeenClusterState.set(stateToApply)));
+                    acceptState(incomingState, ActionListener.runBefore(actionListener, () -> lastSeenClusterState.set(incomingState)));
                 }
             }
         } finally {
             IOUtils.close(in);
         }
+    }
+
+    private ClusterState deserializeAndApplyDiff(BytesTransportRequest request, StreamInput in, ClusterState currentState)
+        throws IOException {
+        ClusterState incomingState;
+        try {
+            final Diff<ClusterState> diff;
+            final boolean includesLastCommittedData = request.version().onOrAfter(INCLUDES_LAST_COMMITTED_DATA_VERSION);
+            final boolean clusterUuidCommitted;
+            final CoordinationMetadata.VotingConfiguration lastCommittedConfiguration;
+
+            // Close stream early to release resources used by the de-compression as early as possible
+            try (StreamInput input = in) {
+                diff = ClusterState.readDiffFrom(input, currentState.nodes().getLocalNode());
+                if (includesLastCommittedData) {
+                    clusterUuidCommitted = in.readBoolean();
+                    lastCommittedConfiguration = new CoordinationMetadata.VotingConfiguration(in);
+                } else {
+                    clusterUuidCommitted = false;
+                    lastCommittedConfiguration = null;
+                }
+                assert input.read() == -1;
+            }
+            incomingState = diff.apply(currentState); // might throw IncompatibleClusterStateVersionException
+            if (includesLastCommittedData) {
+                final var adjustedMetadata = incomingState.metadata()
+                    .withLastCommittedValues(clusterUuidCommitted, lastCommittedConfiguration);
+                if (adjustedMetadata != incomingState.metadata()) {
+                    incomingState = ClusterState.builder(incomingState).metadata(adjustedMetadata).build();
+                }
+            }
+        } catch (IncompatibleClusterStateVersionException e) {
+            incompatibleClusterStateDiffReceivedCount.incrementAndGet();
+            throw e;
+        } catch (Exception e) {
+            logger.warn("unexpected error while deserializing an incoming cluster state", e);
+            assert false : e;
+            throw e;
+        }
+        return incomingState;
     }
 
     /**

@@ -468,8 +468,7 @@ public class DefaultCheckpointProviderTests extends ESTestCase {
         transformAuditor.reset();
         transformAuditor.addExpectation(auditExpectation);
 
-        MockLogAppender mockLogAppender = new MockLogAppender();
-        try (var ignored = mockLogAppender.capturing(checkpointProviderLogger.getName())) {
+        try (var mockLogAppender = MockLogAppender.capture(checkpointProviderLogger.getName())) {
             mockLogAppender.addExpectation(loggingExpectation);
             codeBlock.run();
             mockLogAppender.assertAllExpectationsMatched();

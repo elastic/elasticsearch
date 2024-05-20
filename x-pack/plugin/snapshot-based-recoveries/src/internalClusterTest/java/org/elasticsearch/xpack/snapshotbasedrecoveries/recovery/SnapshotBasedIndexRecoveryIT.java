@@ -376,8 +376,7 @@ public class SnapshotBasedIndexRecoveryIT extends AbstractSnapshotIntegTestCase 
         createSnapshot(repoName, "snap", Collections.singletonList(indexName));
 
         String targetNode;
-        final var mockLogAppender = new MockLogAppender();
-        try (var ignored = mockLogAppender.capturing(RecoverySourceHandler.class)) {
+        try (var mockLogAppender = MockLogAppender.capture(RecoverySourceHandler.class)) {
             mockLogAppender.addExpectation(
                 new MockLogAppender.SeenEventExpectation(
                     "expected warn log about restore failure",
@@ -611,8 +610,7 @@ public class SnapshotBasedIndexRecoveryIT extends AbstractSnapshotIntegTestCase 
 
             recoverSnapshotFileRequestReceived.await();
 
-            final var mockLogAppender = new MockLogAppender();
-            try (var ignored = mockLogAppender.capturing(RecoverySourceHandler.class)) {
+            try (var mockLogAppender = MockLogAppender.capture(RecoverySourceHandler.class)) {
                 mockLogAppender.addExpectation(
                     new MockLogAppender.SeenEventExpectation(
                         "expected debug log about restore cancellation",

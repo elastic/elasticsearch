@@ -3,10 +3,10 @@
 === Setting up field and document level security
 
 You can control access to data within a data stream or index by adding field and document level
-security permissions to a role. 
-<<field-level-security,Field level security permissions>> restrict access to 
-particular fields within a document. 
-<<document-level-security,Document level security permissions>> restrict access 
+security permissions to a role.
+<<field-level-security,Field level security permissions>> restrict access to
+particular fields within a document.
+<<document-level-security,Document level security permissions>> restrict access
 to particular documents.
 
 NOTE: Document and field level security is currently meant to operate with
@@ -59,3 +59,24 @@ documents by index instead.
 
 include::role-templates.asciidoc[]
 include::set-security-user.asciidoc[]
+
+
+[[ccx-apikeys-dls-fls]]
+==== Field and document level security with Cross-cluster API keys
+
+Cross-cluster API keys can be used to authenticate requests to a remote cluster.
+`access` controls Cross Cluster Search, and `replication` controls Cross Cluster Replication.
+
+For reasons similar those described in  <<multiple-roles-dls-fls,Multiple roles with document and field level security>>,
+it is not allowed to create a single Cross-cluster API key with both `access` and `replication` where
+`access` has document or field level security defined.
+
+If you need both `access` and `replication` with the need to
+define document or field level security, create two separate Cross-cluster API keys. One with `access` that defines
+document or field level security, and another with `replication`. You will need to also setup two different
+remote connections (to the same cluster), with each named connection using the appropriate Cross-cluster API key.
+
+
+
+
+

@@ -755,4 +755,25 @@ public class IgnoredSourceFieldMapperTests extends MapperServiceTestCase {
             syntheticSource
         );
     }
+
+    public void testNestedObjectIncludeInRoot() throws IOException {
+        DocumentMapper documentMapper = createMapperService(syntheticSourceMapping(b -> {
+            b.startObject("path").field("type", "nested").field("include_in_root", true);
+            {
+                b.startObject("properties");
+                {
+                    b.startObject("foo").field("type", "keyword").endObject();
+                    b.startObject("bar").field("type", "keyword").endObject();
+                }
+                b.endObject();
+            }
+            b.endObject();
+        })).documentMapper();
+        var syntheticSource = syntheticSource(
+            documentMapper,
+            b -> { b.startObject("path").field("foo", "A").field("bar", "B").endObject(); }
+        );
+        assertEquals("""
+            {"path":{"foo":"A","bar":"B"}}""", syntheticSource);
+    }
 }

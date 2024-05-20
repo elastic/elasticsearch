@@ -692,3 +692,46 @@ nested object:
   - match: { hits.hits.0._source.nested_array.0.b: 20 }
   - match: { hits.hits.0._source.nested_array.1.a: 100 }
   - match: { hits.hits.0._source.nested_array.1.b: 200 }
+
+
+---
+nested object next to regular:
+  - requires:
+      cluster_features: ["mapper.track_ignored_source"]
+      reason: requires tracking ignored source
+
+  - do:
+      indices.create:
+        index: test
+        body:
+          mappings:
+            _source:
+              mode: synthetic
+            properties:
+              path:
+                properties:
+                  to:
+                    properties:
+                      nested:
+                        type: nested
+
+  - do:
+      bulk:
+        index: test
+        refresh: true
+        body:
+          - '{ "create": { } }'
+          - '{ "name": "aaaa", "path": { "to": { "nested": [{ "a": 10, "b": 20 }, { "a": 100, "b": 200 } ], "regular": [{ "a": 10, "b": 20 }, { "a": 100, "b": 200 } ] } } }'
+
+  - do:
+      search:
+        index: test
+
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0._source.name: aaaa }
+  - match: { hits.hits.0._source.path.to.nested.0.a: 10 }
+  - match: { hits.hits.0._source.path.to.nested.0.b: 20 }
+  - match: { hits.hits.0._source.path.to.nested.1.a: 100 }
+  - match: { hits.hits.0._source.path.to.nested.1.b: 200 }
+  - match: { hits.hits.0._source.path.to.regular.a: [ 10, 100 ] }
+  - match: { hits.hits.0._source.path.to.regular.b: [ 20, 200 ] }

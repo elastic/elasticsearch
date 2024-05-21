@@ -36,6 +36,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.FieldMaskingReader;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 
 public class FieldDataCacheTests extends ESTestCase {
     private static final ToScriptFieldFactory<SortedSetDocValues> MOCK_TO_SCRIPT_FIELD = (dv, n) -> new DelegateDocValuesField(
@@ -99,7 +100,8 @@ public class FieldDataCacheTests extends ESTestCase {
         iw.close();
         DirectoryReader ir = ElasticsearchDirectoryReader.wrap(DirectoryReader.open(dir), new ShardId("_index", "_na_", 0));
 
-        int[] timesCalled = new int[1];
+        int[] timesCalledForParent = new int[1];
+        long[] timesCalledForFieldData = new long[1];
         SortedSetOrdinalsIndexFieldData sortedSetOrdinalsIndexFieldData = new SortedSetOrdinalsIndexFieldData(
             new DummyAccountingFieldDataCache(),
             "field1",
@@ -112,16 +114,22 @@ public class FieldDataCacheTests extends ESTestCase {
                         @Override
                         public void addEstimateBytesAndMaybeBreak(long bytes, String label) throws CircuitBreakingException {
                             assertThat(label, equalTo("Global Ordinals"));
-                            assertThat(bytes, equalTo(0L));
-                            timesCalled[0]++;
+                            if (bytes == 0) {
+                                timesCalledForParent[0]++;
+                            } else {
+                                assertThat(timesCalledForFieldData[0], equalTo(0L));
+                                assertThat(bytes, greaterThan(0L));
+                                timesCalledForFieldData[0] = bytes;
+                            }
                         }
                     };
                 }
             },
             MOCK_TO_SCRIPT_FIELD
         );
-        sortedSetOrdinalsIndexFieldData.loadGlobal(ir);
-        assertThat(timesCalled[0], equalTo(2));
+        IndexOrdinalsFieldData globalOrdinals = sortedSetOrdinalsIndexFieldData.loadGlobal(ir);
+        assertThat(timesCalledForParent[0], equalTo(2));
+        assertThat(timesCalledForFieldData[0], equalTo(globalOrdinals.getOrdinalMap().ramBytesUsed()));
 
         ir.close();
         dir.close();

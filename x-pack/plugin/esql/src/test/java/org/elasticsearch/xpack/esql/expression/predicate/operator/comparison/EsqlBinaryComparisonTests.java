@@ -34,7 +34,8 @@ public class EsqlBinaryComparisonTests extends ESTestCase {
 
     /**
      * Test that a serialized
-     * {@link org.elasticsearch.xpack.esql.core.expression.predicate.operator.comparison.BinaryComparisonProcessor.BinaryComparisonOperation}
+     * {@code BinaryComparisonOperation}
+     * from {@code org.elasticsearch.xpack.esql.core.expression.predicate.operator.comparison}
      * can be read back as a
      * {@link BinaryComparisonOperation}
      */

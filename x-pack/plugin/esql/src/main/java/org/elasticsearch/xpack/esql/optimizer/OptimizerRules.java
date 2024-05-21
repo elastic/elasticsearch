@@ -261,8 +261,8 @@ class OptimizerRules {
     }
 
     /**
-     * This rule must always be placed after {@link org.elasticsearch.xpack.esql.core.optimizer.OptimizerRules.LiteralsOnTheRight}, since it looks
-     * at TRUE/FALSE literals' existence on the right hand-side of the {@link Equals}/{@link NotEquals} expressions.
+     * This rule must always be placed after {@link org.elasticsearch.xpack.esql.core.optimizer.OptimizerRules.LiteralsOnTheRight}
+     * since it looks at TRUE/FALSE literals' existence on the right hand-side of the {@link Equals}/{@link NotEquals} expressions.
      */
     public static final class BooleanFunctionEqualsElimination extends
         org.elasticsearch.xpack.esql.core.optimizer.OptimizerRules.OptimizerExpressionRule<BinaryComparison> {
@@ -298,8 +298,8 @@ class OptimizerRules {
      * {@link org.elasticsearch.xpack.esql.core.optimizer.OptimizerRules.CombineBinaryComparisons}.
      *
      * This rule doesn't perform any promotion of {@link BinaryComparison}s, that is handled by
-     * {@link org.elasticsearch.xpack.esql.core.optimizer.OptimizerRules.CombineBinaryComparisons} on purpose as the resulting Range might be
-     * foldable (which is picked by the folding rule on the next run).
+     * {@link org.elasticsearch.xpack.esql.core.optimizer.OptimizerRules.CombineBinaryComparisons} on purpose as the resulting Range might
+     * be foldable (which is picked by the folding rule on the next run).
      */
     public static final class PropagateEquals extends org.elasticsearch.xpack.esql.core.optimizer.OptimizerRules.OptimizerExpressionRule<
         BinaryLogic> {

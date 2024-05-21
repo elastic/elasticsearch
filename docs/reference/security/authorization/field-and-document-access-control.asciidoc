@@ -70,7 +70,7 @@ The `replication` parameter defines permissions for cross-cluster replication.
 
 `replication` does not support any field or document level security. `search` supports field and document level security.
 
-For reasons similar those described in <<multiple-roles-dls-fls,Multiple roles with document and field level security>>,
+For reasons similar to those described in <<multiple-roles-dls-fls,Multiple roles with document and field level security>>,
 you can't create a single cross-cluster API key with both the `search` and `replication` parameters if the
 `search` parameter has document or field level security defined.
 

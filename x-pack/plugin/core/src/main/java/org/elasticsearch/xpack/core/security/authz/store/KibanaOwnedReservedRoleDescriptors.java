@@ -37,22 +37,22 @@ class KibanaOwnedReservedRoleDescriptors {
     // package-private to expose to ReservedRoleStore
     static RoleDescriptor kibanaAdminUser(String name, Map<String, Object> metadata) {
         return new RoleDescriptor(
-            name,
-            null,
-            null,
-            new RoleDescriptor.ApplicationResourcePrivileges[] {
-                RoleDescriptor.ApplicationResourcePrivileges.builder()
-                    .application("kibana-.kibana")
-                    .resources("*")
-                    .privileges("all")
-                    .build() },
-            null,
-            null,
-            metadata,
-            null,
-            null,
-            null,
-            null,
+                name,
+                null,
+                null,
+                new RoleDescriptor.ApplicationResourcePrivileges[] {
+                        RoleDescriptor.ApplicationResourcePrivileges.builder()
+                                .application("kibana-.kibana")
+                                .resources("*")
+                                .privileges("all")
+                                .build() },
+                null,
+                null,
+                metadata,
+                null,
+                null,
+                null,
+                null,
             "Grants access to all features in Kibana."
         );
     }
@@ -246,6 +246,7 @@ class KibanaOwnedReservedRoleDescriptors {
                         ".logs-endpoint.heartbeat-*",
                         ".logs-osquery_manager.actions-*",
                         ".logs-osquery_manager.action.responses-*",
+                        "logs-osquery_manager.action.responses-*",
                         "profiling-*"
                     )
                     .privileges(
@@ -266,9 +267,14 @@ class KibanaOwnedReservedRoleDescriptors {
                     .indices(".logs-endpoint.actions-*")
                     .privileges("auto_configure", "read", "write")
                     .build(),
-                // Osquery manager specific action responses. Kibana reads from these to display responses to the user.
+                // Legacy Osquery manager specific action responses. Kibana reads from these to display responses to the user.
                 RoleDescriptor.IndicesPrivileges.builder()
                     .indices(".logs-osquery_manager.action.responses-*")
+                    .privileges("auto_configure", "create_index", "read", "index", "delete")
+                    .build(),
+                // Osquery manager specific action responses. Kibana reads from these to display responses to the user.
+                RoleDescriptor.IndicesPrivileges.builder()
+                    .indices("logs-osquery_manager.action.responses-*")
                     .privileges("auto_configure", "create_index", "read", "index", "delete")
                     .build(),
                 // Osquery manager specific actions. Kibana reads and writes to this index to track new actions and display them.

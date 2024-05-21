@@ -102,6 +102,20 @@ setup:
   - match: { values.0.2: ["integer", "keyword"] }
 
 ---
+"Filter by ignored":
+  - do:
+      esql.query:
+        body:
+          query: 'from test metadata _ignored | WHERE _ignored == "keyword" | limit 3 | stats count(*)'
+          version: 2024.04.01
+
+  - length: { columns: 1 }
+  - length: { values: 1 }
+  - match: { columns.0.name: "count(*)"}
+  - match: { columns.0.type: long }
+  - match: { values.0.0: 1 }
+
+---
 "Group by ignored field":
   - do:
       esql.query:

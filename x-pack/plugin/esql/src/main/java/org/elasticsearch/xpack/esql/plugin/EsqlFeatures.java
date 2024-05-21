@@ -176,7 +176,7 @@ public class EsqlFeatures implements FeatureSpecification {
 
     private Set<NodeFeature> snapshotBuildFeatures() {
         assert Build.current().isSnapshot() : Build.current();
-        return Set.of(COUNTER_TYPES);
+        return Set.of(METRICS_SYNTAX);
     }
 
     @Override
@@ -202,8 +202,7 @@ public class EsqlFeatures implements FeatureSpecification {
             STRING_LITERAL_AUTO_CASTING_EXTENDED,
             METADATA_FIELDS,
             TIMESPAN_ABBREVIATIONS,
-            COUNTER_TYPES,
-            METRICS_SYNTAX
+            COUNTER_TYPES
         );
         if (Build.current().isSnapshot()) {
             return Collections.unmodifiableSet(Sets.union(features, snapshotBuildFeatures()));

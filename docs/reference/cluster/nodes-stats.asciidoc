@@ -2643,21 +2643,33 @@ pipeline.
 (integer)
 Total number of failed operations for the ingest pipeline.
 
-`ingested_in_bytes`::
-(Optional, integer)
-Total number of bytes of all documents ingested by the pipeline.
-This field is only present on pipelines which are the first to process a document.
-Thus, it is not present on pipelines which only serve as a final pipeline after a default pipeline, a pipeline run after
-a reroute processor, or pipelines in pipeline processors.
+`ingested_as_first_pipeline`::
+(<<byte-units,byte value>>)
+Total ingested size of all documents which were first processed by this pipeline.
+A document is not added to the stat value for this pipeline if it is a final pipeline after a default pipeline, a pipeline
+run after a reroute processor, or is within a pipeline processor.
+Instead, the document size is added to the stat value of the pipeline which initially ingested the document.
 
-`produced_in_bytes`::
-(Optional, integer)
-Total number of bytes of all documents produced by the pipeline.
-This field is only present on pipelines which are the first to process a document.
-Thus, it is not present on pipelines which only serve as a final pipeline after a default pipeline, a pipeline run after
-a reroute processor, or pipelines in pipeline processors.
-In situations where there are subsequent pipelines, the value represents the size of the document after all pipelines
-have run.
+`ingested_as_first_pipeline_in_bytes`::
+(integer)
+Total ingested size, in bytes, of all documents which were first processed by this pipeline.
+A document is not added to the stat value for this pipeline if it is a final pipeline after a default pipeline, a pipeline
+run after a reroute processor, or is within a pipeline processor.
+Instead, the document size is added to the stat value of the pipeline which initially ingested the document.
+
+`produced_as_first_pipeline`::
+(<<byte-units,byte value>>)
+Total produced size of all documents which were first processed by this pipeline.
+A document is not added to the stat value for this pipeline if it is a final pipeline after a default pipeline, a pipeline
+run after a reroute processor, or is within a pipeline processor.
+Instead, the document size is added to the stat value of the pipeline which initially ingested the document.
+
+`produced_as_first_pipeline_in_bytes`::
+(integer)
+Total produced size, in bytes, of all documents which were first processed by this pipeline.
+A document is not added to the stat value for this pipeline if it is a final pipeline after a default pipeline, a pipeline
+run after a reroute processor, or is within a pipeline processor.
+Instead, the document size is added to the stat value of the pipeline which initially ingested the document.
 
 `processors`::
 (array of objects)

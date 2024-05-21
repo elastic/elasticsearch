@@ -41,7 +41,7 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.telemetry.tracing.Tracer;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.MockLogAppender;
+import org.elasticsearch.test.MockLog;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.threadpool.TestThreadPool;
@@ -581,11 +581,11 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
                     .put(HttpTransportSettings.SETTING_HTTP_TRACE_LOG_EXCLUDE.getKey(), excludeSettings)
                     .build()
             );
-            try (var appender = MockLogAppender.capture(HttpTracer.class)) {
+            try (var mockLog = MockLog.capture(HttpTracer.class)) {
 
                 final String opaqueId = UUIDs.randomBase64UUID(random());
-                appender.addExpectation(
-                    new MockLogAppender.PatternSeenEventExpectation(
+                mockLog.addExpectation(
+                    new MockLog.PatternSeenEventExpectation(
                         "received request",
                         HttpTracerTests.HTTP_TRACER_LOGGER,
                         Level.TRACE,
@@ -595,8 +595,8 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
 
                 final boolean badRequest = randomBoolean();
 
-                appender.addExpectation(
-                    new MockLogAppender.PatternSeenEventExpectation(
+                mockLog.addExpectation(
+                    new MockLog.PatternSeenEventExpectation(
                         "sent response",
                         HttpTracerTests.HTTP_TRACER_LOGGER,
                         Level.TRACE,
@@ -610,8 +610,8 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
                     )
                 );
 
-                appender.addExpectation(
-                    new MockLogAppender.UnseenEventExpectation(
+                mockLog.addExpectation(
+                    new MockLog.UnseenEventExpectation(
                         "received other request",
                         HttpTracerTests.HTTP_TRACER_LOGGER,
                         Level.TRACE,
@@ -657,7 +657,7 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
                 try (var httpChannel = fakeRestRequestExcludedPath.getHttpChannel()) {
                     transport.incomingRequest(fakeRestRequestExcludedPath.getHttpRequest(), httpChannel);
                 }
-                appender.assertAllExpectationsMatched();
+                mockLog.assertAllExpectationsMatched();
             }
         }
     }
@@ -671,7 +671,7 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
             .put(TransportSettings.SLOW_OPERATION_THRESHOLD_SETTING.getKey(), TimeValue.timeValueMillis(5))
             .build();
         try (
-            var mockAppender = MockLogAppender.capture(AbstractHttpServerTransport.class);
+            var mockLog = MockLog.capture(AbstractHttpServerTransport.class);
             AbstractHttpServerTransport transport = new AbstractHttpServerTransport(
                 settings,
                 networkService,
@@ -718,8 +718,8 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
                 }
             }
         ) {
-            mockAppender.addExpectation(
-                new MockLogAppender.SeenEventExpectation(
+            mockLog.addExpectation(
+                new MockLog.SeenEventExpectation(
                     "expected message",
                     AbstractHttpServerTransport.class.getCanonicalName(),
                     Level.WARN,
@@ -733,7 +733,7 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
                 .build();
             transport.serverAcceptedChannel(fakeRestRequest.getHttpChannel());
             transport.incomingRequest(fakeRestRequest.getHttpRequest(), fakeRestRequest.getHttpChannel());
-            mockAppender.assertAllExpectationsMatched();
+            mockLog.assertAllExpectationsMatched();
         }
     }
 
@@ -1350,13 +1350,13 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
 
     private static class LogExpectation implements AutoCloseable {
         private final Logger mockLogger;
-        private final MockLogAppender appender;
+        private final MockLog mockLog;
         private final int grace;
 
         private LogExpectation(int grace) {
             mockLogger = LogManager.getLogger(AbstractHttpServerTransport.class);
             Loggers.setLevel(mockLogger, Level.DEBUG);
-            appender = MockLogAppender.capture(AbstractHttpServerTransport.class);
+            mockLog = MockLog.capture(AbstractHttpServerTransport.class);
             this.grace = grace;
         }
 
@@ -1382,9 +1382,9 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
             var logger = AbstractHttpServerTransport.class.getName();
             var level = Level.WARN;
             if (expected) {
-                appender.addExpectation(new MockLogAppender.SeenEventExpectation(name, logger, level, message));
+                mockLog.addExpectation(new MockLog.SeenEventExpectation(name, logger, level, message));
             } else {
-                appender.addExpectation(new MockLogAppender.UnseenEventExpectation(name, logger, level, message));
+                mockLog.addExpectation(new MockLog.UnseenEventExpectation(name, logger, level, message));
             }
             return this;
         }
@@ -1395,9 +1395,9 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
             var logger = AbstractHttpServerTransport.class.getName();
             var level = Level.DEBUG;
             if (expected) {
-                appender.addExpectation(new MockLogAppender.SeenEventExpectation(name, logger, level, message));
+                mockLog.addExpectation(new MockLog.SeenEventExpectation(name, logger, level, message));
             } else {
-                appender.addExpectation(new MockLogAppender.UnseenEventExpectation(name, logger, level, message));
+                mockLog.addExpectation(new MockLog.UnseenEventExpectation(name, logger, level, message));
             }
             return this;
         }
@@ -1407,17 +1407,17 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
             var name = "update message";
             var logger = AbstractHttpServerTransport.class.getName();
             var level = Level.INFO;
-            appender.addExpectation(new MockLogAppender.SeenEventExpectation(name, logger, level, message));
+            mockLog.addExpectation(new MockLog.SeenEventExpectation(name, logger, level, message));
             return this;
         }
 
         public void assertExpectationsMatched() {
-            appender.assertAllExpectationsMatched();
+            mockLog.assertAllExpectationsMatched();
         }
 
         @Override
         public void close() {
-            appender.close();
+            mockLog.close();
         }
     }
 

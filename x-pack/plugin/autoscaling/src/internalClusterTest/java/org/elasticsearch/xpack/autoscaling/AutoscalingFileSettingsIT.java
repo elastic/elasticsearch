@@ -16,6 +16,7 @@ import org.elasticsearch.cluster.metadata.ReservedStateHandlerMetadata;
 import org.elasticsearch.cluster.metadata.ReservedStateMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.core.Strings;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.reservedstate.service.FileSettingsService;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
@@ -222,7 +223,16 @@ public class AutoscalingFileSettingsIT extends AutoscalingIntegTestCase {
             var bis = new ByteArrayInputStream(json.getBytes(StandardCharsets.UTF_8));
             var parser = JSON.xContent().createParser(XContentParserConfiguration.EMPTY, bis)
         ) {
-            return PutAutoscalingPolicyAction.Request.parse(parser, name);
+            return PutAutoscalingPolicyAction.Request.parse(
+                parser,
+                (roles, deciders) -> new PutAutoscalingPolicyAction.Request(
+                    TimeValue.THIRTY_SECONDS,
+                    TimeValue.THIRTY_SECONDS,
+                    name,
+                    roles,
+                    deciders
+                )
+            );
         }
     }
 }

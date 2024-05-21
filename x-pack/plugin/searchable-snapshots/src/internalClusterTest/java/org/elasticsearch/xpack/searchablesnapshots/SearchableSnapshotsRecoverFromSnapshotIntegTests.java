@@ -14,7 +14,7 @@ import org.elasticsearch.indices.recovery.plan.ShardSnapshotsService;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 import org.elasticsearch.repositories.fs.FsRepository;
 import org.elasticsearch.search.SearchResponseUtils;
-import org.elasticsearch.test.MockLogAppender;
+import org.elasticsearch.test.MockLog;
 import org.elasticsearch.xpack.core.searchablesnapshots.MountSearchableSnapshotRequest;
 
 import java.util.List;
@@ -64,10 +64,9 @@ public class SearchableSnapshotsRecoverFromSnapshotIntegTests extends BaseSearch
 
         final var newNode = internalCluster().startDataOnlyNode();
 
-        final var mockAppender = new MockLogAppender();
-        try (var ignored = mockAppender.capturing(ShardSnapshotsService.class)) {
-            mockAppender.addExpectation(
-                new MockLogAppender.UnseenEventExpectation(
+        try (var mockLog = MockLog.capture(ShardSnapshotsService.class)) {
+            mockLog.addExpectation(
+                new MockLog.UnseenEventExpectation(
                     "Error fetching segments file",
                     ShardSnapshotsService.class.getCanonicalName(),
                     Level.WARN,
@@ -82,7 +81,7 @@ public class SearchableSnapshotsRecoverFromSnapshotIntegTests extends BaseSearch
 
             assertHitCount(prepareSearch(restoredIndexName).setTrackTotalHits(true), totalHits.value);
 
-            mockAppender.assertAllExpectationsMatched();
+            mockLog.assertAllExpectationsMatched();
         }
     }
 }

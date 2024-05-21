@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.autoscaling.action;
 
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 
 public class DeleteAutoscalingPolicyActionRequestWireSerializingTests extends AbstractWireSerializingTestCase<
@@ -20,7 +21,7 @@ public class DeleteAutoscalingPolicyActionRequestWireSerializingTests extends Ab
 
     @Override
     protected DeleteAutoscalingPolicyAction.Request createTestInstance() {
-        return new DeleteAutoscalingPolicyAction.Request(randomAlphaOfLength(8));
+        return new DeleteAutoscalingPolicyAction.Request(TimeValue.THIRTY_SECONDS, TimeValue.THIRTY_SECONDS, randomAlphaOfLength(8));
     }
 
     @Override

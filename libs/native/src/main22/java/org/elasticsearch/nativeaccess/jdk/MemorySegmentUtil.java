@@ -10,8 +10,10 @@ package org.elasticsearch.nativeaccess.jdk;
 
 import java.lang.foreign.Arena;
 import java.lang.foreign.MemorySegment;
+import java.lang.invoke.MethodHandles;
+import java.lang.invoke.VarHandle;
 
-public class MemorySegmentUtil {
+class MemorySegmentUtil {
 
     static String getString(MemorySegment segment, long offset) {
         return segment.getString(offset);
@@ -19,6 +21,12 @@ public class MemorySegmentUtil {
 
     static MemorySegment allocateString(Arena arena, String s) {
         return arena.allocateFrom(s);
+    }
+
+    // MemorySegment.varHandle changed between 21 and 22. The resulting varHandle now requires an additional
+    // long offset parameter. We omit the offset at runtime, instead binding to the VarHandle in JDK 22.
+    static VarHandle varHandleDropOffset(VarHandle varHandle) {
+        return MethodHandles.insertCoordinates(varHandle, 1, 0L);
     }
 
     private MemorySegmentUtil() {}

@@ -610,9 +610,12 @@ public final class DocumentParser {
         String arrayFieldName
     ) throws IOException {
         // Check if we need to record the array source. This only applies to synthetic source.
-        if (context.mappingLookup().isSourceSynthetic()
-            && (mapper instanceof ObjectMapper objectMapper && objectMapper.storeArraySource())
-            && context.getClonedSource() == false) {
+        boolean needToStoreObjectArraySource = mapper instanceof ObjectMapper objectMapper
+            && objectMapper.storeArraySource()
+            && context.getClonedSource() == false;
+        boolean needToStoreFieldArraySource = mapper instanceof FieldMapper fieldMapper
+            && fieldMapper.syntheticSourceMode() == FieldMapper.SyntheticSourceMode.FALLBACK;
+        if (context.mappingLookup().isSourceSynthetic() && (needToStoreObjectArraySource || needToStoreFieldArraySource)) {
             // Clone the DocumentParserContext to parse its subtree twice.
             Tuple<DocumentParserContext, XContentBuilder> tuple = XContentDataHelper.cloneSubContext(context);
             boolean isRoot = context.parent() instanceof RootObjectMapper;

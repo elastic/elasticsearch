@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql;
 
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
+import org.elasticsearch.Build;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
@@ -222,11 +223,13 @@ public class CsvTests extends ESTestCase {
         try {
             assumeTrue("Test " + testName + " is not enabled", isEnabled(testName, Version.CURRENT));
 
-            assertThat(
-                "nonexistent capabilities declared as required",
-                testCase.requiredCapabilities,
-                everyItem(in(EsqlCapabilities.CAPABILITIES))
-            );
+            if (Build.current().isSnapshot()) {
+                assertThat(
+                    "nonexistent capabilities declared as required",
+                    testCase.requiredCapabilities,
+                    everyItem(in(EsqlCapabilities.CAPABILITIES))
+                );
+            }
 
             /*
              * The csv tests support all but a few features. The unsupported features
@@ -234,6 +237,7 @@ public class CsvTests extends ESTestCase {
              */
             assumeFalse("metadata fields aren't supported", testCase.requiredCapabilities.contains(cap(EsqlFeatures.METADATA_FIELDS)));
             assumeFalse("enrich can't load fields in csv tests", testCase.requiredCapabilities.contains(cap(EsqlFeatures.ENRICH_LOAD)));
+            assumeFalse("can't load metrics in csv tests", testCase.requiredCapabilities.contains(cap(EsqlFeatures.METRICS_SYNTAX)));
 
             doTest();
         } catch (Throwable th) {

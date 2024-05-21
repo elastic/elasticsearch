@@ -720,6 +720,11 @@ public class AggregateDoubleMetricFieldMapper extends FieldMapper {
     }
 
     @Override
+    protected SyntheticSourceMode syntheticSourceMode() {
+        return SyntheticSourceMode.NATIVE;
+    }
+
+    @Override
     public SourceLoader.SyntheticFieldLoader syntheticFieldLoader() {
         // Note that malformed values are handled via `IgnoredSourceFieldMapper` infrastructure
         return new AggregateMetricSyntheticFieldLoader(name(), simpleName(), metrics);

@@ -540,6 +540,8 @@ public class ReactiveStorageIT extends AutoscalingStorageIntegTestCase {
 
     private void putAutoscalingPolicy(String policyName, String role) {
         final PutAutoscalingPolicyAction.Request request = new PutAutoscalingPolicyAction.Request(
+            TEST_REQUEST_TIMEOUT,
+            TEST_REQUEST_TIMEOUT,
             policyName,
             new TreeSet<>(Set.of(role)),
             new TreeMap<>(Map.of("reactive_storage", Settings.EMPTY))

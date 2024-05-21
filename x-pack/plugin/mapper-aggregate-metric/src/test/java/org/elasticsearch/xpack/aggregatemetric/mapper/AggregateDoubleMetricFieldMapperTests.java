@@ -473,6 +473,11 @@ public class AggregateDoubleMetricFieldMapperTests extends MapperTestCase {
     }
 
     @Override
+    public void testSyntheticSourceIgnoreMalformedExamples() {
+        assumeTrue("Scenarios are covered in scope of syntheticSourceSupport", false);
+    }
+
+    @Override
     protected IngestScriptSupport ingestScriptSupport() {
         throw new AssumptionViolatedException("not supported");
     }
@@ -510,7 +515,6 @@ public class AggregateDoubleMetricFieldMapperTests extends MapperTestCase {
                 ESTestCase::randomFloat,
                 ESTestCase::randomDouble,
                 ESTestCase::randomBoolean,
-                // Rest of test cases mimic `exampleMalformedValues()`
                 // no metrics
                 Map::of,
                 // unmapped metric

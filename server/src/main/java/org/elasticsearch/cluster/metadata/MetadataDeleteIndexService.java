@@ -98,21 +98,13 @@ public class MetadataDeleteIndexService {
             IndexMetadata im = meta.getIndexSafe(index);
             DataStream parent = meta.getIndicesLookup().get(im.getIndex().getName()).getParentDataStream();
             if (parent != null) {
-                final Index targetWriteIndex;
-                final boolean isFailureStore;
-                if (parent.isFailureStoreIndex(im.getIndex().getName())) {
-                    targetWriteIndex = parent.getFailureStoreWriteIndex();
-                    isFailureStore = true;
-                } else {
-                    targetWriteIndex = parent.getWriteIndex();
-                    isFailureStore = false;
-                }
-                if (targetWriteIndex != null && targetWriteIndex.equals(im.getIndex())) {
+                boolean isFailureStoreWriteIndex = im.getIndex().equals(parent.getFailureStoreWriteIndex());
+                if (isFailureStoreWriteIndex || im.getIndex().equals(parent.getWriteIndex())) {
                     throw new IllegalArgumentException(
                         "index ["
                             + index.getName()
                             + "] is the "
-                            + (isFailureStore ? "failure store " : "")
+                            + (isFailureStoreWriteIndex ? "failure store " : "")
                             + "write index for data stream ["
                             + parent.getName()
                             + "] and cannot be deleted"

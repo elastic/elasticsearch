@@ -1338,6 +1338,7 @@ public class MetadataIndexTemplateService {
                     if (exitOnFirstMatch) {
                         return candidates;
                     }
+                    break;
                 }
             }
         }

@@ -686,11 +686,10 @@ public class AggregateDoubleMetricFieldMapper extends FieldMapper {
                         // We don't use DrainingXContentParser since we don't want to go beyond current field
                         malformedContentForSyntheticSource.copyCurrentStructure(context.parser());
                     }
-
-                    int parentOffset = context.parent() instanceof RootObjectMapper ? 0 : context.parent().fullPath().length() + 1;
-                    var nameValue = new IgnoredSourceFieldMapper.NameValue(
+                    ;
+                    var nameValue = IgnoredSourceFieldMapper.NameValue.fromContext(
+                        context,
                         name(),
-                        parentOffset,
                         XContentDataHelper.encodeXContentBuilder(malformedContentForSyntheticSource)
                     );
                     context.addIgnoredField(nameValue);

@@ -1062,8 +1062,8 @@ end::stats[]
 
 tag::stored_fields[]
 `stored_fields`::
-(Optional, Boolean) If `true`, retrieves the document fields stored in the
-index rather than the document `_source`. Defaults to `false`.
+(Optional, string)
+A comma-separated list of <<mapping-store,`stored fields`>> to include in the response.
 end::stored_fields[]
 
 tag::sync[]
@@ -1231,6 +1231,15 @@ expires, the cluster metadata update still applies but the response will
 indicate that it was not completely acknowledged. Defaults to `30s`.
 Can also be set to `-1` to indicate that the request should never timeout.
 end::timeoutparms[]
+
+tag::timeout-nodes-request[]
+`timeout`::
+(Optional, <<time-units, time units>>)
+Period to wait for each node to respond. If a node does not respond before its
+timeout expires, the response does not include its information. However, timed out
+nodes are included in the response's `_nodes.failed` property. Defaults to no
+timeout.
+end::timeout-nodes-request[]
 
 tag::transform-id[]
 Identifier for the {transform}.

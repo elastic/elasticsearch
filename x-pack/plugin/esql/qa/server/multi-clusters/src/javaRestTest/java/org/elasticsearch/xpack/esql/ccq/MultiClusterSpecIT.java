@@ -67,7 +67,7 @@ public class MultiClusterSpecIT extends EsqlSpecTestCase {
     public static TestRule clusterRule = RuleChain.outerRule(remoteCluster).around(localCluster);
 
     private static TestFeatureService remoteFeaturesService;
-    private static RestClient remoteFeaturesServiceClient;
+    private static RestClient remoteClusterClient;
 
     @ParametersFactory(argumentFormatting = "%2$s.%3$s")
     public static List<Object[]> readScriptSpec() throws Exception {
@@ -95,30 +95,35 @@ public class MultiClusterSpecIT extends EsqlSpecTestCase {
     @Override
     protected void shouldSkipTest(String testName) throws IOException {
         super.shouldSkipTest(testName);
-        for (String feature : testCase.requiredFeatures) {
-            assumeTrue("Test " + testName + " requires " + feature, remoteFeaturesService().clusterHasFeature(feature));
-        }
+        checkCapabilities(remoteClusterClient(), remoteFeaturesService(), testName, testCase);
         assumeFalse("can't test with _index metadata", hasIndexMetadata(testCase.query));
+        assumeTrue("can't test with metrics across cluster", hasMetricsCommand(testCase.query));
         assumeTrue("Test " + testName + " is skipped on " + Clusters.oldVersion(), isEnabled(testName, Clusters.oldVersion()));
     }
 
     private TestFeatureService remoteFeaturesService() throws IOException {
         if (remoteFeaturesService == null) {
-            HttpHost[] remoteHosts = parseClusterHosts(remoteCluster.getHttpAddresses()).toArray(HttpHost[]::new);
-            remoteFeaturesServiceClient = super.buildClient(restAdminSettings(), remoteHosts);
-            var remoteNodeVersions = readVersionsFromNodesInfo(remoteFeaturesServiceClient);
+            var remoteNodeVersions = readVersionsFromNodesInfo(remoteClusterClient());
             var semanticNodeVersions = remoteNodeVersions.stream()
                 .map(ESRestTestCase::parseLegacyVersion)
                 .flatMap(Optional::stream)
                 .collect(Collectors.toSet());
-            remoteFeaturesService = createTestFeatureService(getClusterStateFeatures(remoteFeaturesServiceClient), semanticNodeVersions);
+            remoteFeaturesService = createTestFeatureService(getClusterStateFeatures(remoteClusterClient()), semanticNodeVersions);
         }
         return remoteFeaturesService;
     }
 
+    private RestClient remoteClusterClient() throws IOException {
+        if (remoteClusterClient == null) {
+            HttpHost[] remoteHosts = parseClusterHosts(remoteCluster.getHttpAddresses()).toArray(HttpHost[]::new);
+            remoteClusterClient = super.buildClient(restAdminSettings(), remoteHosts);
+        }
+        return remoteClusterClient;
+    }
+
     @AfterClass
     public static void closeRemoveFeaturesService() throws IOException {
-        IOUtils.close(remoteFeaturesServiceClient);
+        IOUtils.close(remoteClusterClient);
     }
 
     @Override
@@ -192,7 +197,7 @@ public class MultiClusterSpecIT extends EsqlSpecTestCase {
         String first = commands[0].trim();
 
         if (commands[0].toLowerCase(Locale.ROOT).startsWith("from")) {
-            String[] parts = commands[0].split("(?i)(metadata|options)");
+            String[] parts = commands[0].split("(?i)metadata");
             assert parts.length >= 1 : parts;
             String fromStatement = parts[0];
 
@@ -230,5 +235,9 @@ public class MultiClusterSpecIT extends EsqlSpecTestCase {
             return parts.length > 1 && parts[1].contains("_index");
         }
         return false;
+    }
+
+    static boolean hasMetricsCommand(String query) {
+        return Arrays.stream(query.split("\\|")).anyMatch(s -> s.trim().toLowerCase(Locale.ROOT).startsWith("metrics"));
     }
 }

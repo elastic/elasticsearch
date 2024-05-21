@@ -1,0 +1,5 @@
+pr: 108431
+summary: "ESQL: Disable quoting in FROM command"
+area: ES|QL
+type: bug
+issues: []

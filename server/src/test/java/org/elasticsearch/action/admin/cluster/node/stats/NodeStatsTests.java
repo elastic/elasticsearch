@@ -971,7 +971,8 @@ public class NodeStatsTests extends ESTestCase {
                             randomLongBetween(0, maxStatValue),
                             randomLongBetween(0, maxStatValue),
                             randomLongBetween(0, maxStatValue)
-                        )
+                        ),
+                        new IngestStats.ByteStats(randomLongBetween(0, maxStatValue), randomLongBetween(0, maxStatValue))
                     )
                 );
 
@@ -1021,6 +1022,7 @@ public class NodeStatsTests extends ESTestCase {
         if (frequently()) {
             long maxStatValue = Long.MAX_VALUE / 5;
             indexingPressureStats = new IndexingPressureStats(
+                randomLongBetween(0, maxStatValue),
                 randomLongBetween(0, maxStatValue),
                 randomLongBetween(0, maxStatValue),
                 randomLongBetween(0, maxStatValue),

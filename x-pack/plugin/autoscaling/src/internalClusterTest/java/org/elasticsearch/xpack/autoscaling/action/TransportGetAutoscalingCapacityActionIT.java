@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.autoscaling.action;
 
 import org.apache.logging.log4j.Level;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.monitor.os.OsProbe;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -73,15 +72,15 @@ public class TransportGetAutoscalingCapacityActionIT extends AutoscalingIntegTes
     }
 
     public GetAutoscalingCapacityAction.Response capacity() {
-        GetAutoscalingCapacityAction.Request request = new GetAutoscalingCapacityAction.Request(TimeValue.THIRTY_SECONDS);
+        GetAutoscalingCapacityAction.Request request = new GetAutoscalingCapacityAction.Request(TEST_REQUEST_TIMEOUT);
         GetAutoscalingCapacityAction.Response response = client().execute(GetAutoscalingCapacityAction.INSTANCE, request).actionGet();
         return response;
     }
 
     private void putAutoscalingPolicy(String policyName) {
         final PutAutoscalingPolicyAction.Request request = new PutAutoscalingPolicyAction.Request(
-            TimeValue.THIRTY_SECONDS,
-            TimeValue.THIRTY_SECONDS,
+            TEST_REQUEST_TIMEOUT,
+            TEST_REQUEST_TIMEOUT,
             policyName,
             new TreeSet<>(Set.of("data")),
             new TreeMap<>()

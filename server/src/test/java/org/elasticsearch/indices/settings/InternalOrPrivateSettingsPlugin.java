@@ -29,7 +29,6 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.tasks.Task;
@@ -40,6 +39,8 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+
+import static org.elasticsearch.test.ESTestCase.TEST_REQUEST_TIMEOUT;
 
 public class InternalOrPrivateSettingsPlugin extends Plugin implements ActionPlugin {
 
@@ -78,7 +79,7 @@ public class InternalOrPrivateSettingsPlugin extends Plugin implements ActionPlu
             }
 
             public Request(final String index, final String key, final String value) {
-                super(TimeValue.THIRTY_SECONDS);
+                super(TEST_REQUEST_TIMEOUT);
                 this.index = index;
                 this.key = key;
                 this.value = value;

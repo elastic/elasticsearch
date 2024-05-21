@@ -13,6 +13,18 @@ setup:
                 type: integer
 
   - do:
+      indices.create:
+        index: dummy-rollup-index
+        body:
+          settings:
+            number_of_shards: 1
+            number_of_replicas: 0
+          mappings:
+            _meta:
+              _rollup:
+                my-id: { }
+
+  - do:
       headers:
         Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
       rollup.put_job:

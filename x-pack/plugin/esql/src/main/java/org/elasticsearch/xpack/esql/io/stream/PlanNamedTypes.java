@@ -533,12 +533,7 @@ public final class PlanNamedTypes {
 
     static IndexMode readIndexMode(StreamInput in) throws IOException {
         if (in.getTransportVersion().onOrAfter(TransportVersions.ESQL_ADD_INDEX_MODE_TO_SOURCE)) {
-            int ord = in.readByte();
-            return switch (ord) {
-                case 0 -> IndexMode.STANDARD;
-                case 1 -> IndexMode.TIME_SERIES;
-                default -> throw new IllegalStateException("no index mode for " + ord);
-            };
+            return IndexMode.fromString(in.readString());
         } else {
             return IndexMode.STANDARD;
         }
@@ -546,10 +541,7 @@ public final class PlanNamedTypes {
 
     static void writeIndexMode(StreamOutput out, IndexMode indexMode) throws IOException {
         if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_ADD_INDEX_MODE_TO_SOURCE)) {
-            switch (indexMode) {
-                case STANDARD -> out.writeByte((byte) 0);
-                case TIME_SERIES -> out.writeByte((byte) 1);
-            }
+            out.writeString(indexMode.getName());
         } else if (indexMode != IndexMode.STANDARD) {
             throw new IllegalStateException("not ready to support index mode [" + indexMode + "]");
         }

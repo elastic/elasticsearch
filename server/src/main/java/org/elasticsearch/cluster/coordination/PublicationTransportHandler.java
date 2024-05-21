@@ -170,9 +170,9 @@ public class PublicationTransportHandler {
                         incomingState.stateUUID(),
                         request.bytes().length()
                     );
-                    acceptState(incomingState, publishResponseListener.delegateFailure((delegate, response) -> {
+                    acceptState(incomingState, publishResponseListener.map(response -> {
                         lastSeenClusterState.compareAndSet(lastSeen, incomingState);
-                        delegate.onResponse(response);
+                        return response;
                     }));
                 }
             }

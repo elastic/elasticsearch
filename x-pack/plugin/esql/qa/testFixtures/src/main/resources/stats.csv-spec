@@ -214,7 +214,7 @@ l:long
 ;
 
 sumOfDouble
-from employees | stats h = sum(height);
+from employees | stats h = round(sum(height), 10);
 
 h:double
 176.82

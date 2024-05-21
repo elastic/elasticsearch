@@ -65,8 +65,6 @@ public class AggregateMapper {
         Values.class
     );
 
-    static AggregateMapper INSTANCE = new AggregateMapper();
-
     /** Record of agg Class, type, and grouping (or non-grouping). */
     record AggDef(Class<?> aggClazz, String type, String extra, boolean grouping) {}
 
@@ -76,8 +74,12 @@ public class AggregateMapper {
     /** Cache of aggregates to intermediate expressions. */
     private final HashMap<Expression, List<? extends NamedExpression>> cache = new HashMap<>();
 
-    private AggregateMapper() {
-        mapper = AGG_FUNCTIONS.stream()
+    AggregateMapper() {
+        this(AGG_FUNCTIONS);
+    }
+
+    AggregateMapper(List<? extends Class<? extends Function>> aggregateFunctionClasses) {
+        mapper = aggregateFunctionClasses.stream()
             .flatMap(AggregateMapper::typeAndNames)
             .flatMap(AggregateMapper::groupingAndNonGrouping)
             .collect(Collectors.toUnmodifiableMap(aggDef -> aggDef, AggregateMapper::lookupIntermediateState));

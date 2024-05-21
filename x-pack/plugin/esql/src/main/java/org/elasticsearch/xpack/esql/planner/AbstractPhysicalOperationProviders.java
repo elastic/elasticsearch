@@ -41,6 +41,8 @@ import static java.util.Collections.emptyList;
 
 public abstract class AbstractPhysicalOperationProviders implements PhysicalOperationProviders {
 
+    private final AggregateMapper aggregateMapper = new AggregateMapper();
+
     @Override
     public final PhysicalOperation groupingPhysicalOperation(
         AggregateExec aggregateExec,
@@ -76,7 +78,7 @@ public abstract class AbstractPhysicalOperationProviders implements PhysicalOper
             if (mode == AggregateExec.Mode.FINAL) {
                 layout.append(aggregates);
             } else {
-                layout.append(AggregateMapper.INSTANCE.mapNonGrouping(aggregates));
+                layout.append(aggregateMapper.mapNonGrouping(aggregates));
             }
 
             // create the agg factories
@@ -141,7 +143,7 @@ public abstract class AbstractPhysicalOperationProviders implements PhysicalOper
                     }
                 }
             } else {
-                layout.append(AggregateMapper.INSTANCE.mapGrouping(aggregates));
+                layout.append(aggregateMapper.mapGrouping(aggregates));
             }
 
             // create the agg factories
@@ -183,12 +185,13 @@ public abstract class AbstractPhysicalOperationProviders implements PhysicalOper
      * It's similar to the code above (groupingPhysicalOperation) but ignores the factory creation.
      */
     public static List<Attribute> intermediateAttributes(List<? extends NamedExpression> aggregates, List<? extends Expression> groupings) {
+        var aggregateMapper = new AggregateMapper();
 
         List<Attribute> attrs = new ArrayList<>();
 
         // no groups
         if (groupings.isEmpty()) {
-            attrs = Expressions.asAttributes(AggregateMapper.INSTANCE.mapNonGrouping(aggregates));
+            attrs = Expressions.asAttributes(aggregateMapper.mapNonGrouping(aggregates));
         }
         // groups
         else {
@@ -220,7 +223,7 @@ public abstract class AbstractPhysicalOperationProviders implements PhysicalOper
                 attrs.add(groupAttribute);
             }
 
-            attrs.addAll(Expressions.asAttributes(AggregateMapper.INSTANCE.mapGrouping(aggregates)));
+            attrs.addAll(Expressions.asAttributes(aggregateMapper.mapGrouping(aggregates)));
         }
         return attrs;
     }
@@ -267,9 +270,9 @@ public abstract class AbstractPhysicalOperationProviders implements PhysicalOper
                         }
                     } else if (mode == AggregatorMode.FINAL || mode == AggregatorMode.INTERMEDIATE) {
                         if (grouping) {
-                            sourceAttr = AggregateMapper.INSTANCE.mapGrouping(aggregateFunction);
+                            sourceAttr = aggregateMapper.mapGrouping(aggregateFunction);
                         } else {
-                            sourceAttr = AggregateMapper.INSTANCE.mapNonGrouping(aggregateFunction);
+                            sourceAttr = aggregateMapper.mapNonGrouping(aggregateFunction);
                         }
                     } else {
                         throw new EsqlIllegalArgumentException("illegal aggregation mode");

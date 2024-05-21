@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.autoscaling.action;
 
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xpack.autoscaling.AutoscalingIntegTestCase;
 import org.elasticsearch.xpack.autoscaling.AutoscalingMetadata;
 import org.elasticsearch.xpack.autoscaling.policy.AutoscalingPolicy;
@@ -26,8 +25,8 @@ public class TransportDeleteAutoscalingPolicyActionIT extends AutoscalingIntegTe
     public void testDeletePolicy() {
         final AutoscalingPolicy policy = randomAutoscalingPolicy();
         final PutAutoscalingPolicyAction.Request putRequest = new PutAutoscalingPolicyAction.Request(
-            TimeValue.THIRTY_SECONDS,
-            TimeValue.THIRTY_SECONDS,
+            TEST_REQUEST_TIMEOUT,
+            TEST_REQUEST_TIMEOUT,
             policy.name(),
             policy.roles(),
             policy.deciders()
@@ -36,8 +35,8 @@ public class TransportDeleteAutoscalingPolicyActionIT extends AutoscalingIntegTe
         // we trust that the policy is in the cluster state since we have tests for putting policies
         String deleteName = randomFrom("*", policy.name(), policy.name().substring(0, between(0, policy.name().length())) + "*");
         final DeleteAutoscalingPolicyAction.Request deleteRequest = new DeleteAutoscalingPolicyAction.Request(
-            TimeValue.THIRTY_SECONDS,
-            TimeValue.THIRTY_SECONDS,
+            TEST_REQUEST_TIMEOUT,
+            TEST_REQUEST_TIMEOUT,
             deleteName
         );
         assertAcked(client().execute(DeleteAutoscalingPolicyAction.INSTANCE, deleteRequest).actionGet());
@@ -47,10 +46,7 @@ public class TransportDeleteAutoscalingPolicyActionIT extends AutoscalingIntegTe
         assertNotNull(metadata);
         assertThat(metadata.policies(), not(hasKey(policy.name())));
         // and verify that we can not obtain the policy via get
-        final GetAutoscalingPolicyAction.Request getRequest = new GetAutoscalingPolicyAction.Request(
-            TimeValue.THIRTY_SECONDS,
-            policy.name()
-        );
+        final GetAutoscalingPolicyAction.Request getRequest = new GetAutoscalingPolicyAction.Request(TEST_REQUEST_TIMEOUT, policy.name());
         final ResourceNotFoundException e = expectThrows(
             ResourceNotFoundException.class,
             client().execute(GetAutoscalingPolicyAction.INSTANCE, getRequest)
@@ -61,8 +57,8 @@ public class TransportDeleteAutoscalingPolicyActionIT extends AutoscalingIntegTe
     public void testDeleteNonExistentPolicy() {
         final String name = randomAlphaOfLength(8);
         final DeleteAutoscalingPolicyAction.Request deleteRequest = new DeleteAutoscalingPolicyAction.Request(
-            TimeValue.THIRTY_SECONDS,
-            TimeValue.THIRTY_SECONDS,
+            TEST_REQUEST_TIMEOUT,
+            TEST_REQUEST_TIMEOUT,
             name
         );
         final ResourceNotFoundException e = expectThrows(
@@ -75,8 +71,8 @@ public class TransportDeleteAutoscalingPolicyActionIT extends AutoscalingIntegTe
     public void testDeleteNonExistentPolicyByWildcard() {
         final String name = randomFrom("*", randomAlphaOfLength(8) + "*");
         final DeleteAutoscalingPolicyAction.Request deleteRequest = new DeleteAutoscalingPolicyAction.Request(
-            TimeValue.THIRTY_SECONDS,
-            TimeValue.THIRTY_SECONDS,
+            TEST_REQUEST_TIMEOUT,
+            TEST_REQUEST_TIMEOUT,
             name
         );
         assertAcked(client().execute(DeleteAutoscalingPolicyAction.INSTANCE, deleteRequest).actionGet());

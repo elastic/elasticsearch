@@ -132,17 +132,17 @@ public class TransportSendRecoveryCommitRegistrationAction extends HandledTransp
             DiscoveryNode node = state.nodes().get(shardRoutingTable.primaryShard().currentNodeId());
             logger.debug("{} sending recovery commit registration to {}", shardId, node);
             assert node != null;
+            final var requestWithClusterStateVersion = request.withClusterStateVersion(state.version());
             transportService.sendChildRequest(
                 node,
                 TransportRegisterCommitForRecoveryAction.NAME,
-                request.withClusterStateVersion(state.version()),
+                requestWithClusterStateVersion,
                 task,
                 TransportRequestOptions.EMPTY,
-                new ActionListenerResponseHandler<>(
-                    listener,
-                    in -> new RegisterCommitResponse(in, node.getId()),
-                    transportService.getThreadPool().generic()
-                )
+                new ActionListenerResponseHandler<>(listener.safeMap(r -> {
+                    logger.debug("{} received registration response {} for {} ", shardId, r, requestWithClusterStateVersion);
+                    return r;
+                }), in -> new RegisterCommitResponse(in, node.getId()), transportService.getThreadPool().generic())
             );
         } catch (Exception e) {
             listener.onFailure(e);

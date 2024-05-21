@@ -55,7 +55,6 @@ public class RecoveryCommitRegistrationHandler {
         client.execute(TransportSendRecoveryCommitRegistrationAction.TYPE, request, new ActionListener<>() {
             @Override
             public void onResponse(RegisterCommitResponse response) {
-                logger.debug("{} received registration response {} for {} ", shardId, response, request);
                 listener.onResponse(response);
             }
 

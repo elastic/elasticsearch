@@ -1322,34 +1322,21 @@ public class MetadataIndexTemplateService {
     ) {
         final String resolvedIndexName = IndexNameExpressionResolver.DateMathExpressionResolver.resolveExpression(indexName);
         final List<Tuple<String, ComposableIndexTemplate>> candidates = new ArrayList<>();
-        outerLoop:
         for (Map.Entry<String, ComposableIndexTemplate> entry : templateEntries) {
             final String name = entry.getKey();
             final ComposableIndexTemplate template = entry.getValue();
-            if (isHidden == false) {
-                for (String indexPattern : template.indexPatterns()) {
-                    if (Regex.simpleMatch(indexPattern, resolvedIndexName)) {
-                        candidates.add(Tuple.tuple(name, template));
-                        if (exitOnFirstMatch) {
-                            return candidates;
-                        }
-                    }
+            if (isHidden) {
+                final boolean hasMatchAllTemplate = template.indexPatterns().stream().anyMatch(Regex::isMatchAllPattern);
+                if (hasMatchAllTemplate) {
+                    continue;
                 }
-            } else {
-                // For hidden indices, we don't want to return any templates that match "all".
-                boolean match = false;
-                for (String indexPattern : template.indexPatterns()) {
-                    if (Regex.isMatchAllPattern(indexPattern)) {
-                        continue outerLoop;
+            }
+            for (String indexPattern : template.indexPatterns()) {
+                if (Regex.simpleMatch(indexPattern, resolvedIndexName)) {
+                    candidates.add(Tuple.tuple(name, template));
+                    if (exitOnFirstMatch) {
+                        return candidates;
                     }
-                    // If we've already found a match, we still want to keep looping to make sure this template doesn't have a "*" pattern.
-                    if (match == false && Regex.simpleMatch(indexPattern, resolvedIndexName)) {
-                        candidates.add(Tuple.tuple(name, template));
-                        match = true;
-                    }
-                }
-                if (match && exitOnFirstMatch) {
-                    return candidates;
                 }
             }
         }

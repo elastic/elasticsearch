@@ -11,71 +11,41 @@ package org.elasticsearch.server.cli;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
+import org.elasticsearch.nativeaccess.NativeAccess;
+import org.elasticsearch.nativeaccess.Systemd;
 
 import java.io.Closeable;
 import java.io.IOException;
-import java.io.UncheckedIOException;
-import java.net.UnixDomainSocketAddress;
-import java.nio.ByteBuffer;
-import java.nio.channels.SocketChannel;
-import java.nio.charset.StandardCharsets;
-import java.nio.file.Path;
-import java.util.Locale;
 import java.util.Timer;
 import java.util.TimerTask;
 
 class SystemdNotifier implements ServerProcessListener, Closeable {
 
     private static final Logger logger = LogManager.getLogger(SystemdNotifier.class);
-    private final SocketChannel socket;
+    private static final Systemd systemd = NativeAccess.instance().systemd();
     private final Timer timer;
 
-    SystemdNotifier(Path notifySocketPath) {
-        try {
-            logger.info("Opening systemd notify socket: {}", notifySocketPath);
-            this.socket = SocketChannel.open(UnixDomainSocketAddress.of(notifySocketPath));
-        } catch (IOException e) {
-            // TODO: should this be a UserException?
-            throw new UncheckedIOException(e);
-        }
+    SystemdNotifier() {
         this.timer = new Timer("systemd-notifier", true);
         long timeBetweenExtend = TimeValue.timeValueSeconds(15).millis();
-        long timeExtend = TimeValue.timeValueSeconds(30).micros();
         TimerTask extendTask = new TimerTask() {
             @Override
             public void run() {
-                SystemdNotifier.this.notify("EXTEND_TIMEOUT_USEC=" + timeExtend, true);
+                systemd.notify_extend_timeout(30);
             }
         };
         timer.scheduleAtFixedRate(extendTask, timeBetweenExtend, timeBetweenExtend);
     }
 
-    private synchronized void notify(String state, boolean warnOnError) {
-        logger.trace("systemd notify({})", 0, state);
-        try {
-            byte[] stateBytes = state.getBytes(StandardCharsets.UTF_8);
-            socket.write(ByteBuffer.wrap(stateBytes));
-        } catch (IOException e) {
-            String message = String.format(Locale.ROOT, "systemd notify(%s) returned error", state);
-            if (warnOnError) {
-                logger.warn(message, e);
-            } else {
-                throw new RuntimeException(message, e);
-            }
-        }
-
-    }
-
     @Override
     public void onReady() {
         timer.cancel();
-        notify("READY=1", false);
+        systemd.notify_ready();
     }
 
     @Override
     public void close() throws IOException {
         timer.cancel();
-        notify("STOPPING=1", true);
-        socket.close();
+        systemd.notify_stopping();
     }
 }

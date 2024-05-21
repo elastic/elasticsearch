@@ -233,8 +233,7 @@ class JdkKernel32Library implements Kernel32Library {
     @Override
     public int GetShortPathNameW(String lpszLongPath, char[] lpszShortPath, int cchBuffer) {
         try (Arena arena = Arena.ofConfined()) {
-            // TODO: in Java 22 this can use allocateFrom to encode the string
-            MemorySegment wideFileName = arena.allocateArray(JAVA_BYTE, (lpszLongPath + "\0").getBytes(StandardCharsets.UTF_16LE));
+            MemorySegment wideFileName = ArenaUtil.allocateFrom(arena,lpszLongPath + "\0", StandardCharsets.UTF_16LE);
             MemorySegment shortPath;
             if (lpszShortPath != null) {
                 shortPath = arena.allocateArray(JAVA_CHAR, cchBuffer);

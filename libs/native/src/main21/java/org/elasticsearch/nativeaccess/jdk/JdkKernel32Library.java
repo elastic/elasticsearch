@@ -235,7 +235,7 @@ class JdkKernel32Library implements Kernel32Library {
             MemorySegment wideFileName = ArenaUtil.allocateFrom(arena, lpszLongPath + "\0", StandardCharsets.UTF_16LE);
             MemorySegment shortPath;
             if (lpszShortPath != null) {
-                shortPath = ArenaUtil.allocateFrom(arena, JAVA_CHAR, (char) cchBuffer);
+                shortPath = ArenaUtil.allocate(arena, JAVA_CHAR, cchBuffer);
             } else {
                 shortPath = MemorySegment.NULL;
             }

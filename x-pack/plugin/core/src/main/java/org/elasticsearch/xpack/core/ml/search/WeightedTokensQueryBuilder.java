@@ -65,15 +65,6 @@ public class WeightedTokensQueryBuilder extends AbstractQueryBuilder<WeightedTok
         return fieldName;
     }
 
-    @Nullable
-    public TokenPruningConfig getTokenPruningConfig() {
-        return tokenPruningConfig;
-    }
-
-    public boolean shouldPruneTokens() {
-        return tokenPruningConfig != null;
-    }
-
     public List<WeightedToken> getTokens() {
         return tokens;
     }

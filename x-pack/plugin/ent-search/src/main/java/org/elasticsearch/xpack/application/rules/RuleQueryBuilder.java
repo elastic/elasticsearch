@@ -303,10 +303,11 @@ public class RuleQueryBuilder extends AbstractQueryBuilder<RuleQueryBuilder> {
             String rulesetId = (String) a[2];
             @SuppressWarnings("unchecked")
             List<String> rulesetIds = (List<String>) a[3];
-            if (rulesetId == null && rulesetIds == null) {
-                throw new IllegalArgumentException("no ruleset specified");
+            if (rulesetId == null ^ rulesetIds == null == false) {
+                throw new IllegalArgumentException("ruleset information not provided correctly");
             }
             if (rulesetIds == null) {
+                HeaderWarning.addWarning("Using deprecated field [ruleset_id] in query rules, please use [ruleset_ids] instead");
                 rulesetIds = List.of(rulesetId);
             }
             return new RuleQueryBuilder(organicQuery, matchCriteria, rulesetIds);

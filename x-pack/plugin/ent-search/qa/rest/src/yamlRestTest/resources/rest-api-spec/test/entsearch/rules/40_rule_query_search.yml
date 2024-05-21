@@ -116,6 +116,21 @@ setup:
                 nonexistent-ruleset
 
 ---
+"Perform a rule query without specifying a ruleset":
+  - do:
+      catch: /ruleset information not provided correctly/
+      search:
+        body:
+          query:
+            rule:
+              organic:
+                query_string:
+                  default_field: text
+                  query: search
+              match_criteria:
+                foo: bar
+
+---
 "Perform a rule query with malformed rule":
   - do:
       catch: bad_request
@@ -455,6 +470,8 @@ setup:
 
 ---
 "Verify rule query still works with legacy ruleset_id":
+  - requires:
+      test_runner_features: [ "allowed_warnings" ]
 
   - do:
       search:
@@ -468,6 +485,8 @@ setup:
               match_criteria:
                 query_string: search
               ruleset_id: test-ruleset
+      allowed_warnings:
+        - "Using deprecated field [ruleset_id] in query rules, please use [ruleset_ids] instead"
 
   - match: { hits.total.value: 2 }
   - match: { hits.hits.0._id: 'doc1' }
@@ -575,7 +594,7 @@ setup:
                 - test-ruleset11
 
 ---
-"Perform a rule query with legacy syntax":
+"Perform a rule query with full legacy syntax":
   - requires:
       test_runner_features: [ "allowed_warnings" ]
 
@@ -593,6 +612,7 @@ setup:
               ruleset_id: test-ruleset
       allowed_warnings:
         - "Deprecated field [rule_query] used, expected [rule] instead"
+        - "Using deprecated field [ruleset_id] in query rules, please use [ruleset_ids] instead"
 
   - match: { hits.total.value: 2 }
   - match: { hits.hits.0._id: 'doc1' }

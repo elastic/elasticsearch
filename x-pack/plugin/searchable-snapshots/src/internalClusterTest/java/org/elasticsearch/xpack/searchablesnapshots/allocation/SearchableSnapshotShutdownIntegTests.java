@@ -14,6 +14,7 @@ import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -117,6 +118,8 @@ public class SearchableSnapshotShutdownIntegTests extends BaseSearchableSnapshot
 
     private void putShutdown(String nodeToRestartId) throws InterruptedException, ExecutionException {
         PutShutdownNodeAction.Request putShutdownRequest = new PutShutdownNodeAction.Request(
+            TimeValue.THIRTY_SECONDS,
+            TimeValue.THIRTY_SECONDS,
             nodeToRestartId,
             SingleNodeShutdownMetadata.Type.RESTART,
             this.getTestName(),
@@ -128,6 +131,11 @@ public class SearchableSnapshotShutdownIntegTests extends BaseSearchableSnapshot
     }
 
     private void removeShutdown(String node) throws ExecutionException, InterruptedException {
-        assertTrue(client().execute(DeleteShutdownNodeAction.INSTANCE, new DeleteShutdownNodeAction.Request(node)).get().isAcknowledged());
+        assertTrue(
+            client().execute(
+                DeleteShutdownNodeAction.INSTANCE,
+                new DeleteShutdownNodeAction.Request(TimeValue.THIRTY_SECONDS, TimeValue.THIRTY_SECONDS, node)
+            ).get().isAcknowledged()
+        );
     }
 }

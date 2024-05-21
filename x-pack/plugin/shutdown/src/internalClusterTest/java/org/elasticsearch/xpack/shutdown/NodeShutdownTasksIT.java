@@ -24,6 +24,7 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.SettingsModule;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.persistent.AllocatedPersistentTask;
 import org.elasticsearch.persistent.PersistentTaskParams;
 import org.elasticsearch.persistent.PersistentTaskState;
@@ -91,7 +92,16 @@ public class NodeShutdownTasksIT extends ESIntegTestCase {
         // Mark the node as shutting down
         client().execute(
             PutShutdownNodeAction.INSTANCE,
-            new PutShutdownNodeAction.Request(shutdownNode, SingleNodeShutdownMetadata.Type.REMOVE, "removal for testing", null, null, null)
+            new PutShutdownNodeAction.Request(
+                TimeValue.THIRTY_SECONDS,
+                TimeValue.THIRTY_SECONDS,
+                shutdownNode,
+                SingleNodeShutdownMetadata.Type.REMOVE,
+                "removal for testing",
+                null,
+                null,
+                null
+            )
         ).get();
 
         // Tell the persistent task executor it can start allocating the task

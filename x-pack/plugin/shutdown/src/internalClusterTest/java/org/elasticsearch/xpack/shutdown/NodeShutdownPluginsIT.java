@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.shutdown;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.ShutdownAwarePlugin;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -59,7 +60,16 @@ public class NodeShutdownPluginsIT extends ESIntegTestCase {
         // Mark the node as shutting down
         client().execute(
             PutShutdownNodeAction.INSTANCE,
-            new PutShutdownNodeAction.Request(shutdownNode, SingleNodeShutdownMetadata.Type.REMOVE, "removal for testing", null, null, null)
+            new PutShutdownNodeAction.Request(
+                TimeValue.THIRTY_SECONDS,
+                TimeValue.THIRTY_SECONDS,
+                shutdownNode,
+                SingleNodeShutdownMetadata.Type.REMOVE,
+                "removal for testing",
+                null,
+                null,
+                null
+            )
         ).get();
 
         GetShutdownStatusAction.Response getResp = client().execute(
@@ -86,7 +96,10 @@ public class NodeShutdownPluginsIT extends ESIntegTestCase {
         // The shutdown node should be in the triggered list
         assertThat(triggeredNodes.get(), contains(shutdownNode));
 
-        client().execute(DeleteShutdownNodeAction.INSTANCE, new DeleteShutdownNodeAction.Request(shutdownNode)).get();
+        client().execute(
+            DeleteShutdownNodeAction.INSTANCE,
+            new DeleteShutdownNodeAction.Request(TimeValue.THIRTY_SECONDS, TimeValue.THIRTY_SECONDS, shutdownNode)
+        ).get();
 
         // The shutdown node should now not in the triggered list
         assertThat(triggeredNodes.get(), empty());

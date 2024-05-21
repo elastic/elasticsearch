@@ -81,13 +81,27 @@ public class NodeShutdownReadinessIT extends ESIntegTestCase {
         assertAcked(
             client().execute(
                 PutShutdownNodeAction.INSTANCE,
-                new PutShutdownNodeAction.Request(nodeId, type, this.getTestName(), allocationDelay, null, null)
+                new PutShutdownNodeAction.Request(
+                    TimeValue.THIRTY_SECONDS,
+                    TimeValue.THIRTY_SECONDS,
+                    nodeId,
+                    type,
+                    this.getTestName(),
+                    allocationDelay,
+                    null,
+                    null
+                )
             )
         );
     }
 
     private void deleteNodeShutdown(String nodeId) {
-        assertAcked(client().execute(DeleteShutdownNodeAction.INSTANCE, new DeleteShutdownNodeAction.Request(nodeId)));
+        assertAcked(
+            client().execute(
+                DeleteShutdownNodeAction.INSTANCE,
+                new DeleteShutdownNodeAction.Request(TimeValue.THIRTY_SECONDS, TimeValue.THIRTY_SECONDS, nodeId)
+            )
+        );
     }
 
     private void assertNoShuttingDownNodes(String nodeId) throws ExecutionException, InterruptedException {

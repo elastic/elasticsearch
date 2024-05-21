@@ -21,6 +21,7 @@ import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Strings;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalTestCluster;
@@ -458,7 +459,16 @@ public class NodeShutdownShardsIT extends ESIntegTestCase {
         assertAcked(
             client().execute(
                 PutShutdownNodeAction.INSTANCE,
-                new PutShutdownNodeAction.Request(nodeId, type, this.getTestName(), null, nodeReplacementName, null)
+                new PutShutdownNodeAction.Request(
+                    TimeValue.THIRTY_SECONDS,
+                    TimeValue.THIRTY_SECONDS,
+                    nodeId,
+                    type,
+                    this.getTestName(),
+                    null,
+                    nodeReplacementName,
+                    null
+                )
             )
         );
     }

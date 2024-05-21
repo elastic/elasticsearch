@@ -291,7 +291,6 @@ public class AutoscalingMemoryMetricsIT extends AbstractStatelessIntegTestCase {
         });
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch-serverless/issues/1734")
     public void testScaleUpAndDownOnMultipleIndicesAndNodes() throws Exception {
         startMasterNode();
         int indexNodes = randomIntBetween(1, 10);
@@ -654,7 +653,6 @@ public class AutoscalingMemoryMetricsIT extends AbstractStatelessIntegTestCase {
         deleteRepository("test-repo");
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch-serverless/issues/1734")
     public void testNoMissedIndexMappingUpdatesOnSlowClusterUpdates() throws Exception {
         var masterNode = startMasterNode();
         startIndexNode();

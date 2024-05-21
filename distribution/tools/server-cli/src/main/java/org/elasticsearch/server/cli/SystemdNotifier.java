@@ -15,10 +15,10 @@ import org.elasticsearch.logging.Logger;
 import java.io.Closeable;
 import java.io.IOException;
 import java.io.UncheckedIOException;
-import java.net.DatagramPacket;
-import java.net.DatagramSocket;
-import java.net.SocketException;
+import java.net.StandardProtocolFamily;
 import java.net.UnixDomainSocketAddress;
+import java.nio.ByteBuffer;
+import java.nio.channels.SocketChannel;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.util.Locale;
@@ -28,13 +28,14 @@ import java.util.TimerTask;
 class SystemdNotifier implements ServerProcessListener, Closeable {
 
     private static final Logger logger = LogManager.getLogger(SystemdNotifier.class);
-    private final DatagramSocket socket;
+    private final SocketChannel socket;
     private final Timer timer;
 
     SystemdNotifier(Path notifySocketPath) {
         try {
-            this.socket = new DatagramSocket(UnixDomainSocketAddress.of(notifySocketPath));
-        } catch (SocketException e) {
+            this.socket = SocketChannel.open(StandardProtocolFamily.UNIX);
+            socket.connect(UnixDomainSocketAddress.of(notifySocketPath));
+        } catch (IOException e) {
             // TODO: should this be a UserException?
             throw new UncheckedIOException(e);
         }
@@ -54,7 +55,7 @@ class SystemdNotifier implements ServerProcessListener, Closeable {
         logger.trace("systemd notify({})", 0, state);
         try {
             byte[] stateBytes = state.getBytes(StandardCharsets.UTF_8);
-            socket.send(new DatagramPacket(stateBytes, stateBytes.length));
+            socket.write(ByteBuffer.wrap(stateBytes));
         } catch (IOException e) {
             String message = String.format(Locale.ROOT, "systemd notify(%s) returned error", state);
             if (warnOnError) {

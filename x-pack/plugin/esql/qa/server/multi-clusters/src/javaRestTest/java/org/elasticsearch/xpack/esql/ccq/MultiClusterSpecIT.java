@@ -97,6 +97,7 @@ public class MultiClusterSpecIT extends EsqlSpecTestCase {
         super.shouldSkipTest(testName);
         checkCapabilities(remoteClusterClient(), remoteFeaturesService(), testName, testCase);
         assumeFalse("can't test with _index metadata", hasIndexMetadata(testCase.query));
+        assumeTrue("can't test with metrics across cluster", hasMetricsCommand(testCase.query));
         assumeTrue("Test " + testName + " is skipped on " + Clusters.oldVersion(), isEnabled(testName, Clusters.oldVersion()));
     }
 
@@ -206,28 +207,6 @@ public class MultiClusterSpecIT extends EsqlSpecTestCase {
                 .collect(Collectors.joining(","));
             var newFrom = "FROM " + remoteIndices + " " + commands[0].substring(fromStatement.length());
             testCase.query = newFrom + query.substring(first.length());
-        } else if (commands[0].toLowerCase(Locale.ROOT).startsWith("metrics")) {
-            int endPosition = "metrics".length();
-            boolean toEndSource = false;
-            for (; endPosition < commands.length; endPosition++) {
-                char c = commands[0].charAt(endPosition);
-                if (Character.isWhitespace(c)) {
-                    if (toEndSource) {
-                        break;
-                    }
-                } else if (c == ',') {
-                    toEndSource = false; // the next token is another index
-                } else {
-                    toEndSource = true;
-                }
-            }
-            String metricSource = commands[0].substring(0, endPosition);
-            String[] localIndices = metricSource.substring("metrics".length()).split(",");
-            String remoteIndices = Arrays.stream(localIndices)
-                .map(index -> "*:" + index.trim() + "," + index.trim())
-                .collect(Collectors.joining(","));
-            var newMetrics = "METRICS " + remoteIndices + " " + commands[0].substring(metricSource.length());
-            testCase.query = newMetrics + query.substring(first.length());
         }
         int offset = testCase.query.length() - query.length();
         if (offset != 0) {
@@ -256,5 +235,9 @@ public class MultiClusterSpecIT extends EsqlSpecTestCase {
             return parts.length > 1 && parts[1].contains("_index");
         }
         return false;
+    }
+
+    static boolean hasMetricsCommand(String query) {
+        return Arrays.stream(query.split("\\|")).anyMatch(s -> s.trim().toLowerCase(Locale.ROOT).startsWith("metrics"));
     }
 }

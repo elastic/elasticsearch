@@ -29,6 +29,11 @@ public interface NativeAccess {
      */
     boolean definitelyRunningAsRoot();
 
+    /**
+     * Return limits for the current process.
+     */
+    ProcessLimits getProcessLimits();
+
     Systemd systemd();
 
     /**

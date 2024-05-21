@@ -12,6 +12,7 @@ import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotRes
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.autoscaling.action.DeleteAutoscalingPolicyAction;
 import org.elasticsearch.xpack.autoscaling.action.GetAutoscalingPolicyAction;
@@ -55,7 +56,11 @@ public class AutoscalingSnapshotsIT extends AutoscalingIntegTestCase {
 
         final boolean deletePolicy = randomBoolean();
         if (deletePolicy) {
-            final DeleteAutoscalingPolicyAction.Request deleteRequest = new DeleteAutoscalingPolicyAction.Request(policy.name());
+            final DeleteAutoscalingPolicyAction.Request deleteRequest = new DeleteAutoscalingPolicyAction.Request(
+                TimeValue.THIRTY_SECONDS,
+                TimeValue.THIRTY_SECONDS,
+                policy.name()
+            );
             assertAcked(client.execute(DeleteAutoscalingPolicyAction.INSTANCE, deleteRequest).actionGet());
         } else {
             // Update the policy
@@ -83,6 +88,8 @@ public class AutoscalingSnapshotsIT extends AutoscalingIntegTestCase {
 
     private void putPolicy(AutoscalingPolicy policy) {
         final PutAutoscalingPolicyAction.Request request = new PutAutoscalingPolicyAction.Request(
+            TimeValue.THIRTY_SECONDS,
+            TimeValue.THIRTY_SECONDS,
             policy.name(),
             policy.roles(),
             policy.deciders()
@@ -91,13 +98,19 @@ public class AutoscalingSnapshotsIT extends AutoscalingIntegTestCase {
     }
 
     private void assertPolicy(AutoscalingPolicy policy) {
-        final GetAutoscalingPolicyAction.Request getRequest = new GetAutoscalingPolicyAction.Request(policy.name());
+        final GetAutoscalingPolicyAction.Request getRequest = new GetAutoscalingPolicyAction.Request(
+            TimeValue.THIRTY_SECONDS,
+            policy.name()
+        );
         final AutoscalingPolicy actualPolicy = client().execute(GetAutoscalingPolicyAction.INSTANCE, getRequest).actionGet().policy();
         assertThat(actualPolicy, equalTo(policy));
     }
 
     private void assertPolicyNotFound(AutoscalingPolicy policy) {
-        final GetAutoscalingPolicyAction.Request getRequest = new GetAutoscalingPolicyAction.Request(policy.name());
+        final GetAutoscalingPolicyAction.Request getRequest = new GetAutoscalingPolicyAction.Request(
+            TimeValue.THIRTY_SECONDS,
+            policy.name()
+        );
         final ResourceNotFoundException e = expectThrows(
             ResourceNotFoundException.class,
             () -> client().execute(GetAutoscalingPolicyAction.INSTANCE, getRequest).actionGet().policy()

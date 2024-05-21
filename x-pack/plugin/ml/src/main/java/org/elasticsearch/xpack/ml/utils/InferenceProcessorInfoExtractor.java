@@ -71,6 +71,35 @@ public final class InferenceProcessorInfoExtractor {
     }
 
     /**
+     * @param ingestMetadata The ingestMetadata of current ClusterState
+     * @return The set of model IDs referenced by inference processors
+     */
+    @SuppressWarnings("unchecked")
+    public static Set<String> getModelIdsFromInferenceProcessors(IngestMetadata ingestMetadata) {
+        if (ingestMetadata == null) {
+            return Set.of();
+        }
+
+        Set<String> modelIds = new LinkedHashSet<>();
+        ingestMetadata.getPipelines().forEach((pipelineId, configuration) -> {
+            Map<String, Object> configMap = configuration.getConfigAsMap();
+            List<Map<String, Object>> processorConfigs = ConfigurationUtils.readList(null, null, configMap, PROCESSORS_KEY);
+            for (Map<String, Object> processorConfigWithKey : processorConfigs) {
+                for (Map.Entry<String, Object> entry : processorConfigWithKey.entrySet()) {
+                    addModelsAndPipelines(
+                        entry.getKey(),
+                        pipelineId,
+                        (Map<String, Object>) entry.getValue(),
+                        pam -> modelIds.add(pam.modelIdOrAlias()),
+                        0
+                    );
+                }
+            }
+        });
+        return modelIds;
+    }
+
+    /**
      * @param state Current cluster state
      * @return a map from Model or Deployment IDs or Aliases to each pipeline referencing them.
      */

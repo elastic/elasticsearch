@@ -11,6 +11,7 @@ import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.xpack.autoscaling.action.DeleteAutoscalingPolicyAction;
@@ -45,6 +46,8 @@ public class AutoscalingLicenseCheckerIT extends ESSingleNodeTestCase {
 
     public void testCanNotPutPolicyWithNonCompliantLicense() throws InterruptedException {
         final PutAutoscalingPolicyAction.Request request = new PutAutoscalingPolicyAction.Request(
+            TimeValue.THIRTY_SECONDS,
+            TimeValue.THIRTY_SECONDS,
             "",
             Collections.emptySortedSet(),
             Collections.emptySortedMap()
@@ -75,7 +78,7 @@ public class AutoscalingLicenseCheckerIT extends ESSingleNodeTestCase {
     }
 
     public void testCanNotGetPolicyWithNonCompliantLicense() throws InterruptedException {
-        final GetAutoscalingPolicyAction.Request request = new GetAutoscalingPolicyAction.Request("");
+        final GetAutoscalingPolicyAction.Request request = new GetAutoscalingPolicyAction.Request(TimeValue.THIRTY_SECONDS, "");
         final CountDownLatch latch = new CountDownLatch(1);
         client().execute(GetAutoscalingPolicyAction.INSTANCE, request, new ActionListener<>() {
 
@@ -102,7 +105,7 @@ public class AutoscalingLicenseCheckerIT extends ESSingleNodeTestCase {
     }
 
     public void testCanNonGetAutoscalingCapacityDecisionWithNonCompliantLicense() throws InterruptedException {
-        final GetAutoscalingCapacityAction.Request request = new GetAutoscalingCapacityAction.Request();
+        final GetAutoscalingCapacityAction.Request request = new GetAutoscalingCapacityAction.Request(TimeValue.THIRTY_SECONDS);
         final CountDownLatch latch = new CountDownLatch(1);
         client().execute(GetAutoscalingCapacityAction.INSTANCE, request, new ActionListener<>() {
 
@@ -129,7 +132,11 @@ public class AutoscalingLicenseCheckerIT extends ESSingleNodeTestCase {
     }
 
     public void testCanDeleteAutoscalingPolicyEvenWithNonCompliantLicense() throws InterruptedException {
-        final DeleteAutoscalingPolicyAction.Request request = new DeleteAutoscalingPolicyAction.Request("*");
+        final DeleteAutoscalingPolicyAction.Request request = new DeleteAutoscalingPolicyAction.Request(
+            TimeValue.THIRTY_SECONDS,
+            TimeValue.THIRTY_SECONDS,
+            "*"
+        );
         final CountDownLatch latch = new CountDownLatch(1);
         client().execute(DeleteAutoscalingPolicyAction.INSTANCE, request, new ActionListener<>() {
 

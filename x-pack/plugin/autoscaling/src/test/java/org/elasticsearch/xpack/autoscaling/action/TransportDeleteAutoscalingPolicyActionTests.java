@@ -19,6 +19,7 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.regex.Regex;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.MockUtils;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -59,7 +60,10 @@ public class TransportDeleteAutoscalingPolicyActionTests extends AutoscalingTest
             )
             .build();
         final ClusterState state = ClusterState.builder(new ClusterName(randomAlphaOfLength(8))).blocks(blocks).build();
-        final ClusterBlockException e = action.checkBlock(new DeleteAutoscalingPolicyAction.Request(randomAlphaOfLength(8)), state);
+        final ClusterBlockException e = action.checkBlock(
+            new DeleteAutoscalingPolicyAction.Request(TimeValue.THIRTY_SECONDS, TimeValue.THIRTY_SECONDS, randomAlphaOfLength(8)),
+            state
+        );
         assertThat(e, not(nullValue()));
     }
 
@@ -75,7 +79,10 @@ public class TransportDeleteAutoscalingPolicyActionTests extends AutoscalingTest
         );
         final ClusterBlocks blocks = ClusterBlocks.builder().build();
         final ClusterState state = ClusterState.builder(new ClusterName(randomAlphaOfLength(8))).blocks(blocks).build();
-        final ClusterBlockException e = action.checkBlock(new DeleteAutoscalingPolicyAction.Request(randomAlphaOfLength(8)), state);
+        final ClusterBlockException e = action.checkBlock(
+            new DeleteAutoscalingPolicyAction.Request(TimeValue.THIRTY_SECONDS, TimeValue.THIRTY_SECONDS, randomAlphaOfLength(8)),
+            state
+        );
         assertThat(e, nullValue());
     }
 

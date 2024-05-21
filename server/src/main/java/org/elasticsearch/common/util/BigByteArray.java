@@ -8,14 +8,13 @@
 
 package org.elasticsearch.common.util;
 
-import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefIterator;
-import org.apache.lucene.util.RamUsageEstimator;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.core.Streams;
 
 import java.io.IOException;
+import java.io.InputStream;
 import java.util.Arrays;
 
 import static org.elasticsearch.common.util.BigLongArray.writePages;
@@ -51,7 +50,7 @@ final class BigByteArray extends AbstractBigByteArray implements ByteArray {
     public byte set(long index, byte value) {
         final int pageIndex = pageIndex(index);
         final int indexInPage = indexInPage(index);
-        final byte[] page = pages[pageIndex];
+        final byte[] page = getPageForWriting(pageIndex);
         final byte ret = page[indexInPage];
         page[indexInPage] = value;
         return ret;
@@ -92,16 +91,16 @@ final class BigByteArray extends AbstractBigByteArray implements ByteArray {
         int pageIndex = pageIndex(index);
         final int indexInPage = indexInPage(index);
         if (indexInPage + len <= pageSize()) {
-            System.arraycopy(buf, offset, pages[pageIndex], indexInPage, len);
+            System.arraycopy(buf, offset, getPageForWriting(pageIndex), indexInPage, len);
         } else {
             int copyLen = pageSize() - indexInPage;
-            System.arraycopy(buf, offset, pages[pageIndex], indexInPage, copyLen);
+            System.arraycopy(buf, offset, getPageForWriting(pageIndex), indexInPage, copyLen);
             do {
                 ++pageIndex;
                 offset += copyLen;
                 len -= copyLen;
                 copyLen = Math.min(len, pageSize());
-                System.arraycopy(buf, offset, pages[pageIndex], 0, copyLen);
+                System.arraycopy(buf, offset, getPageForWriting(pageIndex), 0, copyLen);
             } while (len > copyLen);
         }
     }
@@ -114,13 +113,13 @@ final class BigByteArray extends AbstractBigByteArray implements ByteArray {
         final int fromPage = pageIndex(fromIndex);
         final int toPage = pageIndex(toIndex - 1);
         if (fromPage == toPage) {
-            Arrays.fill(pages[fromPage], indexInPage(fromIndex), indexInPage(toIndex - 1) + 1, value);
+            Arrays.fill(getPageForWriting(fromPage), indexInPage(fromIndex), indexInPage(toIndex - 1) + 1, value);
         } else {
-            Arrays.fill(pages[fromPage], indexInPage(fromIndex), pages[fromPage].length, value);
+            Arrays.fill(getPageForWriting(fromPage), indexInPage(fromIndex), pages[fromPage].length, value);
             for (int i = fromPage + 1; i < toPage; ++i) {
-                Arrays.fill(pages[i], value);
+                Arrays.fill(getPageForWriting(i), value);
             }
-            Arrays.fill(pages[toPage], 0, indexInPage(toIndex - 1) + 1, value);
+            Arrays.fill(getPageForWriting(toPage), 0, indexInPage(toIndex - 1) + 1, value);
         }
     }
 
@@ -155,33 +154,16 @@ final class BigByteArray extends AbstractBigByteArray implements ByteArray {
     }
 
     @Override
-    public void fillWith(StreamInput in) throws IOException {
+    public void fillWith(InputStream in) throws IOException {
         for (int i = 0; i < pages.length - 1; i++) {
-            in.readBytes(pages[i], 0, PAGE_SIZE_IN_BYTES);
+            Streams.readFully(in, getPageForWriting(i), 0, PAGE_SIZE_IN_BYTES);
         }
-        in.readBytes(pages[pages.length - 1], 0, Math.toIntExact(size - (pages.length - 1L) * PAGE_SIZE_IN_BYTES));
+        Streams.readFully(in, getPageForWriting(pages.length - 1), 0, Math.toIntExact(size - (pages.length - 1L) * PAGE_SIZE_IN_BYTES));
     }
 
     @Override
     protected int numBytesPerElement() {
         return 1;
-    }
-
-    /** Change the size of this array. Content between indexes <code>0</code> and <code>min(size(), newSize)</code> will be preserved. */
-    @Override
-    public void resize(long newSize) {
-        final int numPages = numPages(newSize);
-        if (numPages > pages.length) {
-            pages = Arrays.copyOf(pages, ArrayUtil.oversize(numPages, RamUsageEstimator.NUM_BYTES_OBJECT_REF));
-        }
-        for (int i = numPages - 1; i >= 0 && pages[i] == null; --i) {
-            pages[i] = newBytePage(i);
-        }
-        for (int i = numPages; i < pages.length && pages[i] != null; ++i) {
-            pages[i] = null;
-            releasePage(i);
-        }
-        this.size = newSize;
     }
 
     /** Estimates the number of bytes that would be consumed by an array of the given size. */

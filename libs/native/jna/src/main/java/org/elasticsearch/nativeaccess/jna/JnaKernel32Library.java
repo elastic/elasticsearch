@@ -99,9 +99,7 @@ class JnaKernel32Library implements Kernel32Library {
     }
 
     /**
-     * Handles consoles event with WIN API
-     * <p>
-     * See http://msdn.microsoft.com/en-us/library/windows/desktop/ms683242%28v=vs.85%29.aspx
+     * JNA adaptation of {@link ConsoleCtrlHandler}
      */
     public static class NativeHandlerCallback implements StdCallLibrary.StdCallCallback {
 

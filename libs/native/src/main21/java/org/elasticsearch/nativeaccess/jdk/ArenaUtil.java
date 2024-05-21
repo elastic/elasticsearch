@@ -20,10 +20,16 @@ import static java.lang.foreign.ValueLayout.JAVA_BYTE;
  */
 class ArenaUtil {
 
+    /**
+     * Allocate an array of the given memory layout.
+     */
     static MemorySegment allocate(Arena arena, MemoryLayout layout, int count) {
         return arena.allocateArray(layout, count);
     }
 
+    /**
+     * Allocate and copy the given string into native memory.
+     */
     static MemorySegment allocateFrom(Arena arena, String str, Charset charset) {
         return arena.allocateArray(JAVA_BYTE, str.getBytes(charset));
     }

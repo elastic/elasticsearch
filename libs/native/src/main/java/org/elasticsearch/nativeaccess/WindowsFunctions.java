@@ -12,6 +12,9 @@ import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.nativeaccess.lib.Kernel32Library;
 
+/**
+ * Native functions specific to the Windows operating system.
+ */
 public class WindowsFunctions {
     private static final Logger logger = LogManager.getLogger(Systemd.class);
 
@@ -62,6 +65,8 @@ public class WindowsFunctions {
 
     /**
      * Windows callback for console events
+     *
+     * @see <a href="http://msdn.microsoft.com/en-us/library/windows/desktop/ms683242%28v=vs.85%29.aspx">HandlerRoutine docs</a>
      */
     public interface ConsoleCtrlHandler {
 

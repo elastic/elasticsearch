@@ -37,7 +37,6 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.SpatialAggregateFunction;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.SpatialCentroid;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Sum;
-import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToGeoPoint;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Round;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.SpatialContains;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.SpatialDisjoint;
@@ -2285,102 +2284,44 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
      *           \_EsQueryExec[airports], query[][_doc{f}#26], limit[], sort[] estimatedRowSize[54]
      *
      * Note the FieldExtractExec has 'location' set for stats: FieldExtractExec[location{f}#9][location{f}#9]
+     *
+     * Also note that the type converting function is removed when it does not actually convert the type,
+     * ensuring that ReferenceAttributes are not created for the same field, and the optimization can still work.
      */
     public void testSpatialTypesAndStatsUseDocValues() {
-        var plan = this.physicalPlan("""
-            from airports
-            | stats centroid = st_centroid_agg(location)
-            """, airports);
+        for (String query : new String[] {
+            "from airports | stats centroid = st_centroid_agg(location)",
+            "from airports | stats centroid = st_centroid_agg(to_geopoint(location))",
+            "from airports | eval location = to_geopoint(location) | stats centroid = st_centroid_agg(location)" }) {
+            var plan = this.physicalPlan(query, airports);
 
-        var limit = as(plan, LimitExec.class);
-        var agg = as(limit.child(), AggregateExec.class);
-        // Before optimization the aggregation does not use doc-values
-        assertAggregation(agg, "centroid", SpatialCentroid.class, GEO_POINT, false);
+            var limit = as(plan, LimitExec.class);
+            var agg = as(limit.child(), AggregateExec.class);
+            // Before optimization the aggregation does not use doc-values
+            assertAggregation(agg, "centroid", SpatialCentroid.class, GEO_POINT, false);
 
-        var exchange = as(agg.child(), ExchangeExec.class);
-        var fragment = as(exchange.child(), FragmentExec.class);
-        var fAgg = as(fragment.fragment(), Aggregate.class);
-        as(fAgg.child(), EsRelation.class);
+            var exchange = as(agg.child(), ExchangeExec.class);
+            var fragment = as(exchange.child(), FragmentExec.class);
+            var fAgg = as(fragment.fragment(), Aggregate.class);
+            as(fAgg.child(), EsRelation.class);
 
-        // Now optimize the plan and assert the aggregation uses doc-values
-        var optimized = optimizedPlan(plan);
-        limit = as(optimized, LimitExec.class);
-        agg = as(limit.child(), AggregateExec.class);
-        // Above the exchange (in coordinator) the aggregation is not using doc-values
-        assertAggregation(agg, "centroid", SpatialCentroid.class, GEO_POINT, false);
-        exchange = as(agg.child(), ExchangeExec.class);
-        agg = as(exchange.child(), AggregateExec.class);
-        // below the exchange (in data node) the aggregation is using doc-values
-        assertAggregation(agg, "centroid", SpatialCentroid.class, GEO_POINT, true);
-        var extract = as(agg.child(), FieldExtractExec.class);
-        source(extract.child());
-        assertTrue(
-            "Expect field attribute to be extracted as doc-values",
-            extract.attributesToExtract().stream().allMatch(attr -> extract.hasDocValuesAttribute(attr) && attr.dataType() == GEO_POINT)
-        );
-    }
-
-    /**
-     * Before local optimizations:
-     *
-     * LimitExec[1000[INTEGER]]
-     * \_AggregateExec[[],[SPATIALCENTROID(__centroid_SPATIALCENTROID@b54a93a7{r}#10) AS centroid],FINAL,null]
-     *   \_ExchangeExec[[xVal{r}#11, xDel{r}#12, yVal{r}#13, yDel{r}#14, count{r}#15],true]
-     *     \_FragmentExec[filter=null, estimatedRowSize=0, fragment=[
-     * Aggregate[[],[SPATIALCENTROID(__centroid_SPATIALCENTROID@b54a93a7{r}#10) AS centroid]]
-     * \_Eval[[TOGEOPOINT(location{f}#9) AS __centroid_SPATIALCENTROID@b54a93a7]]
-     *   \_EsRelation[airports][abbrev{f}#5, location{f}#9, name{f}#6, scalerank{f}..]]]
-     *
-     * After local optimizations:
-     *
-     * LimitExec[1000[INTEGER]]
-     * \_AggregateExec[[],[SPATIALCENTROID(__centroid_SPATIALCENTROID@ad2847b6{r}#10) AS centroid],FINAL,50]
-     *   \_ExchangeExec[[xVal{r}#11, xDel{r}#12, yVal{r}#13, yDel{r}#14, count{r}#15],true]
-     *     \_AggregateExec[[],[SPATIALCENTROID(__centroid_SPATIALCENTROID@ad2847b6{r}#10) AS centroid],PARTIAL,50]
-     *       \_EvalExec[[TOGEOPOINT(location{f}#9) AS __centroid_SPATIALCENTROID@ad2847b6]]
-     *         \_FieldExtractExec[location{f}#9][]
-     *           \_EsQueryExec[airports], query[][_doc{f}#28], limit[], sort[] estimatedRowSize[104]
-     *
-     * Note the FieldExtractExec has 'location' set for stats: FieldExtractExec[location{f}#9][location{f}#9]
-     */
-    public void testSpatialTypesAndStatsUseDocValuesNested() {
-        var plan = this.physicalPlan("""
-            from airports
-            | stats centroid = st_centroid_agg(to_geopoint(location))
-            """, airports);
-
-        var limit = as(plan, LimitExec.class);
-        var agg = as(limit.child(), AggregateExec.class);
-        // Before optimization the aggregation does not use doc-values
-        assertAggregation(agg, "centroid", SpatialCentroid.class, GEO_POINT, false);
-
-        var exchange = as(agg.child(), ExchangeExec.class);
-        var fragment = as(exchange.child(), FragmentExec.class);
-        var fAgg = as(fragment.fragment(), Aggregate.class);
-        var eval = as(fAgg.child(), Eval.class);
-        var toGeoPoint = as(eval.fields().get(0).child(), ToGeoPoint.class);
-        assertThat("Expected point field", toGeoPoint.field().dataType(), equalTo(GEO_POINT));
-        as(eval.child(), EsRelation.class);
-
-        // Now optimize the plan and assert the aggregation uses doc-values
-        var optimized = optimizedPlan(plan);
-        limit = as(optimized, LimitExec.class);
-        agg = as(limit.child(), AggregateExec.class);
-        // Above the exchange (in coordinator) the aggregation is not using doc-values
-        assertAggregation(agg, "centroid", SpatialCentroid.class, GEO_POINT, false);
-        exchange = as(agg.child(), ExchangeExec.class);
-        agg = as(exchange.child(), AggregateExec.class);
-        // TODO: Change this to expect to useDocValues for correctly nested reference attributes that relate to functions on fields
-        assertAggregation(agg, "centroid", SpatialCentroid.class, GEO_POINT, false);
-        var evalExec = as(agg.child(), EvalExec.class);
-        var extract = as(evalExec.child(), FieldExtractExec.class);
-        source(extract.child());
-        // TODO: update this test when we support nested fields in SpatialDocValuesExtraction
-        // assertTrue("Expect attributes field extract preference to be DOC_VALUES", extract.attributesToExtract().stream().allMatch(attr ->
-        // {
-        // MappedFieldType.FieldExtractPreference extractPreference = extract.extractPreference(attr);
-        // return extractPreference == DOC_VALUES && attr.dataType() == GEO_POINT;
-        // }));
+            // Now optimize the plan and assert the aggregation uses doc-values
+            var optimized = optimizedPlan(plan);
+            limit = as(optimized, LimitExec.class);
+            agg = as(limit.child(), AggregateExec.class);
+            // Above the exchange (in coordinator) the aggregation is not using doc-values
+            assertAggregation(agg, "centroid", SpatialCentroid.class, GEO_POINT, false);
+            exchange = as(agg.child(), ExchangeExec.class);
+            agg = as(exchange.child(), AggregateExec.class);
+            // below the exchange (in data node) the aggregation is using doc-values
+            assertAggregation(agg, "centroid", SpatialCentroid.class, GEO_POINT, true);
+            var extract = as(agg.child(), FieldExtractExec.class);
+            source(extract.child());
+            assertTrue(
+                "Expect field attribute to be extracted as doc-values",
+                extract.attributesToExtract().stream().allMatch(attr -> extract.hasDocValuesAttribute(attr) && attr.dataType() == GEO_POINT)
+            );
+        }
     }
 
     /**

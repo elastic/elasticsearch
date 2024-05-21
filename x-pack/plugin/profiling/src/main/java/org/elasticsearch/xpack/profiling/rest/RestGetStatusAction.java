@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.profiling.rest;
 
 import org.elasticsearch.client.internal.node.NodeClient;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.Scope;
@@ -35,10 +36,11 @@ public class RestGetStatusAction extends BaseRestHandler {
 
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) {
-        GetStatusAction.Request request = new GetStatusAction.Request();
-        request.ackTimeout(restRequest.paramAsTime("timeout", request.ackTimeout()));
-        request.masterNodeTimeout(getMasterNodeTimeout(restRequest));
-        request.waitForResourcesCreated(restRequest.paramAsBoolean("wait_for_resources_created", false));
+        final var request = new GetStatusAction.Request(
+            getMasterNodeTimeout(restRequest),
+            restRequest.paramAsBoolean("wait_for_resources_created", false),
+            restRequest.paramAsTime("timeout", TimeValue.THIRTY_SECONDS)
+        );
         return channel -> client.execute(
             GetStatusAction.INSTANCE,
             request,

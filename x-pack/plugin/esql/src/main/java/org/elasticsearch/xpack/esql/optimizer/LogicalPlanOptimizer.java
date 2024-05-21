@@ -20,6 +20,7 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunct
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
 import org.elasticsearch.xpack.esql.expression.function.grouping.GroupingFunction;
 import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.Case;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.AbstractConvertFunction;
 import org.elasticsearch.xpack.esql.expression.function.scalar.nulls.Coalesce;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.SpatialRelatesFunction;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
@@ -46,6 +47,7 @@ import org.elasticsearch.xpack.ql.expression.EmptyAttribute;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.ExpressionSet;
 import org.elasticsearch.xpack.ql.expression.Expressions;
+import org.elasticsearch.xpack.ql.expression.FieldAttribute;
 import org.elasticsearch.xpack.ql.expression.Literal;
 import org.elasticsearch.xpack.ql.expression.NamedExpression;
 import org.elasticsearch.xpack.ql.expression.Order;
@@ -125,6 +127,7 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
             // lastly replace surrogate functions
             new SubstituteSurrogates(),
             new ReplaceRegexMatch(),
+            new ReplaceTrivialTypeConversions(),
             new ReplaceAliasingEvalWithProject(),
             new SkipQueryOnEmptyMappings(),
             new SubstituteSpatialSurrogates(),
@@ -1612,6 +1615,23 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
             }
 
             return plan;
+        }
+    }
+
+    /**
+     * Replace type converting eval with aliasing eval when type change does not occur.
+     * A following {@link ReplaceAliasingEvalWithProject} will effectively convert {@link ReferenceAttribute} into {@link FieldAttribute},
+     * something very useful in local physical planning.
+     */
+    static class ReplaceTrivialTypeConversions extends OptimizerRules.OptimizerRule<Eval> {
+        @Override
+        protected LogicalPlan rule(Eval eval) {
+            return eval.transformExpressionsOnly(AbstractConvertFunction.class, convert -> {
+                if (convert.field() instanceof FieldAttribute fa && fa.dataType() == convert.dataType()) {
+                    return fa;
+                }
+                return convert;
+            });
         }
     }
 

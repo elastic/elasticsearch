@@ -196,12 +196,11 @@ public class MetadataRolloverService {
         final IndexAbstraction indexAbstraction = currentState.metadata().getIndicesLookup().get(rolloverTarget);
         return switch (indexAbstraction.getType()) {
             case ALIAS -> resolveAliasRolloverNames(currentState.metadata(), indexAbstraction, newIndexName);
-            case DATA_STREAM -> {
-                if (isFailureStoreRollover) {
-                    yield resolveDataStreamFailureStoreRolloverNames(currentState.metadata(), (DataStream) indexAbstraction);
-                }
-                yield resolveDataStreamRolloverNames(currentState.getMetadata(), (DataStream) indexAbstraction);
-            }
+            case DATA_STREAM -> resolveDataStreamRolloverNames(
+                currentState.metadata(),
+                (DataStream) indexAbstraction,
+                isFailureStoreRollover
+            );
             default ->
                 // the validate method above prevents this case
                 throw new IllegalStateException("unable to roll over type [" + indexAbstraction.getType().getDisplayName() + "]");
@@ -220,19 +219,15 @@ public class MetadataRolloverService {
         return new NameResolution(sourceIndexName, unresolvedName, rolloverIndexName);
     }
 
-    private static NameResolution resolveDataStreamRolloverNames(Metadata metadata, DataStream dataStream) {
-        final IndexMetadata originalWriteIndex = metadata.index(dataStream.getWriteIndex());
-        return new NameResolution(originalWriteIndex.getIndex().getName(), null, dataStream.nextWriteIndexAndGeneration(metadata).v1());
-    }
+    private static NameResolution resolveDataStreamRolloverNames(Metadata metadata, DataStream dataStream, boolean isFailureStoreRollover) {
+        final DataStream.DataStreamIndices dataStreamIndices = dataStream.getDataStreamIndices(isFailureStoreRollover);
+        assert dataStreamIndices.getWriteIndex() != null : "Unable to roll over dataStreamIndices with no indices";
 
-    private static NameResolution resolveDataStreamFailureStoreRolloverNames(Metadata metadata, DataStream dataStream) {
-        assert dataStream.getFailureStoreWriteIndex() != null : "Unable to roll over failure store with no failure store indices";
-
-        final IndexMetadata originalWriteIndex = metadata.index(dataStream.getFailureStoreWriteIndex());
+        final IndexMetadata originalWriteIndex = metadata.index(dataStreamIndices.getWriteIndex());
         return new NameResolution(
             originalWriteIndex.getIndex().getName(),
             null,
-            dataStream.nextFailureStoreWriteIndexAndGeneration(metadata).v1()
+            dataStream.nextWriteIndexAndGeneration(metadata, dataStreamIndices).v1()
         );
     }
 
@@ -327,10 +322,9 @@ public class MetadataRolloverService {
             templateV2 = systemDataStreamDescriptor.getComposableIndexTemplate();
         }
 
-        final Index originalWriteIndex = isFailureStoreRollover ? dataStream.getFailureStoreWriteIndex() : dataStream.getWriteIndex();
-        final Tuple<String, Long> nextIndexAndGeneration = isFailureStoreRollover
-            ? dataStream.nextFailureStoreWriteIndexAndGeneration(currentState.metadata())
-            : dataStream.nextWriteIndexAndGeneration(currentState.metadata());
+        final DataStream.DataStreamIndices dataStreamIndices = dataStream.getDataStreamIndices(isFailureStoreRollover);
+        final Index originalWriteIndex = dataStreamIndices.getWriteIndex();
+        final Tuple<String, Long> nextIndexAndGeneration = dataStream.nextWriteIndexAndGeneration(metadata, dataStreamIndices);
         final String newWriteIndexName = nextIndexAndGeneration.v1();
         final long newGeneration = nextIndexAndGeneration.v2();
         MetadataCreateIndexService.validateIndexName(newWriteIndexName, currentState); // fails if the index already exists
@@ -438,7 +432,7 @@ public class MetadataRolloverService {
         metadataBuilder = withShardSizeForecastForWriteIndex(dataStreamName, metadataBuilder);
 
         newState = ClusterState.builder(newState).metadata(metadataBuilder).build();
-        newState = MetadataDataStreamsService.setRolloverOnWrite(newState, dataStreamName, false);
+        newState = MetadataDataStreamsService.setRolloverOnWrite(newState, dataStreamName, false, isFailureStoreRollover);
 
         return new RolloverResult(newWriteIndexName, originalWriteIndex.getName(), newState);
     }

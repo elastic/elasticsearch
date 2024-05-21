@@ -57,7 +57,7 @@ public class DataStreamFailureStoreDefinition {
              *       "error": {
              *         "properties": {
              *           "message": {
-             *              "type": "wildcard"
+             *              "type": "match_only_text"
              *           },
              *           "stack_trace": {
              *              "type": "text"
@@ -71,7 +71,10 @@ public class DataStreamFailureStoreDefinition {
              *           "pipeline_trace": {
              *              "type": "keyword"
              *           },
-             *           "processor": {
+             *           "processor_tag": {
+             *              "type": "keyword"
+             *           },
+             *           "processor_type": {
              *              "type": "keyword"
              *           }
              *         }
@@ -109,7 +112,7 @@ public class DataStreamFailureStoreDefinition {
                     .startObject("error")
                     .startObject("properties")
                     .startObject("message")
-                    .field("type", "wildcard")
+                    .field("type", "match_only_text")
                     .endObject()
                     .startObject("stack_trace")
                     .field("type", "text")
@@ -123,7 +126,10 @@ public class DataStreamFailureStoreDefinition {
                     .startObject("pipeline_trace")
                     .field("type", "keyword")
                     .endObject()
-                    .startObject("processor")
+                    .startObject("processor_tag")
+                    .field("type", "keyword")
+                    .endObject()
+                    .startObject("processor_type")
                     .field("type", "keyword")
                     .endObject()
                     .endObject()

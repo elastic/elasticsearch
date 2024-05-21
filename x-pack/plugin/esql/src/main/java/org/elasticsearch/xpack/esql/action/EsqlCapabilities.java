@@ -21,13 +21,29 @@ import java.util.Set;
  * {@link RestNodesCapabilitiesAction} and we use them to enable tests.
  */
 public class EsqlCapabilities {
-    static final Set<String> CAPABILITIES = capabilities();
+    /**
+     * Support for function {@code CBRT}. Done in #108574.
+     */
+    private static final String FN_CBRT = "fn_cbrt";
+
+    /**
+     * Optimization for ST_CENTROID changed some results in cartesian data. #108713
+     */
+    private static final String ST_CENTROID_AGG_OPTIMIZED = "st_centroid_agg_optimized";
+
+    /**
+     * Support for requesting the "_ignored" metadata field.
+     */
+    private static final String METADATA_IGNORED_FIELD = "metadata_field_ignored";
+
+    public static final Set<String> CAPABILITIES = capabilities();
 
     private static Set<String> capabilities() {
+        List<String> caps = new ArrayList<>(List.of(FN_CBRT, ST_CENTROID_AGG_OPTIMIZED, METADATA_IGNORED_FIELD));
+
         /*
          * Add all of our cluster features without the leading "esql."
          */
-        List<String> caps = new ArrayList<>();
         for (NodeFeature feature : new EsqlFeatures().getFeatures()) {
             caps.add(cap(feature));
         }

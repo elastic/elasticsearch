@@ -64,4 +64,9 @@ public final class Int7MaximumInnerProduct extends AbstractInt7ScalarQuantizedVe
         }
         return rawSimilarity + 1;
     }
+
+    @Override
+    public Int7MaximumInnerProduct copy() {
+        return new Int7MaximumInnerProduct(dims, maxOrd, scoreCorrectionConstant, input.clone());
+    }
 }

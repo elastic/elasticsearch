@@ -10,10 +10,9 @@ package org.elasticsearch.transport.netty4;
 
 import org.apache.logging.log4j.Level;
 import org.elasticsearch.ESNetty4IntegTestCase;
-import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.test.MockLogAppender;
+import org.elasticsearch.test.MockLog;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.transport.TcpTransport;
 import org.elasticsearch.transport.TransportLogger;
@@ -23,17 +22,15 @@ import java.io.IOException;
 @ESIntegTestCase.ClusterScope(numDataNodes = 2, scope = ESIntegTestCase.Scope.TEST)
 public class ESLoggingHandlerIT extends ESNetty4IntegTestCase {
 
-    private MockLogAppender appender;
-    private Releasable appenderRelease;
+    private MockLog mockLog;
 
     public void setUp() throws Exception {
         super.setUp();
-        appender = new MockLogAppender();
-        appenderRelease = appender.capturing(ESLoggingHandler.class, TransportLogger.class, TcpTransport.class);
+        mockLog = MockLog.capture(ESLoggingHandler.class, TransportLogger.class, TcpTransport.class);
     }
 
     public void tearDown() throws Exception {
-        appenderRelease.close();
+        mockLog.close();
         super.tearDown();
     }
 
@@ -48,14 +45,14 @@ public class ESLoggingHandlerIT extends ESNetty4IntegTestCase {
             + ", version: .*"
             + ", action: cluster:monitor/nodes/stats\\[n\\]\\]"
             + " WRITE: \\d+B";
-        final MockLogAppender.LoggingExpectation writeExpectation = new MockLogAppender.PatternSeenEventExpectation(
+        final MockLog.LoggingExpectation writeExpectation = new MockLog.PatternSeenEventExpectation(
             "hot threads request",
             TransportLogger.class.getCanonicalName(),
             Level.TRACE,
             writePattern
         );
 
-        final MockLogAppender.LoggingExpectation flushExpectation = new MockLogAppender.SeenEventExpectation(
+        final MockLog.LoggingExpectation flushExpectation = new MockLog.SeenEventExpectation(
             "flush",
             ESLoggingHandler.class.getCanonicalName(),
             Level.TRACE,
@@ -69,32 +66,32 @@ public class ESLoggingHandlerIT extends ESNetty4IntegTestCase {
             + ", action: cluster:monitor/nodes/stats\\[n\\]\\]"
             + " READ: \\d+B";
 
-        final MockLogAppender.LoggingExpectation readExpectation = new MockLogAppender.PatternSeenEventExpectation(
+        final MockLog.LoggingExpectation readExpectation = new MockLog.PatternSeenEventExpectation(
             "hot threads request",
             TransportLogger.class.getCanonicalName(),
             Level.TRACE,
             readPattern
         );
 
-        appender.addExpectation(writeExpectation);
-        appender.addExpectation(flushExpectation);
-        appender.addExpectation(readExpectation);
+        mockLog.addExpectation(writeExpectation);
+        mockLog.addExpectation(flushExpectation);
+        mockLog.addExpectation(readExpectation);
         client().admin().cluster().prepareNodesStats().get(TimeValue.timeValueSeconds(10));
-        appender.assertAllExpectationsMatched();
+        mockLog.assertAllExpectationsMatched();
     }
 
     @TestLogging(value = "org.elasticsearch.transport.TcpTransport:DEBUG", reason = "to ensure we log connection events on DEBUG level")
     public void testConnectionLogging() throws IOException {
-        appender.addExpectation(
-            new MockLogAppender.PatternSeenEventExpectation(
+        mockLog.addExpectation(
+            new MockLog.PatternSeenEventExpectation(
                 "open connection log",
                 TcpTransport.class.getCanonicalName(),
                 Level.DEBUG,
                 ".*opened transport connection \\[[1-9][0-9]*\\] to .*"
             )
         );
-        appender.addExpectation(
-            new MockLogAppender.PatternSeenEventExpectation(
+        mockLog.addExpectation(
+            new MockLog.PatternSeenEventExpectation(
                 "close connection log",
                 TcpTransport.class.getCanonicalName(),
                 Level.DEBUG,
@@ -105,6 +102,6 @@ public class ESLoggingHandlerIT extends ESNetty4IntegTestCase {
         final String nodeName = internalCluster().startNode();
         internalCluster().stopNode(nodeName);
 
-        appender.assertAllExpectationsMatched();
+        mockLog.assertAllExpectationsMatched();
     }
 }

@@ -2521,7 +2521,7 @@ class NodeDeprecationChecks {
             settings,
             deprecatedSetting,
             url,
-            "Stricter DLS rules are the default are not configurable in newer versions."
+            "Stricter DLS rules are the default and are not configurable in newer versions."
         );
     }
 
@@ -2543,7 +2543,7 @@ class NodeDeprecationChecks {
             settings,
             deprecatedSetting,
             url,
-            "Stricter DLS rules are the default are not configurable in newer versions."
+            "Stricter DLS rules are the default and are not configurable in newer versions."
         );
     }
 

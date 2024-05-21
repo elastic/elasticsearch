@@ -71,7 +71,7 @@ public enum GlobalOrdinalsBuilder {
         }
         final OrdinalMap ordinalMap = OrdinalMap.build(null, termsEnums, weights, PackedInts.DEFAULT);
         final long memorySizeInBytes = ordinalMap.ramBytesUsed();
-        breaker.addWithoutBreaking(memorySizeInBytes);
+        breaker.addEstimateBytesAndMaybeBreak(memorySizeInBytes, "Global Ordinals");
 
         TimeValue took = new TimeValue(System.nanoTime() - startTimeNS, TimeUnit.NANOSECONDS);
         if (logger.isDebugEnabled()) {

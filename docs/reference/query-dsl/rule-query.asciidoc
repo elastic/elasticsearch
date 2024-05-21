@@ -87,6 +87,7 @@ GET /_search
 
 `ruleset_ids`::
 (Required, array) An array of one or more unique <<query-rules-apis, query ruleset>> ID with query-based rules to match and apply as applicable.
+Rulesets and their associated rules are evaluated in the order in which they are specified in the query and ruleset.
 The maximum number of rulesets to specify is 10.
 `match_criteria`::
 (Required, object) Defines the match criteria to apply to rules in the given query ruleset.

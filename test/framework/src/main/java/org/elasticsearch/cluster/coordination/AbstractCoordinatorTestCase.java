@@ -217,9 +217,9 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
     // 1. submit the task to the master service
     // 2. state publisher task on master
     // 3. master sends out PublishRequests to nodes
-    // 4. master receives PublishResponses from nodes
-    // 5. master sends ApplyCommitRequests to nodes
-    // 6. nodes deserialize committed cluster state
+    // 4. nodes deserialize received cluster state
+    // 5. master receives PublishResponses from nodes
+    // 6. master sends ApplyCommitRequests to nodes
     // 7. nodes apply committed cluster state
     // 8. master receives ApplyCommitResponses
     // 9. apply committed state on master (last one to apply cluster state)

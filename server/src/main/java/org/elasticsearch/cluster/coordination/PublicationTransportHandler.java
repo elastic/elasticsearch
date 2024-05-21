@@ -151,9 +151,9 @@ public class PublicationTransportHandler {
                 }
                 fullClusterStateReceivedCount.incrementAndGet();
                 logger.debug("received full cluster state version [{}] with size [{}]", incomingState.version(), request.bytes().length());
-                acceptState(incomingState, publishResponseListener.delegateFailure((delegate, response) -> {
+                acceptState(incomingState, publishResponseListener.map(response -> {
                     lastSeenClusterState.set(incomingState);
-                    delegate.onResponse(response);
+                    return response;
                 }));
             } else {
                 final ClusterState lastSeen = lastSeenClusterState.get();

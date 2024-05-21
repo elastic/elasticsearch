@@ -16,9 +16,6 @@ tests:
 - class: "org.elasticsearch.xpack.esql.ccq.MultiClusterSpecIT"
   issue: "https://github.com/elastic/elasticsearch/issues/108809"
   method: "test {k8s-metrics.MetricsWithoutAggs}"
-- class: "org.elasticsearch.xpack.esql.action.ManyShardsIT"
-  issue: "https://github.com/elastic/elasticsearch/issues/108847"
-  method: "testConcurrentQueries"
 # Examples:
 #
 #  Mute a single test case in a YAML test suite:

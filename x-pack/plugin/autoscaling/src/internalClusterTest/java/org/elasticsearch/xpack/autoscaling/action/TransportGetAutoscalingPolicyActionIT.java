@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.autoscaling.action;
 
 import org.elasticsearch.ResourceNotFoundException;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xpack.autoscaling.AutoscalingIntegTestCase;
 import org.elasticsearch.xpack.autoscaling.policy.AutoscalingPolicy;
 
@@ -23,22 +22,22 @@ public class TransportGetAutoscalingPolicyActionIT extends AutoscalingIntegTestC
         final String name = randomAlphaOfLength(8);
         final AutoscalingPolicy expectedPolicy = randomAutoscalingPolicyOfName(name);
         final PutAutoscalingPolicyAction.Request putRequest = new PutAutoscalingPolicyAction.Request(
-            TimeValue.THIRTY_SECONDS,
-            TimeValue.THIRTY_SECONDS,
+            TEST_REQUEST_TIMEOUT,
+            TEST_REQUEST_TIMEOUT,
             expectedPolicy.name(),
             expectedPolicy.roles(),
             expectedPolicy.deciders()
         );
         assertAcked(client().execute(PutAutoscalingPolicyAction.INSTANCE, putRequest).actionGet());
         // we trust that the policy is in the cluster state since we have tests for putting policies
-        final GetAutoscalingPolicyAction.Request getRequest = new GetAutoscalingPolicyAction.Request(TimeValue.THIRTY_SECONDS, name);
+        final GetAutoscalingPolicyAction.Request getRequest = new GetAutoscalingPolicyAction.Request(TEST_REQUEST_TIMEOUT, name);
         final AutoscalingPolicy actualPolicy = client().execute(GetAutoscalingPolicyAction.INSTANCE, getRequest).actionGet().policy();
         assertThat(expectedPolicy, equalTo(actualPolicy));
     }
 
     public void testGetNonExistentPolicy() {
         final String name = randomAlphaOfLength(8);
-        final GetAutoscalingPolicyAction.Request getRequest = new GetAutoscalingPolicyAction.Request(TimeValue.THIRTY_SECONDS, name);
+        final GetAutoscalingPolicyAction.Request getRequest = new GetAutoscalingPolicyAction.Request(TEST_REQUEST_TIMEOUT, name);
         final ResourceNotFoundException e = expectThrows(
             ResourceNotFoundException.class,
             client().execute(GetAutoscalingPolicyAction.INSTANCE, getRequest)

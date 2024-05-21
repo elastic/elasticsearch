@@ -229,6 +229,75 @@ public enum IndexMode {
         public boolean isSyntheticSourceEnabled() {
             return true;
         }
+    },
+    LOGS("logs") {
+        @Override
+        void validateWithOtherSettings(Map<Setting<?>, Object> settings) {}
+
+        @Override
+        public void validateMapping(MappingLookup lookup) {}
+
+        @Override
+        public void validateAlias(String indexRouting, String searchRouting) {
+
+        }
+
+        @Override
+        public void validateTimestampFieldMapping(boolean isDataStream, MappingLookup mappingLookup) throws IOException {
+            if (isDataStream) {
+                MetadataCreateDataStreamService.validateTimestampFieldMapping(mappingLookup);
+            }
+        }
+
+        @Override
+        public CompressedXContent getDefaultMapping() {
+            return DEFAULT_LOGS_TIMESTAMP_MAPPING;
+        }
+
+        @Override
+        public IdFieldMapper buildIdFieldMapper(BooleanSupplier fieldDataEnabled) {
+            return new ProvidedIdFieldMapper(fieldDataEnabled);
+        }
+
+        @Override
+        public IdFieldMapper idFieldMapperWithoutFieldData() {
+            return ProvidedIdFieldMapper.NO_FIELD_DATA;
+        }
+
+        @Override
+        public TimestampBounds getTimestampBound(IndexMetadata indexMetadata) {
+            return null;
+        }
+
+        @Override
+        public MetadataFieldMapper timeSeriesIdFieldMapper() {
+            // non time-series indices must not have a TimeSeriesIdFieldMapper
+            return null;
+        }
+
+        @Override
+        public MetadataFieldMapper timeSeriesRoutingHashFieldMapper() {
+            // non time-series indices must not have a TimeSeriesRoutingIdFieldMapper
+            return null;
+        }
+
+        @Override
+        public DocumentDimensions buildDocumentDimensions(IndexSettings settings) {
+            return new DocumentDimensions.OnlySingleValueAllowed();
+        }
+
+        @Override
+        public boolean shouldValidateTimestamp() {
+            return false;
+        }
+
+        @Override
+        public void validateSourceFieldMapper(SourceFieldMapper sourceFieldMapper) {}
+
+        @Override
+        public boolean isSyntheticSourceEnabled() {
+            return true;
+        }
     };
 
     protected static String tsdbMode() {
@@ -253,6 +322,31 @@ public enum IndexMode {
                     .endObject())
             );
         } catch (IOException e) {
+            throw new AssertionError(e);
+        }
+    }
+
+    public static final CompressedXContent DEFAULT_LOGS_TIMESTAMP_MAPPING;
+
+    static {
+        try {
+            DEFAULT_LOGS_TIMESTAMP_MAPPING = new CompressedXContent(
+                ((builder, params) -> builder.startObject(MapperService.SINGLE_MAPPING_NAME)
+                    .startObject(DataStreamTimestampFieldMapper.NAME)
+                    .field("enabled", true)
+                    .endObject()
+                    .startObject("properties")
+                    .startObject(DataStreamTimestampFieldMapper.DEFAULT_PATH)
+                    .field("type", DateFieldMapper.DATE_NANOS_CONTENT_TYPE)
+                    .field("ignore_malformed", "true")
+                    .field("ignore_above", 1024)
+                    .field("ignore_dynamic_beyond_limit", "true")
+                    .field("subobjects", "false")
+                    .endObject()
+                    .endObject()
+                    .endObject())
+            );
+        } catch(IOException e) {
             throw new AssertionError(e);
         }
     }

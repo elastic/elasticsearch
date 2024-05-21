@@ -32,9 +32,10 @@ public class EsQueryExec extends LeafExec implements EstimatesRowSize {
     public static final DataType DOC_DATA_TYPE = new DataType("_doc", Integer.BYTES * 3, false, false, false);
     public static final DataType TSID_DATA_TYPE = new DataType("_tsid", Integer.MAX_VALUE, false, false, true);
 
-    public static boolean isSourceAttribute(Attribute attr) {
-        return DOC_ID_FIELD.getName().equals(attr.name());
-    }
+    static final EsField DOC_ID_FIELD = new EsField("_doc", DOC_DATA_TYPE, Map.of(), false);
+    static final EsField TSID_FIELD = new EsField("_tsid", TSID_DATA_TYPE, Map.of(), true);
+    static final EsField TIMESTAMP_FIELD = new EsField("@timestamp", DataTypes.DATETIME, Map.of(), true);
+    static final EsField INTERVAL_FIELD = new EsField("@timestamp_interval", DataTypes.DATETIME, Map.of(), true);
 
     private final EsIndex index;
     private final IndexMode indexMode;
@@ -60,7 +61,7 @@ public class EsQueryExec extends LeafExec implements EstimatesRowSize {
     }
 
     public EsQueryExec(Source source, EsIndex index, IndexMode indexMode, QueryBuilder query) {
-        this(source, index, indexMode, sourceFields(source, indexMode), query, null, null, null);
+        this(source, index, indexMode, sourceAttributes(source, indexMode), query, null, null, null);
     }
 
     public EsQueryExec(
@@ -83,12 +84,7 @@ public class EsQueryExec extends LeafExec implements EstimatesRowSize {
         this.estimatedRowSize = estimatedRowSize;
     }
 
-    static final EsField DOC_ID_FIELD = new EsField("_doc", DOC_DATA_TYPE, Map.of(), false);
-    static final EsField TSID_FIELD = new EsField("_tsid", TSID_DATA_TYPE, Map.of(), true);
-    static final EsField TIMESTAMP_FIELD = new EsField("@timestamp", DataTypes.DATETIME, Map.of(), true);
-    static final EsField INTERVAL_FIELD = new EsField("@timestamp_interval", DataTypes.DATETIME, Map.of(), true);
-
-    private static List<Attribute> sourceFields(Source source, IndexMode indexMode) {
+    private static List<Attribute> sourceAttributes(Source source, IndexMode indexMode) {
         return switch (indexMode) {
             case STANDARD -> List.of(new FieldAttribute(source, DOC_ID_FIELD.getName(), DOC_ID_FIELD));
             case TIME_SERIES -> List.of(
@@ -98,6 +94,10 @@ public class EsQueryExec extends LeafExec implements EstimatesRowSize {
                 new FieldAttribute(source, INTERVAL_FIELD.getName(), INTERVAL_FIELD)
             );
         };
+    }
+
+    public static boolean isSourceAttribute(Attribute attr) {
+        return DOC_ID_FIELD.getName().equals(attr.name());
     }
 
     @Override

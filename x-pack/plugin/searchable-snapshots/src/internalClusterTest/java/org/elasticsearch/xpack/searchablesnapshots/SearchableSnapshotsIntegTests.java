@@ -1224,10 +1224,11 @@ public class SearchableSnapshotsIntegTests extends BaseSearchableSnapshotsIntegT
     }
 
     private TaskInfo getTaskForActionFromMaster(String action) {
-        var ltr = new ListTasksRequest().setDetailed(true).setNodes(internalCluster().getMasterName()).setActions(action);
-        ListTasksResponse response = client().execute(TransportListTasksAction.TYPE, ltr).actionGet();
-        int matchingTasks = response.getTasks().size();
-        assertEquals(String.format(Locale.ROOT, "Expected a single task for action %s, got %d", action, matchingTasks), 1, matchingTasks);
+        ListTasksResponse response = client().execute(
+            TransportListTasksAction.TYPE,
+            new ListTasksRequest().setDetailed(true).setNodes(internalCluster().getMasterName()).setActions(action)
+        ).actionGet();
+        assertThat(response.getTasks(), hasSize(1));
         return response.getTasks().get(0);
     }
 

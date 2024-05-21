@@ -232,10 +232,10 @@ class JdkKernel32Library implements Kernel32Library {
     @Override
     public int GetShortPathNameW(String lpszLongPath, char[] lpszShortPath, int cchBuffer) {
         try (Arena arena = Arena.ofConfined()) {
-            MemorySegment wideFileName = ArenaUtil.allocateFrom(arena,lpszLongPath + "\0", StandardCharsets.UTF_16LE);
+            MemorySegment wideFileName = ArenaUtil.allocateFrom(arena, lpszLongPath + "\0", StandardCharsets.UTF_16LE);
             MemorySegment shortPath;
             if (lpszShortPath != null) {
-                shortPath = ArenaUtil.allocateFrom(arena, cchBuffer);
+                shortPath = ArenaUtil.allocateFrom(arena, JAVA_CHAR, (char) cchBuffer);
             } else {
                 shortPath = MemorySegment.NULL;
             }

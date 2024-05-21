@@ -10,14 +10,13 @@ package org.elasticsearch.nativeaccess.jdk;
 
 import java.lang.foreign.Arena;
 import java.lang.foreign.MemorySegment;
+import java.lang.foreign.ValueLayout;
 import java.nio.charset.Charset;
-
-import static java.lang.foreign.ValueLayout.JAVA_INT;
 
 public class ArenaUtil {
 
-    static MemorySegment allocateFrom(Arena arena, int value) {
-        return arena.allocateFrom(JAVA_INT, value);
+    static MemorySegment allocateFrom(Arena arena, ValueLayout.OfChar layout, char value) {
+        return arena.allocateFrom(layout, value);
     }
 
     static MemorySegment allocateFrom(Arena arena, String str, Charset charset) {

@@ -74,7 +74,7 @@ For reasons similar those described in <<multiple-roles-dls-fls,Multiple roles w
 you can't create a single cross-cluster API key with both the `search` and `replication` parameters if the
 `search` parameter has document or field level security defined.
 
-If you to use both of these parameters, and you need to define document or field level security for the `search` parameter,
+If you need to use both of these parameters, and you need to define document or field level security for the `search` parameter,
 create two separate cross-cluster API keys, one using the `search` parameter,
 and one using the `replication` parameter. You will also need to set up two different
 remote connections to the same cluster, with each named connection using the appropriate cross-cluster API key.

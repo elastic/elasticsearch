@@ -118,6 +118,7 @@ import org.elasticsearch.search.sort.FieldSortBuilder;
 import org.elasticsearch.search.sort.MinAndMax;
 import org.elasticsearch.search.sort.SortAndFormats;
 import org.elasticsearch.search.sort.SortBuilder;
+import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.search.suggest.Suggest;
 import org.elasticsearch.search.suggest.completion.CompletionSuggestion;
 import org.elasticsearch.tasks.TaskCancelledException;
@@ -1069,8 +1070,15 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         final IndexShard indexShard = indexService.getShard(request.shardId().getId());
         final Engine.SearcherSupplier reader = indexShard.acquireSearcherSupplier();
         final ShardSearchContextId id = new ShardSearchContextId(sessionId, idGenerator.incrementAndGet());
+
         try (ReaderContext readerContext = new ReaderContext(id, indexService, indexShard, reader, -1L, true)) {
             DefaultSearchContext searchContext = createSearchContext(readerContext, request, timeout, ResultsType.NONE);
+
+            SearchSourceBuilder sourceBuilder = searchContext.request().source();
+            if (sourceBuilder != null && (sourceBuilder.sorts() == null || sourceBuilder.sorts().isEmpty())) {
+                sourceBuilder.sort(new FieldSortBuilder("@timestamp").order(SortOrder.DESC));
+            }
+
             searchContext.addReleasable(readerContext.markAsUsed(0L));
             return searchContext;
         }

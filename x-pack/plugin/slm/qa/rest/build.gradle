@@ -8,7 +8,7 @@ dependencies {
 
 restResources {
   restApi {
-    include '_common', 'cluster', 'indices', 'index', 'snapshot', 'slm'
+    include '_common', 'cluster', 'indices', 'index', 'snapshot', 'slm', 'health_report'
   }
 }
 

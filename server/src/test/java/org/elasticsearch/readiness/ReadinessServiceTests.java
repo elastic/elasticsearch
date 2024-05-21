@@ -33,7 +33,7 @@ import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.http.HttpStats;
 import org.elasticsearch.reservedstate.service.FileSettingsService;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.MockLogAppender;
+import org.elasticsearch.test.MockLog;
 import org.elasticsearch.test.readiness.ReadinessClientProbe;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -266,9 +266,9 @@ public class ReadinessServiceTests extends ESTestCase implements ReadinessClient
             )
             .build();
         event = new ClusterChangedEvent("test", nodeShuttingDownState, completeState);
-        try (var mockAppender = MockLogAppender.capture(ReadinessService.class)) {
-            mockAppender.addExpectation(
-                new MockLogAppender.SeenEventExpectation(
+        try (var mockLog = MockLog.capture(ReadinessService.class)) {
+            mockLog.addExpectation(
+                new MockLog.SeenEventExpectation(
                     "node shutting down logged",
                     ReadinessService.class.getCanonicalName(),
                     Level.INFO,
@@ -276,10 +276,10 @@ public class ReadinessServiceTests extends ESTestCase implements ReadinessClient
                 )
             );
             readinessService.clusterChanged(event);
-            mockAppender.assertAllExpectationsMatched();
+            mockLog.assertAllExpectationsMatched();
 
-            mockAppender.addExpectation(
-                new MockLogAppender.UnseenEventExpectation(
+            mockLog.addExpectation(
+                new MockLog.UnseenEventExpectation(
                     "node shutting down not logged twice",
                     ReadinessService.class.getCanonicalName(),
                     Level.INFO,
@@ -287,7 +287,7 @@ public class ReadinessServiceTests extends ESTestCase implements ReadinessClient
                 )
             );
             readinessService.clusterChanged(event);
-            mockAppender.assertAllExpectationsMatched();
+            mockLog.assertAllExpectationsMatched();
         }
         assertFalse(readinessService.ready());
         tcpReadinessProbeFalse(readinessService);

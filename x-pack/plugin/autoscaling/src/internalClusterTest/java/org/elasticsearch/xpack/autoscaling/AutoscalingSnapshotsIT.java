@@ -55,7 +55,11 @@ public class AutoscalingSnapshotsIT extends AutoscalingIntegTestCase {
 
         final boolean deletePolicy = randomBoolean();
         if (deletePolicy) {
-            final DeleteAutoscalingPolicyAction.Request deleteRequest = new DeleteAutoscalingPolicyAction.Request(policy.name());
+            final DeleteAutoscalingPolicyAction.Request deleteRequest = new DeleteAutoscalingPolicyAction.Request(
+                TEST_REQUEST_TIMEOUT,
+                TEST_REQUEST_TIMEOUT,
+                policy.name()
+            );
             assertAcked(client.execute(DeleteAutoscalingPolicyAction.INSTANCE, deleteRequest).actionGet());
         } else {
             // Update the policy
@@ -83,6 +87,8 @@ public class AutoscalingSnapshotsIT extends AutoscalingIntegTestCase {
 
     private void putPolicy(AutoscalingPolicy policy) {
         final PutAutoscalingPolicyAction.Request request = new PutAutoscalingPolicyAction.Request(
+            TEST_REQUEST_TIMEOUT,
+            TEST_REQUEST_TIMEOUT,
             policy.name(),
             policy.roles(),
             policy.deciders()
@@ -91,13 +97,13 @@ public class AutoscalingSnapshotsIT extends AutoscalingIntegTestCase {
     }
 
     private void assertPolicy(AutoscalingPolicy policy) {
-        final GetAutoscalingPolicyAction.Request getRequest = new GetAutoscalingPolicyAction.Request(policy.name());
+        final GetAutoscalingPolicyAction.Request getRequest = new GetAutoscalingPolicyAction.Request(TEST_REQUEST_TIMEOUT, policy.name());
         final AutoscalingPolicy actualPolicy = client().execute(GetAutoscalingPolicyAction.INSTANCE, getRequest).actionGet().policy();
         assertThat(actualPolicy, equalTo(policy));
     }
 
     private void assertPolicyNotFound(AutoscalingPolicy policy) {
-        final GetAutoscalingPolicyAction.Request getRequest = new GetAutoscalingPolicyAction.Request(policy.name());
+        final GetAutoscalingPolicyAction.Request getRequest = new GetAutoscalingPolicyAction.Request(TEST_REQUEST_TIMEOUT, policy.name());
         final ResourceNotFoundException e = expectThrows(
             ResourceNotFoundException.class,
             () -> client().execute(GetAutoscalingPolicyAction.INSTANCE, getRequest).actionGet().policy()

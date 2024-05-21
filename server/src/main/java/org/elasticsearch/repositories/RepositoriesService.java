@@ -155,26 +155,13 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
         assert lifecycle.started() : "Trying to register new repository but service is in state [" + lifecycle.state() + "]";
         validateRepositoryName(request.name());
 
-        // Trying to create the new repository on master to make sure it works
-        try {
-            validateRepositoryCanBeCreated(request);
-        } catch (Exception e) {
-            responseListener.onFailure(e);
-            return;
-        }
-
         // Aggregated result of two asynchronous operations when the cluster acknowledged and state changed
         record RegisterRepositoryTaskResult(AcknowledgedResponse ackResponse, boolean changed) {}
 
         SubscribableListener
 
-            .<Void>newForked(validationStep -> {
-                if (request.verify()) {
-                    validatePutRepositoryRequest(request, validationStep);
-                } else {
-                    validationStep.onResponse(null);
-                }
-            })
+            // Trying to create the new repository on master to make sure it works
+            .<Void>newForked(validationStep -> validatePutRepositoryRequest(request, validationStep))
 
             // When publication has completed (and all acks received or timed out) then verify the repository.
             // (if acks timed out then acknowledgementStep completes before the master processes this cluster state, hence why we have
@@ -211,11 +198,13 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
                         }
                     }
                 );
-                publicationStep.addListener(clusterUpdateStep.delegateFailureAndWrap((ignored1, changed) -> {
-                    acknowledgementStep.addListener(clusterUpdateStep.delegateFailureAndWrap((ignored2, ack) -> {
-                        clusterUpdateStep.onResponse(new RegisterRepositoryTaskResult(ack, changed));
-                    }));
-                }));
+                publicationStep.addListener(
+                    clusterUpdateStep.delegateFailureAndWrap(
+                        (stateChangeListener, changed) -> acknowledgementStep.addListener(
+                            stateChangeListener.map(acknowledgedResponse -> new RegisterRepositoryTaskResult(acknowledgedResponse, changed))
+                        )
+                    )
+                );
             })
             .<AcknowledgedResponse>andThen((verificationStep, taskResult) -> {
                 if (request.verify() == false) {
@@ -231,8 +220,8 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
                             }
                         })
                         // When verification has completed, get the repository data for the first time
-                        .<RepositoryData>andThen((getRepositoryDataStep, ignored) -> {
-                            threadPool.generic()
+                        .<RepositoryData>andThen(
+                            (getRepositoryDataStep, ignored) -> threadPool.generic()
                                 .execute(
                                     ActionRunnable.wrap(
                                         getRepositoryDataStep,
@@ -242,12 +231,17 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
                                             ll
                                         )
                                     )
-                                );
-                        })
+                                )
+                        )
                         // When the repository metadata is ready, update the repository UUID stored in the cluster state, if available
-                        .<Void>andThen((updateRepoUuidStep, repositoryData) -> {
-                            updateRepositoryUuidInMetadata(clusterService, request.name(), repositoryData, updateRepoUuidStep);
-                        })
+                        .<Void>andThen(
+                            (updateRepoUuidStep, repositoryData) -> updateRepositoryUuidInMetadata(
+                                clusterService,
+                                request.name(),
+                                repositoryData,
+                                updateRepoUuidStep
+                            )
+                        )
                         .andThenApply(uuidUpdated -> taskResult.ackResponse)
                         .addListener(verificationStep);
                 }
@@ -342,28 +336,6 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
         }
     }
 
-    private void validatePutRepositoryRequest(final PutRepositoryRequest request, final ActionListener<Void> validationListener) {
-        threadPool.executor(ThreadPool.Names.SNAPSHOT).execute(() -> {
-            try {
-                final var metadata = new RepositoryMetadata(request.name(), request.type(), request.settings());
-                final var repository = createRepository(metadata);
-                try {
-                    final var token = repository.startVerification();
-                    if (token != null) {
-                        repository.verify(token, clusterService.localNode());
-                        repository.endVerification(token);
-                    }
-                } finally {
-                    closeRepository(repository);
-                }
-            } catch (Exception e) {
-                validationListener.onFailure(e);
-                return;
-            }
-            validationListener.onResponse(null);
-        });
-    }
-
     /**
      * Ensures that we can create the repository and that it's creation actually works
      * <p>
@@ -376,6 +348,35 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
 
         // Trying to create the new repository on master to make sure it works
         closeRepository(createRepository(newRepositoryMetadata));
+    }
+
+    private void validatePutRepositoryRequest(final PutRepositoryRequest request, ActionListener<Void> resultListener) {
+        final RepositoryMetadata newRepositoryMetadata = new RepositoryMetadata(request.name(), request.type(), request.settings());
+        try {
+            final var repository = createRepository(newRepositoryMetadata);
+            if (request.verify()) {
+                // verify repository on local node only, different from verifyRepository method that runs on other cluster nodes
+                threadPool.executor(ThreadPool.Names.SNAPSHOT).execute(() -> {
+                    try {
+                        final var token = repository.startVerification();
+                        if (token != null) {
+                            repository.verify(token, clusterService.localNode());
+                            repository.endVerification(token);
+                        }
+                        resultListener.onResponse(null);
+                    } catch (Exception e) {
+                        resultListener.onFailure(e);
+                    } finally {
+                        closeRepository(repository);
+                    }
+                });
+            } else {
+                closeRepository(repository);
+                resultListener.onResponse(null);
+            }
+        } catch (Exception e) {
+            resultListener.onFailure(e);
+        }
     }
 
     private void submitUnbatchedTask(@SuppressWarnings("SameParameterValue") String source, ClusterStateUpdateTask task) {

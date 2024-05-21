@@ -23,6 +23,7 @@ import java.util.Collections;
 import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.POST;
+import static org.elasticsearch.rest.RestUtils.getAckTimeout;
 import static org.elasticsearch.rest.RestUtils.getMasterNodeTimeout;
 
 @ServerlessScope(Scope.PUBLIC)
@@ -51,7 +52,7 @@ public class RestUpdateTrainedModelDeploymentAction extends BaseRestHandler {
         String modelId = restRequest.param(StartTrainedModelDeploymentAction.Request.MODEL_ID.getPreferredName());
         XContentParser parser = restRequest.contentParser();
         UpdateTrainedModelDeploymentAction.Request request = UpdateTrainedModelDeploymentAction.Request.parseRequest(modelId, parser);
-        request.ackTimeout(restRequest.paramAsTime("timeout", request.ackTimeout()));
+        request.ackTimeout(getAckTimeout(restRequest));
         request.masterNodeTimeout(getMasterNodeTimeout(restRequest));
 
         return channel -> client.execute(UpdateTrainedModelDeploymentAction.INSTANCE, request, new RestToXContentListener<>(channel));

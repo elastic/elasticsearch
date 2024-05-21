@@ -53,22 +53,27 @@ public class DocValuesCodecDuelTests extends ESTestCase {
                 var baselineIw = new RandomIndexWriter(random(), baselineDirectory, baselineConfig);
                 var contenderIw = new RandomIndexWriter(random(), contenderDirectory, contenderConf)
             ) {
+                boolean field1MissingOften = rarely();
+                boolean field2And3MissingOften = rarely();
+                boolean field4MissingOften = rarely();
+                boolean field5MissingOften = rarely();
+
                 for (int i = 0; i < numDocs; i++) {
                     Document doc = new Document();
-                    if (rarely() == false) {
+                    if (field1MissingOften ? randomBoolean() : rarely() == false) {
                         doc.add(new SortedDocValuesField(FIELD_1, newBytesRef(randomUnicodeOfLength(8))));
                     }
-                    if (rarely() == false) {
+                    if (field2And3MissingOften ? randomBoolean() : rarely() == false) {
                         int numValues = randomIntBetween(1, 32);
                         for (int j = 0; j < numValues; j++) {
                             doc.add(new SortedSetDocValuesField(FIELD_2, newBytesRef(randomUnicodeOfLength(8))));
                             doc.add(new SortedNumericDocValuesField(FIELD_3, randomLong()));
                         }
                     }
-                    if (rarely() == false) {
+                    if (field4MissingOften ?  randomBoolean() : rarely() == false) {
                         doc.add(new NumericDocValuesField(FIELD_4, randomLong()));
                     }
-                    if (rarely() == false) {
+                    if (field5MissingOften ?  randomBoolean() : rarely() == false) {
                         doc.add(new BinaryDocValuesField(FIELD_5, newBytesRef(randomUnicodeOfLength(8))));
                     }
                     baselineIw.addDocument(doc);

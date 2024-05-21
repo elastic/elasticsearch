@@ -65,12 +65,13 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
     public static final String CONTENT_TYPE = "semantic_text";
 
     public static final TypeParser PARSER = new TypeParser(
-        (n, c) -> new Builder(n, c.indexVersionCreated()),
+        (n, c) -> new Builder(n, c.indexVersionCreated(), c.getIndexSettings().getMergeSchedulerConfig().getMaxThreadCount()),
         notInMultiFields(CONTENT_TYPE)
     );
 
     public static class Builder extends FieldMapper.Builder {
         private final IndexVersion indexVersionCreated;
+        private final int mergeThreadCount;
 
         private final Parameter<String> inferenceId = Parameter.stringParam(
             "inference_id",
@@ -97,10 +98,11 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
 
         private Function<MapperBuilderContext, ObjectMapper> inferenceFieldBuilder;
 
-        public Builder(String name, IndexVersion indexVersionCreated) {
+        public Builder(String name, IndexVersion indexVersionCreated, int mergeThreadCount) {
             super(name);
             this.indexVersionCreated = indexVersionCreated;
-            this.inferenceFieldBuilder = c -> createInferenceField(c, indexVersionCreated, modelSettings.get());
+            this.mergeThreadCount = mergeThreadCount;
+            this.inferenceFieldBuilder = c -> createInferenceField(c, indexVersionCreated, mergeThreadCount, modelSettings.get());
         }
 
         public Builder setInferenceId(String id) {
@@ -148,6 +150,7 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
                     modelSettings.getValue(),
                     inferenceField,
                     indexVersionCreated,
+                    mergeThreadCount,
                     meta.getValue()
                 ),
                 copyTo
@@ -168,7 +171,7 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
 
     @Override
     public FieldMapper.Builder getMergeBuilder() {
-        return new Builder(simpleName(), fieldType().indexVersionCreated).init(this);
+        return new Builder(simpleName(), fieldType().indexVersionCreated, fieldType().mergeThreadCount).init(this);
     }
 
     @Override
@@ -203,7 +206,7 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
         final SemanticTextFieldMapper mapper;
         if (fieldType().getModelSettings() == null) {
             context.path().remove();
-            Builder builder = (Builder) new Builder(simpleName(), fieldType().indexVersionCreated).init(this);
+            Builder builder = (Builder) new Builder(simpleName(), fieldType().indexVersionCreated, fieldType().mergeThreadCount).init(this);
             try {
                 mapper = builder.setModelSettings(field.inference().modelSettings())
                     .setInferenceId(field.inference().inferenceId())
@@ -270,6 +273,7 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
         private final SemanticTextField.ModelSettings modelSettings;
         private final ObjectMapper inferenceField;
         private final IndexVersion indexVersionCreated;
+        private final int mergeThreadCount;
 
         public SemanticTextFieldType(
             String name,
@@ -277,6 +281,7 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
             SemanticTextField.ModelSettings modelSettings,
             ObjectMapper inferenceField,
             IndexVersion indexVersionCreated,
+            int mergeThreadCount,
             Map<String, String> meta
         ) {
             super(name, false, false, false, TextSearchInfo.NONE, meta);
@@ -284,6 +289,7 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
             this.modelSettings = modelSettings;
             this.inferenceField = inferenceField;
             this.indexVersionCreated = indexVersionCreated;
+            this.mergeThreadCount = mergeThreadCount;
         }
 
         @Override
@@ -331,15 +337,17 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
     private static ObjectMapper createInferenceField(
         MapperBuilderContext context,
         IndexVersion indexVersionCreated,
+        int mergeThreadCount,
         @Nullable SemanticTextField.ModelSettings modelSettings
     ) {
         return new ObjectMapper.Builder(INFERENCE_FIELD, Explicit.EXPLICIT_TRUE).dynamic(ObjectMapper.Dynamic.FALSE)
-            .add(createChunksField(indexVersionCreated, modelSettings))
+            .add(createChunksField(indexVersionCreated, mergeThreadCount, modelSettings))
             .build(context);
     }
 
     private static NestedObjectMapper.Builder createChunksField(
         IndexVersion indexVersionCreated,
+        int mergeThreadCount,
         SemanticTextField.ModelSettings modelSettings
     ) {
         NestedObjectMapper.Builder chunksField = new NestedObjectMapper.Builder(CHUNKS_FIELD, indexVersionCreated);
@@ -347,19 +355,24 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
         KeywordFieldMapper.Builder chunkTextField = new KeywordFieldMapper.Builder(CHUNKED_TEXT_FIELD, indexVersionCreated).indexed(false)
             .docValues(false);
         if (modelSettings != null) {
-            chunksField.add(createEmbeddingsField(indexVersionCreated, modelSettings));
+            chunksField.add(createEmbeddingsField(indexVersionCreated, mergeThreadCount, modelSettings));
         }
         chunksField.add(chunkTextField);
         return chunksField;
     }
 
-    private static Mapper.Builder createEmbeddingsField(IndexVersion indexVersionCreated, SemanticTextField.ModelSettings modelSettings) {
+    private static Mapper.Builder createEmbeddingsField(
+        IndexVersion indexVersionCreated,
+        int mergeThreadCount,
+        SemanticTextField.ModelSettings modelSettings
+    ) {
         return switch (modelSettings.taskType()) {
             case SPARSE_EMBEDDING -> new SparseVectorFieldMapper.Builder(CHUNKED_EMBEDDINGS_FIELD);
             case TEXT_EMBEDDING -> {
                 DenseVectorFieldMapper.Builder denseVectorMapperBuilder = new DenseVectorFieldMapper.Builder(
                     CHUNKED_EMBEDDINGS_FIELD,
-                    indexVersionCreated
+                    indexVersionCreated,
+                    mergeThreadCount
                 );
                 SimilarityMeasure similarity = modelSettings.similarity();
                 if (similarity != null) {

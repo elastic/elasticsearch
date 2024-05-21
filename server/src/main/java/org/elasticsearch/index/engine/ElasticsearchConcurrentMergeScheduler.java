@@ -30,6 +30,7 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.Locale;
 import java.util.Set;
+import java.util.concurrent.Executor;
 
 /**
  * An extension to the {@link ConcurrentMergeScheduler} that provides tracking on merge times, total
@@ -76,6 +77,17 @@ class ElasticsearchConcurrentMergeScheduler extends ConcurrentMergeScheduler {
             return true;
         }
         return super.verbose();
+    }
+
+    // TODO: this is temporarily, remove this override and enable multithreaded merges for all kind of merges
+    @Override
+    public Executor getIntraMergeExecutor(MergePolicy.OneMerge merge) {
+        // Enable multithreaded merges only for force merge operations
+        if (merge.getStoreMergeInfo().mergeMaxNumSegments != -1) {
+            return super.getIntraMergeExecutor(merge);
+        } else {
+            return null;
+        }
     }
 
     @Override

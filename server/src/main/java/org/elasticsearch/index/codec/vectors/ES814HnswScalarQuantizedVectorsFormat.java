@@ -66,9 +66,6 @@ public final class ES814HnswScalarQuantizedVectorsFormat extends KnnVectorsForma
         }
         this.maxConn = maxConn;
         this.beamWidth = beamWidth;
-        if (numMergeWorkers > 1 && mergeExec == null) {
-            throw new IllegalArgumentException("No executor service passed in when " + numMergeWorkers + " merge workers are requested");
-        }
         if (numMergeWorkers == 1 && mergeExec != null) {
             throw new IllegalArgumentException("No executor service is needed as we'll use single thread to merge");
         }

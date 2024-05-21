@@ -459,7 +459,6 @@ public final class SearchPhaseController {
                 if (reducedQueryPhase.queryPhaseRankCoordinatorContext != null) {
                     assert shardDoc instanceof RankDoc;
                     searchHit.setRank(((RankDoc) shardDoc).rank);
-                    searchHit.score(shardDoc.score);
                 } else if (sortedTopDocs.isSortedByField) {
                     FieldDoc fieldDoc = (FieldDoc) shardDoc;
                     searchHit.sortValues(fieldDoc.fields, reducedQueryPhase.sortValueFormats);

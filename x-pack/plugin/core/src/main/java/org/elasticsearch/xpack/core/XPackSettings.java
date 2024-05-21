@@ -90,10 +90,10 @@ public class XPackSettings {
         Setting.Property.NodeScope
     );
 
-    /** Setting for enabling or disabling APM Data. Defaults to false. */
+    /** Setting for enabling or disabling APM Data. Defaults to true. */
     public static final Setting<Boolean> APM_DATA_ENABLED = Setting.boolSetting(
         "xpack.apm_data.enabled",
-        false,
+        true,
         Setting.Property.NodeScope
     );
 

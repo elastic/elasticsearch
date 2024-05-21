@@ -39,7 +39,9 @@ import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
+import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.core.IOUtils;
+import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.index.engine.CompletionStatsCache;
@@ -261,8 +263,8 @@ public class SearchEngine extends Engine {
         var refreshExecutor = engineConfig.getThreadPool().executor(ThreadPool.Names.REFRESH);
         refreshExecutor.execute(new AbstractRunnable() {
 
+            private final RefCounted finish = AbstractRefCounted.of(this::finish);
             int batchSize = 0;
-            boolean success = false;
 
             @Override
             protected void doRun() throws Exception {
@@ -296,31 +298,31 @@ public class SearchEngine extends Engine {
                     return;
                 }
 
-                store.incRef();
-                try {
-                    logger.trace("updating directory with commit {}", latestCommit);
-                    if (directory.updateCommit(latestCommit)) {
-                        // if this index has been recently searched, and this commit hasn't been superseded, then
-                        // prefetch the new commit files
-                        // todo: disabled pre-fetching new commits, see https://github.com/elastic/elasticsearch-serverless/issues/1006
-                        if (false && engineConfig.getThreadPool().relativeTimeInMillis() - lastSearcherAcquiredTime < SEARCH_IDLE_TIME) {
-                            directory.downloadCommit(
-                                latestCommit,
-                                blobStoreFetchExecutor,
-                                new ThreadedActionListener<>(
-                                    refreshExecutor,
-                                    ActionListener.running(() -> updateInternalState(latestCommit, current))
+                logger.trace("updating directory with commit {}", latestCommit);
+                if (directory.updateCommit(latestCommit)) {
+                    store.incRef();
+                    // if this index has been recently searched, and this commit hasn't been superseded, then
+                    // prefetch the new commit files
+                    // todo: disabled pre-fetching new commits, see https://github.com/elastic/elasticsearch-serverless/issues/1006
+                    if (false && engineConfig.getThreadPool().relativeTimeInMillis() - lastSearcherAcquiredTime < SEARCH_IDLE_TIME) {
+                        finish.incRef();
+                        directory.downloadCommit(
+                            latestCommit,
+                            blobStoreFetchExecutor,
+                            new ThreadedActionListener<>(
+                                refreshExecutor,
+                                ActionListener.releaseAfter(
+                                    ActionListener.running(() -> updateInternalState(latestCommit, current)),
+                                    () -> Releasables.close(store::decRef, finish::decRef)
                                 )
-                            );
-                        } else {
+                            )
+                        );
+                    } else {
+                        try {
                             updateInternalState(latestCommit, current);
+                        } finally {
+                            store.decRef();
                         }
-                    }
-                    success = true;
-                } finally {
-                    // store is released by #updateInternalState unless there was an exception
-                    if (success == false) {
-                        store.decRef();
                     }
                 }
             }
@@ -336,15 +338,13 @@ public class SearchEngine extends Engine {
 
             @Override
             public void onAfter() {
-                if (success == false && isClosed.get() == false) {
-                    doAfter();
-                }
+                finish.decRef();
             }
 
-            private void doAfter() {
+            private void finish() {
                 var remaining = pendingCommitNotifications.addAndGet(-batchSize);
                 assert remaining >= 0 : remaining;
-                if (remaining > 0) {
+                if (remaining > 0 && isClosed.get() == false) {
                     processCommitNotifications();
                 }
             }
@@ -383,8 +383,6 @@ public class SearchEngine extends Engine {
                     doUpdateInternalState(latestCommit, current);
                 } catch (Exception e) {
                     onFailure(e);
-                } finally {
-                    Releasables.close(store::decRef, this::doAfter);
                 }
             }
 

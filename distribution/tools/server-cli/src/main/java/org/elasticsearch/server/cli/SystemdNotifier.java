@@ -32,6 +32,7 @@ class SystemdNotifier implements ServerProcessListener, Closeable {
 
     SystemdNotifier(Path notifySocketPath) {
         try {
+            logger.info("Opening systemd notify socket: {}", notifySocketPath);
             this.socket = SocketChannel.open(UnixDomainSocketAddress.of(notifySocketPath));
         } catch (IOException e) {
             // TODO: should this be a UserException?

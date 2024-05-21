@@ -151,10 +151,10 @@ public class PublicationTransportHandler {
                 }
                 fullClusterStateReceivedCount.incrementAndGet();
                 logger.debug("received full cluster state version [{}] with size [{}]", incomingState.version(), request.bytes().length());
-                acceptState(
-                    incomingState,
-                    ActionListener.runBefore(publishResponseListener, () -> lastSeenClusterState.set(incomingState))
-                );
+                acceptState(incomingState, publishResponseListener.delegateFailure((delegate, response) -> {
+                    lastSeenClusterState.set(incomingState);
+                    delegate.onResponse(response);
+                }));
             } else {
                 final ClusterState lastSeen = lastSeenClusterState.get();
                 if (lastSeen == null) {
@@ -170,10 +170,10 @@ public class PublicationTransportHandler {
                         incomingState.stateUUID(),
                         request.bytes().length()
                     );
-                    acceptState(
-                        incomingState,
-                        ActionListener.runBefore(publishResponseListener, () -> lastSeenClusterState.set(incomingState))
-                    );
+                    acceptState(incomingState, publishResponseListener.delegateFailure((delegate, response) -> {
+                        lastSeenClusterState.set(incomingState);
+                        delegate.onResponse(response);
+                    }));
                 }
             }
         } finally {

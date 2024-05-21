@@ -23,13 +23,13 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.test.MockLogAppender;
+import org.elasticsearch.test.MockLog;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 
 import java.util.Set;
 
 import static org.elasticsearch.cluster.routing.TestShardRouting.shardRoutingBuilder;
-import static org.elasticsearch.test.MockLogAppender.assertThatLogger;
+import static org.elasticsearch.test.MockLog.assertThatLogger;
 
 @TestLogging(value = "org.elasticsearch.cluster.routing.allocation.ShardChangesObserver:DEBUG", reason = "verifies debug level logging")
 public class ShardChangesObserverTests extends ESAllocationTestCase {
@@ -48,7 +48,7 @@ public class ShardChangesObserverTests extends ESAllocationTestCase {
         assertThatLogger(
             () -> applyStartedShardsUntilNoChange(clusterState, createAllocationService()),
             ShardChangesObserver.class,
-            new MockLogAppender.SeenEventExpectation(
+            new MockLog.SeenEventExpectation(
                 "Should log shard starting",
                 ShardChangesObserver.class.getCanonicalName(),
                 Level.DEBUG,
@@ -79,13 +79,13 @@ public class ShardChangesObserverTests extends ESAllocationTestCase {
         assertThatLogger(
             () -> applyStartedShardsUntilNoChange(clusterState, createAllocationService()),
             ShardChangesObserver.class,
-            new MockLogAppender.SeenEventExpectation(
+            new MockLog.SeenEventExpectation(
                 "Should log shard moving",
                 ShardChangesObserver.class.getCanonicalName(),
                 Level.DEBUG,
                 "[" + indexName + "][0][P] is relocating (move) from [node-1] to [node-2]"
             ),
-            new MockLogAppender.SeenEventExpectation(
+            new MockLog.SeenEventExpectation(
                 "Should log shard starting",
                 ShardChangesObserver.class.getCanonicalName(),
                 Level.DEBUG,
@@ -121,13 +121,13 @@ public class ShardChangesObserverTests extends ESAllocationTestCase {
         assertThatLogger(
             () -> createAllocationService().disassociateDeadNodes(clusterState, true, "node-1 left cluster"),
             ShardChangesObserver.class,
-            new MockLogAppender.SeenEventExpectation(
+            new MockLog.SeenEventExpectation(
                 "Should log shard moving",
                 ShardChangesObserver.class.getCanonicalName(),
                 Level.DEBUG,
                 "[" + indexName + "][0][R] is promoted to primary on [node-2]"
             ),
-            new MockLogAppender.SeenEventExpectation(
+            new MockLog.SeenEventExpectation(
                 "Should log shard starting",
                 ShardChangesObserver.class.getCanonicalName(),
                 Level.DEBUG,

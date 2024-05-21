@@ -16,8 +16,18 @@ class LinuxNativeAccess extends PosixNativeAccess {
     Systemd systemd;
 
     LinuxNativeAccess(NativeLibraryProvider libraryProvider) {
-        super("Linux", libraryProvider);
+        super("Linux", libraryProvider, new PosixConstants(-1L, 9, 1));
         this.systemd = new Systemd(libraryProvider.getLibrary(SystemdLibrary.class));
+    }
+
+    @Override
+    protected long getMaxThreads() {
+        // this is only valid on Linux and the value *is* different on OS X
+        // see /usr/include/sys/resource.h on OS X
+        // on Linux the resource RLIMIT_NPROC means *the number of threads*
+        // this is in opposition to BSD-derived OSes
+        final int rlimit_nproc = 6;
+        return getRLimit(rlimit_nproc, "max number of threads");
     }
 
     @Override

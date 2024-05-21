@@ -20,6 +20,7 @@ import org.elasticsearch.client.RestClientBuilder;
 import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.common.CheckedBiFunction;
 import org.elasticsearch.common.logging.LogConfigurator;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.logging.LogManager;
@@ -49,7 +50,7 @@ import static org.elasticsearch.xpack.esql.CsvTestUtils.multiValuesAwareCsvToStr
 
 public class CsvTestsDataLoader {
     private static final int BULK_DATA_SIZE = 100_000;
-    private static final TestsDataset EMPLOYEES = new TestsDataset("employees", "mapping-default.json", "employees.csv");
+    private static final TestsDataset EMPLOYEES = new TestsDataset("employees", "mapping-default.json", "employees.csv", null, false);
     private static final TestsDataset HOSTS = new TestsDataset("hosts", "mapping-hosts.json", "hosts.csv");
     private static final TestsDataset APPS = new TestsDataset("apps", "mapping-apps.json", "apps.csv");
     private static final TestsDataset LANGUAGES = new TestsDataset("languages", "mapping-languages.json", "languages.csv");
@@ -84,6 +85,8 @@ public class CsvTestsDataLoader {
         "cartesian_multipolygons.csv"
     );
 
+    private static final TestsDataset K8S = new TestsDataset("k8s", "k8s-mappings.json", "k8s.csv", "k8s-settings.json", true);
+
     public static final Map<String, TestsDataset> CSV_DATASET_MAP = Map.ofEntries(
         Map.entry(EMPLOYEES.indexName, EMPLOYEES),
         Map.entry(HOSTS.indexName, HOSTS),
@@ -102,7 +105,8 @@ public class CsvTestsDataLoader {
         Map.entry(COUNTRIES_BBOX.indexName, COUNTRIES_BBOX),
         Map.entry(COUNTRIES_BBOX_WEB.indexName, COUNTRIES_BBOX_WEB),
         Map.entry(AIRPORT_CITY_BOUNDARIES.indexName, AIRPORT_CITY_BOUNDARIES),
-        Map.entry(CARTESIAN_MULTIPOLYGONS.indexName, CARTESIAN_MULTIPOLYGONS)
+        Map.entry(CARTESIAN_MULTIPOLYGONS.indexName, CARTESIAN_MULTIPOLYGONS),
+        Map.entry(K8S.indexName, K8S)
     );
 
     private static final EnrichConfig LANGUAGES_ENRICH = new EnrichConfig("languages_policy", "enrich-policy-languages.json");
@@ -190,10 +194,8 @@ public class CsvTestsDataLoader {
         }
 
         try (RestClient client = builder.build()) {
-            loadDataSetIntoEs(client, (restClient, indexName, indexMapping) -> {
-                Request request = new Request("PUT", "/" + indexName);
-                request.setJsonEntity("{\"mappings\":" + indexMapping + "}");
-                restClient.performRequest(request);
+            loadDataSetIntoEs(client, (restClient, indexName, indexMapping, indexSettings) -> {
+                ESRestTestCase.createIndex(restClient, indexName, indexSettings, indexMapping, null);
             });
         }
     }
@@ -203,20 +205,30 @@ public class CsvTestsDataLoader {
     }
 
     public static void loadDataSetIntoEs(RestClient client) throws IOException {
-        loadDataSetIntoEs(client, (restClient, indexName, indexMapping) -> {
-            ESRestTestCase.createIndex(restClient, indexName, null, indexMapping, null);
+        loadDataSetIntoEs(client, (restClient, indexName, indexMapping, indexSettings) -> {
+            ESRestTestCase.createIndex(restClient, indexName, indexSettings, indexMapping, null);
         });
     }
 
     public static void loadDataSetIntoEs(RestClient client, Logger logger) throws IOException {
-        loadDataSetIntoEs(client, logger, (restClient, indexName, indexMapping) -> {
-            ESRestTestCase.createIndex(restClient, indexName, null, indexMapping, null);
+        loadDataSetIntoEs(client, logger, (restClient, indexName, indexMapping, indexSettings) -> {
+            ESRestTestCase.createIndex(restClient, indexName, indexSettings, indexMapping, null);
         });
     }
 
     private static void loadDataSetIntoEs(RestClient client, Logger logger, IndexCreator indexCreator) throws IOException {
         for (var dataSet : CSV_DATASET_MAP.values()) {
-            load(client, dataSet.indexName, "/" + dataSet.mappingFileName, "/" + dataSet.dataFileName, logger, indexCreator);
+            final String settingName = dataSet.settingFileName != null ? "/" + dataSet.settingFileName : null;
+            load(
+                client,
+                dataSet.indexName,
+                "/" + dataSet.mappingFileName,
+                settingName,
+                "/" + dataSet.dataFileName,
+                dataSet.allowSubFields,
+                logger,
+                indexCreator
+            );
         }
         forceMerge(client, CSV_DATASET_MAP.keySet(), logger);
         for (var policy : ENRICH_POLICIES) {
@@ -242,7 +254,9 @@ public class CsvTestsDataLoader {
         RestClient client,
         String indexName,
         String mappingName,
+        String settingName,
         String dataName,
+        boolean allowSubFields,
         Logger logger,
         IndexCreator indexCreator
     ) throws IOException {
@@ -254,8 +268,14 @@ public class CsvTestsDataLoader {
         if (data == null) {
             throw new IllegalArgumentException("Cannot find resource " + dataName);
         }
-        indexCreator.createIndex(client, indexName, readTextFile(mapping));
-        loadCsvData(client, indexName, data, CsvTestsDataLoader::createParser, logger);
+        Settings indexSettings = Settings.EMPTY;
+        if (settingName != null) {
+            indexSettings = Settings.builder()
+                .loadFromStream(settingName, CsvTestsDataLoader.class.getResourceAsStream(settingName), false)
+                .build();
+        }
+        indexCreator.createIndex(client, indexName, readTextFile(mapping), indexSettings);
+        loadCsvData(client, indexName, data, allowSubFields, CsvTestsDataLoader::createParser, logger);
     }
 
     public static String readTextFile(URL resource) throws IOException {
@@ -288,6 +308,7 @@ public class CsvTestsDataLoader {
         RestClient client,
         String indexName,
         URL resource,
+        boolean allowSubFields,
         CheckedBiFunction<XContent, InputStream, XContentParser, IOException> p,
         Logger logger
     ) throws IOException {
@@ -317,7 +338,7 @@ public class CsvTestsDataLoader {
                                 );
                             } else {
                                 name = entries[i].substring(0, split).trim();
-                                if (name.contains(".") == false) {
+                                if (allowSubFields || name.contains(".") == false) {
                                     typeName = entries[i].substring(split + 1).trim();
                                     if (typeName.isEmpty()) {
                                         throw new IllegalArgumentException(
@@ -479,11 +500,21 @@ public class CsvTestsDataLoader {
         return xContent.createParser(config, data);
     }
 
-    public record TestsDataset(String indexName, String mappingFileName, String dataFileName) {}
+    public record TestsDataset(
+        String indexName,
+        String mappingFileName,
+        String dataFileName,
+        String settingFileName,
+        boolean allowSubFields
+    ) {
+        public TestsDataset(String indexName, String mappingFileName, String dataFileName) {
+            this(indexName, mappingFileName, dataFileName, null, true);
+        }
+    }
 
     public record EnrichConfig(String policyName, String policyFileName) {}
 
     private interface IndexCreator {
-        void createIndex(RestClient client, String indexName, String mapping) throws IOException;
+        void createIndex(RestClient client, String indexName, String mapping, Settings indexSettings) throws IOException;
     }
 }

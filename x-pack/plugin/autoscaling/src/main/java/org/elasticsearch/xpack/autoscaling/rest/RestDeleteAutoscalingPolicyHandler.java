@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.autoscaling.rest;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.RestUtils;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xpack.autoscaling.action.DeleteAutoscalingPolicyAction;
 
@@ -32,7 +33,11 @@ public class RestDeleteAutoscalingPolicyHandler extends BaseRestHandler {
     @Override
     protected RestChannelConsumer prepareRequest(final RestRequest restRequest, final NodeClient client) {
         final String name = restRequest.param("name");
-        final DeleteAutoscalingPolicyAction.Request request = new DeleteAutoscalingPolicyAction.Request(name);
+        final DeleteAutoscalingPolicyAction.Request request = new DeleteAutoscalingPolicyAction.Request(
+            RestUtils.getMasterNodeTimeout(restRequest),
+            RestUtils.getAckTimeout(restRequest),
+            name
+        );
         return channel -> client.execute(DeleteAutoscalingPolicyAction.INSTANCE, request, new RestToXContentListener<>(channel));
     }
 

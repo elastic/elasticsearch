@@ -20,6 +20,15 @@ setup:
           is_native: false
           service_type: super-connector
 
+  - do:
+      connector.put:
+        connector_id: test-connector-no-service-type
+        body:
+          index_name: search-test-2
+          name: my-connector
+          language: de
+          is_native: false
+
 ---
 'Create connector sync job':
   - do:
@@ -303,6 +312,16 @@ setup:
       connector.sync_job_post:
         body:
           id: test-connector-detached-index
+          job_type: full
+          trigger_method: full
+      catch: bad_request
+
+---
+'Create connector sync job with no service type':
+  - do:
+      connector.sync_job_post:
+        body:
+          id: test-connector-no-service-type
           job_type: full
           trigger_method: full
       catch: bad_request

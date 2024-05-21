@@ -65,18 +65,18 @@ include::set-security-user.asciidoc[]
 ==== Field and document level security with Cross-cluster API keys
 
 <<security-api-create-cross-cluster-api-key, Cross-Cluster API keys>> can be used to authenticate
-requests to a remote cluster.`access` provides access for Cross Cluster Search.
-`replication` provides access for Cross Cluster Replication.
+requests to a remote cluster. The `access` parameter defines permissions for cross-cluster search.
+The `replication` parameter defines permissions for cross-cluster replication.
 
-`replication` does not support any field or document level security. `access` supports field and/or document level security.
-However, for reasons similar those described in  <<multiple-roles-dls-fls,Multiple roles with document and field level security>>,
-it is not allowed to create a single Cross-Cluster API key with both `access` and `replication` where
-`access` has document or field level security defined.
+`replication` does not support any field or document level security. `access` supports field and document level security.
 
-If you need both `access` and `replication` with the need to
-define document or field level security for `access`, create two separate Cross-Cluster API keys. One with `access` that defines
-document or field level security, and another with `replication`. You will need to also setup two different
-remote connections (to the same cluster), with each named connection using the appropriate Cross-Cluster API key.
+For reasons similar those described in  <<multiple-roles-dls-fls,Multiple roles with document and field level security>>,
+you can't create a single Cross-Cluster API key with both the `access` and `replication` parameter, where the
+`access` parameter has document or field level security defined.
+
+If you to use both of these parameters, and need to
+define document or field level security for the `access` parameter, create two separate Cross-Cluster API keys, one using the `access` parameter, and one using the `replication` parameter. You'll also need to set up two different
+remote connections to the same cluster, with each named connection using the appropriate Cross-Cluster API key.
 
 
 

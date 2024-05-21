@@ -316,12 +316,7 @@ public class LocalPhysicalPlanOptimizer extends ParameterizedRuleExecutor<Physic
         protected PhysicalPlan rule(TopNExec topNExec, LocalPhysicalOptimizerContext ctx) {
             PhysicalPlan plan = topNExec;
             PhysicalPlan child = topNExec.child();
-
-            boolean canPushDownTopN = (child instanceof EsQueryExec esQueryExec && esQueryExec.canPushSorts())
-                || (child instanceof ExchangeExec exchangeExec
-                    && exchangeExec.child() instanceof EsQueryExec esQuery
-                    && esQuery.canPushSorts());
-            if (canPushDownTopN && canPushDownOrders(topNExec.order(), x -> hasIdenticalDelegate(x, ctx.searchStats()))) {
+            if (canPushSorts(child) && canPushDownOrders(topNExec.order(), x -> hasIdenticalDelegate(x, ctx.searchStats()))) {
                 var sorts = buildFieldSorts(topNExec.order());
                 var limit = topNExec.limit();
 
@@ -346,6 +341,16 @@ public class LocalPhysicalPlanOptimizer extends ParameterizedRuleExecutor<Physic
             }
             return sorts;
         }
+    }
+
+    private static boolean canPushSorts(PhysicalPlan plan) {
+        if (plan instanceof EsQueryExec queryExec) {
+            return queryExec.canPushSorts();
+        }
+        if (plan instanceof ExchangeExec exchangeExec && exchangeExec.child() instanceof EsQueryExec queryExec) {
+            return queryExec.canPushSorts();
+        }
+        return false;
     }
 
     /**

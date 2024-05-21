@@ -26,7 +26,7 @@ import org.elasticsearch.gateway.GatewayMetaState;
 import org.elasticsearch.monitor.StatusInfo;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.EqualsHashCodeTestUtils;
-import org.elasticsearch.test.MockLogAppender;
+import org.elasticsearch.test.MockLog;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -109,12 +109,12 @@ public class ClusterFormationFailureHelperTests extends ESTestCase {
         final long startTimeMillis = deterministicTaskQueue.getCurrentTimeMillis();
         clusterFormationFailureHelper.start();
 
-        try (var mockLogAppender = MockLogAppender.capture(ClusterFormationFailureHelper.class)) {
-            mockLogAppender.addExpectation(
-                new MockLogAppender.SeenEventExpectation("master not discovered", LOGGER_NAME, Level.WARN, "master not discovered")
+        try (var mockLog = MockLog.capture(ClusterFormationFailureHelper.class)) {
+            mockLog.addExpectation(
+                new MockLog.SeenEventExpectation("master not discovered", LOGGER_NAME, Level.WARN, "master not discovered")
             );
-            mockLogAppender.addExpectation(
-                new MockLogAppender.SeenEventExpectation(
+            mockLog.addExpectation(
+                new MockLog.SeenEventExpectation(
                     "troubleshooting link",
                     LOGGER_NAME,
                     Level.WARN,
@@ -133,7 +133,7 @@ public class ClusterFormationFailureHelperTests extends ESTestCase {
             }
             assertThat(warningCount.get(), is(1L));
             assertThat(deterministicTaskQueue.getCurrentTimeMillis() - startTimeMillis, is(expectedDelayMillis));
-            mockLogAppender.assertAllExpectationsMatched();
+            mockLog.assertAllExpectationsMatched();
         }
 
         while (warningCount.get() < 5) {

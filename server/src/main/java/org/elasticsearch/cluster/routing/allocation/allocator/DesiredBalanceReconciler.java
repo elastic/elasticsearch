@@ -480,6 +480,7 @@ public class DesiredBalanceReconciler {
                         shardRouting,
                         moveTarget.getId(),
                         allocation.clusterInfo().getShardSize(shardRouting, ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE),
+                        "move",
                         allocation.changes()
                     );
                     iterator.dePrioritizeNode(shardRouting.currentNodeId());
@@ -546,6 +547,7 @@ public class DesiredBalanceReconciler {
                         shardRouting,
                         rebalanceTarget.getId(),
                         allocation.clusterInfo().getShardSize(shardRouting, ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE),
+                        "rebalance",
                         allocation.changes()
                     );
                     iterator.dePrioritizeNode(shardRouting.currentNodeId());

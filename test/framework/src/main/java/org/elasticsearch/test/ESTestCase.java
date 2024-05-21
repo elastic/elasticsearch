@@ -173,6 +173,7 @@ import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Future;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
@@ -260,7 +261,7 @@ public abstract class ESTestCase extends LuceneTestCase {
         // TODO: consolidate logging initialization for tests so it all occurs in logconfigurator
         LogConfigurator.loadLog4jPlugins();
         LogConfigurator.configureESLogging();
-        MockLogAppender.init();
+        MockLog.init();
 
         final List<Appender> testAppenders = new ArrayList<>(3);
         for (String leakLoggerName : Arrays.asList("io.netty.util.ResourceLeakDetector", LeakTracker.class.getName())) {
@@ -2154,15 +2155,19 @@ public abstract class ESTestCase extends LuceneTestCase {
     public static <T> T safeAwait(SubscribableListener<T> listener) {
         final var future = new PlainActionFuture<T>();
         listener.addListener(future);
+        return safeGet(future);
+    }
+
+    public static <T> T safeGet(Future<T> future) {
         try {
             return future.get(SAFE_AWAIT_TIMEOUT.millis(), TimeUnit.MILLISECONDS);
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
-            throw new AssertionError("safeAwait: interrupted waiting for SubscribableListener", e);
+            throw new AssertionError("safeGet: interrupted waiting for SubscribableListener", e);
         } catch (ExecutionException e) {
-            throw new AssertionError("safeAwait: listener was completed exceptionally", e);
+            throw new AssertionError("safeGet: listener was completed exceptionally", e);
         } catch (TimeoutException e) {
-            throw new AssertionError("safeAwait: listener was not completed within the timeout", e);
+            throw new AssertionError("safeGet: listener was not completed within the timeout", e);
         }
     }
 

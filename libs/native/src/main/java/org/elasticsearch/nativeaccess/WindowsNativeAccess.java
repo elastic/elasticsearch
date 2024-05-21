@@ -24,6 +24,11 @@ class WindowsNativeAccess extends AbstractNativeAccess {
     }
 
     @Override
+    public ProcessLimits getProcessLimits() {
+        return new ProcessLimits(ProcessLimits.UNKNOWN, ProcessLimits.UNKNOWN, ProcessLimits.UNKNOWN);
+    }
+
+    @Override
     public Optional<VectorSimilarityFunctions> getVectorSimilarityFunctions() {
         return Optional.empty(); // not supported yet
     }

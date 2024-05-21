@@ -10,6 +10,7 @@ package org.elasticsearch.nativeaccess.jdk;
 
 import java.lang.foreign.Arena;
 import java.lang.foreign.MemorySegment;
+import java.lang.invoke.VarHandle;
 
 /**
  * Utility methods to act on MemorySegment apis which have changed in subsequent JDK releases.
@@ -22,6 +23,12 @@ class MemorySegmentUtil {
 
     static MemorySegment allocateString(Arena arena, String s) {
         return arena.allocateUtf8String(s);
+    }
+
+    // MemorySegment.varHandle changed between 21 and 22. The resulting varHandle now requires an additional
+    // long offset parameter. We omit the offset at runtime, instead binding to the VarHandle in JDK 22.
+    static VarHandle varHandleDropOffset(VarHandle varHandle) {
+        return varHandle;
     }
 
     private MemorySegmentUtil() {}

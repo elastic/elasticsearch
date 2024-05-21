@@ -26,7 +26,6 @@ setup:
               case:
                 type: keyword
 
-
   - do:
       bulk:
         index: test
@@ -101,3 +100,38 @@ setup:
   - match: { values.0.0: null }
   - match: { values.0.1: null }
   - match: { values.0.2: ["integer", "keyword"] }
+
+---
+"Group by ignored field":
+  - do:
+      esql.query:
+        body:
+          query: 'from test metadata _ignored | limit 3 | stats count = count(*) by _ignored'
+          version: 2024.04.01
+
+  - length: { columns: 2 }
+  - length: { values: 3 }
+  - match: {columns.0.name: "count"}
+  - match: {columns.0.type: "long"}
+  - match: {columns.1.name: "_ignored"}
+  - match: {columns.1.type: "keyword"}
+  - match: {values.0.0: 1}
+  - match: {values.0.1: null}
+  - match: {values.1.0: 2}
+  - match: {values.1.1: "integer"}
+  - match: {values.2.0: 1}
+  - match: {values.2.1: "keyword"}
+
+---
+"Aggregate ignored field":
+  - do:
+      esql.query:
+        body:
+          query: 'from test metadata _ignored | limit 3 | stats count_distinct(_ignored)'
+          version: 2024.04.01
+
+  - length: { columns: 1 }
+  - length: { values: 1 }
+  - match: {columns.0.name: "count_distinct(_ignored)"}
+  - match: {columns.0.type: "long"}
+  - match: {values.0.0: 2}

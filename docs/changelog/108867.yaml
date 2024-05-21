@@ -1,0 +1,6 @@
+pr: 108867
+summary: Raw mapping merge fix for properties field
+area: Mapping
+type: bug
+issues:
+ - 108866

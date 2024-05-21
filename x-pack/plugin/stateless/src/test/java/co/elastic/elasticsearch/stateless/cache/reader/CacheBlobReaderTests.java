@@ -620,12 +620,15 @@ public class CacheBlobReaderTests extends ESTestCase {
                 .forEach(filename -> assertFileChecksum(node.searchDirectory, filename));
 
             // 3 calls expected for: the chunk from the indexing node, the gap before the chunk, and the gap beyond the end of the blob file
+            // We need the assertBusy because otherwise the test might finish before the last gap is attempted to be filled.
             long lastChunkOffset = (offsetInLastPage / chunkSize) * chunkSize;
-            assertThat(
-                node.getRangeInputStreamCalls.stream().toList(),
-                containsInAnyOrder(lastChunkOffset, 0L, BlobCacheUtils.toPageAlignedSize(vbccSize))
-            );
-            assertThat(node.getRangeInputStreamCalls.size(), equalTo(3));
+            assertBusy(() -> {
+                assertThat(
+                    node.getRangeInputStreamCalls.stream().toList(),
+                    containsInAnyOrder(lastChunkOffset, 0L, BlobCacheUtils.toPageAlignedSize(vbccSize))
+                );
+                assertThat(node.getRangeInputStreamCalls.size(), equalTo(3));
+            });
         }
     }
 

@@ -31,8 +31,8 @@ import org.elasticsearch.xpack.esql.CsvTestUtils;
 import org.elasticsearch.xpack.esql.plugin.EsqlFeatures;
 import org.elasticsearch.xpack.esql.qa.rest.RestEsqlTestCase.RequestObjectBuilder;
 import org.elasticsearch.xpack.esql.version.EsqlVersion;
-import org.elasticsearch.xpack.ql.CsvSpecReader.CsvTestCase;
-import org.elasticsearch.xpack.ql.SpecReader;
+import org.elasticsearch.xpack.esql.core.CsvSpecReader.CsvTestCase;
+import org.elasticsearch.xpack.esql.core.SpecReader;
 import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.Before;
@@ -61,8 +61,8 @@ import static org.elasticsearch.xpack.esql.CsvTestUtils.isEnabled;
 import static org.elasticsearch.xpack.esql.CsvTestUtils.loadCsvSpecValues;
 import static org.elasticsearch.xpack.esql.CsvTestsDataLoader.CSV_DATASET_MAP;
 import static org.elasticsearch.xpack.esql.CsvTestsDataLoader.loadDataSetIntoEs;
-import static org.elasticsearch.xpack.ql.CsvSpecReader.specParser;
-import static org.elasticsearch.xpack.ql.TestUtils.classpathResources;
+import static org.elasticsearch.xpack.esql.core.CsvSpecReader.specParser;
+import static org.elasticsearch.xpack.esql.core.TestUtils.classpathResources;
 
 // This test can run very long in serverless configurations
 @TimeoutSuite(millis = 30 * TimeUnits.MINUTE)

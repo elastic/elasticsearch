@@ -27,10 +27,8 @@ import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.FieldAttribute;
 import org.elasticsearch.xpack.ql.expression.Literal;
 import org.elasticsearch.xpack.ql.expression.Order;
-import org.elasticsearch.xpack.ql.expression.UnresolvedAlias;
 import org.elasticsearch.xpack.ql.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.ql.expression.UnresolvedNamedExpression;
-import org.elasticsearch.xpack.ql.expression.UnresolvedStar;
 import org.elasticsearch.xpack.ql.expression.function.UnresolvedFunction;
 import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.ql.tree.Node;
@@ -56,11 +54,9 @@ public class EsqlNodeSubclassTests<T extends B, B extends Node<B>> extends NodeS
     // List of classes that are "unresolved" NamedExpression subclasses, therefore not suitable for use with logical/physical plan nodes.
     private static final List<Class<?>> UNRESOLVED_CLASSES = List.of(
         UnresolvedAttribute.class,
-        UnresolvedAlias.class,
         UnresolvedException.class,
         UnresolvedFunction.class,
-        UnresolvedNamedExpression.class,
-        UnresolvedStar.class
+        UnresolvedNamedExpression.class
     );
 
     public EsqlNodeSubclassTests(Class<T> subclass) {

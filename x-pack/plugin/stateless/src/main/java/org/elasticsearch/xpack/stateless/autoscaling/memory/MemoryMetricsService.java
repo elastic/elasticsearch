@@ -102,9 +102,20 @@ public class MemoryMetricsService implements ClusterStateListener {
             MAX_NODE_MEMORY
         );
 
-        // notice that autoscaling controller adds the node memory multiplied by replicas to the tier memory:
-        // https://github.com/elastic/elasticsearch-serverless/pull/1372/files#r1467399624
+        // Note that the autoscaling controller adds the node memory multiplied by the number of search nodes to the following tier memory
+        // calculation (tierMemoryInBytes) to come up with the actual minimum total tier size.
+        // https://github.com/elastic/elasticsearch-autoscaler/blob/c5124d6d94ff79960590a118bf44e72b58e6821d/internal/autoscaler/
+        // elasticsearch/autoscaling/mapper/step_function.go#L296-L311
+        //
         // That indirectly adds the necessary total indices and workload memory due to being included in the node memory above.
+        //
+        // The following tier memory calculation only accounts for the memory requirements that is NOT considered in the base node memory.
+        // This value is used by both indexing and search metrics and assumes that each shard has one replica per tier.
+        // The controller ensures that the search tier also considers the max known shard replicas in the search tier memory calculation to
+        // correct the total tier memory requirement in cases where there are more than one search replica.
+        //
+        // https://github.com/elastic/elasticsearch-autoscaler/blob/72ac2692f900dc8fe5220b53b1ab20b88008ef7e/internal/autoscaler/
+        // elasticsearch/autoscaling/recommender/search.go#L142
         final long tierMemoryInBytes = HeapToSystemMemory.dataNode(
             totalIndicesMappingSize.sizeInBytes + shardMemoryOverhead.getBytes() * totalNumberOfShards()
         );

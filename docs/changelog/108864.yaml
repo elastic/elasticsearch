@@ -1,5 +1,0 @@
-pr: 108864
-summary: "Revert \"ESQL: Expose \"_ignored\" metadata field\""
-area: ES|QL
-type: enhancement
-issues: []

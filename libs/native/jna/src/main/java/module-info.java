@@ -15,5 +15,7 @@ module org.elasticsearch.nativeaccess.jna {
     requires org.elasticsearch.logging;
     requires com.sun.jna;
 
+    exports org.elasticsearch.nativeaccess.jna to com.sun.jna;
+
     provides NativeLibraryProvider with JnaNativeLibraryProvider;
 }

@@ -483,7 +483,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                 "%s uploading batch compound commit [%s][%s]",
                 virtualBcc.getShardId(),
                 virtualBcc.getPendingCompoundCommits().stream().map(pc -> pc.getCommitReference().getSegmentsFileName()).toList(),
-                virtualBcc.getPrimaryTermAndGeneration().generation()
+                virtualBcc.getPrimaryTermAndGeneration()
             )
         );
         // The CommitUpload listener is called after releasing the reference to the Lucene commit,
@@ -695,7 +695,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                             return format(
                                 "%s commit [%s] uploaded in [%s] ms (%s files, %s total bytes)",
                                 shardId,
-                                generation,
+                                virtualBcc.primaryTermAndGeneration(),
                                 TimeValue.nsecToMSec(end - startNanos),
                                 uploadedFileCount,
                                 uploadedFileBytes

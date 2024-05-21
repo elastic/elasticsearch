@@ -21,9 +21,12 @@ package co.elastic.elasticsearch.stateless.cache.reader;
 
 import co.elastic.elasticsearch.stateless.cache.reader.ObjectStoreUploadTracker.UploadInfo;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.blobcache.common.ByteRange;
+import org.elasticsearch.core.Strings;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -33,6 +36,8 @@ import java.io.InputStream;
  * object store. The info of whether the commit has been uploaded is provided by a {@link ObjectStoreUploadTracker}.
  */
 public class SwitchingCacheBlobReader implements CacheBlobReader {
+
+    private static final Logger logger = LogManager.getLogger(SwitchingCacheBlobReader.class);
 
     private final UploadInfo latestUploadInfo;
     private final CacheBlobReader cacheBlobReaderForUploaded;
@@ -69,6 +74,14 @@ public class SwitchingCacheBlobReader implements CacheBlobReader {
                 // TODO ideally use a region-aligned range to write. (ES-8225)
                 // TODO remove ResourceAlreadyUploadedException from core ES
                 if (ExceptionsHelper.unwrapCause(ex) instanceof ResourceNotFoundException) {
+                    logger.debug(
+                        () -> Strings.format(
+                            "switching blob reading from [{}] to [{}] due to exception",
+                            cacheBlobReaderForNonUploaded,
+                            cacheBlobReaderForUploaded
+                        ),
+                        ex
+                    );
                     return cacheBlobReaderForUploaded.getRangeInputStream(position, length);
                 } else {
                     throw ex;

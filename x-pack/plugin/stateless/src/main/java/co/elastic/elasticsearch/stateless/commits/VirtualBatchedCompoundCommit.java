@@ -498,6 +498,25 @@ public class VirtualBatchedCompoundCommit extends AbstractRefCounted implements 
         }
     }
 
+    @Override
+    public String toString() {
+        return "VirtualBatchedCompoundCommit{"
+            + "shardId="
+            + shardId
+            + ", primaryTermAndGeneration="
+            + primaryTermAndGeneration
+            + ", size="
+            + size()
+            + ", nodeEphemeralId='"
+            + nodeEphemeralId
+            + '\''
+            + ", creationTimeInMillis="
+            + creationTimeInMillis
+            + ", frozen="
+            + frozen
+            + '}';
+    }
+
     public static ResourceNotFoundException buildResourceNotFoundException(
         ShardId shardId,
         PrimaryTermAndGeneration primaryTermAndGeneration

@@ -1051,8 +1051,8 @@ public class MetadataIndexTemplateService {
             .reduce(Sets::union)
             .orElse(Set.of());
 
-        // Filter and sort all composable templates in advance, to speed up template retrieval later on.
-        var templates = state.metadata()
+        // Determine all the composable templates that are not one of the provided templates.
+        var otherTemplates = state.metadata()
             .templatesV2()
             .entrySet()
             .stream()
@@ -1060,6 +1060,7 @@ public class MetadataIndexTemplateService {
                 entry -> templateNames.contains(entry.getKey()) == false
                     && isGlobalAndHasIndexHiddenSetting(metadata, entry.getValue(), entry.getKey()) == false
             )
+            // Sort here so we can `exitOnFirstMatch` in `findV2Template`.
             .sorted(Comparator.comparing(entry -> entry.getValue().priorityOrZero(), Comparator.reverseOrder()))
             .toList();
 
@@ -1068,7 +1069,7 @@ public class MetadataIndexTemplateService {
             .stream()
             // Limit to checking data streams that match any of the templates' index patterns
             .filter(ds -> namePatterns.stream().anyMatch(pattern -> Regex.simpleMatch(pattern, ds.getName())))
-            .filter(ds -> findV2Template(state.metadata(), templates, ds.getName(), ds.isHidden(), true) == null)
+            .filter(ds -> findV2Template(state.metadata(), otherTemplates, ds.getName(), ds.isHidden(), true) == null)
             .map(DataStream::getName)
             .collect(Collectors.toSet());
     }
@@ -1268,19 +1269,19 @@ public class MetadataIndexTemplateService {
     }
 
     /**
-     * Return the name (id) of the highest matching index template for the given index name. In
+     * Return the name (id) of the highest matching index template, out of the provided templates, for the given index name. In
      * the event that no templates are matched, {@code null} is returned.
      */
     @Nullable
     public static String findV2Template(
         Metadata metadata,
-        Collection<Map.Entry<String, ComposableIndexTemplate>> templateEntries,
+        Collection<Map.Entry<String, ComposableIndexTemplate>> templates,
         String indexName,
         boolean isHidden,
         boolean exitOnFirstMatch
     ) {
         final List<Tuple<String, ComposableIndexTemplate>> candidates = findV2CandidateTemplates(
-            templateEntries,
+            templates,
             indexName,
             isHidden,
             exitOnFirstMatch
@@ -1315,14 +1316,14 @@ public class MetadataIndexTemplateService {
      * an empty list is returned. If <code>exitOnFirstMatch</code> is true, we return immediately after finding a match.
      */
     static List<Tuple<String, ComposableIndexTemplate>> findV2CandidateTemplates(
-        Collection<Map.Entry<String, ComposableIndexTemplate>> templateEntries,
+        Collection<Map.Entry<String, ComposableIndexTemplate>> templates,
         String indexName,
         boolean isHidden,
         boolean exitOnFirstMatch
     ) {
         final String resolvedIndexName = IndexNameExpressionResolver.DateMathExpressionResolver.resolveExpression(indexName);
         final List<Tuple<String, ComposableIndexTemplate>> candidates = new ArrayList<>();
-        for (Map.Entry<String, ComposableIndexTemplate> entry : templateEntries) {
+        for (Map.Entry<String, ComposableIndexTemplate> entry : templates) {
             final String name = entry.getKey();
             final ComposableIndexTemplate template = entry.getValue();
             if (isHidden) {

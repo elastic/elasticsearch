@@ -51,6 +51,7 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.Executor;
 
@@ -358,8 +359,7 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
             String[] sourceFields = entry.getValue().getSourceFields();
             for (String sourceField : sourceFields) {
                 if (updateRequestSource.containsKey(sourceField)) {
-                    // TODO: Get field name from SemanticTextField
-                    updatedSource.remove(fieldName + ".inference.chunks");
+                    updatedSource.put(fieldName, getSemanticTextFieldOriginalValue(updatedSource, fieldName));
                     updatedSourceModified = true;
                     break;
                 }
@@ -376,5 +376,22 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
         }
 
         return returnedResult;
+    }
+
+    // This implementation is horrible, but using it for now to prove the approach works
+    @SuppressWarnings("unchecked")
+    private static List<String> getSemanticTextFieldOriginalValue(Map<String, Object> source, String fieldName) {
+        Object rootValue = source.get(fieldName);
+        if (rootValue == null) {
+            return null;
+        } else if (rootValue instanceof String stringValue) {
+            return List.of(stringValue);
+        } else if (rootValue instanceof List<?> listValue) {
+            return (List<String>) listValue;
+        } else if (rootValue instanceof Map<?, ?> mapValue) {
+            return getSemanticTextFieldOriginalValue((Map<String, Object>) mapValue, "text");
+        }
+
+        throw new IllegalArgumentException("Invalid value [" + rootValue + "]");
     }
 }

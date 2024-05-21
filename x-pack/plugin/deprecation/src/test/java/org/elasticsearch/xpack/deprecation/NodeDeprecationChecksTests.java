@@ -2587,7 +2587,7 @@ public class NodeDeprecationChecksTests extends ESTestCase {
                 "https://www.elastic.co/guide/en/elasticsearch/reference/7.17/migrating-7.17.html#deprecation_for_dls_settings",
                 String.format(
                     Locale.ROOT,
-                    "Remove the [%s] setting. " + "Stricter DLS rules are the default are not configurable in newer versions.",
+                    "Remove the [%s] setting. " + "Stricter DLS rules are the default and are not configurable in newer versions.",
                     settingName
                 ),
                 false,

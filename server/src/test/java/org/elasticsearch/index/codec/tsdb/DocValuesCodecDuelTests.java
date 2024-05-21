@@ -18,9 +18,11 @@ import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.LeafReader;
+import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.tests.index.ForceMergePolicy;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.tests.util.TestUtil;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
@@ -146,6 +148,41 @@ public class DocValuesCodecDuelTests extends ESTestCase {
                 }
             }
         }
+        // Test termsEnum()
+        BytesRef seekTo = null;
+        {
+            var baseline = baselineReader.getSortedDocValues(FIELD_1);
+            var contender = contenderReader.getSortedDocValues(FIELD_1);
+            assertEquals(baseline.getValueCount(), contender.getValueCount());
+            var baseTE = baseline.termsEnum();
+            var contenderTE = contender.termsEnum();
+            for (BytesRef baseTerm = baseTE.next(); baseTerm != null; baseTerm = baseTE.next()) {
+                BytesRef contenderTerm = contenderTE.next();
+                if (seekTo == null || rarely()) {
+                    seekTo = BytesRef.deepCopyOf(baseTerm);
+                }
+                assertEquals(baseTerm, contenderTerm);
+            }
+        }
+        // Test termsEnum() with seek.
+        {
+            var baseline = baselineReader.getSortedDocValues(FIELD_1);
+            var contender = contenderReader.getSortedDocValues(FIELD_1);
+            assertEquals(baseline.getValueCount(), contender.getValueCount());
+            var baseTE = baseline.termsEnum();
+            var contenderTE = contender.termsEnum();
+
+            if (randomBoolean()) {
+                assertTrue(baseTE.seekExact(seekTo));
+                assertTrue(contenderTE.seekExact(seekTo));
+            } else {
+                var status = baseTE.seekCeil(seekTo);
+                assertEquals(TermsEnum.SeekStatus.FOUND, status);
+                status = contenderTE.seekCeil(seekTo);
+                assertEquals(TermsEnum.SeekStatus.FOUND, status);
+            }
+            assertEquals(baseTE.term(), contenderTE.term());
+        }
     }
 
     private void assertSortedSetDocValues(LeafReader baselineReader, LeafReader contenderReader, Integer[] docIdsToAdvanceTo)
@@ -206,6 +243,41 @@ public class DocValuesCodecDuelTests extends ESTestCase {
                     assertEquals(baseline.lookupOrd(baselineOrd), contender.lookupOrd(contenderOrd));
                 }
             }
+        }
+        // Test termsEnum()
+        BytesRef seekTo = null;
+        {
+            var baseline = baselineReader.getSortedSetDocValues(FIELD_2);
+            var contender = contenderReader.getSortedSetDocValues(FIELD_2);
+            assertEquals(baseline.getValueCount(), contender.getValueCount());
+            var baseTE = baseline.termsEnum();
+            var contenderTE = contender.termsEnum();
+            for (BytesRef baseTerm = baseTE.next(); baseTerm != null; baseTerm = baseTE.next()) {
+                BytesRef contenderTerm = contenderTE.next();
+                if (seekTo == null || rarely()) {
+                    seekTo = BytesRef.deepCopyOf(baseTerm);
+                }
+                assertEquals(baseTerm, contenderTerm);
+            }
+        }
+        // Test termsEnum() with seek.
+        {
+            var baseline = baselineReader.getSortedSetDocValues(FIELD_2);
+            var contender = contenderReader.getSortedSetDocValues(FIELD_2);
+            assertEquals(baseline.getValueCount(), contender.getValueCount());
+            var baseTE = baseline.termsEnum();
+            var contenderTE = contender.termsEnum();
+
+            if (randomBoolean()) {
+                assertTrue(baseTE.seekExact(seekTo));
+                assertTrue(contenderTE.seekExact(seekTo));
+            } else {
+                var status = baseTE.seekCeil(seekTo);
+                assertEquals(TermsEnum.SeekStatus.FOUND, status);
+                status = contenderTE.seekCeil(seekTo);
+                assertEquals(TermsEnum.SeekStatus.FOUND, status);
+            }
+            assertEquals(baseTE.term(), contenderTE.term());
         }
     }
 

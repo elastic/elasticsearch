@@ -37,22 +37,22 @@ class KibanaOwnedReservedRoleDescriptors {
     // package-private to expose to ReservedRoleStore
     static RoleDescriptor kibanaAdminUser(String name, Map<String, Object> metadata) {
         return new RoleDescriptor(
-                name,
-                null,
-                null,
-                new RoleDescriptor.ApplicationResourcePrivileges[] {
-                        RoleDescriptor.ApplicationResourcePrivileges.builder()
-                                .application("kibana-.kibana")
-                                .resources("*")
-                                .privileges("all")
-                                .build() },
-                null,
-                null,
-                metadata,
-                null,
-                null,
-                null,
-                null,
+            name,
+            null,
+            null,
+            new RoleDescriptor.ApplicationResourcePrivileges[] {
+                RoleDescriptor.ApplicationResourcePrivileges.builder()
+                    .application("kibana-.kibana")
+                    .resources("*")
+                    .privileges("all")
+                    .build() },
+            null,
+            null,
+            metadata,
+            null,
+            null,
+            null,
+            null,
             "Grants access to all features in Kibana."
         );
     }

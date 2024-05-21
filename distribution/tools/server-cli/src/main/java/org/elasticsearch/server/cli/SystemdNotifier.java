@@ -15,7 +15,6 @@ import org.elasticsearch.logging.Logger;
 import java.io.Closeable;
 import java.io.IOException;
 import java.io.UncheckedIOException;
-import java.net.StandardProtocolFamily;
 import java.net.UnixDomainSocketAddress;
 import java.nio.ByteBuffer;
 import java.nio.channels.SocketChannel;
@@ -33,8 +32,7 @@ class SystemdNotifier implements ServerProcessListener, Closeable {
 
     SystemdNotifier(Path notifySocketPath) {
         try {
-            this.socket = SocketChannel.open(StandardProtocolFamily.UNIX);
-            socket.connect(UnixDomainSocketAddress.of(notifySocketPath));
+            this.socket = SocketChannel.open(UnixDomainSocketAddress.of(notifySocketPath));
         } catch (IOException e) {
             // TODO: should this be a UserException?
             throw new UncheckedIOException(e);
@@ -74,7 +72,9 @@ class SystemdNotifier implements ServerProcessListener, Closeable {
     }
 
     @Override
-    public void close() {
+    public void close() throws IOException {
+        timer.cancel();
         notify("STOPPING=1", true);
+        socket.close();
     }
 }

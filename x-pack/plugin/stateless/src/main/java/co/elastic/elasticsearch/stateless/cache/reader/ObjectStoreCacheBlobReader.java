@@ -56,4 +56,14 @@ public class ObjectStoreCacheBlobReader implements CacheBlobReader {
             return InputStream.nullInputStream();
         }
     }
+
+    @Override
+    public String toString() {
+        return "ObjectStoreCacheBlobReader{"
+            + "blobFile="
+            + blobContainer.path().add(blobName).buildAsString()
+            + ", cacheRangeSize="
+            + cacheRangeSize
+            + '}';
+    }
 }

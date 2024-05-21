@@ -123,4 +123,16 @@ public class IndexingShardCacheBlobReader implements CacheBlobReader {
         // data, which is later decrementing in the close function of the getRangeInputStream()'s InputStream.
         client.execute(TransportGetVirtualBatchedCompoundCommitChunkAction.TYPE, request, listener.map(r -> r.getData()));
     }
+
+    @Override
+    public String toString() {
+        return "IndexingShardCacheBlobReader{"
+            + "shardId="
+            + shardId
+            + ", bccTermAndGen="
+            + bccTermAndGen
+            + ", preferredNodeId='"
+            + preferredNodeId
+            + "'}";
+    }
 }

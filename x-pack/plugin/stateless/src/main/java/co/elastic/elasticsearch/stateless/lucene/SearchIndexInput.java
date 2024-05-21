@@ -186,11 +186,12 @@ public final class SearchIndexInput extends BlobCacheBufferedIndexInput {
                     ) {
                         assert ThreadPool.assertCurrentThreadPool(Stateless.SHARD_READ_THREAD_POOL);
                         logger.debug(
-                            "{}: loading [{}][{}-{}] from blobstore",
+                            "{}: loading [{}][{}-{}] from [{}]",
                             SearchIndexInput.super.toString(),
                             cacheFile.getCacheKey().fileName(),
                             streamStartPosition,
-                            streamStartPosition + len
+                            streamStartPosition + len,
+                            cacheBlobReader.getClass().getSimpleName()
                         );
                         var bytesCopied = SharedBytes.copyToCacheFileAligned(
                             channel,

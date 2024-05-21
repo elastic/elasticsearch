@@ -40,7 +40,7 @@ setup:
   - do:
       esql.query:
         body:
-          query: 'from test metadata _ignored | WHERE case == "ok" | limit 2 | keep integer, keyword, _ignored'
+          query: 'from test metadata _ignored | where case == "ok" | limit 2 | keep integer, keyword, _ignored'
           version: 2024.04.01
 
   - length: { columns: 3 }
@@ -61,7 +61,7 @@ setup:
   - do:
       esql.query:
         body:
-          query: 'from test metadata _ignored | WHERE case == "integer_ignored" | limit 2 | keep integer, keyword, _ignored'
+          query: 'from test metadata _ignored | where case == "integer_ignored" | limit 2 | keep integer, keyword, _ignored'
           version: 2024.04.01
 
   - length: { columns: 3 }
@@ -82,7 +82,7 @@ setup:
   - do:
       esql.query:
         body:
-          query: 'from test metadata _ignored | WHERE case == "all_ignored" | limit 2 | keep integer, keyword, _ignored'
+          query: 'from test metadata _ignored | where case == "all_ignored" | limit 2 | keep integer, keyword, _ignored'
           version: 2024.04.01
 
   - length: { columns: 3 }
@@ -103,7 +103,7 @@ setup:
   - do:
       esql.query:
         body:
-          query: 'from test metadata _ignored | WHERE _ignored == "keyword" | limit 3 | stats count(*)'
+          query: 'from test metadata _ignored | where _ignored == "keyword" | limit 3 | stats count(*)'
           version: 2024.04.01
 
   - length: { columns: 1 }

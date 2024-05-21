@@ -171,7 +171,7 @@ public class PublicationTransportHandler {
                         request.bytes().length()
                     );
                     acceptState(incomingState, publishResponseListener.delegateFailure((delegate, response) -> {
-                        lastSeenClusterState.set(incomingState);
+                        lastSeenClusterState.compareAndSet(lastSeen, incomingState);
                         delegate.onResponse(response);
                     }));
                 }

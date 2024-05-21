@@ -605,9 +605,6 @@ public class TasksIT extends ESIntegTestCase {
         TaskId taskId = tasks.get(0).taskId();
         clusterAdmin().prepareGetTask(taskId).get();
 
-        // Spin up a request to wait for the test task to finish
-        ActionFuture<T> waitResponseFuture = wait.apply(taskId);
-
         var taskManager = (MockTaskManager) internalCluster().getInstance(
             TransportService.class,
             clusterService().state().getNodes().resolveNode(taskId.getNodeId()).getName()
@@ -615,15 +612,15 @@ public class TasksIT extends ESIntegTestCase {
         taskManager.addListener(new MockTaskManagerListener() {
             @Override
             public void onRemovedTaskListenerRegistered(RemovedTaskListener removedTaskListener) {
-                // Unblock the request only after it started waiting for completion and registered a removed task listener
+                // Unblock the request only after it started waiting for task completion
                 if (removedTaskListener.toString().startsWith("Completing running task Task{id=" + taskId.getId())) {
                     client().execute(UNBLOCK_TASK_ACTION, new TestTaskPlugin.UnblockTestTasksRequest());
                 }
             }
         });
-
-        // Now that the task is unblocked the list response will come back
-        T waitResponse = waitResponseFuture.get();
+        // Spin up a request to wait for the test task to finish
+        // The task will be unblocked as soon as the request started waiting for task completion
+        T waitResponse = wait.apply(taskId).get();
         validator.accept(waitResponse);
 
         TestTaskPlugin.NodesResponse response = future.get();

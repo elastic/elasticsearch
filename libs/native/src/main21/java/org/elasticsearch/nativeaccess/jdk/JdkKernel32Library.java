@@ -25,7 +25,6 @@ import static java.lang.foreign.MemoryLayout.PathElement.groupElement;
 import static java.lang.foreign.MemoryLayout.paddingLayout;
 import static java.lang.foreign.ValueLayout.ADDRESS;
 import static java.lang.foreign.ValueLayout.JAVA_BOOLEAN;
-import static java.lang.foreign.ValueLayout.JAVA_BYTE;
 import static java.lang.foreign.ValueLayout.JAVA_CHAR;
 import static java.lang.foreign.ValueLayout.JAVA_INT;
 import static java.lang.foreign.ValueLayout.JAVA_LONG;
@@ -236,7 +235,7 @@ class JdkKernel32Library implements Kernel32Library {
             MemorySegment wideFileName = ArenaUtil.allocateFrom(arena,lpszLongPath + "\0", StandardCharsets.UTF_16LE);
             MemorySegment shortPath;
             if (lpszShortPath != null) {
-                shortPath = arena.allocateArray(JAVA_CHAR, cchBuffer);
+                shortPath = ArenaUtil.allocateFrom(arena, cchBuffer);
             } else {
                 shortPath = MemorySegment.NULL;
             }

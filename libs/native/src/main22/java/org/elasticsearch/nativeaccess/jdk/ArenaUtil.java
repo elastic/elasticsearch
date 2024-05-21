@@ -12,7 +12,13 @@ import java.lang.foreign.Arena;
 import java.lang.foreign.MemorySegment;
 import java.nio.charset.Charset;
 
+import static java.lang.foreign.ValueLayout.JAVA_INT;
+
 public class ArenaUtil {
+
+    static MemorySegment allocateFrom(Arena arena, int value) {
+        return arena.allocateFrom(JAVA_INT, value);
+    }
 
     static MemorySegment allocateFrom(Arena arena, String str, Charset charset) {
         return arena.allocateFrom(str, charset);

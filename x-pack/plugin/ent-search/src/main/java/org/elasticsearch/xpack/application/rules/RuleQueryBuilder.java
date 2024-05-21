@@ -55,8 +55,7 @@ import static org.elasticsearch.xpack.searchbusinessrules.PinnedQueryBuilder.MAX
  */
 public class RuleQueryBuilder extends AbstractQueryBuilder<RuleQueryBuilder> {
 
-    public static final String NAME = "rule";
-    public static final String NAME_PRE_8_15 = "rule_query";
+    public static final ParseField NAME = new ParseField("rule", "rule_query");
 
     private static final ParseField RULESET_ID_FIELD = new ParseField("ruleset_id");
     private static final ParseField RULESET_IDS_FIELD = new ParseField("ruleset_ids");
@@ -164,7 +163,7 @@ public class RuleQueryBuilder extends AbstractQueryBuilder<RuleQueryBuilder> {
 
     @Override
     protected void doXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject(NAME);
+        builder.startObject(NAME.getPreferredName());
         builder.field(ORGANIC_QUERY_FIELD.getPreferredName(), organicQuery);
         builder.startObject(MATCH_CRITERIA_FIELD.getPreferredName());
         builder.mapContents(matchCriteria);
@@ -295,21 +294,24 @@ public class RuleQueryBuilder extends AbstractQueryBuilder<RuleQueryBuilder> {
         return Objects.hash(rulesetIds, matchCriteria, organicQuery, pinnedIdsSupplier, pinnedDocsSupplier);
     }
 
-    private static final ConstructingObjectParser<RuleQueryBuilder, Void> PARSER = new ConstructingObjectParser<>(NAME, a -> {
-        QueryBuilder organicQuery = (QueryBuilder) a[0];
-        @SuppressWarnings("unchecked")
-        Map<String, Object> matchCriteria = (Map<String, Object>) a[1];
-        String rulesetId = (String) a[2];
-        @SuppressWarnings("unchecked")
-        List<String> rulesetIds = (List<String>) a[3];
-        if (rulesetId == null && rulesetIds == null) {
-            throw new IllegalArgumentException("no ruleset specified");
+    private static final ConstructingObjectParser<RuleQueryBuilder, Void> PARSER = new ConstructingObjectParser<>(
+        NAME.getPreferredName(),
+        a -> {
+            QueryBuilder organicQuery = (QueryBuilder) a[0];
+            @SuppressWarnings("unchecked")
+            Map<String, Object> matchCriteria = (Map<String, Object>) a[1];
+            String rulesetId = (String) a[2];
+            @SuppressWarnings("unchecked")
+            List<String> rulesetIds = (List<String>) a[3];
+            if (rulesetId == null && rulesetIds == null) {
+                throw new IllegalArgumentException("no ruleset specified");
+            }
+            if (rulesetIds == null) {
+                rulesetIds = List.of(rulesetId);
+            }
+            return new RuleQueryBuilder(organicQuery, matchCriteria, rulesetIds);
         }
-        if (rulesetIds == null) {
-            rulesetIds = List.of(rulesetId);
-        }
-        return new RuleQueryBuilder(organicQuery, matchCriteria, rulesetIds);
-    });
+    );
     static {
         PARSER.declareObject(constructorArg(), (p, c) -> parseInnerQueryBuilder(p), ORGANIC_QUERY_FIELD);
         PARSER.declareObject(constructorArg(), (p, c) -> p.map(), MATCH_CRITERIA_FIELD);
@@ -320,7 +322,7 @@ public class RuleQueryBuilder extends AbstractQueryBuilder<RuleQueryBuilder> {
 
     public static RuleQueryBuilder fromXContent(XContentParser parser, XPackLicenseState licenseState) {
         if (QueryRulesConfig.QUERY_RULES_LICENSE_FEATURE.check(licenseState) == false) {
-            throw LicenseUtils.newComplianceException(NAME);
+            throw LicenseUtils.newComplianceException(NAME.getPreferredName());
         }
         try {
             return PARSER.apply(parser, null);
@@ -331,7 +333,7 @@ public class RuleQueryBuilder extends AbstractQueryBuilder<RuleQueryBuilder> {
 
     @Override
     public String getWriteableName() {
-        return NAME;
+        return NAME.getPreferredName();
     }
 
 }

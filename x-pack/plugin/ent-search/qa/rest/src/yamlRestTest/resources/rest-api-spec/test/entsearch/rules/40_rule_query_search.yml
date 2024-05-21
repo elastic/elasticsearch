@@ -574,3 +574,27 @@ setup:
                 - test-ruleset10
                 - test-ruleset11
 
+---
+"Perform a rule query with legacy syntax":
+  - requires:
+      test_runner_features: [ "allowed_warnings" ]
+
+  - do:
+      search:
+        body:
+          query:
+            rule_query:
+              organic:
+                query_string:
+                  default_field: text
+                  query: search
+              match_criteria:
+                query_string: search
+              ruleset_id: test-ruleset
+      allowed_warnings:
+        - "Deprecated field [rule_query] used, expected [rule] instead"
+
+  - match: { hits.total.value: 2 }
+  - match: { hits.hits.0._id: 'doc1' }
+  - match: { hits.hits.1._id: 'doc4' }
+

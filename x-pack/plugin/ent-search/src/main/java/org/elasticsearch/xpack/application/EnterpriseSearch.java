@@ -189,6 +189,8 @@ import java.util.List;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 
+import static java.util.Collections.singletonList;
+
 public class EnterpriseSearch extends Plugin implements ActionPlugin, SystemIndexPlugin, SearchPlugin {
 
     public static final String APPLICATION_API_ENDPOINT = "_application";
@@ -470,9 +472,8 @@ public class EnterpriseSearch extends Plugin implements ActionPlugin, SystemInde
 
     @Override
     public List<QuerySpec<?>> getQueries() {
-        return List.of(
-            new QuerySpec<>(RuleQueryBuilder.NAME, RuleQueryBuilder::new, p -> RuleQueryBuilder.fromXContent(p, getLicenseState())),
-            new QuerySpec<>(RuleQueryBuilder.NAME_PRE_8_15, RuleQueryBuilder::new, p -> RuleQueryBuilder.fromXContent(p, getLicenseState()))
+        return singletonList(
+            new QuerySpec<>(RuleQueryBuilder.NAME, RuleQueryBuilder::new, p -> RuleQueryBuilder.fromXContent(p, getLicenseState()))
         );
     }
 }

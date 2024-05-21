@@ -96,8 +96,8 @@ public class MlNodeShutdownIT extends BaseMlIntegTestCase {
         client().execute(
             PutShutdownNodeAction.INSTANCE,
             new PutShutdownNodeAction.Request(
-                TimeValue.THIRTY_SECONDS,
-                TimeValue.THIRTY_SECONDS,
+                TEST_REQUEST_TIMEOUT,
+                TEST_REQUEST_TIMEOUT,
                 nodeIdToShutdown.get(),
                 type,
                 "just testing",
@@ -199,8 +199,8 @@ public class MlNodeShutdownIT extends BaseMlIntegTestCase {
         client().execute(
             PutShutdownNodeAction.INSTANCE,
             new PutShutdownNodeAction.Request(
-                TimeValue.THIRTY_SECONDS,
-                TimeValue.THIRTY_SECONDS,
+                TEST_REQUEST_TIMEOUT,
+                TEST_REQUEST_TIMEOUT,
                 nodeIdToShutdown.get(),
                 type,
                 "just testing",

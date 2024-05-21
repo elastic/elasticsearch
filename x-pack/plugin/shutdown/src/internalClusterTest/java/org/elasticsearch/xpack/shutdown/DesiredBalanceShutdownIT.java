@@ -13,7 +13,6 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalTestCluster;
@@ -63,8 +62,8 @@ public class DesiredBalanceShutdownIT extends ESIntegTestCase {
                     client().execute(
                         PutShutdownNodeAction.INSTANCE,
                         new PutShutdownNodeAction.Request(
-                            TimeValue.THIRTY_SECONDS,
-                            TimeValue.THIRTY_SECONDS,
+                            TEST_REQUEST_TIMEOUT,
+                            TEST_REQUEST_TIMEOUT,
                             oldNodeId,
                             SingleNodeShutdownMetadata.Type.REPLACE,
                             "test",

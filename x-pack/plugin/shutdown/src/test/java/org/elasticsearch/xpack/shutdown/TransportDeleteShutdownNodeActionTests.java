@@ -19,7 +19,6 @@ import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
 import org.elasticsearch.cluster.routing.RerouteService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.MasterServiceTaskQueue;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockUtils;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -81,7 +80,7 @@ public class TransportDeleteShutdownNodeActionTests extends ESTestCase {
         var metadata = Metadata.builder().putCustom(TYPE, nodesShutdownMetadata).build();
         var clusterStateWithShutdown = ClusterState.builder(ClusterState.EMPTY_STATE).metadata(metadata).build();
 
-        var request = new DeleteShutdownNodeAction.Request(TimeValue.THIRTY_SECONDS, TimeValue.THIRTY_SECONDS, "node1");
+        var request = new DeleteShutdownNodeAction.Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, "node1");
         action.masterOperation(null, request, clusterStateWithShutdown, ActionListener.noop());
         var updateTask = ArgumentCaptor.forClass(DeleteShutdownNodeTask.class);
         var taskExecutor = ArgumentCaptor.forClass(DeleteShutdownNodeExecutor.class);

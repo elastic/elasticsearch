@@ -49,8 +49,8 @@ public class NodeShutdownDelayedAllocationIT extends ESIntegTestCase {
 
         // Mark the node for shutdown
         PutShutdownNodeAction.Request putShutdownRequest = new PutShutdownNodeAction.Request(
-            TimeValue.THIRTY_SECONDS,
-            TimeValue.THIRTY_SECONDS,
+            TEST_REQUEST_TIMEOUT,
+            TEST_REQUEST_TIMEOUT,
             nodeToRestartId,
             SingleNodeShutdownMetadata.Type.RESTART,
             this.getTestName(),
@@ -87,8 +87,8 @@ public class NodeShutdownDelayedAllocationIT extends ESIntegTestCase {
 
         // Mark the node for shutdown
         PutShutdownNodeAction.Request putShutdownRequest = new PutShutdownNodeAction.Request(
-            TimeValue.THIRTY_SECONDS,
-            TimeValue.THIRTY_SECONDS,
+            TEST_REQUEST_TIMEOUT,
+            TEST_REQUEST_TIMEOUT,
             nodeToRestartId,
             SingleNodeShutdownMetadata.Type.RESTART,
             this.getTestName(),
@@ -120,8 +120,8 @@ public class NodeShutdownDelayedAllocationIT extends ESIntegTestCase {
 
         // Mark the node for shutdown
         PutShutdownNodeAction.Request putShutdownRequest = new PutShutdownNodeAction.Request(
-            TimeValue.THIRTY_SECONDS,
-            TimeValue.THIRTY_SECONDS,
+            TEST_REQUEST_TIMEOUT,
+            TEST_REQUEST_TIMEOUT,
             nodeToRestartId,
             SingleNodeShutdownMetadata.Type.RESTART,
             this.getTestName(),
@@ -149,8 +149,8 @@ public class NodeShutdownDelayedAllocationIT extends ESIntegTestCase {
 
         // Update the timeout on the shutdown request to something shorter
         PutShutdownNodeAction.Request putShutdownRequest = new PutShutdownNodeAction.Request(
-            TimeValue.THIRTY_SECONDS,
-            TimeValue.THIRTY_SECONDS,
+            TEST_REQUEST_TIMEOUT,
+            TEST_REQUEST_TIMEOUT,
             nodeToRestartId,
             SingleNodeShutdownMetadata.Type.RESTART,
             this.getTestName(),
@@ -169,8 +169,8 @@ public class NodeShutdownDelayedAllocationIT extends ESIntegTestCase {
         String nodeToRestartId = setupLongTimeoutTestCase();
 
         DeleteShutdownNodeAction.Request deleteShutdownRequest = new DeleteShutdownNodeAction.Request(
-            TimeValue.THIRTY_SECONDS,
-            TimeValue.THIRTY_SECONDS,
+            TEST_REQUEST_TIMEOUT,
+            TEST_REQUEST_TIMEOUT,
             nodeToRestartId
         );
         AcknowledgedResponse deleteShutdownResponse = client().execute(DeleteShutdownNodeAction.INSTANCE, deleteShutdownRequest).get();
@@ -201,8 +201,8 @@ public class NodeShutdownDelayedAllocationIT extends ESIntegTestCase {
         {
             // Mark the node for shutdown with a delay that we'll never reach in the test
             PutShutdownNodeAction.Request putShutdownRequest = new PutShutdownNodeAction.Request(
-                TimeValue.THIRTY_SECONDS,
-                TimeValue.THIRTY_SECONDS,
+                TEST_REQUEST_TIMEOUT,
+                TEST_REQUEST_TIMEOUT,
                 nodeToRestartId,
                 SingleNodeShutdownMetadata.Type.RESTART,
                 this.getTestName(),

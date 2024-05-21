@@ -82,8 +82,8 @@ public class NodeShutdownReadinessIT extends ESIntegTestCase {
             client().execute(
                 PutShutdownNodeAction.INSTANCE,
                 new PutShutdownNodeAction.Request(
-                    TimeValue.THIRTY_SECONDS,
-                    TimeValue.THIRTY_SECONDS,
+                    TEST_REQUEST_TIMEOUT,
+                    TEST_REQUEST_TIMEOUT,
                     nodeId,
                     type,
                     this.getTestName(),
@@ -99,7 +99,7 @@ public class NodeShutdownReadinessIT extends ESIntegTestCase {
         assertAcked(
             client().execute(
                 DeleteShutdownNodeAction.INSTANCE,
-                new DeleteShutdownNodeAction.Request(TimeValue.THIRTY_SECONDS, TimeValue.THIRTY_SECONDS, nodeId)
+                new DeleteShutdownNodeAction.Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, nodeId)
             )
         );
     }

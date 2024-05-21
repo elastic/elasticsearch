@@ -87,8 +87,8 @@ public class TransportPutShutdownNodeActionTests extends ESTestCase {
         var allocationDelay = type == Type.RESTART ? TimeValue.timeValueMinutes(randomIntBetween(1, 3)) : null;
         var targetNodeName = type == Type.REPLACE ? randomAlphaOfLength(5) : null;
         var request = new PutShutdownNodeAction.Request(
-            TimeValue.THIRTY_SECONDS,
-            TimeValue.THIRTY_SECONDS,
+            TEST_REQUEST_TIMEOUT,
+            TEST_REQUEST_TIMEOUT,
             "node1",
             type,
             "sunsetting",
@@ -131,8 +131,8 @@ public class TransportPutShutdownNodeActionTests extends ESTestCase {
             assertThat(
                 format("type [%s] should work without grace period", type),
                 new PutShutdownNodeAction.Request(
-                    TimeValue.THIRTY_SECONDS,
-                    TimeValue.THIRTY_SECONDS,
+                    TEST_REQUEST_TIMEOUT,
+                    TEST_REQUEST_TIMEOUT,
                     "node1",
                     type,
                     "test",
@@ -143,8 +143,8 @@ public class TransportPutShutdownNodeActionTests extends ESTestCase {
                 notNullValue()
             );
             ActionRequestValidationException arve = new PutShutdownNodeAction.Request(
-                TimeValue.THIRTY_SECONDS,
-                TimeValue.THIRTY_SECONDS,
+                TEST_REQUEST_TIMEOUT,
+                TEST_REQUEST_TIMEOUT,
                 "node1",
                 type,
                 "test",
@@ -161,8 +161,8 @@ public class TransportPutShutdownNodeActionTests extends ESTestCase {
 
         assertThat(
             new PutShutdownNodeAction.Request(
-                TimeValue.THIRTY_SECONDS,
-                TimeValue.THIRTY_SECONDS,
+                TEST_REQUEST_TIMEOUT,
+                TEST_REQUEST_TIMEOUT,
                 "node1",
                 Type.SIGTERM,
                 "test",
@@ -174,16 +174,9 @@ public class TransportPutShutdownNodeActionTests extends ESTestCase {
         );
 
         assertThat(
-            new PutShutdownNodeAction.Request(
-                TimeValue.THIRTY_SECONDS,
-                TimeValue.THIRTY_SECONDS,
-                "node1",
-                Type.SIGTERM,
-                "test",
-                null,
-                null,
-                null
-            ).validate().getMessage(),
+            new PutShutdownNodeAction.Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, "node1", Type.SIGTERM, "test", null, null, null)
+                .validate()
+                .getMessage(),
             containsString("grace period is required for SIGTERM shutdowns")
         );
     }

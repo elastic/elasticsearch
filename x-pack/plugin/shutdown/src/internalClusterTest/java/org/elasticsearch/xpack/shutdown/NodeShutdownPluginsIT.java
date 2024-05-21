@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.shutdown;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.ShutdownAwarePlugin;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -61,8 +60,8 @@ public class NodeShutdownPluginsIT extends ESIntegTestCase {
         client().execute(
             PutShutdownNodeAction.INSTANCE,
             new PutShutdownNodeAction.Request(
-                TimeValue.THIRTY_SECONDS,
-                TimeValue.THIRTY_SECONDS,
+                TEST_REQUEST_TIMEOUT,
+                TEST_REQUEST_TIMEOUT,
                 shutdownNode,
                 SingleNodeShutdownMetadata.Type.REMOVE,
                 "removal for testing",
@@ -98,7 +97,7 @@ public class NodeShutdownPluginsIT extends ESIntegTestCase {
 
         client().execute(
             DeleteShutdownNodeAction.INSTANCE,
-            new DeleteShutdownNodeAction.Request(TimeValue.THIRTY_SECONDS, TimeValue.THIRTY_SECONDS, shutdownNode)
+            new DeleteShutdownNodeAction.Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, shutdownNode)
         ).get();
 
         // The shutdown node should now not in the triggered list

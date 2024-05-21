@@ -488,7 +488,7 @@ setup:
 
 
 ---
-"semantic_text copy_to needs values for every source field for updates":
+"semantic_text copy_to needs values for every source field for bulk updates":
   - do:
       indices.create:
         index: test-copy-to-index
@@ -526,35 +526,68 @@ setup:
 
 
 ---
-"Update works for now - but will be unsupported later to avoid dealing with missing semantic_text fields content or copy_to fields":
+"Updating semantic_text fields with multiple source fields recalculates embeddings":
   - do:
-      index:
-        index: test-index
-        id: doc_1
+      indices.create:
+        index: test-copy-to-index
         body:
-          sparse_field: "inference test"
-          dense_field: "another inference test"
-          non_inference_field: "non inference test"
+          mappings:
+            properties:
+              sparse_field:
+                type: semantic_text
+                inference_id: sparse-inference-id
+              sparse_source_field:
+                type: text
+                copy_to: sparse_field
+              dense_field:
+                type: semantic_text
+                inference_id: dense-inference-id
+              dense_source_field:
+                type: text
+                copy_to: dense_field
 
   - do:
-      update:
-        index: test-index
+      index:
+        index: test-copy-to-index
         id: doc_1
         body:
-          doc: { "sparse_field": "updated inference test", "dense_field": "another updated inference test", "non_inference_field": "updated non inference test" }
+          sparse_field: "sparse data 1"
+          sparse_source_field: "sparse data 2"
+          dense_field: "dense data 1"
+          dense_source_field: "dense data 2"
 
   - do:
       get:
-        index: test-index
+        index: test-copy-to-index
         id: doc_1
 
-  - match: { _source.sparse_field.text: "updated inference test" }
-  - exists: _source.sparse_field.inference.chunks.0.embeddings
-  - match: { _source.sparse_field.inference.chunks.0.text: "updated inference test" }
-  - match: { _source.dense_field.text: "another updated inference test" }
-  - exists: _source.dense_field.inference.chunks.0.embeddings
-  - match: { _source.dense_field.inference.chunks.0.text: "another updated inference test" }
-  - match: { _source.non_inference_field: "updated non inference test" }
+  - length: { _source.sparse_field.inference.chunks: 2 }
+  - match: { _source.sparse_field.inference.chunks.1.text: "sparse data 2" }
+  - set: { _source.sparse_field.inference.chunks.1.embeddings: sparse_field_embedding_1 }
+  - length: { _source.dense_field.inference.chunks: 2 }
+  - match: { _source.dense_field.inference.chunks.1.text: "dense data 2" }
+  - set: { _source.dense_field.inference.chunks.1.embeddings: dense_field_embedding_1 }
+
+  - do:
+      update:
+        index: test-copy-to-index
+        id: doc_1
+        body:
+          doc: { "sparse_source_field": "sparse data 3", "dense_source_field": "dense data 3" }
+
+  - do:
+      get:
+        index: test-copy-to-index
+        id: doc_1
+
+  - match: { _source.sparse_field.text: "sparse data 1" }
+  - length: { _source.sparse_field.inference.chunks: 2 }
+  # TODO: Check that embeddings changed
+  - match: { _source.sparse_field.inference.chunks.1.text: "sparse data 3" }
+  - match: { _source.dense_field.text: "dense data 1" }
+  - length: { _source.dense_field.inference.chunks: 2 }
+  # TODO: Check that embeddings changed
+  - match: { _source.dense_field.inference.chunks.1.text: "dense data 3" }
 
 ---
 "Calculates text expansion results for bulk updates - index":

@@ -260,7 +260,7 @@ public abstract class ESTestCase extends LuceneTestCase {
         // TODO: consolidate logging initialization for tests so it all occurs in logconfigurator
         LogConfigurator.loadLog4jPlugins();
         LogConfigurator.configureESLogging();
-        MockLogAppender.init();
+        MockLog.init();
 
         final List<Appender> testAppenders = new ArrayList<>(3);
         for (String leakLoggerName : Arrays.asList("io.netty.util.ResourceLeakDetector", LeakTracker.class.getName())) {

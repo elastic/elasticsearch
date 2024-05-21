@@ -87,13 +87,12 @@ public class TransportPutIndexTemplateAction extends AcknowledgedTransportMaster
         templateSettingsBuilder.put(request.settings()).normalizePrefix(IndexMetadata.INDEX_SETTING_PREFIX);
         indexScopedSettings.validate(templateSettingsBuilder.build(), true); // templates must be consistent with regards to dependencies
         indexTemplateService.putTemplate(
-            new MetadataIndexTemplateService.PutRequest(cause, request.name()).patterns(request.patterns())
+            new MetadataIndexTemplateService.PutRequest(cause, request.name(), request.masterNodeTimeout()).patterns(request.patterns())
                 .order(request.order())
                 .settings(templateSettingsBuilder.build())
                 .mappings(request.mappings() == null ? null : new CompressedXContent(request.mappings()))
                 .aliases(request.aliases())
                 .create(request.create())
-                .masterTimeout(request.masterNodeTimeout())
                 .version(request.version()),
 
             new ActionListener<>() {

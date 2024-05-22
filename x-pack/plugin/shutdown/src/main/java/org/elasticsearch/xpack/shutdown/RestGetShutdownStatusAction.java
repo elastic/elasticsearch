@@ -49,7 +49,7 @@ public class RestGetShutdownStatusAction extends BaseRestHandler {
         );
     }
 
-    private static final Set<String> SUPPORTED_QUERY_PARAMETERS = Set.of(RestUtils.REST_MASTER_TIMEOUT_PARAM);
+    private static final Set<String> SUPPORTED_QUERY_PARAMETERS = Set.of(RestUtils.REST_MASTER_TIMEOUT_PARAM, "nodeId");
 
     @Override
     public Set<String> supportedQueryParameters() {

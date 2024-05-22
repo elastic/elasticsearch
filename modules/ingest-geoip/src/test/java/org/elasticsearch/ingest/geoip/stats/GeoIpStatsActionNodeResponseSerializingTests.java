@@ -41,7 +41,7 @@ public class GeoIpStatsActionNodeResponseSerializingTests extends AbstractWireSe
             node,
             GeoIpDownloaderStatsSerializingTests.createRandomInstance(),
             randomBoolean() ? null : CacheStatsSerializingTests.createRandomInstance(),
-            databases,
+            null,
             files,
             configDatabases
         );

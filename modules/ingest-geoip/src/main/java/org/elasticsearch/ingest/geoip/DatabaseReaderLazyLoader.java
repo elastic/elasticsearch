@@ -8,6 +8,7 @@
 
 package org.elasticsearch.ingest.geoip;
 
+import com.maxmind.db.Metadata;
 import com.maxmind.db.NoCache;
 import com.maxmind.db.Reader;
 import com.maxmind.geoip2.DatabaseReader;
@@ -287,6 +288,10 @@ class DatabaseReaderLazyLoader implements GeoIpDatabase, Closeable {
     @SuppressForbidden(reason = "Maxmind API requires java.io.File")
     private static DatabaseReader.Builder createDatabaseBuilder(Path databasePath) {
         return new DatabaseReader.Builder(databasePath.toFile());
+    }
+
+    Metadata getMetadata() throws IOException {
+        return loader.get().getMetadata();
     }
 
 }

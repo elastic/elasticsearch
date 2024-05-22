@@ -174,6 +174,7 @@ public class TransportVersions {
     public static final TransportVersion SIMULATE_VALIDATES_MAPPINGS = def(8_665_00_0);
     public static final TransportVersion RULE_QUERY_RENAME = def(8_666_00_0);
     public static final TransportVersion SPARSE_VECTOR_QUERY_ADDED = def(8_667_00_0);
+    public static final TransportVersion GEOIP_ADDITIONAL_DATABASE_DOWNLOAD_STATS = def(8_668_00_0);
 
     /*
      * STOP! READ THIS FIRST! No, really,

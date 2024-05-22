@@ -176,18 +176,27 @@ public class GeoIpDownloader extends AllocatedPersistentTask {
             url = (lastSlash != -1 ? endpoint.substring(0, lastSlash + 8) : endpoint) + "/" + url;
         }
         long start = System.currentTimeMillis();
+        String provider = (String) databaseInfo.get("provider");
+        Long buildDate = null;
+        Integer updatedDateInSeconds = (Integer) databaseInfo.get("updated");
+        Integer updatedAgeInSeconds = (Integer) databaseInfo.get("age");
+        if (updatedDateInSeconds != null && updatedAgeInSeconds != null) {
+            buildDate = (updatedDateInSeconds - updatedAgeInSeconds) * 1000L;
+        }
         try (InputStream is = httpClient.get(url)) {
             int firstChunk = state.contains(name) ? state.get(name).lastChunk() + 1 : 0;
             int lastChunk = indexChunks(name, is, firstChunk, md5, start);
             if (lastChunk > firstChunk) {
                 state = state.put(name, new Metadata(start, firstChunk, lastChunk - 1, md5, start));
                 updateTaskState();
-                stats = stats.successfulDownload(System.currentTimeMillis() - start).databasesCount(state.getDatabases().size());
+                // databaseInfo.get("updated"), databaseInfo.get("age")
+                stats = stats.successfulDownload(name, md5, start, buildDate, provider, System.currentTimeMillis() - start)
+                    .databasesCount(state.getDatabases().size());
                 logger.info("successfully downloaded geoip database [{}]", name);
                 deleteOldChunks(name, firstChunk);
             }
         } catch (Exception e) {
-            stats = stats.failedDownload();
+            stats = stats.failedDownload(name, md5, e, start, buildDate, provider, System.currentTimeMillis() - start);
             logger.error(() -> "error downloading geoip database [" + name + "]", e);
         }
     }
@@ -275,10 +284,11 @@ public class GeoIpDownloader extends AllocatedPersistentTask {
         if (isCancelled() || isCompleted()) {
             return;
         }
+        long start = System.currentTimeMillis();
         try {
             updateDatabases();
         } catch (Exception e) {
-            stats = stats.failedDownload();
+            stats = stats.failedDownload("unknown", null, e, start, null, null, System.currentTimeMillis() - start);
             logger.error("exception during geoip databases update", e);
         }
         try {

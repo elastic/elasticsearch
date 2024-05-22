@@ -30,6 +30,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 public class GeoIpStatsAction {
 
@@ -118,9 +119,15 @@ public class GeoIpStatsAction {
                 builder.startObject(e.getKey());
                 if (response.databases.isEmpty() == false) {
                     builder.startArray("databases");
-                    for (String database : response.databases) {
+                    for (RetrievedDatabaseInfo database : response.databases) {
                         builder.startObject();
-                        builder.field("name", database);
+                        builder.field("name", database.name());
+                        builder.field("md5", database.md5());
+                        builder.timeField("build_date_in_millis", "build_date", database.buildDateInMillis());
+                        builder.field("major_version", database.majorVersion());
+                        builder.field("minor_version", database.minorVersion());
+                        builder.field("type", database.type());
+                        builder.field("description", database.description());
                         builder.endObject();
                     }
                     builder.endArray();
@@ -165,7 +172,7 @@ public class GeoIpStatsAction {
 
         private final GeoIpDownloaderStats downloaderStats;
         private final CacheStats cacheStats;
-        private final Set<String> databases;
+        private final Set<RetrievedDatabaseInfo> databases;
         private final Set<String> filesInTemp;
         private final Set<String> configDatabases;
 
@@ -177,7 +184,14 @@ public class GeoIpStatsAction {
             } else {
                 cacheStats = null;
             }
-            databases = in.readCollectionAsImmutableSet(StreamInput::readString);
+            if (true) {// TODO
+                databases = in.readCollectionAsImmutableSet(RetrievedDatabaseInfo::new);
+            } else {
+                Set<String> databaseNames = in.readCollectionAsImmutableSet(StreamInput::readString);
+                databases = databaseNames.stream()
+                    .map(name -> new RetrievedDatabaseInfo(name, null, null, null, null, null, null))
+                    .collect(Collectors.toSet());
+            }
             filesInTemp = in.readCollectionAsImmutableSet(StreamInput::readString);
             configDatabases = in.getTransportVersion().onOrAfter(TransportVersions.V_8_0_0)
                 ? in.readCollectionAsImmutableSet(StreamInput::readString)
@@ -188,7 +202,7 @@ public class GeoIpStatsAction {
             DiscoveryNode node,
             GeoIpDownloaderStats downloaderStats,
             CacheStats cacheStats,
-            Set<String> databases,
+            Set<RetrievedDatabaseInfo> databases,
             Set<String> filesInTemp,
             Set<String> configDatabases
         ) {
@@ -204,7 +218,7 @@ public class GeoIpStatsAction {
             return downloaderStats;
         }
 
-        public Set<String> getDatabases() {
+        public Set<RetrievedDatabaseInfo> getDatabases() {
             return databases;
         }
 
@@ -229,7 +243,12 @@ public class GeoIpStatsAction {
                     cacheStats.writeTo(out);
                 }
             }
-            out.writeStringCollection(databases);
+            if (true) { // TODO
+                out.writeCollection(databases);
+            } else {
+                out.writeStringCollection(databases.stream().map(RetrievedDatabaseInfo::name).collect(Collectors.toSet()));
+            }
+
             out.writeStringCollection(filesInTemp);
             if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_0_0)) {
                 out.writeStringCollection(configDatabases);

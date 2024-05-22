@@ -29,7 +29,7 @@ public class GeoIpStatsActionNodeResponseTests extends ESTestCase {
             node,
             GeoIpDownloaderStatsSerializingTests.createRandomInstance(),
             randomBoolean() ? null : CacheStatsSerializingTests.createRandomInstance(),
-            databases,
+            null,
             files,
             configDatabases
         );

@@ -7,6 +7,8 @@
  */
 package org.elasticsearch.ingest.geoip;
 
+import com.maxmind.db.Metadata;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ResourceNotFoundException;
@@ -30,6 +32,7 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.ingest.IngestService;
 import org.elasticsearch.ingest.geoip.stats.CacheStats;
+import org.elasticsearch.ingest.geoip.stats.RetrievedDatabaseInfo;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.watcher.ResourceWatcherService;
@@ -492,8 +495,25 @@ public final class DatabaseNodeService implements GeoIpDatabaseProvider, Closeab
         });
     }
 
-    public Set<String> getAvailableDatabases() {
-        return Set.copyOf(databases.keySet());
+    public Set<RetrievedDatabaseInfo> getAvailableDatabases() {
+        return databases.entrySet().stream().map(entry -> {
+            DatabaseReaderLazyLoader databaseReaderLazyLoader = entry.getValue();
+            final Metadata metadata;
+            try {
+                metadata = databaseReaderLazyLoader.getMetadata();
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            }
+            return new RetrievedDatabaseInfo(
+                entry.getKey(),
+                databaseReaderLazyLoader.getMd5(),
+                metadata.getBuildDate().getTime(),
+                metadata.getBinaryFormatMajorVersion(),
+                metadata.getBinaryFormatMinorVersion(),
+                metadata.getDatabaseType(),
+                metadata.getDescription().get("en")
+            );
+        }).collect(Collectors.toSet());
     }
 
     public Set<String> getConfigDatabases() {
@@ -511,4 +531,5 @@ public final class DatabaseNodeService implements GeoIpDatabaseProvider, Closeab
     public CacheStats getCacheStats() {
         return cache.getCacheStats();
     }
+
 }

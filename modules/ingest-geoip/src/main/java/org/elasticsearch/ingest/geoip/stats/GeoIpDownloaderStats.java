@@ -17,11 +17,15 @@ import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.Objects;
+
+import static org.elasticsearch.TransportVersions.GEOIP_ADDITIONAL_DATABASE_DOWNLOAD_STATS;
 
 public class GeoIpDownloaderStats implements Task.Status {
 
-    public static final GeoIpDownloaderStats EMPTY = new GeoIpDownloaderStats(0, 0, 0, 0, 0, 0);
+    public static final GeoIpDownloaderStats EMPTY = new GeoIpDownloaderStats(0, 0, 0, 0, 0, 0, Map.of());
 
     static final ParseField SUCCESSFUL_DOWNLOADS = new ParseField("successful_downloads");
     static final ParseField FAILED_DOWNLOADS = new ParseField("failed_downloads");
@@ -36,6 +40,7 @@ public class GeoIpDownloaderStats implements Task.Status {
     private final int databasesCount;
     private final int skippedDownloads;
     private final int expiredDatabases;
+    private final Map<String, DownloadedDatabaseInfo> downloadedDatabaseInfos;
 
     public GeoIpDownloaderStats(StreamInput in) throws IOException {
         successfulDownloads = in.readVInt();
@@ -44,6 +49,15 @@ public class GeoIpDownloaderStats implements Task.Status {
         databasesCount = in.readVInt();
         skippedDownloads = in.readVInt();
         expiredDatabases = in.readVInt();
+        if (in.getTransportVersion().onOrAfter(GEOIP_ADDITIONAL_DATABASE_DOWNLOAD_STATS)) {
+            int databaseStatsCount = in.readVInt();
+            downloadedDatabaseInfos = new HashMap<>(databaseStatsCount);
+            for (int i = 0; i < databaseStatsCount; i++) {
+                downloadedDatabaseInfos.put(in.readString(), new DownloadedDatabaseInfo(in));
+            }
+        } else {
+            downloadedDatabaseInfos = null;
+        }
     }
 
     GeoIpDownloaderStats(
@@ -52,7 +66,8 @@ public class GeoIpDownloaderStats implements Task.Status {
         long totalDownloadTime,
         int databasesCount,
         int skippedDownloads,
-        int expiredDatabases
+        int expiredDatabases,
+        Map<String, DownloadedDatabaseInfo> downloadedDatabaseInfos
     ) {
         this.successfulDownloads = successfulDownloads;
         this.failedDownloads = failedDownloads;
@@ -60,6 +75,7 @@ public class GeoIpDownloaderStats implements Task.Status {
         this.databasesCount = databasesCount;
         this.skippedDownloads = skippedDownloads;
         this.expiredDatabases = expiredDatabases;
+        this.downloadedDatabaseInfos = downloadedDatabaseInfos;
     }
 
     public int getSuccessfulDownloads() {
@@ -93,29 +109,94 @@ public class GeoIpDownloaderStats implements Task.Status {
             totalDownloadTime,
             databasesCount,
             skippedDownloads + 1,
-            expiredDatabases
+            expiredDatabases,
+            this.downloadedDatabaseInfos
         );
     }
 
-    public GeoIpDownloaderStats successfulDownload(long downloadTime) {
+    public GeoIpDownloaderStats successfulDownload(
+        String name,
+        String md5,
+        Long downloadDate,
+        Long buildDate,
+        String provider,
+        long downloadTime
+    ) {
+        Objects.requireNonNull(name);
+        Map<String, DownloadedDatabaseInfo> updatedDatabaseInfos;
+        if (downloadedDatabaseInfos == null) {
+            updatedDatabaseInfos = null;
+        } else {
+            DownloadedDatabaseInfo downloadedDatabaseInfo = downloadedDatabaseInfos.get(name);
+            DownloadedDatabaseInfo updatedDownloadedDatabaseInfo;
+            DownloadedDatabaseInfo.DownloadAttempt success = new DownloadedDatabaseInfo.DownloadAttempt(
+                md5,
+                downloadDate,
+                downloadTime,
+                provider,
+                buildDate,
+                null
+            );
+            if (downloadedDatabaseInfo == null) {
+                updatedDownloadedDatabaseInfo = new DownloadedDatabaseInfo(name, success, null);
+            } else {
+                updatedDownloadedDatabaseInfo = new DownloadedDatabaseInfo(name, success, downloadedDatabaseInfo.failedAttempt());
+            }
+            updatedDatabaseInfos = new HashMap<>(downloadedDatabaseInfos.size());
+            updatedDatabaseInfos.putAll(downloadedDatabaseInfos);
+            updatedDatabaseInfos.put(name, updatedDownloadedDatabaseInfo);
+        }
         return new GeoIpDownloaderStats(
             successfulDownloads + 1,
             failedDownloads,
             totalDownloadTime + Math.max(downloadTime, 0),
             databasesCount,
             skippedDownloads,
-            expiredDatabases
+            expiredDatabases,
+            updatedDatabaseInfos
         );
     }
 
-    public GeoIpDownloaderStats failedDownload() {
+    public GeoIpDownloaderStats failedDownload(
+        String name,
+        String md5,
+        Exception exception,
+        long downloadDate,
+        Long buildDate,
+        String provider,
+        long downloadTime
+    ) {
+        Map<String, DownloadedDatabaseInfo> updatedDatabaseInfos;
+        if (downloadedDatabaseInfos == null) {
+            updatedDatabaseInfos = null;
+        } else {
+            DownloadedDatabaseInfo downloadedDatabaseInfo = downloadedDatabaseInfos.get(name);
+            DownloadedDatabaseInfo updatedDownloadedDatabaseInfo;
+            DownloadedDatabaseInfo.DownloadAttempt failure = new DownloadedDatabaseInfo.DownloadAttempt(
+                md5,
+                downloadDate,
+                downloadTime,
+                provider,
+                buildDate,
+                exception.getMessage()
+            );
+            if (downloadedDatabaseInfo == null) {
+                updatedDownloadedDatabaseInfo = new DownloadedDatabaseInfo(name, null, failure);
+            } else {
+                updatedDownloadedDatabaseInfo = new DownloadedDatabaseInfo(name, downloadedDatabaseInfo.successfulAttempt(), failure);
+            }
+            updatedDatabaseInfos = new HashMap<>(downloadedDatabaseInfos.size());
+            updatedDatabaseInfos.putAll(downloadedDatabaseInfos);
+            updatedDatabaseInfos.put(name, updatedDownloadedDatabaseInfo);
+        }
         return new GeoIpDownloaderStats(
             successfulDownloads,
             failedDownloads + 1,
             totalDownloadTime,
             databasesCount,
             skippedDownloads,
-            expiredDatabases
+            expiredDatabases,
+            updatedDatabaseInfos
         );
     }
 
@@ -126,7 +207,8 @@ public class GeoIpDownloaderStats implements Task.Status {
             totalDownloadTime,
             databasesCount,
             skippedDownloads,
-            expiredDatabases
+            expiredDatabases,
+            this.downloadedDatabaseInfos
         );
     }
 
@@ -137,7 +219,8 @@ public class GeoIpDownloaderStats implements Task.Status {
             totalDownloadTime,
             databasesCount,
             skippedDownloads,
-            expiredDatabases
+            expiredDatabases,
+            this.downloadedDatabaseInfos
         );
     }
 
@@ -150,6 +233,9 @@ public class GeoIpDownloaderStats implements Task.Status {
         builder.field(DATABASES_COUNT.getPreferredName(), databasesCount);
         builder.field(SKIPPED_DOWNLOADS.getPreferredName(), skippedDownloads);
         builder.field(EXPIRED_DATABASES.getPreferredName(), expiredDatabases);
+        if (downloadedDatabaseInfos != null) {
+            builder.xContentList("downloader_attempts", downloadedDatabaseInfos.values(), params);
+        }
         builder.endObject();
         return builder;
     }
@@ -162,6 +248,13 @@ public class GeoIpDownloaderStats implements Task.Status {
         out.writeVInt(databasesCount);
         out.writeVInt(skippedDownloads);
         out.writeVInt(expiredDatabases);
+        if (out.getTransportVersion().onOrAfter(GEOIP_ADDITIONAL_DATABASE_DOWNLOAD_STATS)) {
+            out.writeVInt(downloadedDatabaseInfos.size());
+            for (Map.Entry<String, DownloadedDatabaseInfo> entry : downloadedDatabaseInfos.entrySet()) {
+                out.writeString(entry.getKey());
+                entry.getValue().writeTo(out);
+            }
+        }
     }
 
     @Override

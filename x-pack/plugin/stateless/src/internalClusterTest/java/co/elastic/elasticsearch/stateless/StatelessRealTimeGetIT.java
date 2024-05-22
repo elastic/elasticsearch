@@ -57,6 +57,7 @@ import org.elasticsearch.index.shard.ShardNotFoundException;
 import org.elasticsearch.indices.IndexingMemoryController;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.transport.TestTransportChannel;
 import org.elasticsearch.transport.TransportService;
@@ -277,6 +278,7 @@ public class StatelessRealTimeGetIT extends AbstractStatelessIntegTestCase {
         assertThat(shardRefreshActionsSent.get(), equalTo(distinctShards));
     }
 
+    @TestLogging(value = "org.elasticsearch.index.engine:DEBUG", reason = "https://github.com/elastic/elasticsearch-serverless/pull/2068")
     public void testLiveVersionMapArchive() throws Exception {
         final int numberOfShards = 1;
         var indexNode = startIndexNode();
@@ -336,6 +338,7 @@ public class StatelessRealTimeGetIT extends AbstractStatelessIntegTestCase {
         client().admin().indices().refresh(new RefreshRequest(indexName)).get();
         safeAwait(newCommitSeen);
         var getFromTranslogResponse = getFromTranslog(indexShard, "1");
+        logger.info("Verifying index request is not in translog: {}", getFromTranslogResponse);
         assertNull(get(map, "1"));
         assertNull(getFromTranslogResponse.getResult());
         assertEquals(getFromTranslogResponse.segmentGeneration(), lastUnsafeGenerationForGets);

@@ -7,25 +7,25 @@
 
 package org.elasticsearch.xpack.esql.expression.predicate.operator.comparison;
 
+import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.Expressions;
+import org.elasticsearch.xpack.esql.core.expression.predicate.operator.comparison.InProcessor;
+import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
+import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.type.DataTypes;
 import org.elasticsearch.xpack.esql.expression.EsqlTypeResolutions;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
-import org.elasticsearch.xpack.ql.expression.Expression;
-import org.elasticsearch.xpack.ql.expression.Expressions;
-import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.InProcessor;
-import org.elasticsearch.xpack.ql.tree.NodeInfo;
-import org.elasticsearch.xpack.ql.tree.Source;
-import org.elasticsearch.xpack.ql.type.DataType;
-import org.elasticsearch.xpack.ql.type.DataTypes;
 
 import java.util.List;
 
 import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
-import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.DEFAULT;
-import static org.elasticsearch.xpack.ql.util.StringUtils.ordinal;
+import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.DEFAULT;
+import static org.elasticsearch.xpack.esql.core.util.StringUtils.ordinal;
 
-public class In extends org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.In {
+public class In extends org.elasticsearch.xpack.esql.core.expression.predicate.operator.comparison.In {
     @FunctionInfo(
         returnType = "boolean",
         description = "The `IN` operator allows testing whether a field or expression equals an element in a list of literals, "
@@ -37,7 +37,7 @@ public class In extends org.elasticsearch.xpack.ql.expression.predicate.operator
     }
 
     @Override
-    protected NodeInfo<org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.In> info() {
+    protected NodeInfo<org.elasticsearch.xpack.esql.core.expression.predicate.operator.comparison.In> info() {
         return NodeInfo.create(this, In::new, value(), list());
     }
 

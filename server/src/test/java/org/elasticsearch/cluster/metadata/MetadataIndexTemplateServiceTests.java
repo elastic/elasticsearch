@@ -2488,7 +2488,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
         );
 
         final List<Throwable> throwables = new ArrayList<>();
-        service.putTemplate(request, new ActionListener<>() {
+        service.putTemplate(request, TEST_REQUEST_TIMEOUT, new ActionListener<>() {
             @Override
             public void onResponse(AcknowledgedResponse response) {
 
@@ -2507,7 +2507,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
 
         final List<Throwable> throwables = new ArrayList<>();
         final CountDownLatch latch = new CountDownLatch(1);
-        service.putTemplate(request, new ActionListener<>() {
+        service.putTemplate(request, TEST_REQUEST_TIMEOUT, new ActionListener<>() {
             @Override
             public void onResponse(AcknowledgedResponse response) {
                 latch.countDown();

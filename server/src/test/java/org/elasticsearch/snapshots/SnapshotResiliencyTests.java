@@ -183,7 +183,7 @@ import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.telemetry.tracing.Tracer;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.MockLogAppender;
+import org.elasticsearch.test.MockLog;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.BytesRefRecycler;
@@ -1452,13 +1452,13 @@ public class SnapshotResiliencyTests extends ESTestCase {
                     })
             );
 
-        MockLogAppender.assertThatLogger(() -> {
+        MockLog.assertThatLogger(() -> {
             deterministicTaskQueue.runAllRunnableTasks();
             assertTrue("executed all runnable tasks but test steps are still incomplete", testListener.isDone());
             safeAwait(testListener); // shouldn't throw
         },
             SnapshotsService.class,
-            new MockLogAppender.SeenEventExpectation(
+            new MockLog.SeenEventExpectation(
                 "INFO log",
                 SnapshotsService.class.getCanonicalName(),
                 Level.INFO,
@@ -1503,13 +1503,13 @@ public class SnapshotResiliencyTests extends ESTestCase {
                     })
             );
 
-        MockLogAppender.assertThatLogger(() -> {
+        MockLog.assertThatLogger(() -> {
             deterministicTaskQueue.runAllRunnableTasks();
             assertTrue("executed all runnable tasks but test steps are still incomplete", testListener.isDone());
             safeAwait(testListener); // shouldn't throw
         },
             SnapshotsService.class,
-            new MockLogAppender.SeenEventExpectation(
+            new MockLog.SeenEventExpectation(
                 "INFO log",
                 SnapshotsService.class.getCanonicalName(),
                 Level.INFO,
@@ -1556,13 +1556,13 @@ public class SnapshotResiliencyTests extends ESTestCase {
                     })
             );
 
-        MockLogAppender.assertThatLogger(() -> {
+        MockLog.assertThatLogger(() -> {
             deterministicTaskQueue.runAllRunnableTasks();
             assertTrue("executed all runnable tasks but test steps are still incomplete", testListener.isDone());
             safeAwait(testListener); // shouldn't throw
         },
             SnapshotsService.class,
-            new MockLogAppender.SeenEventExpectation(
+            new MockLog.SeenEventExpectation(
                 "INFO log",
                 SnapshotsService.class.getCanonicalName(),
                 Level.INFO,
@@ -1608,13 +1608,13 @@ public class SnapshotResiliencyTests extends ESTestCase {
                     })
             );
 
-        MockLogAppender.assertThatLogger(() -> {
+        MockLog.assertThatLogger(() -> {
             deterministicTaskQueue.runAllRunnableTasks();
             assertTrue("executed all runnable tasks but test steps are still incomplete", testListener.isDone());
             safeAwait(testListener); // shouldn't throw
         },
             SnapshotsService.class,
-            new MockLogAppender.SeenEventExpectation(
+            new MockLog.SeenEventExpectation(
                 "INFO log",
                 SnapshotsService.class.getCanonicalName(),
                 Level.INFO,

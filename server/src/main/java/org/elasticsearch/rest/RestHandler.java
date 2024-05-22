@@ -88,13 +88,12 @@ public interface RestHandler {
 
     /**
      * The set of path and query parameters that could be present on this handler.
-     * This method is only required due to https://github.com/elastic/elasticsearch/issues/36785,
+     * This method is only required due to <a href="https://github.com/elastic/elasticsearch/issues/36785">#36785</a>,
      * which conflates query and path parameters inside the rest handler.
      * This method should be overridden to add path parameters to {@link #supportedQueryParameters}
      * if the handler has path parameters.
-     * This method will be removed when {@link #supportedQueryParameters()} and {@link BaseRestHandler#responseParams()} are merged.
+     * This method will be removed when {@link #supportedQueryParameters()} and {@link BaseRestHandler#responseParams()} are combined.
      */
-    @Deprecated(forRemoval = true)
     default @Nullable Set<String> allSupportedParameters() {
         return supportedQueryParameters();
     }

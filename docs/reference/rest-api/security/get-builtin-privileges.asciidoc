@@ -151,6 +151,6 @@ A successful call returns an object with "cluster", "index", and "remote_cluster
   ],
   "remote_cluster" : [
     "monitor_enrich"
- ]
+  ]
 }
 --------------------------------------------------

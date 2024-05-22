@@ -38,7 +38,7 @@ A role is defined by the following JSON structure:
     no index level permissions for any API key based remote clusters).
 <7> A list of cluster permissions entries for
     <<remote-clusters-api-key,remote clusters configured with the API key based model>>.
-    This field is optional (missing `remote_cluster` privileges effectively mean
+    This field is optional (missing `remote_cluster` privileges effectively means
     no additional cluster permissions for any API key based remote clusters).
 
 [[valid-role-name]]
@@ -220,8 +220,8 @@ The following describes the structure of a remote indices permissions entry:
 For <<remote-clusters-api-key,remote clusters configured with the API key based model>>, remote cluster privileges
 can be used to specify additional cluster privileges for matching remote clusters.
 
-NOTE: Remote cluster privileges are effective for remote clusters configured with the API key based model.
-They have no effect for remote clusters configured with the certificate based model.
+NOTE: Remote cluster privileges are only effective for remote clusters configured with the API key based model.
+They have no effect on remote clusters configured with the certificate based model.
 
 The following describes the structure of a remote cluster permissions entry:
 
@@ -239,9 +239,10 @@ This field is required.
 <2> The cluster level privileges for the remote cluster. The allowed values here are a subset of the
 <<privileges-list-cluster,cluster privileges>>. This field is required.
 
-The only privilege that can be granted for remote clusters is `monitor_enrich` for
-versions 8.15.0 and later. `monitor_enrich` is requires to allow users to use the `ENRICH` keyword for
-ES|QL queries across clusters.
+The `monitor_enrich` privilege for remote clusters was introduced in version
+8.15.0. Currently, this is the only privilege available for remote clusters and
+is required to enable users to use the `ENRICH` keyword in ES|QL queries across
+clusters.
 
 ==== Example
 

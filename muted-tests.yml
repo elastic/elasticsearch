@@ -16,6 +16,13 @@ tests:
 - class: "org.elasticsearch.xpack.esql.ccq.MultiClusterSpecIT"
   issue: "https://github.com/elastic/elasticsearch/issues/108809"
   method: "test {k8s-metrics.MetricsWithoutAggs}"
+- class: "org.elasticsearch.xpack.textstructure.structurefinder.TimestampFormatFinderTests"
+  issue: "https://github.com/elastic/elasticsearch/issues/108855"
+  method: "testGuessIsDayFirstFromLocale"
+- class: "org.elasticsearch.test.rest.ClientYamlTestSuiteIT"
+  issue: "https://github.com/elastic/elasticsearch/issues/108857"
+  method: "test {yaml=search/180_locale_dependent_mapping/Test Index and Search locale\
+    \ dependent mappings / dates}"
 # Examples:
 #
 #  Mute a single test case in a YAML test suite:

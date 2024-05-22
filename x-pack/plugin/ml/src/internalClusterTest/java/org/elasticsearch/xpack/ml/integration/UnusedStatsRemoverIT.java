@@ -11,7 +11,6 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.xcontent.ToXContent;
@@ -57,7 +56,7 @@ public class UnusedStatsRemoverIT extends BaseMlIntegTestCase {
             client(),
             clusterService().state(),
             TestIndexNameExpressionResolver.newInstance(client().threadPool().getThreadContext()),
-            TimeValue.THIRTY_SECONDS,
+            TEST_REQUEST_TIMEOUT,
             future
         );
         future.actionGet();

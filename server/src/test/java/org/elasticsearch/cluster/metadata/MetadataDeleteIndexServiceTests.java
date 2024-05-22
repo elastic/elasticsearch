@@ -193,6 +193,35 @@ public class MetadataDeleteIndexServiceTests extends ESTestCase {
         assertThat(after.metadata().getIndices().get(DataStream.getDefaultBackingIndexName(dataStreamName, numIndexToDelete)), nullValue());
     }
 
+    public void testDeleteFailureIndexForDataStream() {
+        long now = System.currentTimeMillis();
+        int numBackingIndices = randomIntBetween(2, 5);
+        String dataStreamName = randomAlphaOfLength(6).toLowerCase(Locale.ROOT);
+        ClusterState before = DataStreamTestHelper.getClusterStateWithDataStreams(
+            List.of(new Tuple<>(dataStreamName, numBackingIndices)),
+            List.of(),
+            now,
+            Settings.EMPTY,
+            0,
+            false,
+            true
+        );
+
+        int numIndexToDelete = randomIntBetween(1, numBackingIndices - 1);
+
+        Index indexToDelete = before.metadata()
+            .index(DataStream.getDefaultFailureStoreName(dataStreamName, numIndexToDelete, now))
+            .getIndex();
+        ClusterState after = MetadataDeleteIndexService.deleteIndices(before, Set.of(indexToDelete), Settings.EMPTY);
+
+        assertThat(after.metadata().getIndices().get(indexToDelete.getName()), nullValue());
+        assertThat(after.metadata().getIndices().size(), equalTo(2 * numBackingIndices - 1));
+        assertThat(
+            after.metadata().getIndices().get(DataStream.getDefaultFailureStoreName(dataStreamName, numIndexToDelete, now)),
+            nullValue()
+        );
+    }
+
     public void testDeleteMultipleBackingIndexForDataStream() {
         int numBackingIndices = randomIntBetween(3, 5);
         int numBackingIndicesToDelete = randomIntBetween(2, numBackingIndices - 1);

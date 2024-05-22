@@ -16,6 +16,8 @@
 
   <!-- JNA requires the no-argument constructor on JNAKernel32Library.SizeT to be public-->
   <suppress files="server[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]bootstrap[/\\]JNAKernel32Library.java" checks="RedundantModifier" />
+  <!-- JNA requires the no-argument constructor on JnaKernel32Library.SizeT to be public -->
+  <suppress files="libs[/\\]native[/\\]jna[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]nativeaccess[/\\]jna[/\\]JnaKernel32Library.java" checks="RedundantModifier" />
 
   <!-- the constructors on some local classes in these tests must be public-->
   <suppress files="server[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]plugins[/\\]PluginsServiceTests.java" checks="RedundantModifier" />

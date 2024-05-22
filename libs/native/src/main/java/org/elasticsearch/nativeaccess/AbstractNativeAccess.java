@@ -21,6 +21,7 @@ abstract class AbstractNativeAccess implements NativeAccess {
     private final String name;
     private final JavaLibrary javaLib;
     private final Zstd zstd;
+    protected boolean isMemoryLocked = false;
 
     protected AbstractNativeAccess(String name, NativeLibraryProvider libraryProvider) {
         this.name = name;
@@ -46,5 +47,10 @@ abstract class AbstractNativeAccess implements NativeAccess {
     public CloseableByteBuffer newBuffer(int len) {
         assert len > 0;
         return javaLib.newBuffer(len);
+    }
+
+    @Override
+    public boolean isMemoryLocked() {
+        return isMemoryLocked;
     }
 }

@@ -426,7 +426,7 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
         for (int i = 1; i < warnings.size(); i++) {
             assertThat(
                 warnings.get(i),
-                containsString("org.elasticsearch.xpack.ql.InvalidArgumentException: Cannot parse number [keyword")
+                containsString("org.elasticsearch.xpack.esql.core.InvalidArgumentException: Cannot parse number [keyword")
             );
         }
     }

@@ -1402,7 +1402,7 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
         if (rolloverFailureStore) {
             rolloverRequest.setIndicesOptions(
                 IndicesOptions.builder(rolloverRequest.indicesOptions())
-                    .failureStoreOptions(new IndicesOptions.FailureStoreOptions(false, true))
+                    .failureStoreOptions(opts -> opts.includeFailureIndices(true).includeRegularIndices(false))
                     .build()
             );
         }

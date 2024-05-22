@@ -1270,46 +1270,6 @@ public final class OptimizerRules {
         }
     }
 
-    public static class PushDownAndCombineFilters extends OptimizerRule<Filter> {
-
-        @Override
-        protected LogicalPlan rule(Filter filter) {
-            LogicalPlan plan = filter;
-            LogicalPlan child = filter.child();
-            Expression condition = filter.condition();
-
-            if (child instanceof Filter f) {
-                plan = f.with(new And(f.source(), f.condition(), condition));
-            }
-            // as it stands, all other unary plans should allow filters to be pushed down
-            else if (child instanceof UnaryPlan unary) {
-                // in case of aggregates, worry about filters that contain aggregations
-                if (unary instanceof Aggregate && condition.anyMatch(Functions::isAggregate)) {
-                    List<Expression> conjunctions = new ArrayList<>(splitAnd(condition));
-                    List<Expression> inPlace = new ArrayList<>();
-                    // extract all conjunctions containing aggregates
-                    for (Iterator<Expression> iterator = conjunctions.iterator(); iterator.hasNext();) {
-                        Expression conjunction = iterator.next();
-                        if (conjunction.anyMatch(Functions::isAggregate)) {
-                            inPlace.add(conjunction);
-                            iterator.remove();
-                        }
-                    }
-                    // if at least one expression can be pushed down, update the tree
-                    if (conjunctions.size() > 0) {
-                        child = unary.replaceChild(filter.with(unary.child(), Predicates.combineAnd(conjunctions)));
-                        plan = filter.with(child, Predicates.combineAnd(inPlace));
-                    }
-                } else {
-                    // push down filter
-                    plan = unary.replaceChild(filter.with(unary.child(), condition));
-                }
-            }
-
-            return plan;
-        }
-    }
-
     public static class ReplaceSurrogateFunction extends OptimizerExpressionRule<Expression> {
 
         public ReplaceSurrogateFunction() {

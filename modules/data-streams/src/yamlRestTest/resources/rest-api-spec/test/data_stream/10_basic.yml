@@ -214,6 +214,40 @@ setup:
       reason: "data stream failure stores REST structure changed in 8.15+"
 
   - do:
+      ingest.put_pipeline:
+        id: "data_stream_pipeline"
+        body: >
+          {
+            "description": "_description",
+            "processors": [
+              {
+                "set" : {
+                  "field": "message",
+                  "value" : "hello world"
+                }
+              }
+            ]
+          }
+  - match: { acknowledged: true }
+
+  - do:
+      ingest.put_pipeline:
+        id: "data_stream_final_pipeline"
+        body: >
+          {
+            "description": "_description",
+            "processors": [
+              {
+                "set" : {
+                  "field": "message",
+                  "value" : "goodbye world"
+                }
+              }
+            ]
+          }
+  - match: { acknowledged: true }
+
+  - do:
       allowed_warnings:
         - "index template [my-template4] has index patterns [failure-data-stream1, failure-data-stream2] matching patterns from existing older templates [global] with patterns (global => [*]); this template [my-template4] will take precedence during new index creation"
       indices.put_index_template:
@@ -222,6 +256,11 @@ setup:
           index_patterns: [ failure-data-stream1, failure-data-stream2 ]
           data_stream:
             failure_store: true
+          template:
+            settings:
+              index:
+                default_pipeline: "data_stream_pipeline"
+                final_pipeline: "data_stream_final_pipeline"
 
   - do:
       indices.create_data_stream:
@@ -292,6 +331,34 @@ setup:
         index: $fsidx1name
         expand_wildcards: hidden
   - match: { .$fsidx1name.mappings.properties.@timestamp.type: 'date' }
+
+  - do:
+      indices.get_settings:
+        index: $idx0name
+        expand_wildcards: hidden
+  - match: { .$idx0name.settings.index.default_pipeline: 'data_stream_pipeline' }
+  - match: { .$idx0name.settings.index.final_pipeline: 'data_stream_final_pipeline' }
+
+  - do:
+      indices.get_settings:
+        index: $fsidx0name
+        expand_wildcards: hidden
+  - is_false: .$fsidx0name.settings.index.default_pipeline
+  - is_false: .$fsidx0name.settings.index.final_pipeline
+
+  - do:
+      indices.get_settings:
+        index: $idx1name
+        expand_wildcards: hidden
+  - match: { .$idx1name.settings.index.default_pipeline: 'data_stream_pipeline' }
+  - match: { .$idx1name.settings.index.final_pipeline: 'data_stream_final_pipeline' }
+
+  - do:
+      indices.get_settings:
+        index: $fsidx1name
+        expand_wildcards: hidden
+  - is_false: .$fsidx1name.settings.index.default_pipeline
+  - is_false: .$fsidx1name.settings.index.final_pipeline
 
   - do:
       indices.delete_data_stream:

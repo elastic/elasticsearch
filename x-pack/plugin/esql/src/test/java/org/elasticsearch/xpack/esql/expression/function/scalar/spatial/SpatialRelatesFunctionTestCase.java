@@ -10,12 +10,12 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.spatial;
 import joptsimple.internal.Strings;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
+import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.type.DataTypes;
+import org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes;
 import org.elasticsearch.xpack.esql.expression.function.AbstractFunctionTestCase;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
-import org.elasticsearch.xpack.ql.expression.TypeResolutions;
-import org.elasticsearch.xpack.ql.type.DataType;
-import org.elasticsearch.xpack.ql.type.DataTypes;
-import org.elasticsearch.xpack.ql.util.SpatialCoordinateTypes;
 import org.hamcrest.Matcher;
 
 import java.io.IOException;

@@ -23,17 +23,13 @@ import co.elastic.elasticsearch.stateless.autoscaling.search.SearchMetricsServic
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.admin.indices.settings.put.TransportUpdateSettingsAction;
-import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.LocalNodeMasterListener;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
@@ -210,18 +206,12 @@ public class ReplicasUpdaterService extends AbstractLifecycleComponent implement
      */
     Map<Index, IndexProperties> getFilteredIndices() {
         ConcurrentMap<Index, IndexProperties> indices = this.searchMetricsService.getIndices();
-        Map<Index, IndexProperties> filteredIndices = indices.entrySet().stream().filter(e -> {
-            if (e.getValue().isSystem()) {
-                return false;
-            }
-            return true;
-        }).filter(e -> {
+        return indices.entrySet().stream().filter(e -> {
             if (e.getValue().isAutoExpandReplicas()) {
                 return false;
             }
             return true;
-        }).collect(Collectors.toMap(entry -> entry.getKey(), entry -> entry.getValue()));
-        return filteredIndices;
+        }).collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
     }
 
     /**
@@ -341,9 +331,11 @@ public class ReplicasUpdaterService extends AbstractLifecycleComponent implement
         }
         LOGGER.trace("Publishing update to " + numReplicasTarget + " replicas for " + indices);
         if (indices.isEmpty() == false) {
-            Settings settings = Settings.builder().put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), numReplicasTarget).build();
-            UpdateSettingsRequest request = new UpdateSettingsRequest(settings, indices.toArray(new String[0]));
-            client.executeLocally(TransportUpdateSettingsAction.TYPE, request, new ActionListener<>() {
+            TransportUpdateReplicasAction.Request request = new TransportUpdateReplicasAction.Request(
+                numReplicasTarget,
+                indices.toArray(new String[0])
+            );
+            client.executeLocally(TransportUpdateReplicasAction.TYPE, request, new ActionListener<>() {
                 @Override
                 public void onResponse(AcknowledgedResponse acknowledgedResponse) {
                     scaleDownCounters.entrySet().removeIf(e -> indices.contains(e.getKey()));

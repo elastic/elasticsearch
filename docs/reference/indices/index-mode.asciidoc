@@ -13,7 +13,7 @@ PUT my-index-000001
 {
   "settings": {
     "index": {
-      "mode": "standard", <1>
+      "mode": "standard" <1>
     }
   }
 }

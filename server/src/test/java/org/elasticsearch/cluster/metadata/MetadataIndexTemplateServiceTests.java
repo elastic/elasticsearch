@@ -84,13 +84,9 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
         return Settings.builder().put(HealthNodeTaskExecutor.ENABLED_SETTING.getKey(), false).build();
     }
 
-    private static PutRequest newPutRequest(String cause, String name) {
-        return new PutRequest(cause, name, TEST_REQUEST_TIMEOUT);
-    }
-
     public void testLegacyNoopUpdate() throws IOException {
         ClusterState state = ClusterState.EMPTY_STATE;
-        PutRequest pr = newPutRequest("api", "id");
+        PutRequest pr = new PutRequest("api", "id");
         pr.patterns(Arrays.asList("foo", "bar"));
         if (randomBoolean()) {
             pr.settings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 3).build());
@@ -110,7 +106,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
     }
 
     public void testIndexTemplateInvalidNumberOfShards() {
-        PutRequest request = newPutRequest("test", "test_shards");
+        PutRequest request = new PutRequest("test", "test_shards");
         request.patterns(singletonList("test_shards*"));
 
         request.settings(builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, "0").put("index.shard.check_on_startup", "blargh").build());
@@ -129,7 +125,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
     }
 
     public void testIndexTemplateValidationWithSpecifiedReplicas() throws Exception {
-        PutRequest request = newPutRequest("test", "test_replicas");
+        PutRequest request = new PutRequest("test", "test_replicas");
         request.patterns(singletonList("test_shards_wait*"));
 
         Settings.Builder settingsBuilder = indexSettings(1, 1).put(IndexMetadata.SETTING_WAIT_FOR_ACTIVE_SHARDS.getKey(), "2");
@@ -142,7 +138,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
     }
 
     public void testIndexTemplateValidationErrorsWithSpecifiedReplicas() throws Exception {
-        PutRequest request = newPutRequest("test", "test_specified_replicas");
+        PutRequest request = new PutRequest("test", "test_specified_replicas");
         request.patterns(singletonList("test_shards_wait*"));
 
         Settings.Builder settingsBuilder = indexSettings(1, 1).put(IndexMetadata.SETTING_WAIT_FOR_ACTIVE_SHARDS.getKey(), "3");
@@ -156,7 +152,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
     }
 
     public void testIndexTemplateValidationWithDefaultReplicas() throws Exception {
-        PutRequest request = newPutRequest("test", "test_default_replicas");
+        PutRequest request = new PutRequest("test", "test_default_replicas");
         request.patterns(singletonList("test_wait_shards_default_replica*"));
 
         Settings.Builder settingsBuilder = builder().put(IndexMetadata.SETTING_WAIT_FOR_ACTIVE_SHARDS.getKey(), "2");
@@ -170,7 +166,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
     }
 
     public void testIndexTemplateValidationAccumulatesValidationErrors() {
-        PutRequest request = newPutRequest("test", "putTemplate shards");
+        PutRequest request = new PutRequest("test", "putTemplate shards");
         request.patterns(singletonList("_test_shards*"));
         request.settings(builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, "0").build());
 
@@ -186,7 +182,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
     }
 
     public void testIndexTemplateWithAliasNameEqualToTemplatePattern() {
-        PutRequest request = newPutRequest("api", "foobar_template");
+        PutRequest request = new PutRequest("api", "foobar_template");
         request.patterns(Arrays.asList("foo", "foobar"));
         request.aliases(Collections.singleton(new Alias("foobar")));
 
@@ -197,7 +193,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
     }
 
     public void testIndexTemplateWithValidateMapping() throws Exception {
-        PutRequest request = newPutRequest("api", "validate_template");
+        PutRequest request = new PutRequest("api", "validate_template");
         request.patterns(singletonList("te*"));
         request.mappings(
             new CompressedXContent(
@@ -220,7 +216,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
 
     public void testAliasInvalidFilterInvalidJson() throws Exception {
         // invalid json: put index template fails
-        PutRequest request = newPutRequest("api", "blank_mapping");
+        PutRequest request = new PutRequest("api", "blank_mapping");
         request.patterns(singletonList("te*"));
         request.mappings(new CompressedXContent("{}"));
         Set<Alias> aliases = new HashSet<>();
@@ -236,7 +232,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
     public void testIndexTemplateWithAlias() throws Exception {
         final String templateName = "template_with_alias";
         final String aliasName = "alias_with_settings";
-        PutRequest request = newPutRequest("api", templateName);
+        PutRequest request = new PutRequest("api", templateName);
         request.patterns(singletonList("te*"));
         request.mappings(new CompressedXContent("{}"));
         Alias alias = new Alias(aliasName).filter(randomBoolean() ? null : "{\"term\":{\"user_id\":12}}")
@@ -266,9 +262,9 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
 
     public void testFindTemplates() throws Exception {
         client().admin().indices().prepareDeleteTemplate("*").get(); // Delete all existing templates
-        putTemplateDetail(newPutRequest("test", "foo-1").patterns(singletonList("foo-*")).order(1));
-        putTemplateDetail(newPutRequest("test", "foo-2").patterns(singletonList("foo-*")).order(2));
-        putTemplateDetail(newPutRequest("test", "bar").patterns(singletonList("bar-*")).order(between(0, 100)));
+        putTemplateDetail(new PutRequest("test", "foo-1").patterns(singletonList("foo-*")).order(1));
+        putTemplateDetail(new PutRequest("test", "foo-2").patterns(singletonList("foo-*")).order(2));
+        putTemplateDetail(new PutRequest("test", "bar").patterns(singletonList("bar-*")).order(between(0, 100)));
         final ClusterState state = clusterAdmin().prepareState().get().getState();
         assertThat(
             MetadataIndexTemplateService.findV1Templates(state.metadata(), "foo-1234", randomBoolean())
@@ -289,14 +285,14 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
 
     public void testFindTemplatesWithHiddenIndices() throws Exception {
         client().admin().indices().prepareDeleteTemplate("*").get(); // Delete all existing templates
-        putTemplateDetail(newPutRequest("testFindTemplatesWithHiddenIndices", "foo-1").patterns(singletonList("foo-*")).order(1));
-        putTemplateDetail(newPutRequest("testFindTemplatesWithHiddenIndices", "foo-2").patterns(singletonList("foo-*")).order(2));
+        putTemplateDetail(new PutRequest("testFindTemplatesWithHiddenIndices", "foo-1").patterns(singletonList("foo-*")).order(1));
+        putTemplateDetail(new PutRequest("testFindTemplatesWithHiddenIndices", "foo-2").patterns(singletonList("foo-*")).order(2));
         putTemplateDetail(
-            newPutRequest("testFindTemplatesWithHiddenIndices", "bar").patterns(singletonList("bar-*")).order(between(0, 100))
+            new PutRequest("testFindTemplatesWithHiddenIndices", "bar").patterns(singletonList("bar-*")).order(between(0, 100))
         );
-        putTemplateDetail(newPutRequest("testFindTemplatesWithHiddenIndices", "global").patterns(singletonList("*")));
+        putTemplateDetail(new PutRequest("testFindTemplatesWithHiddenIndices", "global").patterns(singletonList("*")));
         putTemplateDetail(
-            newPutRequest("testFindTemplatesWithHiddenIndices", "sneaky-hidden").patterns(singletonList("sneaky*"))
+            new PutRequest("testFindTemplatesWithHiddenIndices", "sneaky-hidden").patterns(singletonList("sneaky*"))
                 .settings(Settings.builder().put("index.hidden", true).build())
         );
         final ClusterState state = clusterAdmin().prepareState().get().getState();
@@ -382,7 +378,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
 
     public void testFindTemplatesWithDateMathIndex() throws Exception {
         client().admin().indices().prepareDeleteTemplate("*").get(); // Delete all existing templates
-        putTemplateDetail(newPutRequest("testFindTemplatesWithDateMathIndex", "foo-1").patterns(singletonList("test-*")).order(1));
+        putTemplateDetail(new PutRequest("testFindTemplatesWithDateMathIndex", "foo-1").patterns(singletonList("test-*")).order(1));
         final ClusterState state = clusterAdmin().prepareState().get().getState();
 
         assertThat(
@@ -396,7 +392,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
 
     public void testPutGlobalTemplateWithIndexHiddenSetting() throws Exception {
         List<Throwable> errors = putTemplateDetail(
-            newPutRequest("testPutGlobalTemplateWithIndexHiddenSetting", "sneaky-hidden").patterns(singletonList("*"))
+            new PutRequest("testPutGlobalTemplateWithIndexHiddenSetting", "sneaky-hidden").patterns(singletonList("*"))
                 .settings(Settings.builder().put("index.hidden", true).build())
         );
         assertThat(errors.size(), is(1));
@@ -752,7 +748,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
             .build();
         ClusterState state = metadataIndexTemplateService.addIndexTemplateV2(ClusterState.EMPTY_STATE, false, "v2-template", v2Template);
 
-        MetadataIndexTemplateService.PutRequest req = newPutRequest("cause", "v1-template");
+        MetadataIndexTemplateService.PutRequest req = new MetadataIndexTemplateService.PutRequest("cause", "v1-template");
         req.patterns(Arrays.asList("*", "baz"));
         state = MetadataIndexTemplateService.innerPutTemplate(state, req, IndexTemplateMetadata.builder("v1-template"));
 
@@ -776,7 +772,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
             .build();
         ClusterState state = metadataIndexTemplateService.addIndexTemplateV2(ClusterState.EMPTY_STATE, false, "v2-template", v2Template);
 
-        MetadataIndexTemplateService.PutRequest req = newPutRequest("cause", "v1-template");
+        MetadataIndexTemplateService.PutRequest req = new MetadataIndexTemplateService.PutRequest("cause", "v1-template");
         req.patterns(Arrays.asList("egg*", "baz"));
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
@@ -824,7 +820,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
 
         // Now try to update the existing v1-template
 
-        MetadataIndexTemplateService.PutRequest req = newPutRequest("cause", "v1-template");
+        MetadataIndexTemplateService.PutRequest req = new MetadataIndexTemplateService.PutRequest("cause", "v1-template");
         req.patterns(Arrays.asList("fo*", "baz"));
         state = MetadataIndexTemplateService.innerPutTemplate(state, req, IndexTemplateMetadata.builder("v1-template"));
 
@@ -866,7 +862,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
 
         // Now try to update the existing v1-template
 
-        MetadataIndexTemplateService.PutRequest req = newPutRequest("cause", "v1-template");
+        MetadataIndexTemplateService.PutRequest req = new MetadataIndexTemplateService.PutRequest("cause", "v1-template");
         req.patterns(Arrays.asList("egg*", "baz"));
         final ClusterState finalState = state;
         IllegalArgumentException e = expectThrows(
@@ -2492,7 +2488,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
         );
 
         final List<Throwable> throwables = new ArrayList<>();
-        service.putTemplate(request, new ActionListener<>() {
+        service.putTemplate(request, TEST_REQUEST_TIMEOUT, new ActionListener<>() {
             @Override
             public void onResponse(AcknowledgedResponse response) {
 
@@ -2511,7 +2507,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
 
         final List<Throwable> throwables = new ArrayList<>();
         final CountDownLatch latch = new CountDownLatch(1);
-        service.putTemplate(request, new ActionListener<>() {
+        service.putTemplate(request, TEST_REQUEST_TIMEOUT, new ActionListener<>() {
             @Override
             public void onResponse(AcknowledgedResponse response) {
                 latch.countDown();

@@ -1080,7 +1080,7 @@ public class MetadataIndexTemplateService {
             .collect(Collectors.toSet());
     }
 
-    public void putTemplate(final PutRequest request, final ActionListener<AcknowledgedResponse> listener) {
+    public void putTemplate(final PutRequest request, final TimeValue timeout, final ActionListener<AcknowledgedResponse> listener) {
         Settings.Builder updatedSettingsBuilder = Settings.builder();
         updatedSettingsBuilder.put(request.settings).normalizePrefix(IndexMetadata.INDEX_SETTING_PREFIX);
         request.settings(updatedSettingsBuilder.build());
@@ -1112,7 +1112,7 @@ public class MetadataIndexTemplateService {
                     return innerPutTemplate(currentState, request, templateBuilder);
                 }
             },
-            request.masterTimeout
+            timeout
         );
     }
 
@@ -1867,12 +1867,9 @@ public class MetadataIndexTemplateService {
         CompressedXContent mappings = null;
         List<Alias> aliases = new ArrayList<>();
 
-        final TimeValue masterTimeout;
-
-        public PutRequest(String cause, String name, TimeValue masterTimeout) {
+        public PutRequest(String cause, String name) {
             this.cause = cause;
             this.name = name;
-            this.masterTimeout = masterTimeout;
         }
 
         public PutRequest order(int order) {

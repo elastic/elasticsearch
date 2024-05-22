@@ -1287,8 +1287,7 @@ public class MapperServiceTests extends MapperServiceTestCase {
               }
             }""");
 
-        MapperService mapperService = createMapperService(mapping(b -> {
-        }));
+        MapperService mapperService = createMapperService(mapping(b -> {}));
         mapperService.merge("_doc", List.of(mapping1, mapping2), MergeReason.INDEX_TEMPLATE);
         assertEquals("""
             {

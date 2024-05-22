@@ -106,7 +106,7 @@ import static org.elasticsearch.reservedstate.service.FileSettingsService.SETTIN
  */
 final class Security {
 
-    private static final Logger Log = LogManager.getLogger(Security.class);
+    private static Logger Log;
 
     static {
         prepopulateSecurityCaller();
@@ -126,6 +126,8 @@ final class Security {
      * @param filterBadDefaults true if we should filter out bad java defaults in the system policy.
      */
     static void configure(Environment environment, boolean filterBadDefaults, Path pidFile) throws IOException {
+        // only create the logger here - the log infrastructure isn't available when this class is first loaded
+        Log = LogManager.getLogger(Security.class);
 
         // enable security policy: union of template and environment-based paths, and possibly plugin permissions
         Map<String, URL> codebases = PolicyUtil.getCodebaseJarMap(JarHell.parseModulesAndClassPath());

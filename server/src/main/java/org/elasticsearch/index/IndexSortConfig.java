@@ -156,7 +156,7 @@ public final class IndexSortConfig {
         if (this.indexMode == IndexMode.LOGS && fields.isEmpty()) {
             fields = List.of("hostname", DataStream.TIMESTAMP_FIELD_NAME);
         }
-        this.sortSpecs = fields.stream().map((name) -> new FieldSortSpec(name)).toArray(FieldSortSpec[]::new);
+        this.sortSpecs = fields.stream().map(FieldSortSpec::new).toArray(FieldSortSpec[]::new);
 
         if (INDEX_SORT_ORDER_SETTING.exists(settings)) {
             List<SortOrder> orders = INDEX_SORT_ORDER_SETTING.get(settings);

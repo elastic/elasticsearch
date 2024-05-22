@@ -48,7 +48,6 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.index.shard.DocsStats;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
@@ -77,7 +76,6 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
     private final MasterServiceTaskQueue<RolloverTask> rolloverTaskQueue;
     private final MetadataDataStreamsService metadataDataStreamsService;
     private final DataStreamAutoShardingService dataStreamAutoShardingService;
-    private final FeatureService featureService;
 
     @Inject
     public TransportRolloverAction(
@@ -90,8 +88,7 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
         Client client,
         AllocationService allocationService,
         MetadataDataStreamsService metadataDataStreamsService,
-        DataStreamAutoShardingService dataStreamAutoShardingService,
-        FeatureService featureService
+        DataStreamAutoShardingService dataStreamAutoShardingService
     ) {
         this(
             RolloverAction.INSTANCE,
@@ -104,8 +101,7 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
             client,
             allocationService,
             metadataDataStreamsService,
-            dataStreamAutoShardingService,
-            featureService
+            dataStreamAutoShardingService
         );
     }
 
@@ -120,8 +116,7 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
         Client client,
         AllocationService allocationService,
         MetadataDataStreamsService metadataDataStreamsService,
-        DataStreamAutoShardingService dataStreamAutoShardingService,
-        FeatureService featureService
+        DataStreamAutoShardingService dataStreamAutoShardingService
     ) {
         super(
             actionType.name(),
@@ -142,7 +137,6 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
         );
         this.metadataDataStreamsService = metadataDataStreamsService;
         this.dataStreamAutoShardingService = dataStreamAutoShardingService;
-        this.featureService = featureService;
     }
 
     @Override
@@ -187,9 +181,7 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
         final String trialRolloverIndexName = trialRolloverNames.rolloverName();
         MetadataRolloverService.validateIndexName(clusterState, trialRolloverIndexName);
 
-        if (rolloverRequest.isLazy()
-            && targetFailureStore
-            && featureService.clusterHasFeature(clusterState, LazyRolloverAction.FAILURE_STORE_LAZY_ROLLOVER) == false) {
+        if (rolloverRequest.isLazy() && targetFailureStore && DataStream.isFailureStoreFeatureFlagEnabled() == false) {
             listener.onFailure(new IllegalArgumentException("Not all nodes in this cluster support lazily rolling over a failure store"));
             return;
         }

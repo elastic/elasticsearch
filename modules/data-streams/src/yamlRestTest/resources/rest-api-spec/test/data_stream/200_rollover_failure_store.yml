@@ -3,7 +3,7 @@ setup:
   - requires:
       cluster_features: ["gte_v8.15.0"]
       reason: "data stream failure stores REST structure changed in 8.15+"
-      test_runner_features: [allowed_warnings, contains]
+      test_runner_features: [allowed_warnings, contains, capabilities]
 
   - do:
       allowed_warnings:
@@ -128,9 +128,12 @@ teardown:
 ---
 "Lazily roll over a data stream's failure store after a shard failure":
   - requires:
-      cluster_features: ["data_stream.rollover.lazy.failure_store"]
       reason: "data stream failure store lazy rollover only supported in 8.15+"
-      test_runner_features: allowed_warnings
+      test_runner_features: [allowed_warnings, capabilities]
+      capabilities:
+        - method: POST
+          path: /{index}/_rollover
+          capabilities: [lazy-rollover-failure-store]
 
   # Mark the failure store for lazy rollover
   - do:
@@ -190,9 +193,12 @@ teardown:
 ---
 "Lazily roll over a data stream's failure store after an ingest failure":
   - requires:
-      cluster_features: ["data_stream.rollover.lazy.failure_store"]
       reason: "data stream failure store lazy rollover only supported in 8.15+"
-      test_runner_features: allowed_warnings
+      test_runner_features: [allowed_warnings, capabilities]
+      capabilities:
+        - method: POST
+          path: /{index}/_rollover
+          capabilities: [lazy-rollover-failure-store]
 
   - do:
       ingest.put_pipeline:
@@ -274,9 +280,12 @@ teardown:
 ---
 "A failure store marked for lazy rollover should only be rolled over when there is a failure":
   - requires:
-      cluster_features: ["data_stream.rollover.lazy.failure_store"]
       reason: "data stream failure store lazy rollover only supported in 8.15+"
-      test_runner_features: allowed_warnings
+      test_runner_features: [allowed_warnings, capabilities]
+      capabilities:
+        - method: POST
+          path: /{index}/_rollover
+          capabilities: [lazy-rollover-failure-store]
 
   # Mark the failure store for lazy rollover
   - do:

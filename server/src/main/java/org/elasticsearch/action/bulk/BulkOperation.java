@@ -40,7 +40,6 @@ import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.shard.ShardId;
@@ -90,7 +89,6 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
     private final IndexNameExpressionResolver indexNameExpressionResolver;
     private final NodeClient client;
     private final OriginSettingClient rolloverClient;
-    private final FeatureService featureService;
     private final Set<String> failureStoresToBeRolledOver = ConcurrentCollections.newConcurrentSet();
     private final Set<Integer> failedRolloverRequests = ConcurrentCollections.newConcurrentSet();
 
@@ -106,8 +104,7 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
         IndexNameExpressionResolver indexNameExpressionResolver,
         LongSupplier relativeTimeProvider,
         long startTimeNanos,
-        ActionListener<BulkResponse> listener,
-        FeatureService featureService
+        ActionListener<BulkResponse> listener
     ) {
         this(
             task,
@@ -123,8 +120,7 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
             startTimeNanos,
             listener,
             new ClusterStateObserver(clusterService, bulkRequest.timeout(), logger, threadPool.getThreadContext()),
-            new FailureStoreDocumentConverter(),
-            featureService
+            new FailureStoreDocumentConverter()
         );
     }
 
@@ -142,8 +138,7 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
         long startTimeNanos,
         ActionListener<BulkResponse> listener,
         ClusterStateObserver observer,
-        FailureStoreDocumentConverter failureStoreDocumentConverter,
-        FeatureService featureService
+        FailureStoreDocumentConverter failureStoreDocumentConverter
     ) {
         super(listener);
         this.task = task;
@@ -161,7 +156,6 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
         this.observer = observer;
         this.failureStoreDocumentConverter = failureStoreDocumentConverter;
         this.rolloverClient = new OriginSettingClient(client, LAZY_ROLLOVER_ORIGIN);
-        this.featureService = featureService;
     }
 
     @Override
@@ -192,7 +186,7 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
             Map<ShardId, List<BulkItemRequest>> requestsByShard = drainAndGroupRedirectsByShards(rolledOverState);
             executeBulkRequestsByShard(requestsByShard, rolledOverState, this::completeBulkOperation);
         };
-        rollOverFailureStores(clusterState, executeRedirectRequests);
+        rollOverFailureStores(executeRedirectRequests);
     }
 
     /**
@@ -200,10 +194,9 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
      * Any failures while rolling over will be added to the {@link BulkItemResponse} entries of the index requests that were redirected to
      * the failure store that failed to roll over.
      */
-    private void rollOverFailureStores(ClusterState clusterState, Runnable runnable) {
+    private void rollOverFailureStores(Runnable runnable) {
         // Skip allocation of some objects if we don't need to roll over anything.
-        if (failureStoresToBeRolledOver.isEmpty()
-            || featureService.clusterHasFeature(clusterState, LazyRolloverAction.FAILURE_STORE_LAZY_ROLLOVER) == false) {
+        if (failureStoresToBeRolledOver.isEmpty() || DataStream.isFailureStoreFeatureFlagEnabled() == false) {
             runnable.run();
             return;
         }

@@ -389,7 +389,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
         Map<String, Boolean> indexExistence = new HashMap<>();
         Function<String, Boolean> indexExistenceComputation = (index) -> indexNameExpressionResolver.hasIndexAbstraction(index, state);
         boolean lazyRolloverFeature = featureService.clusterHasFeature(state, LazyRolloverAction.DATA_STREAM_LAZY_ROLLOVER);
-        boolean lazyRolloverFailureStoreFeature = featureService.clusterHasFeature(state, LazyRolloverAction.FAILURE_STORE_LAZY_ROLLOVER);
+        boolean lazyRolloverFailureStoreFeature = DataStream.isFailureStoreFeatureFlagEnabled();
         Set<String> indicesThatRequireAlias = new HashSet<>();
 
         for (DocWriteRequest<?> request : bulkRequest.requests) {
@@ -690,8 +690,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
             indexNameExpressionResolver,
             relativeTimeProvider,
             startTimeNanos,
-            listener,
-            featureService
+            listener
         ).run();
     }
 

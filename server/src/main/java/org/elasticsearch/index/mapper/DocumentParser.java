@@ -287,6 +287,7 @@ public final class DocumentParser {
         }
 
         if (context.parent().isNested()) {
+            // Handle a nested object that doesn't contain an array. Arrays are handled in #parseNonDynamicArray.
             if (context.mappingLookup().isSourceSynthetic() && context.getClonedSource() == false) {
                 Tuple<DocumentParserContext, XContentBuilder> tuple = XContentDataHelper.cloneSubContext(context);
                 context.addIgnoredField(

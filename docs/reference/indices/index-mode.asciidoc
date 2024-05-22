@@ -1,6 +1,8 @@
 [[index-mode]]
 == Index mode
 
+preview::["The logs index mode is in technical preview and may be changed or removed in a future release. Elastic will work to fix any issues, but features in technical preview are not subject to the support SLA of official GA features."]
+
 The `index.mode` setting is used to control settings to be applied in specific domains like ingestion of time series data or logs.
 Different mutually exclusive modes exist which are used to apply settings or default values controlling indexing of documents, sorting and other parameters
 whose value affects indexing or query performances.
@@ -27,7 +29,7 @@ Index mode supports the following values:
 
 `standard`::
 
-    The `standard` values is used when no specific setting is used an all Elasticsearch defaults apply.
+    The `standard` value is used when no specific setting is used an all Elasticsearch defaults apply.
 
 `time_series`::
 

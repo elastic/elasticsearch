@@ -37,3 +37,5 @@ Index mode supports the following values:
 
     The `logs` value is used to control logs indexing. It applies default sort settings on the `hostname` and `timestamp` fields.
 
+The `logs` index mode is a Tech Preview feature.
+

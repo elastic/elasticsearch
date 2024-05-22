@@ -91,7 +91,6 @@ public abstract class MasterNodeRequest<Request extends MasterNodeRequest<Reques
         if (out instanceof TermOverridingStreamOutput termOverridingStreamOutput) {
             return termOverridingStreamOutput.masterTerm;
         } else {
-            assert false : out.getClass();
             return masterTerm;
         }
     }

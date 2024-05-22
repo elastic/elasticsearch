@@ -273,7 +273,7 @@ class ServerCli extends EnvironmentAwareCommand {
     private static SystemdNotifier maybeStartSystemdNotifier(ProcessInfo processInfo) {
         String notifyFlag = processInfo.envVars().get("ES_SD_NOTIFY");
         if (Booleans.parseBoolean(notifyFlag, false)) {
-            return new SystemdNotifier(Paths.get(processInfo.envVars().get("NOTIFY_SOCKET")));
+            return new SystemdNotifier();
         }
         return null;
     }

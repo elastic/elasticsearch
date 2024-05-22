@@ -622,11 +622,6 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
         options.setWarningsHandler(WarningsHandler.PERMISSIVE); // We assert the warnings ourselves
         options.addHeader("Content-Type", mediaType);
 
-        if (EsqlSpecTestCase.availableVersions().isEmpty()) {
-            // Masquerade as an old version of the official client, so we get the oldest version by default
-            options.addHeader("x-elastic-client-meta", "es=8.13");
-        }
-
         if (randomBoolean()) {
             options.addHeader("Accept", mediaType);
         } else {
@@ -937,12 +932,8 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
         return "[" + value + ", " + value + "]";
     }
 
-    public static RequestObjectBuilder requestObjectBuilder(String version) throws IOException {
-        return new RequestObjectBuilder().version(version);
-    }
-
     public static RequestObjectBuilder requestObjectBuilder() throws IOException {
-        return requestObjectBuilder(EsqlTestUtils.latestEsqlVersionOrSnapshot());
+        return new RequestObjectBuilder();
     }
 
     @After

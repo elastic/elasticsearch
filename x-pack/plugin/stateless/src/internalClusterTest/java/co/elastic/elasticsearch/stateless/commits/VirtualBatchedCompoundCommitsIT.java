@@ -33,6 +33,7 @@ import co.elastic.elasticsearch.stateless.lucene.SearchDirectory;
 import co.elastic.elasticsearch.stateless.objectstore.ObjectStoreService;
 
 import org.apache.lucene.store.Directory;
+import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.admin.indices.close.CloseIndexRequest;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.action.index.IndexRequest;
@@ -47,6 +48,7 @@ import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.engine.EngineConfig;
@@ -74,8 +76,11 @@ import java.io.IOException;
 import java.nio.file.NoSuchFileException;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.List;
+import java.util.Queue;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BooleanSupplier;
@@ -85,7 +90,9 @@ import java.util.function.Function;
 import static co.elastic.elasticsearch.stateless.lucene.SearchDirectoryTestUtils.getCacheService;
 import static co.elastic.elasticsearch.stateless.recovery.TransportStatelessPrimaryRelocationAction.START_RELOCATION_ACTION_NAME;
 import static org.elasticsearch.action.search.SearchTransportService.QUERY_ACTION_NAME;
+import static org.elasticsearch.blobcache.shared.SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING;
 import static org.elasticsearch.blobcache.shared.SharedBytes.PAGE_SIZE;
+import static org.elasticsearch.common.util.concurrent.EsExecutors.NODE_PROCESSORS_SETTING;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.sum;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertFailures;
@@ -785,4 +792,66 @@ public class VirtualBatchedCompoundCommitsIT extends AbstractStatelessIntegTestC
         );
     }
 
+    public void testGetVirtualBatchedCompoundCommitDoNotDeadlockWaitingForResponses() throws Exception {
+        int nodeProcessors = 2;
+        // SHARD_READ_THREAD_POOL with 2 processors has 8 threads, we need at least 8 searches
+        // waiting for a cache chunk to force the deadlock
+        int searchThreadPoolSize = nodeProcessors * 4;
+        var nodeSettings = Settings.builder()
+            .put(StatelessCommitService.STATELESS_UPLOAD_DELAYED.getKey(), true)
+            .put(StatelessCommitService.STATELESS_UPLOAD_MAX_AMOUNT_COMMITS.getKey(), 100)
+            .put(StatelessCommitService.STATELESS_UPLOAD_MAX_SIZE.getKey(), ByteSizeValue.ofMb(16))
+            .put(NODE_PROCESSORS_SETTING.getKey(), nodeProcessors)
+            .put("thread_pool.search.size", searchThreadPoolSize)
+            .put(SHARED_CACHE_REGION_SIZE_SETTING.getKey(), ByteSizeValue.ofKb(4))
+            .build();
+        var indexNode = startMasterAndIndexNode(nodeSettings);
+        startSearchNode(nodeSettings);
+
+        List<String> indexNames = new ArrayList<>();
+        for (int i = 0; i < searchThreadPoolSize; i++) {
+            var indexName = randomIdentifier();
+            createIndex(indexName, 1, 1);
+            ensureGreen(indexName);
+            indexNames.add(indexName);
+            indexDocsAndRefresh(indexName, randomIntBetween(50, 100));
+        }
+
+        Queue<CheckedRunnable<Exception>> delayedReadChunks = new LinkedBlockingQueue<>();
+        CountDownLatch readChunkRequestsReceived = new CountDownLatch(searchThreadPoolSize);
+        AtomicBoolean delayReadChunks = new AtomicBoolean(true);
+        MockTransportService.getInstance(indexNode)
+            .addRequestHandlingBehavior(
+                TransportGetVirtualBatchedCompoundCommitChunkAction.NAME + "[p]",
+                (handler, request, channel, task) -> {
+                    if (delayReadChunks.get()) {
+                        delayedReadChunks.add(() -> handler.messageReceived(request, channel, task));
+                        readChunkRequestsReceived.countDown();
+                    } else {
+                        handler.messageReceived(request, channel, task);
+                    }
+                }
+            );
+
+        logger.info("--> evict search shard cache");
+        for (String indexName : indexNames) {
+            evictSearchShardCache(indexName);
+        }
+
+        logger.info("--> trigger searches for 8 indices");
+        var searchFutures = new ArrayList<ActionFuture<SearchResponse>>();
+        for (String indexName : indexNames) {
+            searchFutures.add(client().prepareSearch(indexName).setQuery(QueryBuilders.matchAllQuery()).execute());
+        }
+
+        safeAwait(readChunkRequestsReceived);
+        delayReadChunks.set(false);
+        CheckedRunnable<Exception> delayedReadChunk;
+        while ((delayedReadChunk = delayedReadChunks.poll()) != null) {
+            delayedReadChunk.run();
+        }
+        for (ActionFuture<SearchResponse> searchFuture : searchFutures) {
+            assertNoFailuresAndResponse(searchFuture, response -> {});
+        }
+    }
 }

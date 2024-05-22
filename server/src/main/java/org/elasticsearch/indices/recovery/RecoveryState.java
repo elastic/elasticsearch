@@ -612,7 +612,7 @@ public class RecoveryState implements ToXContentFragment, Writeable {
         }
 
         @Override
-        public String toString() {
+        public synchronized String toString() {
             return Strings.format(
                 "Translog{recovered=%d, total=%d, totalOnStart=%d, totalLocal=%d}",
                 recovered,

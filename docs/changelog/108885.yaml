@@ -1,0 +1,5 @@
+pr: 108885
+summary: "Apm-data: increase priority above Fleet templates"
+area: Data streams
+type: enhancement
+issues: []

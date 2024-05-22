@@ -430,7 +430,22 @@ public final class DocumentParser {
                 parseObjectOrNested(context.createFlattenContext(currentFieldName));
                 context.path().add(currentFieldName);
             } else {
-                fieldMapper.parse(context);
+                if (context.mappingLookup().isSourceSynthetic()
+                    && fieldMapper.syntheticSourceMode() == FieldMapper.SyntheticSourceMode.FALLBACK) {
+                    Tuple<DocumentParserContext, XContentBuilder> contextWithSourceToStore = XContentDataHelper.cloneSubContext(context);
+
+                    context.addIgnoredField(
+                        IgnoredSourceFieldMapper.NameValue.fromContext(
+                            context,
+                            fieldMapper.name(),
+                            XContentDataHelper.encodeXContentBuilder(contextWithSourceToStore.v2())
+                        )
+                    );
+
+                    fieldMapper.parse(contextWithSourceToStore.v1());
+                } else {
+                    fieldMapper.parse(context);
+                }
             }
             if (context.isWithinCopyTo() == false) {
                 List<String> copyToFields = fieldMapper.copyTo().copyToFields();

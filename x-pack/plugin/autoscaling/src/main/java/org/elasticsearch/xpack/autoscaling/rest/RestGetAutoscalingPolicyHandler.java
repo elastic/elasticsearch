@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.autoscaling.rest;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.RestUtils;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xpack.autoscaling.action.GetAutoscalingPolicyAction;
 
@@ -32,7 +33,10 @@ public class RestGetAutoscalingPolicyHandler extends BaseRestHandler {
     @Override
     protected RestChannelConsumer prepareRequest(final RestRequest restRequest, final NodeClient client) {
         final String name = restRequest.param("name");
-        final GetAutoscalingPolicyAction.Request request = new GetAutoscalingPolicyAction.Request(name);
+        final GetAutoscalingPolicyAction.Request request = new GetAutoscalingPolicyAction.Request(
+            RestUtils.getMasterNodeTimeout(restRequest),
+            name
+        );
         return channel -> client.execute(GetAutoscalingPolicyAction.INSTANCE, request, new RestToXContentListener<>(channel));
     }
 

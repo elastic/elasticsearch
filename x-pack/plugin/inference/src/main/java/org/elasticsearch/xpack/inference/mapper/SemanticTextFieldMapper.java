@@ -13,6 +13,7 @@ import org.elasticsearch.cluster.metadata.InferenceFieldMetadata;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexVersion;
@@ -65,6 +66,7 @@ import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.CHUNKED
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.CHUNKS_FIELD;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.INFERENCE_FIELD;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.INFERENCE_ID_FIELD;
+import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.TEXT_FIELD;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.getChunksFieldName;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.getEmbeddingsFieldName;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.getOriginalTextFieldName;
@@ -188,6 +190,7 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
         if (parser.currentToken() == XContentParser.Token.VALUE_NULL) {
             return;
         }
+
         XContentLocation xContentLocation = parser.getTokenLocation();
         final SemanticTextField field;
         boolean isWithinLeaf = context.path().isWithinLeafObject();
@@ -197,6 +200,7 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
         } finally {
             context.path().setWithinLeafObject(isWithinLeaf);
         }
+
         final String fullFieldName = fieldType().name();
         if (field.inference().inferenceId().equals(fieldType().getInferenceId()) == false) {
             throw new DocumentParsingException(
@@ -211,6 +215,7 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
                 )
             );
         }
+
         final SemanticTextFieldMapper mapper;
         if (fieldType().getModelSettings() == null) {
             context.path().remove();
@@ -241,6 +246,7 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
             }
             mapper = this;
         }
+
         var chunksField = mapper.fieldType().getChunksField();
         var embeddingsField = mapper.fieldType().getEmbeddingsField();
         for (var chunk : field.inference().chunks()) {
@@ -276,6 +282,20 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
         return new InferenceFieldMetadata(name(), fieldType().inferenceId, copyFields);
     }
 
+    @Override
+    public Object getOriginalValue(Map<String, Object> sourceAsMap) {
+        Object fieldValue = sourceAsMap.get(name());
+        if (fieldValue == null) {
+            return null;
+        } else if (fieldValue instanceof Map<?, ?> == false) {
+            // Don't try to further validate the non-map value, that will be handled when the source is fully parsed
+            return fieldValue;
+        }
+
+        Map<String, Object> fieldValueMap = XContentMapValues.nodeMapValue(fieldValue, "Field [" + name() + "]");
+        return XContentMapValues.extractValue(TEXT_FIELD, fieldValueMap);
+    }
+
     public static class SemanticTextFieldType extends SimpleMappedFieldType {
         private final String inferenceId;
         private final SemanticTextField.ModelSettings modelSettings;
@@ -284,14 +304,14 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
 
         public SemanticTextFieldType(
             String name,
-            String modelId,
+            String inferenceId,
             SemanticTextField.ModelSettings modelSettings,
             ObjectMapper inferenceField,
             IndexVersion indexVersionCreated,
             Map<String, String> meta
         ) {
             super(name, false, false, false, TextSearchInfo.NONE, meta);
-            this.inferenceId = modelId;
+            this.inferenceId = inferenceId;
             this.modelSettings = modelSettings;
             this.inferenceField = inferenceField;
             this.indexVersionCreated = indexVersionCreated;

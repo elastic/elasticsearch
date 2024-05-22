@@ -41,6 +41,9 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
+import org.elasticsearch.index.mapper.InferenceFieldMapper;
+import org.elasticsearch.index.mapper.Mapper;
+import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
@@ -51,7 +54,6 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
-import java.util.List;
 import java.util.Map;
 import java.util.concurrent.Executor;
 
@@ -183,7 +185,8 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
         final IndexShard indexShard = indexService.getShard(shardId.getId());
         final UpdateHelper.Result result = deleteInferenceResults(
             request,
-            updateHelper.prepare(request, indexShard, threadPool::absoluteTimeInMillis)
+            updateHelper.prepare(request, indexShard, threadPool::absoluteTimeInMillis),
+            indexShard.mapperService().mappingLookup()
         );
 
         switch (result.getResponseResult()) {
@@ -340,7 +343,11 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
         listener.onFailure(cause instanceof Exception ? (Exception) cause : new NotSerializableExceptionWrapper(cause));
     }
 
-    private UpdateHelper.Result deleteInferenceResults(UpdateRequest updateRequest, UpdateHelper.Result result) {
+    private UpdateHelper.Result deleteInferenceResults(
+        UpdateRequest updateRequest,
+        UpdateHelper.Result result,
+        MappingLookup mappingLookup
+    ) {
         if (result.getResponseResult() != DocWriteResponse.Result.UPDATED) {
             return result;
         }
@@ -355,14 +362,22 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
         Map<String, Object> updatedSource = result.updatedSourceAsMap();
         boolean updatedSourceModified = false;
         for (var entry : inferenceFields.entrySet()) {
-            String fieldName = entry.getKey();
-            String[] sourceFields = entry.getValue().getSourceFields();
-            for (String sourceField : sourceFields) {
-                if (updateRequestSource.containsKey(sourceField)) {
-                    updatedSource.put(fieldName, getSemanticTextFieldOriginalValue(updatedSource, fieldName));
-                    updatedSourceModified = true;
-                    break;
+            String inferenceFieldName = entry.getKey();
+            Mapper mapper = mappingLookup.getMapper(inferenceFieldName);
+
+            if (mapper instanceof InferenceFieldMapper inferenceFieldMapper) {
+                String[] sourceFields = entry.getValue().getSourceFields();
+                for (String sourceField : sourceFields) {
+                    if (updateRequestSource.containsKey(sourceField)) {
+                        updatedSource.put(inferenceFieldName, inferenceFieldMapper.getOriginalValue(updatedSource));
+                        updatedSourceModified = true;
+                        break;
+                    }
                 }
+            } else {
+                throw new IllegalStateException(
+                    "Field [" + inferenceFieldName + "] is of type [ " + mapper.typeName() + "], which is not an inference field"
+                );
             }
         }
 
@@ -376,22 +391,5 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
         }
 
         return returnedResult;
-    }
-
-    // This implementation is horrible, but using it for now to prove the approach works
-    @SuppressWarnings("unchecked")
-    private static List<String> getSemanticTextFieldOriginalValue(Map<String, Object> source, String fieldName) {
-        Object rootValue = source.get(fieldName);
-        if (rootValue == null) {
-            return null;
-        } else if (rootValue instanceof String stringValue) {
-            return List.of(stringValue);
-        } else if (rootValue instanceof List<?> listValue) {
-            return (List<String>) listValue;
-        } else if (rootValue instanceof Map<?, ?> mapValue) {
-            return getSemanticTextFieldOriginalValue((Map<String, Object>) mapValue, "text");
-        }
-
-        throw new IllegalArgumentException("Invalid value [" + rootValue + "]");
     }
 }

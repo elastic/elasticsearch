@@ -105,6 +105,11 @@ public class MappingLookupInferenceFieldMapperTests extends MapperServiceTestCas
         }
 
         @Override
+        public Object getOriginalValue(Map<String, Object> sourceAsMap) {
+            return null;
+        }
+
+        @Override
         protected void parseCreateField(DocumentParserContext context) throws IOException {}
 
         @Override

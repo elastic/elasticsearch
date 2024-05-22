@@ -2,8 +2,8 @@
 == Index mode
 
 The `index.mode` setting is used to control settings to be applied in specific domains like ingestion of time series data or logs.
-Different modes exist which are used to apply settings or default values controlling indexing of documents, sorting and other parameters
-whose value affects indexing or query performances. Modes are also mutually exclusive.
+Different mutually exclusive modes exist which are used to apply settings or default values controlling indexing of documents, sorting and other parameters
+whose value affects indexing or query performances.
 
 [source,console]
 --------------------------------------------------

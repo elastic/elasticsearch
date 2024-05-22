@@ -180,7 +180,7 @@ primary shard that was previously allocated.
 ----
 // NOTCONSOLE
 
-TIP: If a shard is unassigned with an allocation status of `no_valid_shard_copy`, then you should <<fix-cluster-status-recover-nodes,make sure that all nodes are in the cluster>>. If the node containing a primary shard is lost, then you can <<fix-cluster-status-restore,recover the data for the shard>>.
+TIP: If a shard is unassigned with an allocation status of `no_valid_shard_copy`, then you should <<fix-cluster-status-recover-nodes,make sure that all nodes are in the cluster>>. If all the nodes containing in-sync copies of a shard are lost, then you can <<fix-cluster-status-restore,recover the data for the shard>>.
 
 ===== Unassigned replica shard
 

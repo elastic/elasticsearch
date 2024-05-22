@@ -7,11 +7,10 @@
 
 package org.elasticsearch.xpack.esql.expression.function.grouping;
 
+import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.function.Function;
+import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
-import org.elasticsearch.xpack.ql.expression.Expression;
-import org.elasticsearch.xpack.ql.expression.function.Function;
-import org.elasticsearch.xpack.ql.expression.gen.script.ScriptTemplate;
-import org.elasticsearch.xpack.ql.tree.Source;
 
 import java.util.List;
 
@@ -26,8 +25,4 @@ public abstract class GroupingFunction extends Function implements EvaluatorMapp
         return EvaluatorMapper.super.fold();
     }
 
-    @Override
-    public final ScriptTemplate asScript() {
-        throw new UnsupportedOperationException("functions do not support scripting");
-    }
 }

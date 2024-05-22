@@ -76,10 +76,6 @@ public class SparseVectorQueryBuilder extends AbstractQueryBuilder<SparseVectorQ
         this(fieldName, null, inferenceId, query, DEFAULT_PRUNE, null);
     }
 
-    public SparseVectorQueryBuilder(String fieldName, List<WeightedToken> queryVector) {
-        this(fieldName, queryVector, null, null, DEFAULT_PRUNE, null);
-    }
-
     public SparseVectorQueryBuilder(
         String fieldName,
         @Nullable List<WeightedToken> queryVectors,

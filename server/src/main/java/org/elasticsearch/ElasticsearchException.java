@@ -29,8 +29,11 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.mapper.DocumentParsingException;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.AutoscalingMissedIndicesUpdateException;
+import org.elasticsearch.indices.FailureIndexNotSupportedException;
 import org.elasticsearch.indices.recovery.RecoveryCommitTooNewException;
 import org.elasticsearch.ingest.GraphStructureException;
+import org.elasticsearch.persistent.NotPersistentTaskNodeException;
+import org.elasticsearch.persistent.PersistentTaskNodeNotAssignedException;
 import org.elasticsearch.rest.ApiNotAvailableException;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchException;
@@ -1899,17 +1902,31 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
             175,
             TransportVersions.V_8_12_0
         ),
-        SEARCH_TIMEOUT_EXCEPTION(
-            SearchTimeoutException.class,
-            SearchTimeoutException::new,
-            176,
-            TransportVersions.SEARCH_TIMEOUT_EXCEPTION_ADDED
+        SEARCH_TIMEOUT_EXCEPTION(SearchTimeoutException.class, SearchTimeoutException::new, 176, TransportVersions.V_8_13_0),
+        INGEST_GRAPH_STRUCTURE_EXCEPTION(GraphStructureException.class, GraphStructureException::new, 177, TransportVersions.V_8_13_0),
+        FAILURE_INDEX_NOT_SUPPORTED_EXCEPTION(
+            FailureIndexNotSupportedException.class,
+            FailureIndexNotSupportedException::new,
+            178,
+            TransportVersions.ADD_FAILURE_STORE_INDICES_OPTIONS
         ),
-        INGEST_GRAPH_STRUCTURE_EXCEPTION(
-            GraphStructureException.class,
-            GraphStructureException::new,
-            177,
-            TransportVersions.INGEST_GRAPH_STRUCTURE_EXCEPTION
+        NOT_PERSISTENT_TASK_NODE_EXCEPTION(
+            NotPersistentTaskNodeException.class,
+            NotPersistentTaskNodeException::new,
+            179,
+            TransportVersions.ADD_PERSISTENT_TASK_EXCEPTIONS
+        ),
+        PERSISTENT_TASK_NODE_NOT_ASSIGNED_EXCEPTION(
+            PersistentTaskNodeNotAssignedException.class,
+            PersistentTaskNodeNotAssignedException::new,
+            180,
+            TransportVersions.ADD_PERSISTENT_TASK_EXCEPTIONS
+        ),
+        RESOURCE_ALREADY_UPLOADED_EXCEPTION(
+            ResourceAlreadyUploadedException.class,
+            ResourceAlreadyUploadedException::new,
+            181,
+            TransportVersions.ADD_RESOURCE_ALREADY_UPLOADED_EXCEPTION
         );
 
         final Class<? extends ElasticsearchException> exceptionClass;

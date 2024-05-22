@@ -30,6 +30,7 @@ import org.elasticsearch.transport.TransportService;
 
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.Executor;
 
 public class TransportSimulateBulkAction extends TransportBulkAction {
     @Inject
@@ -70,7 +71,7 @@ public class TransportSimulateBulkAction extends TransportBulkAction {
     protected void createMissingIndicesAndIndexData(
         Task task,
         BulkRequest bulkRequest,
-        String executorName,
+        Executor executor,
         ActionListener<BulkResponse> listener,
         Map<String, Boolean> indicesToAutoCreate,
         Set<String> dataStreamsToRollover,
@@ -92,7 +93,8 @@ public class TransportSimulateBulkAction extends TransportBulkAction {
                         request.version(),
                         ((IndexRequest) request).source(),
                         ((IndexRequest) request).getContentType(),
-                        ((IndexRequest) request).getExecutedPipelines()
+                        ((IndexRequest) request).getExecutedPipelines(),
+                        null
                     )
                 )
             );

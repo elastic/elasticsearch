@@ -253,12 +253,8 @@ public abstract class NumberFieldMapperTests extends MapperTestCase {
         // dimension = false is allowed
         assertDimension(false, NumberFieldMapper.NumberFieldType::isDimension);
 
-        // dimension = true is not allowed
-        Exception e = expectThrows(MapperParsingException.class, () -> createDocumentMapper(fieldMapping(b -> {
-            minimalMapping(b);
-            b.field("time_series_dimension", true);
-        })));
-        assertThat(e.getCause().getMessage(), containsString("Parameter [time_series_dimension] cannot be set"));
+        // dimension = true is allowed
+        assertDimension(true, NumberFieldMapper.NumberFieldType::isDimension);
     }
 
     public void testMetricType() throws IOException {

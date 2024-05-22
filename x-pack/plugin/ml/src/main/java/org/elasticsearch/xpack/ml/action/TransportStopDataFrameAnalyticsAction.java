@@ -92,7 +92,6 @@ public class TransportStopDataFrameAnalyticsAction extends TransportTasksAction<
             actionFilters,
             StopDataFrameAnalyticsAction.Request::new,
             StopDataFrameAnalyticsAction.Response::new,
-            StopDataFrameAnalyticsAction.Response::new,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
         this.threadPool = threadPool;

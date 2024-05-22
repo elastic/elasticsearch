@@ -89,7 +89,8 @@ public class NodesStatsRequestParameters implements Writeable {
         ADAPTIVE_SELECTION("adaptive_selection"),
         SCRIPT_CACHE("script_cache"),
         INDEXING_PRESSURE("indexing_pressure"),
-        REPOSITORIES("repositories");
+        REPOSITORIES("repositories"),
+        ALLOCATIONS("allocations");
 
         private String metricName;
 

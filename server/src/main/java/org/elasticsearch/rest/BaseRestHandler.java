@@ -9,10 +9,10 @@
 package org.elasticsearch.rest;
 
 import org.apache.lucene.search.spell.LevenshteinDistance;
-import org.apache.lucene.util.CollectionUtil;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.Releasable;
@@ -22,11 +22,11 @@ import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.rest.action.admin.cluster.RestNodesUsageAction;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.List;
-import java.util.Locale;
 import java.util.Set;
 import java.util.SortedSet;
 import java.util.TreeSet;
@@ -76,8 +76,20 @@ public abstract class BaseRestHandler implements RestHandler {
     @Override
     public abstract List<Route> routes();
 
+    private static final Set<String> ALWAYS_SUPPORTED = Set.of("format", "filter_path", "pretty", "human");
+
     @Override
     public final void handleRequest(RestRequest request, RestChannel channel, NodeClient client) throws Exception {
+        // check if the query has any parameters that are not in the supported set (if declared)
+        Set<String> supported = allSupportedParameters();
+        if (supported != null) {
+            var allSupported = Sets.union(ALWAYS_SUPPORTED, supported);
+            if (allSupported.containsAll(request.params().keySet()) == false) {
+                Set<String> unsupported = Sets.difference(request.params().keySet(), allSupported);
+                throw new IllegalArgumentException(unrecognized(request, unsupported, allSupported, "parameter"));
+            }
+        }
+
         // prepare the request for execution; has the side effect of touching the request parameters
         try (var action = prepareRequest(request, client)) {
 
@@ -108,46 +120,38 @@ public abstract class BaseRestHandler implements RestHandler {
         }
     }
 
-    protected static String unrecognized(
-        final RestRequest request,
-        final Set<String> invalids,
-        final Set<String> candidates,
-        final String detail
-    ) {
-        StringBuilder message = new StringBuilder(
-            String.format(Locale.ROOT, "request [%s] contains unrecognized %s%s: ", request.path(), detail, invalids.size() > 1 ? "s" : "")
-        );
-        boolean first = true;
-        for (final String invalid : invalids) {
-            final LevenshteinDistance ld = new LevenshteinDistance();
-            final List<Tuple<Float, String>> scoredParams = new ArrayList<>();
-            for (final String candidate : candidates) {
-                final float distance = ld.getDistance(invalid, candidate);
-                if (distance > 0.5f) {
-                    scoredParams.add(new Tuple<>(distance, candidate));
-                }
-            }
-            CollectionUtil.timSort(scoredParams, (a, b) -> {
-                // sort by distance in reverse order, then parameter name for equal distances
-                int compare = a.v1().compareTo(b.v1());
-                if (compare != 0) return -compare;
-                else return a.v2().compareTo(b.v2());
-            });
-            if (first == false) {
-                message.append(", ");
-            }
+    protected static String unrecognized(RestRequest request, Set<String> invalids, Set<String> candidates, String detail) {
+        StringBuilder message = new StringBuilder().append("request [")
+            .append(request.path())
+            .append("] contains unrecognized ")
+            .append(detail)
+            .append(invalids.size() > 1 ? "s" : "")
+            .append(": ");
+
+        for (Iterator<String> it = invalids.iterator(); it.hasNext();) {
+            String invalid = it.next();
+
+            LevenshteinDistance ld = new LevenshteinDistance();
+            List<String> candidateParams = candidates.stream()
+                .map(c -> Tuple.tuple(ld.getDistance(invalid, c), c))
+                .filter(t -> t.v1() > 0.5f)
+                .sorted(Comparator.<Tuple<Float, String>, Float>comparing(Tuple::v1).reversed().thenComparing(Tuple::v2))
+                .map(Tuple::v2)
+                .toList();
+
             message.append("[").append(invalid).append("]");
-            final List<String> keys = scoredParams.stream().map(Tuple::v2).toList();
-            if (keys.isEmpty() == false) {
+            if (candidateParams.isEmpty() == false) {
                 message.append(" -> did you mean ");
-                if (keys.size() == 1) {
-                    message.append("[").append(keys.get(0)).append("]");
-                } else {
-                    message.append("any of ").append(keys.toString());
+                if (candidateParams.size() > 1) {
+                    message.append("any of ");
                 }
+                message.append(candidateParams);
                 message.append("?");
             }
-            first = false;
+
+            if (it.hasNext()) {
+                message.append(", ");
+            }
         }
 
         return message.toString();

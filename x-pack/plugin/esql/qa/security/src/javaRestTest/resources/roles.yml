@@ -51,9 +51,22 @@ user4:
     - names: ['index-user1', 'index', "test-enrich" ]
       privileges:
         - read
+
 user5:
   cluster: []
   indices:
     - names: ['index-user1', 'index', "test-enrich" ]
       privileges:
         - read
+
+fls_user:
+  cluster: []
+  indices:
+    - names: [ 'index' ]
+      privileges: [ 'read' ]
+      field_security:
+        grant: [ value, partial ]
+    - names: [ 'indexpartial' ]
+      privileges: [ 'read' ]
+      field_security:
+        grant: [ value ]

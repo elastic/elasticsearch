@@ -65,12 +65,12 @@ public class ResolveClusterInfo implements Writeable {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        if (out.getTransportVersion().before(TransportVersions.RESOLVE_CLUSTER_ENDPOINT_ADDED)) {
+        if (out.getTransportVersion().before(TransportVersions.V_8_13_0)) {
             throw new UnsupportedOperationException(
-                "ResolveClusterAction requires at least Transport Version "
-                    + TransportVersions.RESOLVE_CLUSTER_ENDPOINT_ADDED
+                "ResolveClusterAction requires at least version "
+                    + TransportVersions.V_8_13_0.toReleaseVersion()
                     + " but was "
-                    + out.getTransportVersion()
+                    + out.getTransportVersion().toReleaseVersion()
             );
         }
         out.writeBoolean(connected);

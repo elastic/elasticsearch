@@ -17,6 +17,9 @@ supported ones are:
   * `_version`: the source document's version. The field is of the type
   <<number,long>>.
 
+  * <<mapping-ignored-field,`_ignored`>>: the ignored source document fields. The field is of the type
+  <<keyword,keyword>>.
+
 To enable the access to these fields, the <<esql-from,`FROM`>> source command needs
 to be provided with a dedicated directive:
 
@@ -34,11 +37,11 @@ like other index fields:
 
 [source.merge.styled,esql]
 ----
-include::{esql-specs}/metadata-IT_tests_only.csv-spec[tag=multipleIndices]
+include::{esql-specs}/metadata.csv-spec[tag=multipleIndices]
 ----
 [%header.monospaced.styled,format=dsv,separator=|]
 |===
-include::{esql-specs}/metadata-IT_tests_only.csv-spec[tag=multipleIndices-result]
+include::{esql-specs}/metadata.csv-spec[tag=multipleIndices-result]
 |===
 
 Similar to index fields, once an aggregation is performed, a
@@ -47,9 +50,9 @@ used as a grouping field:
 
 [source.merge.styled,esql]
 ----
-include::{esql-specs}/metadata-IT_tests_only.csv-spec[tag=metaIndexInAggs]
+include::{esql-specs}/metadata.csv-spec[tag=metaIndexInAggs]
 ----
 [%header.monospaced.styled,format=dsv,separator=|]
 |===
-include::{esql-specs}/metadata-IT_tests_only.csv-spec[tag=metaIndexInAggs-result]
+include::{esql-specs}/metadata.csv-spec[tag=metaIndexInAggs-result]
 |===

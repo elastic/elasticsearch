@@ -9,11 +9,12 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.math;
 
 import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
+import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
-import org.elasticsearch.xpack.ql.expression.Expression;
-import org.elasticsearch.xpack.ql.tree.NodeInfo;
-import org.elasticsearch.xpack.ql.tree.Source;
 
 import java.util.List;
 
@@ -21,16 +22,20 @@ import java.util.List;
  * Cosine hyperbolic function.
  */
 public class Cosh extends AbstractTrigonometricFunction {
-    @FunctionInfo(returnType = "double", description = "Returns the hyperbolic cosine of a number")
+    @FunctionInfo(
+        returnType = "double",
+        description = "Returns the {wikipedia}/Hyperbolic_functions[hyperbolic cosine] of an angle.",
+        examples = @Example(file = "floats", tag = "cosh")
+    )
     public Cosh(
         Source source,
         @Param(
-            name = "n",
+            name = "angle",
             type = { "double", "integer", "long", "unsigned_long" },
-            description = "The number who's hyperbolic cosine is to be returned"
-        ) Expression n
+            description = "An angle, in radians. If `null`, the function returns `null`."
+        ) Expression angle
     ) {
-        super(source, n);
+        super(source, angle);
     }
 
     @Override

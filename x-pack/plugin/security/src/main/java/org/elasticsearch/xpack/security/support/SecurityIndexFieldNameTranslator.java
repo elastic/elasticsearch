@@ -42,43 +42,31 @@ public class SecurityIndexFieldNameTranslator {
     }
 
     public static FieldName exact(String name, Function<String, String> translation) {
-        return new SecurityIndexFieldNameTranslator.ExactFieldName(name, translation);
+        return new SecurityIndexFieldNameTranslator.FieldName(name, translation);
     }
 
-    public abstract static class FieldName {
+    public static class FieldName {
+        private final String name;
         private final Function<String, String> toIndexFieldName;
         protected final Predicate<String> validIndexNamePredicate;
 
-        FieldName(Function<String, String> toIndexFieldName, Predicate<String> validIndexNamePredicate) {
-            this.toIndexFieldName = toIndexFieldName;
-            this.validIndexNamePredicate = validIndexNamePredicate;
-        }
-
-        public abstract boolean supportsQueryName(String queryFieldName);
-
-        public abstract boolean supportsIndexName(String indexFieldName);
-
-        public String indexFieldName(String queryFieldName) {
-            return toIndexFieldName.apply(queryFieldName);
-        }
-    }
-
-    private static class ExactFieldName extends FieldName {
-        private final String name;
-
-        private ExactFieldName(String name, Function<String, String> toIndexFieldName) {
-            super(toIndexFieldName, fieldName -> toIndexFieldName.apply(name).equals(fieldName));
+        private FieldName(String name, Function<String, String> toIndexFieldName) {
             this.name = name;
+            this.toIndexFieldName = toIndexFieldName;
+            this.validIndexNamePredicate = fieldName -> toIndexFieldName.apply(name).equals(fieldName);
+
         }
 
-        @Override
         public boolean supportsQueryName(String queryFieldName) {
             return queryFieldName.equals(name);
         }
 
-        @Override
         public boolean supportsIndexName(String indexFieldName) {
             return validIndexNamePredicate.test(indexFieldName);
+        }
+
+        public String indexFieldName(String queryFieldName) {
+            return toIndexFieldName.apply(queryFieldName);
         }
     }
 }

@@ -14,6 +14,7 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
+import org.elasticsearch.action.support.ChannelActionListener;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStatePublicationEvent;
 import org.elasticsearch.cluster.Diff;
@@ -55,6 +56,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 
 import static org.elasticsearch.core.Strings.format;
+import static org.elasticsearch.threadpool.ThreadPool.Names.GENERIC;
 
 /**
  * Implements the low-level mechanics of sending a cluster state to other nodes in the cluster during a publication.
@@ -105,11 +107,11 @@ public class PublicationTransportHandler {
 
         transportService.registerRequestHandler(
             PUBLISH_STATE_ACTION_NAME,
-            this.clusterCoordinationExecutor,
+            transportService.getThreadPool().generic(),
             false,
             false,
             BytesTransportRequest::new,
-            (request, channel, task) -> channel.sendResponse(handleIncomingPublishRequest(request))
+            (request, channel, task) -> this.handleIncomingPublishRequest(request, new ChannelActionListener<>(channel))
         );
     }
 
@@ -122,7 +124,11 @@ public class PublicationTransportHandler {
         );
     }
 
-    private PublishWithJoinResponse handleIncomingPublishRequest(BytesTransportRequest request) throws IOException {
+    private void handleIncomingPublishRequest(
+        BytesTransportRequest request,
+        ActionListener<PublishWithJoinResponse> publishResponseListener
+    ) throws IOException {
+        assert ThreadPool.assertCurrentThreadPool(GENERIC);
         final Compressor compressor = CompressorFactory.compressor(request.bytes());
         StreamInput in = request.bytes().streamInput();
         try {
@@ -145,9 +151,10 @@ public class PublicationTransportHandler {
                 }
                 fullClusterStateReceivedCount.incrementAndGet();
                 logger.debug("received full cluster state version [{}] with size [{}]", incomingState.version(), request.bytes().length());
-                final PublishWithJoinResponse response = acceptState(incomingState);
-                lastSeenClusterState.set(incomingState);
-                return response;
+                acceptState(incomingState, publishResponseListener.map(response -> {
+                    lastSeenClusterState.set(incomingState);
+                    return response;
+                }));
             } else {
                 final ClusterState lastSeen = lastSeenClusterState.get();
                 if (lastSeen == null) {
@@ -155,41 +162,7 @@ public class PublicationTransportHandler {
                     incompatibleClusterStateDiffReceivedCount.incrementAndGet();
                     throw new IncompatibleClusterStateVersionException("have no local cluster state");
                 } else {
-                    ClusterState incomingState;
-                    try {
-                        final Diff<ClusterState> diff;
-                        final boolean includesLastCommittedData = request.version().onOrAfter(INCLUDES_LAST_COMMITTED_DATA_VERSION);
-                        final boolean clusterUuidCommitted;
-                        final CoordinationMetadata.VotingConfiguration lastCommittedConfiguration;
-
-                        // Close stream early to release resources used by the de-compression as early as possible
-                        try (StreamInput input = in) {
-                            diff = ClusterState.readDiffFrom(input, lastSeen.nodes().getLocalNode());
-                            if (includesLastCommittedData) {
-                                clusterUuidCommitted = in.readBoolean();
-                                lastCommittedConfiguration = new CoordinationMetadata.VotingConfiguration(in);
-                            } else {
-                                clusterUuidCommitted = false;
-                                lastCommittedConfiguration = null;
-                            }
-                            assert input.read() == -1;
-                        }
-                        incomingState = diff.apply(lastSeen); // might throw IncompatibleClusterStateVersionException
-                        if (includesLastCommittedData) {
-                            final var adjustedMetadata = incomingState.metadata()
-                                .withLastCommittedValues(clusterUuidCommitted, lastCommittedConfiguration);
-                            if (adjustedMetadata != incomingState.metadata()) {
-                                incomingState = ClusterState.builder(incomingState).metadata(adjustedMetadata).build();
-                            }
-                        }
-                    } catch (IncompatibleClusterStateVersionException e) {
-                        incompatibleClusterStateDiffReceivedCount.incrementAndGet();
-                        throw e;
-                    } catch (Exception e) {
-                        logger.warn("unexpected error while deserializing an incoming cluster state", e);
-                        assert false : e;
-                        throw e;
-                    }
+                    final ClusterState incomingState = deserializeAndApplyDiff(request, in, lastSeen);
                     compatibleClusterStateDiffReceivedCount.incrementAndGet();
                     logger.debug(
                         "received diff cluster state version [{}] with uuid [{}], diff size [{}]",
@@ -197,9 +170,10 @@ public class PublicationTransportHandler {
                         incomingState.stateUUID(),
                         request.bytes().length()
                     );
-                    final PublishWithJoinResponse response = acceptState(incomingState);
-                    lastSeenClusterState.compareAndSet(lastSeen, incomingState);
-                    return response;
+                    acceptState(incomingState, publishResponseListener.map(response -> {
+                        lastSeenClusterState.compareAndSet(lastSeen, incomingState);
+                        return response;
+                    }));
                 }
             }
         } finally {
@@ -207,10 +181,58 @@ public class PublicationTransportHandler {
         }
     }
 
-    private PublishWithJoinResponse acceptState(ClusterState incomingState) {
+    private ClusterState deserializeAndApplyDiff(BytesTransportRequest request, StreamInput in, ClusterState currentState)
+        throws IOException {
+        ClusterState incomingState;
+        try {
+            final Diff<ClusterState> diff;
+            final boolean includesLastCommittedData = request.version().onOrAfter(INCLUDES_LAST_COMMITTED_DATA_VERSION);
+            final boolean clusterUuidCommitted;
+            final CoordinationMetadata.VotingConfiguration lastCommittedConfiguration;
+
+            // Close stream early to release resources used by the de-compression as early as possible
+            try (StreamInput input = in) {
+                diff = ClusterState.readDiffFrom(input, currentState.nodes().getLocalNode());
+                if (includesLastCommittedData) {
+                    clusterUuidCommitted = in.readBoolean();
+                    lastCommittedConfiguration = new CoordinationMetadata.VotingConfiguration(in);
+                } else {
+                    clusterUuidCommitted = false;
+                    lastCommittedConfiguration = null;
+                }
+                assert input.read() == -1;
+            }
+            incomingState = diff.apply(currentState); // might throw IncompatibleClusterStateVersionException
+            if (includesLastCommittedData) {
+                final var adjustedMetadata = incomingState.metadata()
+                    .withLastCommittedValues(clusterUuidCommitted, lastCommittedConfiguration);
+                if (adjustedMetadata != incomingState.metadata()) {
+                    incomingState = ClusterState.builder(incomingState).metadata(adjustedMetadata).build();
+                }
+            }
+        } catch (IncompatibleClusterStateVersionException e) {
+            incompatibleClusterStateDiffReceivedCount.incrementAndGet();
+            throw e;
+        } catch (Exception e) {
+            logger.warn("unexpected error while deserializing an incoming cluster state", e);
+            assert false : e;
+            throw e;
+        }
+        return incomingState;
+    }
+
+    /**
+     * Delegate to cluster-coordination thread to apply received state
+     *
+     * @param incomingState The received cluster state
+     * @param actionListener The action to perform once the publish call completes
+     */
+    private void acceptState(ClusterState incomingState, ActionListener<PublishWithJoinResponse> actionListener) {
         assert incomingState.nodes().isLocalNodeElectedMaster() == false
             : "should handle local publications locally, but got " + incomingState;
-        return handlePublishRequest.apply(new PublishRequest(incomingState));
+        clusterCoordinationExecutor.execute(
+            ActionRunnable.supply(actionListener, () -> handlePublishRequest.apply(new PublishRequest(incomingState)))
+        );
     }
 
     public PublicationContext newPublicationContext(ClusterStatePublicationEvent clusterStatePublicationEvent) {
@@ -456,7 +478,11 @@ public class PublicationTransportHandler {
 
             final ReleasableBytesReference bytes = serializedDiffs.get(connection.getTransportVersion());
             assert bytes != null
-                : "failed to find serialized diff for node " + destination + " of version [" + connection.getTransportVersion() + "]";
+                : "failed to find serialized diff for node "
+                    + destination
+                    + " of version ["
+                    + connection.getTransportVersion().toReleaseVersion()
+                    + "]";
 
             // acquire a ref to the context just in case we need to try again with the full cluster state
             if (tryIncRef() == false) {

@@ -1,8 +1,8 @@
 // tag::cloud[]
-In order to get the shards assigned we need to call the 
+In order to get the shards assigned we need to call the
 <<ilm-migrate-to-data-tiers, migrate to data tiers routing>> API which will
 resolve the conflicting routing configurations towards using the standardized
-<<data-tiers, data tiers>>. This will also future-proof the system by migrating 
+<<data-tiers, data tiers>>. This will also future-proof the system by migrating
 the index templates and ILM policies if needed.
 
 **Use {kib}**
@@ -11,12 +11,12 @@ the index templates and ILM policies if needed.
 . Log in to the {ess-console}[{ecloud} console].
 +
 
-. On the **Elasticsearch Service** panel, click the name of your deployment. 
+. On the **Elasticsearch Service** panel, click the name of your deployment.
 +
 
 NOTE: If the name of your deployment is disabled your {kib} instances might be
 unhealthy, in which case please contact https://support.elastic.co[Elastic Support].
-If your deployment doesn't include {kib}, all you need to do is 
+If your deployment doesn't include {kib}, all you need to do is
 {cloud}/ec-access-kibana.html[enable it first].
 
 . Open your deployment's side navigation menu (placed under the Elastic logo in the upper left corner)
@@ -50,7 +50,7 @@ The response will look like this:
 GET /_ilm/status
 ----
 +
-When {ilm} has succesfully stopped the response will look like this:
+When {ilm} has successfully stopped the response will look like this:
 +
 [source,console-result]
 ------------------------------------------------------------------------------
@@ -113,15 +113,15 @@ The response will look like this:
 // end::cloud[]
 
 // tag::self-managed[]
-In order to get the shards assigned we need to make sure the deployment is 
-using the <<data-tiers,data tiers>> node roles and then call the 
+In order to get the shards assigned we need to make sure the deployment is
+using the <<data-tiers,data tiers>> node roles and then call the
 <<ilm-migrate-to-data-tiers, migrate to data tiers routing>> API which will
 resolve the conflicting routing configurations towards using the standardized
-<<data-tiers, data tiers>>. This will also future-proof the system by migrating 
+<<data-tiers, data tiers>>. This will also future-proof the system by migrating
 the index templates and ILM policies if needed.
 
 
-. In case your deployment is not yet using <<data-tiers, data tiers>> <<assign-data-tier, assign data nodes>> 
+. In case your deployment is not yet using <<data-tiers, data tiers>> <<assign-data-tier, assign data nodes>>
 to the appropriate data tier.
 Configure the appropriate roles for each data node to assign it to one or more
 data tiers: `data_hot`, `data_content`, `data_warm`, `data_cold`, or `data_frozen`.
@@ -159,7 +159,7 @@ The response will look like this:
 GET /_ilm/status
 ----
 +
-When {ilm} has succesfully stopped the response will look like this:
+When {ilm} has successfully stopped the response will look like this:
 +
 [source,console-result]
 ------------------------------------------------------------------------------

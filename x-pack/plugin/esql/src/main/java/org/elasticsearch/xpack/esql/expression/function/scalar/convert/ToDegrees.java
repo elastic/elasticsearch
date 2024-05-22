@@ -8,22 +8,23 @@
 package org.elasticsearch.xpack.esql.expression.function.scalar.convert;
 
 import org.elasticsearch.compute.ann.ConvertEvaluator;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
+import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.util.NumericUtils;
 import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
+import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
-import org.elasticsearch.xpack.ql.expression.Expression;
-import org.elasticsearch.xpack.ql.tree.NodeInfo;
-import org.elasticsearch.xpack.ql.tree.Source;
-import org.elasticsearch.xpack.ql.type.DataType;
-import org.elasticsearch.xpack.ql.util.NumericUtils;
 
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.xpack.ql.type.DataTypes.DOUBLE;
-import static org.elasticsearch.xpack.ql.type.DataTypes.INTEGER;
-import static org.elasticsearch.xpack.ql.type.DataTypes.LONG;
-import static org.elasticsearch.xpack.ql.type.DataTypes.UNSIGNED_LONG;
+import static org.elasticsearch.xpack.esql.core.type.DataTypes.DOUBLE;
+import static org.elasticsearch.xpack.esql.core.type.DataTypes.INTEGER;
+import static org.elasticsearch.xpack.esql.core.type.DataTypes.LONG;
+import static org.elasticsearch.xpack.esql.core.type.DataTypes.UNSIGNED_LONG;
 
 /**
  * Converts from <a href="https://en.wikipedia.org/wiki/Radian">radians</a>
@@ -40,8 +41,19 @@ public class ToDegrees extends AbstractConvertFunction implements EvaluatorMappe
         )
     );
 
-    @FunctionInfo(returnType = "double", description = "Converts a number in radians to degrees.")
-    public ToDegrees(Source source, @Param(name = "v", type = { "double", "integer", "long", "unsigned_long" }) Expression field) {
+    @FunctionInfo(
+        returnType = "double",
+        description = "Converts a number in {wikipedia}/Radian[radians] to {wikipedia}/Degree_(angle)[degrees].",
+        examples = @Example(file = "floats", tag = "to_degrees")
+    )
+    public ToDegrees(
+        Source source,
+        @Param(
+            name = "number",
+            type = { "double", "integer", "long", "unsigned_long" },
+            description = "Input value. The input can be a single- or multi-valued column or an expression."
+        ) Expression field
+    ) {
         super(source, field);
     }
 

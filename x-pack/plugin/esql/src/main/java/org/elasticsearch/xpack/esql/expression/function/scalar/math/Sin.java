@@ -9,11 +9,12 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.math;
 
 import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
+import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
-import org.elasticsearch.xpack.ql.expression.Expression;
-import org.elasticsearch.xpack.ql.tree.NodeInfo;
-import org.elasticsearch.xpack.ql.tree.Source;
 
 import java.util.List;
 
@@ -22,12 +23,20 @@ import java.util.List;
  */
 public class Sin extends AbstractTrigonometricFunction {
 
-    @FunctionInfo(returnType = "double", description = "Returns the trigonometric sine of an angle")
+    @FunctionInfo(
+        returnType = "double",
+        description = "Returns ths {wikipedia}/Sine_and_cosine[Sine] trigonometric function of an angle.",
+        examples = @Example(file = "floats", tag = "sin")
+    )
     public Sin(
         Source source,
-        @Param(name = "n", type = { "double", "integer", "long", "unsigned_long" }, description = "An angle, in radians") Expression n
+        @Param(
+            name = "angle",
+            type = { "double", "integer", "long", "unsigned_long" },
+            description = "An angle, in radians. If `null`, the function returns `null`."
+        ) Expression angle
     ) {
-        super(source, n);
+        super(source, angle);
     }
 
     @Override

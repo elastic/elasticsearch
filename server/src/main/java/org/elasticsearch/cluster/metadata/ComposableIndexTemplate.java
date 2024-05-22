@@ -372,14 +372,14 @@ public class ComposableIndexTemplate implements SimpleDiffable<ComposableIndexTe
             args -> new DataStreamTemplate(
                 args[0] != null && (boolean) args[0],
                 args[1] != null && (boolean) args[1],
-                DataStream.isFailureStoreEnabled() && args[2] != null && (boolean) args[2]
+                DataStream.isFailureStoreFeatureFlagEnabled() && args[2] != null && (boolean) args[2]
             )
         );
 
         static {
             PARSER.declareBoolean(ConstructingObjectParser.optionalConstructorArg(), HIDDEN);
             PARSER.declareBoolean(ConstructingObjectParser.optionalConstructorArg(), ALLOW_CUSTOM_ROUTING);
-            if (DataStream.isFailureStoreEnabled()) {
+            if (DataStream.isFailureStoreFeatureFlagEnabled()) {
                 PARSER.declareBoolean(ConstructingObjectParser.optionalConstructorArg(), FAILURE_STORE);
             }
         }
@@ -474,7 +474,7 @@ public class ComposableIndexTemplate implements SimpleDiffable<ComposableIndexTe
             builder.startObject();
             builder.field("hidden", hidden);
             builder.field(ALLOW_CUSTOM_ROUTING.getPreferredName(), allowCustomRouting);
-            if (DataStream.isFailureStoreEnabled()) {
+            if (DataStream.isFailureStoreFeatureFlagEnabled()) {
                 builder.field(FAILURE_STORE.getPreferredName(), failureStore);
             }
             builder.endObject();

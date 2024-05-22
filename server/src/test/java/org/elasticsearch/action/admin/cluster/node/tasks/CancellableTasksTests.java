@@ -12,8 +12,8 @@ import com.carrotsearch.randomizedtesting.generators.RandomNumbers;
 
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksAction;
 import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksRequest;
+import org.elasticsearch.action.admin.cluster.node.tasks.cancel.TransportCancelTasksAction;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksRequest;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
 import org.elasticsearch.action.support.ActionTestUtils;
@@ -555,7 +555,7 @@ public class CancellableTasksTests extends TaskManagerTestCase {
             // Make sure that main task is no longer running
             ListTasksResponse listTasksResponse = ActionTestUtils.executeBlocking(
                 testNodes[randomIntBetween(0, testNodes.length - 1)].transportListTasksAction,
-                new ListTasksRequest().setActions(CancelTasksAction.NAME + "*")
+                new ListTasksRequest().setActions(TransportCancelTasksAction.NAME + "*")
             );
             assertEquals(0, listTasksResponse.getTasks().size());
         });

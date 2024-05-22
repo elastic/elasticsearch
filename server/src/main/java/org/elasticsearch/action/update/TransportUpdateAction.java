@@ -51,7 +51,7 @@ import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.Map;
-import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executor;
 
 import static org.elasticsearch.ExceptionsHelper.unwrapCause;
 import static org.elasticsearch.action.bulk.TransportBulkAction.unwrappingSingleItemBulkResponse;
@@ -65,7 +65,6 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
     private final UpdateHelper updateHelper;
     private final IndicesService indicesService;
     private final NodeClient client;
-    private final ClusterService clusterService;
 
     @Inject
     public TransportUpdateAction(
@@ -84,13 +83,12 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
         this.indicesService = indicesService;
         this.autoCreateIndex = autoCreateIndex;
         this.client = client;
-        this.clusterService = clusterService;
     }
 
     @Override
-    protected String executor(ShardId shardId) {
+    protected Executor executor(ShardId shardId) {
         final IndexService indexService = indicesService.indexServiceSafe(shardId.getIndex());
-        return indexService.getIndexSettings().getIndexMetadata().isSystem() ? Names.SYSTEM_WRITE : Names.WRITE;
+        return threadPool.executor(indexService.getIndexSettings().getIndexMetadata().isSystem() ? Names.SYSTEM_WRITE : Names.WRITE);
     }
 
     @Override
@@ -321,9 +319,9 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
                 request.id()
             );
 
-            final ExecutorService executor;
+            final Executor executor;
             try {
-                executor = threadPool.executor(executor(request.getShardId()));
+                executor = executor(request.getShardId());
             } catch (Exception e) {
                 // might fail if shard no longer exists locally, in which case we cannot retry
                 e.addSuppressed(versionConflictEngineException);

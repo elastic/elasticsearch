@@ -20,6 +20,7 @@ public class DeletePipelineRequest extends AcknowledgedRequest<DeletePipelineReq
     private String id;
 
     public DeletePipelineRequest(String id) {
+        super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT, DEFAULT_ACK_TIMEOUT);
         if (id == null) {
             throw new IllegalArgumentException("id is missing");
         }
@@ -30,8 +31,6 @@ public class DeletePipelineRequest extends AcknowledgedRequest<DeletePipelineReq
         super(in);
         id = in.readString();
     }
-
-    DeletePipelineRequest() {}
 
     public void setId(String id) {
         this.id = Objects.requireNonNull(id);

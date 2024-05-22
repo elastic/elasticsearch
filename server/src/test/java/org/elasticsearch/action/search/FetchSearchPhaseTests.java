@@ -15,6 +15,7 @@ import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.lucene.search.TopDocsAndMaxScore;
+import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.DocValueFormat;
@@ -38,6 +39,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.BiFunction;
 
 import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.equalTo;
@@ -47,7 +49,7 @@ import static org.hamcrest.Matchers.nullValue;
 public class FetchSearchPhaseTests extends ESTestCase {
     private static final long FETCH_PROFILE_TIME = 555;
 
-    public void testShortcutQueryAndFetchOptimization() {
+    public void testShortcutQueryAndFetchOptimization() throws Exception {
         SearchPhaseController controller = new SearchPhaseController((t, s) -> InternalAggregationTestCase.emptyReduceContextBuilder());
         MockSearchPhaseContext mockSearchPhaseContext = new MockSearchPhaseContext(1);
         try (
@@ -99,17 +101,13 @@ public class FetchSearchPhaseTests extends ESTestCase {
             } else {
                 numHits = 0;
             }
-
+            SearchPhaseController.ReducedQueryPhase reducedQueryPhase = results.reduce();
             FetchSearchPhase phase = new FetchSearchPhase(
                 results,
                 null,
                 mockSearchPhaseContext,
-                (searchResponse, scrollId) -> new SearchPhase("test") {
-                    @Override
-                    public void run() {
-                        mockSearchPhaseContext.sendSearchResponse(searchResponse, null);
-                    }
-                }
+                reducedQueryPhase,
+                searchPhaseFactory(mockSearchPhaseContext)
             );
             assertEquals("fetch", phase.getName());
             phase.run();
@@ -141,7 +139,7 @@ public class FetchSearchPhaseTests extends ESTestCase {
         }
     }
 
-    public void testFetchTwoDocument() {
+    public void testFetchTwoDocument() throws Exception {
         MockSearchPhaseContext mockSearchPhaseContext = new MockSearchPhaseContext(2);
         SearchPhaseController controller = new SearchPhaseController((t, s) -> InternalAggregationTestCase.emptyReduceContextBuilder());
         try (
@@ -231,16 +229,13 @@ public class FetchSearchPhaseTests extends ESTestCase {
                     }
                 }
             };
+            SearchPhaseController.ReducedQueryPhase reducedQueryPhase = results.reduce();
             FetchSearchPhase phase = new FetchSearchPhase(
                 results,
                 null,
                 mockSearchPhaseContext,
-                (searchResponse, scrollId) -> new SearchPhase("test") {
-                    @Override
-                    public void run() {
-                        mockSearchPhaseContext.sendSearchResponse(searchResponse, null);
-                    }
-                }
+                reducedQueryPhase,
+                searchPhaseFactory(mockSearchPhaseContext)
             );
             assertEquals("fetch", phase.getName());
             phase.run();
@@ -262,7 +257,7 @@ public class FetchSearchPhaseTests extends ESTestCase {
         }
     }
 
-    public void testFailFetchOneDoc() {
+    public void testFailFetchOneDoc() throws Exception {
         MockSearchPhaseContext mockSearchPhaseContext = new MockSearchPhaseContext(2);
         SearchPhaseController controller = new SearchPhaseController((t, s) -> InternalAggregationTestCase.emptyReduceContextBuilder());
         try (
@@ -343,16 +338,13 @@ public class FetchSearchPhaseTests extends ESTestCase {
                     }
                 }
             };
+            SearchPhaseController.ReducedQueryPhase reducedQueryPhase = results.reduce();
             FetchSearchPhase phase = new FetchSearchPhase(
                 results,
                 null,
                 mockSearchPhaseContext,
-                (searchResponse, scrollId) -> new SearchPhase("test") {
-                    @Override
-                    public void run() {
-                        mockSearchPhaseContext.sendSearchResponse(searchResponse, null);
-                    }
-                }
+                reducedQueryPhase,
+                searchPhaseFactory(mockSearchPhaseContext)
             );
             assertEquals("fetch", phase.getName());
             phase.run();
@@ -390,7 +382,7 @@ public class FetchSearchPhaseTests extends ESTestCase {
         }
     }
 
-    public void testFetchDocsConcurrently() throws InterruptedException {
+    public void testFetchDocsConcurrently() throws Exception {
         int resultSetSize = randomIntBetween(0, 100);
         // we use at least 2 hits otherwise this is subject to single shard optimization and we trip an assert...
         int numHits = randomIntBetween(2, 100); // also numshards --> 1 hit per shard
@@ -454,10 +446,12 @@ public class FetchSearchPhaseTests extends ESTestCase {
                 }
             };
             CountDownLatch latch = new CountDownLatch(1);
+            SearchPhaseController.ReducedQueryPhase reducedQueryPhase = results.reduce();
             FetchSearchPhase phase = new FetchSearchPhase(
                 results,
                 null,
                 mockSearchPhaseContext,
+                reducedQueryPhase,
                 (searchResponse, scrollId) -> new SearchPhase("test") {
                     @Override
                     public void run() {
@@ -509,7 +503,7 @@ public class FetchSearchPhaseTests extends ESTestCase {
         }
     }
 
-    public void testExceptionFailsPhase() {
+    public void testExceptionFailsPhase() throws Exception {
         MockSearchPhaseContext mockSearchPhaseContext = new MockSearchPhaseContext(2);
         SearchPhaseController controller = new SearchPhaseController((t, s) -> InternalAggregationTestCase.emptyReduceContextBuilder());
         try (
@@ -576,40 +570,29 @@ public class FetchSearchPhaseTests extends ESTestCase {
                             listener.onFailure(new RuntimeException("BOOM"));
                             return;
                         }
-                        SearchHits hits;
-                        if (request.contextId().getId() == 321) {
-                            fetchResult.setSearchShardTarget(shard2Target);
-                            hits = SearchHits.unpooled(
+                        assertEquals(321, request.contextId().getId());
+                        fetchResult.setSearchShardTarget(shard2Target);
+                        fetchResult.shardResult(
+                            SearchHits.unpooled(
                                 new SearchHit[] { SearchHit.unpooled(84) },
                                 new TotalHits(1, TotalHits.Relation.EQUAL_TO),
                                 2.0F
-                            );
-                        } else {
-                            fetchResult.setSearchShardTarget(shard1Target);
-                            assertEquals(request, 123);
-                            hits = SearchHits.unpooled(
-                                new SearchHit[] { SearchHit.unpooled(42) },
-                                new TotalHits(1, TotalHits.Relation.EQUAL_TO),
-                                1.0F
-                            );
-                        }
-                        fetchResult.shardResult(hits, fetchProfile(profiled));
+                            ),
+                            fetchProfile(profiled)
+                        );
                         listener.onResponse(fetchResult);
                     } finally {
                         fetchResult.decRef();
                     }
                 }
             };
+            SearchPhaseController.ReducedQueryPhase reducedQueryPhase = results.reduce();
             FetchSearchPhase phase = new FetchSearchPhase(
                 results,
                 null,
                 mockSearchPhaseContext,
-                (searchResponse, scrollId) -> new SearchPhase("test") {
-                    @Override
-                    public void run() {
-                        mockSearchPhaseContext.sendSearchResponse(searchResponse, null);
-                    }
-                }
+                reducedQueryPhase,
+                searchPhaseFactory(mockSearchPhaseContext)
             );
             assertEquals("fetch", phase.getName());
             phase.run();
@@ -624,7 +607,7 @@ public class FetchSearchPhaseTests extends ESTestCase {
         }
     }
 
-    public void testCleanupIrrelevantContexts() { // contexts that are not fetched should be cleaned up
+    public void testCleanupIrrelevantContexts() throws Exception { // contexts that are not fetched should be cleaned up
         MockSearchPhaseContext mockSearchPhaseContext = new MockSearchPhaseContext(2);
         SearchPhaseController controller = new SearchPhaseController((t, s) -> InternalAggregationTestCase.emptyReduceContextBuilder());
         try (
@@ -705,16 +688,13 @@ public class FetchSearchPhaseTests extends ESTestCase {
                     }
                 }
             };
+            SearchPhaseController.ReducedQueryPhase reducedQueryPhase = results.reduce();
             FetchSearchPhase phase = new FetchSearchPhase(
                 results,
                 null,
                 mockSearchPhaseContext,
-                (searchResponse, scrollId) -> new SearchPhase("test") {
-                    @Override
-                    public void run() {
-                        mockSearchPhaseContext.sendSearchResponse(searchResponse, null);
-                    }
-                }
+                reducedQueryPhase,
+                searchPhaseFactory(mockSearchPhaseContext)
             );
             assertEquals("fetch", phase.getName());
             phase.run();
@@ -745,13 +725,24 @@ public class FetchSearchPhaseTests extends ESTestCase {
 
     }
 
-    private void addProfiling(boolean profiled, QuerySearchResult queryResult) {
+    private static BiFunction<SearchResponseSections, AtomicArray<SearchPhaseResult>, SearchPhase> searchPhaseFactory(
+        MockSearchPhaseContext mockSearchPhaseContext
+    ) {
+        return (searchResponse, scrollId) -> new SearchPhase("test") {
+            @Override
+            public void run() {
+                mockSearchPhaseContext.sendSearchResponse(searchResponse, null);
+            }
+        };
+    }
+
+    private static void addProfiling(boolean profiled, QuerySearchResult queryResult) {
         if (profiled) {
             queryResult.profileResults(new SearchProfileQueryPhaseResult(List.of(), null));
         }
     }
 
-    private ProfileResult fetchProfile(boolean profiled) {
+    private static ProfileResult fetchProfile(boolean profiled) {
         return profiled ? new ProfileResult("fetch", "fetch", Map.of(), Map.of(), FETCH_PROFILE_TIME, List.of()) : null;
     }
 }

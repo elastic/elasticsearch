@@ -14,8 +14,8 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.action.admin.indices.alias.TransportIndicesAliasesAction;
-import org.elasticsearch.action.admin.indices.create.CreateIndexAction;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
+import org.elasticsearch.action.admin.indices.create.TransportCreateIndexAction;
 import org.elasticsearch.action.admin.indices.get.GetIndexAction;
 import org.elasticsearch.action.admin.indices.get.GetIndexRequest;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
@@ -33,6 +33,7 @@ import org.elasticsearch.xpack.core.transform.TransformMessages;
 import org.elasticsearch.xpack.core.transform.transforms.DestAlias;
 import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TransformDestIndexSettings;
+import org.elasticsearch.xpack.core.transform.transforms.TransformEffectiveSettings;
 import org.elasticsearch.xpack.transform.notifications.TransformAuditor;
 
 import java.time.Clock;
@@ -128,7 +129,7 @@ public final class TransformIndex {
         // <2> Set up destination index aliases, regardless whether the destination index was created by the transform or by the user
         ActionListener<Boolean> createDestinationIndexListener = ActionListener.wrap(createdDestinationIndex -> {
             if (createdDestinationIndex) {
-                String message = Boolean.FALSE.equals(config.getSettings().getDeduceMappings())
+                String message = TransformEffectiveSettings.isDeduceMappingsDisabled(config.getSettings())
                     ? "Created destination index [" + destinationIndex + "]."
                     : "Created destination index [" + destinationIndex + "] with deduced mappings.";
                 auditor.info(config.getId(), message);
@@ -139,7 +140,7 @@ public final class TransformIndex {
         if (dest.length == 0) {
             TransformDestIndexSettings generatedDestIndexSettings = createTransformDestIndexSettings(
                 destIndexSettings,
-                Boolean.FALSE.equals(config.getSettings().getDeduceMappings()) ? emptyMap() : destIndexMappings,
+                TransformEffectiveSettings.isDeduceMappingsDisabled(config.getSettings()) ? emptyMap() : destIndexMappings,
                 config.getId(),
                 Clock.systemUTC()
             );
@@ -154,11 +155,16 @@ public final class TransformIndex {
                 ClientHelper.TRANSFORM_ORIGIN,
                 client.admin().indices().prepareStats(dest).clear().setDocs(true).request(),
                 ActionListener.<IndicesStatsResponse>wrap(r -> {
-                    long docTotal = r.getTotal().docs.getCount();
-                    if (docTotal > 0L) {
+                    var docsStats = r.getTotal().docs;
+                    if (docsStats != null && docsStats.getCount() > 0L) {
                         auditor.warning(
                             config.getId(),
-                            "Non-empty destination index [" + destinationIndex + "]. " + "Contains [" + docTotal + "] total documents."
+                            "Non-empty destination index ["
+                                + destinationIndex
+                                + "]. "
+                                + "Contains ["
+                                + docsStats.getCount()
+                                + "] total documents."
                         );
                     }
                     createDestinationIndexListener.onResponse(false);
@@ -190,7 +196,7 @@ public final class TransformIndex {
             config.getHeaders(),
             TRANSFORM_ORIGIN,
             client,
-            CreateIndexAction.INSTANCE,
+            TransportCreateIndexAction.TYPE,
             request,
             ActionListener.wrap(createIndexResponse -> {
                 listener.onResponse(true);

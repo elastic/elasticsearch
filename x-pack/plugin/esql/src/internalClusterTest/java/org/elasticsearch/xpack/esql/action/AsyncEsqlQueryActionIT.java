@@ -18,6 +18,7 @@ import org.elasticsearch.xpack.core.LocalStateCompositeXPackPlugin;
 import org.elasticsearch.xpack.core.async.DeleteAsyncResultRequest;
 import org.elasticsearch.xpack.core.async.GetAsyncResultRequest;
 import org.elasticsearch.xpack.core.async.TransportDeleteAsyncResultAction;
+import org.elasticsearch.xpack.core.esql.action.ColumnInfo;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.hamcrest.core.IsEqual;
 
@@ -246,7 +247,7 @@ public class AsyncEsqlQueryActionIT extends AbstractPausableIntegTestCase {
     }
 
     TimeValue randomKeepAlive() {
-        return TimeValue.parseTimeValue(randomTimeValue(1, 5, "d"), "test");
+        return randomTimeValue(1, 5, TimeUnit.DAYS);
     }
 
     public static class LocalStateEsqlAsync extends LocalStateCompositeXPackPlugin {

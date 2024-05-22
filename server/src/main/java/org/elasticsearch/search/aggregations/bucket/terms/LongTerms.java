@@ -9,6 +9,7 @@ package org.elasticsearch.search.aggregations.bucket.terms;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.core.Predicates;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.AggregationReduceContext;
 import org.elasticsearch.search.aggregations.AggregatorReducer;
@@ -208,12 +209,12 @@ public class LongTerms extends InternalMappedTerms<LongTerms, LongTerms.Bucket> 
         } else if (format == DocValueFormat.UNSIGNED_LONG_SHIFTED) {
             needsPromoting = docFormat -> docFormat == DocValueFormat.RAW;
         } else {
-            needsPromoting = docFormat -> false;
+            needsPromoting = Predicates.never();
         }
         return new AggregatorReducer() {
 
-            final List<InternalAggregation> aggregations = new ArrayList<>(size);
-            boolean isPromotedToDouble = false;
+            private List<InternalAggregation> aggregations = new ArrayList<>(size);
+            private boolean isPromotedToDouble = false;
 
             @Override
             public void accept(InternalAggregation aggregation) {
@@ -242,7 +243,16 @@ public class LongTerms extends InternalMappedTerms<LongTerms, LongTerms.Bucket> 
 
             @Override
             public InternalAggregation get() {
-                return ((AbstractInternalTerms<?, ?>) aggregations.get(0)).doReduce(aggregations, reduceContext);
+                try (
+                    AggregatorReducer processor = ((AbstractInternalTerms<?, ?>) aggregations.get(0)).termsAggregationReducer(
+                        reduceContext,
+                        size
+                    )
+                ) {
+                    aggregations.forEach(processor::accept);
+                    aggregations = null; // release memory
+                    return processor.get();
+                }
             }
         };
     }

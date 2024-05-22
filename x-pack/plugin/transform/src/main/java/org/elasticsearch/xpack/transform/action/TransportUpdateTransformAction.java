@@ -87,7 +87,6 @@ public class TransportUpdateTransformAction extends TransportTasksAction<Transfo
             actionFilters,
             Request::new,
             Response::new,
-            Response::new,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
 
@@ -154,7 +153,7 @@ public class TransportUpdateTransformAction extends TransportTasksAction<Transfo
                         TransformConfig updatedConfig = updateResult.getConfig();
                         AuthorizationState authState = updateResult.getAuthState();
                         auditor.info(updatedConfig.getId(), "Updated transform.");
-                        logger.debug("[{}] Updated transform [{}]", updatedConfig.getId(), updateResult.getStatus());
+                        logger.info("[{}] Updated transform [{}]", updatedConfig.getId(), updateResult.getStatus());
 
                         checkTransformConfigAndLogWarnings(updatedConfig);
 

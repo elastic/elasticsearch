@@ -12,18 +12,19 @@ import org.elasticsearch.compute.ann.MvEvaluator;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
+import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
-import org.elasticsearch.xpack.ql.expression.Expression;
-import org.elasticsearch.xpack.ql.tree.NodeInfo;
-import org.elasticsearch.xpack.ql.tree.Source;
 
 import java.util.List;
 
+import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.isRepresentable;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.isSpatial;
-import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isType;
 
 /**
  * Reduce a multivalued field to a single valued field containing the minimum value.
@@ -31,13 +32,22 @@ import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isType;
 public class MvMin extends AbstractMultivalueFunction {
     @FunctionInfo(
         returnType = { "boolean", "date", "double", "integer", "ip", "keyword", "long", "text", "unsigned_long", "version" },
-        description = "Reduce a multivalued field to a single valued field containing the minimum value."
+        description = "Converts a multivalued expression into a single valued column containing the minimum value.",
+        examples = {
+            @Example(file = "math", tag = "mv_min"),
+            @Example(
+                description = "It can be used by any column type, including `keyword` columns. "
+                    + "In that case, it picks the first string, comparing their utf-8 representation byte by byte:",
+                file = "string",
+                tag = "mv_min"
+            ) }
     )
     public MvMin(
         Source source,
         @Param(
-            name = "v",
-            type = { "boolean", "date", "double", "integer", "ip", "keyword", "long", "text", "unsigned_long", "version" }
+            name = "field",
+            type = { "boolean", "date", "double", "integer", "ip", "keyword", "long", "text", "unsigned_long", "version" },
+            description = "Multivalue expression."
         ) Expression field
     ) {
         super(source, field);

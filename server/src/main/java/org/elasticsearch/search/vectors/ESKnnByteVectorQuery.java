@@ -8,35 +8,17 @@
 
 package org.elasticsearch.search.vectors;
 
-import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.KnnByteVectorQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TopDocs;
-import org.apache.lucene.search.TopDocsCollector;
-import org.apache.lucene.util.Bits;
 import org.elasticsearch.search.profile.query.QueryProfiler;
 
-import java.io.IOException;
-
 public class ESKnnByteVectorQuery extends KnnByteVectorQuery implements ProfilingQuery {
-    private static final TopDocs NO_RESULTS = TopDocsCollector.EMPTY_TOPDOCS;
 
     private long vectorOpsCount;
-    private final byte[] target;
 
     public ESKnnByteVectorQuery(String field, byte[] target, int k, Query filter) {
         super(field, target, k, filter);
-        this.target = target;
-    }
-
-    @Override
-    protected TopDocs approximateSearch(LeafReaderContext context, Bits acceptDocs, int visitedLimit) throws IOException {
-        // We increment visit limit by one to bypass a fencepost error in the collector
-        if (visitedLimit < Integer.MAX_VALUE) {
-            visitedLimit += 1;
-        }
-        TopDocs results = context.reader().searchNearestVectors(field, target, k, acceptDocs, visitedLimit);
-        return results != null ? results : NO_RESULTS;
     }
 
     @Override

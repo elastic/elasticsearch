@@ -11,12 +11,12 @@ import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.elasticsearch.search.aggregations.metrics.CompensatedSum;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.type.DataTypes;
+import org.elasticsearch.xpack.esql.core.util.NumericUtils;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
-import org.elasticsearch.xpack.ql.expression.Expression;
-import org.elasticsearch.xpack.ql.tree.Source;
-import org.elasticsearch.xpack.ql.type.DataType;
-import org.elasticsearch.xpack.ql.type.DataTypes;
-import org.elasticsearch.xpack.ql.util.NumericUtils;
 import org.hamcrest.Matcher;
 
 import java.util.ArrayList;
@@ -25,6 +25,7 @@ import java.util.function.BiFunction;
 import java.util.function.Supplier;
 import java.util.stream.DoubleStream;
 
+import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.unsignedLongToDouble;
 import static org.hamcrest.Matchers.equalTo;
 
 public class MvAvgTests extends AbstractMultivalueFunctionTestCase {
@@ -53,7 +54,7 @@ public class MvAvgTests extends AbstractMultivalueFunctionTestCase {
              * So we have to go back to encoded `long` and then convert to double
              * using the production conversion. That'll round in the same way.
              */
-            (size, data) -> avg.apply(size, data.mapToDouble(v -> NumericUtils.unsignedLongToDouble(NumericUtils.asLongUnsigned(v))))
+            (size, data) -> avg.apply(size, data.mapToDouble(v -> unsignedLongToDouble(NumericUtils.asLongUnsigned(v))))
         );
         return parameterSuppliersFromTypedData(errorsForCasesWithoutExamples(anyNullIsNull(true, cases)));
     }

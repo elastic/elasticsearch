@@ -131,24 +131,27 @@ public class GoogleCloudStorageHttpHandler implements HttpHandler {
                 BytesReference blob = blobs.get(exchange.getRequestURI().getPath().replace("/download/storage/v1/b/" + bucket + "/o/", ""));
                 if (blob != null) {
                     final String range = exchange.getRequestHeaders().getFirst("Range");
-                    final int offset;
-                    final int end;
+                    final long offset;
+                    final long end;
                     if (range == null) {
-                        offset = 0;
+                        offset = 0L;
                         end = blob.length() - 1;
                     } else {
                         Matcher matcher = RANGE_MATCHER.matcher(range);
                         if (matcher.find() == false) {
                             throw new AssertionError("Range bytes header does not match expected format: " + range);
                         }
-                        offset = Integer.parseInt(matcher.group(1));
-                        end = Integer.parseInt(matcher.group(2));
+                        offset = Long.parseLong(matcher.group(1));
+                        end = Long.parseLong(matcher.group(2));
                     }
                     BytesReference response = blob;
                     exchange.getResponseHeaders().add("Content-Type", "application/octet-stream");
                     final int bufferedLength = response.length();
                     if (offset > 0 || bufferedLength > end) {
-                        response = response.slice(offset, Math.min(end + 1 - offset, bufferedLength - offset));
+                        response = response.slice(
+                            Math.toIntExact(offset),
+                            Math.toIntExact(Math.min(end + 1 - offset, bufferedLength - offset))
+                        );
                     }
                     exchange.sendResponseHeaders(RestStatus.OK.getStatus(), response.length());
                     response.writeTo(exchange.getResponseBody());

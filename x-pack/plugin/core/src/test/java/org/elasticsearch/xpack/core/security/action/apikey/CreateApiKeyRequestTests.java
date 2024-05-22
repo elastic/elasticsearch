@@ -7,17 +7,10 @@
 
 package org.elasticsearch.xpack.core.security.action.apikey;
 
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.action.support.WriteRequest;
-import org.elasticsearch.common.io.stream.BytesStreamOutput;
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 
-import java.io.IOException;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
@@ -112,7 +105,9 @@ public class CreateApiKeyRequestTests extends ESTestCase {
                     Map.of("_key", "value"),
                     null,
                     null,
-                    new RoleDescriptor.Restriction(unknownWorkflows)
+                    null,
+                    new RoleDescriptor.Restriction(unknownWorkflows),
+                    null
                 )
             ),
             null
@@ -127,60 +122,6 @@ public class CreateApiKeyRequestTests extends ESTestCase {
         assertThat(ve1.validationErrors().get(4), containsStringIgnoringCase("role descriptor metadata keys may not start with "));
         for (int i = 0; i < unknownWorkflows.length; i++) {
             assertThat(ve1.validationErrors().get(5 + i), containsStringIgnoringCase("unknown workflow [" + unknownWorkflows[i] + "]"));
-        }
-    }
-
-    public void testSerialization() throws IOException {
-        final String name = randomAlphaOfLengthBetween(1, 256);
-        final TimeValue expiration = randomBoolean()
-            ? null
-            : TimeValue.parseTimeValue(randomTimeValue(), "test serialization of create api key");
-        final WriteRequest.RefreshPolicy refreshPolicy = randomFrom(WriteRequest.RefreshPolicy.values());
-        boolean nullOrEmptyRoleDescriptors = randomBoolean();
-        final List<RoleDescriptor> descriptorList;
-        if (nullOrEmptyRoleDescriptors) {
-            descriptorList = randomBoolean() ? null : List.of();
-        } else {
-            final int numDescriptors = randomIntBetween(1, 4);
-            descriptorList = new ArrayList<>();
-            for (int i = 0; i < numDescriptors; i++) {
-                descriptorList.add(new RoleDescriptor("role_" + i, new String[] { "all" }, null, null));
-            }
-        }
-
-        final CreateApiKeyRequest request = new CreateApiKeyRequest();
-        request.setName(name);
-        request.setExpiration(expiration);
-
-        if (refreshPolicy != request.getRefreshPolicy() || randomBoolean()) {
-            request.setRefreshPolicy(refreshPolicy);
-        }
-        request.setRoleDescriptors(descriptorList);
-
-        boolean testV710Bwc = randomBoolean();
-
-        try (BytesStreamOutput out = new BytesStreamOutput()) {
-            if (testV710Bwc) {
-                out.setTransportVersion(TransportVersions.V_7_9_0); // a version before 7.10
-            }
-            request.writeTo(out);
-            try (StreamInput in = out.bytes().streamInput()) {
-                if (testV710Bwc) {
-                    in.setTransportVersion(TransportVersions.V_7_9_0);
-                }
-                final CreateApiKeyRequest serialized = new CreateApiKeyRequest(in);
-                assertEquals(name, serialized.getName());
-                if (false == testV710Bwc) {
-                    assertEquals(request.getId(), serialized.getId()); // API key id is only preserved after v 7.10
-                }
-                assertEquals(expiration, serialized.getExpiration());
-                assertEquals(refreshPolicy, serialized.getRefreshPolicy());
-                if (nullOrEmptyRoleDescriptors) {
-                    assertThat(serialized.getRoleDescriptors().isEmpty(), is(true));
-                } else {
-                    assertEquals(descriptorList, serialized.getRoleDescriptors());
-                }
-            }
         }
     }
 }

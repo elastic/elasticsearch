@@ -37,6 +37,7 @@ import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Predicates;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.UpdateForV9;
@@ -356,7 +357,7 @@ public class TransportService extends AbstractLifecycleComponent
             // but there may still be pending handlers for node-local requests since this connection is not closed, and we may also
             // (briefly) track handlers for requests which are sent concurrently with stopping even though the underlying connection is
             // now closed. We complete all these outstanding handlers here:
-            for (final Transport.ResponseContext<?> holderToNotify : responseHandlers.prune(h -> true)) {
+            for (final Transport.ResponseContext<?> holderToNotify : responseHandlers.prune(Predicates.always())) {
                 try {
                     final TransportResponseHandler<?> handler = holderToNotify.handler();
                     final var targetNode = holderToNotify.connection().getNode();
@@ -499,7 +500,7 @@ public class TransportService extends AbstractLifecycleComponent
     public ConnectionManager.ConnectionValidator connectionValidator(DiscoveryNode node) {
         return (newConnection, actualProfile, listener) -> {
             // We don't validate cluster names to allow for CCS connections.
-            handshake(newConnection, actualProfile.getHandshakeTimeout(), cn -> true, listener.map(resp -> {
+            handshake(newConnection, actualProfile.getHandshakeTimeout(), Predicates.always(), listener.map(resp -> {
                 final DiscoveryNode remote = resp.discoveryNode;
                 if (node.equals(remote) == false) {
                     throw new ConnectTransportException(node, "handshake failed. unexpected remote node " + remote);

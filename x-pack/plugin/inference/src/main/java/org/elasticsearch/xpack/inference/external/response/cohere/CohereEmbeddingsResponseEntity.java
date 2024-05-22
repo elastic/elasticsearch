@@ -3,6 +3,8 @@
  * or more contributor license agreements. Licensed under the Elastic License
  * 2.0; you may not use this file except in compliance with the Elastic License
  * 2.0.
+ *
+ * this file was contributed to by a generative AI
  */
 
 package org.elasticsearch.xpack.inference.external.response.cohere;
@@ -50,7 +52,7 @@ public class CohereEmbeddingsResponseEntity {
     }
 
     /**
-     * Parses the OpenAI json response.
+     * Parses the Cohere embed json response.
      * For a request like:
      *
      * <pre>
@@ -159,18 +161,17 @@ public class CohereEmbeddingsResponseEntity {
     }
 
     private static InferenceServiceResults parseEmbeddingsObject(XContentParser parser) throws IOException {
-        XContentParser.Token token;
+        XContentParser.Token token = parser.nextToken();
 
-        while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+        while (token != null && token != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
                 var embeddingValueParser = EMBEDDING_PARSERS.get(parser.currentName());
-                if (embeddingValueParser == null) {
-                    continue;
+                if (embeddingValueParser != null) {
+                    parser.nextToken();
+                    return embeddingValueParser.apply(parser);
                 }
-
-                parser.nextToken();
-                return embeddingValueParser.apply(parser);
             }
+            token = parser.nextToken();
         }
 
         throw new IllegalStateException(
@@ -189,9 +190,9 @@ public class CohereEmbeddingsResponseEntity {
 
     private static TextEmbeddingByteResults.Embedding parseByteArrayEntry(XContentParser parser) throws IOException {
         XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_ARRAY, parser.currentToken(), parser);
-        List<Byte> embeddingValues = XContentParserUtils.parseList(parser, CohereEmbeddingsResponseEntity::parseEmbeddingInt8Entry);
+        List<Byte> embeddingValuesList = XContentParserUtils.parseList(parser, CohereEmbeddingsResponseEntity::parseEmbeddingInt8Entry);
 
-        return new TextEmbeddingByteResults.Embedding(embeddingValues);
+        return TextEmbeddingByteResults.Embedding.of(embeddingValuesList);
     }
 
     private static Byte parseEmbeddingInt8Entry(XContentParser parser) throws IOException {
@@ -217,9 +218,8 @@ public class CohereEmbeddingsResponseEntity {
 
     private static TextEmbeddingResults.Embedding parseFloatArrayEntry(XContentParser parser) throws IOException {
         XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_ARRAY, parser.currentToken(), parser);
-        List<Float> embeddingValues = XContentParserUtils.parseList(parser, CohereEmbeddingsResponseEntity::parseEmbeddingFloatEntry);
-
-        return new TextEmbeddingResults.Embedding(embeddingValues);
+        List<Float> embeddingValuesList = XContentParserUtils.parseList(parser, CohereEmbeddingsResponseEntity::parseEmbeddingFloatEntry);
+        return TextEmbeddingResults.Embedding.of(embeddingValuesList);
     }
 
     private static Float parseEmbeddingFloatEntry(XContentParser parser) throws IOException {

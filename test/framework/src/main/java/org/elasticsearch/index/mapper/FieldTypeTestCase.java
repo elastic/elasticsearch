@@ -146,7 +146,8 @@ public abstract class FieldTypeTestCase extends ESTestCase {
             1,
             VectorEncoding.BYTE,
             VectorSimilarityFunction.COSINE,
-            randomBoolean()
+            randomBoolean(),
+            false
         );
     }
 }

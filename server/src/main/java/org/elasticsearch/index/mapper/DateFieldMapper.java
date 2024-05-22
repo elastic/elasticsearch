@@ -795,7 +795,8 @@ public final class DateFieldMapper extends FieldMapper {
                 return new SortedNumericIndexFieldData.Builder(
                     name(),
                     resolution.numericType(),
-                    resolution.getDefaultToScriptFieldFactory()
+                    resolution.getDefaultToScriptFieldFactory(),
+                    isIndexed()
                 );
             }
 
@@ -958,6 +959,11 @@ public final class DateFieldMapper extends FieldMapper {
 
     public Long getNullValue() {
         return nullValue;
+    }
+
+    @Override
+    protected SyntheticSourceMode syntheticSourceMode() {
+        return SyntheticSourceMode.NATIVE;
     }
 
     @Override

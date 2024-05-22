@@ -7,7 +7,6 @@
 package org.elasticsearch.xpack.idp.action;
 
 import org.elasticsearch.action.ActionResponse;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -16,20 +15,11 @@ import java.io.IOException;
 
 public class SamlInitiateSingleSignOnResponse extends ActionResponse {
 
-    private String postUrl;
-    private String samlResponse;
-    private String entityId;
-    private String samlStatus;
-    private String error;
-
-    public SamlInitiateSingleSignOnResponse(StreamInput in) throws IOException {
-        super(in);
-        this.entityId = in.readString();
-        this.postUrl = in.readString();
-        this.samlResponse = in.readString();
-        this.samlStatus = in.readString();
-        this.error = in.readOptionalString();
-    }
+    private final String postUrl;
+    private final String samlResponse;
+    private final String entityId;
+    private final String samlStatus;
+    private final String error;
 
     public SamlInitiateSingleSignOnResponse(
         String entityId,

@@ -10,17 +10,17 @@ package org.elasticsearch.xpack.esql.plan.physical;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.search.sort.FieldSortBuilder;
-import org.elasticsearch.xpack.ql.expression.Attribute;
-import org.elasticsearch.xpack.ql.expression.Expression;
-import org.elasticsearch.xpack.ql.expression.FieldAttribute;
-import org.elasticsearch.xpack.ql.expression.Order;
-import org.elasticsearch.xpack.ql.index.EsIndex;
-import org.elasticsearch.xpack.ql.querydsl.container.Sort;
-import org.elasticsearch.xpack.ql.tree.NodeInfo;
-import org.elasticsearch.xpack.ql.tree.NodeUtils;
-import org.elasticsearch.xpack.ql.tree.Source;
-import org.elasticsearch.xpack.ql.type.DataType;
-import org.elasticsearch.xpack.ql.type.EsField;
+import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
+import org.elasticsearch.xpack.esql.core.expression.Order;
+import org.elasticsearch.xpack.esql.core.index.EsIndex;
+import org.elasticsearch.xpack.esql.core.querydsl.container.Sort;
+import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
+import org.elasticsearch.xpack.esql.core.tree.NodeUtils;
+import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.type.EsField;
 
 import java.util.List;
 import java.util.Map;
@@ -105,6 +105,10 @@ public class EsQueryExec extends LeafExec implements EstimatesRowSize {
         return sorts;
     }
 
+    public List<Attribute> attrs() {
+        return attrs;
+    }
+
     /**
      * Estimate of the number of bytes that'll be loaded per position before
      * the stream of pages is consumed.
@@ -126,10 +130,6 @@ public class EsQueryExec extends LeafExec implements EstimatesRowSize {
             size = state.consumeAllFields(true);
         }
         return Objects.equals(this.estimatedRowSize, size) ? this : new EsQueryExec(source(), index, attrs, query, limit, sorts, size);
-    }
-
-    public EsQueryExec withQuery(QueryBuilder query) {
-        return Objects.equals(this.query, query) ? this : new EsQueryExec(source(), index, attrs, query, limit, sorts, estimatedRowSize);
     }
 
     public EsQueryExec withLimit(Expression limit) {

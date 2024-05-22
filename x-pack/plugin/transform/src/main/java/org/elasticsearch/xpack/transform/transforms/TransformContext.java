@@ -39,9 +39,13 @@ public class TransformContext {
     private final AtomicInteger statePersistenceFailureCount = new AtomicInteger();
     private final AtomicReference<Throwable> lastStatePersistenceFailure = new AtomicReference<>();
     private volatile Instant lastStatePersistenceFailureStartTime;
+    private final AtomicInteger startUpFailureCount = new AtomicInteger();
+    private final AtomicReference<Throwable> lastStartUpFailure = new AtomicReference<>();
+    private volatile Instant startUpFailureTime;
     private volatile Instant changesLastDetectedAt;
     private volatile Instant lastSearchTime;
     private volatile boolean shouldStopAtCheckpoint = false;
+    private volatile boolean shouldRecreateDestinationIndex = false;
     private volatile AuthorizationState authState;
     private volatile int pageSize = 0;
 
@@ -171,6 +175,14 @@ public class TransformContext {
         this.shouldStopAtCheckpoint = shouldStopAtCheckpoint;
     }
 
+    public boolean shouldRecreateDestinationIndex() {
+        return shouldRecreateDestinationIndex;
+    }
+
+    public void setShouldRecreateDestinationIndex(boolean shouldRecreateDestinationIndex) {
+        this.shouldRecreateDestinationIndex = shouldRecreateDestinationIndex;
+    }
+
     public AuthorizationState getAuthState() {
         return authState;
     }
@@ -212,6 +224,37 @@ public class TransformContext {
 
     Instant getLastStatePersistenceFailureStartTime() {
         return lastStatePersistenceFailureStartTime;
+    }
+
+    void resetStartUpFailureCount() {
+        startUpFailureCount.set(0);
+        lastStartUpFailure.set(null);
+        startUpFailureTime = null;
+    }
+
+    int getStartUpFailureCount() {
+        return startUpFailureCount.get();
+    }
+
+    Throwable getStartUpFailure() {
+        return lastStartUpFailure.get();
+    }
+
+    int incrementAndGetStartUpFailureCount(Throwable failure) {
+        lastStartUpFailure.set(failure);
+        int newFailureCount = startUpFailureCount.incrementAndGet();
+        if (newFailureCount == 1) {
+            startUpFailureTime = Instant.now();
+        }
+        return newFailureCount;
+    }
+
+    Instant getStartUpFailureTime() {
+        return startUpFailureTime;
+    }
+
+    boolean doesNotHaveFailures() {
+        return getFailureCount() == 0 && getStatePersistenceFailureCount() == 0 && getStartUpFailureCount() == 0;
     }
 
     void shutdown() {

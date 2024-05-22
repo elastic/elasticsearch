@@ -27,6 +27,7 @@ import org.elasticsearch.xpack.core.transform.TransformConfigVersion;
 import org.elasticsearch.xpack.core.transform.TransformMessages;
 import org.elasticsearch.xpack.core.transform.transforms.SettingsConfig;
 import org.elasticsearch.xpack.core.transform.transforms.SourceConfig;
+import org.elasticsearch.xpack.core.transform.transforms.TransformEffectiveSettings;
 import org.elasticsearch.xpack.core.transform.transforms.TransformIndexerStats;
 import org.elasticsearch.xpack.core.transform.transforms.TransformProgress;
 import org.elasticsearch.xpack.core.transform.transforms.pivot.PivotConfig;
@@ -132,14 +133,7 @@ public class Pivot extends AbstractCompositeAggFunction {
         TransformIndexerStats transformIndexerStats,
         TransformProgress transformProgress
     ) {
-        // defines how dates are written, if not specified in settings
-        // < 7.11 as epoch millis
-        // >= 7.11 as string
-        // note: it depends on the version when the transform has been created, not the version of the code
-        boolean datesAsEpoch = settings.getDatesAsEpochMillis() != null
-            ? settings.getDatesAsEpochMillis()
-            : version.before(TransformConfigVersion.V_7_11_0);
-
+        boolean datesAsEpoch = TransformEffectiveSettings.writeDatesAsEpochMillis(settings, version);
         return AggregationResultUtils.extractCompositeAggregationResults(
             agg,
             config.getGroupConfig(),

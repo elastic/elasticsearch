@@ -26,6 +26,7 @@ import org.elasticsearch.action.datastreams.lifecycle.ErrorEntry;
 import org.elasticsearch.action.downsample.DownsampleAction;
 import org.elasticsearch.action.downsample.DownsampleConfig;
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.broadcast.BroadcastResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterName;
@@ -35,6 +36,8 @@ import org.elasticsearch.cluster.TestShardRoutingRoleStrategies;
 import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.metadata.DataStream;
+import org.elasticsearch.cluster.metadata.DataStreamFactoryRetention;
+import org.elasticsearch.cluster.metadata.DataStreamGlobalRetentionResolver;
 import org.elasticsearch.cluster.metadata.DataStreamLifecycle;
 import org.elasticsearch.cluster.metadata.DataStreamLifecycle.Downsampling;
 import org.elasticsearch.cluster.metadata.DataStreamLifecycle.Downsampling.Round;
@@ -133,6 +136,9 @@ public class DataStreamLifecycleServiceTests extends ESTestCase {
     private List<TransportRequest> clientSeenRequests;
     private DoExecuteDelegate clientDelegate;
     private ClusterService clusterService;
+    private final DataStreamGlobalRetentionResolver globalRetentionResolver = new DataStreamGlobalRetentionResolver(
+        DataStreamFactoryRetention.emptyFactoryRetention()
+    );
 
     @Before
     public void setupServices() {
@@ -178,7 +184,8 @@ public class DataStreamLifecycleServiceTests extends ESTestCase {
                 clusterService,
                 errorStore,
                 new FeatureService(List.of(new DataStreamFeatures()))
-            )
+            ),
+            globalRetentionResolver
         );
         clientDelegate = null;
         dataStreamLifecycleService.init();
@@ -200,6 +207,7 @@ public class DataStreamLifecycleServiceTests extends ESTestCase {
             builder,
             dataStreamName,
             numBackingIndices,
+            2,
             settings(IndexVersion.current()),
             DataStreamLifecycle.newBuilder().dataRetention(0).build(),
             now
@@ -209,20 +217,33 @@ public class DataStreamLifecycleServiceTests extends ESTestCase {
         ClusterState state = ClusterState.builder(ClusterName.DEFAULT).metadata(builder).build();
 
         dataStreamLifecycleService.run(state);
-        assertThat(clientSeenRequests.size(), is(3));
+        assertThat(clientSeenRequests.size(), is(5));
         assertThat(clientSeenRequests.get(0), instanceOf(RolloverRequest.class));
-        assertThat(((RolloverRequest) clientSeenRequests.get(0)).getRolloverTarget(), is(dataStreamName));
-        List<DeleteIndexRequest> deleteRequests = clientSeenRequests.subList(1, 3)
+        RolloverRequest rolloverBackingIndexRequest = (RolloverRequest) clientSeenRequests.get(0);
+        assertThat(rolloverBackingIndexRequest.getRolloverTarget(), is(dataStreamName));
+        assertThat(
+            rolloverBackingIndexRequest.indicesOptions().failureStoreOptions(),
+            equalTo(new IndicesOptions.FailureStoreOptions(true, false))
+        );
+        assertThat(clientSeenRequests.get(1), instanceOf(RolloverRequest.class));
+        RolloverRequest rolloverFailureIndexRequest = (RolloverRequest) clientSeenRequests.get(1);
+        assertThat(rolloverFailureIndexRequest.getRolloverTarget(), is(dataStreamName));
+        assertThat(
+            rolloverFailureIndexRequest.indicesOptions().failureStoreOptions(),
+            equalTo(new IndicesOptions.FailureStoreOptions(false, true))
+        );
+        List<DeleteIndexRequest> deleteRequests = clientSeenRequests.subList(2, 5)
             .stream()
             .map(transportRequest -> (DeleteIndexRequest) transportRequest)
             .toList();
         assertThat(deleteRequests.get(0).indices()[0], is(dataStream.getIndices().get(0).getName()));
         assertThat(deleteRequests.get(1).indices()[0], is(dataStream.getIndices().get(1).getName()));
+        assertThat(deleteRequests.get(2).indices()[0], is(dataStream.getFailureIndices().getIndices().get(0).getName()));
 
         // on the second run the rollover and delete requests should not execute anymore
         // i.e. the count should *remain* 1 for rollover and 2 for deletes
         dataStreamLifecycleService.run(state);
-        assertThat(clientSeenRequests.size(), is(3));
+        assertThat(clientSeenRequests.size(), is(5));
     }
 
     public void testRetentionNotConfigured() {
@@ -248,11 +269,13 @@ public class DataStreamLifecycleServiceTests extends ESTestCase {
     public void testRetentionNotExecutedDueToAge() {
         String dataStreamName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
         int numBackingIndices = 3;
+        int numFailureIndices = 2;
         Metadata.Builder builder = Metadata.builder();
         DataStream dataStream = createDataStream(
             builder,
             dataStreamName,
             numBackingIndices,
+            numFailureIndices,
             settings(IndexVersion.current()),
             DataStreamLifecycle.newBuilder().dataRetention(TimeValue.timeValueDays(700)).build(),
             now
@@ -261,8 +284,9 @@ public class DataStreamLifecycleServiceTests extends ESTestCase {
 
         ClusterState state = ClusterState.builder(ClusterName.DEFAULT).metadata(builder).build();
         dataStreamLifecycleService.run(state);
-        assertThat(clientSeenRequests.size(), is(3)); // rollover the write index, and force merge the other two
+        assertThat(clientSeenRequests.size(), is(5)); // roll over the 2 write indices, and force merge the other three
         assertThat(clientSeenRequests.get(0), instanceOf(RolloverRequest.class));
+        assertThat(clientSeenRequests.get(1), instanceOf(RolloverRequest.class));
     }
 
     public void testRetentionNotExecutedForTSIndicesWithinTimeBounds() {
@@ -283,20 +307,11 @@ public class DataStreamLifecycleServiceTests extends ESTestCase {
         Metadata.Builder builder = Metadata.builder(clusterState.metadata());
         DataStream dataStream = builder.dataStream(dataStreamName);
         builder.put(
-            new DataStream(
-                dataStreamName,
-                dataStream.getIndices(),
-                dataStream.getGeneration() + 1,
-                dataStream.getMetadata(),
-                dataStream.isHidden(),
-                dataStream.isReplicated(),
-                dataStream.isSystem(),
-                dataStream.isAllowCustomRouting(),
-                dataStream.getIndexMode(),
-                DataStreamLifecycle.newBuilder().dataRetention(0L).build(),
-                dataStream.isFailureStore(),
-                dataStream.getFailureIndices()
-            )
+            dataStream.copy()
+                .setName(dataStreamName)
+                .setGeneration(dataStream.getGeneration() + 1)
+                .setLifecycle(DataStreamLifecycle.newBuilder().dataRetention(0L).build())
+                .build()
         );
         clusterState = ClusterState.builder(clusterState).metadata(builder).build();
 
@@ -989,7 +1004,8 @@ public class DataStreamLifecycleServiceTests extends ESTestCase {
             RolloverRequest rolloverRequest = DataStreamLifecycleService.getDefaultRolloverRequest(
                 new RolloverConfiguration(randomConcreteRolloverConditions, Set.of("max_age")),
                 "my-data-stream",
-                null
+                null,
+                false
             );
             assertThat(rolloverRequest.getRolloverTarget(), equalTo("my-data-stream"));
             assertThat(
@@ -1003,7 +1019,8 @@ public class DataStreamLifecycleServiceTests extends ESTestCase {
             RolloverRequest rolloverRequestWithRetention = DataStreamLifecycleService.getDefaultRolloverRequest(
                 new RolloverConfiguration(randomConcreteRolloverConditions, Set.of("max_age")),
                 "my-data-stream",
-                TimeValue.timeValueDays(3)
+                TimeValue.timeValueDays(3),
+                false
             );
             assertThat(
                 rolloverRequestWithRetention.getConditions(),
@@ -1020,14 +1037,16 @@ public class DataStreamLifecycleServiceTests extends ESTestCase {
             RolloverRequest rolloverRequest = DataStreamLifecycleService.getDefaultRolloverRequest(
                 new RolloverConfiguration(randomConcreteRolloverConditions),
                 "my-data-stream",
-                null
+                null,
+                false
             );
             assertThat(rolloverRequest.getRolloverTarget(), equalTo("my-data-stream"));
             assertThat(rolloverRequest.getConditions(), equalTo(randomConcreteRolloverConditions));
             RolloverRequest rolloverRequestWithRetention = DataStreamLifecycleService.getDefaultRolloverRequest(
                 new RolloverConfiguration(randomConcreteRolloverConditions),
                 "my-data-stream",
-                TimeValue.timeValueDays(1)
+                TimeValue.timeValueDays(1),
+                false
             );
             assertThat(rolloverRequestWithRetention.getConditions(), equalTo(randomConcreteRolloverConditions));
         }
@@ -1410,7 +1429,8 @@ public class DataStreamLifecycleServiceTests extends ESTestCase {
                 clusterService,
                 errorStore,
                 new FeatureService(List.of(new DataStreamFeatures()))
-            )
+            ),
+            globalRetentionResolver
         );
         assertThat(service.getLastRunDuration(), is(nullValue()));
         assertThat(service.getTimeBetweenStarts(), is(nullValue()));
@@ -1422,6 +1442,78 @@ public class DataStreamLifecycleServiceTests extends ESTestCase {
         service.run(ClusterState.EMPTY_STATE);
         assertThat(service.getLastRunDuration(), is(delta));
         assertThat(service.getTimeBetweenStarts(), is(2 * delta));
+    }
+
+    public void testTargetIndices() {
+        String dataStreamName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+        int numBackingIndices = 3;
+        int numFailureIndices = 2;
+        Metadata.Builder builder = Metadata.builder();
+        DataStream dataStream = createDataStream(
+            builder,
+            dataStreamName,
+            numBackingIndices,
+            numFailureIndices,
+            settings(IndexVersion.current()),
+            new DataStreamLifecycle(),
+            now
+        ).copy().setFailureStoreEnabled(randomBoolean()).build(); // failure store is managed even when disabled
+        builder.put(dataStream);
+        Metadata metadata = builder.build();
+        Set<Index> indicesToExclude = Set.of(dataStream.getIndices().get(0), dataStream.getFailureIndices().getIndices().get(0));
+        List<Index> targetBackingIndicesOnly = DataStreamLifecycleService.getTargetIndices(
+            dataStream,
+            indicesToExclude,
+            metadata::index,
+            false
+        );
+        assertThat(targetBackingIndicesOnly, equalTo(dataStream.getIndices().subList(1, 3)));
+        List<Index> targetIndices = DataStreamLifecycleService.getTargetIndices(dataStream, indicesToExclude, metadata::index, true);
+        assertThat(
+            targetIndices,
+            equalTo(
+                List.of(dataStream.getIndices().get(1), dataStream.getIndices().get(2), dataStream.getFailureIndices().getIndices().get(1))
+            )
+        );
+    }
+
+    public void testFailureStoreIsManagedEvenWhenDisabled() {
+        String dataStreamName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+        int numBackingIndices = 1;
+        Metadata.Builder builder = Metadata.builder();
+        DataStream dataStream = createDataStream(
+            builder,
+            dataStreamName,
+            numBackingIndices,
+            2,
+            settings(IndexVersion.current()),
+            DataStreamLifecycle.newBuilder().dataRetention(0).build(),
+            now
+        ).copy().setFailureStoreEnabled(false).build(); // failure store is managed even when it is disabled
+        builder.put(dataStream);
+
+        ClusterState state = ClusterState.builder(ClusterName.DEFAULT).metadata(builder).build();
+
+        dataStreamLifecycleService.run(state);
+        assertThat(clientSeenRequests.size(), is(3));
+        assertThat(clientSeenRequests.get(0), instanceOf(RolloverRequest.class));
+        RolloverRequest rolloverBackingIndexRequest = (RolloverRequest) clientSeenRequests.get(0);
+        assertThat(rolloverBackingIndexRequest.getRolloverTarget(), is(dataStreamName));
+        assertThat(
+            rolloverBackingIndexRequest.indicesOptions().failureStoreOptions(),
+            equalTo(new IndicesOptions.FailureStoreOptions(true, false))
+        );
+        assertThat(clientSeenRequests.get(1), instanceOf(RolloverRequest.class));
+        RolloverRequest rolloverFailureIndexRequest = (RolloverRequest) clientSeenRequests.get(1);
+        assertThat(rolloverFailureIndexRequest.getRolloverTarget(), is(dataStreamName));
+        assertThat(
+            rolloverFailureIndexRequest.indicesOptions().failureStoreOptions(),
+            equalTo(new IndicesOptions.FailureStoreOptions(false, true))
+        );
+        assertThat(
+            ((DeleteIndexRequest) clientSeenRequests.get(2)).indices()[0],
+            is(dataStream.getFailureIndices().getIndices().get(0).getName())
+        );
     }
 
     /*
@@ -1507,7 +1599,7 @@ public class DataStreamLifecycleServiceTests extends ESTestCase {
         ByteSizeValue minSize = randomBoolean() ? randomByteSizeValue() : null;
         ByteSizeValue minPrimaryShardSize = randomBoolean() ? randomByteSizeValue() : null;
         Long minDocs = randomBoolean() ? randomNonNegativeLong() : null;
-        TimeValue minAge = randomBoolean() ? TimeValue.parseTimeValue(randomPositiveTimeValue(), "rollover_action_test") : null;
+        TimeValue minAge = randomBoolean() ? randomPositiveTimeValue() : null;
         Long minPrimaryShardDocs = randomBoolean() ? randomNonNegativeLong() : null;
 
         return RolloverConditions.newBuilder()

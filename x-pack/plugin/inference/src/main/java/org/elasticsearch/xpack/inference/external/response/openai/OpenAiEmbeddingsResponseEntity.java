@@ -3,6 +3,8 @@
  * or more contributor license agreements. Licensed under the Elastic License
  * 2.0; you may not use this file except in compliance with the Elastic License
  * 2.0.
+ *
+ * this file was contributed to by a generative AI
  */
 
 package org.elasticsearch.xpack.inference.external.response.openai;
@@ -20,6 +22,7 @@ import org.elasticsearch.xpack.inference.external.request.Request;
 import java.io.IOException;
 import java.util.List;
 
+import static org.elasticsearch.xpack.inference.external.response.XContentUtils.consumeUntilObjectEnd;
 import static org.elasticsearch.xpack.inference.external.response.XContentUtils.moveToFirstToken;
 import static org.elasticsearch.xpack.inference.external.response.XContentUtils.positionParserAtTokenAfterField;
 
@@ -94,14 +97,11 @@ public class OpenAiEmbeddingsResponseEntity {
 
         positionParserAtTokenAfterField(parser, "embedding", FAILED_TO_FIND_FIELD_TEMPLATE);
 
-        List<Float> embeddingValues = XContentParserUtils.parseList(parser, OpenAiEmbeddingsResponseEntity::parseEmbeddingList);
+        List<Float> embeddingValuesList = XContentParserUtils.parseList(parser, OpenAiEmbeddingsResponseEntity::parseEmbeddingList);
+        // parse and discard the rest of the object
+        consumeUntilObjectEnd(parser);
 
-        // the parser is currently sitting at an ARRAY_END so go to the next token
-        parser.nextToken();
-        // if there are additional fields within this object, lets skip them, so we can begin parsing the next embedding array
-        parser.skipChildren();
-
-        return new TextEmbeddingResults.Embedding(embeddingValues);
+        return TextEmbeddingResults.Embedding.of(embeddingValuesList);
     }
 
     private static float parseEmbeddingList(XContentParser parser) throws IOException {

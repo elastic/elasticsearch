@@ -1,0 +1,54 @@
+setup:
+  - requires:
+      cluster_features: ["gte_v8.12.0"]
+      reason: Introduced in 8.12.0
+      test_runner_features: is_after
+  - do:
+      connector.put:
+        connector_id: test-connector
+        body:
+          index_name: search-1-test
+          name: my-connector
+          language: pl
+          is_native: false
+          service_type: super-connector
+---
+"Connector Check-in":
+  - do:
+      connector.check_in:
+        connector_id: test-connector
+
+  - match: { result: updated }
+
+  - do:
+      connector.get:
+        connector_id: test-connector
+
+  - exists: last_seen
+  - set: { last_seen: last_seen_before_check_in }
+
+  - do:
+      connector.check_in:
+        connector_id: test-connector
+
+  - match: { result: updated }
+
+  - do:
+      connector.get:
+        connector_id: test-connector
+
+  - is_after: { last_seen: $last_seen_before_check_in }
+
+---
+"Connector Check-in Error - Connector doesn't exist":
+  - do:
+      catch: "missing"
+      connector.check_in:
+        connector_id: test-non-existent-connector
+
+---
+"Connector Check-in Error - connector_id is empty":
+  - do:
+      catch: "bad_request"
+      connector.check_in:
+        connector_id: ""

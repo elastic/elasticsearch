@@ -14,8 +14,8 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.search.rank.RankBuilder;
-import org.elasticsearch.search.rank.RankCoordinatorContext;
-import org.elasticsearch.search.rank.RankShardContext;
+import org.elasticsearch.search.rank.context.QueryPhaseRankCoordinatorContext;
+import org.elasticsearch.search.rank.context.QueryPhaseRankShardContext;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -47,7 +47,7 @@ public class RRFRankBuilder extends RankBuilder {
     });
 
     static {
-        PARSER.declareInt(optionalConstructorArg(), WINDOW_SIZE_FIELD);
+        PARSER.declareInt(optionalConstructorArg(), RANK_WINDOW_SIZE_FIELD);
         PARSER.declareInt(optionalConstructorArg(), RANK_CONSTANT_FIELD);
     }
 
@@ -65,8 +65,8 @@ public class RRFRankBuilder extends RankBuilder {
 
     private final int rankConstant;
 
-    public RRFRankBuilder(int windowSize, int rankConstant) {
-        super(windowSize);
+    public RRFRankBuilder(int rankWindowSize, int rankConstant) {
+        super(rankWindowSize);
         this.rankConstant = rankConstant;
     }
 
@@ -94,14 +94,13 @@ public class RRFRankBuilder extends RankBuilder {
         return rankConstant;
     }
 
-    @Override
-    public RankShardContext buildRankShardContext(List<Query> queries, int from) {
-        return new RRFRankShardContext(queries, from, windowSize(), rankConstant);
+    public QueryPhaseRankShardContext buildQueryPhaseShardContext(List<Query> queries, int from) {
+        return new RRFQueryPhaseRankShardContext(queries, rankWindowSize(), rankConstant);
     }
 
     @Override
-    public RankCoordinatorContext buildRankCoordinatorContext(int size, int from) {
-        return new RRFRankCoordinatorContext(size, from, windowSize(), rankConstant);
+    public QueryPhaseRankCoordinatorContext buildQueryPhaseCoordinatorContext(int size, int from) {
+        return new RRFQueryPhaseRankCoordinatorContext(size, from, rankWindowSize(), rankConstant);
     }
 
     @Override

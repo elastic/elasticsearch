@@ -31,6 +31,9 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
 public class SettingsConfig implements Writeable, ToXContentObject {
+
+    public static final SettingsConfig EMPTY = new SettingsConfig(null, null, null, null, null, null, null, (Integer) null);
+
     public static final ConstructingObjectParser<SettingsConfig, Void> STRICT_PARSER = createParser(false);
     public static final ConstructingObjectParser<SettingsConfig, Void> LENIENT_PARSER = createParser(true);
 
@@ -110,10 +113,6 @@ public class SettingsConfig implements Writeable, ToXContentObject {
     private final Integer numFailureRetries;
     private final Integer unattended;
 
-    public SettingsConfig() {
-        this(null, null, (Integer) null, (Integer) null, (Integer) null, (Integer) null, (Integer) null, (Integer) null);
-    }
-
     public SettingsConfig(
         Integer maxPageSearchSize,
         Float docsPerSecond,
@@ -136,7 +135,7 @@ public class SettingsConfig implements Writeable, ToXContentObject {
         );
     }
 
-    SettingsConfig(
+    private SettingsConfig(
         Integer maxPageSearchSize,
         Float docsPerSecond,
         Integer datesAsEpochMillis,
@@ -188,51 +187,51 @@ public class SettingsConfig implements Writeable, ToXContentObject {
         return docsPerSecond;
     }
 
-    public Boolean getDatesAsEpochMillis() {
+    Boolean getDatesAsEpochMillis() {
         return datesAsEpochMillis != null ? datesAsEpochMillis > 0 : null;
     }
 
-    public Integer getDatesAsEpochMillisForUpdate() {
+    Integer getDatesAsEpochMillisForUpdate() {
         return datesAsEpochMillis;
     }
 
-    public Boolean getAlignCheckpoints() {
+    Boolean getAlignCheckpoints() {
         return alignCheckpoints != null ? (alignCheckpoints > 0) || (alignCheckpoints == DEFAULT_ALIGN_CHECKPOINTS) : null;
     }
 
-    public Integer getAlignCheckpointsForUpdate() {
+    Integer getAlignCheckpointsForUpdate() {
         return alignCheckpoints;
     }
 
-    public Boolean getUsePit() {
+    Boolean getUsePit() {
         return usePit != null ? (usePit > 0) || (usePit == DEFAULT_USE_PIT) : null;
     }
 
-    public Integer getUsePitForUpdate() {
+    Integer getUsePitForUpdate() {
         return usePit;
     }
 
-    public Boolean getDeduceMappings() {
+    Boolean getDeduceMappings() {
         return deduceMappings != null ? (deduceMappings > 0) || (deduceMappings == DEFAULT_DEDUCE_MAPPINGS) : null;
     }
 
-    public Integer getDeduceMappingsForUpdate() {
+    Integer getDeduceMappingsForUpdate() {
         return deduceMappings;
     }
 
-    public Integer getNumFailureRetries() {
+    Integer getNumFailureRetries() {
         return numFailureRetries != null ? (numFailureRetries == DEFAULT_NUM_FAILURE_RETRIES ? null : numFailureRetries) : null;
     }
 
-    public Integer getNumFailureRetriesForUpdate() {
+    Integer getNumFailureRetriesForUpdate() {
         return numFailureRetries;
     }
 
-    public Boolean getUnattended() {
+    Boolean getUnattended() {
         return unattended != null ? (unattended == DEFAULT_UNATTENDED) ? null : (unattended > 0) : null;
     }
 
-    public Integer getUnattendedForUpdate() {
+    Integer getUnattendedForUpdate() {
         return unattended;
     }
 
@@ -495,7 +494,7 @@ public class SettingsConfig implements Writeable, ToXContentObject {
          * An explicit `null` resets to default.
          *
          * @param unattended true if this is a unattended transform.
-         * @return the {@link Builder} with usePit set.
+         * @return the {@link Builder} with unattended set.
          */
         public Builder setUnattended(Boolean unattended) {
             this.unattended = unattended == null ? DEFAULT_UNATTENDED : unattended ? 1 : 0;
@@ -545,7 +544,6 @@ public class SettingsConfig implements Writeable, ToXContentObject {
             if (update.getUnattendedForUpdate() != null) {
                 this.unattended = update.getUnattendedForUpdate().equals(DEFAULT_UNATTENDED) ? null : update.getUnattendedForUpdate();
             }
-
             return this;
         }
 

@@ -18,8 +18,10 @@ import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.health.Diagnosis;
 import org.elasticsearch.health.Diagnosis.Resource.Type;
+import org.elasticsearch.health.HealthFeatures;
 import org.elasticsearch.health.HealthIndicatorDetails;
 import org.elasticsearch.health.HealthIndicatorResult;
 import org.elasticsearch.health.SimpleHealthIndicatorDetails;
@@ -27,12 +29,14 @@ import org.elasticsearch.health.node.HealthInfo;
 import org.elasticsearch.health.node.RepositoriesHealthInfo;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
+import org.mockito.Mockito;
 
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.cluster.node.DiscoveryNode.DISCOVERY_NODE_COMPARATOR;
@@ -47,6 +51,7 @@ import static org.elasticsearch.snapshots.RepositoryIntegrityHealthIndicatorServ
 import static org.elasticsearch.snapshots.RepositoryIntegrityHealthIndicatorService.NAME;
 import static org.elasticsearch.snapshots.RepositoryIntegrityHealthIndicatorService.UNKNOWN_DEFINITION;
 import static org.hamcrest.Matchers.equalTo;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -55,6 +60,7 @@ public class RepositoryIntegrityHealthIndicatorServiceTests extends ESTestCase {
     private DiscoveryNode node1;
     private DiscoveryNode node2;
     private HealthInfo healthInfo;
+    private FeatureService featureService;
 
     @Before
     public void setUp() throws Exception {
@@ -74,6 +80,9 @@ public class RepositoryIntegrityHealthIndicatorServiceTests extends ESTestCase {
                 )
             )
         );
+
+        featureService = Mockito.mock(FeatureService.class);
+        Mockito.when(featureService.clusterHasFeature(any(), any())).thenReturn(true);
     }
 
     public void testIsGreenWhenAllRepositoriesAreHealthy() {
@@ -349,11 +358,13 @@ public class RepositoryIntegrityHealthIndicatorServiceTests extends ESTestCase {
     }
 
     private ClusterState createClusterStateWith(RepositoriesMetadata metadata) {
-        var builder = ClusterState.builder(new ClusterName("test-cluster"));
+        var features = Set.of(HealthFeatures.SUPPORTS_EXTENDED_REPOSITORY_INDICATOR.id());
+        var builder = ClusterState.builder(new ClusterName("test-cluster"))
+            .nodes(DiscoveryNodes.builder().add(node1).add(node2).build())
+            .nodeFeatures(Map.of(node1.getId(), features, node2.getId(), features));
         if (metadata != null) {
             builder.metadata(Metadata.builder().putCustom(RepositoriesMetadata.TYPE, metadata));
         }
-        builder.nodes(DiscoveryNodes.builder().add(node1).add(node2).build());
         return builder.build();
     }
 
@@ -361,10 +372,10 @@ public class RepositoryIntegrityHealthIndicatorServiceTests extends ESTestCase {
         return new RepositoryMetadata(name, "uuid", "s3", Settings.EMPTY, corrupted ? CORRUPTED_REPO_GEN : EMPTY_REPO_GEN, EMPTY_REPO_GEN);
     }
 
-    private static RepositoryIntegrityHealthIndicatorService createRepositoryIntegrityHealthIndicatorService(ClusterState clusterState) {
+    private RepositoryIntegrityHealthIndicatorService createRepositoryIntegrityHealthIndicatorService(ClusterState clusterState) {
         var clusterService = mock(ClusterService.class);
         when(clusterService.state()).thenReturn(clusterState);
-        return new RepositoryIntegrityHealthIndicatorService(clusterService);
+        return new RepositoryIntegrityHealthIndicatorService(clusterService, featureService);
     }
 
     private SimpleHealthIndicatorDetails createDetails(int total, int corruptedCount, List<String> corrupted, int unknown, int invalid) {

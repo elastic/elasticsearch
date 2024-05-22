@@ -9,6 +9,7 @@
 package org.elasticsearch.action.admin.cluster.shards;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.TransportMasterNodeReadAction;
 import org.elasticsearch.cluster.ClusterState;
@@ -21,6 +22,7 @@ import org.elasticsearch.cluster.routing.ShardIterator;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.core.Predicates;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.search.internal.AliasFilter;
@@ -37,6 +39,8 @@ public class TransportClusterSearchShardsAction extends TransportMasterNodeReadA
     ClusterSearchShardsRequest,
     ClusterSearchShardsResponse> {
 
+    public static final ActionType<ClusterSearchShardsResponse> TYPE = new ActionType<>("indices:admin/shards/search_shards");
+
     private final IndicesService indicesService;
 
     @Inject
@@ -49,7 +53,7 @@ public class TransportClusterSearchShardsAction extends TransportMasterNodeReadA
         IndexNameExpressionResolver indexNameExpressionResolver
     ) {
         super(
-            ClusterSearchShardsAction.NAME,
+            TYPE.name(),
             transportService,
             clusterService,
             threadPool,
@@ -85,8 +89,8 @@ public class TransportClusterSearchShardsAction extends TransportMasterNodeReadA
             final String[] aliases = indexNameExpressionResolver.indexAliases(
                 clusterState,
                 index,
-                aliasMetadata -> true,
-                dataStreamAlias -> true,
+                Predicates.always(),
+                Predicates.always(),
                 true,
                 indicesAndAliases
             );

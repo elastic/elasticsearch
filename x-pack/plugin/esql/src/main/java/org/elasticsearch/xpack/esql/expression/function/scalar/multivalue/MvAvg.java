@@ -12,20 +12,21 @@ import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
 import org.elasticsearch.search.aggregations.metrics.CompensatedSum;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
+import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.type.DataTypes;
+import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
-import org.elasticsearch.xpack.ql.expression.Expression;
-import org.elasticsearch.xpack.ql.tree.NodeInfo;
-import org.elasticsearch.xpack.ql.tree.Source;
-import org.elasticsearch.xpack.ql.type.DataType;
-import org.elasticsearch.xpack.ql.type.DataTypes;
 
 import java.util.List;
 
+import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
+import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.unsignedLongToDouble;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.isRepresentable;
-import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isType;
-import static org.elasticsearch.xpack.ql.util.NumericUtils.unsignedLongToDouble;
 
 /**
  * Reduce a multivalued field to a single valued field containing the average value.
@@ -33,9 +34,17 @@ import static org.elasticsearch.xpack.ql.util.NumericUtils.unsignedLongToDouble;
 public class MvAvg extends AbstractMultivalueFunction {
     @FunctionInfo(
         returnType = "double",
-        description = "Converts a multivalued field into a single valued field containing the average of all of the values."
+        description = "Converts a multivalued field into a single valued field containing the average of all of the values.",
+        examples = @Example(file = "math", tag = "mv_avg")
     )
-    public MvAvg(Source source, @Param(name = "field", type = { "double", "integer", "long", "unsigned_long" }) Expression field) {
+    public MvAvg(
+        Source source,
+        @Param(
+            name = "number",
+            type = { "double", "integer", "long", "unsigned_long" },
+            description = "Multivalue expression."
+        ) Expression field
+    ) {
         super(source, field);
     }
 

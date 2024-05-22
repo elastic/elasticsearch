@@ -1,6 +1,6 @@
 setup:
-  - skip:
-      version: ' - 8.7.99'
+  - requires:
+      cluster_features: "gte_v8.8.0"
       reason: 'rank added in 8.8'
 
   - do:
@@ -21,6 +21,10 @@ setup:
                 dims: 1
                 index: true
                 similarity: l2_norm
+                index_options:
+                  type: hnsw
+                  ef_construction: 100
+                  m: 16
 
   - do:
       index:
@@ -71,7 +75,7 @@ setup:
               text: term
           rank:
             rrf:
-              window_size: 100
+              rank_window_size: 100
               rank_constant: 1
           size: 10
 
@@ -117,7 +121,7 @@ setup:
           ]
           rank:
             rrf:
-              window_size: 100
+              rank_window_size: 100
               rank_constant: 1
           size: 10
 
@@ -165,7 +169,7 @@ setup:
           ]
           rank:
             rrf:
-              window_size: 100
+              rank_window_size: 100
               rank_constant: 1
           size: 10
 
@@ -185,3 +189,41 @@ setup:
   - match: { hits.hits.2._rank: 3 }
   - match: { hits.hits.2.fields.text.0: "other" }
   - match: { hits.hits.2.fields.keyword.0: "other" }
+
+
+---
+"RRF rank should fail if size > rank_window_size":
+
+  - do:
+      catch: "/\\[rank\\] requires \\[rank_window_size: 2\\] be greater than or equal to \\[size: 10\\]/"
+      search:
+        index: test
+        body:
+          track_total_hits: true
+          fields: [ "text", "keyword" ]
+          knn:
+            field: vector
+            query_vector: [ 0.0 ]
+            k: 3
+            num_candidates: 3
+          sub_searches: [
+            {
+              "query": {
+                "term": {
+                  "text": "term"
+                }
+              }
+            },
+            {
+              "query": {
+                "match": {
+                  "keyword": "keyword"
+                }
+              }
+            }
+          ]
+          rank:
+            rrf:
+              rank_window_size: 2
+              rank_constant: 1
+          size: 10

@@ -40,7 +40,7 @@ import org.elasticsearch.test.disruption.NetworkDisruption;
 import org.elasticsearch.test.disruption.NetworkDisruption.Bridge;
 import org.elasticsearch.test.disruption.NetworkDisruption.TwoPartitions;
 import org.elasticsearch.test.disruption.ServiceDisruptionScheme;
-import org.elasticsearch.test.junit.annotations.TestIssueLogging;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.xcontent.XContentType;
 
@@ -94,17 +94,17 @@ public class ClusterDisruptionIT extends AbstractDisruptionTestCase {
     }
 
     /**
-     * Test that we do not loose document whose indexing request was successful, under a randomly selected disruption scheme
+     * Test that we do not lose documents, indexed via requests that return success, under randomly selected disruption schemes.
      * We also collect &amp; report the type of indexing failures that occur.
      * <p>
-     * This test is a superset of tests run in the Jepsen test suite, with the exception of versioned updates
+     * This test is a superset of tests run in the Jepsen test suite, with the exception of versioned updates.
      */
-    @TestIssueLogging(
+    @TestLogging(
         value = "_root:DEBUG,org.elasticsearch.action.bulk:TRACE,org.elasticsearch.action.get:TRACE,"
             + "org.elasticsearch.discovery:TRACE,org.elasticsearch.action.support.replication:TRACE,"
             + "org.elasticsearch.cluster.service:TRACE,org.elasticsearch.indices.recovery:TRACE,"
             + "org.elasticsearch.indices.cluster:TRACE,org.elasticsearch.index.shard:TRACE",
-        issueUrl = "https://github.com/elastic/elasticsearch/issues/41068"
+        reason = "Past failures have required a lot of additional logging to debug"
     )
     public void testAckedIndexing() throws Exception {
 
@@ -326,7 +326,7 @@ public class ClusterDisruptionIT extends AbstractDisruptionTestCase {
         String nonMasterNode = randomFrom(nonMasterNodes);
         assertAcked(prepareCreate("test").setSettings(indexSettings(3, 2)));
         ensureGreen();
-        String nonMasterNodeId = internalCluster().clusterService(nonMasterNode).localNode().getId();
+        String nonMasterNodeId = getNodeId(nonMasterNode);
 
         // fail a random shard
         ShardRouting failedShard = randomFrom(
@@ -428,7 +428,7 @@ public class ClusterDisruptionIT extends AbstractDisruptionTestCase {
                     .cluster()
                     .prepareHealth()
                     .setWaitForNodes("2")
-                    .setTimeout("2s")
+                    .setTimeout(TimeValue.timeValueSeconds(2))
                     .get()
                     .isTimedOut()
             );
@@ -456,7 +456,7 @@ public class ClusterDisruptionIT extends AbstractDisruptionTestCase {
         networkDisruption.startDisrupting();
         // We know this will time out due to the partition, we check manually below to not proceed until
         // the delete has been applied to the master node and the master eligible node.
-        internalCluster().client(masterNode1).admin().indices().prepareDelete(idxName).setTimeout("0s").get();
+        internalCluster().client(masterNode1).admin().indices().prepareDelete(idxName).setTimeout(TimeValue.ZERO).get();
         // Don't restart the master node until we know the index deletion has taken effect on master and the master eligible node.
         assertBusy(() -> {
             for (String masterNode : allMasterEligibleNodes) {

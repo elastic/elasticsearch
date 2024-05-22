@@ -12,6 +12,7 @@ import org.elasticsearch.action.admin.cluster.repositories.cleanup.CleanupReposi
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.BlobStore;
 import org.elasticsearch.common.blobstore.support.BlobMetadata;
@@ -19,6 +20,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.settings.SecureSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.core.Streams;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 import org.elasticsearch.repositories.blobstore.BlobStoreTestUtil;
@@ -121,7 +123,7 @@ public abstract class AbstractThirdPartyRepositoryTestCase extends ESSingleNodeT
         assertTrue(clusterAdmin().prepareDeleteSnapshot(TEST_REPO_NAME, snapshotName).get().isAcknowledged());
     }
 
-    public void testListChildren() throws Exception {
+    public void testListChildren() {
         final BlobStoreRepository repo = getRepository();
         final PlainActionFuture<Void> future = new PlainActionFuture<>();
         final Executor genericExec = repo.threadPool().generic();
@@ -244,6 +246,57 @@ public abstract class AbstractThirdPartyRepositoryTestCase extends ESSingleNodeT
 
         assertAcked(clusterAdmin().prepareDeleteSnapshot(TEST_REPO_NAME, createSnapshot2Response.getSnapshotInfo().snapshotId().getName()));
         assertTrue(blobContents.add(readIndexLatest(repository)));
+    }
+
+    public void testReadFromPositionWithLength() {
+        final var blobName = randomIdentifier();
+        final var blobBytes = randomBytesReference(randomIntBetween(100, 2_000));
+
+        final var repository = getRepository();
+        executeOnBlobStore(repository, blobStore -> {
+            blobStore.writeBlob(randomPurpose(), blobName, blobBytes, true);
+            return null;
+        });
+
+        {
+            assertThat("Exact Range", readBlob(repository, blobName, 0L, blobBytes.length()), equalTo(blobBytes));
+        }
+        {
+            int position = randomIntBetween(0, blobBytes.length() - 1);
+            int length = randomIntBetween(1, blobBytes.length() - position);
+            assertThat(
+                "Random Range: " + position + '-' + (position + length),
+                readBlob(repository, blobName, position, length),
+                equalTo(blobBytes.slice(position, length))
+            );
+        }
+        {
+            int position = randomIntBetween(0, blobBytes.length() - 1);
+            long length = randomLongBetween(1L, Long.MAX_VALUE - position - 1L);
+            assertThat(
+                "Random Larger Range: " + position + '-' + (position + length),
+                readBlob(repository, blobName, position, length),
+                equalTo(blobBytes.slice(position, Math.toIntExact(Math.min(length, blobBytes.length() - position))))
+            );
+        }
+    }
+
+    protected static <T> T executeOnBlobStore(BlobStoreRepository repository, CheckedFunction<BlobContainer, T, IOException> fn) {
+        final var future = new PlainActionFuture<T>();
+        repository.threadPool().generic().execute(ActionRunnable.supply(future, () -> {
+            var blobContainer = repository.blobStore().blobContainer(repository.basePath());
+            return fn.apply(blobContainer);
+        }));
+        return future.actionGet();
+    }
+
+    protected static BytesReference readBlob(BlobStoreRepository repository, String blobName, long position, long length) {
+        return executeOnBlobStore(repository, blobContainer -> {
+            try (var input = blobContainer.readBlob(randomPurpose(), blobName, position, length); var output = new BytesStreamOutput()) {
+                Streams.copy(input, output);
+                return output.bytes();
+            }
+        });
     }
 
     private static BytesReference readIndexLatest(BlobStoreRepository repository) throws IOException {

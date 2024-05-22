@@ -460,6 +460,7 @@ public class NodeStatsMonitoringDocTests extends BaseFilteredMonitoringDocTestCa
             null,
             null,
             null,
+            null,
             null
         );
     }

@@ -10,7 +10,6 @@ package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
-import org.apache.lucene.codecs.lucene99.Lucene99Codec;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriterConfig;
@@ -43,6 +42,7 @@ import org.elasticsearch.index.analysis.NameOrDefinition;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
 import org.elasticsearch.index.codec.PerFieldMapperCodec;
+import org.elasticsearch.index.codec.zstd.Zstd814StoredFieldsFormat;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
@@ -58,6 +58,7 @@ import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.plugins.TelemetryPlugin;
 import org.elasticsearch.plugins.internal.DocumentSizeObserver;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptContext;
@@ -72,6 +73,7 @@ import org.elasticsearch.search.sort.BucketedSort;
 import org.elasticsearch.search.sort.BucketedSort.ExtraData;
 import org.elasticsearch.search.sort.SortAndFormats;
 import org.elasticsearch.search.sort.SortBuilder;
+import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.test.FieldMaskingReader;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -88,6 +90,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.function.BooleanSupplier;
 import java.util.function.Function;
+import java.util.function.LongSupplier;
 import java.util.function.Supplier;
 
 import static java.util.Collections.emptyList;
@@ -219,7 +222,9 @@ public abstract class MapperServiceTestCase extends FieldTypeTestCase {
                 throw new UnsupportedOperationException();
             },
             indexSettings.getMode().buildIdFieldMapper(idFieldDataEnabled),
-            this::compileScript
+            this::compileScript,
+            MapperMetrics.NOOP
+
         );
     }
 
@@ -237,13 +242,29 @@ public abstract class MapperServiceTestCase extends FieldTypeTestCase {
         return new IndexSettings(meta, settings);
     }
 
+    protected MapperMetrics createTestMapperMetrics() {
+        var telemetryProvider = getPlugins().stream()
+            .filter(p -> p instanceof TelemetryPlugin)
+            .map(p -> ((TelemetryPlugin) p).getTelemetryProvider(Settings.EMPTY))
+            .findFirst()
+            .orElse(TelemetryProvider.NOOP);
+        return new MapperMetrics(new SourceFieldMetrics(telemetryProvider.getMeterRegistry(), new LongSupplier() {
+            private long value = 1;
+
+            @Override
+            public long getAsLong() {
+                return value++;
+            }
+        }));
+    }
+
     protected static void withLuceneIndex(
         MapperService mapperService,
         CheckedConsumer<RandomIndexWriter, IOException> builder,
         CheckedConsumer<DirectoryReader, IOException> test
     ) throws IOException {
         IndexWriterConfig iwc = new IndexWriterConfig(IndexShard.buildIndexAnalyzer(mapperService)).setCodec(
-            new PerFieldMapperCodec(Lucene99Codec.Mode.BEST_SPEED, mapperService, BigArrays.NON_RECYCLING_INSTANCE)
+            new PerFieldMapperCodec(Zstd814StoredFieldsFormat.Mode.BEST_SPEED, mapperService, BigArrays.NON_RECYCLING_INSTANCE)
         );
         try (Directory dir = newDirectory(); RandomIndexWriter iw = new RandomIndexWriter(random(), dir, iwc)) {
             builder.accept(iw);
@@ -670,7 +691,8 @@ public abstract class MapperServiceTestCase extends FieldTypeTestCase {
             null,
             () -> true,
             null,
-            Collections.emptyMap()
+            Collections.emptyMap(),
+            MapperMetrics.NOOP
         );
     }
 
@@ -687,9 +709,13 @@ public abstract class MapperServiceTestCase extends FieldTypeTestCase {
             .build(new IndexFieldDataCache.None(), new NoneCircuitBreakerService());
     }
 
+    protected RandomIndexWriter indexWriterForSyntheticSource(Directory directory) throws IOException {
+        return new RandomIndexWriter(random(), directory);
+    }
+
     protected final String syntheticSource(DocumentMapper mapper, CheckedConsumer<XContentBuilder, IOException> build) throws IOException {
         try (Directory directory = newDirectory()) {
-            RandomIndexWriter iw = new RandomIndexWriter(random(), directory);
+            RandomIndexWriter iw = indexWriterForSyntheticSource(directory);
             LuceneDocument doc = mapper.parse(source(build)).rootDoc();
             iw.addDocument(doc);
             iw.close();
@@ -713,19 +739,8 @@ public abstract class MapperServiceTestCase extends FieldTypeTestCase {
      */
     private void roundTripSyntheticSource(DocumentMapper mapper, String syntheticSource, DirectoryReader reader) throws IOException {
         try (Directory roundTripDirectory = newDirectory()) {
-            RandomIndexWriter roundTripIw = new RandomIndexWriter(random(), roundTripDirectory);
-            roundTripIw.addDocument(
-                mapper.parse(
-                    new SourceToParse(
-                        "1",
-                        new BytesArray(syntheticSource),
-                        XContentType.JSON,
-                        null,
-                        Map.of(),
-                        DocumentSizeObserver.EMPTY_INSTANCE
-                    )
-                ).rootDoc()
-            );
+            RandomIndexWriter roundTripIw = indexWriterForSyntheticSource(roundTripDirectory);
+            roundTripIw.addDocument(mapper.parse(new SourceToParse("1", new BytesArray(syntheticSource), XContentType.JSON)).rootDoc());
             roundTripIw.close();
             try (DirectoryReader roundTripReader = DirectoryReader.open(roundTripDirectory)) {
                 String roundTripSyntheticSource = syntheticSource(mapper, roundTripReader, 0);
@@ -736,7 +751,7 @@ public abstract class MapperServiceTestCase extends FieldTypeTestCase {
     }
 
     private static String syntheticSource(DocumentMapper mapper, IndexReader reader, int docId) throws IOException {
-        SourceProvider provider = SourceProvider.fromSyntheticSource(mapper.mapping());
+        SourceProvider provider = SourceProvider.fromSyntheticSource(mapper.mapping(), SourceFieldMetrics.NOOP);
         Source synthetic = provider.getSource(getOnlyLeafReader(reader).getContext(), docId);
         return synthetic.internalSourceRef().utf8ToString();
     }

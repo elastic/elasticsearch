@@ -1,8 +1,8 @@
 setup:
-  - skip:
-      version: " - 8.10.99"
+  - requires:
+      cluster_features: ["gte_v8.11.0"]
       reason: "ESQL is available in 8.11+"
-      features: allowed_warnings_regex
+      test_runner_features: allowed_warnings_regex
   - do:
       indices.create:
         index: test
@@ -66,6 +66,7 @@ load everything:
       esql.query:
         body:
           query: 'from test'
+          version: 2024.04.01
 
   - match: {columns.0.name: "@timestamp"}
   - match: {columns.0.type: "date"}
@@ -91,6 +92,7 @@ load a document:
       esql.query:
         body:
           query: 'from test | where @timestamp == "2021-04-28T18:50:23.142Z"'
+          version: 2024.04.01
 
   - length: {values: 1}
   - length: {values.0: 7}
@@ -110,6 +112,7 @@ filter on counter:
       esql.query:
         body:
           query: 'from test | where k8s.pod.network.tx == 1434577921'
+          version: 2024.04.01
 
   - length: {values: 1}
   - length: {values.0: 7}

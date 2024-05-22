@@ -64,6 +64,7 @@ import org.elasticsearch.common.logging.HeaderWarningAppender;
 import org.elasticsearch.common.logging.LogConfigurator;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.lucene.Lucene;
+import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateUtils;
@@ -73,6 +74,7 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.MockBigArrays;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -83,6 +85,7 @@ import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
@@ -168,7 +171,10 @@ import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Future;
+import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -255,6 +261,7 @@ public abstract class ESTestCase extends LuceneTestCase {
         // TODO: consolidate logging initialization for tests so it all occurs in logconfigurator
         LogConfigurator.loadLog4jPlugins();
         LogConfigurator.configureESLogging();
+        MockLog.init();
 
         final List<Appender> testAppenders = new ArrayList<>(3);
         for (String leakLoggerName : Arrays.asList("io.netty.util.ResourceLeakDetector", LeakTracker.class.getName())) {
@@ -881,6 +888,16 @@ public abstract class ESTestCase extends LuceneTestCase {
         return bytes;
     }
 
+    public static byte randomByteBetween(byte minInclusive, byte maxInclusive) {
+        return (byte) randomIntBetween(minInclusive, maxInclusive);
+    }
+
+    public static void randomBytesBetween(byte[] bytes, byte minInclusive, byte maxInclusive) {
+        for (int i = 0, len = bytes.length; i < len;) {
+            bytes[i++] = randomByteBetween(minInclusive, maxInclusive);
+        }
+    }
+
     public static BytesReference randomBytesReference(int length) {
         final var slices = new ArrayList<BytesReference>();
         var remaining = length;
@@ -1044,6 +1061,15 @@ public abstract class ESTestCase extends LuceneTestCase {
         return RandomizedTest.randomAsciiOfLength(codeUnits);
     }
 
+    public static SecureString randomSecureStringOfLength(int codeUnits) {
+        var randomAlpha = randomAlphaOfLength(codeUnits);
+        return new SecureString(randomAlpha.toCharArray());
+    }
+
+    public static String randomNullOrAlphaOfLength(int codeUnits) {
+        return randomBoolean() ? null : randomAlphaOfLength(codeUnits);
+    }
+
     /**
      * Creates a valid random identifier such as node id or index name
      */
@@ -1149,21 +1175,19 @@ public abstract class ESTestCase extends LuceneTestCase {
         return new HashSet<>(randomList(minSetSize, maxSetSize, valueConstructor));
     }
 
-    private static final String[] TIME_SUFFIXES = new String[] { "d", "h", "ms", "s", "m", "micros", "nanos" };
-
-    public static String randomTimeValue(int lower, int upper, String... suffixes) {
-        return randomIntBetween(lower, upper) + randomFrom(suffixes);
+    public static TimeValue randomTimeValue(int lower, int upper, TimeUnit... units) {
+        return new TimeValue(between(lower, upper), randomFrom(units));
     }
 
-    public static String randomTimeValue(int lower, int upper) {
-        return randomTimeValue(lower, upper, TIME_SUFFIXES);
+    public static TimeValue randomTimeValue(int lower, int upper) {
+        return randomTimeValue(lower, upper, TimeUnit.values());
     }
 
-    public static String randomTimeValue() {
+    public static TimeValue randomTimeValue() {
         return randomTimeValue(0, 1000);
     }
 
-    public static String randomPositiveTimeValue() {
+    public static TimeValue randomPositiveTimeValue() {
         return randomTimeValue(1, 1000);
     }
 
@@ -1193,6 +1217,21 @@ public abstract class ESTestCase extends LuceneTestCase {
      */
     public static String randomDateFormatterPattern() {
         return randomFrom(FormatNames.values()).getName();
+    }
+
+    /**
+     * Randomly choose between {@link EsExecutors#DIRECT_EXECUTOR_SERVICE} (which does not fork), {@link ThreadPool#generic}, and one of the
+     * other named threadpool executors.
+     */
+    public static Executor randomExecutor(ThreadPool threadPool, String... otherExecutorNames) {
+        final var choice = between(0, otherExecutorNames.length + 1);
+        if (choice < otherExecutorNames.length) {
+            return threadPool.executor(otherExecutorNames[choice]);
+        } else if (choice == otherExecutorNames.length) {
+            return threadPool.generic();
+        } else {
+            return EsExecutors.DIRECT_EXECUTOR_SERVICE;
+        }
     }
 
     /**
@@ -2063,9 +2102,31 @@ public abstract class ESTestCase extends LuceneTestCase {
         return secureRandomFips;
     }
 
+    /**
+     * Various timeouts in various REST APIs default to 30s, and many tests do not care about such timeouts, but must specify some value
+     * anyway when constructing the corresponding transport/action request instance since we would prefer to avoid having implicit defaults
+     * in these requests. This constant can be used as a slightly more meaningful way to refer to the 30s default value in tests.
+     */
+    public static final TimeValue TEST_REQUEST_TIMEOUT = TimeValue.THIRTY_SECONDS;
+
+    /**
+     * The timeout used for the various "safe" wait methods such as {@link #safeAwait} and {@link #safeAcquire}. In tests we generally want
+     * these things to complete almost immediately, but sometimes the CI runner executes things rather slowly so we use {@code 10s} as a
+     * fairly relaxed definition of "immediately".
+     * <p>
+     * A well-designed test should not need to wait for anything close to this duration when run in isolation. If you think you need to do
+     * so, instead seek a better way to write the test such that it does not need to wait for so long. Tests that take multiple seconds to
+     * complete are a big drag on CI times which slows everyone down.
+     * <p>
+     * For instance, tests which verify things that require the passage of time ought to simulate this (e.g. using a {@link
+     * org.elasticsearch.common.util.concurrent.DeterministicTaskQueue}). Excessive busy-waits ought to be replaced by blocking waits (e.g.
+     * using a {@link CountDownLatch}) which release as soon as the condition is satisfied.
+     */
+    public static final TimeValue SAFE_AWAIT_TIMEOUT = TimeValue.timeValueSeconds(10);
+
     public static void safeAwait(CyclicBarrier barrier) {
         try {
-            barrier.await(10, TimeUnit.SECONDS);
+            barrier.await(SAFE_AWAIT_TIMEOUT.millis(), TimeUnit.MILLISECONDS);
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
             fail(e, "safeAwait: interrupted waiting for CyclicBarrier release");
@@ -2076,25 +2137,44 @@ public abstract class ESTestCase extends LuceneTestCase {
 
     public static void safeAwait(CountDownLatch countDownLatch) {
         try {
-            assertTrue("safeAwait: CountDownLatch did not reach zero within the timeout", countDownLatch.await(10, TimeUnit.SECONDS));
+            assertTrue(
+                "safeAwait: CountDownLatch did not reach zero within the timeout",
+                countDownLatch.await(SAFE_AWAIT_TIMEOUT.millis(), TimeUnit.MILLISECONDS)
+            );
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
             fail(e, "safeAwait: interrupted waiting for CountDownLatch to reach zero");
         }
     }
 
+    public static void safeAcquire(Semaphore semaphore) {
+        try {
+            assertTrue(
+                "safeAcquire: Semaphore did not acquire permit within the timeout",
+                semaphore.tryAcquire(SAFE_AWAIT_TIMEOUT.millis(), TimeUnit.MILLISECONDS)
+            );
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            fail(e, "safeAcquire: interrupted waiting for Semaphore to acquire permit");
+        }
+    }
+
     public static <T> T safeAwait(SubscribableListener<T> listener) {
         final var future = new PlainActionFuture<T>();
         listener.addListener(future);
+        return safeGet(future);
+    }
+
+    public static <T> T safeGet(Future<T> future) {
         try {
-            return future.get(10, TimeUnit.SECONDS);
+            return future.get(SAFE_AWAIT_TIMEOUT.millis(), TimeUnit.MILLISECONDS);
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
-            throw new AssertionError("safeAwait: interrupted waiting for SubscribableListener", e);
+            throw new AssertionError("safeGet: interrupted waiting for SubscribableListener", e);
         } catch (ExecutionException e) {
-            throw new AssertionError("safeAwait: listener was completed exceptionally", e);
+            throw new AssertionError("safeGet: listener was completed exceptionally", e);
         } catch (TimeoutException e) {
-            throw new AssertionError("safeAwait: listener was not completed within the timeout", e);
+            throw new AssertionError("safeGet: listener was not completed within the timeout", e);
         }
     }
 

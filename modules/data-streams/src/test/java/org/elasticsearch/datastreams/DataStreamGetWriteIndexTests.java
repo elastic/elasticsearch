@@ -49,6 +49,7 @@ import org.elasticsearch.indices.EmptySystemIndices;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.ShardLimitValidator;
 import org.elasticsearch.script.ScriptCompiler;
+import org.elasticsearch.telemetry.TestTelemetryPlugin;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
@@ -239,7 +240,7 @@ public class DataStreamGetWriteIndexTests extends ESTestCase {
                 new MetadataFieldMapper[] { dtfm },
                 Collections.emptyMap()
             );
-            MappingLookup mappingLookup = MappingLookup.fromMappers(mapping, List.of(dtfm, dateFieldMapper), List.of(), List.of());
+            MappingLookup mappingLookup = MappingLookup.fromMappers(mapping, List.of(dtfm, dateFieldMapper), List.of());
             indicesService = DataStreamTestHelper.mockIndicesServices(mappingLookup);
         }
 
@@ -272,12 +273,15 @@ public class DataStreamGetWriteIndexTests extends ESTestCase {
                 indicesService,
                 xContentRegistry()
             );
+            TestTelemetryPlugin telemetryPlugin = new TestTelemetryPlugin();
             rolloverService = new MetadataRolloverService(
                 testThreadPool,
                 createIndexService,
                 indexAliasesService,
                 EmptySystemIndices.INSTANCE,
-                WriteLoadForecaster.DEFAULT
+                WriteLoadForecaster.DEFAULT,
+                clusterService,
+                telemetryPlugin.getTelemetryProvider(Settings.EMPTY)
             );
         }
 
@@ -318,7 +322,19 @@ public class DataStreamGetWriteIndexTests extends ESTestCase {
         MaxDocsCondition condition = new MaxDocsCondition(randomNonNegativeLong());
         List<Condition<?>> metConditions = Collections.singletonList(condition);
         CreateIndexRequest createIndexRequest = new CreateIndexRequest("_na_");
-        return rolloverService.rolloverClusterState(state, name, null, createIndexRequest, metConditions, time, false, false, null);
+        return rolloverService.rolloverClusterState(
+            state,
+            name,
+            null,
+            createIndexRequest,
+            metConditions,
+            time,
+            false,
+            false,
+            null,
+            null,
+            false
+        );
     }
 
     private Index getWriteIndex(ClusterState state, String name, String timestamp) {

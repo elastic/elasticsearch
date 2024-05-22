@@ -21,6 +21,8 @@ import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.util.ByteUtils;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.IndexVersions;
+import org.elasticsearch.index.mapper.TimeSeriesRoutingHashFieldMapper;
 import org.elasticsearch.transport.Transports;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParser.Token;
@@ -35,6 +37,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Consumer;
 import java.util.function.IntConsumer;
 import java.util.function.IntSupplier;
 import java.util.function.Predicate;
@@ -74,7 +77,13 @@ public abstract class IndexRouting {
      * Called when indexing a document to generate the shard id that should contain
      * a document with the provided parameters.
      */
-    public abstract int indexShard(String id, @Nullable String routing, XContentType sourceType, BytesReference source);
+    public abstract int indexShard(
+        String id,
+        @Nullable String routing,
+        XContentType sourceType,
+        BytesReference source,
+        Consumer<String> routingHashSetter
+    );
 
     /**
      * Called when updating a document to generate the shard id that should contain
@@ -153,7 +162,13 @@ public abstract class IndexRouting {
         }
 
         @Override
-        public int indexShard(String id, @Nullable String routing, XContentType sourceType, BytesReference source) {
+        public int indexShard(
+            String id,
+            @Nullable String routing,
+            XContentType sourceType,
+            BytesReference source,
+            Consumer<String> routingHashSetter
+        ) {
             if (id == null) {
                 throw new IllegalStateException("id is required and should have been set by process");
             }
@@ -237,12 +252,14 @@ public abstract class IndexRouting {
     public static class ExtractFromSource extends IndexRouting {
         private final Predicate<String> isRoutingPath;
         private final XContentParserConfiguration parserConfig;
+        private final boolean trackTimeSeriesRoutingHash;
 
         ExtractFromSource(IndexMetadata metadata) {
             super(metadata);
             if (metadata.isRoutingPartitionedIndex()) {
                 throw new IllegalArgumentException("routing_partition_size is incompatible with routing_path");
             }
+            trackTimeSeriesRoutingHash = metadata.getCreationVersion().onOrAfter(IndexVersions.TIME_SERIES_ROUTING_HASH_IN_ID);
             List<String> routingPaths = metadata.getRoutingPaths();
             isRoutingPath = Regex.simpleMatcher(routingPaths.toArray(String[]::new));
             this.parserConfig = XContentParserConfiguration.EMPTY.withFiltering(Set.copyOf(routingPaths), null, true);
@@ -256,10 +273,20 @@ public abstract class IndexRouting {
         public void process(IndexRequest indexRequest) {}
 
         @Override
-        public int indexShard(String id, @Nullable String routing, XContentType sourceType, BytesReference source) {
+        public int indexShard(
+            String id,
+            @Nullable String routing,
+            XContentType sourceType,
+            BytesReference source,
+            Consumer<String> routingHashSetter
+        ) {
             assert Transports.assertNotTransportThread("parsing the _source can get slow");
             checkNoRouting(routing);
-            return hashToShardId(hashSource(sourceType, source).buildHash(IndexRouting.ExtractFromSource::defaultOnEmpty));
+            int hash = hashSource(sourceType, source).buildHash(IndexRouting.ExtractFromSource::defaultOnEmpty);
+            if (trackTimeSeriesRoutingHash) {
+                routingHashSetter.accept(TimeSeriesRoutingHashFieldMapper.encode(hash));
+            }
+            return hashToShardId(hash);
         }
 
         public String createId(XContentType sourceType, BytesReference source, byte[] suffix) {
@@ -334,14 +361,11 @@ public abstract class IndexRouting {
                         source.nextToken();
                         break;
                     case VALUE_STRING:
+                    case VALUE_NUMBER:
                         hashes.add(new NameAndHash(new BytesRef(path), hash(new BytesRef(source.text()))));
                         source.nextToken();
                         break;
                     case VALUE_NULL:
-                        source.nextToken();
-                        break;
-                    case VALUE_NUMBER: // allow parsing numbers assuming routing fields are always keyword fields
-                        hashes.add(new NameAndHash(new BytesRef(path), hash(new BytesRef(source.text()))));
                         source.nextToken();
                         break;
                     default:

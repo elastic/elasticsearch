@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.ccq;
 
+import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
 
 import org.apache.http.HttpEntity;
@@ -18,23 +19,34 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.test.TestClustersThreadFilter;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
+import org.elasticsearch.test.rest.ESRestTestCase;
+import org.elasticsearch.test.rest.TestFeatureService;
+import org.elasticsearch.xpack.esql.core.CsvSpecReader;
+import org.elasticsearch.xpack.esql.core.CsvSpecReader.CsvTestCase;
+import org.elasticsearch.xpack.esql.core.SpecReader;
 import org.elasticsearch.xpack.esql.qa.rest.EsqlSpecTestCase;
-import org.elasticsearch.xpack.ql.CsvSpecReader;
-import org.elasticsearch.xpack.ql.CsvSpecReader.CsvTestCase;
+import org.junit.AfterClass;
 import org.junit.ClassRule;
 import org.junit.rules.RuleChain;
 import org.junit.rules.TestRule;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
+import java.net.URL;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.List;
 import java.util.Locale;
+import java.util.Optional;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.esql.CsvTestUtils.isEnabled;
 import static org.elasticsearch.xpack.esql.CsvTestsDataLoader.ENRICH_SOURCE_INDICES;
+import static org.elasticsearch.xpack.esql.core.CsvSpecReader.specParser;
+import static org.elasticsearch.xpack.esql.core.TestUtils.classpathResources;
+import static org.elasticsearch.xpack.esql.qa.rest.EsqlSpecTestCase.Mode.SYNC;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
@@ -62,15 +74,64 @@ public class MultiClusterSpecIT extends EsqlSpecTestCase {
     @ClassRule
     public static TestRule clusterRule = RuleChain.outerRule(remoteCluster).around(localCluster).around(client).around(loader);
 
+    private static TestFeatureService remoteFeaturesService;
+    private static RestClient remoteClusterClient;
+
+    @ParametersFactory(argumentFormatting = "%2$s.%3$s")
+    public static List<Object[]> readScriptSpec() throws Exception {
+        List<URL> urls = classpathResources("/*.csv-spec");
+        assertTrue("Not enough specs found " + urls, urls.size() > 0);
+        List<Object[]> specs = SpecReader.readScriptSpec(urls, specParser());
+
+        int len = specs.get(0).length;
+        List<Object[]> testcases = new ArrayList<>();
+        for (var spec : specs) {
+            for (Mode mode : List.of(SYNC)) { // No async, for now
+                Object[] obj = new Object[len + 1];
+                System.arraycopy(spec, 0, obj, 0, len);
+                obj[len] = mode;
+                testcases.add(obj);
+            }
+        }
+        return testcases;
+    }
+
     public MultiClusterSpecIT(String fileName, String groupName, String testName, Integer lineNumber, CsvTestCase testCase, Mode mode) {
         super(fileName, groupName, testName, lineNumber, convertToRemoteIndices(testCase), mode);
     }
 
     @Override
-    protected void shouldSkipTest(String testName) {
+    protected void shouldSkipTest(String testName) throws IOException {
         super.shouldSkipTest(testName);
+        checkCapabilities(remoteClusterClient(), remoteFeaturesService(), testName, testCase);
         assumeFalse("can't test with _index metadata", hasIndexMetadata(testCase.query));
+        assumeTrue("can't test with metrics across cluster", hasMetricsCommand(testCase.query));
         assumeTrue("Test " + testName + " is skipped on " + Clusters.oldVersion(), isEnabled(testName, Clusters.oldVersion()));
+    }
+
+    private TestFeatureService remoteFeaturesService() throws IOException {
+        if (remoteFeaturesService == null) {
+            var remoteNodeVersions = readVersionsFromNodesInfo(remoteClusterClient());
+            var semanticNodeVersions = remoteNodeVersions.stream()
+                .map(ESRestTestCase::parseLegacyVersion)
+                .flatMap(Optional::stream)
+                .collect(Collectors.toSet());
+            remoteFeaturesService = createTestFeatureService(getClusterStateFeatures(remoteClusterClient()), semanticNodeVersions);
+        }
+        return remoteFeaturesService;
+    }
+
+    private RestClient remoteClusterClient() throws IOException {
+        if (remoteClusterClient == null) {
+            HttpHost[] remoteHosts = parseClusterHosts(remoteCluster.getHttpAddresses()).toArray(HttpHost[]::new);
+            remoteClusterClient = super.buildClient(restAdminSettings(), remoteHosts);
+        }
+        return remoteClusterClient;
+    }
+
+    @AfterClass
+    public static void closeRemoveFeaturesService() throws IOException {
+        IOUtils.close(remoteClusterClient);
     }
 
     @Override
@@ -186,5 +247,9 @@ public class MultiClusterSpecIT extends EsqlSpecTestCase {
             return parts.length > 1 && parts[1].contains("_index");
         }
         return false;
+    }
+
+    static boolean hasMetricsCommand(String query) {
+        return Arrays.stream(query.split("\\|")).anyMatch(s -> s.trim().toLowerCase(Locale.ROOT).startsWith("metrics"));
     }
 }

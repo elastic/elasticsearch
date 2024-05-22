@@ -1,0 +1,5 @@
+pr: 107832
+summary: Optimise few metric aggregations for single value fields
+area: Aggregations
+type: enhancement
+issues: []

@@ -15,7 +15,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSenderFactory;
+import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
 import org.elasticsearch.xpack.inference.services.ServiceComponents;
 import org.elasticsearch.xpack.inference.services.ServiceUtils;
 import org.elasticsearch.xpack.inference.services.huggingface.elser.HuggingFaceElserModel;
@@ -26,7 +26,7 @@ import java.util.Map;
 public class HuggingFaceService extends HuggingFaceBaseService {
     public static final String NAME = "hugging_face";
 
-    public HuggingFaceService(HttpRequestSenderFactory factory, ServiceComponents serviceComponents) {
+    public HuggingFaceService(HttpRequestSender.Factory factory, ServiceComponents serviceComponents) {
         super(factory, serviceComponents);
     }
 
@@ -61,9 +61,10 @@ public class HuggingFaceService extends HuggingFaceBaseService {
     private static HuggingFaceEmbeddingsModel updateModelWithEmbeddingDetails(HuggingFaceEmbeddingsModel model, int embeddingSize) {
         var serviceSettings = new HuggingFaceServiceSettings(
             model.getServiceSettings().uri(),
-            null, // Similarity measure is unknown
+            model.getServiceSettings().similarity(), // we don't know the similarity but use whatever the user specified
             embeddingSize,
-            model.getTokenLimit()
+            model.getTokenLimit(),
+            model.getServiceSettings().rateLimitSettings()
         );
 
         return new HuggingFaceEmbeddingsModel(model, serviceSettings);
@@ -76,6 +77,6 @@ public class HuggingFaceService extends HuggingFaceBaseService {
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.V_8_12_0;
+        return TransportVersions.ML_INFERENCE_RATE_LIMIT_SETTINGS_ADDED;
     }
 }

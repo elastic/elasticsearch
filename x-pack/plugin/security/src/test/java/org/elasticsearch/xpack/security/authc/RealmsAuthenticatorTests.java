@@ -8,18 +8,15 @@
 package org.elasticsearch.xpack.security.authc;
 
 import org.apache.logging.log4j.Level;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.cache.Cache;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.telemetry.TestTelemetryPlugin;
-import org.elasticsearch.test.MockLogAppender;
+import org.elasticsearch.test.MockLog;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationResult;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationServiceField;
@@ -208,25 +205,20 @@ public class RealmsAuthenticatorTests extends AbstractAuthenticatorTests {
         final ElasticsearchSecurityException e = new ElasticsearchSecurityException("fail");
         when(request.authenticationFailed(authenticationToken)).thenReturn(e);
 
-        final Logger unlicensedRealmsLogger = LogManager.getLogger(RealmsAuthenticator.class);
-        final MockLogAppender mockAppender = new MockLogAppender();
-        mockAppender.start();
-        try {
-            mockAppender.addExpectation(
-                new MockLogAppender.SeenEventExpectation(
+        try (var mockLog = MockLog.capture(RealmsAuthenticator.class)) {
+            mockLog.addExpectation(
+                new MockLog.SeenEventExpectation(
                     "unlicensed realms",
                     RealmsAuthenticator.class.getName(),
                     Level.WARN,
-                    "Authentication failed using realms [realm1/realm1,realm2/reaml2]."
+                    "Authentication failed using realms [realm1/realm1,realm2/realm2]."
                         + " Realms [realm3/realm3] were skipped because they are not permitted on the current license"
                 )
             );
             final PlainActionFuture<AuthenticationResult<Authentication>> future = new PlainActionFuture<>();
             realmsAuthenticator.authenticate(context, future);
             assertThat(expectThrows(ElasticsearchSecurityException.class, future::actionGet), is(e));
-        } finally {
-            Loggers.removeAppender(unlicensedRealmsLogger, mockAppender);
-            mockAppender.stop();
+            mockLog.assertAllExpectationsMatched();
         }
     }
 

@@ -142,14 +142,8 @@ public class JobManager {
      *                    a ResourceNotFoundException is returned
      */
     public void getJob(String jobId, ActionListener<Job> jobListener) {
-        jobConfigProvider.getJob(
-            jobId,
-            null,
-            ActionListener.wrap(
-                r -> jobListener.onResponse(r.build()), // TODO JIndex we shouldn't be building the job here
-                jobListener::onFailure
-            )
-        );
+        // TODO JIndex we shouldn't be building the job here
+        jobConfigProvider.getJob(jobId, null, jobListener.delegateFailureAndWrap((l, r) -> l.onResponse(r.build())));
     }
 
     /**
@@ -183,15 +177,14 @@ public class JobManager {
             expression,
             allowNoMatch,
             null,
-            ActionListener.wrap(
-                jobBuilders -> jobsListener.onResponse(
+            jobsListener.delegateFailureAndWrap(
+                (l, jobBuilders) -> l.onResponse(
                     new QueryPage<>(
                         jobBuilders.stream().map(Job.Builder::build).collect(Collectors.toList()),
                         jobBuilders.size(),
                         Job.RESULTS_FIELD
                     )
-                ),
-                jobsListener::onFailure
+                )
             )
         );
     }
@@ -253,10 +246,10 @@ public class JobManager {
             @Override
             public void onResponse(Boolean mappingsUpdated) {
 
-                jobConfigProvider.putJob(job, ActionListener.wrap(response -> {
+                jobConfigProvider.putJob(job, actionListener.delegateFailureAndWrap((l, response) -> {
                     auditor.info(job.getId(), Messages.getMessage(Messages.JOB_AUDIT_CREATED));
-                    actionListener.onResponse(new PutJobAction.Response(job));
-                }, actionListener::onFailure));
+                    l.onResponse(new PutJobAction.Response(job));
+                }));
             }
 
             @Override
@@ -275,17 +268,16 @@ public class JobManager {
             }
         };
 
-        ActionListener<Boolean> addDocMappingsListener = ActionListener.wrap(
-            indicesCreated -> ElasticsearchMappings.addDocMappingIfMissing(
+        ActionListener<Boolean> addDocMappingsListener = putJobListener.delegateFailureAndWrap(
+            (l, indicesCreated) -> ElasticsearchMappings.addDocMappingIfMissing(
                 MlConfigIndex.indexName(),
                 MlConfigIndex::mapping,
                 client,
                 state,
                 request.masterNodeTimeout(),
-                putJobListener,
+                l,
                 MlConfigIndex.CONFIG_INDEX_MAPPINGS_VERSION
-            ),
-            putJobListener::onFailure
+            )
         );
 
         ActionListener<List<String>> checkForLeftOverDocs = ActionListener.wrap(matchedIds -> {
@@ -634,14 +626,15 @@ public class JobManager {
         // calendarJobIds may be a group or job
         jobConfigProvider.expandGroupIds(
             calendarJobIds,
-            ActionListener.wrap(expandedIds -> threadPool.executor(MachineLearning.UTILITY_THREAD_POOL_NAME).execute(() -> {
-                // Merge the expanded group members with the request Ids.
-                // Ids that aren't jobs will be filtered by isJobOpen()
-                expandedIds.addAll(calendarJobIds);
-
-                openJobIds.retainAll(expandedIds);
-                submitJobEventUpdate(openJobIds, updateListener);
-            }), updateListener::onFailure)
+            updateListener.delegateFailureAndWrap(
+                (delegate, expandedIds) -> threadPool.executor(MachineLearning.UTILITY_THREAD_POOL_NAME).execute(() -> {
+                    // Merge the expanded group members with the request Ids.
+                    // Ids that aren't jobs will be filtered by isJobOpen()
+                    expandedIds.addAll(calendarJobIds);
+                    openJobIds.retainAll(expandedIds);
+                    submitJobEventUpdate(openJobIds, delegate);
+                })
+            )
         );
     }
 
@@ -678,12 +671,13 @@ public class JobManager {
             jobResultsPersister.persistQuantiles(
                 modelSnapshot.getQuantiles(),
                 WriteRequest.RefreshPolicy.IMMEDIATE,
-                ActionListener.wrap(quantilesResponse -> {
-                    // The quantiles can be large, and totally dominate the output -
-                    // it's clearer to remove them as they are not necessary for the revert op
-                    ModelSnapshot snapshotWithoutQuantiles = new ModelSnapshot.Builder(modelSnapshot).setQuantiles(null).build();
-                    actionListener.onResponse(new RevertModelSnapshotAction.Response(snapshotWithoutQuantiles));
-                }, actionListener::onFailure)
+                // The quantiles can be large, and totally dominate the output -
+                // it's clearer to remove them as they are not necessary for the revert op
+                actionListener.delegateFailureAndWrap(
+                    (l, quantilesResponse) -> l.onResponse(
+                        new RevertModelSnapshotAction.Response(new ModelSnapshot.Builder(modelSnapshot).setQuantiles(null).build())
+                    )
+                )
             );
         };
 

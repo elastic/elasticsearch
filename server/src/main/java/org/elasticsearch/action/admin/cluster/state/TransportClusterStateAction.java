@@ -28,6 +28,7 @@ import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.version.CompatibilityVersions;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.core.Predicates;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
@@ -89,7 +90,7 @@ public class TransportClusterStateAction extends TransportMasterNodeReadAction<C
         final CancellableTask cancellableTask = (CancellableTask) task;
 
         final Predicate<ClusterState> acceptableClusterStatePredicate = request.waitForMetadataVersion() == null
-            ? clusterState -> true
+            ? Predicates.always()
             : clusterState -> clusterState.metadata().version() >= request.waitForMetadataVersion();
 
         final Predicate<ClusterState> acceptableClusterStateOrFailedPredicate = request.local()

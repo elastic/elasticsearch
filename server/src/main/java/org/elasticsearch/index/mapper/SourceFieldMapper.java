@@ -17,8 +17,10 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.query.QueryShardException;
@@ -28,16 +30,21 @@ import org.elasticsearch.search.lookup.SourceFilter;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 
 public class SourceFieldMapper extends MetadataFieldMapper {
+    public static final NodeFeature SYNTHETIC_SOURCE_FALLBACK = new NodeFeature("mapper.source.synthetic_source_fallback");
+
     public static final String NAME = "_source";
     public static final String RECOVERY_SOURCE_NAME = "_recovery_source";
 
     public static final String CONTENT_TYPE = "_source";
+
+    public static final String LOSSY_PARAMETERS_ALLOWED_SETTING_NAME = "index.lossy.source-mapping-parameters";
 
     /** The source mode */
     private enum Mode {
@@ -128,9 +135,13 @@ public class SourceFieldMapper extends MetadataFieldMapper {
 
         private final IndexMode indexMode;
 
-        public Builder(IndexMode indexMode) {
+        private final boolean supportsNonDefaultParameterValues;
+
+        public Builder(IndexMode indexMode, final Settings settings, boolean supportsCheckForNonDefaultParams) {
             super(Defaults.NAME);
             this.indexMode = indexMode;
+            this.supportsNonDefaultParameterValues = supportsCheckForNonDefaultParams == false
+                || settings.getAsBoolean(LOSSY_PARAMETERS_ALLOWED_SETTING_NAME, true);
         }
 
         public Builder setSynthetic() {
@@ -144,13 +155,11 @@ public class SourceFieldMapper extends MetadataFieldMapper {
         }
 
         private boolean isDefault() {
-            if (mode.get() != null) {
+            Mode m = mode.get();
+            if (m != null && (((indexMode == IndexMode.TIME_SERIES && m == Mode.SYNTHETIC) == false) || m == Mode.DISABLED)) {
                 return false;
             }
-            if (enabled.get().value() == false) {
-                return false;
-            }
-            return includes.getValue().isEmpty() && excludes.getValue().isEmpty();
+            return enabled.get().value() && includes.getValue().isEmpty() && excludes.getValue().isEmpty();
         }
 
         @Override
@@ -166,11 +175,33 @@ public class SourceFieldMapper extends MetadataFieldMapper {
             if (isDefault()) {
                 return indexMode == IndexMode.TIME_SERIES ? TSDB_DEFAULT : DEFAULT;
             }
+            if (supportsNonDefaultParameterValues == false) {
+                List<String> disallowed = new ArrayList<>();
+                if (enabled.get().value() == false) {
+                    disallowed.add("enabled");
+                }
+                if (includes.get().isEmpty() == false) {
+                    disallowed.add("includes");
+                }
+                if (excludes.get().isEmpty() == false) {
+                    disallowed.add("excludes");
+                }
+                if (mode.get() == Mode.DISABLED) {
+                    disallowed.add("mode=disabled");
+                }
+                if (disallowed.isEmpty() == false) {
+                    throw new MapperParsingException(
+                        disallowed.size() == 1
+                            ? "Parameter [" + disallowed.get(0) + "] is not allowed in source"
+                            : "Parameters [" + String.join(",", disallowed) + "] are not allowed in source"
+                    );
+                }
+            }
             SourceFieldMapper sourceFieldMapper = new SourceFieldMapper(
                 mode.get(),
                 enabled.get(),
-                includes.getValue().toArray(String[]::new),
-                excludes.getValue().toArray(String[]::new),
+                includes.getValue().toArray(Strings.EMPTY_ARRAY),
+                excludes.getValue().toArray(Strings.EMPTY_ARRAY),
                 indexMode
             );
             if (indexMode != null) {
@@ -185,7 +216,11 @@ public class SourceFieldMapper extends MetadataFieldMapper {
         c -> c.getIndexSettings().getMode() == IndexMode.TIME_SERIES
             ? c.getIndexSettings().getIndexVersionCreated().onOrAfter(IndexVersions.V_8_7_0) ? TSDB_DEFAULT : TSDB_LEGACY_DEFAULT
             : DEFAULT,
-        c -> new Builder(c.getIndexSettings().getMode())
+        c -> new Builder(
+            c.getIndexSettings().getMode(),
+            c.getSettings(),
+            c.indexVersionCreated().onOrAfter(IndexVersions.SOURCE_MAPPER_LOSSY_PARAMS_CHECK)
+        )
     );
 
     static final class SourceFieldType extends MappedFieldType {
@@ -320,15 +355,15 @@ public class SourceFieldMapper extends MetadataFieldMapper {
 
     @Override
     public FieldMapper.Builder getMergeBuilder() {
-        return new Builder(indexMode).init(this);
+        return new Builder(indexMode, Settings.EMPTY, false).init(this);
     }
 
     /**
      * Build something to load source {@code _source}.
      */
-    public SourceLoader newSourceLoader(Mapping mapping) {
+    public SourceLoader newSourceLoader(Mapping mapping, SourceFieldMetrics metrics) {
         if (mode == Mode.SYNTHETIC) {
-            return new SourceLoader.Synthetic(mapping);
+            return new SourceLoader.Synthetic(mapping, metrics);
         }
         return SourceLoader.FROM_STORED_SOURCE;
     }

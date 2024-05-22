@@ -11,18 +11,19 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
+import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.type.DataTypes;
+import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
-import org.elasticsearch.xpack.ql.expression.Expression;
-import org.elasticsearch.xpack.ql.tree.NodeInfo;
-import org.elasticsearch.xpack.ql.tree.Source;
-import org.elasticsearch.xpack.ql.type.DataType;
-import org.elasticsearch.xpack.ql.type.DataTypes;
 
 import java.util.List;
 
-import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isType;
+import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
 
 /**
  * Reduce a multivalued field to a single valued field containing the count of values.
@@ -30,12 +31,13 @@ import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isType;
 public class MvCount extends AbstractMultivalueFunction {
     @FunctionInfo(
         returnType = "integer",
-        description = "Reduce a multivalued field to a single valued field containing the count of values."
+        description = "Converts a multivalued expression into a single valued column containing a count of the number of values.",
+        examples = @Example(file = "string", tag = "mv_count")
     )
     public MvCount(
         Source source,
         @Param(
-            name = "v",
+            name = "field",
             type = {
                 "boolean",
                 "cartesian_point",
@@ -50,7 +52,8 @@ public class MvCount extends AbstractMultivalueFunction {
                 "long",
                 "text",
                 "unsigned_long",
-                "version" }
+                "version" },
+            description = "Multivalue expression."
         ) Expression v
     ) {
         super(source, v);

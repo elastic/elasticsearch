@@ -1,7 +1,7 @@
 ---
 version: ${xpack.apmdata.template.version}
 index_patterns: [metrics-apm.service_summary.60m-*]
-priority: 140
+priority: 210
 data_stream:
   hidden: true
 allow_auto_create: true
@@ -25,5 +25,5 @@ ignore_missing_component_templates:
 template:
   settings:
     index:
-      default_pipeline: apm@default-pipeline
+      default_pipeline: metrics-apm.service_summary@default-pipeline
       final_pipeline: metrics-apm@pipeline

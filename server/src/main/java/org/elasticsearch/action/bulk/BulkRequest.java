@@ -355,13 +355,6 @@ public class BulkRequest extends ActionRequest
         return this;
     }
 
-    /**
-     * A timeout to wait if the index operation can't be performed immediately. Defaults to {@code 1m}.
-     */
-    public final BulkRequest timeout(String timeout) {
-        return timeout(TimeValue.parseTimeValue(timeout, null, getClass().getSimpleName() + ".timeout"));
-    }
-
     public TimeValue timeout() {
         return timeout;
     }
@@ -469,5 +462,13 @@ public class BulkRequest extends ActionRequest
 
     public Set<String> getIndices() {
         return Collections.unmodifiableSet(indices);
+    }
+
+    /**
+     * Returns true if this is a request for a simulation rather than a real bulk request.
+     * @return true if this is a simulated bulk request
+     */
+    public boolean isSimulated() {
+        return false; // Always false, but may be overridden by a subclass
     }
 }

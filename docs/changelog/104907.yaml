@@ -1,0 +1,6 @@
+pr: 104907
+summary: Support ST_INTERSECTS between geometry column and other geometry or string
+area: "ES|QL"
+type: enhancement
+issues:
+- 104874

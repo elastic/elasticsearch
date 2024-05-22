@@ -8,40 +8,35 @@
 
 package org.elasticsearch.common.util;
 
-import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.RamUsageEstimator;
+import org.apache.lucene.util.BytesRefIterator;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.core.Streams;
 
 import java.io.IOException;
+import java.io.InputStream;
 import java.util.Arrays;
 
 import static org.elasticsearch.common.util.BigLongArray.writePages;
 import static org.elasticsearch.common.util.PageCacheRecycler.BYTE_PAGE_SIZE;
+import static org.elasticsearch.common.util.PageCacheRecycler.PAGE_SIZE_IN_BYTES;
 
 /**
  * Byte array abstraction able to support more than 2B values. This implementation slices data into fixed-sized blocks of
  * configurable length.
  */
-final class BigByteArray extends AbstractBigArray implements ByteArray {
+final class BigByteArray extends AbstractBigByteArray implements ByteArray {
 
     private static final BigByteArray ESTIMATOR = new BigByteArray(0, BigArrays.NON_RECYCLING_INSTANCE, false);
 
-    private byte[][] pages;
-
     /** Constructor. */
     BigByteArray(long size, BigArrays bigArrays, boolean clearOnResize) {
-        super(BYTE_PAGE_SIZE, bigArrays, clearOnResize);
-        this.size = size;
-        pages = new byte[numPages(size)][];
-        for (int i = 0; i < pages.length; ++i) {
-            pages[i] = newBytePage(i);
-        }
+        super(BYTE_PAGE_SIZE, bigArrays, clearOnResize, size);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        writePages(out, Math.toIntExact(size), pages, Byte.BYTES, BYTE_PAGE_SIZE);
+        writePages(out, size, pages, Byte.BYTES);
     }
 
     @Override
@@ -55,7 +50,7 @@ final class BigByteArray extends AbstractBigArray implements ByteArray {
     public byte set(long index, byte value) {
         final int pageIndex = pageIndex(index);
         final int indexInPage = indexInPage(index);
-        final byte[] page = pages[pageIndex];
+        final byte[] page = getPageForWriting(pageIndex);
         final byte ret = page[indexInPage];
         page[indexInPage] = value;
         return ret;
@@ -96,16 +91,16 @@ final class BigByteArray extends AbstractBigArray implements ByteArray {
         int pageIndex = pageIndex(index);
         final int indexInPage = indexInPage(index);
         if (indexInPage + len <= pageSize()) {
-            System.arraycopy(buf, offset, pages[pageIndex], indexInPage, len);
+            System.arraycopy(buf, offset, getPageForWriting(pageIndex), indexInPage, len);
         } else {
             int copyLen = pageSize() - indexInPage;
-            System.arraycopy(buf, offset, pages[pageIndex], indexInPage, copyLen);
+            System.arraycopy(buf, offset, getPageForWriting(pageIndex), indexInPage, copyLen);
             do {
                 ++pageIndex;
                 offset += copyLen;
                 len -= copyLen;
                 copyLen = Math.min(len, pageSize());
-                System.arraycopy(buf, offset, pages[pageIndex], 0, copyLen);
+                System.arraycopy(buf, offset, getPageForWriting(pageIndex), 0, copyLen);
             } while (len > copyLen);
         }
     }
@@ -118,13 +113,13 @@ final class BigByteArray extends AbstractBigArray implements ByteArray {
         final int fromPage = pageIndex(fromIndex);
         final int toPage = pageIndex(toIndex - 1);
         if (fromPage == toPage) {
-            Arrays.fill(pages[fromPage], indexInPage(fromIndex), indexInPage(toIndex - 1) + 1, value);
+            Arrays.fill(getPageForWriting(fromPage), indexInPage(fromIndex), indexInPage(toIndex - 1) + 1, value);
         } else {
-            Arrays.fill(pages[fromPage], indexInPage(fromIndex), pages[fromPage].length, value);
+            Arrays.fill(getPageForWriting(fromPage), indexInPage(fromIndex), pages[fromPage].length, value);
             for (int i = fromPage + 1; i < toPage; ++i) {
-                Arrays.fill(pages[i], value);
+                Arrays.fill(getPageForWriting(i), value);
             }
-            Arrays.fill(pages[toPage], 0, indexInPage(toIndex - 1) + 1, value);
+            Arrays.fill(getPageForWriting(toPage), 0, indexInPage(toIndex - 1) + 1, value);
         }
     }
 
@@ -140,25 +135,35 @@ final class BigByteArray extends AbstractBigArray implements ByteArray {
     }
 
     @Override
-    protected int numBytesPerElement() {
-        return 1;
+    public BytesRefIterator iterator() {
+        return new BytesRefIterator() {
+            int i = 0;
+            long remained = size;
+
+            @Override
+            public BytesRef next() {
+                if (remained == 0) {
+                    return null;
+                }
+                byte[] page = pages[i++];
+                int len = Math.toIntExact(Math.min(page.length, remained));
+                remained -= len;
+                return new BytesRef(page, 0, len);
+            }
+        };
     }
 
-    /** Change the size of this array. Content between indexes <code>0</code> and <code>min(size(), newSize)</code> will be preserved. */
     @Override
-    public void resize(long newSize) {
-        final int numPages = numPages(newSize);
-        if (numPages > pages.length) {
-            pages = Arrays.copyOf(pages, ArrayUtil.oversize(numPages, RamUsageEstimator.NUM_BYTES_OBJECT_REF));
+    public void fillWith(InputStream in) throws IOException {
+        for (int i = 0; i < pages.length - 1; i++) {
+            Streams.readFully(in, getPageForWriting(i), 0, PAGE_SIZE_IN_BYTES);
         }
-        for (int i = numPages - 1; i >= 0 && pages[i] == null; --i) {
-            pages[i] = newBytePage(i);
-        }
-        for (int i = numPages; i < pages.length && pages[i] != null; ++i) {
-            pages[i] = null;
-            releasePage(i);
-        }
-        this.size = newSize;
+        Streams.readFully(in, getPageForWriting(pages.length - 1), 0, Math.toIntExact(size - (pages.length - 1L) * PAGE_SIZE_IN_BYTES));
+    }
+
+    @Override
+    protected int numBytesPerElement() {
+        return 1;
     }
 
     /** Estimates the number of bytes that would be consumed by an array of the given size. */

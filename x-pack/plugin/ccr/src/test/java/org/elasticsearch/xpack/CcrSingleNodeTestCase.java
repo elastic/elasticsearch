@@ -103,6 +103,9 @@ public abstract class CcrSingleNodeTestCase extends ESSingleNodeTestCase {
         request.setFollowerIndex(followerIndex);
         request.getParameters().setMaxRetryDelay(TimeValue.timeValueMillis(1));
         request.getParameters().setReadPollTimeout(TimeValue.timeValueMillis(1));
+        if (randomBoolean()) {
+            request.masterNodeTimeout(TimeValue.timeValueSeconds(randomFrom(10, 20, 30)));
+        }
         return request;
     }
 
@@ -114,6 +117,9 @@ public abstract class CcrSingleNodeTestCase extends ESSingleNodeTestCase {
         request.getParameters().setMaxRetryDelay(TimeValue.timeValueMillis(1));
         request.getParameters().setReadPollTimeout(TimeValue.timeValueMillis(1));
         request.waitForActiveShards(ActiveShardCount.ONE);
+        if (randomBoolean()) {
+            request.masterNodeTimeout(TimeValue.timeValueSeconds(randomFrom(10, 20, 30)));
+        }
         return request;
     }
 

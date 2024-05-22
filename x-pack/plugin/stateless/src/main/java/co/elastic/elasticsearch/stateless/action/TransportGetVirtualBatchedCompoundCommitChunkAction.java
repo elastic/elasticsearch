@@ -255,7 +255,7 @@ public class TransportGetVirtualBatchedCompoundCommitChunkAction extends Transpo
             new ActionListenerResponseHandler<>(
                 listener,
                 GetVirtualBatchedCompoundCommitChunkResponse::new,
-                transportService.getThreadPool().executor(Stateless.SHARD_READ_THREAD_POOL)
+                transportService.getThreadPool().generic()
             )
         );
     }

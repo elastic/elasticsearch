@@ -52,7 +52,7 @@ create logs index:
           - { "index": { } }
           - { "@timestamp": "2024-02-12T10:34:00Z", "hostname": "baz", "agent_id": "yoda", "process_id": 104, "http_method": "POST", "message": "Wars not make one great." }
           - { "index": { } }
-          - { "@timestamp": "2024-02-12T10:35:00Z", "hostname": "foo", "agent_id": "obi-wan", "process_id": 105, "http_method": "GET", "message": "That's no moon." }
+          - { "@timestamp": "2024-02-12T10:35:00Z", "hostname": "foo", "agent_id": "obi-wan", "process_id": 105, "http_method": "GET", "message": "That's no moon. It's a space station." }
 
 
   - do:

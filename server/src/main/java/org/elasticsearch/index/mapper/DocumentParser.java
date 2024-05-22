@@ -591,24 +591,20 @@ public final class DocumentParser {
 
     private static void parseArrayDynamic(DocumentParserContext context, String currentFieldName) throws IOException {
         ensureNotStrict(context, currentFieldName);
-        if (context.dynamic() == ObjectMapper.Dynamic.FALSE) {
-            context.parser().skipChildren();
+        Mapper objectMapperFromTemplate = DynamicFieldsBuilder.createObjectMapperFromTemplate(context, currentFieldName);
+        if (objectMapperFromTemplate == null) {
+            parseNonDynamicArray(context, objectMapperFromTemplate, currentFieldName, currentFieldName);
         } else {
-            Mapper objectMapperFromTemplate = DynamicFieldsBuilder.createObjectMapperFromTemplate(context, currentFieldName);
-            if (objectMapperFromTemplate == null) {
-                parseNonDynamicArray(context, objectMapperFromTemplate, currentFieldName, currentFieldName);
-            } else {
-                if (parsesArrayValue(objectMapperFromTemplate)) {
-                    if (context.addDynamicMapper(objectMapperFromTemplate) == false) {
-                        context.parser().skipChildren();
-                        return;
-                    }
-                    context.path().add(currentFieldName);
-                    parseObjectOrField(context, objectMapperFromTemplate);
-                    context.path().remove();
-                } else {
-                    parseNonDynamicArray(context, objectMapperFromTemplate, currentFieldName, currentFieldName);
+            if (parsesArrayValue(objectMapperFromTemplate)) {
+                if (context.addDynamicMapper(objectMapperFromTemplate) == false) {
+                    context.parser().skipChildren();
+                    return;
                 }
+                context.path().add(currentFieldName);
+                parseObjectOrField(context, objectMapperFromTemplate);
+                context.path().remove();
+            } else {
+                parseNonDynamicArray(context, objectMapperFromTemplate, currentFieldName, currentFieldName);
             }
         }
     }

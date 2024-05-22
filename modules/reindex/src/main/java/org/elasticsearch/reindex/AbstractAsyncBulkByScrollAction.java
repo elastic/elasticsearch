@@ -204,6 +204,7 @@ public abstract class AbstractAsyncBulkByScrollAction<
         }
         sourceBuilder.version(needsSourceDocumentVersions);
         sourceBuilder.seqNoAndPrimaryTerm(needsSourceDocumentSeqNoAndPrimaryTerm);
+        sourceBuilder.hideSourceFields(false);
 
         /*
          * Do not open scroll if max docs <= scroll size and not resuming on version conflicts

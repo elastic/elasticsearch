@@ -43,6 +43,7 @@ import org.elasticsearch.index.shard.ShardNotFoundException;
 import org.elasticsearch.indices.ExecutorSelector;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.node.NodeClosedException;
+import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
@@ -154,7 +155,7 @@ public class TransportGetAction extends TransportSingleShardAction<GetRequest, G
                 request.realtime(),
                 request.version(),
                 request.versionType(),
-                request.fetchSourceContext(),
+                FetchSourceContext.of(request.fetchSourceContext(), indexShard),
                 request.isForceSyntheticSource()
             );
         return new GetResponse(result);

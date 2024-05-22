@@ -203,6 +203,8 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
 
     private Map<String, Object> runtimeMappings = emptyMap();
 
+    private boolean hideSourceFields = true;
+
     /**
      * Constructs a new search source builder.
      */
@@ -278,6 +280,9 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
         }
         if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0)) {
             rankBuilder = in.readOptionalNamedWriteable(RankBuilder.class);
+        }
+        if (in.getTransportVersion().onOrAfter(TransportVersions.HIDE_SOURCE_FIELDS)) {
+            hideSourceFields = in.readBoolean();
         }
     }
 
@@ -364,6 +369,9 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
             out.writeOptionalNamedWriteable(rankBuilder);
         } else if (rankBuilder != null) {
             throw new IllegalArgumentException("cannot serialize [rank] to version [" + out.getTransportVersion().toReleaseVersion() + "]");
+        }
+        if (out.getTransportVersion().onOrAfter(TransportVersions.HIDE_SOURCE_FIELDS)) {
+            out.writeBoolean(hideSourceFields);
         }
     }
 
@@ -1110,6 +1118,15 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
      */
     public SearchSourceBuilder runtimeMappings(Map<String, Object> runtimeMappings) {
         this.runtimeMappings = runtimeMappings == null ? emptyMap() : runtimeMappings;
+        return this;
+    }
+
+    public boolean hideSourceFields() {
+        return hideSourceFields;
+    }
+
+    public SearchSourceBuilder hideSourceFields(boolean hideSourceFields) {
+        this.hideSourceFields = hideSourceFields;
         return this;
     }
 

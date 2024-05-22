@@ -13,8 +13,10 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.util.ArrayUtils;
 import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.search.lookup.SourceFilter;
 import org.elasticsearch.xcontent.ParseField;
@@ -50,6 +52,31 @@ public class FetchSourceContext implements Writeable, ToXContentObject {
             return of(fetchSource);
         }
         return new FetchSourceContext(fetchSource, includes, excludes);
+    }
+
+    public static FetchSourceContext of(FetchSourceContext original, IndexShard indexShard) {
+        // TODO: Delegate name retrieval to InferencerFieldMapper
+        String[] inferenceFields = indexShard.mapperService()
+            .mappingLookup()
+            .inferenceFields()
+            .keySet()
+            .stream()
+            .map(s -> s + ".inference")
+            .toArray(String[]::new);
+        if (inferenceFields.length == 0) {
+            return original;
+        }
+        if (original == null) {
+            return FetchSourceContext.of(true, null, inferenceFields);
+        }
+        if (original.includes() == null || original.includes().length == 0) {
+            return FetchSourceContext.of(
+                original.fetchSource(),
+                original.includes(),
+                ArrayUtils.concat(original.excludes(), inferenceFields)
+            );
+        }
+        return original;
     }
 
     public static FetchSourceContext readFrom(StreamInput in) throws IOException {

@@ -128,6 +128,7 @@ public abstract class AbstractBulkByScrollRequest<Self extends AbstractBulkByScr
             searchRequest.source(new SearchSourceBuilder());
             searchRequest.source().size(DEFAULT_SCROLL_SIZE);
         }
+        this.searchRequest.source().hideSourceFields(false);
     }
 
     /**

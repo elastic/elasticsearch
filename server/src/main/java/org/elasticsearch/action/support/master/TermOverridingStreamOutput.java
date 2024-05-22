@@ -8,6 +8,7 @@
 
 package org.elasticsearch.action.support.master;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.StreamOutput;
 
 import java.io.IOException;
@@ -44,5 +45,16 @@ class TermOverridingStreamOutput extends StreamOutput {
     @Override
     public void close() throws IOException {
         delegate.close();
+    }
+
+    @Override
+    public TransportVersion getTransportVersion() {
+        return delegate.getTransportVersion();
+    }
+
+    @Override
+    public void setTransportVersion(TransportVersion version) {
+        assert false : version;
+        delegate.setTransportVersion(version);
     }
 }

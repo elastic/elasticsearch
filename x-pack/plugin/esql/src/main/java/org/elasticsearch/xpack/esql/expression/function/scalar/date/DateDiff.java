@@ -13,7 +13,6 @@ import org.elasticsearch.compute.ann.Fixed;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
 import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
-import org.elasticsearch.xpack.esql.core.expression.function.OptionalArgument;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -48,7 +47,7 @@ import static org.elasticsearch.xpack.esql.core.type.DataTypeConverter.safeToInt
  * in multiples of the unit specified in the first argument.
  * If the second argument (start) is greater than the third argument (end), then negative values are returned.
  */
-public class DateDiff extends EsqlScalarFunction implements OptionalArgument {
+public class DateDiff extends EsqlScalarFunction {
 
     public static final ZoneId UTC = ZoneId.of("Z");
 

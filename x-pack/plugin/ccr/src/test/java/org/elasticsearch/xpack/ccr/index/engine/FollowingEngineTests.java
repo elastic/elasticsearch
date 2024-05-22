@@ -698,6 +698,7 @@ public class FollowingEngineTests extends ESTestCase {
                 break;
             case LOGS:
                 settingsBuilder.put("index.mode", "logs");
+                break;
             default:
                 throw new UnsupportedOperationException("Unknown index mode [" + indexMode + "]");
         }

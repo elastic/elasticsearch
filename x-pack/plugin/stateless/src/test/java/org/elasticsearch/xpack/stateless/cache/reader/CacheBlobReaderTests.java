@@ -58,7 +58,6 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.junit.annotations.TestIssueLogging;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 
 import java.io.IOException;
@@ -76,6 +75,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
 import java.util.function.LongFunction;
 
+import static co.elastic.elasticsearch.stateless.Stateless.SHARD_READ_THREAD_POOL;
 import static co.elastic.elasticsearch.stateless.lucene.SearchDirectoryTestUtils.getCacheService;
 import static org.elasticsearch.blobcache.shared.SharedBytes.PAGE_SIZE;
 import static org.elasticsearch.xpack.searchablesnapshots.AbstractSearchableSnapshotsTestCase.randomIOContext;
@@ -388,10 +388,6 @@ public class CacheBlobReaderTests extends ESTestCase {
         }
     }
 
-    @TestIssueLogging(
-        issueUrl = "https://github.com/elastic/elasticsearch-serverless/issues/1740",
-        value = "co.elastic.elasticsearch.stateless.lucene:TRACE,co.elastic.elasticsearch.stateless.cache.reader:TRACE"
-    )
     public void testCacheBlobReaderFetchFromIndexingAndNeverFromBlobStore() throws Exception {
         final var primaryTerm = randomLongBetween(1L, 10L);
         try (var node = new FakeVBCCStatelessNode(this::newEnvironment, this::newNodeEnvironment, xContentRegistry(), primaryTerm) {
@@ -410,6 +406,18 @@ public class CacheBlobReaderTests extends ESTestCase {
 
             // Read all files and ensure they are the same. This reads from the indexing node into the cache.
             internalFileNames.forEach(filename -> assertFileChecksum(searchDirectory, filename));
+
+            // ensure that all ranges are resolved/filled in cache
+            assertBusy(() -> {
+                var stats = node.threadPool.stats()
+                    .stats()
+                    .stream()
+                    .filter((s) -> s.name().equals(SHARD_READ_THREAD_POOL))
+                    .findFirst()
+                    .get();
+                assertThat(stats.active(), equalTo(0));
+                assertThat(stats.queue(), equalTo(0));
+            });
 
             node.uploadVirtualBatchedCompoundCommit();
 

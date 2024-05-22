@@ -228,7 +228,7 @@ public class ReactiveStorageDeciderDecisionTests extends AutoscalingTestCase {
                 mockCanAllocateDiskDecider
             );
             lastState = state;
-            startRandomShards(round < maxRounds - 3);
+            startRandomShards();
             ++round;
         }
         assert round > 0;
@@ -257,7 +257,7 @@ public class ReactiveStorageDeciderDecisionTests extends AutoscalingTestCase {
         );
 
         do {
-            startRandomShards(true);
+            startRandomShards();
             // all of the relevant replicas are assigned too.
         } while (haveNonEmptyIntersection(shardIds(state.getRoutingNodes().unassigned()), warmShards)
             || haveNonEmptyIntersection(
@@ -421,7 +421,7 @@ public class ReactiveStorageDeciderDecisionTests extends AutoscalingTestCase {
         allocate();
         // we can only decide on a move for started shards (due to for instance ThrottlingAllocationDecider assertion).
         for (int i = 0; i < randomIntBetween(1, 4) || hasStartedSubjectShard() == false; ++i) {
-            startRandomShards(true);
+            startRandomShards();
         }
 
         // the remain check only assumes the smallest shard need to move off. More detailed testing of AllocationState.unmovableSize in
@@ -684,7 +684,7 @@ public class ReactiveStorageDeciderDecisionTests extends AutoscalingTestCase {
         withRoutingAllocation(SHARDS_ALLOCATOR::allocate);
     }
 
-    private void startRandomShards(boolean canRandomlyMoveShards) {
+    private void startRandomShards() {
         withRoutingAllocation(allocation -> {
             List<ShardRouting> initializingShards = RoutingNodesHelper.shardsWithState(
                 allocation.routingNodes(),
@@ -702,7 +702,7 @@ public class ReactiveStorageDeciderDecisionTests extends AutoscalingTestCase {
             SHARDS_ALLOCATOR.allocate(allocation);
 
             // ensure progress by only relocating a shard if we started more than one shard.
-            if (shards.size() > 1 && randomBoolean() && canRandomlyMoveShards) {
+            if (shards.size() > 1 && randomBoolean()) {
                 List<ShardRouting> started = RoutingNodesHelper.shardsWithState(allocation.routingNodes(), ShardRoutingState.STARTED);
                 if (started.isEmpty() == false) {
                     ShardRouting toMove = randomFrom(started);

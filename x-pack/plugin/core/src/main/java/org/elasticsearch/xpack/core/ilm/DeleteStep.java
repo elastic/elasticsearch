@@ -54,10 +54,10 @@ public class DeleteStep extends AsyncRetryDuringSnapshotActionStep {
 
             // using index name equality across this if/else branch as the UUID of the index might change via restoring a data stream
             // with one index from snapshot
-            int totalDataStreamIndices = dataStream.getIndices().size() + dataStream.getFailureIndices().getIndices().size();
-            if (totalDataStreamIndices == 1 && targetWriteIndex.getName().equals(indexName)) {
-                // This is the last index in the data stream, the entire stream
-                // needs to be deleted, because we can't have an empty data stream
+            if (dataStream.getIndices().size() == 1 && isFailureStoreIndex == false && targetWriteIndex.getName().equals(indexName)) {
+                // This is the last backing index in the data stream, and it's being deleted because the policy doesn't have a rollover
+                // phase. The entire stream needs to be deleted, because we can't have an empty list of data stream backing indices.
+                // We do this even if there are multiple failure store indices because otherwise we would never delete the index.
                 DeleteDataStreamAction.Request deleteReq = new DeleteDataStreamAction.Request(new String[] { dataStream.getName() });
                 getClient().execute(
                     DeleteDataStreamAction.INSTANCE,

@@ -65,7 +65,7 @@ public class LogsIndexModeTests extends MapperServiceTestCase {
     }
 
     private Settings buildSettings() {
-        return Settings.builder().put(IndexSettings.MODE.getKey(), "logs").build();
+        return Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.LOGS.getName()).build();
     }
 
     private String getIndexSetting(final IndexSettings settings, final String name) {

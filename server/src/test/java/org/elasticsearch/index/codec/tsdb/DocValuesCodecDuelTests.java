@@ -16,7 +16,6 @@ import org.apache.lucene.document.SortedDocValuesField;
 import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.index.DirectoryReader;
-import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.search.DocIdSetIterator;
@@ -44,10 +43,10 @@ public class DocValuesCodecDuelTests extends ESTestCase {
             int numDocs = randomIntBetween(256, 32768);
 
             var mergePolicy = new ForceMergePolicy(newLogMergePolicy());
-            IndexWriterConfig baselineConfig = newIndexWriterConfig();
+            var baselineConfig = newIndexWriterConfig();
             baselineConfig.setMergePolicy(mergePolicy);
             baselineConfig.setCodec(TestUtil.alwaysDocValuesFormat(new Lucene90DocValuesFormat()));
-            IndexWriterConfig contenderConf = newIndexWriterConfig();
+            var contenderConf = newIndexWriterConfig();
             contenderConf.setCodec(TestUtil.alwaysDocValuesFormat(new ES87TSDBDocValuesFormat()));
             contenderConf.setMergePolicy(mergePolicy);
 

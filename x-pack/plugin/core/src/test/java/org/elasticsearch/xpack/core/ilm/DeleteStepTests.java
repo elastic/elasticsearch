@@ -239,12 +239,7 @@ public class DeleteStepTests extends AbstractStepTestCase<DeleteStep> {
         DataStream dataStream = DataStreamTestHelper.newInstance(dataStreamName, List.of(index1.getIndex()), List.of());
 
         ClusterState clusterState = ClusterState.builder(emptyClusterState())
-            .metadata(
-                Metadata.builder()
-                    .put(index1, false)
-                    .put(dataStream)
-                    .build()
-            )
+            .metadata(Metadata.builder().put(index1, false).put(dataStream).build())
             .build();
 
         Mockito.doAnswer(invocation -> {

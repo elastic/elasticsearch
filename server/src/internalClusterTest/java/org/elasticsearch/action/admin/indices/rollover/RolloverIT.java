@@ -35,7 +35,7 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalSettingsPlugin;
-import org.elasticsearch.test.MockLogAppender;
+import org.elasticsearch.test.MockLog;
 
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
@@ -250,19 +250,18 @@ public class RolloverIT extends ESIntegTestCase {
         ensureGreen();
         Logger allocationServiceLogger = LogManager.getLogger(AllocationService.class);
 
-        MockLogAppender appender = new MockLogAppender();
-        appender.addExpectation(
-            new MockLogAppender.UnseenEventExpectation(
-                "no related message logged on dry run",
-                AllocationService.class.getName(),
-                Level.INFO,
-                "*test_index*"
-            )
-        );
         final RolloverResponse response;
-        try (var ignored = appender.capturing(AllocationService.class)) {
+        try (var mockLog = MockLog.capture(AllocationService.class)) {
+            mockLog.addExpectation(
+                new MockLog.UnseenEventExpectation(
+                    "no related message logged on dry run",
+                    AllocationService.class.getName(),
+                    Level.INFO,
+                    "*test_index*"
+                )
+            );
             response = indicesAdmin().prepareRolloverIndex("test_alias").dryRun(true).get();
-            appender.assertAllExpectationsMatched();
+            mockLog.assertAllExpectationsMatched();
         }
 
         assertThat(response.getOldIndex(), equalTo("test_index-1"));

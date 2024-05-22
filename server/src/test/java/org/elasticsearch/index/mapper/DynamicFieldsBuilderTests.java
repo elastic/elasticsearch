@@ -70,7 +70,7 @@ public class DynamicFieldsBuilderTests extends ESTestCase {
 
         SourceFieldMapper sourceMapper = new SourceFieldMapper.Builder(null, Settings.EMPTY, false).setSynthetic().build();
         RootObjectMapper root = new RootObjectMapper.Builder("_doc", Explicit.IMPLICIT_TRUE).add(
-            new PassThroughObjectMapper.Builder("labels").setContainsDimensions().dynamic(ObjectMapper.Dynamic.TRUE)
+            new PassThroughObjectMapper.Builder("labels").setPriority(0).setContainsDimensions().dynamic(ObjectMapper.Dynamic.TRUE)
         ).build(MapperBuilderContext.root(false, false));
         Mapping mapping = new Mapping(root, new MetadataFieldMapper[] { sourceMapper }, Map.of());
 

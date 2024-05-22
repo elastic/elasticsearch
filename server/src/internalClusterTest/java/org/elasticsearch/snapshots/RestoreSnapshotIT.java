@@ -29,7 +29,7 @@ import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.blobstore.FileRestoreContext;
 import org.elasticsearch.repositories.fs.FsRepository;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.test.MockLogAppender;
+import org.elasticsearch.test.MockLog;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.xcontent.XContentFactory;
 
@@ -162,8 +162,7 @@ public class RestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
         value = "org.elasticsearch.snapshots.RestoreService:INFO"
     )
     public void testRestoreLogging() throws IllegalAccessException {
-        final MockLogAppender mockLogAppender = new MockLogAppender();
-        try (var ignored = mockLogAppender.capturing(RestoreService.class)) {
+        try (var mockLog = MockLog.capture(RestoreService.class)) {
             String indexName = "testindex";
             String repoName = "test-restore-snapshot-repo";
             String snapshotName = "test-restore-snapshot";
@@ -172,8 +171,8 @@ public class RestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
             String restoredIndexName = indexName + "-restored";
             String expectedValue = "expected";
 
-            mockLogAppender.addExpectation(
-                new MockLogAppender.PatternSeenEventExpectation(
+            mockLog.addExpectation(
+                new MockLog.PatternSeenEventExpectation(
                     "not seen start of snapshot restore",
                     "org.elasticsearch.snapshots.RestoreService",
                     Level.INFO,
@@ -181,8 +180,8 @@ public class RestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
                 )
             );
 
-            mockLogAppender.addExpectation(
-                new MockLogAppender.PatternSeenEventExpectation(
+            mockLog.addExpectation(
+                new MockLog.PatternSeenEventExpectation(
                     "not seen completion of snapshot restore",
                     "org.elasticsearch.snapshots.RestoreService",
                     Level.INFO,
@@ -208,7 +207,7 @@ public class RestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
             assertThat(restoreSnapshotResponse.status(), equalTo(RestStatus.ACCEPTED));
             ensureGreen(restoredIndexName);
             assertThat(client.prepareGet(restoredIndexName, docId).get().isExists(), equalTo(true));
-            mockLogAppender.assertAllExpectationsMatched();
+            mockLog.assertAllExpectationsMatched();
         }
     }
 
@@ -899,10 +898,9 @@ public class RestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
         index(indexName, "some_id", Map.of("foo", "bar"));
         assertAcked(indicesAdmin().prepareClose(indexName).get());
 
-        final MockLogAppender mockAppender = new MockLogAppender();
-        try (var ignored = mockAppender.capturing(FileRestoreContext.class)) {
-            mockAppender.addExpectation(
-                new MockLogAppender.UnseenEventExpectation("no warnings", FileRestoreContext.class.getCanonicalName(), Level.WARN, "*")
+        try (var mockLog = MockLog.capture(FileRestoreContext.class)) {
+            mockLog.addExpectation(
+                new MockLog.UnseenEventExpectation("no warnings", FileRestoreContext.class.getCanonicalName(), Level.WARN, "*")
             );
 
             final RestoreSnapshotResponse restoreSnapshotResponse = clusterAdmin().prepareRestoreSnapshot(repoName, snapshotName)
@@ -911,7 +909,7 @@ public class RestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
                 .setWaitForCompletion(true)
                 .get();
             assertEquals(0, restoreSnapshotResponse.getRestoreInfo().failedShards());
-            mockAppender.assertAllExpectationsMatched();
+            mockLog.assertAllExpectationsMatched();
         }
     }
 }

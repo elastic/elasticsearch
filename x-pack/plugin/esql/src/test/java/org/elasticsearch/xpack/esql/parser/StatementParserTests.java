@@ -9,11 +9,29 @@ package org.elasticsearch.xpack.esql.parser;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Build;
-import org.elasticsearch.action.search.SearchRequest;
-import org.elasticsearch.common.Randomness;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.VerificationException;
+import org.elasticsearch.xpack.esql.core.capabilities.UnresolvedException;
+import org.elasticsearch.xpack.esql.core.expression.Alias;
+import org.elasticsearch.xpack.esql.core.expression.EmptyAttribute;
+import org.elasticsearch.xpack.esql.core.expression.Expressions;
+import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
+import org.elasticsearch.xpack.esql.core.expression.Order;
+import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
+import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
+import org.elasticsearch.xpack.esql.core.expression.function.UnresolvedFunction;
+import org.elasticsearch.xpack.esql.core.expression.predicate.logical.Not;
+import org.elasticsearch.xpack.esql.core.expression.predicate.operator.comparison.BinaryComparison;
+import org.elasticsearch.xpack.esql.core.plan.TableIdentifier;
+import org.elasticsearch.xpack.esql.core.plan.logical.Filter;
+import org.elasticsearch.xpack.esql.core.plan.logical.Limit;
+import org.elasticsearch.xpack.esql.core.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.core.plan.logical.OrderBy;
+import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.type.DataTypes;
+import org.elasticsearch.xpack.esql.core.util.StringUtils;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.RLike;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.WildcardLike;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Add;
@@ -33,26 +51,6 @@ import org.elasticsearch.xpack.esql.plan.logical.InlineStats;
 import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.Row;
-import org.elasticsearch.xpack.ql.capabilities.UnresolvedException;
-import org.elasticsearch.xpack.ql.expression.Alias;
-import org.elasticsearch.xpack.ql.expression.EmptyAttribute;
-import org.elasticsearch.xpack.ql.expression.Expressions;
-import org.elasticsearch.xpack.ql.expression.Literal;
-import org.elasticsearch.xpack.ql.expression.NamedExpression;
-import org.elasticsearch.xpack.ql.expression.Order;
-import org.elasticsearch.xpack.ql.expression.ReferenceAttribute;
-import org.elasticsearch.xpack.ql.expression.UnresolvedAttribute;
-import org.elasticsearch.xpack.ql.expression.function.UnresolvedFunction;
-import org.elasticsearch.xpack.ql.expression.predicate.logical.Not;
-import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.BinaryComparison;
-import org.elasticsearch.xpack.ql.plan.TableIdentifier;
-import org.elasticsearch.xpack.ql.plan.logical.Filter;
-import org.elasticsearch.xpack.ql.plan.logical.Limit;
-import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
-import org.elasticsearch.xpack.ql.plan.logical.OrderBy;
-import org.elasticsearch.xpack.ql.type.DataType;
-import org.elasticsearch.xpack.ql.type.DataTypes;
-import org.elasticsearch.xpack.ql.util.StringUtils;
 import org.elasticsearch.xpack.versionfield.Version;
 
 import java.math.BigInteger;
@@ -65,13 +63,13 @@ import java.util.Map;
 import java.util.function.Function;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
+import static org.elasticsearch.xpack.esql.core.expression.Literal.FALSE;
+import static org.elasticsearch.xpack.esql.core.expression.Literal.TRUE;
+import static org.elasticsearch.xpack.esql.core.expression.function.FunctionResolutionStrategy.DEFAULT;
+import static org.elasticsearch.xpack.esql.core.tree.Source.EMPTY;
+import static org.elasticsearch.xpack.esql.core.type.DataTypes.KEYWORD;
+import static org.elasticsearch.xpack.esql.core.util.NumericUtils.asLongUnsigned;
 import static org.elasticsearch.xpack.esql.parser.ExpressionBuilder.breakIntoFragments;
-import static org.elasticsearch.xpack.ql.expression.Literal.FALSE;
-import static org.elasticsearch.xpack.ql.expression.Literal.TRUE;
-import static org.elasticsearch.xpack.ql.expression.function.FunctionResolutionStrategy.DEFAULT;
-import static org.elasticsearch.xpack.ql.tree.Source.EMPTY;
-import static org.elasticsearch.xpack.ql.type.DataTypes.KEYWORD;
-import static org.elasticsearch.xpack.ql.util.NumericUtils.asLongUnsigned;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
@@ -594,7 +592,7 @@ public class StatementParserTests extends ESTestCase {
         expectError("show info metadata _index", "line 1:11: token recognition error at: 'm'");
         expectError(
             "explain [from foo] metadata _index",
-            "line 1:20: mismatched input 'metadata' expecting {'|', ',', OPENING_BRACKET, ']', 'options', 'metadata'}"
+            "line 1:20: mismatched input 'metadata' expecting {'|', ',', OPENING_BRACKET, ']', 'metadata'}"
         );
     }
 
@@ -616,106 +614,6 @@ public class StatementParserTests extends ESTestCase {
 
     public void testMetadataFieldNotFoundNormalField() {
         expectError("from test metadata emp_no", "line 1:21: unsupported metadata field [emp_no]");
-    }
-
-    public void testFromOptionsUnknownName() {
-        expectError(FROM + " options \"foo\"=\"oof\",\"bar\"=\"rab\"", "line 1:20: invalid options provided: unknown option named [foo]");
-    }
-
-    public void testFromOptionsPartialInvalid() {
-        expectError(
-            FROM + " options \"allow_no_indices\"=\"true\",\"bar\"=\"rab\"",
-            "line 1:46: invalid options provided: unknown option named [bar]"
-        );
-    }
-
-    public void testFromOptionsInvalidIndicesOptionValue() {
-        expectError(
-            FROM + " options \"allow_no_indices\"=\"foo\"",
-            "line 1:20: invalid options provided: Could not convert [allow_no_indices] to boolean"
-        );
-    }
-
-    public void testFromOptionsEmptyIndicesOptionName() {
-        expectError(FROM + " options \"\"=\"true\"", "line 1:20: invalid options provided: unknown option named []");
-    }
-
-    public void testFromOptionsEmptyIndicesOptionValue() {
-        expectError(
-            FROM + " options \"allow_no_indices\"=\"\"",
-            "line 1:20: invalid options provided: Could not convert [allow_no_indices] to boolean. "
-                + "Failed to parse value [] as only [true] or [false] are allowed."
-        );
-        expectError(
-            FROM + " options \"ignore_unavailable\"=\"TRUE\"",
-            "line 1:20: invalid options provided: Could not convert [ignore_unavailable] to boolean. "
-                + "Failed to parse value [TRUE] as only [true] or [false] are allowed."
-        );
-        expectError(FROM + " options \"preference\"=\"\"", "line 1:20: invalid options provided: no Preference for []");
-    }
-
-    public void testFromOptionsSuggestedOptionName() {
-        expectError(
-            FROM + " options \"allow_indices\"=\"true\"",
-            "line 1:20: invalid options provided: unknown option named [allow_indices], did you mean [allow_no_indices]?"
-        );
-    }
-
-    public void testFromOptionsInvalidPreferValue() {
-        expectError(FROM + " options \"preference\"=\"_foo\"", "line 1:20: invalid options provided: no Preference for [_foo]");
-    }
-
-    public void testFromOptionsUnquotedName() {
-        expectError(FROM + " options allow_no_indices=\"oof\"", "line 1:19: mismatched input 'allow_no_indices' expecting QUOTED_STRING");
-    }
-
-    public void testFromOptionsUnquotedValue() {
-        expectError(FROM + " options \"allow_no_indices\"=oof", "line 1:38: mismatched input 'oof' expecting QUOTED_STRING");
-    }
-
-    public void testFromOptionsDuplicates() {
-        for (var name : List.of("allow_no_indices", "ignore_unavailable", "preference")) {
-            String options = '"' + name + "\"=\"false\"";
-            options += ',' + options;
-            expectError(FROM + " options " + options, "invalid options provided: option [" + name + "] has already been provided");
-        }
-    }
-
-    public void testFromOptionsValues() {
-        boolean allowNoIndices = randomBoolean();
-        boolean ignoreUnavailable = randomBoolean();
-        String idsList = String.join(",", randomList(1, 5, () -> randomAlphaOfLengthBetween(1, 25)));
-        String preference = randomFrom(
-            "_only_local",
-            "_local",
-            "_only_nodes:" + idsList,
-            "_prefer_nodes:" + idsList,
-            "_shards:" + idsList,
-            randomAlphaOfLengthBetween(1, 25)
-        );
-        List<String> options = new ArrayList<>(3);
-        options.add("\"allow_no_indices\"=\"" + allowNoIndices + "\"");
-        options.add("\"ignore_unavailable\"=\"" + ignoreUnavailable + "\"");
-        options.add("\"preference\"=\"" + preference + "\"");
-        Randomness.shuffle(options);
-        String optionsList = String.join(",", options);
-
-        var plan = statement(FROM + " OPTIONS " + optionsList);
-        var unresolved = as(plan, EsqlUnresolvedRelation.class);
-        assertNotNull(unresolved.esSourceOptions());
-        var indicesOptions = unresolved.esSourceOptions().indicesOptions(SearchRequest.DEFAULT_INDICES_OPTIONS);
-        assertThat(indicesOptions.allowNoIndices(), is(allowNoIndices));
-        assertThat(indicesOptions.ignoreUnavailable(), is(ignoreUnavailable));
-        assertThat(unresolved.esSourceOptions().preference(), is(preference));
-    }
-
-    public void testFromOptionsWithMetadata() {
-        var plan = statement(FROM + " METADATA _id OPTIONS \"preference\"=\"foo\"");
-        var unresolved = as(plan, EsqlUnresolvedRelation.class);
-        assertNotNull(unresolved.esSourceOptions());
-        assertThat(unresolved.esSourceOptions().preference(), is("foo"));
-        assertFalse(unresolved.metadataFields().isEmpty());
-        assertThat(unresolved.metadataFields().get(0).qualifiedName(), is("_id"));
     }
 
     public void testDissectPattern() {

@@ -16,8 +16,8 @@ import org.junit.AssumptionViolatedException;
 
 import java.io.IOException;
 import java.time.Instant;
+import java.util.HashMap;
 import java.util.Map;
-import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.containsString;
 
@@ -89,11 +89,15 @@ public class DateRangeFieldMapperTests extends RangeFieldMapperTests {
             Object toExpectedSyntheticSource() {
                 Map<String, Object> expectedInMillis = (Map<String, Object>) super.toExpectedSyntheticSource();
 
-                return expectedInMillis.entrySet()
-                    .stream()
-                    .collect(
-                        Collectors.toMap(Map.Entry::getKey, e -> expectedDateFormatter.format(Instant.ofEpochMilli((long) e.getValue())))
+                Map<String, Object> expectedFormatted = new HashMap<>();
+                for (var entry : expectedInMillis.entrySet()) {
+                    expectedFormatted.put(
+                        entry.getKey(),
+                        entry.getValue() != null ? expectedDateFormatter.format(Instant.ofEpochMilli((long) entry.getValue())) : null
                     );
+                }
+
+                return expectedFormatted;
             }
         };
     }

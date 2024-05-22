@@ -42,7 +42,7 @@ public final class MappingLookup {
      * A lookup representing an empty mapping. It can be used to look up fields, although it won't hold any, but it does not
      * hold a valid {@link DocumentParser}, {@link IndexSettings} or {@link IndexAnalyzers}.
      */
-    public static final MappingLookup EMPTY = fromMappers(Mapping.EMPTY, List.of(), List.of(), List.of());
+    public static final MappingLookup EMPTY = fromMappers(Mapping.EMPTY, List.of(), List.of());
 
     private final CacheKey cacheKey = new CacheKey();
 
@@ -70,24 +70,29 @@ public final class MappingLookup {
         List<ObjectMapper> newObjectMappers = new ArrayList<>();
         List<FieldMapper> newFieldMappers = new ArrayList<>();
         List<FieldAliasMapper> newFieldAliasMappers = new ArrayList<>();
+        List<PassThroughObjectMapper> newPassThroughMappers = new ArrayList<>();
         for (MetadataFieldMapper metadataMapper : mapping.getSortedMetadataMappers()) {
             if (metadataMapper != null) {
                 newFieldMappers.add(metadataMapper);
             }
         }
         for (Mapper child : mapping.getRoot()) {
-            collect(child, newObjectMappers, newFieldMappers, newFieldAliasMappers);
+            collect(child, newObjectMappers, newFieldMappers, newFieldAliasMappers, newPassThroughMappers);
         }
-        return new MappingLookup(mapping, newFieldMappers, newObjectMappers, newFieldAliasMappers);
+        return new MappingLookup(mapping, newFieldMappers, newObjectMappers, newFieldAliasMappers, newPassThroughMappers);
     }
 
     private static void collect(
         Mapper mapper,
         Collection<ObjectMapper> objectMappers,
         Collection<FieldMapper> fieldMappers,
-        Collection<FieldAliasMapper> fieldAliasMappers
+        Collection<FieldAliasMapper> fieldAliasMappers,
+        Collection<PassThroughObjectMapper> passThroughMappers
     ) {
-        if (mapper instanceof ObjectMapper objectMapper) {
+        if (mapper instanceof PassThroughObjectMapper passThroughObjectMapper) {
+            passThroughMappers.add(passThroughObjectMapper);
+            objectMappers.add(passThroughObjectMapper);
+        } else if (mapper instanceof ObjectMapper objectMapper) {
             objectMappers.add(objectMapper);
         } else if (mapper instanceof FieldMapper fieldMapper) {
             fieldMappers.add(fieldMapper);
@@ -98,7 +103,7 @@ public final class MappingLookup {
         }
 
         for (Mapper child : mapper) {
-            collect(child, objectMappers, fieldMappers, fieldAliasMappers);
+            collect(child, objectMappers, fieldMappers, fieldAliasMappers, passThroughMappers);
         }
     }
 
@@ -114,22 +119,29 @@ public final class MappingLookup {
      * @param mappers the field mappers
      * @param objectMappers the object mappers
      * @param aliasMappers the field alias mappers
+     * @param passThroughMappers the pass-through mappers
      * @return the newly created lookup instance
      */
     public static MappingLookup fromMappers(
         Mapping mapping,
         Collection<FieldMapper> mappers,
         Collection<ObjectMapper> objectMappers,
-        Collection<FieldAliasMapper> aliasMappers
+        Collection<FieldAliasMapper> aliasMappers,
+        Collection<PassThroughObjectMapper> passThroughMappers
     ) {
-        return new MappingLookup(mapping, mappers, objectMappers, aliasMappers);
+        return new MappingLookup(mapping, mappers, objectMappers, aliasMappers, passThroughMappers);
+    }
+
+    public static MappingLookup fromMappers(Mapping mapping, Collection<FieldMapper> mappers, Collection<ObjectMapper> objectMappers) {
+        return new MappingLookup(mapping, mappers, objectMappers, List.of(), List.of());
     }
 
     private MappingLookup(
         Mapping mapping,
         Collection<FieldMapper> mappers,
         Collection<ObjectMapper> objectMappers,
-        Collection<FieldAliasMapper> aliasMappers
+        Collection<FieldAliasMapper> aliasMappers,
+        Collection<PassThroughObjectMapper> passThroughMappers
     ) {
         this.totalFieldsCount = mapping.getRoot().getTotalFieldsCount();
         this.mapping = mapping;
@@ -175,8 +187,9 @@ public final class MappingLookup {
             }
         }
 
+        PassThroughObjectMapper.checkForDuplicatePriorities(passThroughMappers);
         final Collection<RuntimeField> runtimeFields = mapping.getRoot().runtimeFields();
-        this.fieldTypeLookup = new FieldTypeLookup(mappers, aliasMappers, runtimeFields);
+        this.fieldTypeLookup = new FieldTypeLookup(mappers, aliasMappers, passThroughMappers, runtimeFields);
 
         Map<String, InferenceFieldMetadata> inferenceFields = new HashMap<>();
         for (FieldMapper mapper : mappers) {
@@ -190,7 +203,7 @@ public final class MappingLookup {
             // without runtime fields this is the same as the field type lookup
             this.indexTimeLookup = fieldTypeLookup;
         } else {
-            this.indexTimeLookup = new FieldTypeLookup(mappers, aliasMappers, Collections.emptyList());
+            this.indexTimeLookup = new FieldTypeLookup(mappers, aliasMappers, passThroughMappers, Collections.emptyList());
         }
         // make all fields into compact+fast immutable maps
         this.fieldMappers = Map.copyOf(fieldMappers);

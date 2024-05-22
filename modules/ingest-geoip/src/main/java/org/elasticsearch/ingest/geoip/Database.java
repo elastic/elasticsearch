@@ -30,6 +30,7 @@ enum Database {
         Set.of(
             Property.IP,
             Property.COUNTRY_ISO_CODE,
+            Property.CONTINENT_CODE,
             Property.COUNTRY_NAME,
             Property.CONTINENT_NAME,
             Property.REGION_ISO_CODE,
@@ -49,7 +50,7 @@ enum Database {
         )
     ),
     Country(
-        Set.of(Property.IP, Property.CONTINENT_NAME, Property.COUNTRY_NAME, Property.COUNTRY_ISO_CODE),
+        Set.of(Property.IP, Property.CONTINENT_CODE, Property.CONTINENT_NAME, Property.COUNTRY_NAME, Property.COUNTRY_ISO_CODE),
         Set.of(Property.CONTINENT_NAME, Property.COUNTRY_NAME, Property.COUNTRY_ISO_CODE)
     ),
     Asn(
@@ -75,12 +76,14 @@ enum Database {
             Property.RESIDENTIAL_PROXY
         )
     ),
+    ConnectionType(Set.of(Property.IP, Property.CONNECTION_TYPE), Set.of(Property.CONNECTION_TYPE)),
     Domain(Set.of(Property.IP, Property.DOMAIN), Set.of(Property.DOMAIN)),
     Enterprise(
         Set.of(
             Property.IP,
             Property.COUNTRY_ISO_CODE,
             Property.COUNTRY_NAME,
+            Property.CONTINENT_CODE,
             Property.CONTINENT_NAME,
             Property.REGION_ISO_CODE,
             Property.REGION_NAME,
@@ -101,7 +104,8 @@ enum Database {
             Property.ISP_ORGANIZATION_NAME,
             Property.MOBILE_COUNTRY_CODE,
             Property.MOBILE_NETWORK_CODE,
-            Property.USER_TYPE
+            Property.USER_TYPE,
+            Property.CONNECTION_TYPE
         ),
         Set.of(
             Property.COUNTRY_ISO_CODE,
@@ -140,6 +144,7 @@ enum Database {
     private static final String COUNTRY_DB_SUFFIX = "-Country";
     private static final String ASN_DB_SUFFIX = "-ASN";
     private static final String ANONYMOUS_IP_DB_SUFFIX = "-Anonymous-IP";
+    private static final String CONNECTION_TYPE_DB_SUFFIX = "-Connection-Type";
     private static final String DOMAIN_DB_SUFFIX = "-Domain";
     private static final String ENTERPRISE_DB_SUFFIX = "-Enterprise";
     private static final String ISP_DB_SUFFIX = "-ISP";
@@ -164,6 +169,8 @@ enum Database {
                 database = Database.Asn;
             } else if (databaseType.endsWith(Database.ANONYMOUS_IP_DB_SUFFIX)) {
                 database = Database.AnonymousIp;
+            } else if (databaseType.endsWith(Database.CONNECTION_TYPE_DB_SUFFIX)) {
+                database = Database.ConnectionType;
             } else if (databaseType.endsWith(Database.DOMAIN_DB_SUFFIX)) {
                 database = Database.Domain;
             } else if (databaseType.endsWith(Database.ENTERPRISE_DB_SUFFIX)) {
@@ -230,6 +237,7 @@ enum Database {
         IP,
         COUNTRY_ISO_CODE,
         COUNTRY_NAME,
+        CONTINENT_CODE,
         CONTINENT_NAME,
         REGION_ISO_CODE,
         REGION_NAME,
@@ -250,6 +258,7 @@ enum Database {
         ISP_ORGANIZATION_NAME,
         MOBILE_COUNTRY_CODE,
         MOBILE_NETWORK_CODE,
+        CONNECTION_TYPE,
         USER_TYPE;
 
         /**

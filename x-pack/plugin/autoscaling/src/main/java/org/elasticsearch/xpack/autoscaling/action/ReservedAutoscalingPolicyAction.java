@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.autoscaling.action;
 
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.reservedstate.ReservedClusterStateHandler;
 import org.elasticsearch.reservedstate.TransformState;
 import org.elasticsearch.xcontent.XContentParser;
@@ -91,7 +92,18 @@ public class ReservedAutoscalingPolicyAction implements ReservedClusterStateHand
             @SuppressWarnings("unchecked")
             Map<String, ?> content = (Map<String, ?>) source.get(name);
             try (XContentParser policyParser = mapToXContentParser(XContentParserConfiguration.EMPTY, content)) {
-                result.add(PutAutoscalingPolicyAction.Request.parse(policyParser, name));
+                result.add(
+                    PutAutoscalingPolicyAction.Request.parse(
+                        policyParser,
+                        (roles, deciders) -> new PutAutoscalingPolicyAction.Request(
+                            TimeValue.MINUS_ONE,
+                            TimeValue.MINUS_ONE,
+                            name,
+                            roles,
+                            deciders
+                        )
+                    )
+                );
             }
         }
 

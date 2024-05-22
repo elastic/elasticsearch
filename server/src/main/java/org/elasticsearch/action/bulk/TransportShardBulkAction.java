@@ -453,7 +453,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
             return documentParsingProvider.newFixedSizeDocumentObserver(request.getNormalisedBytesParsed());
         } else if (request.getNormalisedBytesParsed() == 0) {
             return DocumentSizeObserver.EMPTY_INSTANCE;
-        } // request.getNormalisedBytesParsed() == -1
+        } // request.getNormalisedBytesParsed() == -1, meaning an IndexRequest has a default value (not being used in updates or ingest)
         return documentParsingProvider.newDocumentSizeObserver();
     }
 

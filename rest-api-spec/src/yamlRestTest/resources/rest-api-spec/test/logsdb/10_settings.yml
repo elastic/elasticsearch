@@ -134,6 +134,43 @@ missing hostname field:
   - match: { error.reason: "unknown index sort field:[hostname]" }
 
 ---
+missing sort field:
+  - requires:
+      cluster_features: ["gte_v8.15.0"]
+      reason: introduced in 8.15.0
+
+  - do:
+      catch: bad_request
+      indices.create:
+        index: test-hostname-missing
+        body:
+          settings:
+            index:
+              mode: logs
+              number_of_replicas: 0
+              number_of_shards: 2
+              sort:
+                field: [ "host_name" ]
+          mappings:
+            properties:
+              "@timestamp":
+                type: date
+              hostname:
+                type: keyword
+              agent_id:
+                type: keyword
+              process_id:
+                type: integer
+              http_method:
+                type: keyword
+              message:
+                type: text
+
+  - match: { error.root_cause.0.type: "illegal_argument_exception" }
+  - match: { error.type: "illegal_argument_exception" }
+  - match: { error.reason: "unknown index sort field:[host_name]" }
+
+---
 non-default sort settings:
   - requires:
       cluster_features: ["gte_v8.15.0"]

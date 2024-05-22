@@ -18,7 +18,6 @@ import org.elasticsearch.rest.action.RestCancellableNodeClient;
 import org.elasticsearch.rest.action.RestRefCountedChunkedToXContentListener;
 
 import java.util.List;
-import java.util.Set;
 
 @ServerlessScope(Scope.INTERNAL)
 public class RestGetShutdownStatusAction extends BaseRestHandler {
@@ -47,12 +46,5 @@ public class RestGetShutdownStatusAction extends BaseRestHandler {
             actionRequest,
             new RestRefCountedChunkedToXContentListener<>(channel)
         );
-    }
-
-    private static final Set<String> SUPPORTED_QUERY_PARAMETERS = Set.of(RestUtils.REST_MASTER_TIMEOUT_PARAM, "nodeId");
-
-    @Override
-    public Set<String> supportedQueryParameters() {
-        return SUPPORTED_QUERY_PARAMETERS;
     }
 }

@@ -862,7 +862,6 @@ public class SearchableSnapshotActionIT extends ESRestTestCase {
         // rollover the data stream so searchable_snapshot can complete
         indexDocument(client(), dataStream, true);
 
-
         final String restoredIndex = SearchableSnapshotAction.FULL_RESTORED_INDEX_PREFIX + firstGenIndex;
         assertBusy(() -> {
             logger.info("--> waiting for [{}] to exist...", restoredIndex);

@@ -195,24 +195,28 @@ public class MetadataIndexTemplateService {
         this.globalRetentionResolver = globalRetentionResolver;
     }
 
-    public void removeTemplates(final String templateName, final TimeValue timeout, final ActionListener<AcknowledgedResponse> listener) {
-        taskQueue.submitTask("remove-index-template [" + templateName + "]", new TemplateClusterStateUpdateTask(listener) {
+    public void removeTemplates(
+        final String templatePattern,
+        final TimeValue timeout,
+        final ActionListener<AcknowledgedResponse> listener
+    ) {
+        taskQueue.submitTask("remove-index-template [" + templatePattern + "]", new TemplateClusterStateUpdateTask(listener) {
             @Override
             public ClusterState execute(ClusterState currentState) {
                 Set<String> templateNames = new HashSet<>();
                 for (Map.Entry<String, IndexTemplateMetadata> cursor : currentState.metadata().templates().entrySet()) {
                     String templateName = cursor.getKey();
-                    if (Regex.simpleMatch(templateName, templateName)) {
+                    if (Regex.simpleMatch(templatePattern, templateName)) {
                         templateNames.add(templateName);
                     }
                 }
                 if (templateNames.isEmpty()) {
                     // if its a match all pattern, and no templates are found (we have none), don't
                     // fail with index missing...
-                    if (Regex.isMatchAllPattern(templateName)) {
+                    if (Regex.isMatchAllPattern(templatePattern)) {
                         return currentState;
                     }
-                    throw new IndexTemplateMissingException(templateName);
+                    throw new IndexTemplateMissingException(templatePattern);
                 }
                 Metadata.Builder metadata = Metadata.builder(currentState.metadata());
                 for (String templateName : templateNames) {

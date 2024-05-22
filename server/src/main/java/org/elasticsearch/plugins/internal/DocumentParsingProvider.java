@@ -8,6 +8,9 @@
 
 package org.elasticsearch.plugins.internal;
 
+import org.elasticsearch.action.DocWriteRequest;
+import org.elasticsearch.action.index.IndexRequest;
+
 /**
  * An interface to provide instances of document parsing observer and reporter
  */
@@ -43,4 +46,7 @@ public interface DocumentParsingProvider {
         return DocumentSizeAccumulator.EMPTY_INSTANCE;
     }
 
+    default <T> DocumentSizeObserver newDocumentSizeObserver(DocWriteRequest<T> request) {
+        return DocumentSizeObserver.EMPTY_INSTANCE;
+    }
 }

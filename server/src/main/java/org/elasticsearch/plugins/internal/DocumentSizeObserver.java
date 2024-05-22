@@ -43,4 +43,8 @@ public interface DocumentSizeObserver {
      * @return a number representing a state parsed
      */
     long normalisedBytesParsed();
+
+    default boolean isUpdateByScript() {
+        return false;
+    }
 }

@@ -237,6 +237,8 @@ public class UpdateHelper {
      * primary and replicas.
      */
     Result prepareUpdateScriptRequest(ShardId shardId, UpdateRequest request, GetResult getResult, LongSupplier nowInMillis) {
+        final DocumentSizeObserver documentSizeObserver = documentParsingProvider.newDocumentSizeObserver();
+
         final IndexRequest currentRequest = request.doc();
         final String routing = calculateRouting(getResult, currentRequest);
         final Tuple<XContentType, Map<String, Object>> sourceAndContent = XContentHelper.convertToMap(getResult.internalSourceRef(), true);
@@ -269,7 +271,8 @@ public class UpdateHelper {
                     .waitForActiveShards(request.waitForActiveShards())
                     .timeout(request.timeout())
                     .setRefreshPolicy(request.getRefreshPolicy())
-                    .noParsedBytesToReport();
+                    .setNormalisedBytesParsed(documentSizeObserver.normalisedBytesParsed());
+
                 return new Result(indexRequest, DocWriteResponse.Result.UPDATED, updatedSourceAsMap, updateSourceContentType);
             }
             case DELETE -> {

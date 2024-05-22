@@ -42,6 +42,7 @@ import co.elastic.elasticsearch.stateless.autoscaling.search.SearchShardSizeColl
 import co.elastic.elasticsearch.stateless.autoscaling.search.ShardSizeCollector;
 import co.elastic.elasticsearch.stateless.autoscaling.search.ShardSizesPublisher;
 import co.elastic.elasticsearch.stateless.autoscaling.search.TransportPublishShardSizes;
+import co.elastic.elasticsearch.stateless.autoscaling.search.TransportUpdateReplicasAction;
 import co.elastic.elasticsearch.stateless.autoscaling.search.load.AverageSearchLoadSampler;
 import co.elastic.elasticsearch.stateless.autoscaling.search.load.SearchLoadProbe;
 import co.elastic.elasticsearch.stateless.autoscaling.search.load.SearchLoadSampler;
@@ -334,7 +335,8 @@ public class Stateless extends Plugin
             new ActionHandler<>(StatelessPrimaryRelocationAction.TYPE, TransportStatelessPrimaryRelocationAction.class),
             new ActionHandler<>(TransportRegisterCommitForRecoveryAction.TYPE, TransportRegisterCommitForRecoveryAction.class),
             new ActionHandler<>(TransportSendRecoveryCommitRegistrationAction.TYPE, TransportSendRecoveryCommitRegistrationAction.class),
-            new ActionHandler<>(TransportConsistentClusterStateReadAction.TYPE, TransportConsistentClusterStateReadAction.class)
+            new ActionHandler<>(TransportConsistentClusterStateReadAction.TYPE, TransportConsistentClusterStateReadAction.class),
+            new ActionHandler<>(TransportUpdateReplicasAction.TYPE, TransportUpdateReplicasAction.class)
         );
     }
 

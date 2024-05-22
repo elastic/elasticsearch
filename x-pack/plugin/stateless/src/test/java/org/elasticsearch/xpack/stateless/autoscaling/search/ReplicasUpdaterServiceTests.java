@@ -31,8 +31,6 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
-import org.elasticsearch.action.admin.indices.settings.put.TransportUpdateSettingsAction;
-import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequest;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.DataStream;
@@ -831,12 +829,11 @@ public class ReplicasUpdaterServiceTests extends ESTestCase {
             Request request,
             ActionListener<Response> listener
         ) {
-            assertEquals(TransportUpdateSettingsAction.TYPE, action);
-            assertThat(request, instanceOf(UpdateSettingsRequest.class));
-            UpdateSettingsRequest updateSettingsRequest = (UpdateSettingsRequest) request;
-            assertEquals(1, updateSettingsRequest.settings().size());
-            int numReplicas = updateSettingsRequest.settings().getAsInt(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), null);
-            updates.put(numReplicas, Set.of(updateSettingsRequest.indices()));
+            assertEquals(TransportUpdateReplicasAction.TYPE, action);
+            assertThat(request, instanceOf(TransportUpdateReplicasAction.Request.class));
+            TransportUpdateReplicasAction.Request updateReplicasRequest = (TransportUpdateReplicasAction.Request) request;
+            int numReplicas = updateReplicasRequest.getNumReplicas();
+            updates.put(numReplicas, Set.of(updateReplicasRequest.indices()));
             executionCount.incrementAndGet();
             updateSettingsToBeVerified = true;
             return super.executeLocally(action, request, listener);

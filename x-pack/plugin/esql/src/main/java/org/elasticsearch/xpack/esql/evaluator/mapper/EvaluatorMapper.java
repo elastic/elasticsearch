@@ -67,8 +67,6 @@ public interface EvaluatorMapper {
 
             @Override
             public void close() {}
-        }).get(
-            DriverContext.getLocalDriver()
-        ).eval(new Page(1)), 0);
+        }).get(DriverContext.getLocalDriver()).eval(new Page(1)), 0);
     }
 }

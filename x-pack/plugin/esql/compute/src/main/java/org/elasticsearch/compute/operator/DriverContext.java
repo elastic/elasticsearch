@@ -186,7 +186,10 @@ public class DriverContext {
     /**
      * Indicates the behavior Evaluators of this context should use for reporting warnings
      */
-    public enum WarningsMode { COLLECT, IGNORE }
+    public enum WarningsMode {
+        COLLECT,
+        IGNORE
+    }
 
     private static class AsyncActions {
         private final SubscribableListener<Void> completion = new SubscribableListener<>();

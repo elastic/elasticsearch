@@ -48,6 +48,7 @@ public class Warnings {
         }
         throw new IllegalStateException("Unreachable");
     }
+
     public Warnings(Source source) {
         location = format("Line {}:{}: ", source.source().getLineNumber(), source.source().getColumnNumber());
         first = format(

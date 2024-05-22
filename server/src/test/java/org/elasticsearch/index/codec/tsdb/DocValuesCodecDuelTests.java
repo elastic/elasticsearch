@@ -59,23 +59,37 @@ public class DocValuesCodecDuelTests extends ESTestCase {
                 boolean field4MissingOften = rarely();
                 boolean field5MissingOften = rarely();
 
+                String reuseStr = null;
+                if (randomInt(5) == 1) {
+                    reuseStr = randomUnicodeOfLength(20);
+                }
+                Long reuseLng = null;
+                if (randomInt(5) == 4) {
+                    reuseLng = randomLong();
+                }
+
                 for (int i = 0; i < numDocs; i++) {
                     Document doc = new Document();
                     if (field1MissingOften ? randomBoolean() : rarely() == false) {
-                        doc.add(new SortedDocValuesField(FIELD_1, newBytesRef(randomUnicodeOfLength(20))));
+                        String value = reuseStr != null && randomBoolean() ? reuseStr : randomUnicodeOfLength(20);
+                        doc.add(new SortedDocValuesField(FIELD_1, newBytesRef(value)));
                     }
                     if (field2And3MissingOften ? randomBoolean() : rarely() == false) {
                         int numValues = randomIntBetween(1, 32);
                         for (int j = 0; j < numValues; j++) {
-                            doc.add(new SortedSetDocValuesField(FIELD_2, newBytesRef(randomUnicodeOfLength(20))));
-                            doc.add(new SortedNumericDocValuesField(FIELD_3, randomLong()));
+                            String strValue = reuseStr != null && randomBoolean() ? reuseStr : randomUnicodeOfLength(20);
+                            doc.add(new SortedSetDocValuesField(FIELD_2, newBytesRef(strValue)));
+                            long lngValue = reuseLng != null && randomBoolean() ? reuseLng : randomLong();
+                            doc.add(new SortedNumericDocValuesField(FIELD_3, lngValue));
                         }
                     }
                     if (field4MissingOften ? randomBoolean() : rarely() == false) {
-                        doc.add(new NumericDocValuesField(FIELD_4, randomLong()));
+                        long value = reuseLng != null && randomBoolean() ? reuseLng : randomLong();
+                        doc.add(new NumericDocValuesField(FIELD_4, value));
                     }
                     if (field5MissingOften ? randomBoolean() : rarely() == false) {
-                        doc.add(new BinaryDocValuesField(FIELD_5, newBytesRef(randomUnicodeOfLength(20))));
+                        String value = reuseStr != null && randomBoolean() ? reuseStr : randomUnicodeOfLength(20);
+                        doc.add(new BinaryDocValuesField(FIELD_5, newBytesRef(value)));
                     }
                     baselineIw.addDocument(doc);
                     contenderIw.addDocument(doc);

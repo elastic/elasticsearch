@@ -34,8 +34,8 @@ public final class Int7MaximumInnerProduct extends AbstractInt7ScalarQuantizedVe
         checkOrdinal(secondOrd);
 
         final int length = dims;
-        int firstByteOffset = firstOrd * (length + Float.BYTES);
-        int secondByteOffset = secondOrd * (length + Float.BYTES);
+        long firstByteOffset = (long) firstOrd * (length + Float.BYTES);
+        long secondByteOffset = (long) secondOrd * (length + Float.BYTES);
 
         MemorySegment firstSeg = segmentSlice(firstByteOffset, length);
         input.seek(firstByteOffset + length);
@@ -63,5 +63,10 @@ public final class Int7MaximumInnerProduct extends AbstractInt7ScalarQuantizedVe
             return 1 / (1 + -1 * rawSimilarity);
         }
         return rawSimilarity + 1;
+    }
+
+    @Override
+    public Int7MaximumInnerProduct copy() {
+        return new Int7MaximumInnerProduct(dims, maxOrd, scoreCorrectionConstant, input.clone());
     }
 }

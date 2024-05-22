@@ -31,6 +31,7 @@ import org.elasticsearch.action.datastreams.lifecycle.ErrorEntry;
 import org.elasticsearch.action.datastreams.lifecycle.ExplainDataStreamLifecycleAction;
 import org.elasticsearch.action.datastreams.lifecycle.ExplainIndexDataStreamLifecycle;
 import org.elasticsearch.action.datastreams.lifecycle.PutDataStreamLifecycleAction;
+import org.elasticsearch.action.downsample.DownsampleConfig;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.broadcast.BroadcastResponse;
 import org.elasticsearch.cluster.coordination.StableMasterHealthIndicatorService;
@@ -63,11 +64,13 @@ import org.elasticsearch.health.node.FetchHealthInfoCacheAction;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.MergePolicyConfig;
 import org.elasticsearch.index.mapper.DateFieldMapper;
+import org.elasticsearch.index.mapper.extras.MapperExtrasPlugin;
 import org.elasticsearch.indices.ExecutorNames;
 import org.elasticsearch.indices.SystemDataStreamDescriptor;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.SystemIndexPlugin;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.xcontent.ToXContent;
@@ -116,7 +119,12 @@ public class DataStreamLifecycleServiceIT extends ESIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return List.of(DataStreamsPlugin.class, MockTransportService.TestPlugin.class, TestSystemDataStreamPlugin.class);
+        return List.of(
+            DataStreamsPlugin.class,
+            MockTransportService.TestPlugin.class,
+            TestSystemDataStreamPlugin.class,
+            MapperExtrasPlugin.class
+        );
     }
 
     @Override
@@ -139,7 +147,7 @@ public class DataStreamLifecycleServiceIT extends ESIntegTestCase {
         // empty lifecycle contains the default rollover
         DataStreamLifecycle lifecycle = new DataStreamLifecycle();
 
-        putComposableIndexTemplate("id1", null, List.of("metrics-foo*"), null, null, lifecycle);
+        putComposableIndexTemplate("id1", null, List.of("metrics-foo*"), null, null, lifecycle, false);
         String dataStreamName = "metrics-foo";
         CreateDataStreamAction.Request createDataStreamRequest = new CreateDataStreamAction.Request(dataStreamName);
         client().execute(CreateDataStreamAction.INSTANCE, createDataStreamRequest).get();
@@ -164,7 +172,7 @@ public class DataStreamLifecycleServiceIT extends ESIntegTestCase {
     public void testRolloverAndRetention() throws Exception {
         DataStreamLifecycle lifecycle = DataStreamLifecycle.newBuilder().dataRetention(0).build();
 
-        putComposableIndexTemplate("id1", null, List.of("metrics-foo*"), null, null, lifecycle);
+        putComposableIndexTemplate("id1", null, List.of("metrics-foo*"), null, null, lifecycle, false);
 
         String dataStreamName = "metrics-foo";
         CreateDataStreamAction.Request createDataStreamRequest = new CreateDataStreamAction.Request(dataStreamName);
@@ -203,6 +211,7 @@ public class DataStreamLifecycleServiceIT extends ESIntegTestCase {
             client().execute(
                 PutDataStreamGlobalRetentionAction.INSTANCE,
                 new PutDataStreamGlobalRetentionAction.Request(
+                    TEST_REQUEST_TIMEOUT,
                     TimeValue.timeValueSeconds(globalRetentionSeconds),
                     TimeValue.timeValueSeconds(globalRetentionSeconds)
                 )
@@ -290,7 +299,10 @@ public class DataStreamLifecycleServiceIT extends ESIntegTestCase {
 
                 client().execute(DeleteDataStreamAction.INSTANCE, new DeleteDataStreamAction.Request(SYSTEM_DATA_STREAM_NAME)).actionGet();
             } finally {
-                client().execute(DeleteDataStreamGlobalRetentionAction.INSTANCE, new DeleteDataStreamGlobalRetentionAction.Request());
+                client().execute(
+                    DeleteDataStreamGlobalRetentionAction.INSTANCE,
+                    new DeleteDataStreamGlobalRetentionAction.Request(TEST_REQUEST_TIMEOUT)
+                );
             }
         } finally {
             dataStreamLifecycleServices.forEach(dataStreamLifecycleService -> dataStreamLifecycleService.setNowSupplier(clock::millis));
@@ -305,7 +317,7 @@ public class DataStreamLifecycleServiceIT extends ESIntegTestCase {
          */
         DataStreamLifecycle lifecycle = DataStreamLifecycle.newBuilder().dataRetention(TimeValue.timeValueDays(7)).build();
 
-        putComposableIndexTemplate("id1", null, List.of("metrics-foo*"), null, null, lifecycle);
+        putComposableIndexTemplate("id1", null, List.of("metrics-foo*"), null, null, lifecycle, false);
 
         String dataStreamName = "metrics-foo";
         CreateDataStreamAction.Request createDataStreamRequest = new CreateDataStreamAction.Request(dataStreamName);
@@ -353,7 +365,7 @@ public class DataStreamLifecycleServiceIT extends ESIntegTestCase {
             assertThat(getDataStreamResponse.getDataStreams().size(), equalTo(1));
             assertThat(getDataStreamResponse.getDataStreams().get(0).getDataStream().getName(), equalTo(dataStreamName));
             List<Index> backingIndices = getDataStreamResponse.getDataStreams().get(0).getDataStream().getIndices();
-            Set<String> indexNames = backingIndices.stream().map(index -> index.getName()).collect(Collectors.toSet());
+            Set<String> indexNames = backingIndices.stream().map(Index::getName).collect(Collectors.toSet());
             assertTrue(indexNames.contains("index_new"));
             assertFalse(indexNames.contains("index_old"));
         });
@@ -362,7 +374,7 @@ public class DataStreamLifecycleServiceIT extends ESIntegTestCase {
     public void testUpdatingLifecycleAppliesToAllBackingIndices() throws Exception {
         DataStreamLifecycle lifecycle = new DataStreamLifecycle();
 
-        putComposableIndexTemplate("id1", null, List.of("metrics-foo*"), null, null, lifecycle);
+        putComposableIndexTemplate("id1", null, List.of("metrics-foo*"), null, null, lifecycle, false);
 
         String dataStreamName = "metrics-foo";
         CreateDataStreamAction.Request createDataStreamRequest = new CreateDataStreamAction.Request(dataStreamName);
@@ -411,7 +423,8 @@ public class DataStreamLifecycleServiceIT extends ESIntegTestCase {
                 .put(MergePolicyConfig.INDEX_MERGE_POLICY_MERGE_FACTOR_SETTING.getKey(), TARGET_MERGE_FACTOR_VALUE)
                 .build(),
             null,
-            lifecycle
+            lifecycle,
+            false
         );
         // This is the set of all indices against which a ForceMergeAction has been run:
         final Set<String> forceMergedIndices = new HashSet<>();
@@ -506,7 +519,8 @@ public class DataStreamLifecycleServiceIT extends ESIntegTestCase {
             List.of("metrics-foo*"),
             Settings.builder().put(IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS, "0-1").build(),
             null,
-            lifecycle
+            lifecycle,
+            false
         );
 
         String dataStreamName = "metrics-foo";
@@ -656,7 +670,8 @@ public class DataStreamLifecycleServiceIT extends ESIntegTestCase {
             List.of("metrics-foo*"),
             Settings.builder().put(IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS, "0-1").build(),
             null,
-            lifecycle
+            lifecycle,
+            false
         );
 
         String dataStreamName = "metrics-foo";
@@ -818,7 +833,8 @@ public class DataStreamLifecycleServiceIT extends ESIntegTestCase {
             List.of("metrics-foo*"),
             Settings.builder().put(IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS, "0-1").build(),
             null,
-            lifecycle
+            lifecycle,
+            false
         );
 
         String dataStreamName = "metrics-foo";
@@ -903,7 +919,7 @@ public class DataStreamLifecycleServiceIT extends ESIntegTestCase {
         // start with a lifecycle that's not enabled
         DataStreamLifecycle lifecycle = new DataStreamLifecycle(null, null, false);
 
-        putComposableIndexTemplate("id1", null, List.of("metrics-foo*"), null, null, lifecycle);
+        putComposableIndexTemplate("id1", null, List.of("metrics-foo*"), null, null, lifecycle, false);
         String dataStreamName = "metrics-foo";
         CreateDataStreamAction.Request createDataStreamRequest = new CreateDataStreamAction.Request(dataStreamName);
         client().execute(CreateDataStreamAction.INSTANCE, createDataStreamRequest).get();
@@ -948,6 +964,98 @@ public class DataStreamLifecycleServiceIT extends ESIntegTestCase {
         });
     }
 
+    public void testLifecycleAppliedToFailureStore() throws Exception {
+        // We configure a lifecycle with downsampling to ensure it doesn't fail
+        DataStreamLifecycle lifecycle = DataStreamLifecycle.newBuilder()
+            .dataRetention(20_000)
+            .downsampling(
+                new DataStreamLifecycle.Downsampling(
+                    List.of(
+                        new DataStreamLifecycle.Downsampling.Round(
+                            TimeValue.timeValueMillis(10),
+                            new DownsampleConfig(new DateHistogramInterval("10m"))
+                        )
+                    )
+                )
+            )
+            .build();
+
+        putComposableIndexTemplate("id1", """
+            {
+              "properties": {
+                 "@timestamp": {
+                   "type": "date",
+                   "format": "epoch_millis"
+                 },
+                 "flag": {
+                   "type": "boolean"
+                 }
+             }
+            }""", List.of("metrics-fs*"), Settings.builder().put("index.number_of_replicas", 0).build(), null, lifecycle, true);
+
+        String dataStreamName = "metrics-fs";
+        CreateDataStreamAction.Request createDataStreamRequest = new CreateDataStreamAction.Request(dataStreamName);
+        client().execute(CreateDataStreamAction.INSTANCE, createDataStreamRequest).get();
+
+        indexInvalidFlagDocs(dataStreamName, 1);
+
+        // Let's verify the rollover
+        assertBusy(() -> {
+            GetDataStreamAction.Request getDataStreamRequest = new GetDataStreamAction.Request(new String[] { dataStreamName });
+            GetDataStreamAction.Response getDataStreamResponse = client().execute(GetDataStreamAction.INSTANCE, getDataStreamRequest)
+                .actionGet();
+            assertThat(getDataStreamResponse.getDataStreams().size(), equalTo(1));
+            assertThat(getDataStreamResponse.getDataStreams().get(0).getDataStream().getName(), equalTo(dataStreamName));
+            List<Index> backingIndices = getDataStreamResponse.getDataStreams().get(0).getDataStream().getIndices();
+            assertThat(backingIndices.size(), equalTo(1));
+            List<Index> failureIndices = getDataStreamResponse.getDataStreams().get(0).getDataStream().getFailureIndices().getIndices();
+            assertThat(failureIndices.size(), equalTo(2));
+        });
+
+        List<String> indices = getFailureIndices(dataStreamName);
+        String firstGenerationIndex = indices.get(0);
+        String secondGenerationIndex = indices.get(1);
+
+        // Let's verify the merge settings
+        ClusterGetSettingsAction.Response response = client().execute(
+            ClusterGetSettingsAction.INSTANCE,
+            new ClusterGetSettingsAction.Request()
+        ).get();
+        Settings clusterSettings = response.persistentSettings();
+
+        Integer targetFactor = DATA_STREAM_MERGE_POLICY_TARGET_FACTOR_SETTING.get(clusterSettings);
+        ByteSizeValue targetFloor = DATA_STREAM_MERGE_POLICY_TARGET_FLOOR_SEGMENT_SETTING.get(clusterSettings);
+
+        assertBusy(() -> {
+            GetSettingsRequest getSettingsRequest = new GetSettingsRequest().indices(firstGenerationIndex).includeDefaults(true);
+            GetSettingsResponse getSettingsResponse = client().execute(GetSettingsAction.INSTANCE, getSettingsRequest).actionGet();
+            assertThat(
+                getSettingsResponse.getSetting(firstGenerationIndex, MergePolicyConfig.INDEX_MERGE_POLICY_MERGE_FACTOR_SETTING.getKey()),
+                is(targetFactor.toString())
+            );
+            assertThat(
+                getSettingsResponse.getSetting(firstGenerationIndex, MergePolicyConfig.INDEX_MERGE_POLICY_FLOOR_SEGMENT_SETTING.getKey()),
+                is(targetFloor.getStringRep())
+            );
+        });
+
+        updateLifecycle(dataStreamName, TimeValue.timeValueSeconds(1));
+
+        // And finally apply retention
+        assertBusy(() -> {
+            GetDataStreamAction.Request getDataStreamRequest = new GetDataStreamAction.Request(new String[] { dataStreamName });
+            GetDataStreamAction.Response getDataStreamResponse = client().execute(GetDataStreamAction.INSTANCE, getDataStreamRequest)
+                .actionGet();
+            assertThat(getDataStreamResponse.getDataStreams().size(), equalTo(1));
+            assertThat(getDataStreamResponse.getDataStreams().get(0).getDataStream().getName(), equalTo(dataStreamName));
+            List<Index> backingIndices = getDataStreamResponse.getDataStreams().get(0).getDataStream().getIndices();
+            assertThat(backingIndices.size(), equalTo(1));
+            List<Index> failureIndices = getDataStreamResponse.getDataStreams().get(0).getDataStream().getFailureIndices().getIndices();
+            assertThat(failureIndices.size(), equalTo(1));
+            assertThat(failureIndices.get(0).getName(), equalTo(secondGenerationIndex));
+        });
+    }
+
     private static List<String> getBackingIndices(String dataStreamName) {
         GetDataStreamAction.Request getDataStreamRequest = new GetDataStreamAction.Request(new String[] { dataStreamName });
         GetDataStreamAction.Response getDataStreamResponse = client().execute(GetDataStreamAction.INSTANCE, getDataStreamRequest)
@@ -955,6 +1063,22 @@ public class DataStreamLifecycleServiceIT extends ESIntegTestCase {
         assertThat(getDataStreamResponse.getDataStreams().size(), equalTo(1));
         assertThat(getDataStreamResponse.getDataStreams().get(0).getDataStream().getName(), equalTo(dataStreamName));
         return getDataStreamResponse.getDataStreams().get(0).getDataStream().getIndices().stream().map(Index::getName).toList();
+    }
+
+    private static List<String> getFailureIndices(String dataStreamName) {
+        GetDataStreamAction.Request getDataStreamRequest = new GetDataStreamAction.Request(new String[] { dataStreamName });
+        GetDataStreamAction.Response getDataStreamResponse = client().execute(GetDataStreamAction.INSTANCE, getDataStreamRequest)
+            .actionGet();
+        assertThat(getDataStreamResponse.getDataStreams().size(), equalTo(1));
+        assertThat(getDataStreamResponse.getDataStreams().get(0).getDataStream().getName(), equalTo(dataStreamName));
+        return getDataStreamResponse.getDataStreams()
+            .get(0)
+            .getDataStream()
+            .getFailureIndices()
+            .getIndices()
+            .stream()
+            .map(Index::getName)
+            .toList();
     }
 
     static void indexDocs(String dataStream, int numDocs) {
@@ -977,13 +1101,37 @@ public class DataStreamLifecycleServiceIT extends ESIntegTestCase {
         indicesAdmin().refresh(new RefreshRequest(dataStream)).actionGet();
     }
 
+    static void indexInvalidFlagDocs(String dataStream, int numDocs) {
+        BulkRequest bulkRequest = new BulkRequest();
+        for (int i = 0; i < numDocs; i++) {
+            String value = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.formatMillis(System.currentTimeMillis());
+            bulkRequest.add(
+                new IndexRequest(dataStream).opType(DocWriteRequest.OpType.CREATE)
+                    .source(
+                        String.format(Locale.ROOT, "{\"%s\":\"%s\",\"flag\":\"invalid\"}", DEFAULT_TIMESTAMP_FIELD, value),
+                        XContentType.JSON
+                    )
+            );
+        }
+        BulkResponse bulkResponse = client().bulk(bulkRequest).actionGet();
+        assertThat(bulkResponse.getItems().length, equalTo(numDocs));
+        String failureIndexPrefix = DataStream.FAILURE_STORE_PREFIX + dataStream;
+        for (BulkItemResponse itemResponse : bulkResponse) {
+            assertThat(itemResponse.getFailureMessage(), nullValue());
+            assertThat(itemResponse.status(), equalTo(RestStatus.CREATED));
+            assertThat(itemResponse.getIndex(), startsWith(failureIndexPrefix));
+        }
+        indicesAdmin().refresh(new RefreshRequest(dataStream)).actionGet();
+    }
+
     static void putComposableIndexTemplate(
         String id,
         @Nullable String mappings,
         List<String> patterns,
         @Nullable Settings settings,
         @Nullable Map<String, Object> metadata,
-        @Nullable DataStreamLifecycle lifecycle
+        @Nullable DataStreamLifecycle lifecycle,
+        boolean withFailureStore
     ) throws IOException {
         TransportPutComposableIndexTemplateAction.Request request = new TransportPutComposableIndexTemplateAction.Request(id);
         request.indexTemplate(
@@ -991,7 +1139,7 @@ public class DataStreamLifecycleServiceIT extends ESIntegTestCase {
                 .indexPatterns(patterns)
                 .template(new Template(settings, mappings == null ? null : CompressedXContent.fromJSON(mappings), null, lifecycle))
                 .metadata(metadata)
-                .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate())
+                .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate(false, false, withFailureStore))
                 .build()
         );
         client().execute(TransportPutComposableIndexTemplateAction.TYPE, request).actionGet();

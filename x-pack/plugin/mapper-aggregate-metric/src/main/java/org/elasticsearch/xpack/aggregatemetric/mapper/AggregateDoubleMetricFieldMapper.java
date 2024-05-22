@@ -683,6 +683,11 @@ public class AggregateDoubleMetricFieldMapper extends FieldMapper {
     }
 
     @Override
+    protected SyntheticSourceMode syntheticSourceMode() {
+        return SyntheticSourceMode.NATIVE;
+    }
+
+    @Override
     public SourceLoader.SyntheticFieldLoader syntheticFieldLoader() {
         if (ignoreMalformed) {
             throw new IllegalArgumentException(
@@ -703,6 +708,11 @@ public class AggregateDoubleMetricFieldMapper extends FieldMapper {
             this.name = name;
             this.simpleName = simpleName;
             this.metrics = metrics;
+        }
+
+        @Override
+        public String fieldName() {
+            return name;
         }
 
         @Override

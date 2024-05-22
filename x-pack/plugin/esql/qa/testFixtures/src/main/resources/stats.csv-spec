@@ -213,8 +213,8 @@ l:long
 281
 ;
 
-sumOfDouble
-from employees | stats h = sum(height);
+sumOfDouble#[skip:-8.12.99,reason:expressions in aggs added in 8.13]
+from employees | stats h = round(sum(height), 10);
 
 h:double
 176.82

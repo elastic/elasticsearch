@@ -463,6 +463,11 @@ public class RangeFieldMapper extends FieldMapper {
     }
 
     @Override
+    protected SyntheticSourceMode syntheticSourceMode() {
+        return SyntheticSourceMode.NATIVE;
+    }
+
+    @Override
     public SourceLoader.SyntheticFieldLoader syntheticFieldLoader() {
         if (hasDocValues == false) {
             throw new IllegalArgumentException(
@@ -558,21 +563,42 @@ public class RangeFieldMapper extends FieldMapper {
         public XContentBuilder toXContent(XContentBuilder builder, DateFormatter dateFormatter) throws IOException {
             builder.startObject();
 
-            if (includeFrom) {
-                builder.field("gte");
+            // Default range bounds for double and float ranges
+            // are infinities which are not valid inputs for range field.
+            // As such it is not possible to specify them manually,
+            // and they must come from defaults kicking in
+            // when the bound is null or not present.
+            // Therefore, range should be represented in that way in source too
+            // to enable reindexing.
+            //
+            // We apply this logic to all range types for consistency.
+            if (from.equals(type.minValue())) {
+                assert includeFrom : "Range bounds were not properly adjusted during parsing";
+                // Null value which will be parsed as a default
+                builder.nullField("gte");
             } else {
-                builder.field("gt");
+                if (includeFrom) {
+                    builder.field("gte");
+                } else {
+                    builder.field("gt");
+                }
+                var valueWithAdjustment = includeFrom ? from : type.nextDown(from);
+                builder.value(type.formatValue(valueWithAdjustment, dateFormatter));
             }
-            Object f = includeFrom || from.equals(type.minValue()) ? from : type.nextDown(from);
-            builder.value(type.formatValue(f, dateFormatter));
 
-            if (includeTo) {
-                builder.field("lte");
+            if (to.equals(type.maxValue())) {
+                assert includeTo : "Range bounds were not properly adjusted during parsing";
+                // Null value which will be parsed as a default
+                builder.nullField("lte");
             } else {
-                builder.field("lt");
+                if (includeTo) {
+                    builder.field("lte");
+                } else {
+                    builder.field("lt");
+                }
+                var valueWithAdjustment = includeTo ? to : type.nextUp(to);
+                builder.value(type.formatValue(valueWithAdjustment, dateFormatter));
             }
-            Object t = includeTo || to.equals(type.maxValue()) ? to : type.nextUp(to);
-            builder.value(type.formatValue(t, dateFormatter));
 
             builder.endObject();
 

@@ -11,6 +11,7 @@ import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.CheckedFunction;
+import org.elasticsearch.core.UpdateForV9;
 import org.elasticsearch.test.rest.yaml.ClientYamlTestExecutionContext;
 import org.elasticsearch.test.rest.yaml.Features;
 import org.elasticsearch.xcontent.XContentLocation;
@@ -19,14 +20,17 @@ import org.junit.AssumptionViolatedException;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
+import java.util.stream.Stream;
 
 import static java.util.Collections.emptyList;
+import static java.util.stream.Collectors.joining;
 
 /**
  * Represents a section where prerequisites to run a specific test section or suite are specified. It is possible to specify preconditions
@@ -43,16 +47,23 @@ public class PrerequisiteSection {
         private static final Set<String> FIELD_NAMES = Set.of("cluster_feature", "fixed_by");
     }
 
+    record CapabilitiesCheck(String method, String path, String parameters, String capabilities) {
+        private static final Set<String> FIELD_NAMES = Set.of("method", "path", "parameters", "capabilities");
+    }
+
     static class PrerequisiteSectionBuilder {
-        String skipVersionRange = null;
         String skipReason = null;
-        String requiresReason = null;
-        List<String> requiredYamlRunnerFeatures = new ArrayList<>();
+        String skipVersionRange = null;
         List<String> skipOperatingSystems = new ArrayList<>();
         List<KnownIssue> skipKnownIssues = new ArrayList<>();
         String skipAwaitsFix = null;
         Set<String> skipClusterFeatures = new HashSet<>();
+        List<CapabilitiesCheck> skipCapabilities = new ArrayList<>();
+
+        String requiresReason = null;
+        List<String> requiredYamlRunnerFeatures = new ArrayList<>();
         Set<String> requiredClusterFeatures = new HashSet<>();
+        List<CapabilitiesCheck> requiredCapabilities = new ArrayList<>();
 
         enum XPackRequired {
             NOT_SPECIFIED,
@@ -116,8 +127,18 @@ public class PrerequisiteSection {
             return this;
         }
 
+        public PrerequisiteSectionBuilder skipIfCapabilities(CapabilitiesCheck capabilitiesCheck) {
+            skipCapabilities.add(capabilitiesCheck);
+            return this;
+        }
+
         public PrerequisiteSectionBuilder requireClusterFeature(String featureName) {
             requiredClusterFeatures.add(featureName);
+            return this;
+        }
+
+        public PrerequisiteSectionBuilder requireCapabilities(CapabilitiesCheck capabilitiesCheck) {
+            requiredCapabilities.add(capabilitiesCheck);
             return this;
         }
 
@@ -128,13 +149,15 @@ public class PrerequisiteSection {
 
         void validate(XContentLocation contentLocation) {
             if ((Strings.isEmpty(skipVersionRange))
-                && requiredYamlRunnerFeatures.isEmpty()
                 && skipOperatingSystems.isEmpty()
-                && xpackRequired == XPackRequired.NOT_SPECIFIED
-                && requiredClusterFeatures.isEmpty()
                 && skipClusterFeatures.isEmpty()
+                && skipCapabilities.isEmpty()
                 && skipKnownIssues.isEmpty()
-                && Strings.isEmpty(skipAwaitsFix)) {
+                && Strings.isEmpty(skipAwaitsFix)
+                && xpackRequired == XPackRequired.NOT_SPECIFIED
+                && requiredYamlRunnerFeatures.isEmpty()
+                && requiredCapabilities.isEmpty()
+                && requiredClusterFeatures.isEmpty()) {
                 // TODO separate the validation for requires / skip when dropping parsing of legacy fields, e.g. features in skip
                 throw new ParsingException(contentLocation, "at least one predicate is mandatory within a skip or requires section");
             }
@@ -143,11 +166,12 @@ public class PrerequisiteSection {
                 && (Strings.isEmpty(skipVersionRange)
                     && skipOperatingSystems.isEmpty()
                     && skipClusterFeatures.isEmpty()
+                    && skipCapabilities.isEmpty()
                     && skipKnownIssues.isEmpty()) == false) {
                 throw new ParsingException(contentLocation, "reason is mandatory within this skip section");
             }
 
-            if (Strings.isEmpty(requiresReason) && (requiredClusterFeatures.isEmpty() == false)) {
+            if (Strings.isEmpty(requiresReason) && ((requiredClusterFeatures.isEmpty() && requiredCapabilities.isEmpty()) == false)) {
                 throw new ParsingException(contentLocation, "reason is mandatory within this requires section");
             }
 
@@ -190,6 +214,13 @@ public class PrerequisiteSection {
             if (xpackRequired == XPackRequired.YES) {
                 requiresCriteriaList.add(Prerequisites.hasXPack());
             }
+            if (requiredClusterFeatures.isEmpty() == false) {
+                requiresCriteriaList.add(Prerequisites.requireClusterFeatures(requiredClusterFeatures));
+            }
+            if (requiredCapabilities.isEmpty() == false) {
+                requiresCriteriaList.add(Prerequisites.requireCapabilities(requiredCapabilities));
+            }
+
             if (xpackRequired == XPackRequired.NO) {
                 skipCriteriaList.add(Prerequisites.hasXPack());
             }
@@ -199,11 +230,11 @@ public class PrerequisiteSection {
             if (skipOperatingSystems.isEmpty() == false) {
                 skipCriteriaList.add(Prerequisites.skipOnOsList(skipOperatingSystems));
             }
-            if (requiredClusterFeatures.isEmpty() == false) {
-                requiresCriteriaList.add(Prerequisites.requireClusterFeatures(requiredClusterFeatures));
-            }
             if (skipClusterFeatures.isEmpty() == false) {
                 skipCriteriaList.add(Prerequisites.skipOnClusterFeatures(skipClusterFeatures));
+            }
+            if (skipCapabilities.isEmpty() == false) {
+                skipCriteriaList.add(Prerequisites.skipCapabilities(skipCapabilities));
             }
             if (skipKnownIssues.isEmpty() == false) {
                 skipCriteriaList.add(Prerequisites.skipOnKnownIssue(skipKnownIssues));
@@ -273,7 +304,7 @@ public class PrerequisiteSection {
             boolean valid = false;
             if (parser.currentToken().isValue()) {
                 valid = switch (parser.currentName()) {
-                    case "version" -> parseString(parser, builder::skipIfVersion);
+                    case "version" -> parseRestCompatVersion(parser, builder);
                     case "reason" -> parseString(parser, builder::setSkipReason);
                     case "features" -> parseString(parser, f -> parseFeatureField(f, builder));
                     case "os" -> parseString(parser, builder::skipIfOs);
@@ -287,12 +318,24 @@ public class PrerequisiteSection {
                     case "os" -> parseStrings(parser, builder::skipIfOs);
                     case "cluster_features" -> parseStrings(parser, builder::skipIfClusterFeature);
                     case "known_issues" -> parseArray(parser, PrerequisiteSection::parseKnownIssue, builder::skipKnownIssue);
+                    case "capabilities" -> parseArray(parser, PrerequisiteSection::parseCapabilities, builder::skipIfCapabilities);
                     default -> false;
                 };
             }
             if (valid == false) throwUnexpectedField("skip", parser);
         }
         parser.nextToken();
+    }
+
+    @UpdateForV9
+    private static boolean parseRestCompatVersion(XContentParser parser, PrerequisiteSectionBuilder builder) throws IOException {
+        // allow skip version only for v7 REST compatibility tests, to be removed for V9
+        if ("true".equals(System.getProperty("tests.restCompat"))) return parseString(parser, builder::skipIfVersion);
+        throw new IllegalArgumentException(
+            "Skipping by version is no longer supported, please skip based on cluster features. Please check the docs: \n"
+                + "https://github.com/elastic/elasticsearch/tree/main"
+                + "/rest-api-spec/src/yamlRestTest/resources/rest-api-spec/test#skipping-tests"
+        );
     }
 
     private static void throwUnexpectedField(String section, XContentParser parser) throws IOException {
@@ -337,10 +380,45 @@ public class PrerequisiteSection {
         if (fields.keySet().equals(KnownIssue.FIELD_NAMES) == false) {
             throw new ParsingException(
                 parser.getTokenLocation(),
-                Strings.format("Expected fields %s, but got %s", KnownIssue.FIELD_NAMES, fields.keySet())
+                Strings.format("Expected all of %s, but got %s", KnownIssue.FIELD_NAMES, fields.keySet())
             );
         }
         return new KnownIssue(fields.get("cluster_feature"), fields.get("fixed_by"));
+    }
+
+    private static CapabilitiesCheck parseCapabilities(XContentParser parser) throws IOException {
+        Map<String, Object> fields = parser.map();
+        if (CapabilitiesCheck.FIELD_NAMES.containsAll(fields.keySet()) == false) {
+            throw new ParsingException(
+                parser.getTokenLocation(),
+                Strings.format("Expected some of %s, but got %s", CapabilitiesCheck.FIELD_NAMES, fields.keySet())
+            );
+        }
+        Object path = fields.get("path");
+        if (path == null) {
+            throw new ParsingException(parser.getTokenLocation(), "path is required");
+        }
+
+        return new CapabilitiesCheck(
+            ensureString(ensureString(fields.getOrDefault("method", "GET"))),
+            ensureString(path),
+            stringArrayAsParamString("parameters", fields),
+            stringArrayAsParamString("capabilities", fields)
+        );
+    }
+
+    private static String ensureString(Object obj) {
+        if (obj instanceof String str) return str;
+        throw new IllegalArgumentException("Expected STRING, but got: " + obj);
+    }
+
+    private static String stringArrayAsParamString(String name, Map<String, Object> fields) {
+        Object value = fields.get(name);
+        if (value == null) return null;
+        if (value instanceof Collection<?> values) {
+            return values.stream().map(PrerequisiteSection::ensureString).collect(joining(","));
+        }
+        return ensureString(value);
     }
 
     static void parseRequiresSection(XContentParser parser, PrerequisiteSectionBuilder builder) throws IOException {
@@ -361,6 +439,7 @@ public class PrerequisiteSection {
                 valid = switch (parser.currentName()) {
                     case "test_runner_features" -> parseStrings(parser, f -> parseFeatureField(f, builder));
                     case "cluster_features" -> parseStrings(parser, builder::requireClusterFeature);
+                    case "capabilities" -> parseArray(parser, PrerequisiteSection::parseCapabilities, builder::requireCapabilities);
                     default -> false;
                 };
             }
@@ -440,5 +519,10 @@ public class PrerequisiteSection {
             messageBuilder.append(" unsupported features ").append(yamlRunnerFeatures);
         }
         return messageBuilder.toString();
+    }
+
+    boolean hasCapabilitiesCheck() {
+        return Stream.concat(skipCriteriaList.stream(), requiresCriteriaList.stream())
+            .anyMatch(p -> p instanceof Prerequisites.CapabilitiesPredicate);
     }
 }

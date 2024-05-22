@@ -1585,6 +1585,11 @@ public class DenseVectorFieldMapper extends FieldMapper {
     }
 
     @Override
+    protected SyntheticSourceMode syntheticSourceMode() {
+        return SyntheticSourceMode.NATIVE;
+    }
+
+    @Override
     public SourceLoader.SyntheticFieldLoader syntheticFieldLoader() {
         if (copyTo.copyToFields().isEmpty() != true) {
             throw new IllegalArgumentException(
@@ -1671,6 +1676,11 @@ public class DenseVectorFieldMapper extends FieldMapper {
             }
             b.endArray();
         }
+
+        @Override
+        public String fieldName() {
+            return name();
+        }
     }
 
     private class DocValuesSyntheticFieldLoader implements SourceLoader.SyntheticFieldLoader {
@@ -1720,6 +1730,11 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 fieldType().elementType.readAndWriteValue(byteBuffer, b);
             }
             b.endArray();
+        }
+
+        @Override
+        public String fieldName() {
+            return name();
         }
     }
 }

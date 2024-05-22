@@ -40,8 +40,8 @@ convertToLongWithWarning
 required_capability: casting_operator
 ROW long="1.1.1.1"::long
 ;
-warning:Line 1:10: evaluation of [\"1.1.1.1\"::long] failed, treating result as null. Only first 20 failures recorded.
-warning:Line 1:10: org.elasticsearch.xpack.ql.InvalidArgumentException: Cannot parse number [1.1.1.1]
+warningRegex:Line 1:10: evaluation of \[\\\"1.1.1.1\\\"::long\] failed, treating result as null. Only first 20 failures recorded.
+warningRegex:Line 1:10: org.elasticsearch.xpack.(esql.core|ql).InvalidArgumentException: Cannot parse number \[1.1.1.1\]
 
 long:long
 null

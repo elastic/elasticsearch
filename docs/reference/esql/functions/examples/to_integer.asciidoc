@@ -19,6 +19,6 @@ The header will provide information on the source of the failure:
 
 A following header will contain the failure reason and the offending value:
 
-`"org.elasticsearch.xpack.ql.InvalidArgumentException: [501379200000] out of [integer] range"`
+`"org.elasticsearch.xpack.esql.core.InvalidArgumentException: [501379200000] out of [integer] range"`
 
 

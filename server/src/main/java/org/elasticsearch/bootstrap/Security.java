@@ -16,8 +16,6 @@ import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.http.HttpTransportSettings;
 import org.elasticsearch.jdk.JarHell;
-import org.elasticsearch.logging.LogManager;
-import org.elasticsearch.logging.Logger;
 import org.elasticsearch.plugins.PluginsUtils;
 import org.elasticsearch.secure_sm.SecureSM;
 import org.elasticsearch.transport.TcpTransport;
@@ -106,8 +104,6 @@ import static org.elasticsearch.reservedstate.service.FileSettingsService.SETTIN
  */
 final class Security {
 
-    private static Logger Log;
-
     static {
         prepopulateSecurityCaller();
     }
@@ -126,9 +122,6 @@ final class Security {
      * @param filterBadDefaults true if we should filter out bad java defaults in the system policy.
      */
     static void configure(Environment environment, boolean filterBadDefaults, Path pidFile) throws IOException {
-        // only create the logger here - the log infrastructure isn't available when this class is first loaded
-        Log = LogManager.getLogger(Security.class);
-
         // enable security policy: union of template and environment-based paths, and possibly plugin permissions
         Map<String, URL> codebases = PolicyUtil.getCodebaseJarMap(JarHell.parseModulesAndClassPath());
         Policy mainPolicy = PolicyUtil.readPolicy(ESPolicy.class.getResource(POLICY_RESOURCE), codebases);
@@ -240,7 +233,7 @@ final class Security {
     private static void addSpeciallySecuredFile(Map<String, Set<URL>> securedFiles, String path) {
         Set<URL> attemptedToGrant = securedFiles.put(path, Set.of());
         if (attemptedToGrant != null) {
-            attemptedToGrant.forEach(u -> Log.warn("{} tried to grant itself access to special config file {}, denying grant", u, path));
+            throw new IllegalStateException(attemptedToGrant + " tried to grant access to special config file " + path);
         }
     }
 

@@ -186,6 +186,7 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
         final UpdateHelper.Result result = deleteInferenceResults(
             request,
             updateHelper.prepare(request, indexShard, threadPool::absoluteTimeInMillis),
+            indexService.getMetadata(),
             indexShard.mapperService().mappingLookup()
         );
 
@@ -343,17 +344,17 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
         listener.onFailure(cause instanceof Exception ? (Exception) cause : new NotSerializableExceptionWrapper(cause));
     }
 
-    private UpdateHelper.Result deleteInferenceResults(
+    private static UpdateHelper.Result deleteInferenceResults(
         UpdateRequest updateRequest,
         UpdateHelper.Result result,
+        IndexMetadata indexMetadata,
         MappingLookup mappingLookup
     ) {
         if (result.getResponseResult() != DocWriteResponse.Result.UPDATED) {
             return result;
         }
 
-        final String index = updateRequest.index();
-        final Map<String, InferenceFieldMetadata> inferenceFields = clusterService.state().metadata().index(index).getInferenceFields();
+        Map<String, InferenceFieldMetadata> inferenceFields = indexMetadata.getInferenceFields();
         if (inferenceFields.isEmpty()) {
             return result;
         }

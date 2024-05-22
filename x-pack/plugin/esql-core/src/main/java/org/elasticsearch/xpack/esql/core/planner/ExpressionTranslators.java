@@ -50,7 +50,6 @@ import org.elasticsearch.xpack.esql.core.querydsl.query.Query;
 import org.elasticsearch.xpack.esql.core.querydsl.query.QueryStringQuery;
 import org.elasticsearch.xpack.esql.core.querydsl.query.RangeQuery;
 import org.elasticsearch.xpack.esql.core.querydsl.query.RegexQuery;
-import org.elasticsearch.xpack.esql.core.querydsl.query.ScriptQuery;
 import org.elasticsearch.xpack.esql.core.querydsl.query.TermQuery;
 import org.elasticsearch.xpack.esql.core.querydsl.query.TermsQuery;
 import org.elasticsearch.xpack.esql.core.querydsl.query.WildcardQuery;
@@ -137,7 +136,7 @@ public final class ExpressionTranslators {
             } else if (field instanceof MetadataAttribute ma) {
                 q = translateField(e, handler.nameOf(ma));
             } else {
-                q = new ScriptQuery(e.source(), e.asScript());
+                throw new QlIllegalArgumentException("Cannot translate query for " + e);
             }
 
             return wrapIfNested(q, field);
@@ -219,10 +218,7 @@ public final class ExpressionTranslators {
         public static Query doTranslate(Not not, TranslatorHandler handler) {
             Expression e = not.field();
             Query wrappedQuery = handler.asQuery(not.field());
-            Query q = wrappedQuery instanceof ScriptQuery
-                ? new ScriptQuery(not.source(), not.asScript())
-                : wrappedQuery.negate(not.source());
-
+            Query q = wrappedQuery.negate(not.source());
             return wrapIfNested(q, e);
         }
     }
@@ -465,7 +461,7 @@ public final class ExpressionTranslators {
             if (q != null) {
                 return q;
             }
-            return handler.wrapFunctionQuery(f, f, () -> new ScriptQuery(f.source(), f.asScript()));
+            throw new QlIllegalArgumentException("Cannot translate expression:[" + f.sourceText() + "]");
         }
 
         public static Query doKnownTranslate(ScalarFunction f, TranslatorHandler handler) {

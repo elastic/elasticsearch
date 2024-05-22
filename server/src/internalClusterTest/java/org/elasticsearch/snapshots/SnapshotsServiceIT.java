@@ -16,7 +16,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.snapshots.mockstore.MockRepository;
 import org.elasticsearch.test.ClusterServiceUtils;
-import org.elasticsearch.test.MockLogAppender;
+import org.elasticsearch.test.MockLog;
 
 import java.util.List;
 import java.util.concurrent.TimeUnit;
@@ -31,11 +31,9 @@ public class SnapshotsServiceIT extends AbstractSnapshotIntegTestCase {
         createIndexWithRandomDocs("test-index", randomIntBetween(1, 42));
         createSnapshot("test-repo", "test-snapshot", List.of("test-index"));
 
-        final MockLogAppender mockLogAppender = new MockLogAppender();
-
-        try (var ignored = mockLogAppender.capturing(SnapshotsService.class)) {
-            mockLogAppender.addExpectation(
-                new MockLogAppender.UnseenEventExpectation(
+        try (var mockLog = MockLog.capture(SnapshotsService.class)) {
+            mockLog.addExpectation(
+                new MockLog.UnseenEventExpectation(
                     "[does-not-exist]",
                     SnapshotsService.class.getName(),
                     Level.INFO,
@@ -43,8 +41,8 @@ public class SnapshotsServiceIT extends AbstractSnapshotIntegTestCase {
                 )
             );
 
-            mockLogAppender.addExpectation(
-                new MockLogAppender.SeenEventExpectation(
+            mockLog.addExpectation(
+                new MockLog.SeenEventExpectation(
                     "[deleting test-snapshot]",
                     SnapshotsService.class.getName(),
                     Level.INFO,
@@ -52,8 +50,8 @@ public class SnapshotsServiceIT extends AbstractSnapshotIntegTestCase {
                 )
             );
 
-            mockLogAppender.addExpectation(
-                new MockLogAppender.SeenEventExpectation(
+            mockLog.addExpectation(
+                new MockLog.SeenEventExpectation(
                     "[test-snapshot deleted]",
                     SnapshotsService.class.getName(),
                     Level.INFO,
@@ -69,7 +67,7 @@ public class SnapshotsServiceIT extends AbstractSnapshotIntegTestCase {
             assertThat(startDeleteSnapshot("test-repo", "test-snapshot").actionGet().isAcknowledged(), is(true));
 
             awaitNoMoreRunningOperations(); // ensure background file deletion is completed
-            mockLogAppender.assertAllExpectationsMatched();
+            mockLog.assertAllExpectationsMatched();
         } finally {
             deleteRepository("test-repo");
         }
@@ -80,12 +78,9 @@ public class SnapshotsServiceIT extends AbstractSnapshotIntegTestCase {
         createIndexWithRandomDocs("test-index", randomIntBetween(1, 42));
         createSnapshot("test-repo", "test-snapshot", List.of("test-index"));
 
-        final MockLogAppender mockLogAppender = new MockLogAppender();
-
-        try (var ignored = mockLogAppender.capturing(SnapshotsService.class)) {
-
-            mockLogAppender.addExpectation(
-                new MockLogAppender.SeenEventExpectation(
+        try (var mockLog = MockLog.capture(SnapshotsService.class)) {
+            mockLog.addExpectation(
+                new MockLog.SeenEventExpectation(
                     "[test-snapshot]",
                     SnapshotsService.class.getName(),
                     Level.WARN,
@@ -110,7 +105,7 @@ public class SnapshotsServiceIT extends AbstractSnapshotIntegTestCase {
                 assertThat(e.getCause().getMessage(), containsString("exception after block"));
             }
 
-            mockLogAppender.assertAllExpectationsMatched();
+            mockLog.assertAllExpectationsMatched();
         } finally {
             deleteRepository("test-repo");
         }

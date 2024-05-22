@@ -81,6 +81,9 @@ public class CrossClusterApiKeyRoleDescriptorBuilder {
             clusterPrivileges = CCS_CLUSTER_PRIVILEGE_NAMES;
         } else {
             clusterPrivileges = CCS_AND_CCR_CLUSTER_PRIVILEGE_NAMES;
+            if (search.stream().anyMatch(RoleDescriptor.IndicesPrivileges::isUsingDocumentOrFieldLevelSecurity)) {
+                throw new IllegalArgumentException("search does not support document or field level security if replication is assigned");
+            }
         }
 
         if (replication.stream().anyMatch(RoleDescriptor.IndicesPrivileges::isUsingDocumentOrFieldLevelSecurity)) {
@@ -121,9 +124,9 @@ public class CrossClusterApiKeyRoleDescriptorBuilder {
             throw new IllegalArgumentException("remote cluster permissions must be empty");
         }
         final String[] clusterPrivileges = roleDescriptor.getClusterPrivileges();
-        if (false == Arrays.equals(clusterPrivileges, CCS_CLUSTER_PRIVILEGE_NAMES)
-            && false == Arrays.equals(clusterPrivileges, CCR_CLUSTER_PRIVILEGE_NAMES)
-            && false == Arrays.equals(clusterPrivileges, CCS_AND_CCR_CLUSTER_PRIVILEGE_NAMES)) {
+        // must contain either "cross_cluster_search" or "cross_cluster_replication" or both
+        if ((Arrays.asList(clusterPrivileges).contains("cross_cluster_search")
+            || Arrays.asList(clusterPrivileges).contains("cross_cluster_replication")) == false) {
             throw new IllegalArgumentException(
                 "invalid cluster privileges: [" + Strings.arrayToCommaDelimitedString(clusterPrivileges) + "]"
             );
@@ -141,6 +144,43 @@ public class CrossClusterApiKeyRoleDescriptorBuilder {
                 }
             } else if (false == Arrays.equals(privileges, CCS_INDICES_PRIVILEGE_NAMES)) {
                 throw new IllegalArgumentException("invalid indices privileges: [" + Strings.arrayToCommaDelimitedString(privileges));
+            }
+        }
+        // Note: we are skipping the check for document or field level security on search (with replication) here, since validate is called
+        // for instance as part of the Get and Query APIs, which need to continue to handle legacy role descriptors.
+    }
+
+    /**
+     * Pre-GA versions of RCS 2.0 (8.13-) allowed users to use DLS/FLS for "search" when both "search" and "replication" are both defined.
+     * Post-GA versions of RCS 2.0 (8.14+) allow users to use DLS/FLS only when "search" is defined. Defining DLS/FLS when both "search"
+     * and "replication" are defined in not allowed. Legacy here is in reference to pre-GA CCx API keys. This method should only be
+     * called to check the fulfilling cluster's API key role descriptor.
+     */
+    public static void checkForInvalidLegacyRoleDescriptors(String apiKeyId, List<RoleDescriptor> roleDescriptors) {
+        assert roleDescriptors.size() == 1;
+        final var roleDescriptor = roleDescriptors.get(0);
+        final String[] clusterPrivileges = roleDescriptor.getClusterPrivileges();
+        // only need to check if both "search" and "replication" are defined
+        // no need to check for DLS if set of cluster privileges are not the set used pre 8.14
+        final String[] pre8_14ClusterPrivileges = { "cross_cluster_search", "cross_cluster_replication" };
+        final boolean hasBoth = Arrays.equals(clusterPrivileges, pre8_14ClusterPrivileges);
+        if (false == hasBoth) {
+            return;
+        }
+
+        final RoleDescriptor.IndicesPrivileges[] indicesPrivileges = roleDescriptor.getIndicesPrivileges();
+        for (RoleDescriptor.IndicesPrivileges indexPrivilege : indicesPrivileges) {
+            final String[] privileges = indexPrivilege.getPrivileges();
+            final String[] pre8_14IndicesPrivileges = { "read", "read_cross_cluster", "view_index_metadata" };
+            // find the "search" privilege, no need to check for DLS if set of index privileges are not the set used pre 8.14
+            if (Arrays.equals(privileges, pre8_14IndicesPrivileges)) {
+                if (indexPrivilege.isUsingDocumentOrFieldLevelSecurity()) {
+                    throw new IllegalArgumentException(
+                        "Cross cluster API key ["
+                            + apiKeyId
+                            + "] is invalid: search does not support document or field level security if replication is assigned"
+                    );
+                }
             }
         }
     }

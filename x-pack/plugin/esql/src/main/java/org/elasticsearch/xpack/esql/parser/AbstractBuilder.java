@@ -9,8 +9,8 @@ package org.elasticsearch.xpack.esql.parser;
 
 import org.antlr.v4.runtime.tree.ParseTree;
 import org.antlr.v4.runtime.tree.TerminalNode;
-import org.elasticsearch.xpack.ql.parser.ParserUtils;
-import org.elasticsearch.xpack.ql.tree.Source;
+import org.elasticsearch.xpack.esql.core.parser.ParserUtils;
+import org.elasticsearch.xpack.esql.core.tree.Source;
 
 abstract class AbstractBuilder extends EsqlBaseParserBaseVisitor<Object> {
 

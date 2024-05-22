@@ -31,22 +31,6 @@ public class PutConnectorActionTests extends ESTestCase {
         assertThat(exception, nullValue());
     }
 
-    public void testValidate_WhenConnectorIdIsNull_ExpectValidationError() {
-        PutConnectorAction.Request requestWithMissingConnectorId = new PutConnectorAction.Request(
-            null,
-            randomAlphaOfLength(10),
-            randomAlphaOfLength(10),
-            randomBoolean(),
-            randomAlphaOfLength(10),
-            randomAlphaOfLength(10),
-            randomAlphaOfLength(10)
-        );
-        ActionRequestValidationException exception = requestWithMissingConnectorId.validate();
-
-        assertThat(exception, notNullValue());
-        assertThat(exception.getMessage(), containsString("[connector_id] cannot be [null] or [\"\"]"));
-    }
-
     public void testValidate_WhenMalformedIndexName_ExpectValidationError() {
         PutConnectorAction.Request requestWithMissingConnectorId = new PutConnectorAction.Request(
             randomAlphaOfLength(10),

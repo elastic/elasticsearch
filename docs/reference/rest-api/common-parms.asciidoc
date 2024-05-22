@@ -1232,6 +1232,15 @@ indicate that it was not completely acknowledged. Defaults to `30s`.
 Can also be set to `-1` to indicate that the request should never timeout.
 end::timeoutparms[]
 
+tag::timeout-nodes-request[]
+`timeout`::
+(Optional, <<time-units, time units>>)
+Period to wait for each node to respond. If a node does not respond before its
+timeout expires, the response does not include its information. However, timed out
+nodes are included in the response's `_nodes.failed` property. Defaults to no
+timeout.
+end::timeout-nodes-request[]
+
 tag::transform-id[]
 Identifier for the {transform}.
 end::transform-id[]

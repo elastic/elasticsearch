@@ -17,6 +17,7 @@ import org.elasticsearch.client.Request;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.geometry.Point;
 import org.elasticsearch.geometry.utils.GeometryValidator;
@@ -27,10 +28,11 @@ import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.test.rest.TestFeatureService;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.esql.CsvTestUtils;
+import org.elasticsearch.xpack.esql.core.CsvSpecReader.CsvTestCase;
+import org.elasticsearch.xpack.esql.core.SpecReader;
+import org.elasticsearch.xpack.esql.plugin.EsqlFeatures;
 import org.elasticsearch.xpack.esql.qa.rest.RestEsqlTestCase.RequestObjectBuilder;
 import org.elasticsearch.xpack.esql.version.EsqlVersion;
-import org.elasticsearch.xpack.ql.CsvSpecReader.CsvTestCase;
-import org.elasticsearch.xpack.ql.SpecReader;
 import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.Before;
@@ -43,6 +45,8 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static org.apache.lucene.geo.GeoEncodingUtils.decodeLatitude;
 import static org.apache.lucene.geo.GeoEncodingUtils.decodeLongitude;
@@ -57,8 +61,8 @@ import static org.elasticsearch.xpack.esql.CsvTestUtils.isEnabled;
 import static org.elasticsearch.xpack.esql.CsvTestUtils.loadCsvSpecValues;
 import static org.elasticsearch.xpack.esql.CsvTestsDataLoader.CSV_DATASET_MAP;
 import static org.elasticsearch.xpack.esql.CsvTestsDataLoader.loadDataSetIntoEs;
-import static org.elasticsearch.xpack.ql.CsvSpecReader.specParser;
-import static org.elasticsearch.xpack.ql.TestUtils.classpathResources;
+import static org.elasticsearch.xpack.esql.core.CsvSpecReader.specParser;
+import static org.elasticsearch.xpack.esql.core.TestUtils.classpathResources;
 
 // This test can run very long in serverless configurations
 @TimeoutSuite(millis = 30 * TimeUnits.MINUTE)
@@ -182,8 +186,16 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
                 throw e;
             }
         }
+
+        var features = Stream.concat(
+            new EsqlFeatures().getFeatures().stream(),
+            new EsqlFeatures().getHistoricalFeatures().keySet().stream()
+        ).map(NodeFeature::id).collect(Collectors.toSet());
+
         for (String feature : testCase.requiredCapabilities) {
-            assumeTrue("Test " + testName + " requires " + feature, testFeatureService.clusterHasFeature("esql." + feature));
+            var esqlFeature = "esql." + feature;
+            assumeTrue("Requested capability " + feature + " is an ESQL cluster feature", features.contains(esqlFeature));
+            assumeTrue("Test " + testName + " requires " + feature, testFeatureService.clusterHasFeature(esqlFeature));
         }
     }
 

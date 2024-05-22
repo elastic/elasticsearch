@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.core.datastreams;
 
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
+import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -49,6 +50,12 @@ public class DataStreamFeatureSetUsage extends XPackFeatureSet.Usage {
         super.innerXContent(builder, params);
         builder.field("data_streams", streamStats.totalDataStreamCount);
         builder.field("indices_count", streamStats.indicesBehindDataStream);
+        if (DataStream.isFailureStoreFeatureFlagEnabled()) {
+            builder.startObject("failure_store");
+            builder.field("enabled", streamStats.failureStoreEnabledDataStreamCount);
+            builder.field("failure_indices_count", streamStats.failureStoreIndicesCount);
+            builder.endObject();
+        }
     }
 
     @Override
@@ -77,26 +84,50 @@ public class DataStreamFeatureSetUsage extends XPackFeatureSet.Usage {
 
         private final long totalDataStreamCount;
         private final long indicesBehindDataStream;
+        private final long failureStoreEnabledDataStreamCount;
+        private final long failureStoreIndicesCount;
 
-        public DataStreamStats(long totalDataStreamCount, long indicesBehindDataStream) {
+        public DataStreamStats(
+            long totalDataStreamCount,
+            long indicesBehindDataStream,
+            long failureStoreEnabledDataStreamCount,
+            long failureStoreIndicesCount
+        ) {
             this.totalDataStreamCount = totalDataStreamCount;
             this.indicesBehindDataStream = indicesBehindDataStream;
+            this.failureStoreEnabledDataStreamCount = failureStoreEnabledDataStreamCount;
+            this.failureStoreIndicesCount = failureStoreIndicesCount;
         }
 
         public DataStreamStats(StreamInput in) throws IOException {
             this.totalDataStreamCount = in.readVLong();
             this.indicesBehindDataStream = in.readVLong();
+            this.failureStoreEnabledDataStreamCount = in.getTransportVersion().onOrAfter(TransportVersions.FAILURE_STORE_TELEMETRY)
+                ? in.readVLong()
+                : 0;
+            this.failureStoreIndicesCount = in.getTransportVersion().onOrAfter(TransportVersions.FAILURE_STORE_TELEMETRY)
+                ? in.readVLong()
+                : 0;
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeVLong(this.totalDataStreamCount);
             out.writeVLong(this.indicesBehindDataStream);
+            if (out.getTransportVersion().onOrAfter(TransportVersions.FAILURE_STORE_TELEMETRY)) {
+                out.writeVLong(this.failureStoreEnabledDataStreamCount);
+                out.writeVLong(this.failureStoreIndicesCount);
+            }
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(totalDataStreamCount, indicesBehindDataStream);
+            return Objects.hash(
+                totalDataStreamCount,
+                indicesBehindDataStream,
+                failureStoreEnabledDataStreamCount,
+                failureStoreIndicesCount
+            );
         }
 
         @Override
@@ -105,7 +136,10 @@ public class DataStreamFeatureSetUsage extends XPackFeatureSet.Usage {
                 return false;
             }
             DataStreamStats other = (DataStreamStats) obj;
-            return totalDataStreamCount == other.totalDataStreamCount && indicesBehindDataStream == other.indicesBehindDataStream;
+            return totalDataStreamCount == other.totalDataStreamCount
+                && indicesBehindDataStream == other.indicesBehindDataStream
+                && failureStoreEnabledDataStreamCount == other.failureStoreEnabledDataStreamCount
+                && failureStoreIndicesCount == other.failureStoreIndicesCount;
         }
     }
 }

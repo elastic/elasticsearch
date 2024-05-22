@@ -6,12 +6,10 @@
  */
 package org.elasticsearch.xpack.esql.core.expression.function.grouping;
 
-import org.elasticsearch.xpack.esql.core.QlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.function.Function;
 import org.elasticsearch.xpack.esql.core.expression.gen.pipeline.AggNameInput;
 import org.elasticsearch.xpack.esql.core.expression.gen.pipeline.Pipe;
-import org.elasticsearch.xpack.esql.core.expression.gen.script.ScriptTemplate;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.util.CollectionUtils;
 
@@ -51,11 +49,6 @@ public abstract class GroupingFunction extends Function {
     protected Pipe makePipe() {
         // unresolved AggNameInput (should always get replaced by the folder)
         return new AggNameInput(source(), this, sourceText());
-    }
-
-    @Override
-    public ScriptTemplate asScript() {
-        throw new QlIllegalArgumentException("Grouping functions cannot be scripted");
     }
 
     @Override

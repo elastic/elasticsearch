@@ -9,10 +9,10 @@ package org.elasticsearch.xpack.esql.qa.single_node;
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
 
 import org.apache.http.util.EntityUtils;
+import org.apache.lucene.tests.util.LuceneTestCase.AwaitsFix;
 import org.elasticsearch.Build;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.TestClustersThreadFilter;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
@@ -33,6 +33,7 @@ import static org.elasticsearch.xpack.esql.qa.rest.RestEsqlTestCase.runEsqlSync;
  * This while the functionality is gated behind a query pragma.
  */
 @ThreadLeakFilters(filters = TestClustersThreadFilter.class)
+@AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/107557")
 public class TSDBRestEsqlIT extends ESRestTestCase {
     @ClassRule
     public static ElasticsearchCluster cluster = Clusters.testCluster();
@@ -43,10 +44,9 @@ public class TSDBRestEsqlIT extends ESRestTestCase {
     }
 
     public void testTimeSeriesQuerying() throws IOException {
-        assumeTrue("time series requires metrics command", Build.current().isSnapshot());
+        assumeTrue("time series querying relies on query pragma", Build.current().isSnapshot());
         var settings = Settings.builder()
             .loadFromStream("tsdb-settings.json", TSDBRestEsqlIT.class.getResourceAsStream("/tsdb-settings.json"), false)
-            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
             .build();
         String mapping = CsvTestsDataLoader.readTextFile(TSDBRestEsqlIT.class.getResource("/tsdb-mapping.json"));
         createIndex("k8s", settings, mapping);
@@ -64,7 +64,7 @@ public class TSDBRestEsqlIT extends ESRestTestCase {
         assertEquals("{\"errors\":false}", EntityUtils.toString(response.getEntity(), StandardCharsets.UTF_8));
 
         RestEsqlTestCase.RequestObjectBuilder builder = RestEsqlTestCase.requestObjectBuilder()
-            .query("METRICS k8s | KEEP k8s.pod.name, @timestamp");
+            .query("FROM k8s | KEEP k8s.pod.name, @timestamp");
         builder.pragmas(Settings.builder().put("time_series", true).build());
         Map<String, Object> result = runEsqlSync(builder);
         @SuppressWarnings("unchecked")

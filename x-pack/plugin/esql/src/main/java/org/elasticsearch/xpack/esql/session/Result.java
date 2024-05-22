@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.esql.session;
 
-import org.elasticsearch.xpack.ql.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.Attribute;
 
 import java.util.List;
 

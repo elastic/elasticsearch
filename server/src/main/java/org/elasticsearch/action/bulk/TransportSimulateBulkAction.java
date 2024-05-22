@@ -92,7 +92,8 @@ public class TransportSimulateBulkAction extends TransportBulkAction {
                         request.version(),
                         ((IndexRequest) request).source(),
                         ((IndexRequest) request).getContentType(),
-                        ((IndexRequest) request).getExecutedPipelines()
+                        ((IndexRequest) request).getExecutedPipelines(),
+                        null
                     )
                 )
             );

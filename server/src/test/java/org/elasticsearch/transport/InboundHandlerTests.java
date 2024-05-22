@@ -31,7 +31,7 @@ import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.telemetry.tracing.Tracer;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.MockLogAppender;
+import org.elasticsearch.test.MockLog;
 import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -229,15 +229,9 @@ public class InboundHandlerTests extends ESTestCase {
         // response so we must just close the connection on an error. To avoid the failure disappearing into a black hole we at least log
         // it.
 
-        final MockLogAppender mockAppender = new MockLogAppender();
-        try (var ignored = mockAppender.capturing(InboundHandler.class)) {
-            mockAppender.addExpectation(
-                new MockLogAppender.SeenEventExpectation(
-                    "expected message",
-                    EXPECTED_LOGGER_NAME,
-                    Level.WARN,
-                    "error processing handshake version"
-                )
+        try (var mockLog = MockLog.capture(InboundHandler.class)) {
+            mockLog.addExpectation(
+                new MockLog.SeenEventExpectation("expected message", EXPECTED_LOGGER_NAME, Level.WARN, "error processing handshake version")
             );
 
             final AtomicBoolean isClosed = new AtomicBoolean();
@@ -261,7 +255,7 @@ public class InboundHandlerTests extends ESTestCase {
             handler.inboundMessage(channel, requestMessage);
             assertTrue(isClosed.get());
             assertNull(channel.getMessageCaptor().get());
-            mockAppender.assertAllExpectationsMatched();
+            mockLog.assertAllExpectationsMatched();
         }
     }
 
@@ -272,14 +266,13 @@ public class InboundHandlerTests extends ESTestCase {
     private static final String EXPECTED_LOGGER_NAME = "org.elasticsearch.transport.InboundHandler";
 
     public void testLogsSlowInboundProcessing() throws Exception {
-        final MockLogAppender mockAppender = new MockLogAppender();
 
         handler.setSlowLogThreshold(TimeValue.timeValueMillis(5L));
-        try (var ignored = mockAppender.capturing(InboundHandler.class)) {
+        try (var mockLog = MockLog.capture(InboundHandler.class)) {
             final TransportVersion remoteVersion = TransportVersion.current();
 
-            mockAppender.addExpectation(
-                new MockLogAppender.SeenEventExpectation("expected slow request", EXPECTED_LOGGER_NAME, Level.WARN, "handling request ")
+            mockLog.addExpectation(
+                new MockLog.SeenEventExpectation("expected slow request", EXPECTED_LOGGER_NAME, Level.WARN, "handling request ")
             );
 
             final long requestId = randomNonNegativeLong();
@@ -303,10 +296,10 @@ public class InboundHandlerTests extends ESTestCase {
             requestHeader.headers = Tuple.tuple(Map.of(), Map.of());
             handler.inboundMessage(channel, requestMessage);
             // expect no response - channel just closed on exception
-            mockAppender.assertAllExpectationsMatched();
+            mockLog.assertAllExpectationsMatched();
 
-            mockAppender.addExpectation(
-                new MockLogAppender.SeenEventExpectation("expected slow response", EXPECTED_LOGGER_NAME, Level.WARN, "handling response ")
+            mockLog.addExpectation(
+                new MockLog.SeenEventExpectation("expected slow response", EXPECTED_LOGGER_NAME, Level.WARN, "handling response ")
             );
 
             final long responseId = randomNonNegativeLong();
@@ -326,7 +319,7 @@ public class InboundHandlerTests extends ESTestCase {
             });
             handler.inboundMessage(channel, new InboundMessage(responseHeader, ReleasableBytesReference.empty(), () -> {}));
 
-            mockAppender.assertAllExpectationsMatched();
+            mockLog.assertAllExpectationsMatched();
         }
     }
 

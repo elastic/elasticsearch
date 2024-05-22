@@ -8,9 +8,9 @@
 package org.elasticsearch.xpack.esql.expression.function.scalar.conditional;
 
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.ql.expression.Literal;
-import org.elasticsearch.xpack.ql.tree.Source;
-import org.elasticsearch.xpack.ql.type.DataTypes;
+import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.DataTypes;
 
 import java.util.List;
 

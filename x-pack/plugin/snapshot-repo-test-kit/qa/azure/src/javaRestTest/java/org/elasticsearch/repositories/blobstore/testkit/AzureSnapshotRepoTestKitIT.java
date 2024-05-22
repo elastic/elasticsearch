@@ -79,6 +79,7 @@ public class AzureSnapshotRepoTestKitIT extends AbstractSnapshotRepoTestKitRestT
     }
 
     @Override
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/108504")
     public void testRepositoryAnalysis() throws Exception {
         super.testRepositoryAnalysis();
     }

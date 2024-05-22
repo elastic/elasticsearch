@@ -11,9 +11,9 @@ import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
-import org.elasticsearch.xpack.ql.tree.Source;
-import org.elasticsearch.xpack.ql.type.DataType;
-import org.elasticsearch.xpack.ql.type.DataTypes;
+import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.type.DataTypes;
 
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.intToUnsignedLong;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.longToUnsignedLong;

@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.ml.queries;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.SetOnce;
-import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
@@ -204,7 +203,7 @@ public class SparseVectorQueryBuilder extends AbstractQueryBuilder<SparseVectorQ
 
         final String fieldTypeName = ft.typeName();
         if (fieldTypeName.equals(ALLOWED_FIELD_TYPE) == false) {
-            throw new ElasticsearchParseException(
+            throw new IllegalArgumentException(
                 "field [" + fieldName + "] must be type [" + ALLOWED_FIELD_TYPE + "] but is type [" + fieldTypeName + "]"
             );
         }

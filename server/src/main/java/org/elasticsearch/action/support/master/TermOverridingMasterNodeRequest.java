@@ -28,8 +28,8 @@ public class TermOverridingMasterNodeRequest extends TransportRequest {
 
     private static final Logger logger = LogManager.getLogger(TermOverridingMasterNodeRequest.class);
 
-    private final MasterNodeRequest<?> request;
-    private final long newMasterTerm;
+    final MasterNodeRequest<?> request;
+    final long newMasterTerm;
 
     TermOverridingMasterNodeRequest(MasterNodeRequest<?> request, long newMasterTerm) {
         assert request.masterTerm() <= newMasterTerm;
@@ -109,7 +109,7 @@ public class TermOverridingMasterNodeRequest extends TransportRequest {
 
     @Override
     public String toString() {
-        return Strings.format("TermOverridingMasterNodeRequest[newMasterTerm={} in {}]", newMasterTerm, request);
+        return Strings.format("TermOverridingMasterNodeRequest[newMasterTerm=%d in %s]", newMasterTerm, request);
     }
 
     private static <T> T unsupported() {

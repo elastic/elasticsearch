@@ -337,16 +337,12 @@ public enum IndexMode {
                     .endObject()
                     .startObject("properties")
                     .startObject(DataStreamTimestampFieldMapper.DEFAULT_PATH)
-                    .field("type", DateFieldMapper.DATE_NANOS_CONTENT_TYPE)
-                    .field("ignore_malformed", "true")
-                    .field("ignore_above", 1024)
-                    .field("ignore_dynamic_beyond_limit", "true")
-                    .field("subobjects", "false")
+                    .field("type", DateFieldMapper.CONTENT_TYPE)
                     .endObject()
                     .endObject()
                     .endObject())
             );
-        } catch(IOException e) {
+        } catch (IOException e) {
             throw new AssertionError(e);
         }
     }

@@ -1,0 +1,315 @@
+---
+setup:
+  - skip:
+      known_issues:
+        - cluster_feature: "gte_v8.15.0"
+          fixed_by: "gte_v8.15.0"
+      reason: "logs index mode introduced in version 8.15"
+
+---
+create logs index:
+  - requires:
+      cluster_features: ["gte_v8.15.0"]
+      reason: introduced in 8.15.0
+
+  - do:
+      indices.create:
+        index: test
+        body:
+          settings:
+            index:
+              mode: logs
+              number_of_replicas: 0
+              number_of_shards: 2
+          mappings:
+            properties:
+              "@timestamp":
+                type: date
+              hostname:
+                type: keyword
+              agent_id:
+                type: keyword
+              process_id:
+                type: integer
+              http_method:
+                type: keyword
+              message:
+                type: text
+
+  - do:
+      bulk:
+        index: test
+        refresh: true
+        body:
+          - { "index": { } }
+          - { "@timestamp": "2024-02-12T10:30:00Z", "hostname": "foo", "agent_id": "darth-vader", "process_id": 101, "http_method": "GET", "message": "No, I am your father." }
+          - { "index": { } }
+          - { "@timestamp": "2024-02-12T10:31:00Z", "hostname": "bar", "agent_id": "yoda", "process_id": 102, "http_method": "PUT", "message": "Do. Or do not. There is no try." }
+          - { "index": { } }
+          - { "@timestamp": "2024-02-12T10:32:00Z", "hostname": "foo", "agent_id": "obi-wan", "process_id": 103, "http_method": "GET", "message": "May the force be with you." }
+          - { "index": { } }
+          - { "@timestamp": "2024-02-12T10:33:00Z", "hostname": "baz", "agent_id": "darth-vader", "process_id": 102, "http_method": "POST", "message": "I find your lack of faith disturbing." }
+          - { "index": { } }
+          - { "@timestamp": "2024-02-12T10:34:00Z", "hostname": "baz", "agent_id": "yoda", "process_id": 104, "http_method": "POST", "message": "Wars not make one great." }
+          - { "index": { } }
+          - { "@timestamp": "2024-02-12T10:35:00Z", "hostname": "foo", "agent_id": "obi-wan", "process_id": 105, "http_method": "GET", "message": "That's no moon." }
+
+
+  - do:
+      search:
+        index: test
+        body:
+          query:
+            match_all: {}
+
+  - match: { hits.total.value: 6 }
+
+  - do:
+      indices.get_settings:
+        index: test
+
+  - is_true: test
+  - match: { test.settings.index.mode: "logs" }
+
+
+---
+using default timestamp field mapping:
+  - requires:
+      cluster_features: ["gte_v8.15.0"]
+      reason: introduced in 8.15.0
+
+  - do:
+      indices.create:
+        index: test-timestamp-missing
+        body:
+          settings:
+            index:
+              mode: logs
+              number_of_replicas: 0
+              number_of_shards: 2
+          mappings:
+            properties:
+              hostname:
+                type: keyword
+              agent_id:
+                type: keyword
+              process_id:
+                type: integer
+              http_method:
+                type: keyword
+              message:
+                type: text
+
+---
+missing hostname field:
+  - requires:
+      cluster_features: ["gte_v8.15.0"]
+      reason: introduced in 8.15.0
+
+  - do:
+      catch: bad_request
+      indices.create:
+        index: test-hostname-missing
+        body:
+          settings:
+            index:
+              mode: logs
+              number_of_replicas: 0
+              number_of_shards: 2
+          mappings:
+            properties:
+              "@timestamp":
+                type: date
+              agent_id:
+                type: keyword
+              process_id:
+                type: integer
+              http_method:
+                type: keyword
+              message:
+                type: text
+
+  - match: { error.root_cause.0.type: "illegal_argument_exception" }
+  - match: { error.type: "illegal_argument_exception" }
+  - match: { error.reason: "unknown index sort field:[hostname]" }
+
+---
+non-default sort settings:
+  - requires:
+      cluster_features: ["gte_v8.15.0"]
+      reason: introduced in 8.15.0
+
+  - do:
+      indices.create:
+        index: test-sort
+        body:
+          settings:
+
+            index:
+              mode: logs
+              number_of_shards: 2
+              number_of_replicas: 0
+              sort:
+                field: [ "agent_id", "@timestamp" ]
+                order: [ "asc", "desc" ]
+                missing: [ "_last", "_first" ]
+                mode: [ "max", "max" ]
+          mappings:
+            properties:
+              "@timestamp":
+                type: date
+              agent_id:
+                type: keyword
+              process_id:
+                type: integer
+              http_method:
+                type: keyword
+              message:
+                type: text
+
+  - do:
+      indices.get_settings:
+        index: test-sort
+
+  - is_true: test-sort
+  - match: { test-sort.settings.index.mode: "logs" }
+  - match: { test-sort.settings.index.sort.field.0: "agent_id" }
+  - match: { test-sort.settings.index.sort.field.1: "@timestamp" }
+  - match: { test-sort.settings.index.sort.order.0: "asc" }
+  - match: { test-sort.settings.index.sort.order.1: "desc" }
+  - match: { test-sort.settings.index.sort.missing.0: "_last" }
+  - match: { test-sort.settings.index.sort.missing.1: "_first" }
+  - match: { test-sort.settings.index.sort.mode.0: "max" }
+  - match: { test-sort.settings.index.sort.mode.1: "max" }
+
+---
+override sort order settings:
+  - requires:
+      cluster_features: ["gte_v8.15.0"]
+      reason: introduced in 8.15.0
+
+  - do:
+      indices.create:
+        index: test-sort-order
+        body:
+          settings:
+
+            index:
+              mode: logs
+              number_of_shards: 2
+              number_of_replicas: 0
+              sort:
+                order: [ "asc", "asc" ]
+          mappings:
+            properties:
+              "@timestamp":
+                type: date
+              hostname:
+                type: keyword
+              agent_id:
+                type: keyword
+              process_id:
+                type: integer
+              http_method:
+                type: keyword
+              message:
+                type: text
+
+  - do:
+      indices.get_settings:
+        index: test-sort-order
+
+  - is_true: test-sort-order
+  - match: { test-sort-order.settings.index.mode: "logs" }
+  - match: { test-sort-order.settings.index.sort.field.0: null }
+  - match: { test-sort-order.settings.index.sort.field.1: null }
+  - match: { test-sort-order.settings.index.sort.order.0: "asc" }
+  - match: { test-sort-order.settings.index.sort.order.1: "asc" }
+
+---
+override sort missing settings:
+  - requires:
+      cluster_features: ["gte_v8.15.0"]
+      reason: introduced in 8.15.0
+
+  - do:
+      indices.create:
+        index: test-sort-missing
+        body:
+          settings:
+
+            index:
+              mode: logs
+              number_of_shards: 2
+              number_of_replicas: 0
+              sort:
+                missing: [ "_last", "_first" ]
+          mappings:
+            properties:
+              "@timestamp":
+                type: date
+              hostname:
+                type: keyword
+              agent_id:
+                type: keyword
+              process_id:
+                type: integer
+              http_method:
+                type: keyword
+              message:
+                type: text
+
+  - do:
+      indices.get_settings:
+        index: test-sort-missing
+
+  - is_true: test-sort-missing
+  - match: { test-sort-missing.settings.index.mode: "logs" }
+  - match: { test-sort-missing.settings.index.sort.field.0: null }
+  - match: { test-sort-missing.settings.index.sort.field.1: null }
+  - match: { test-sort-missing.settings.index.sort.missing.0: "_last" }
+  - match: { test-sort-missing.settings.index.sort.missing.1: "_first" }
+
+---
+override sort mode settings:
+  - requires:
+      cluster_features: ["gte_v8.15.0"]
+      reason: introduced in 8.15.0
+
+  - do:
+      indices.create:
+        index: test-sort-mode
+        body:
+          settings:
+
+            index:
+              mode: logs
+              number_of_shards: 2
+              number_of_replicas: 0
+              sort:
+                mode: [ "max", "max" ]
+          mappings:
+            properties:
+              "@timestamp":
+                type: date
+              hostname:
+                type: keyword
+              agent_id:
+                type: keyword
+              process_id:
+                type: integer
+              http_method:
+                type: keyword
+              message:
+                type: text
+
+  - do:
+      indices.get_settings:
+        index: test-sort-mode
+
+  - is_true: test-sort-mode
+  - match: { test-sort-mode.settings.index.mode: "logs" }
+  - match: { test-sort-mode.settings.index.sort.field.0: null }
+  - match: { test-sort-mode.settings.index.sort.field.1: null }
+  - match: { test-sort-mode.settings.index.sort.mode.0: "max" }
+  - match: { test-sort-mode.settings.index.sort.mode.1: "max" }

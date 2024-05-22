@@ -13,8 +13,8 @@ import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.core.expression.predicate.operator.comparison.BinaryComparisonProcessor;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.EsqlBinaryComparison.BinaryComparisonOperation;
-import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.BinaryComparisonProcessor;
 
 import java.io.IOException;
 import java.util.List;
@@ -34,7 +34,8 @@ public class EsqlBinaryComparisonTests extends ESTestCase {
 
     /**
      * Test that a serialized
-     * {@link org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.BinaryComparisonProcessor.BinaryComparisonOperation}
+     * {@code BinaryComparisonOperation}
+     * from {@code org.elasticsearch.xpack.esql.core.expression.predicate.operator.comparison}
      * can be read back as a
      * {@link BinaryComparisonOperation}
      */

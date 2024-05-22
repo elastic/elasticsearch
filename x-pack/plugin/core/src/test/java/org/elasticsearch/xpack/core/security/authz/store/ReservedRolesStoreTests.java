@@ -1550,8 +1550,6 @@ public class ReservedRolesStoreTests extends ESTestCase {
             assertThat(kibanaRole.indices().allowedIndicesMatcher(RolloverAction.NAME).test(indexAbstraction), is(true));
         });
 
-        
-
         // read-only datastream for csp indices
         Arrays.asList("logs-cloud_security_posture.findings-" + randomAlphaOfLength(randomIntBetween(0, 13))).forEach((cspIndex) -> {
             final IndexAbstraction indexAbstraction = mockIndexAbstraction(cspIndex);

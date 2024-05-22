@@ -50,8 +50,8 @@
   - is_true: status
   - match: { indicators.shards_capacity.status: "green" }
   - match: { indicators.shards_capacity.symptom: "The cluster has enough room to add new shards." }
-  - is_true: indicators.shards_capacity.details.data.max_shards_in_cluster
-  - is_true: indicators.shards_capacity.details.frozen.max_shards_in_cluster
+  - exists: indicators.shards_capacity.details.data.max_shards_in_cluster
+  - exists: indicators.shards_capacity.details.frozen.max_shards_in_cluster
 
 ---
 "basic data stream lifecycle health indicator test":

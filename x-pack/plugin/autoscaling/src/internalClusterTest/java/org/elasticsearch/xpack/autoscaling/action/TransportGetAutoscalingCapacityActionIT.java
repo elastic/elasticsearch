@@ -72,13 +72,15 @@ public class TransportGetAutoscalingCapacityActionIT extends AutoscalingIntegTes
     }
 
     public GetAutoscalingCapacityAction.Response capacity() {
-        GetAutoscalingCapacityAction.Request request = new GetAutoscalingCapacityAction.Request();
+        GetAutoscalingCapacityAction.Request request = new GetAutoscalingCapacityAction.Request(TEST_REQUEST_TIMEOUT);
         GetAutoscalingCapacityAction.Response response = client().execute(GetAutoscalingCapacityAction.INSTANCE, request).actionGet();
         return response;
     }
 
     private void putAutoscalingPolicy(String policyName) {
         final PutAutoscalingPolicyAction.Request request = new PutAutoscalingPolicyAction.Request(
+            TEST_REQUEST_TIMEOUT,
+            TEST_REQUEST_TIMEOUT,
             policyName,
             new TreeSet<>(Set.of("data")),
             new TreeMap<>()

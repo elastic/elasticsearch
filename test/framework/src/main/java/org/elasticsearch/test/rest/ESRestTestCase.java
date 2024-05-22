@@ -1115,6 +1115,9 @@ public abstract class ESRestTestCase extends ESTestCase {
         }
 
         Request getShutdownStatus = new Request("GET", "_nodes/shutdown");
+        if (Set.of(Version.CURRENT.toString()).equals(nodesVersions) && randomBoolean()) {
+            getShutdownStatus.addParameter("master_timeout", "30s");
+        }
         Map<String, Object> statusResponse = responseAsMap(adminClient().performRequest(getShutdownStatus));
 
         Object nodesResponse = statusResponse.get("nodes");

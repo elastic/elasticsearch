@@ -13,8 +13,6 @@ import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.logging.LogManager;
-import org.elasticsearch.logging.Logger;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -23,8 +21,6 @@ import java.util.Objects;
  * A based request for master based operation.
  */
 public abstract class MasterNodeRequest<Request extends MasterNodeRequest<Request>> extends ActionRequest {
-
-    private static final Logger logger = LogManager.getLogger(MasterNodeRequest.class);
 
     /**
      * The default timeout for master-node requests. It's super-trappy to have such a default, because it makes it all too easy to forget
@@ -81,13 +77,7 @@ public abstract class MasterNodeRequest<Request extends MasterNodeRequest<Reques
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        writeTo(out, masterTerm);
-    }
-
-    /**
-     * Serialize this request, but advance the {@code masterTerm} field on the wire.
-     */
-    void writeTo(StreamOutput out, long newMasterTerm) throws IOException {
+        final var newMasterTerm = getNewMasterTerm(out);
         assert hasReferences();
         assert masterTerm <= newMasterTerm : masterTerm + " vs " + newMasterTerm;
         super.writeTo(out);
@@ -95,6 +85,15 @@ public abstract class MasterNodeRequest<Request extends MasterNodeRequest<Reques
         if (out.getTransportVersion().onOrAfter(TransportVersions.VERSIONED_MASTER_NODE_REQUESTS)) {
             out.writeVLong(newMasterTerm);
         } // else no protection against routing loops in older versions
+    }
+
+    private long getNewMasterTerm(StreamOutput out) {
+        if (out instanceof TermOverridingStreamOutput termOverridingStreamOutput) {
+            return termOverridingStreamOutput.masterTerm;
+        } else {
+            assert false : out.getClass();
+            return masterTerm;
+        }
     }
 
     /**

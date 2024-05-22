@@ -10,8 +10,6 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.function.scalar.ScalarFunction;
 import org.elasticsearch.xpack.esql.core.expression.gen.pipeline.Pipe;
-import org.elasticsearch.xpack.esql.core.expression.gen.script.Params;
-import org.elasticsearch.xpack.esql.core.expression.gen.script.ScriptTemplate;
 import org.elasticsearch.xpack.esql.core.expression.predicate.logical.BinaryLogicPipe;
 import org.elasticsearch.xpack.esql.core.expression.predicate.logical.BinaryLogicProcessor.BinaryLogicOperation;
 import org.elasticsearch.xpack.esql.core.expression.predicate.operator.comparison.BinaryComparison;
@@ -26,12 +24,9 @@ import org.elasticsearch.xpack.esql.core.type.DateUtils;
 import java.time.DateTimeException;
 import java.time.ZoneId;
 import java.util.List;
-import java.util.Locale;
 import java.util.Objects;
 
-import static java.lang.String.format;
 import static java.util.Arrays.asList;
-import static org.elasticsearch.xpack.esql.core.expression.gen.script.ParamsBuilder.paramsBuilder;
 
 // BETWEEN or range - is a mix of gt(e) AND lt(e)
 public class Range extends ScalarFunction {
@@ -139,34 +134,6 @@ public class Range extends ScalarFunction {
     @Override
     public DataType dataType() {
         return DataTypes.BOOLEAN;
-    }
-
-    @Override
-    public ScriptTemplate asScript() {
-        ScriptTemplate valueScript = asScript(value);
-        ScriptTemplate lowerScript = asScript(lower);
-        ScriptTemplate upperScript = asScript(upper);
-
-        String template = formatTemplate(
-            format(
-                Locale.ROOT,
-                "{ql}.and({ql}.%s(%s, %s), {ql}.%s(%s, %s))",
-                includeLower() ? "gte" : "gt",
-                valueScript.template(),
-                lowerScript.template(),
-                includeUpper() ? "lte" : "lt",
-                valueScript.template(),
-                upperScript.template()
-            )
-        );
-
-        Params params = paramsBuilder().script(valueScript.params())
-            .script(lowerScript.params())
-            .script(valueScript.params())
-            .script(upperScript.params())
-            .build();
-
-        return new ScriptTemplate(template, params, DataTypes.BOOLEAN);
     }
 
     @Override

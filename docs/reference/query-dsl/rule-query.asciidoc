@@ -11,7 +11,7 @@ preview::[]
 [WARNING]
 ====
 `rule_query` was renamed to `rule` in 8.15.0.
-The old syntax using `rule_query` and `ruleset_id` will be removed in a future release, and it is strongly advised to migrate existing rule queries to the new API structure.
+The old syntax using `rule_query` and `ruleset_id` is deprecated and will be removed in a future release, so it is strongly advised to migrate existing rule queries to the new API structure.
 ====
 
 Applies <<query-rules-apis,query rules>> to the query before returning results.

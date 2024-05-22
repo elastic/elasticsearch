@@ -254,9 +254,8 @@ class JdkKernel32Library implements Kernel32Library {
 
     @Override
     public boolean SetConsoleCtrlHandler(ConsoleCtrlHandler handler, boolean add) {
-        Arena arena = Arena.ofAuto(); // auto arena so it lasts as long as the handler lasts
-        MemorySegment nativeHandler = upcallStub(ConsoleCtrlHandler_handle$mh, handler, ConsoleCtrlHandler_handle$fd, arena);
-
+        // use the global arena so the handler will have the lifetime of the jvm
+        MemorySegment nativeHandler = upcallStub(ConsoleCtrlHandler_handle$mh, handler, ConsoleCtrlHandler_handle$fd, Arena.global());
         try {
             return (boolean) SetConsoleCtrlHandler$mh.invokeExact(lastErrorState, nativeHandler, add);
         } catch (Throwable t) {

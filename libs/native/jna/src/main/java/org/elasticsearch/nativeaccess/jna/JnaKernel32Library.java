@@ -131,6 +131,7 @@ class JnaKernel32Library implements Kernel32Library {
     }
 
     private final NativeFunctions functions;
+    private NativeHandlerCallback consoleCtrlHandlerCallback = null;
 
     JnaKernel32Library() {
         this.functions = Native.load("kernel32", NativeFunctions.class);
@@ -192,7 +193,8 @@ class JnaKernel32Library implements Kernel32Library {
 
     @Override
     public boolean SetConsoleCtrlHandler(ConsoleCtrlHandler handler, boolean add) {
-        NativeHandlerCallback callback = new NativeHandlerCallback(handler);
-        return functions.SetConsoleCtrlHandler(callback, true);
+        assert consoleCtrlHandlerCallback == null;
+        consoleCtrlHandlerCallback = new NativeHandlerCallback(handler);
+        return functions.SetConsoleCtrlHandler(consoleCtrlHandlerCallback, true);
     }
 }

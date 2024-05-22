@@ -86,24 +86,15 @@ public class ReplaceDataStreamBackingIndexStep extends ClusterStateActionStep {
             throw new IllegalStateException(errorMessage);
         }
 
-        final Index targetWriteIndex;
-        final boolean isFailureStoreIndex;
-        if (dataStream.isFailureStoreIndex(originalIndex)) {
-            targetWriteIndex = dataStream.getFailureStoreWriteIndex();
-            isFailureStoreIndex = true;
-        } else {
-            targetWriteIndex = dataStream.getWriteIndex();
-            isFailureStoreIndex = false;
-        }
-        assert targetWriteIndex != null : dataStream.getName() + " has no write index";
-        if (targetWriteIndex.equals(index)) {
+        boolean isFailureStoreWriteIndex = index.equals(dataStream.getFailureStoreWriteIndex());
+        if (isFailureStoreWriteIndex || index.equals(dataStream.getWriteIndex())) {
             String errorMessage = String.format(
                 Locale.ROOT,
                 "index [%s] is the%s write index for data stream [%s], pausing "
                     + "ILM execution of lifecycle [%s] until this index is no longer the write index for the data stream via manual or "
                     + "automated rollover",
                 originalIndex,
-                isFailureStoreIndex ? " failure store" : "",
+                isFailureStoreWriteIndex ? " failure store" : "",
                 dataStream.getName(),
                 policyName
             );

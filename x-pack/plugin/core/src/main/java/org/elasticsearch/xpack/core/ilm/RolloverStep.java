@@ -62,20 +62,12 @@ public class RolloverStep extends AsyncActionStep {
         final boolean targetFailureStore;
         DataStream dataStream = indexAbstraction.getParentDataStream();
         if (dataStream != null) {
-            final Index targetWriteIndex;
-            if (dataStream.isFailureStoreIndex(indexName)) {
-                targetWriteIndex = dataStream.getFailureStoreWriteIndex();
-                targetFailureStore = true;
-            } else {
-                targetWriteIndex = dataStream.getWriteIndex();
-                targetFailureStore = false;
-            }
-            assert targetWriteIndex != null : "datastream " + dataStream.getName() + " has no write index";
-            if (targetWriteIndex.equals(indexMetadata.getIndex()) == false) {
+            boolean isFailureStoreWriteIndex = indexMetadata.getIndex().equals(dataStream.getFailureStoreWriteIndex());
+            if (isFailureStoreWriteIndex || indexMetadata.getIndex().equals(dataStream.getWriteIndex())) {
                 logger.warn(
                     "index [{}] is not the {}write index for data stream [{}]. skipping rollover for policy [{}]",
                     indexName,
-                    targetFailureStore ? "failure store " : "",
+                    isFailureStoreWriteIndex ? "failure store " : "",
                     dataStream.getName(),
                     indexMetadata.getLifecyclePolicyName()
                 );
@@ -83,6 +75,7 @@ public class RolloverStep extends AsyncActionStep {
                 return;
             }
             rolloverTarget = dataStream.getName();
+            targetFailureStore = dataStream.isFailureStoreIndex(indexMetadata.getIndex().getName());
         } else {
             String rolloverAlias = RolloverAction.LIFECYCLE_ROLLOVER_ALIAS_SETTING.get(indexMetadata.getSettings());
 

@@ -41,20 +41,13 @@ public class DeleteStep extends AsyncRetryDuringSnapshotActionStep {
         DataStream dataStream = indexAbstraction.getParentDataStream();
 
         if (dataStream != null) {
-            final Index targetWriteIndex;
-            final boolean isFailureStoreIndex;
-            if (dataStream.isFailureStoreIndex(indexName)) {
-                targetWriteIndex = dataStream.getFailureStoreWriteIndex();
-                isFailureStoreIndex = true;
-            } else {
-                targetWriteIndex = dataStream.getWriteIndex();
-                isFailureStoreIndex = false;
-            }
-            assert targetWriteIndex != null : dataStream.getName() + " has no write index";
+            boolean isFailureStoreWriteIndex = indexMetadata.getIndex().equals(dataStream.getFailureStoreWriteIndex());
 
             // using index name equality across this if/else branch as the UUID of the index might change via restoring a data stream
             // with one index from snapshot
-            if (dataStream.getIndices().size() == 1 && isFailureStoreIndex == false && targetWriteIndex.getName().equals(indexName)) {
+            if (dataStream.getIndices().size() == 1
+                && isFailureStoreWriteIndex == false
+                && dataStream.getWriteIndex().getName().equals(indexName)) {
                 // This is the last backing index in the data stream, and it's being deleted because the policy doesn't have a rollover
                 // phase. The entire stream needs to be deleted, because we can't have an empty list of data stream backing indices.
                 // We do this even if there are multiple failure store indices because otherwise we would never delete the index.
@@ -65,14 +58,14 @@ public class DeleteStep extends AsyncRetryDuringSnapshotActionStep {
                     listener.delegateFailureAndWrap((l, response) -> l.onResponse(null))
                 );
                 return;
-            } else if (targetWriteIndex.getName().equals(indexName)) {
+            } else if (isFailureStoreWriteIndex || indexMetadata.getIndex().equals(dataStream.getWriteIndex())) {
                 String errorMessage = String.format(
                     Locale.ROOT,
                     "index [%s] is the%s write index for data stream [%s]. "
                         + "stopping execution of lifecycle [%s] as a data stream's write index cannot be deleted. manually rolling over the"
                         + " index will resume the execution of the policy as the index will not be the data stream's write index anymore",
                     indexName,
-                    isFailureStoreIndex ? " failure store" : "",
+                    isFailureStoreWriteIndex ? " failure store" : "",
                     dataStream.getName(),
                     policyName
                 );

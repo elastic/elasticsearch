@@ -52,7 +52,7 @@ public class DataStreamFeatureSetUsage extends XPackFeatureSet.Usage {
         builder.field("indices_count", streamStats.indicesBehindDataStream);
         if (DataStream.isFailureStoreFeatureFlagEnabled()) {
             builder.startObject("failure_store");
-            builder.field("enabled", streamStats.failureStoreEnabledDataStreamCount);
+            builder.field("enabled_count", streamStats.failureStoreEnabledDataStreamCount);
             builder.field("failure_indices_count", streamStats.failureStoreIndicesCount);
             builder.endObject();
         }
@@ -80,34 +80,20 @@ public class DataStreamFeatureSetUsage extends XPackFeatureSet.Usage {
         return Objects.equals(streamStats, other.streamStats);
     }
 
-    public static class DataStreamStats implements Writeable {
-
-        private final long totalDataStreamCount;
-        private final long indicesBehindDataStream;
-        private final long failureStoreEnabledDataStreamCount;
-        private final long failureStoreIndicesCount;
-
-        public DataStreamStats(
-            long totalDataStreamCount,
-            long indicesBehindDataStream,
-            long failureStoreEnabledDataStreamCount,
-            long failureStoreIndicesCount
-        ) {
-            this.totalDataStreamCount = totalDataStreamCount;
-            this.indicesBehindDataStream = indicesBehindDataStream;
-            this.failureStoreEnabledDataStreamCount = failureStoreEnabledDataStreamCount;
-            this.failureStoreIndicesCount = failureStoreIndicesCount;
-        }
+    public record DataStreamStats(
+        long totalDataStreamCount,
+        long indicesBehindDataStream,
+        long failureStoreEnabledDataStreamCount,
+        long failureStoreIndicesCount
+    ) implements Writeable {
 
         public DataStreamStats(StreamInput in) throws IOException {
-            this.totalDataStreamCount = in.readVLong();
-            this.indicesBehindDataStream = in.readVLong();
-            this.failureStoreEnabledDataStreamCount = in.getTransportVersion().onOrAfter(TransportVersions.FAILURE_STORE_TELEMETRY)
-                ? in.readVLong()
-                : 0;
-            this.failureStoreIndicesCount = in.getTransportVersion().onOrAfter(TransportVersions.FAILURE_STORE_TELEMETRY)
-                ? in.readVLong()
-                : 0;
+            this(
+                in.readVLong(),
+                in.readVLong(),
+                in.getTransportVersion().onOrAfter(TransportVersions.FAILURE_STORE_TELEMETRY) ? in.readVLong() : 0,
+                in.getTransportVersion().onOrAfter(TransportVersions.FAILURE_STORE_TELEMETRY) ? in.readVLong() : 0
+            );
         }
 
         @Override
@@ -118,28 +104,6 @@ public class DataStreamFeatureSetUsage extends XPackFeatureSet.Usage {
                 out.writeVLong(this.failureStoreEnabledDataStreamCount);
                 out.writeVLong(this.failureStoreIndicesCount);
             }
-        }
-
-        @Override
-        public int hashCode() {
-            return Objects.hash(
-                totalDataStreamCount,
-                indicesBehindDataStream,
-                failureStoreEnabledDataStreamCount,
-                failureStoreIndicesCount
-            );
-        }
-
-        @Override
-        public boolean equals(Object obj) {
-            if (obj.getClass() != getClass()) {
-                return false;
-            }
-            DataStreamStats other = (DataStreamStats) obj;
-            return totalDataStreamCount == other.totalDataStreamCount
-                && indicesBehindDataStream == other.indicesBehindDataStream
-                && failureStoreEnabledDataStreamCount == other.failureStoreEnabledDataStreamCount
-                && failureStoreIndicesCount == other.failureStoreIndicesCount;
         }
     }
 }

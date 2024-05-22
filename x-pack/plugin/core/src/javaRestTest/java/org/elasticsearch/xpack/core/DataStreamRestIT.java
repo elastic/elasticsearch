@@ -60,12 +60,6 @@ public class DataStreamRestIT extends ESRestTestCase {
             assertThat(logsTemplate.get("name"), equalTo("logs"));
             assertThat(((Map<?, ?>) logsTemplate.get("index_template")).get("data_stream"), notNullValue());
         });
-        assertBusy(() -> {
-            Map<?, ?> logsTemplate = (Map<?, ?>) ((List<?>) getLocation("/_index_template/logs").get("index_templates")).get(0);
-            assertThat(logsTemplate, notNullValue());
-            assertThat(logsTemplate.get("name"), equalTo("logs"));
-            assertThat(((Map<?, ?>) logsTemplate.get("index_template")).get("data_stream"), notNullValue());
-        });
         putFailureStoreTemplate();
 
         // Create a data stream
@@ -89,7 +83,7 @@ public class DataStreamRestIT extends ESRestTestCase {
         assertThat("got: " + dataStreams, dataStreams.get("data_streams"), equalTo(2));
         assertThat("got: " + dataStreams, dataStreams.get("indices_count"), equalTo(3));
         failureStoreStats = (Map<String, Integer>) dataStreams.get("failure_store");
-        assertThat(failureStoreStats.get("enabled"), anyOf(equalTo(null), equalTo(1)));
+        assertThat(failureStoreStats.get("enabled_count"), anyOf(equalTo(null), equalTo(1)));
         assertThat(failureStoreStats.get("failure_indices_count"), equalTo(1));
     }
 

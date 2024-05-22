@@ -131,6 +131,23 @@ setup:
                 foo: bar
 
 ---
+"Perform a rule query that specifies both a ruleset_id and ruleset_ids":
+  - do:
+      catch: /ruleset information not provided correctly/
+      search:
+        body:
+          query:
+            rule:
+              organic:
+                query_string:
+                  default_field: text
+                  query: search
+              ruleset_ids: [ test-ruleset ]
+              ruleset_id: test-ruleset
+              match_criteria:
+                foo: bar
+
+---
 "Perform a rule query with malformed rule":
   - do:
       catch: bad_request

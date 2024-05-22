@@ -97,6 +97,7 @@ public class MultiClusterSpecIT extends EsqlSpecTestCase {
         super.shouldSkipTest(testName);
         checkCapabilities(remoteClusterClient(), remoteFeaturesService(), testName, testCase);
         assumeFalse("can't test with _index metadata", hasIndexMetadata(testCase.query));
+        assumeTrue("can't test with metrics across cluster", hasMetricsCommand(testCase.query));
         assumeTrue("Test " + testName + " is skipped on " + Clusters.oldVersion(), isEnabled(testName, Clusters.oldVersion()));
     }
 
@@ -234,5 +235,9 @@ public class MultiClusterSpecIT extends EsqlSpecTestCase {
             return parts.length > 1 && parts[1].contains("_index");
         }
         return false;
+    }
+
+    static boolean hasMetricsCommand(String query) {
+        return Arrays.stream(query.split("\\|")).anyMatch(s -> s.trim().toLowerCase(Locale.ROOT).startsWith("metrics"));
     }
 }

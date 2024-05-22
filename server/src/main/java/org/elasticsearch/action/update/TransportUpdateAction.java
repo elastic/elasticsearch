@@ -369,7 +369,11 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
             if (mapper instanceof InferenceFieldMapper inferenceFieldMapper) {
                 String[] sourceFields = entry.getValue().getSourceFields();
                 for (String sourceField : sourceFields) {
-                    if (updateRequestSource.containsKey(sourceField)) {
+                    if (sourceField.equals(inferenceFieldName) == false && updateRequestSource.containsKey(sourceField)) {
+                        // Replace the inference field's value with its original value (i.e. the user-specified value).
+                        // This has two important side effects:
+                        // - The inference field value will remain parsable by its mapper
+                        // - The inference results will be removed, forcing them to be re-generated downstream
                         updatedSource.put(inferenceFieldName, inferenceFieldMapper.getOriginalValue(updatedSource));
                         updatedSourceModified = true;
                         break;

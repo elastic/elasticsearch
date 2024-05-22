@@ -257,7 +257,7 @@ public class WaitForRolloverReadyStepTests extends AbstractStepTestCase<WaitForR
     public void testEvaluateConditionOnDataStreamTarget() {
         String dataStreamName = "test-datastream";
         long ts = System.currentTimeMillis();
-        boolean failureStoreIndex = DataStream.isFailureStoreFeatureFlagEnabled() && randomBoolean();
+        boolean failureStoreIndex = randomBoolean();
         IndexMetadata indexMetadata = IndexMetadata.builder(DataStream.getDefaultBackingIndexName(dataStreamName, 1, ts))
             .settings(settings(IndexVersion.current()))
             .numberOfShards(randomIntBetween(1, 5))
@@ -315,7 +315,7 @@ public class WaitForRolloverReadyStepTests extends AbstractStepTestCase<WaitForR
     public void testSkipRolloverIfDataStreamIsAlreadyRolledOver() {
         String dataStreamName = "test-datastream";
         long ts = System.currentTimeMillis();
-        boolean failureStoreIndex = DataStream.isFailureStoreFeatureFlagEnabled() && randomBoolean();
+        boolean failureStoreIndex = randomBoolean();
         IndexMetadata firstGenerationIndex = IndexMetadata.builder(DataStream.getDefaultBackingIndexName(dataStreamName, 1, ts))
             .settings(settings(IndexVersion.current()))
             .numberOfShards(randomIntBetween(1, 5))

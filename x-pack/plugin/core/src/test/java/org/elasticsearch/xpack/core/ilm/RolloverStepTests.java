@@ -120,7 +120,7 @@ public class RolloverStepTests extends AbstractStepTestCase<RolloverStep> {
                     .put(failureIndexMetadata, true)
             )
             .build();
-        boolean useFailureStore = DataStream.isFailureStoreFeatureFlagEnabled() && randomBoolean();
+        boolean useFailureStore = randomBoolean();
         IndexMetadata indexToOperateOn = useFailureStore ? failureIndexMetadata : indexMetadata;
         PlainActionFuture.<Void, Exception>get(f -> step.performAction(indexToOperateOn, clusterState, null, f));
 
@@ -171,7 +171,7 @@ public class RolloverStepTests extends AbstractStepTestCase<RolloverStep> {
                     )
             )
             .build();
-        boolean useFailureStore = DataStream.isFailureStoreFeatureFlagEnabled() && randomBoolean();
+        boolean useFailureStore = randomBoolean();
         IndexMetadata indexToOperateOn = useFailureStore ? failureFirstGenerationIndex : firstGenerationIndex;
         PlainActionFuture.<Void, Exception>get(f -> step.performAction(indexToOperateOn, clusterState, null, f));
 

@@ -188,7 +188,7 @@ public class DeleteStepTests extends AbstractStepTestCase<DeleteStep> {
             .build();
 
         AtomicBoolean listenerCalled = new AtomicBoolean(false);
-        final boolean useFailureStore = DataStream.isFailureStoreFeatureFlagEnabled() && randomBoolean();
+        final boolean useFailureStore = randomBoolean();
         final IndexMetadata indexToOperateOn = useFailureStore ? failureSourceIndexMetadata : sourceIndexMetadata;
         createRandomInstance().performDuringNoSnapshot(indexToOperateOn, clusterState, new ActionListener<>() {
             @Override

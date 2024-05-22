@@ -241,7 +241,7 @@ public class WaitForActiveShardsTests extends AbstractStepTestCase<WaitForActive
 
         WaitForActiveShardsStep waitForActiveShardsStep = createRandomInstance();
 
-        boolean useFailureStore = DataStream.isFailureStoreFeatureFlagEnabled() && randomBoolean();
+        boolean useFailureStore = randomBoolean();
         IndexMetadata indexToOperateOn = useFailureStore ? failureOriginalIndexMeta : originalIndexMeta;
         ClusterStateWaitStep.Result result = waitForActiveShardsStep.isConditionMet(indexToOperateOn.getIndex(), clusterState);
         assertThat(result.isComplete(), is(false));

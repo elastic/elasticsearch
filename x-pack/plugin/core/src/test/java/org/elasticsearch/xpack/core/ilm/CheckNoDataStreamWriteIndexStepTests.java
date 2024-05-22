@@ -90,7 +90,7 @@ public class CheckNoDataStreamWriteIndexStepTests extends AbstractStepTestCase<C
             )
             .build();
 
-        boolean useFailureStore = DataStream.isFailureStoreFeatureFlagEnabled() && randomBoolean();
+        boolean useFailureStore = randomBoolean();
         IndexMetadata indexToOperateOn = useFailureStore ? failureIndexMetadata : indexMetadata;
         String expectedIndexName = indexToOperateOn.getIndex().getName();
         ClusterStateWaitStep.Result result = createRandomInstance().isConditionMet(indexToOperateOn.getIndex(), clusterState);
@@ -158,7 +158,7 @@ public class CheckNoDataStreamWriteIndexStepTests extends AbstractStepTestCase<C
             )
             .build();
 
-        boolean useFailureStore = DataStream.isFailureStoreFeatureFlagEnabled() && randomBoolean();
+        boolean useFailureStore = randomBoolean();
         IndexMetadata indexToOperateOn = useFailureStore ? failureIndexMetadata : indexMetadata;
         ClusterStateWaitStep.Result result = createRandomInstance().isConditionMet(indexToOperateOn.getIndex(), clusterState);
         assertThat(result.isComplete(), is(true));

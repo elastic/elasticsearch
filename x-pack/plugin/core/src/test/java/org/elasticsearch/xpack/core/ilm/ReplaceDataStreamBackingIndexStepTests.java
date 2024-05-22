@@ -95,7 +95,7 @@ public class ReplaceDataStreamBackingIndexStepTests extends AbstractStepTestCase
             )
             .build();
 
-        boolean useFailureStore = DataStream.isFailureStoreFeatureFlagEnabled() && randomBoolean();
+        boolean useFailureStore = randomBoolean();
         IndexMetadata indexToOperateOn = useFailureStore ? failureSourceIndexMetadata : sourceIndexMetadata;
         expectThrows(IllegalStateException.class, () -> createRandomInstance().performAction(indexToOperateOn.getIndex(), clusterState));
     }
@@ -144,7 +144,7 @@ public class ReplaceDataStreamBackingIndexStepTests extends AbstractStepTestCase
             )
             .build();
 
-        boolean useFailureStore = DataStream.isFailureStoreFeatureFlagEnabled() && randomBoolean();
+        boolean useFailureStore = randomBoolean();
         IndexMetadata indexToOperateOn = useFailureStore ? failureSourceIndexMetadata : sourceIndexMetadata;
         expectThrows(IllegalStateException.class, () -> createRandomInstance().performAction(indexToOperateOn.getIndex(), clusterState));
     }
@@ -187,7 +187,7 @@ public class ReplaceDataStreamBackingIndexStepTests extends AbstractStepTestCase
             .numberOfReplicas(randomIntBetween(0, 5))
             .build();
 
-        boolean useFailureStore = DataStream.isFailureStoreFeatureFlagEnabled() && randomBoolean();
+        boolean useFailureStore = randomBoolean();
         String indexNameToUse = useFailureStore ? failureIndexName : indexName;
 
         String indexPrefix = "test-prefix-";
@@ -263,7 +263,7 @@ public class ReplaceDataStreamBackingIndexStepTests extends AbstractStepTestCase
             .build();
 
         String indexPrefix = "test-prefix-";
-        boolean useFailureStore = DataStream.isFailureStoreFeatureFlagEnabled() && randomBoolean();
+        boolean useFailureStore = randomBoolean();
         String indexNameToUse = useFailureStore ? failureIndexName : indexName;
         String targetIndex = indexPrefix + indexNameToUse;
 

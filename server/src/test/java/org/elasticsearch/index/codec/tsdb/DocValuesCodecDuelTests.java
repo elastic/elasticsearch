@@ -70,10 +70,10 @@ public class DocValuesCodecDuelTests extends ESTestCase {
                             doc.add(new SortedNumericDocValuesField(FIELD_3, randomLong()));
                         }
                     }
-                    if (field4MissingOften ?  randomBoolean() : rarely() == false) {
+                    if (field4MissingOften ? randomBoolean() : rarely() == false) {
                         doc.add(new NumericDocValuesField(FIELD_4, randomLong()));
                     }
-                    if (field5MissingOften ?  randomBoolean() : rarely() == false) {
+                    if (field5MissingOften ? randomBoolean() : rarely() == false) {
                         doc.add(new BinaryDocValuesField(FIELD_5, newBytesRef(randomUnicodeOfLength(8))));
                     }
                     baselineIw.addDocument(doc);

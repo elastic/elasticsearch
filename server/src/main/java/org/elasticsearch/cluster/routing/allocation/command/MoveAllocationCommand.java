@@ -172,6 +172,7 @@ public class MoveAllocationCommand implements AllocationCommand {
                     shardRouting,
                     toRoutingNode.nodeId(),
                     allocation.clusterInfo().getShardSize(shardRouting, ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE),
+                    "move command",
                     allocation.changes()
                 );
         }

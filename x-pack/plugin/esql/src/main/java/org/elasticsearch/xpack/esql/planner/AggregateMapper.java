@@ -11,6 +11,17 @@ import org.elasticsearch.compute.aggregation.IntermediateStateDesc;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
+import org.elasticsearch.xpack.esql.core.expression.Alias;
+import org.elasticsearch.xpack.esql.core.expression.AttributeMap;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
+import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
+import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
+import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
+import org.elasticsearch.xpack.esql.core.expression.function.Function;
+import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.type.DataTypes;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.CountDistinct;
@@ -23,17 +34,6 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.SpatialAggrega
 import org.elasticsearch.xpack.esql.expression.function.aggregate.SpatialCentroid;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Sum;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Values;
-import org.elasticsearch.xpack.ql.expression.Alias;
-import org.elasticsearch.xpack.ql.expression.AttributeMap;
-import org.elasticsearch.xpack.ql.expression.Expression;
-import org.elasticsearch.xpack.ql.expression.FieldAttribute;
-import org.elasticsearch.xpack.ql.expression.MetadataAttribute;
-import org.elasticsearch.xpack.ql.expression.NamedExpression;
-import org.elasticsearch.xpack.ql.expression.ReferenceAttribute;
-import org.elasticsearch.xpack.ql.expression.function.Function;
-import org.elasticsearch.xpack.ql.tree.Source;
-import org.elasticsearch.xpack.ql.type.DataType;
-import org.elasticsearch.xpack.ql.type.DataTypes;
 
 import java.lang.invoke.MethodHandle;
 import java.lang.invoke.MethodHandles;
@@ -65,8 +65,6 @@ public class AggregateMapper {
         Values.class
     );
 
-    static AggregateMapper INSTANCE = new AggregateMapper();
-
     /** Record of agg Class, type, and grouping (or non-grouping). */
     record AggDef(Class<?> aggClazz, String type, String extra, boolean grouping) {}
 
@@ -76,8 +74,12 @@ public class AggregateMapper {
     /** Cache of aggregates to intermediate expressions. */
     private final HashMap<Expression, List<? extends NamedExpression>> cache = new HashMap<>();
 
-    private AggregateMapper() {
-        mapper = AGG_FUNCTIONS.stream()
+    AggregateMapper() {
+        this(AGG_FUNCTIONS);
+    }
+
+    AggregateMapper(List<? extends Class<? extends Function>> aggregateFunctionClasses) {
+        mapper = aggregateFunctionClasses.stream()
             .flatMap(AggregateMapper::typeAndNames)
             .flatMap(AggregateMapper::groupingAndNonGrouping)
             .collect(Collectors.toUnmodifiableMap(aggDef -> aggDef, AggregateMapper::lookupIntermediateState));

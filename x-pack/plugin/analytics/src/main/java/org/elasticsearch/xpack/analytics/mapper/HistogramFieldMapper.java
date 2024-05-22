@@ -485,6 +485,11 @@ public class HistogramFieldMapper extends FieldMapper {
     }
 
     @Override
+    protected SyntheticSourceMode syntheticSourceMode() {
+        return SyntheticSourceMode.NATIVE;
+    }
+
+    @Override
     public SourceLoader.SyntheticFieldLoader syntheticFieldLoader() {
         if (ignoreMalformed.value()) {
             throw new IllegalArgumentException(

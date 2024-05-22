@@ -1475,7 +1475,7 @@ public class MachineLearning extends Plugin
                 restHandlers.add(new RestCatDataFrameAnalyticsAction());
             }
             if (machineLearningExtension.get().isNlpEnabled()) {
-                restHandlers.add(new RestStartTrainedModelDeploymentAction());
+                restHandlers.add(new RestStartTrainedModelDeploymentAction(machineLearningExtension.get().disableInferenceProcessCache()));
                 restHandlers.add(new RestStopTrainedModelDeploymentAction());
                 restHandlers.add(new RestInferTrainedModelDeploymentAction());
                 restHandlers.add(new RestUpdateTrainedModelDeploymentAction());

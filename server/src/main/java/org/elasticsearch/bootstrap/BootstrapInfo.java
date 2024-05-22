@@ -11,6 +11,7 @@ package org.elasticsearch.bootstrap;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.nativeaccess.NativeAccess;
 
 import java.util.Dictionary;
 import java.util.Enumeration;
@@ -40,7 +41,7 @@ public final class BootstrapInfo {
      * Returns true if we were able to lock the process's address space.
      */
     public static boolean isMemoryLocked() {
-        return Natives.isMemoryLocked();
+        return NativeAccess.instance().isMemoryLocked();
     }
 
     /**

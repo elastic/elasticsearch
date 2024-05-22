@@ -55,12 +55,12 @@ import org.elasticsearch.xpack.esql.action.RestEsqlAsyncQueryAction;
 import org.elasticsearch.xpack.esql.action.RestEsqlDeleteAsyncResultAction;
 import org.elasticsearch.xpack.esql.action.RestEsqlGetAsyncResultAction;
 import org.elasticsearch.xpack.esql.action.RestEsqlQueryAction;
+import org.elasticsearch.xpack.esql.core.index.IndexResolver;
 import org.elasticsearch.xpack.esql.enrich.EnrichLookupOperator;
 import org.elasticsearch.xpack.esql.execution.PlanExecutor;
 import org.elasticsearch.xpack.esql.querydsl.query.SingleValueQuery;
 import org.elasticsearch.xpack.esql.session.EsqlIndexResolver;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypeRegistry;
-import org.elasticsearch.xpack.ql.index.IndexResolver;
 
 import java.lang.invoke.MethodHandles;
 import java.util.Collection;

@@ -11,6 +11,6 @@ dependencies {
     testImplementation(testArtifact(project(xpackModule('core'))))
     // runtime only - since the test source should not explicitly depend
     // upon any types from ES|QL (only xpack core)
-    testImplementation project(':x-pack:plugin:ql')
+    testImplementation project(':x-pack:plugin:esql-core')
     testImplementation project(':x-pack:plugin:esql')
 }

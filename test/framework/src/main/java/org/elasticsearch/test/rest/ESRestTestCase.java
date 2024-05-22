@@ -71,6 +71,7 @@ import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.seqno.ReplicationTracker;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.rest.RestUtils;
 import org.elasticsearch.test.AbstractBroadcastResponseTestCase;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
@@ -1122,7 +1123,9 @@ public abstract class ESRestTestCase extends ESTestCase {
         }
 
         Request getShutdownStatus = new Request("GET", "_nodes/shutdown");
-        if (Set.of(Version.CURRENT.toString()).equals(nodesVersions) && randomBoolean()) {
+        if (randomBoolean()
+            && Optional.of(Boolean.TRUE)
+                .equals(clusterHasCapability("GET", "_nodes/shutdown", List.of(RestUtils.REST_MASTER_TIMEOUT_PARAM), List.of()))) {
             getShutdownStatus.addParameter("master_timeout", "30s");
         }
         Map<String, Object> statusResponse = responseAsMap(adminClient().performRequest(getShutdownStatus));

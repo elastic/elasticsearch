@@ -627,21 +627,19 @@ public final class DocumentParser {
             if ((mapper instanceof ObjectMapper objectMapper && objectMapper.storeArraySource()) || mapper instanceof NestedObjectMapper) {
                 // Clone the DocumentParserContext to parse its subtree twice.
                 Tuple<DocumentParserContext, XContentBuilder> tuple = XContentDataHelper.cloneSubContext(context);
-                boolean isRoot = context.parent() instanceof RootObjectMapper;
                 context.addIgnoredField(
-                    new IgnoredSourceFieldMapper.NameValue(
-                        isRoot ? arrayFieldName : context.parent().name() + "." + arrayFieldName,
-                        isRoot ? 0 : context.parent().fullPath().length() + 1,
+                    IgnoredSourceFieldMapper.NameValue.fromContext(
+                        context,
+                        context.path().pathAsText(arrayFieldName),
                         XContentDataHelper.encodeXContentBuilder(tuple.v2())
                     )
                 );
                 context = tuple.v1();
             } else if (mapper instanceof ObjectMapper objectMapper && objectMapper.isEnabled() == false) {
-                boolean isRoot = context.parent() instanceof RootObjectMapper;
                 context.addIgnoredField(
-                    new IgnoredSourceFieldMapper.NameValue(
-                        isRoot ? arrayFieldName : context.parent().name() + "." + arrayFieldName,
-                        isRoot ? 0 : context.parent().fullPath().length() + 1,
+                    IgnoredSourceFieldMapper.NameValue.fromContext(
+                        context,
+                        context.path().pathAsText(arrayFieldName),
                         XContentDataHelper.encodeToken(context.parser())
                     )
                 );

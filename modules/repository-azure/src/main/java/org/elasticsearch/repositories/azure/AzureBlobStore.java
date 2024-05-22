@@ -828,7 +828,7 @@ public class AzureBlobStore implements BlobStore {
         } catch (Exception e) {
             if (Throwables.getRootCause(e) instanceof BlobStorageException blobStorageException
                 && blobStorageException.getStatusCode() == RestStatus.NOT_FOUND.getStatus()) {
-                return OptionalBytesReference.MISSING;
+                return OptionalBytesReference.EMPTY;
             }
             throw e;
         }

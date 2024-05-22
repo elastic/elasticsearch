@@ -365,7 +365,7 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
             equalTo(
                 String.format(
                     Locale.ROOT,
-                    "cannot remove backing index [%s] of data stream [%s] because it is the write index",
+                    "cannot remove backing index [%s] of data stream [%s] because it is the write index of the failure store",
                     original.getFailureIndices().getIndices().get(original.getFailureIndices().getIndices().size() - 1).getName(),
                     original.getName()
                 )

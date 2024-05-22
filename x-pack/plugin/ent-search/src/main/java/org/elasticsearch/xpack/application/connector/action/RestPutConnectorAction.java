@@ -29,20 +29,26 @@ public class RestPutConnectorAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return List.of(new Route(PUT, "/" + EnterpriseSearch.CONNECTOR_API_ENDPOINT + "/{connector_id}"));
+        return List.of(
+            new Route(PUT, "/" + EnterpriseSearch.CONNECTOR_API_ENDPOINT + "/{connector_id}"),
+            new Route(PUT, "/" + EnterpriseSearch.CONNECTOR_API_ENDPOINT)
+        );
     }
 
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) {
-        PutConnectorAction.Request request = PutConnectorAction.Request.fromXContentBytes(
-            restRequest.param("connector_id"),
-            restRequest.content(),
-            restRequest.getXContentType()
-        );
+        String connectorId = restRequest.param("connector_id");
+        PutConnectorAction.Request request;
+        // Handle empty REST request body
+        if (restRequest.hasContent()) {
+            request = PutConnectorAction.Request.fromXContentBytes(connectorId, restRequest.content(), restRequest.getXContentType());
+        } else {
+            request = new PutConnectorAction.Request(connectorId);
+        }
         return channel -> client.execute(
             PutConnectorAction.INSTANCE,
             request,
-            new RestToXContentListener<>(channel, PutConnectorAction.Response::status, r -> null)
+            new RestToXContentListener<>(channel, ConnectorCreateActionResponse::status, r -> null)
         );
     }
 }

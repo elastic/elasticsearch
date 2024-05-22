@@ -31,9 +31,9 @@ public final class RTrimEvaluator implements EvalOperator.ExpressionEvaluator {
 
   public RTrimEvaluator(Source source, EvalOperator.ExpressionEvaluator val,
       DriverContext driverContext) {
-    this.warnings = new Warnings(source);
     this.val = val;
     this.driverContext = driverContext;
+    this.warnings = Warnings.createWarnings(driverContext.warningsMode(), source);
   }
 
   @Override

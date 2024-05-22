@@ -32,9 +32,9 @@ public final class LeastDoubleEvaluator implements EvalOperator.ExpressionEvalua
 
   public LeastDoubleEvaluator(Source source, EvalOperator.ExpressionEvaluator[] values,
       DriverContext driverContext) {
-    this.warnings = new Warnings(source);
     this.values = values;
     this.driverContext = driverContext;
+    this.warnings = Warnings.createWarnings(driverContext.warningsMode(), source);
   }
 
   @Override

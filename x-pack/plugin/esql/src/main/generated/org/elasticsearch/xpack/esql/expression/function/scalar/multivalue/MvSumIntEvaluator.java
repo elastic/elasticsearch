@@ -24,7 +24,7 @@ public final class MvSumIntEvaluator extends AbstractMultivalueFunction.Abstract
   public MvSumIntEvaluator(Source source, EvalOperator.ExpressionEvaluator field,
       DriverContext driverContext) {
     super(driverContext, field);
-    this.warnings = new Warnings(source);
+    this.warnings = Warnings.createWarnings(driverContext.warningsMode(), source);
   }
 
   @Override

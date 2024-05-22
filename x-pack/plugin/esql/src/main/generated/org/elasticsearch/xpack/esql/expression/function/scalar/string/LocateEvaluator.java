@@ -38,11 +38,11 @@ public final class LocateEvaluator implements EvalOperator.ExpressionEvaluator {
   public LocateEvaluator(Source source, EvalOperator.ExpressionEvaluator str,
       EvalOperator.ExpressionEvaluator substr, EvalOperator.ExpressionEvaluator start,
       DriverContext driverContext) {
-    this.warnings = new Warnings(source);
     this.str = str;
     this.substr = substr;
     this.start = start;
     this.driverContext = driverContext;
+    this.warnings = Warnings.createWarnings(driverContext.warningsMode(), source);
   }
 
   @Override

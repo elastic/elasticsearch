@@ -31,9 +31,9 @@ public final class LogConstantEvaluator implements EvalOperator.ExpressionEvalua
 
   public LogConstantEvaluator(Source source, EvalOperator.ExpressionEvaluator value,
       DriverContext driverContext) {
-    this.warnings = new Warnings(source);
     this.value = value;
     this.driverContext = driverContext;
+    this.warnings = Warnings.createWarnings(driverContext.warningsMode(), source);
   }
 
   @Override

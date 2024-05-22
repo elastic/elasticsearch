@@ -38,11 +38,11 @@ public final class SubstringEvaluator implements EvalOperator.ExpressionEvaluato
   public SubstringEvaluator(Source source, EvalOperator.ExpressionEvaluator str,
       EvalOperator.ExpressionEvaluator start, EvalOperator.ExpressionEvaluator length,
       DriverContext driverContext) {
-    this.warnings = new Warnings(source);
     this.str = str;
     this.start = start;
     this.length = length;
     this.driverContext = driverContext;
+    this.warnings = Warnings.createWarnings(driverContext.warningsMode(), source);
   }
 
   @Override

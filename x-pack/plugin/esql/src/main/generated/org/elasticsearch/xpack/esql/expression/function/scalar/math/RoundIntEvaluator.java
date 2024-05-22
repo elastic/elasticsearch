@@ -34,10 +34,10 @@ public final class RoundIntEvaluator implements EvalOperator.ExpressionEvaluator
 
   public RoundIntEvaluator(Source source, EvalOperator.ExpressionEvaluator val,
       EvalOperator.ExpressionEvaluator decimals, DriverContext driverContext) {
-    this.warnings = new Warnings(source);
     this.val = val;
     this.decimals = decimals;
     this.driverContext = driverContext;
+    this.warnings = Warnings.createWarnings(driverContext.warningsMode(), source);
   }
 
   @Override

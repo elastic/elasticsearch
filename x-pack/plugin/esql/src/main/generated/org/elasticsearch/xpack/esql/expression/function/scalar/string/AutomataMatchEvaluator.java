@@ -38,11 +38,11 @@ public final class AutomataMatchEvaluator implements EvalOperator.ExpressionEval
 
   public AutomataMatchEvaluator(Source source, EvalOperator.ExpressionEvaluator input,
       ByteRunAutomaton automaton, String pattern, DriverContext driverContext) {
-    this.warnings = new Warnings(source);
     this.input = input;
     this.automaton = automaton;
     this.pattern = pattern;
     this.driverContext = driverContext;
+    this.warnings = Warnings.createWarnings(driverContext.warningsMode(), source);
   }
 
   @Override

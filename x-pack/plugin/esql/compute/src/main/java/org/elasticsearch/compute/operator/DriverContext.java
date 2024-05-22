@@ -179,7 +179,7 @@ public class DriverContext {
      * Evaluators should use this function to decide their warning behavior.
      * @return an appropriate {@link WarningsMode}
      */
-    public WarningsMode collectWarnings() {
+    public WarningsMode warningsMode() {
         return warningsMode;
     }
 

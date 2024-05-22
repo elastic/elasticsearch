@@ -37,11 +37,11 @@ public final class ReplaceEvaluator implements EvalOperator.ExpressionEvaluator 
   public ReplaceEvaluator(Source source, EvalOperator.ExpressionEvaluator str,
       EvalOperator.ExpressionEvaluator regex, EvalOperator.ExpressionEvaluator newStr,
       DriverContext driverContext) {
-    this.warnings = new Warnings(source);
     this.str = str;
     this.regex = regex;
     this.newStr = newStr;
     this.driverContext = driverContext;
+    this.warnings = Warnings.createWarnings(driverContext.warningsMode(), source);
   }
 
   @Override

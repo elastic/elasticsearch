@@ -36,11 +36,11 @@ public final class MvSliceLongEvaluator implements EvalOperator.ExpressionEvalua
   public MvSliceLongEvaluator(Source source, EvalOperator.ExpressionEvaluator field,
       EvalOperator.ExpressionEvaluator start, EvalOperator.ExpressionEvaluator end,
       DriverContext driverContext) {
-    this.warnings = new Warnings(source);
     this.field = field;
     this.start = start;
     this.end = end;
     this.driverContext = driverContext;
+    this.warnings = Warnings.createWarnings(driverContext.warningsMode(), source);
   }
 
   @Override

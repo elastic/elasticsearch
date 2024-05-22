@@ -33,10 +33,10 @@ public final class PowEvaluator implements EvalOperator.ExpressionEvaluator {
 
   public PowEvaluator(Source source, EvalOperator.ExpressionEvaluator base,
       EvalOperator.ExpressionEvaluator exponent, DriverContext driverContext) {
-    this.warnings = new Warnings(source);
     this.base = base;
     this.exponent = exponent;
     this.driverContext = driverContext;
+    this.warnings = Warnings.createWarnings(driverContext.warningsMode(), source);
   }
 
   @Override

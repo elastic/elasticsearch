@@ -166,10 +166,10 @@ public class MvEvaluatorImplementer {
         }
         builder.addParameter(EXPRESSION_EVALUATOR, "field");
         builder.addStatement("super(driverContext, field)");
-        if (warnExceptions.isEmpty() == false) {
-            builder.addStatement("this.warnings = new Warnings(source)");
-        }
         builder.addParameter(DRIVER_CONTEXT, "driverContext");
+        if (warnExceptions.isEmpty() == false) {
+            builder.addStatement("this.warnings = Warnings.createWarnings(driverContext.warningsMode(), source)");
+        }
         return builder.build();
     }
 

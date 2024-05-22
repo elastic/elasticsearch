@@ -38,11 +38,11 @@ public final class DateExtractEvaluator implements EvalOperator.ExpressionEvalua
 
   public DateExtractEvaluator(Source source, EvalOperator.ExpressionEvaluator value,
       EvalOperator.ExpressionEvaluator chronoField, ZoneId zone, DriverContext driverContext) {
-    this.warnings = new Warnings(source);
     this.value = value;
     this.chronoField = chronoField;
     this.zone = zone;
     this.driverContext = driverContext;
+    this.warnings = Warnings.createWarnings(driverContext.warningsMode(), source);
   }
 
   @Override

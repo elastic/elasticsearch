@@ -32,9 +32,9 @@ public final class LeastLongEvaluator implements EvalOperator.ExpressionEvaluato
 
   public LeastLongEvaluator(Source source, EvalOperator.ExpressionEvaluator[] values,
       DriverContext driverContext) {
-    this.warnings = new Warnings(source);
     this.values = values;
     this.driverContext = driverContext;
+    this.warnings = Warnings.createWarnings(driverContext.warningsMode(), source);
   }
 
   @Override

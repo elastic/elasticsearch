@@ -32,10 +32,10 @@ public final class Atan2Evaluator implements EvalOperator.ExpressionEvaluator {
 
   public Atan2Evaluator(Source source, EvalOperator.ExpressionEvaluator y,
       EvalOperator.ExpressionEvaluator x, DriverContext driverContext) {
-    this.warnings = new Warnings(source);
     this.y = y;
     this.x = x;
     this.driverContext = driverContext;
+    this.warnings = Warnings.createWarnings(driverContext.warningsMode(), source);
   }
 
   @Override

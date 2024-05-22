@@ -35,10 +35,10 @@ public final class SubstringNoLengthEvaluator implements EvalOperator.Expression
 
   public SubstringNoLengthEvaluator(Source source, EvalOperator.ExpressionEvaluator str,
       EvalOperator.ExpressionEvaluator start, DriverContext driverContext) {
-    this.warnings = new Warnings(source);
     this.str = str;
     this.start = start;
     this.driverContext = driverContext;
+    this.warnings = Warnings.createWarnings(driverContext.warningsMode(), source);
   }
 
   @Override

@@ -36,11 +36,11 @@ public final class SplitSingleByteEvaluator implements EvalOperator.ExpressionEv
 
   public SplitSingleByteEvaluator(Source source, EvalOperator.ExpressionEvaluator str, byte delim,
       BytesRef scratch, DriverContext driverContext) {
-    this.warnings = new Warnings(source);
     this.str = str;
     this.delim = delim;
     this.scratch = scratch;
     this.driverContext = driverContext;
+    this.warnings = Warnings.createWarnings(driverContext.warningsMode(), source);
   }
 
   @Override

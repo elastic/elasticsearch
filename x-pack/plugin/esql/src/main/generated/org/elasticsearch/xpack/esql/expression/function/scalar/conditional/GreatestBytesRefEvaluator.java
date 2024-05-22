@@ -33,9 +33,9 @@ public final class GreatestBytesRefEvaluator implements EvalOperator.ExpressionE
 
   public GreatestBytesRefEvaluator(Source source, EvalOperator.ExpressionEvaluator[] values,
       DriverContext driverContext) {
-    this.warnings = new Warnings(source);
     this.values = values;
     this.driverContext = driverContext;
+    this.warnings = Warnings.createWarnings(driverContext.warningsMode(), source);
   }
 
   @Override

@@ -32,9 +32,9 @@ public final class CastLongToDoubleEvaluator implements EvalOperator.ExpressionE
 
   public CastLongToDoubleEvaluator(Source source, EvalOperator.ExpressionEvaluator v,
       DriverContext driverContext) {
-    this.warnings = new Warnings(source);
     this.v = v;
     this.driverContext = driverContext;
+    this.warnings = Warnings.createWarnings(driverContext.warningsMode(), source);
   }
 
   @Override

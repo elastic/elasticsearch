@@ -181,7 +181,7 @@ public class UpdateHelper {
     Result prepareUpdateIndexRequest(ShardId shardId, UpdateRequest request, GetResult getResult, boolean detectNoop) {
         final IndexRequest currentRequest = request.doc();
         final String routing = calculateRouting(getResult, currentRequest);
-        final DocumentSizeObserver documentSizeObserver = documentParsingProvider.newDocumentSizeObserver();
+        final DocumentSizeObserver documentSizeObserver = documentParsingProvider.newDocumentSizeObserver(request);
         final Tuple<XContentType, Map<String, Object>> sourceAndContent = XContentHelper.convertToMap(getResult.internalSourceRef(), true);
         final XContentType updateSourceContentType = sourceAndContent.v1();
         final Map<String, Object> updatedSourceAsMap = sourceAndContent.v2();
@@ -218,15 +218,16 @@ public class UpdateHelper {
             return new Result(update, DocWriteResponse.Result.NOOP, updatedSourceAsMap, updateSourceContentType);
         } else {
             String index = request.index();
-            final IndexRequest finalIndexRequest = new IndexRequest(index).id(request.id())
+            IndexRequest finalIndexRequest = new IndexRequest(index).id(request.id())
                 .routing(routing)
                 .source(updatedSourceAsMap, updateSourceContentType)
                 .setIfSeqNo(getResult.getSeqNo())
                 .setIfPrimaryTerm(getResult.getPrimaryTerm())
                 .waitForActiveShards(request.waitForActiveShards())
                 .timeout(request.timeout())
-                .setRefreshPolicy(request.getRefreshPolicy())
-                .setNormalisedBytesParsed(documentSizeObserver.normalisedBytesParsed());
+                .setRefreshPolicy(request.getRefreshPolicy());
+            // .setNormalisedBytesParsed(documentSizeObserver.normalisedBytesParsed());
+            documentSizeObserver.setNormalisedBytesParsedOn(finalIndexRequest);
             return new Result(finalIndexRequest, DocWriteResponse.Result.UPDATED, updatedSourceAsMap, updateSourceContentType);
         }
     }
@@ -237,7 +238,7 @@ public class UpdateHelper {
      * primary and replicas.
      */
     Result prepareUpdateScriptRequest(ShardId shardId, UpdateRequest request, GetResult getResult, LongSupplier nowInMillis) {
-        final DocumentSizeObserver documentSizeObserver = documentParsingProvider.newDocumentSizeObserver();
+        final DocumentSizeObserver documentSizeObserver = documentParsingProvider.newDocumentSizeObserver(request);
 
         final IndexRequest currentRequest = request.doc();
         final String routing = calculateRouting(getResult, currentRequest);
@@ -263,16 +264,16 @@ public class UpdateHelper {
         switch (operation) {
             case INDEX -> {
                 String index = request.index();
-                final IndexRequest indexRequest = new IndexRequest(index).id(request.id())
+                IndexRequest indexRequest = new IndexRequest(index).id(request.id())
                     .routing(routing)
                     .source(updatedSourceAsMap, updateSourceContentType)
                     .setIfSeqNo(getResult.getSeqNo())
                     .setIfPrimaryTerm(getResult.getPrimaryTerm())
                     .waitForActiveShards(request.waitForActiveShards())
                     .timeout(request.timeout())
-                    .setRefreshPolicy(request.getRefreshPolicy())
-                    .setNormalisedBytesParsed(documentSizeObserver.normalisedBytesParsed());
-
+                    .setRefreshPolicy(request.getRefreshPolicy());
+                // .setNormalisedBytesParsed(documentSizeObserver.normalisedBytesParsed());
+                indexRequest = documentSizeObserver.setNormalisedBytesParsedOn(indexRequest);
                 return new Result(indexRequest, DocWriteResponse.Result.UPDATED, updatedSourceAsMap, updateSourceContentType);
             }
             case DELETE -> {

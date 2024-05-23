@@ -87,16 +87,6 @@ public class DocumentSizeObserverWithPipelinesIT extends ESIntegTestCase {
         public DocumentParsingProvider getDocumentParsingProvider() {
             // returns a static instance, because we want to assert that the wrapping is called only once
             return new DocumentParsingProvider() {
-                @Override
-                public DocumentSizeObserver newFixedSizeDocumentObserver(long normalisedBytesParsed) {
-                    providedFixedSize.set(normalisedBytesParsed);
-                    return new TestDocumentSizeObserver(normalisedBytesParsed);
-                }
-
-                @Override
-                public DocumentSizeObserver newDocumentSizeObserver() {
-                    return new TestDocumentSizeObserver(0L);
-                }
 
                 @Override
                 public DocumentSizeReporter newDocumentSizeReporter(String indexName, DocumentSizeAccumulator documentSizeAccumulator) {

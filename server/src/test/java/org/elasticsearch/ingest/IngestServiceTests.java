@@ -52,7 +52,6 @@ import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.plugins.IngestPlugin;
 import org.elasticsearch.plugins.internal.DocumentParsingProvider;
-import org.elasticsearch.plugins.internal.DocumentSizeObserver;
 import org.elasticsearch.script.MockScriptEngine;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptModule;
@@ -63,7 +62,6 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockLogAppender;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.cbor.CborXContent;
 import org.junit.Before;
@@ -1174,22 +1172,6 @@ public class IngestServiceTests extends ESTestCase {
         AtomicInteger wrappedObserverWasUsed = new AtomicInteger(0);
         AtomicInteger parsedValueWasUsed = new AtomicInteger(0);
         DocumentParsingProvider documentParsingProvider = new DocumentParsingProvider() {
-            @Override
-            public DocumentSizeObserver newDocumentSizeObserver() {
-                return new DocumentSizeObserver() {
-                    @Override
-                    public XContentParser wrapParser(XContentParser xContentParser) {
-                        wrappedObserverWasUsed.incrementAndGet();
-                        return xContentParser;
-                    }
-
-                    @Override
-                    public long normalisedBytesParsed() {
-                        parsedValueWasUsed.incrementAndGet();
-                        return 0;
-                    }
-                };
-            }
         };
         IngestService ingestService = createWithProcessors(
             Map.of("mock", (factories, tag, description, config) -> mockCompoundProcessor()),

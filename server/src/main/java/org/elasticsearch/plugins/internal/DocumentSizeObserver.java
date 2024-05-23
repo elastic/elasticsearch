@@ -8,6 +8,7 @@
 
 package org.elasticsearch.plugins.internal;
 
+import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.xcontent.XContentParser;
 
 /**
@@ -40,9 +41,14 @@ public interface DocumentSizeObserver {
 
     /**
      * Returns the state gathered during parsing
+     *
      * @return a number representing a state parsed
      */
     long normalisedBytesParsed();
+
+    default IndexRequest setNormalisedBytesParsedOn(IndexRequest indexRequest) {
+        return indexRequest;
+    }
 
     default boolean isUpdateByScript() {
         return false;

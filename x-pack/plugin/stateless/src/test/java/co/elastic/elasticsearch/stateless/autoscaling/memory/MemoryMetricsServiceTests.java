@@ -285,8 +285,7 @@ public class MemoryMetricsServiceTests extends ESTestCase {
     }
 
     public void testSpecificValues() {
-        boolean small = randomBoolean();
-        long size = small ? between(1, 1000) : randomLongBetween(ByteSizeUnit.GB.toBytes(1), ByteSizeUnit.GB.toBytes(2));
+        long size = randomBoolean() ? between(1, 1000) : randomLongBetween(ByteSizeUnit.GB.toBytes(1), ByteSizeUnit.GB.toBytes(2));
         var clusterState = createClusterStateWithIndices(1);
         ClusterChangedEvent event = new ClusterChangedEvent("test", clusterState, ClusterState.EMPTY_STATE);
         service.clusterChanged(event);
@@ -300,10 +299,7 @@ public class MemoryMetricsServiceTests extends ESTestCase {
             memoryMetrics.nodeMemoryInBytes(),
             equalTo((MemoryMetricsService.INDEX_MEMORY_OVERHEAD + MemoryMetricsService.WORKLOAD_MEMORY_OVERHEAD) * 2)
         );
-        assertThat(
-            memoryMetrics.totalMemoryInBytes(),
-            equalTo(small ? HeapToSystemMemory.dataNode(1) : (size + service.shardMemoryOverhead.getBytes()) * 2)
-        );
+        assertThat(memoryMetrics.totalMemoryInBytes(), equalTo(HeapToSystemMemory.tier(size + service.shardMemoryOverhead.getBytes())));
 
         // a relatively high starting point, coming from 500MB heap work * 2 (for memory)
         assertThat(memoryMetrics.nodeMemoryInBytes(), lessThan(ByteSizeUnit.MB.toBytes(1200)));

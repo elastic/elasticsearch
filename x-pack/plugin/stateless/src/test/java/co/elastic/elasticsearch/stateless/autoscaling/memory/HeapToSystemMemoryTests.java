@@ -20,27 +20,18 @@ package co.elastic.elasticsearch.stateless.autoscaling.memory;
 import org.elasticsearch.test.ESTestCase;
 
 import static co.elastic.elasticsearch.stateless.autoscaling.memory.HeapToSystemMemory.MAX_HEAP_SIZE;
-import static co.elastic.elasticsearch.stateless.autoscaling.memory.HeapToSystemMemory.MIN_HEAP_SIZE;
 import static co.elastic.elasticsearch.stateless.autoscaling.memory.HeapToSystemMemory.dataNode;
-import static org.elasticsearch.common.unit.ByteSizeUnit.GB;
-import static org.elasticsearch.common.unit.ByteSizeUnit.MB;
+import static co.elastic.elasticsearch.stateless.autoscaling.memory.HeapToSystemMemory.tier;
 import static org.hamcrest.CoreMatchers.equalTo;
 
 public class HeapToSystemMemoryTests extends ESTestCase {
     public void testDefaultHeapToSystemMemory() {
-        long heapInBytes = randomLongBetween(0, MIN_HEAP_SIZE);
-        assertThat(dataNode(heapInBytes), equalTo((long) (MIN_HEAP_SIZE * 2.5)));
-        assertThat(dataNode(MIN_HEAP_SIZE), equalTo((long) (MIN_HEAP_SIZE * 2.5)));
-
-        heapInBytes = randomLongBetween(MIN_HEAP_SIZE + 1, MB.toBytes(400));
-        assertThat(dataNode(heapInBytes), equalTo((long) (heapInBytes * 2.5)));
-        assertThat(dataNode(MB.toBytes(400)), equalTo((long) (MB.toBytes(400) * 2.5)));
-
-        heapInBytes = randomLongBetween(MB.toBytes(400) + 1, MAX_HEAP_SIZE);
+        long heapInBytes = randomLongBetween(MemoryMetricsService.WORKLOAD_MEMORY_OVERHEAD, MAX_HEAP_SIZE);
         assertThat(dataNode(heapInBytes), equalTo(heapInBytes * 2));
-        assertThat(dataNode(MAX_HEAP_SIZE), equalTo(MAX_HEAP_SIZE * 2));
+        assertThat(tier(heapInBytes), equalTo(heapInBytes * 2));
 
-        assertThat(dataNode(MAX_HEAP_SIZE + 1), equalTo(MAX_HEAP_SIZE * 2));
-        assertThat(dataNode(GB.toBytes(32)), equalTo(MAX_HEAP_SIZE * 2));
+        heapInBytes = randomLongBetween(MAX_HEAP_SIZE + 1, MAX_HEAP_SIZE * 10);
+        assertThat(dataNode(heapInBytes), equalTo(MAX_HEAP_SIZE * 2));
+        assertThat(tier(heapInBytes), equalTo(heapInBytes * 2));
     }
 }

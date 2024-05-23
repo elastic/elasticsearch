@@ -174,11 +174,11 @@ constant
 
 params
     : PARAM                        #inputParam
-    | PARAM_NAMED_OR_POSITIONAL    #inputParamNamedOrPositional
+    | NAMED_OR_POSITIONAL_PARAM    #inputNamedOrPositionalParam
     ;
 
 limitCommand
-    : LIMIT (INTEGER_LITERAL | params)
+    : LIMIT INTEGER_LITERAL
     ;
 
 sortCommand

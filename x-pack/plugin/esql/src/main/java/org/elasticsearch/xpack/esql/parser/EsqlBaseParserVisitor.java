@@ -353,12 +353,12 @@ public interface EsqlBaseParserVisitor<T> extends ParseTreeVisitor<T> {
    */
   T visitInputParam(EsqlBaseParser.InputParamContext ctx);
   /**
-   * Visit a parse tree produced by the {@code inputParamNamedOrPositional}
+   * Visit a parse tree produced by the {@code inputNamedOrPositionalParam}
    * labeled alternative in {@link EsqlBaseParser#params}.
    * @param ctx the parse tree
    * @return the visitor result
    */
-  T visitInputParamNamedOrPositional(EsqlBaseParser.InputParamNamedOrPositionalContext ctx);
+  T visitInputNamedOrPositionalParam(EsqlBaseParser.InputNamedOrPositionalParamContext ctx);
   /**
    * Visit a parse tree produced by {@link EsqlBaseParser#limitCommand}.
    * @param ctx the parse tree

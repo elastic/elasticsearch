@@ -22,6 +22,7 @@ import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.esql.core.parser.CaseChangingCharStream;
 import org.elasticsearch.xpack.esql.core.plan.logical.LogicalPlan;
 
+import java.util.Arrays;
 import java.util.Map;
 import java.util.function.BiFunction;
 import java.util.function.Function;
@@ -33,10 +34,10 @@ public class EsqlParser {
     private static final Logger log = LogManager.getLogger(EsqlParser.class);
 
     public LogicalPlan createStatement(String query) {
-        return createStatement(query, new Params());
+        return createStatement(query, new QueryParams());
     }
 
-    public LogicalPlan createStatement(String query, Params params) {
+    public LogicalPlan createStatement(String query, QueryParams params) {
         if (log.isDebugEnabled()) {
             log.debug("Parsing as statement: {}", query);
         }
@@ -45,7 +46,7 @@ public class EsqlParser {
 
     private <T> T invokeParser(
         String query,
-        Params params,
+        QueryParams params,
         Function<EsqlBaseParser, ParserRuleContext> parseFunction,
         BiFunction<AstBuilder, ParserRuleContext, T> result
     ) {
@@ -55,7 +56,7 @@ public class EsqlParser {
             lexer.removeErrorListeners();
             lexer.addErrorListener(ERROR_LISTENER);
 
-            Map<Token, Param> positionalParamTokens = params.positionalParamTokens();
+            Map<Token, QueryParam> positionalParamTokens = params.positionalParamTokens();
             TokenSource tokenSource = new ParametrizedTokenSource(lexer, positionalParamTokens, params);
 
             CommonTokenStream tokenStream = new CommonTokenStream(tokenSource);
@@ -117,25 +118,25 @@ public class EsqlParser {
     private static class ParametrizedTokenSource implements TokenSource {
 
         private TokenSource delegate;
-        private Map<Token, Param> paramTokens;
+        private Map<Token, QueryParam> paramTokens;
         private int param;
-        private Params params;
-        private boolean hasAnonymousParam = false;
-        private boolean hasNamedParam = false;
-        private boolean hasPositionalParam = false;
+        private QueryParams params;
+        private boolean[] paramType = new boolean[3];
 
-        ParametrizedTokenSource(TokenSource delegate, Map<Token, Param> paramTokens, Params params) {
+        ParametrizedTokenSource(TokenSource delegate, Map<Token, QueryParam> paramTokens, QueryParams params) {
             this.delegate = delegate;
             this.paramTokens = paramTokens;
             this.params = params;
             param = 0;
+            Arrays.fill(paramType, Boolean.FALSE);
         }
 
         @Override
         public Token nextToken() {
             Token token = delegate.nextToken();
             if (token.getType() == EsqlBaseLexer.PARAM) {
-                hasAnonymousParam = true;
+                paramType[0] = true;
+                checkParamType(paramType[1], paramType[2]);
                 if (param >= params.positionalParams().size()) {
                     throw new ParsingException("Not enough actual parameters {}", params.positionalParams().size());
                 }
@@ -143,21 +144,13 @@ public class EsqlParser {
                 param++;
             }
 
-            if (token.getType() == EsqlBaseLexer.PARAM_NAMED_OR_POSITIONAL) {
-                if (token.getText().substring(1).matches("[0-9]+")) {
-                    hasPositionalParam = true;
+            if (token.getType() == EsqlBaseLexer.NAMED_OR_POSITIONAL_PARAM) {
+                if (token.getText().substring(1).chars().allMatch(Character::isDigit)) {
+                    paramType[1] = true;
+                    checkParamType(paramType[0], paramType[2]);
                 } else {
-                    hasNamedParam = true;
-                }
-            }
-
-            if (hasAnonymousParam) {
-                if (hasNamedParam || hasPositionalParam) {
-                    throw new ParsingException("Mixed parameters are not supported.");
-                }
-            } else {
-                if (hasNamedParam && hasPositionalParam) {
-                    throw new ParsingException("Mixed parameters are not supported.");
+                    paramType[2] = true;
+                    checkParamType(paramType[0], paramType[1]);
                 }
             }
             return token;
@@ -191,6 +184,21 @@ public class EsqlParser {
         @Override
         public TokenFactory<?> getTokenFactory() {
             return delegate.getTokenFactory();
+        }
+
+        private void checkParamType(boolean param1, boolean param2) {
+            if (param1 || param2) {
+                throw new ParsingException(
+                    "Mixed parameter types is not supported in the query [AnonymousParam="
+                        + paramType[0]
+                        + ", PositionalParam="
+                        + paramType[1]
+                        + ", NamedParam="
+                        + paramType[2]
+                        + "]"
+                );
+            }
+
         }
     }
 }

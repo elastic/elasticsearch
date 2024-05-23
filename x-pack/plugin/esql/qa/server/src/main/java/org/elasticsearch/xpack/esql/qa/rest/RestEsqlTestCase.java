@@ -484,7 +484,7 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
             ResponseException.class,
             () -> runEsql(requestObjectBuilder().query("row a = 1").params("[\"x\", 123, true, {\"value\": \"y\"}]"))
         );
-        assertThat(EntityUtils.toString(re.getResponse().getEntity()), containsString("Required a [value] and [type] pair"));
+        assertThat(EntityUtils.toString(re.getResponse().getEntity()), containsString("Params contain both named and unnamed parameters"));
     }
 
     public void testErrorMessageForMissingValueInParams() throws IOException {
@@ -492,7 +492,7 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
             ResponseException.class,
             () -> runEsql(requestObjectBuilder().query("row a = 1").params("[\"x\", 123, true, {\"type\": \"y\"}]"))
         );
-        assertThat(EntityUtils.toString(re.getResponse().getEntity()), containsString("Required a [value] and [type] pair"));
+        assertThat(EntityUtils.toString(re.getResponse().getEntity()), containsString("Params contain both named and unnamed parameters"));
     }
 
     public void testErrorMessageForInvalidTypeInParams() throws IOException {

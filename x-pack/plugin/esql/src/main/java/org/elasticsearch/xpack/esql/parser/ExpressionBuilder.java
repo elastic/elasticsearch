@@ -18,7 +18,6 @@ import org.apache.lucene.util.automaton.Operations;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
-import org.elasticsearch.xpack.esql.core.QlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -93,9 +92,9 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
      */
     public static final int MAX_EXPRESSION_DEPTH = 500;
 
-    private final Params params;
+    private final QueryParams params;
 
-    ExpressionBuilder(Params params) {
+    ExpressionBuilder(QueryParams params) {
         this.params = params;
     }
 
@@ -659,76 +658,53 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
 
     @Override
     public Object visitInputParam(EsqlBaseParser.InputParamContext ctx) {
-        Param param = paramByToken(ctx.PARAM());
+        QueryParam param = paramByToken(ctx.PARAM());
         return visitParam(ctx, param);
     }
 
     @Override
-    public Object visitInputParamNamedOrPositional(EsqlBaseParser.InputParamNamedOrPositionalContext ctx) {
-        Param param = paramByNameOrPosition(ctx.PARAM_NAMED_OR_POSITIONAL());
+    public Object visitInputNamedOrPositionalParam(EsqlBaseParser.InputNamedOrPositionalParamContext ctx) {
+        QueryParam param = paramByNameOrPosition(ctx.NAMED_OR_POSITIONAL_PARAM());
         return visitParam(ctx, param);
     }
 
-    private Object visitParam(EsqlBaseParser.ParamsContext ctx, Param param) {
-        DataType dataType = EsqlDataTypes.fromTypeName(param.type);
+    private Object visitParam(EsqlBaseParser.ParamsContext ctx, QueryParam param) {
         Source source = source(ctx);
-        if (dataType == null) {
-            throw new ParsingException(source, "Invalid parameter data type [{}]", param.type);
+        DataType type = param.type();
+        if (type == null) {
+            throw new ParsingException(source, "Invalid parameter data type [{}]", type);
         }
-        if (param.value == null) {
-            // no conversion is required for null values
-            return new Literal(source, null, dataType);
-        }
-        DataType sourceType = DataTypes.fromJava(param.value);
-        if (sourceType == dataType) {
-            // no conversion is required if the value is already have correct type
-            return new Literal(source, param.value, dataType);
-        }
-        // otherwise we need to make sure that xcontent-serialized value is converted to the correct type
-        try {
-            if (EsqlDataTypeConverter.canConvert(sourceType, dataType) == false) {
-                throw new ParsingException(
-                    source,
-                    "Cannot cast value [{}] of type [{}] to parameter type [{}]",
-                    param.value,
-                    sourceType,
-                    dataType
-                );
-            }
-            return new Literal(source, EsqlDataTypeConverter.converterFor(sourceType, dataType).convert(param.value), dataType);
-        } catch (QlIllegalArgumentException ex) {
-            throw new ParsingException(ex, source, "Unexpected actual parameter type [{}] for type [{}]", sourceType, param.type);
-        }
+        return new Literal(source, param.value(), type);
     }
 
-    Param paramByToken(TerminalNode node) {
+    QueryParam paramByToken(TerminalNode node) {
         if (node == null) {
             return null;
         }
         Token token = node.getSymbol();
-        if (params.containsTokenLocation(token) == false) {
+        if (params.contains(token) == false) {
             throw new ParsingException(source(node), "Unexpected parameter");
         }
-        return params.getParamByTokenLocation(token);
+        return params.get(token);
     }
 
-    Param paramByNameOrPosition(TerminalNode node) {
+    QueryParam paramByNameOrPosition(TerminalNode node) {
         if (node == null) {
             return null;
         }
         Token token = node.getSymbol();
         String nameOrPosition = token.getText().substring(1);
-        if (nameOrPosition.matches("[0-9]+")) {
+        if (nameOrPosition.chars().allMatch(Character::isDigit)) {
             int index = Integer.parseInt(nameOrPosition);
-            if (params.paramByPosition(index) == null) {
-                throw new ParsingException(source(node), "Unexpected parameter ?" + index);
+            if (params.get(index) == null) {
+                throw new ParsingException(source(node), "No parameter is defined for position ?" + index);
             }
-            return params.paramByPosition(index);
+            return params.get(index);
         } else {
-            if (params.containsParamName(nameOrPosition) == false) {
-                throw new ParsingException(source(node), "Unexpected parameter ?" + nameOrPosition);
+            if (params.contains(nameOrPosition) == false) {
+                throw new ParsingException(source(node), "No parameter is defined for name ?" + nameOrPosition);
             }
-            return params.getParamByName(nameOrPosition);
+            return params.get(nameOrPosition);
         }
     }
 }

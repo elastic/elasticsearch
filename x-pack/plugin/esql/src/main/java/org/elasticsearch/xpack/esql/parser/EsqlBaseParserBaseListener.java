@@ -641,13 +641,13 @@ public class EsqlBaseParserBaseListener implements EsqlBaseParserListener {
    *
    * <p>The default implementation does nothing.</p>
    */
-  @Override public void enterInputParamNamedOrPositional(EsqlBaseParser.InputParamNamedOrPositionalContext ctx) { }
+  @Override public void enterInputNamedOrPositionalParam(EsqlBaseParser.InputNamedOrPositionalParamContext ctx) { }
   /**
    * {@inheritDoc}
    *
    * <p>The default implementation does nothing.</p>
    */
-  @Override public void exitInputParamNamedOrPositional(EsqlBaseParser.InputParamNamedOrPositionalContext ctx) { }
+  @Override public void exitInputNamedOrPositionalParam(EsqlBaseParser.InputNamedOrPositionalParamContext ctx) { }
   /**
    * {@inheritDoc}
    *

@@ -8,7 +8,7 @@
 package org.elasticsearch.xpack.esql.parser;
 
 public class AstBuilder extends LogicalPlanBuilder {
-    public AstBuilder(Params params) {
+    public AstBuilder(QueryParams params) {
         super(params);
     }
 }

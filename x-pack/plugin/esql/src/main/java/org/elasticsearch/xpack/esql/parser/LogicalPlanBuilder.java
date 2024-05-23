@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.esql.parser;
 import org.antlr.v4.runtime.ParserRuleContext;
 import org.antlr.v4.runtime.Token;
 import org.antlr.v4.runtime.tree.ParseTree;
-import org.antlr.v4.runtime.tree.TerminalNode;
 import org.elasticsearch.Build;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.dissect.DissectException;
@@ -84,7 +83,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
      */
     public static final int MAX_QUERY_DEPTH = 500;
 
-    public LogicalPlanBuilder(Params params) {
+    public LogicalPlanBuilder(QueryParams params) {
         super(params);
     }
 
@@ -299,22 +298,8 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
     @Override
     public PlanFactory visitLimitCommand(EsqlBaseParser.LimitCommandContext ctx) {
         Source source = source(ctx);
-        Param param;
-        if (ctx.INTEGER_LITERAL() != null) {
-            int limit = stringToInt(ctx.INTEGER_LITERAL().getText());
-            return input -> new Limit(source, new Literal(source, limit, DataTypes.INTEGER), input);
-        }
-        TerminalNode node = (TerminalNode) ctx.params().getChild(0);
-        Token t = node.getSymbol();
-        String name = t.getText();
-        if (name.length() == 1) {
-            param = paramByToken(node);
-        } else {
-            param = paramByNameOrPosition(node);
-        }
-        int limit = stringToInt(String.valueOf(param.value));
+        int limit = stringToInt(ctx.INTEGER_LITERAL().getText());
         return input -> new Limit(source, new Literal(source, limit, DataTypes.INTEGER), input);
-
     }
 
     @Override

@@ -6,36 +6,24 @@
  */
 package org.elasticsearch.xpack.esql.parser;
 
+import org.elasticsearch.xpack.esql.core.type.DataType;
+
 import java.util.Objects;
 
 /**
  * Represent a strongly typed parameter value
  */
-public class Param {
+public class QueryParam {
 
-    public final String name;
-    public final String type;
-    public final Object value;
-    private boolean hasExplicitType;        // the type is explicitly set in the request or inferred by the parser
+    private final String name;
+    private final Object value;
+    private final DataType type;
     private ContentLocation tokenLocation; // location of the token failing the parsing rules
 
-    public Param(String name, String type, Object value) {
-        this(name, type, value, true);
-    }
-
-    public Param(String name, String type, Object value, boolean hasExplicitType) {
+    public QueryParam(String name, Object value, DataType type) {
         this.name = name;
         this.value = value;
         this.type = type;
-        this.hasExplicitType = hasExplicitType;
-    }
-
-    public boolean hasExplicitType() {
-        return hasExplicitType;
-    }
-
-    public void hasExplicitType(boolean hasExplicitType) {
-        this.hasExplicitType = hasExplicitType;
     }
 
     public ContentLocation tokenLocation() {
@@ -46,6 +34,18 @@ public class Param {
         this.tokenLocation = tokenLocation;
     }
 
+    public String name() {
+        return this.name;
+    }
+
+    public Object value() {
+        return this.value;
+    }
+
+    public DataType type() {
+        return this.type;
+    }
+
     @Override
     public boolean equals(Object o) {
         if (this == o) {
@@ -54,20 +54,17 @@ public class Param {
         if (o == null || getClass() != o.getClass()) {
             return false;
         }
-        Param that = (Param) o;
-        return Objects.equals(value, that.value)
-            && Objects.equals(type, that.type)
-            && Objects.equals(hasExplicitType, that.hasExplicitType)
-            && Objects.equals(name, that.name);
+        QueryParam that = (QueryParam) o;
+        return Objects.equals(value, that.value) && Objects.equals(name, that.name) && Objects.equals(type, that.type);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(name, value, type, hasExplicitType);
+        return Objects.hash(name, value);
     }
 
     @Override
     public String toString() {
-        return value + " [" + name + "][" + type + "][" + hasExplicitType + "]";
+        return value + " [" + name + "][" + type + "]";
     }
 }

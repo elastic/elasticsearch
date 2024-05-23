@@ -11,8 +11,8 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.parser.EsqlParser;
-import org.elasticsearch.xpack.esql.parser.Param;
-import org.elasticsearch.xpack.esql.parser.Params;
+import org.elasticsearch.xpack.esql.parser.QueryParam;
+import org.elasticsearch.xpack.esql.parser.QueryParams;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
 
 import java.util.ArrayList;
@@ -20,6 +20,8 @@ import java.util.List;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.loadMapping;
+import static org.elasticsearch.xpack.esql.core.type.DataTypes.KEYWORD;
+import static org.elasticsearch.xpack.esql.core.type.DataTypes.NULL;
 import static org.elasticsearch.xpack.esql.core.type.DataTypes.UNSIGNED_LONG;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -555,21 +557,21 @@ public class VerifierTests extends ESTestCase {
     }
 
     private String error(String query, Analyzer analyzer, Object... params) {
-        List<Param> parameters = new ArrayList<>();
+        List<QueryParam> parameters = new ArrayList<>();
         for (Object param : params) {
             if (param == null) {
-                parameters.add(new Param(null, "null", null));
+                parameters.add(new QueryParam(null, null, NULL));
             } else if (param instanceof String) {
-                parameters.add(new Param(null, "keyword", param));
+                parameters.add(new QueryParam(null, param, KEYWORD));
             } else if (param instanceof Number) {
-                parameters.add(new Param(null, "param", param));
+                parameters.add(new QueryParam(null, param, EsqlDataTypes.fromJava(param)));
             } else {
                 throw new IllegalArgumentException("VerifierTests don't support params of type " + param.getClass());
             }
         }
         VerificationException e = expectThrows(
             VerificationException.class,
-            () -> analyzer.analyze(parser.createStatement(query, new Params(parameters)))
+            () -> analyzer.analyze(parser.createStatement(query, new QueryParams(parameters)))
         );
         String message = e.getMessage();
         assertTrue(message.startsWith("Found "));

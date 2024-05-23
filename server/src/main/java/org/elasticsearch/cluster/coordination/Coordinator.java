@@ -432,6 +432,7 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
     }
 
     PublishWithJoinResponse handlePublishRequest(PublishRequest publishRequest) {
+        assert ThreadPool.assertCurrentThreadPool(Names.CLUSTER_COORDINATION);
         assert publishRequest.getAcceptedState().nodes().getLocalNode().equals(getLocalNode())
             : publishRequest.getAcceptedState().nodes().getLocalNode() + " != " + getLocalNode();
 
@@ -1781,7 +1782,7 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
                         final var nodeEligibility = localNodeMayWinElection(lastAcceptedState, electionStrategy);
                         if (nodeEligibility.mayWin() == false) {
                             assert nodeEligibility.reason().isEmpty() == false;
-                            logger.trace(
+                            logger.info(
                                 "skip prevoting as local node may not win election ({}): {}",
                                 nodeEligibility.reason(),
                                 lastAcceptedState.coordinationMetadata()

@@ -29,6 +29,7 @@ import org.elasticsearch.action.admin.cluster.migration.GetFeatureUpgradeStatusA
 import org.elasticsearch.action.admin.cluster.migration.PostFeatureUpgradeAction;
 import org.elasticsearch.action.admin.cluster.migration.TransportGetFeatureUpgradeStatusAction;
 import org.elasticsearch.action.admin.cluster.migration.TransportPostFeatureUpgradeAction;
+import org.elasticsearch.action.admin.cluster.node.capabilities.TransportNodesCapabilitiesAction;
 import org.elasticsearch.action.admin.cluster.node.hotthreads.TransportNodesHotThreadsAction;
 import org.elasticsearch.action.admin.cluster.node.info.TransportNodesInfoAction;
 import org.elasticsearch.action.admin.cluster.node.reload.TransportNodesReloadSecureSettingsAction;
@@ -284,6 +285,7 @@ import org.elasticsearch.rest.action.admin.cluster.RestGetSnapshotsAction;
 import org.elasticsearch.rest.action.admin.cluster.RestGetStoredScriptAction;
 import org.elasticsearch.rest.action.admin.cluster.RestGetTaskAction;
 import org.elasticsearch.rest.action.admin.cluster.RestListTasksAction;
+import org.elasticsearch.rest.action.admin.cluster.RestNodesCapabilitiesAction;
 import org.elasticsearch.rest.action.admin.cluster.RestNodesHotThreadsAction;
 import org.elasticsearch.rest.action.admin.cluster.RestNodesInfoAction;
 import org.elasticsearch.rest.action.admin.cluster.RestNodesStatsAction;
@@ -616,6 +618,7 @@ public class ActionModule extends AbstractModule {
 
         actions.register(TransportNodesInfoAction.TYPE, TransportNodesInfoAction.class);
         actions.register(TransportRemoteInfoAction.TYPE, TransportRemoteInfoAction.class);
+        actions.register(TransportNodesCapabilitiesAction.TYPE, TransportNodesCapabilitiesAction.class);
         actions.register(RemoteClusterNodesAction.TYPE, RemoteClusterNodesAction.TransportAction.class);
         actions.register(TransportNodesStatsAction.TYPE, TransportNodesStatsAction.class);
         actions.register(TransportNodesUsageAction.TYPE, TransportNodesUsageAction.class);
@@ -797,13 +800,8 @@ public class ActionModule extends AbstractModule {
         List<ActionFilter> finalFilters = new ArrayList<>();
         List<MappedActionFilter> mappedFilters = new ArrayList<>();
         for (var plugin : actionPlugins) {
-            for (var filter : plugin.getActionFilters()) {
-                if (filter instanceof MappedActionFilter mappedFilter) {
-                    mappedFilters.add(mappedFilter);
-                } else {
-                    finalFilters.add(filter);
-                }
-            }
+            finalFilters.addAll(plugin.getActionFilters());
+            mappedFilters.addAll(plugin.getMappedActionFilters());
         }
         if (mappedFilters.isEmpty() == false) {
             finalFilters.add(new MappedActionFilters(mappedFilters));
@@ -833,6 +831,7 @@ public class ActionModule extends AbstractModule {
         registerHandler.accept(new RestClearVotingConfigExclusionsAction());
         registerHandler.accept(new RestNodesInfoAction(settingsFilter));
         registerHandler.accept(new RestRemoteClusterInfoAction());
+        registerHandler.accept(new RestNodesCapabilitiesAction());
         registerHandler.accept(new RestNodesStatsAction());
         registerHandler.accept(new RestNodesUsageAction());
         registerHandler.accept(new RestNodesHotThreadsAction());
@@ -1029,6 +1028,7 @@ public class ActionModule extends AbstractModule {
 
     @Override
     protected void configure() {
+        bind(RestController.class).toInstance(restController);
         bind(ActionFilters.class).toInstance(actionFilters);
         bind(DestructiveOperations.class).toInstance(destructiveOperations);
         bind(new TypeLiteral<RequestValidators<PutMappingRequest>>() {

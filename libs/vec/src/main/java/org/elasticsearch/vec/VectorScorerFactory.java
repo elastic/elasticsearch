@@ -9,6 +9,8 @@
 package org.elasticsearch.vec;
 
 import org.apache.lucene.store.IndexInput;
+import org.apache.lucene.util.hnsw.RandomVectorScorerSupplier;
+import org.apache.lucene.util.quantization.RandomAccessQuantizedByteVectorValues;
 
 import java.util.Optional;
 
@@ -20,23 +22,21 @@ public interface VectorScorerFactory {
     }
 
     /**
-     * Returns an optional containing a scalar quantized vector scorer for the
-     * given parameters, or an empty optional if a scorer is not supported.
+     * Returns an optional containing an int7 scalar quantized vector scorer for
+     * the given parameters, or an empty optional if a scorer is not supported.
      *
-     * @param dims the vector dimensions
-     * @param maxOrd the ordinal of the largest vector accessible
-     * @param scoreCorrectionConstant the score correction constant
      * @param similarityType the similarity type
-     * @param indexInput the index input containing the vector data;
+     * @param input the index input containing the vector data;
      *    offset of the first vector is 0,
      *    the length must be (maxOrd + Float#BYTES) * dims
-     * @return an optional containing the vector scorer, or empty
+     * @param values the random access vector values
+     * @param scoreCorrectionConstant the score correction constant
+     * @return an optional containing the vector scorer supplier, or empty
      */
-    Optional<VectorScorer> getScalarQuantizedVectorScorer(
-        int dims,
-        int maxOrd,
-        float scoreCorrectionConstant,
+    Optional<RandomVectorScorerSupplier> getInt7ScalarQuantizedVectorScorer(
         VectorSimilarityType similarityType,
-        IndexInput indexInput
+        IndexInput input,
+        RandomAccessQuantizedByteVectorValues values,
+        float scoreCorrectionConstant
     );
 }

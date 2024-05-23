@@ -268,6 +268,7 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
         );
         MapperService mapperService = mock(MapperService.class);
         when(shard.mapperService()).thenReturn(mapperService);
+        addMockCloseImplementation(shard);
 
         // merged mapping source needs to be different from previous one for the master node to be invoked
         DocumentMapper mergedDoc = mock(DocumentMapper.class);
@@ -594,7 +595,10 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
             .retryOnConflict(retries);
         BulkItemRequest primaryRequest = new BulkItemRequest(0, writeRequest);
 
-        IndexRequest updateResponse = new IndexRequest("index").id("id").source(Requests.INDEX_CONTENT_TYPE, "field", "value");
+        IndexRequest updateResponse = new IndexRequest("index").id("id")
+            .source(Requests.INDEX_CONTENT_TYPE, "field", "value")
+            .noParsedBytesToReport();// let's pretend this was modified by a script
+        DocumentParsingProvider documentParsingProvider = mock(DocumentParsingProvider.class);
 
         Exception err = new VersionConflictEngineException(shardId, "id", "I'm conflicted <(;_;)>");
         Engine.IndexResult indexResult = new Engine.IndexResult(err, 0, 0, 0, "id");
@@ -629,7 +633,7 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
                 new NoopMappingUpdatePerformer(),
                 listener -> listener.onResponse(null),
                 ASSERTING_DONE_LISTENER,
-                DocumentParsingProvider.EMPTY_INSTANCE
+                documentParsingProvider
             );
         }
         assertFalse(context.hasMoreOperationsToExecute());
@@ -646,6 +650,10 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
         assertThat(failure.getId(), equalTo("id"));
         assertThat(failure.getCause(), equalTo(err));
         assertThat(failure.getStatus(), equalTo(RestStatus.CONFLICT));
+
+        // we have set noParsedBytesToReport on the IndexRequest, like it happens with updates by script.
+        verify(documentParsingProvider, times(0)).newDocumentSizeObserver();
+        verify(documentParsingProvider, times(0)).newFixedSizeDocumentObserver(any(Integer.class));
     }
 
     public void testUpdateRequestWithSuccess() throws Exception {
@@ -653,7 +661,10 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
         DocWriteRequest<UpdateRequest> writeRequest = new UpdateRequest("index", "id").doc(Requests.INDEX_CONTENT_TYPE, "field", "value");
         BulkItemRequest primaryRequest = new BulkItemRequest(0, writeRequest);
 
-        IndexRequest updateResponse = new IndexRequest("index").id("id").source(Requests.INDEX_CONTENT_TYPE, "field", "value");
+        IndexRequest updateResponse = new IndexRequest("index").id("id")
+            .source(Requests.INDEX_CONTENT_TYPE, "field", "value")
+            .setNormalisedBytesParsed(100L);
+        DocumentParsingProvider documentParsingProvider = mock(DocumentParsingProvider.class);
 
         boolean created = randomBoolean();
         Translog.Location resultLocation = new Translog.Location(42, 42, 42);
@@ -688,7 +699,7 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
             new NoopMappingUpdatePerformer(),
             listener -> {},
             ASSERTING_DONE_LISTENER,
-            DocumentParsingProvider.EMPTY_INSTANCE
+            documentParsingProvider
         );
         assertFalse(context.hasMoreOperationsToExecute());
 
@@ -704,6 +715,8 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
         DocWriteResponse response = primaryResponse.getResponse();
         assertThat(response.status(), equalTo(created ? RestStatus.CREATED : RestStatus.OK));
         assertThat(response.getSeqNo(), equalTo(13L));
+        verify(documentParsingProvider, times(0)).newDocumentSizeObserver();
+        verify(documentParsingProvider, times(1)).newFixedSizeDocumentObserver(eq(100L));
     }
 
     public void testUpdateWithDelete() throws Exception {
@@ -991,6 +1004,7 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
             when(shard.getFailedIndexResult(any(EsRejectedExecutionException.class), anyLong(), anyString())).thenCallRealMethod();
             MapperService mapperService = mock(MapperService.class);
             when(shard.mapperService()).thenReturn(mapperService);
+            addMockCloseImplementation(shard);
 
             // merged mapping source needs to be different from previous one for the master node to be invoked
             DocumentMapper mergedDoc = mock(DocumentMapper.class);

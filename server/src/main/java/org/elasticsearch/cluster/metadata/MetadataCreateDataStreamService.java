@@ -111,8 +111,8 @@ public class MetadataCreateDataStreamService {
                     );
                     DataStream createdDataStream = clusterState.metadata().dataStreams().get(request.name);
                     firstBackingIndexRef.set(createdDataStream.getIndices().get(0).getName());
-                    if (createdDataStream.getFailureIndices().isEmpty() == false) {
-                        firstFailureStoreRef.set(createdDataStream.getFailureIndices().get(0).getName());
+                    if (createdDataStream.getFailureIndices().getIndices().isEmpty() == false) {
+                        firstFailureStoreRef.set(createdDataStream.getFailureIndices().getIndices().get(0).getName());
                     }
                     return clusterState;
                 }
@@ -410,7 +410,7 @@ public class MetadataCreateDataStreamService {
     public static ClusterState createFailureStoreIndex(
         MetadataCreateIndexService metadataCreateIndexService,
         String cause,
-        Settings settings,
+        Settings nodeSettings,
         ClusterState currentState,
         long nameResolvedInstant,
         String dataStreamName,
@@ -422,10 +422,7 @@ public class MetadataCreateDataStreamService {
             return currentState;
         }
 
-        var indexSettings = DataStreamFailureStoreDefinition.buildFailureStoreIndexSettings(
-            MetadataRolloverService.HIDDEN_INDEX_SETTINGS,
-            settings
-        );
+        var indexSettings = DataStreamFailureStoreDefinition.buildFailureStoreIndexSettings(nodeSettings);
 
         CreateIndexClusterStateUpdateRequest createIndexRequest = new CreateIndexClusterStateUpdateRequest(
             cause,

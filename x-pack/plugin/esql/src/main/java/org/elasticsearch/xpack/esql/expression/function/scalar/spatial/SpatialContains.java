@@ -20,16 +20,16 @@ import org.elasticsearch.index.mapper.ShapeIndexer;
 import org.elasticsearch.lucene.spatial.CartesianShapeIndexer;
 import org.elasticsearch.lucene.spatial.CoordinateEncoder;
 import org.elasticsearch.lucene.spatial.GeometryDocValueReader;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
+import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
+import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
-import org.elasticsearch.xpack.ql.expression.Expression;
-import org.elasticsearch.xpack.ql.expression.FieldAttribute;
-import org.elasticsearch.xpack.ql.tree.NodeInfo;
-import org.elasticsearch.xpack.ql.tree.Source;
-import org.elasticsearch.xpack.ql.type.DataType;
-import org.elasticsearch.xpack.ql.util.SpatialCoordinateTypes;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -111,7 +111,9 @@ public class SpatialContains extends SpatialRelatesFunction {
 
     @FunctionInfo(
         returnType = { "boolean" },
-        description = "Returns whether the first geometry contains the second geometry.",
+        description = """
+            Returns whether the first geometry contains the second geometry.
+            This is the inverse of the <<esql-st_within,ST_WITHIN>> function.""",
         examples = @Example(file = "spatial_shapes", tag = "st_contains-airport_city_boundaries")
     )
     public SpatialContains(
@@ -119,12 +121,16 @@ public class SpatialContains extends SpatialRelatesFunction {
         @Param(
             name = "geomA",
             type = { "geo_point", "cartesian_point", "geo_shape", "cartesian_shape" },
-            description = "Geometry column name or variable of geometry type"
+            description = "Expression of type `geo_point`, `cartesian_point`, `geo_shape` or `cartesian_shape`. "
+                + "If `null`, the function returns `null`."
         ) Expression left,
         @Param(
             name = "geomB",
             type = { "geo_point", "cartesian_point", "geo_shape", "cartesian_shape" },
-            description = "Geometry column name or variable of geometry type"
+            description = "Expression of type `geo_point`, `cartesian_point`, `geo_shape` or `cartesian_shape`. "
+                + "If `null`, the function returns `null`.\n"
+                + "The second parameter must also have the same coordinate system as the first.\n"
+                + "This means it is not possible to combine `geo_*` and `cartesian_*` parameters."
         ) Expression right
     ) {
         this(source, left, right, false, false);

@@ -34,7 +34,9 @@ public class ClusterRerouteRequest extends AcknowledgedRequest<ClusterRerouteReq
         retryFailed = in.readBoolean();
     }
 
-    public ClusterRerouteRequest() {}
+    public ClusterRerouteRequest() {
+        super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT, DEFAULT_ACK_TIMEOUT);
+    }
 
     /**
      * Adds allocation commands to be applied to the cluster. Note, can be empty, in which case
@@ -131,12 +133,12 @@ public class ClusterRerouteRequest extends AcknowledgedRequest<ClusterRerouteReq
             && Objects.equals(explain, other.explain)
             && Objects.equals(ackTimeout(), other.ackTimeout())
             && Objects.equals(retryFailed, other.retryFailed)
-            && Objects.equals(masterNodeTimeout, other.masterNodeTimeout);
+            && Objects.equals(masterNodeTimeout(), other.masterNodeTimeout());
     }
 
     @Override
     public int hashCode() {
         // Override equals and hashCode for testing
-        return Objects.hash(commands, dryRun, explain, ackTimeout(), retryFailed, masterNodeTimeout);
+        return Objects.hash(commands, dryRun, explain, ackTimeout(), retryFailed, masterNodeTimeout());
     }
 }

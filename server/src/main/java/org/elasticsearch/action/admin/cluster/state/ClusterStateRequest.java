@@ -38,7 +38,9 @@ public class ClusterStateRequest extends MasterNodeReadRequest<ClusterStateReque
     private String[] indices = Strings.EMPTY_ARRAY;
     private IndicesOptions indicesOptions = IndicesOptions.lenientExpandOpen();
 
-    public ClusterStateRequest() {}
+    public ClusterStateRequest() {
+        super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT);
+    }
 
     public ClusterStateRequest(StreamInput in) throws IOException {
         super(in);
@@ -222,7 +224,7 @@ public class ClusterStateRequest extends MasterNodeReadRequest<ClusterStateReque
         if (indices.length > 0) {
             stringBuilder.append("indices ").append(Arrays.toString(indices)).append(", ");
         }
-        stringBuilder.append("master timeout [").append(masterNodeTimeout).append("]]");
+        stringBuilder.append("master timeout [").append(masterNodeTimeout()).append("]]");
         return stringBuilder.toString();
     }
 

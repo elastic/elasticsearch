@@ -48,12 +48,12 @@ import org.apache.lucene.util.hnsw.RandomVectorScorer;
 import org.apache.lucene.util.hnsw.RandomVectorScorerSupplier;
 import org.apache.lucene.util.quantization.QuantizedByteVectorValues;
 import org.apache.lucene.util.quantization.QuantizedVectorsReader;
+import org.apache.lucene.util.quantization.RandomAccessQuantizedByteVectorValues;
 import org.apache.lucene.util.quantization.ScalarQuantizedRandomVectorScorerSupplier;
 import org.apache.lucene.util.quantization.ScalarQuantizer;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.vec.VectorScorerFactory;
-import org.elasticsearch.vec.VectorScorerSupplierAdapter;
 import org.elasticsearch.vec.VectorSimilarityType;
 
 import java.io.Closeable;
@@ -425,19 +425,23 @@ public final class ES814ScalarQuantizedVectorsWriter extends FlatVectorsWriter {
             success = true;
             final IndexInput finalQuantizationDataInput = quantizationDataInput;
 
+            final RandomAccessQuantizedByteVectorValues vectorValues = new OffHeapQuantizedByteVectorValues.DenseOffHeapVectorValues(
+                fieldInfo.getVectorDimension(),
+                docsWithField.cardinality(),
+                quantizationDataInput
+            );
+
             // retrieve a scorer
             RandomVectorScorerSupplier scorerSupplier = null;
             Optional<VectorScorerFactory> factory = VectorScorerFactory.instance();
             if (factory.isPresent()) {
                 var scorer = factory.get()
-                    .getScalarQuantizedVectorScorer(
-                        byteVectorValues.dimension(),
-                        docsWithField.cardinality(),
-                        mergedQuantizationState.getConstantMultiplier(),
+                    .getInt7ScalarQuantizedVectorScorer(
                         VectorSimilarityType.of(fieldInfo.getVectorSimilarityFunction()),
-                        quantizationDataInput
-                    )
-                    .map(VectorScorerSupplierAdapter::new);
+                        quantizationDataInput,
+                        vectorValues,
+                        mergedQuantizationState.getConstantMultiplier()
+                    );
                 if (scorer.isPresent()) {
                     scorerSupplier = scorer.get();
                 }
@@ -446,11 +450,7 @@ public final class ES814ScalarQuantizedVectorsWriter extends FlatVectorsWriter {
                 scorerSupplier = new ScalarQuantizedRandomVectorScorerSupplier(
                     fieldInfo.getVectorSimilarityFunction(),
                     mergedQuantizationState,
-                    new OffHeapQuantizedByteVectorValues.DenseOffHeapVectorValues(
-                        fieldInfo.getVectorDimension(),
-                        docsWithField.cardinality(),
-                        quantizationDataInput
-                    )
+                    vectorValues
                 );
             }
 

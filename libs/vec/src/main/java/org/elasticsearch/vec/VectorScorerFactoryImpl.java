@@ -9,6 +9,8 @@
 package org.elasticsearch.vec;
 
 import org.apache.lucene.store.IndexInput;
+import org.apache.lucene.util.hnsw.RandomVectorScorerSupplier;
+import org.apache.lucene.util.quantization.RandomAccessQuantizedByteVectorValues;
 
 import java.util.Optional;
 
@@ -17,12 +19,11 @@ class VectorScorerFactoryImpl implements VectorScorerFactory {
     static final VectorScorerFactoryImpl INSTANCE = null;
 
     @Override
-    public Optional<VectorScorer> getScalarQuantizedVectorScorer(
-        int dims,
-        int maxOrd,
-        float scoreCorrectionConstant,
+    public Optional<RandomVectorScorerSupplier> getInt7ScalarQuantizedVectorScorer(
         VectorSimilarityType similarityType,
-        IndexInput input
+        IndexInput input,
+        RandomAccessQuantizedByteVectorValues values,
+        float scoreCorrectionConstant
     ) {
         throw new UnsupportedOperationException("should not reach here");
     }

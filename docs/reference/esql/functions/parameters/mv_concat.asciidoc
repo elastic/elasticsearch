@@ -3,7 +3,7 @@
 *Parameters*
 
 `string`::
-values to join
+Multivalue expression.
 
 `delim`::
-delimiter
+Delimiter.

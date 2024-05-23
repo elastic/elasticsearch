@@ -11,6 +11,7 @@ package org.elasticsearch.transport;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.Randomness;
+import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Assertions;
@@ -61,6 +62,12 @@ public final class LeakTracker {
      */
     public static void setContextHint(String hint) {
         contextHint = hint;
+    }
+
+    public static ReleasableBytesReference releaseEventually(ReleasableBytesReference referent) {
+        final RefCounted refCounted = referent.getRefCounted();
+        var cleanable = cleaner.register(referent, refCounted::decRef);
+        return new ReleasableBytesReference(referent, cleanable::clean);
     }
 
     public static Releasable wrap(Releasable releasable) {

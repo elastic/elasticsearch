@@ -17,15 +17,19 @@ import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
-import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.SortedMap;
+import java.util.TreeMap;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.TransportVersions.GEOIP_ADDITIONAL_DATABASE_DOWNLOAD_STATS;
 
 public class GeoIpDownloaderStats implements Task.Status {
 
-    public static final GeoIpDownloaderStats EMPTY = new GeoIpDownloaderStats(0, 0, 0, 0, 0, 0, Map.of());
+    public static final GeoIpDownloaderStats EMPTY = new GeoIpDownloaderStats(0, 0, 0, 0, 0, 0, new TreeMap<>());
 
     static final ParseField SUCCESSFUL_DOWNLOADS = new ParseField("successful_downloads");
     static final ParseField FAILED_DOWNLOADS = new ParseField("failed_downloads");
@@ -40,7 +44,7 @@ public class GeoIpDownloaderStats implements Task.Status {
     private final int databasesCount;
     private final int skippedDownloads;
     private final int expiredDatabases;
-    private final Map<String, DownloadedDatabaseInfo> downloadedDatabaseInfos;
+    private final SortedMap<String, DownloadedDatabaseInfo> downloadedDatabaseInfos;
 
     public GeoIpDownloaderStats(StreamInput in) throws IOException {
         successfulDownloads = in.readVInt();
@@ -51,7 +55,7 @@ public class GeoIpDownloaderStats implements Task.Status {
         expiredDatabases = in.readVInt();
         if (in.getTransportVersion().onOrAfter(GEOIP_ADDITIONAL_DATABASE_DOWNLOAD_STATS)) {
             int databaseStatsCount = in.readVInt();
-            downloadedDatabaseInfos = new HashMap<>(databaseStatsCount);
+            downloadedDatabaseInfos = new TreeMap<>();
             for (int i = 0; i < databaseStatsCount; i++) {
                 downloadedDatabaseInfos.put(in.readString(), new DownloadedDatabaseInfo(in));
             }
@@ -67,7 +71,7 @@ public class GeoIpDownloaderStats implements Task.Status {
         int databasesCount,
         int skippedDownloads,
         int expiredDatabases,
-        Map<String, DownloadedDatabaseInfo> downloadedDatabaseInfos
+        SortedMap<String, DownloadedDatabaseInfo> downloadedDatabaseInfos
     ) {
         this.successfulDownloads = successfulDownloads;
         this.failedDownloads = failedDownloads;
@@ -76,6 +80,28 @@ public class GeoIpDownloaderStats implements Task.Status {
         this.skippedDownloads = skippedDownloads;
         this.expiredDatabases = expiredDatabases;
         this.downloadedDatabaseInfos = downloadedDatabaseInfos;
+    }
+
+    @SuppressWarnings("cast")
+    GeoIpDownloaderStats(
+        int successfulDownloads,
+        int failedDownloads,
+        long totalDownloadTime,
+        int databasesCount,
+        int skippedDownloads,
+        int expiredDatabases,
+        List<DownloadedDatabaseInfo> downloadedDatabaseInfos
+    ) {
+        this(
+            successfulDownloads,
+            failedDownloads,
+            totalDownloadTime,
+            databasesCount,
+            skippedDownloads,
+            expiredDatabases,
+            (TreeMap<String, DownloadedDatabaseInfo>) downloadedDatabaseInfos.stream()
+                .collect(Collectors.toMap(DownloadedDatabaseInfo::name, Function.identity(), (k1, k2) -> k2, TreeMap::new))
+        );
     }
 
     public int getSuccessfulDownloads() {
@@ -119,11 +145,11 @@ public class GeoIpDownloaderStats implements Task.Status {
         String md5,
         Long downloadDate,
         Long buildDate,
-        String provider,
+        String source,
         long downloadTime
     ) {
         Objects.requireNonNull(name);
-        Map<String, DownloadedDatabaseInfo> updatedDatabaseInfos;
+        TreeMap<String, DownloadedDatabaseInfo> updatedDatabaseInfos;
         if (downloadedDatabaseInfos == null) {
             updatedDatabaseInfos = null;
         } else {
@@ -133,7 +159,7 @@ public class GeoIpDownloaderStats implements Task.Status {
                 md5,
                 downloadDate,
                 downloadTime,
-                provider,
+                source,
                 buildDate,
                 null
             );
@@ -142,8 +168,7 @@ public class GeoIpDownloaderStats implements Task.Status {
             } else {
                 updatedDownloadedDatabaseInfo = new DownloadedDatabaseInfo(name, success, downloadedDatabaseInfo.failedAttempt());
             }
-            updatedDatabaseInfos = new HashMap<>(downloadedDatabaseInfos.size());
-            updatedDatabaseInfos.putAll(downloadedDatabaseInfos);
+            updatedDatabaseInfos = new TreeMap<>(downloadedDatabaseInfos);
             updatedDatabaseInfos.put(name, updatedDownloadedDatabaseInfo);
         }
         return new GeoIpDownloaderStats(
@@ -163,10 +188,10 @@ public class GeoIpDownloaderStats implements Task.Status {
         Exception exception,
         long downloadDate,
         Long buildDate,
-        String provider,
+        String source,
         long downloadTime
     ) {
-        Map<String, DownloadedDatabaseInfo> updatedDatabaseInfos;
+        TreeMap<String, DownloadedDatabaseInfo> updatedDatabaseInfos;
         if (downloadedDatabaseInfos == null) {
             updatedDatabaseInfos = null;
         } else {
@@ -176,7 +201,7 @@ public class GeoIpDownloaderStats implements Task.Status {
                 md5,
                 downloadDate,
                 downloadTime,
-                provider,
+                source,
                 buildDate,
                 exception.getMessage()
             );
@@ -185,8 +210,7 @@ public class GeoIpDownloaderStats implements Task.Status {
             } else {
                 updatedDownloadedDatabaseInfo = new DownloadedDatabaseInfo(name, downloadedDatabaseInfo.successfulAttempt(), failure);
             }
-            updatedDatabaseInfos = new HashMap<>(downloadedDatabaseInfos.size());
-            updatedDatabaseInfos.putAll(downloadedDatabaseInfos);
+            updatedDatabaseInfos = new TreeMap<>(downloadedDatabaseInfos);
             updatedDatabaseInfos.put(name, updatedDownloadedDatabaseInfo);
         }
         return new GeoIpDownloaderStats(

@@ -14,26 +14,10 @@ import org.elasticsearch.common.io.stream.Writeable;
 
 import java.io.IOException;
 
-public record RetrievedDatabaseInfo(
-    String name,
-    String md5,
-    Long buildDateInMillis,
-    Integer majorVersion,
-    Integer minorVersion,
-    String type,
-    String description
-) implements Writeable {
+public record RetrievedDatabaseInfo(String name, String md5, Long buildDateInMillis, String type) implements Writeable {
 
     public RetrievedDatabaseInfo(StreamInput in) throws IOException {
-        this(
-            in.readString(),
-            in.readOptionalString(),
-            in.readOptionalLong(),
-            in.readOptionalVInt(),
-            in.readOptionalVInt(),
-            in.readOptionalString(),
-            in.readOptionalString()
-        );
+        this(in.readString(), in.readOptionalString(), in.readOptionalLong(), in.readOptionalString());
     }
 
     @Override
@@ -41,9 +25,6 @@ public record RetrievedDatabaseInfo(
         out.writeString(name);
         out.writeOptionalString(md5);
         out.writeOptionalLong(buildDateInMillis);
-        out.writeOptionalVInt(majorVersion);
-        out.writeOptionalVInt(minorVersion);
         out.writeOptionalString(type);
-        out.writeOptionalString(description);
     }
 }

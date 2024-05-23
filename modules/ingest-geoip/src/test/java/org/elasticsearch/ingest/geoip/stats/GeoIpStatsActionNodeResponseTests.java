@@ -22,25 +22,36 @@ public class GeoIpStatsActionNodeResponseTests extends ESTestCase {
 
     public void testInputsAreDefensivelyCopied() {
         DiscoveryNode node = DiscoveryNodeUtils.create("id");
-        Set<String> databases = new HashSet<>(randomList(10, () -> randomAlphaOfLengthBetween(5, 10)));
+        Set<RetrievedDatabaseInfo> databases = new HashSet<>(
+            randomList(10, GeoIpStatsActionNodeResponseTests::randomRetrievedDatabaseInfo)
+        );
         Set<String> files = new HashSet<>(randomList(10, () -> randomAlphaOfLengthBetween(5, 10)));
         Set<String> configDatabases = new HashSet<>(randomList(10, () -> randomAlphaOfLengthBetween(5, 10)));
         GeoIpStatsAction.NodeResponse nodeResponse = new GeoIpStatsAction.NodeResponse(
             node,
             GeoIpDownloaderStatsSerializingTests.createRandomInstance(),
             randomBoolean() ? null : CacheStatsSerializingTests.createRandomInstance(),
-            null,
+            databases,
             files,
             configDatabases
         );
         assertThat(nodeResponse.getDatabases(), equalTo(databases));
         assertThat(nodeResponse.getFilesInTemp(), equalTo(files));
         assertThat(nodeResponse.getConfigDatabases(), equalTo(configDatabases));
-        databases.add(randomAlphaOfLength(20));
+        databases.add(randomRetrievedDatabaseInfo());
         files.add(randomAlphaOfLength(20));
         configDatabases.add(randomAlphaOfLength(20));
         assertThat(nodeResponse.getDatabases(), not(equalTo(databases)));
         assertThat(nodeResponse.getFilesInTemp(), not(equalTo(files)));
         assertThat(nodeResponse.getConfigDatabases(), not(equalTo(configDatabases)));
+    }
+
+    private static RetrievedDatabaseInfo randomRetrievedDatabaseInfo() {
+        return new RetrievedDatabaseInfo(
+            randomAlphaOfLengthBetween(5, 10),
+            randomAlphaOfLengthBetween(5, 10),
+            randomLong(),
+            randomAlphaOfLengthBetween(5, 10)
+        );
     }
 }

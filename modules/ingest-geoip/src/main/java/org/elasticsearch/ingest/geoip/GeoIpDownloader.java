@@ -42,6 +42,8 @@ import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.net.MalformedURLException;
+import java.net.URL;
 import java.security.MessageDigest;
 import java.util.Arrays;
 import java.util.List;
@@ -176,7 +178,13 @@ public class GeoIpDownloader extends AllocatedPersistentTask {
             url = (lastSlash != -1 ? endpoint.substring(0, lastSlash + 8) : endpoint) + "/" + url;
         }
         long start = System.currentTimeMillis();
-        String provider = (String) databaseInfo.get("provider");
+        String source;
+        try {
+            source = new URL(url).getHost();
+        } catch (MalformedURLException e) {
+            logger.info("Problem converting URL into source", e);
+            source = url;
+        }
         Long buildDate = null;
         Integer updatedDateInSeconds = (Integer) databaseInfo.get("updated");
         Integer updatedAgeInSeconds = (Integer) databaseInfo.get("age");
@@ -189,14 +197,13 @@ public class GeoIpDownloader extends AllocatedPersistentTask {
             if (lastChunk > firstChunk) {
                 state = state.put(name, new Metadata(start, firstChunk, lastChunk - 1, md5, start));
                 updateTaskState();
-                // databaseInfo.get("updated"), databaseInfo.get("age")
-                stats = stats.successfulDownload(name, md5, start, buildDate, provider, System.currentTimeMillis() - start)
+                stats = stats.successfulDownload(name, md5, start, buildDate, source, System.currentTimeMillis() - start)
                     .databasesCount(state.getDatabases().size());
                 logger.info("successfully downloaded geoip database [{}]", name);
                 deleteOldChunks(name, firstChunk);
             }
         } catch (Exception e) {
-            stats = stats.failedDownload(name, md5, e, start, buildDate, provider, System.currentTimeMillis() - start);
+            stats = stats.failedDownload(name, md5, e, start, buildDate, source, System.currentTimeMillis() - start);
             logger.error(() -> "error downloading geoip database [" + name + "]", e);
         }
     }

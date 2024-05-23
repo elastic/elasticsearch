@@ -508,10 +508,7 @@ public final class DatabaseNodeService implements GeoIpDatabaseProvider, Closeab
                 entry.getKey(),
                 databaseReaderLazyLoader.getMd5(),
                 metadata.getBuildDate().getTime(),
-                metadata.getBinaryFormatMajorVersion(),
-                metadata.getBinaryFormatMinorVersion(),
-                metadata.getDatabaseType(),
-                metadata.getDescription().get("en")
+                metadata.getDatabaseType()
             );
         }).collect(Collectors.toSet());
     }

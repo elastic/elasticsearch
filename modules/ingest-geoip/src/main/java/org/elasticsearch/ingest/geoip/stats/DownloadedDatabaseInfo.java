@@ -60,7 +60,7 @@ public record DownloadedDatabaseInfo(String name, DownloadAttempt successfulAtte
         String md5,
         Long downloadAttemptTimeInMillis,
         Long downloadDurationInMillis,
-        String provider,
+        String source,
         Long buildDateInMillis,
         String errorMessage
     ) implements Writeable, ToXContent {
@@ -81,7 +81,7 @@ public record DownloadedDatabaseInfo(String name, DownloadAttempt successfulAtte
             out.writeOptionalString(md5);
             out.writeOptionalLong(downloadAttemptTimeInMillis);
             out.writeOptionalVLong(downloadDurationInMillis);
-            out.writeOptionalString(provider);
+            out.writeOptionalString(source);
             out.writeOptionalLong(buildDateInMillis);
             out.writeOptionalString(errorMessage);
         }
@@ -96,10 +96,10 @@ public record DownloadedDatabaseInfo(String name, DownloadAttempt successfulAtte
                 builder.timeField("download_date_in_millis", "download_date", downloadAttemptTimeInMillis);
             }
             if (downloadDurationInMillis != null) {
-                builder.field("download_time", TimeValue.timeValueMillis(downloadDurationInMillis).getStringRep());
+                builder.field("download_time", TimeValue.timeValueMillis(downloadDurationInMillis).toString());
             }
-            if (provider != null) {
-                builder.field("provider", provider);
+            if (source != null) {
+                builder.field("source", source);
             }
             if (buildDateInMillis != null) {
                 builder.timeField("build_date_in_millis", "build_date", buildDateInMillis);

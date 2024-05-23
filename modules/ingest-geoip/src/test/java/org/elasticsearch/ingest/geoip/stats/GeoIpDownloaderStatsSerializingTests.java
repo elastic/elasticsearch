@@ -9,14 +9,14 @@
 package org.elasticsearch.ingest.geoip.stats;
 
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
-import org.elasticsearch.xcontent.ContextParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
-import java.util.Map;
+import java.util.List;
 
 public class GeoIpDownloaderStatsSerializingTests extends AbstractXContentSerializingTestCase<GeoIpDownloaderStats> {
 
@@ -30,7 +30,7 @@ public class GeoIpDownloaderStatsSerializingTests extends AbstractXContentSerial
             (int) a[3],
             (int) a[4],
             a[5] == null ? 0 : (int) a[5],
-            a[6] == null ? null : (Map<String, DownloadedDatabaseInfo>) a[6]
+            a[6] == null ? null : (List<DownloadedDatabaseInfo>) a[6]
         )
     );
 
@@ -63,31 +63,35 @@ public class GeoIpDownloaderStatsSerializingTests extends AbstractXContentSerial
         GEOIP_STATS_PARSER.declareLong(ConstructingObjectParser.constructorArg(), GeoIpDownloaderStats.TOTAL_DOWNLOAD_TIME);
         GEOIP_STATS_PARSER.declareInt(ConstructingObjectParser.constructorArg(), GeoIpDownloaderStats.DATABASES_COUNT);
         GEOIP_STATS_PARSER.declareInt(ConstructingObjectParser.constructorArg(), GeoIpDownloaderStats.SKIPPED_DOWNLOADS);
-        GEOIP_STATS_PARSER.declareInt(ConstructingObjectParser.optionalConstructorArg(), GeoIpDownloaderStats.EXPIRED_DATABASES);
+        GEOIP_STATS_PARSER.declareInt(ConstructingObjectParser.constructorArg(), GeoIpDownloaderStats.EXPIRED_DATABASES);
         GEOIP_STATS_PARSER.declareObjectArray(
-            ConstructingObjectParser.optionalConstructorArg(),
-            new ContextParser<Void, DownloadedDatabaseInfo>() {
-                @Override
-                public DownloadedDatabaseInfo parse(XContentParser p, Void c) throws IOException {
-                    return null;
-                }
-            },
+            ConstructingObjectParser.constructorArg(),
+            DOWNLOADED_DATABSE_INFO_PARSER,
             new ParseField("downloader_attempts")
         );
 
-        DOWNLOAD_ATTEMPT_PARSER.declareString(ConstructingObjectParser.constructorArg(), new ParseField("md5"));
-        DOWNLOAD_ATTEMPT_PARSER.declareLong(ConstructingObjectParser.constructorArg(), new ParseField("download_date_in_millis"));
-        DOWNLOAD_ATTEMPT_PARSER.declareLong(ConstructingObjectParser.constructorArg(), new ParseField("download_time"));
-        DOWNLOAD_ATTEMPT_PARSER.declareString(ConstructingObjectParser.constructorArg(), new ParseField("provider"));
-        DOWNLOAD_ATTEMPT_PARSER.declareLong(ConstructingObjectParser.constructorArg(), new ParseField("build_date_in_millis"));
-        DOWNLOAD_ATTEMPT_PARSER.declareString(ConstructingObjectParser.constructorArg(), new ParseField("error_message"));
-        /*
-                Long downloadAttemptTimeInMillis,
-        Long downloadDurationInMillis,
-        String provider,
-        Long buildDateInMillis,
-        String errorMessage
-         */
+        DOWNLOADED_DATABSE_INFO_PARSER.declareString(ConstructingObjectParser.constructorArg(), new ParseField("name"));
+        DOWNLOADED_DATABSE_INFO_PARSER.declareObject(
+            ConstructingObjectParser.optionalConstructorArg(),
+            DOWNLOAD_ATTEMPT_PARSER,
+            new ParseField("last_success")
+        );
+        DOWNLOADED_DATABSE_INFO_PARSER.declareObject(
+            ConstructingObjectParser.optionalConstructorArg(),
+            DOWNLOAD_ATTEMPT_PARSER,
+            new ParseField("last_failure")
+        );
+
+        DOWNLOAD_ATTEMPT_PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), new ParseField("md5"));
+        DOWNLOAD_ATTEMPT_PARSER.declareLong(ConstructingObjectParser.optionalConstructorArg(), new ParseField("download_date_in_millis"));
+        DOWNLOAD_ATTEMPT_PARSER.declareString(
+            ConstructingObjectParser.constructorArg(),
+            s -> TimeValue.parseTimeValue(s, "").getMillis(),
+            new ParseField("download_time")
+        );
+        DOWNLOAD_ATTEMPT_PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), new ParseField("provider"));
+        DOWNLOAD_ATTEMPT_PARSER.declareLong(ConstructingObjectParser.optionalConstructorArg(), new ParseField("build_date_in_millis"));
+        DOWNLOAD_ATTEMPT_PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), new ParseField("error_message"));
     }
 
     @Override
@@ -127,11 +131,11 @@ public class GeoIpDownloaderStatsSerializingTests extends AbstractXContentSerial
         for (int i = 0; i < failures; i++) {
             stats = stats.failedDownload(
                 randomAlphaOfLength(20),
-                randomAlphaOfLength(10),
+                randomBoolean() ? null : randomAlphaOfLength(10),
                 new RuntimeException("failed"),
                 randomLong(),
-                randomLong(),
-                randomAlphaOfLength(20),
+                randomBoolean() ? null : randomLong(),
+                randomBoolean() ? null : randomAlphaOfLength(20),
                 randomLongBetween(0, 3000)
             );
         }

@@ -102,11 +102,11 @@ PUT my-index-000001{
 +
 Index mode supports the following values:
 
-`null`::: Default value (same as `standard`)
+`null`::: Default value (same as `standard`).
 
 `standard`::: Standard indexing with default settings.
 
-`time_series`::: Controls time series indexing and is documented in <<tsds-index-settings,TSDS Settings>>
+`time_series`::: Controls time series indexing and is documented in <<tsds-index-settings,TSDS Settings>>.
 
 `logs`::: Controls indexing of logs. It applies default sort settings on the `hostname` and `timestamp` fields.
 preview:[]

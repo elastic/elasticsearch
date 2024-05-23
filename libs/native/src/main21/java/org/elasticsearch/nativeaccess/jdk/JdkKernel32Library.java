@@ -171,8 +171,8 @@ class JdkKernel32Library implements Kernel32Library {
             paddingLayout(20)
         ).withByteAlignment(8);
 
-        private static final VarHandle LimitFlags$vh = layout.varHandle(groupElement(1));
-        private static final VarHandle ActiveProcessLimit$vh = layout.varHandle(groupElement(3));
+        private static final VarHandle LimitFlags$vh = varHandleWithoutOffset(layout, groupElement(1));
+        private static final VarHandle ActiveProcessLimit$vh = varHandleWithoutOffset(layout, groupElement(3));
 
         private final MemorySegment segment;
 

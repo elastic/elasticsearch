@@ -16,6 +16,7 @@ import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
@@ -1187,8 +1188,7 @@ public class Security extends Plugin
                         logger.debug("Security migration task submitted");
                     }, (exception) -> {
                         // Do nothing if the task is already in progress
-                        if (exception instanceof ResourceAlreadyExistsException
-                            || exception.getCause() instanceof ResourceAlreadyExistsException) {
+                        if (ExceptionsHelper.unwrapCause(exception) instanceof ResourceAlreadyExistsException) {
                             // Do not count ResourceAlreadyExistsException as failure
                             nodeLocalMigrationRetryCount.decrementAndGet();
                         } else {

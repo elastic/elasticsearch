@@ -98,7 +98,7 @@ public class TransformPersistentTasksExecutor extends PersistentTasksExecutor<Tr
         this.threadPool = threadPool;
         this.clusterService = clusterService;
         this.resolver = resolver;
-        this.auditor = transformServices.getAuditor();
+        this.auditor = transformServices.auditor();
         this.numFailureRetries = Transform.NUM_FAILURE_RETRIES_SETTING.get(settings);
         clusterService.getClusterSettings().addSettingsUpdateConsumer(Transform.NUM_FAILURE_RETRIES_SETTING, this::setNumFailureRetries);
         this.transformExtension = transformExtension;
@@ -253,7 +253,7 @@ public class TransformPersistentTasksExecutor extends PersistentTasksExecutor<Tr
 
             indexerBuilder.setLastCheckpoint(lastCheckpoint);
             logger.trace("[{}] Loaded last checkpoint [{}], looking for next checkpoint", transformId, lastCheckpoint.getCheckpoint());
-            transformServices.getConfigManager()
+            transformServices.configManager()
                 .getTransformCheckpoint(transformId, lastCheckpoint.getCheckpoint() + 1, getTransformNextCheckpointListener);
         }, error -> {
             String msg = TransformMessages.getMessage(TransformMessages.FAILED_TO_LOAD_TRANSFORM_CHECKPOINT, transformId);
@@ -291,11 +291,11 @@ public class TransformPersistentTasksExecutor extends PersistentTasksExecutor<Tr
 
                 if (lastCheckpoint == 0) {
                     logger.trace("[{}] No last checkpoint found, looking for next checkpoint", transformId);
-                    transformServices.getConfigManager()
+                    transformServices.configManager()
                         .getTransformCheckpoint(transformId, lastCheckpoint + 1, getTransformNextCheckpointListener);
                 } else {
                     logger.trace("[{}] Restore last checkpoint: [{}]", transformId, lastCheckpoint);
-                    transformServices.getConfigManager()
+                    transformServices.configManager()
                         .getTransformCheckpoint(transformId, lastCheckpoint, getTransformLastCheckpointListener);
                 }
             },
@@ -331,7 +331,7 @@ public class TransformPersistentTasksExecutor extends PersistentTasksExecutor<Tr
             ValidationException validationException = config.validate(null);
             if (validationException == null) {
                 indexerBuilder.setTransformConfig(config);
-                transformServices.getConfigManager().getTransformStoredDoc(transformId, false, transformStatsActionListener);
+                transformServices.configManager().getTransformStoredDoc(transformId, false, transformStatsActionListener);
             } else {
                 auditor.error(transformId, validationException.getMessage());
                 markAsFailed(
@@ -409,12 +409,12 @@ public class TransformPersistentTasksExecutor extends PersistentTasksExecutor<Tr
             var transformId = params.getId();
             // if this call fails for the first time, we are going to retry it indefinitely
             // register the retry using the TransformScheduler, when the call eventually succeeds, deregister it before returning
-            var scheduler = transformServices.getScheduler();
+            var scheduler = transformServices.scheduler();
             scheduler.registerTransform(
                 params,
                 new TransformRetryableStartUpListener<>(
                     transformId,
-                    l -> transformServices.getConfigManager().getTransformConfiguration(transformId, l),
+                    l -> transformServices.configManager().getTransformConfiguration(transformId, l),
                     ActionListener.runBefore(listener, () -> scheduler.deregisterTransform(transformId)),
                     retryListener(task),
                     () -> true, // because we can't determine if this is an unattended transform yet, retry indefinitely
@@ -494,11 +494,11 @@ public class TransformPersistentTasksExecutor extends PersistentTasksExecutor<Tr
             parentTaskId,
             persistentTask.getParams(),
             (TransformState) persistentTask.getState(),
-            transformServices.getScheduler(),
+            transformServices.scheduler(),
             auditor,
             threadPool,
             headers,
-            transformServices.getTransformNode()
+            transformServices.transformNode()
         );
     }
 }

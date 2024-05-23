@@ -25,6 +25,7 @@ import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.operator.OrdinalsGroupingOperator;
 import org.elasticsearch.compute.operator.SourceOperator;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.index.mapper.FieldNamesFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -105,8 +106,8 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
             MappedFieldType.FieldExtractPreference fieldExtractPreference = PlannerUtils.extractPreference(docValuesAttrs.contains(attr));
             ElementType elementType = PlannerUtils.toElementType(dataType, fieldExtractPreference);
             String fieldName = attr.name();
-            boolean isSupported = EsqlDataTypes.isUnsupported(dataType);
-            IntFunction<BlockLoader> loader = s -> shardContexts.get(s).blockLoader(fieldName, isSupported, fieldExtractPreference);
+            boolean isUnsupported = EsqlDataTypes.isUnsupported(dataType);
+            IntFunction<BlockLoader> loader = s -> shardContexts.get(s).blockLoader(fieldName, isUnsupported, fieldExtractPreference);
             fields.add(new ValuesSourceReaderOperator.FieldInfo(fieldName, elementType, loader));
         }
         return source.with(new ValuesSourceReaderOperator.Factory(fields, readers, docChannel), layout.build());
@@ -141,7 +142,7 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
                 fieldSorts
             );
         } else {
-            if (context.queryPragmas().timeSeriesMode()) {
+            if (esQueryExec.indexMode() == IndexMode.TIME_SERIES) {
                 luceneFactory = TimeSeriesSortedSourceOperatorFactory.create(
                     limit,
                     context.pageSize(rowEstimatedSize),

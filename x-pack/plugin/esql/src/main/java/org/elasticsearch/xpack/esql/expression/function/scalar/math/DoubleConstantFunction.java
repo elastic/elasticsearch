@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.math;
 
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.function.scalar.ScalarFunction;
-import org.elasticsearch.xpack.esql.core.expression.gen.script.ScriptTemplate;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -31,11 +30,6 @@ public abstract class DoubleConstantFunction extends ScalarFunction {
     @Override
     public final DataType dataType() {
         return DataTypes.DOUBLE;
-    }
-
-    @Override
-    public final ScriptTemplate asScript() {
-        throw new UnsupportedOperationException("functions do not support scripting");
     }
 
     @Override

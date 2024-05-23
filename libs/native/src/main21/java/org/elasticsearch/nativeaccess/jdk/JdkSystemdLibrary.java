@@ -16,9 +16,13 @@ import java.lang.foreign.Arena;
 import java.lang.foreign.FunctionDescriptor;
 import java.lang.foreign.MemorySegment;
 import java.lang.invoke.MethodHandle;
+import java.nio.file.FileVisitResult;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.nio.file.SimpleFileVisitor;
+import java.nio.file.attribute.BasicFileAttributes;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 
@@ -61,17 +65,36 @@ class JdkSystemdLibrary implements SystemdLibrary {
         // so we must manually check the library path to find what we need.
         final Path libsystemd = Paths.get("libsystemd.so.0");
         final String libpath = System.getProperty("java.library.path");
-        return Arrays.stream(libpath.split(":")).map(Paths::get).filter(Files::exists).flatMap(p -> {
+        final List<String> foundPaths = new ArrayList<>();
+        Arrays.stream(libpath.split(":")).map(Paths::get).filter(Files::exists).forEach(rootPath -> {
             try {
-                return Files.find(
-                    p,
-                    Integer.MAX_VALUE,
-                    (fp, attrs) -> (attrs.isDirectory() == false && fp.getFileName().equals(libsystemd))
-                );
+                Files.walkFileTree(rootPath, new SimpleFileVisitor<>() {
+                    @Override
+                    public FileVisitResult preVisitDirectory(Path dir, BasicFileAttributes attrs) {
+                        if (Files.isReadable(dir)) {
+                            return FileVisitResult.CONTINUE;
+                        }
+                        return FileVisitResult.SKIP_SUBTREE;
+                    }
+
+                    @Override
+                    public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) {
+                        if (file.getFileName().equals(libsystemd)) {
+                            foundPaths.add(file.toAbsolutePath().toString());
+                        }
+                        return FileVisitResult.CONTINUE;
+                    }
+
+                    @Override
+                    public FileVisitResult visitFileFailed(Path file, IOException exc) {
+                        return FileVisitResult.CONTINUE;
+                    }
+                });
             } catch (IOException e) {
                 throw new UncheckedIOException(e);
             }
-        }).map(p -> p.toAbsolutePath().toString()).toList();
+        });
+        return foundPaths;
     }
 
     private static final MethodHandle sd_notify$mh = downcallHandle("sd_notify", FunctionDescriptor.of(JAVA_INT, JAVA_INT, ADDRESS));

@@ -571,7 +571,6 @@ public class SecurityIndexManagerTests extends ESTestCase {
     }
 
     public void testReadyForMigration() {
-        // Index initially exists
         final ClusterState.Builder clusterStateBuilder = createClusterState(
             TestRestrictedIndices.INTERNAL_SECURITY_MAIN_INDEX_7,
             SecuritySystemIndices.SECURITY_MAIN_ALIAS,
@@ -600,7 +599,6 @@ public class SecurityIndexManagerTests extends ESTestCase {
     }
 
     public void testNotReadyForMigrationBecauseOfFeature() {
-        // Index initially exists
         final ClusterState.Builder clusterStateBuilder = createClusterState(
             TestRestrictedIndices.INTERNAL_SECURITY_MAIN_INDEX_7,
             SecuritySystemIndices.SECURITY_MAIN_ALIAS,
@@ -629,7 +627,6 @@ public class SecurityIndexManagerTests extends ESTestCase {
     }
 
     public void testNotReadyForMigrationBecauseOfMappingVersion() {
-        // Index initially exists
         final ClusterState.Builder clusterStateBuilder = createClusterState(
             TestRestrictedIndices.INTERNAL_SECURITY_MAIN_INDEX_7,
             SecuritySystemIndices.SECURITY_MAIN_ALIAS,

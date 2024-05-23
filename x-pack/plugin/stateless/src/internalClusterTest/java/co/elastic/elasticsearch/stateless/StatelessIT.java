@@ -765,6 +765,8 @@ public class StatelessIT extends AbstractStatelessIntegTestCase {
             client().execute(
                 PutShutdownNodeAction.INSTANCE,
                 new PutShutdownNodeAction.Request(
+                    TEST_REQUEST_TIMEOUT,
+                    TEST_REQUEST_TIMEOUT,
                     shutdownNodeId,
                     SingleNodeShutdownMetadata.Type.SIGTERM,
                     "Shutdown for tests",

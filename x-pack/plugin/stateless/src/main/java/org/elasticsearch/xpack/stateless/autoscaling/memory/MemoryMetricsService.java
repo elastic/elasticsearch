@@ -116,7 +116,7 @@ public class MemoryMetricsService implements ClusterStateListener {
         //
         // https://github.com/elastic/elasticsearch-autoscaler/blob/72ac2692f900dc8fe5220b53b1ab20b88008ef7e/internal/autoscaler/
         // elasticsearch/autoscaling/recommender/search.go#L142
-        final long tierMemoryInBytes = HeapToSystemMemory.dataNode(
+        final long tierMemoryInBytes = HeapToSystemMemory.tier(
             totalIndicesMappingSize.sizeInBytes + shardMemoryOverhead.getBytes() * totalNumberOfShards()
         );
 

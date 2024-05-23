@@ -47,6 +47,7 @@ index settings, aliases, mappings, and index templates.
 * <<indices-update-settings>>
 * <<indices-get-settings>>
 * <<indices-analyze>>
+* <<index-mode>>
 
 [discrete]
 [[index-templates-apis]]
@@ -140,3 +141,4 @@ include::indices/split-index.asciidoc[]
 include::indices/apis/unfreeze.asciidoc[]
 include::indices/update-settings.asciidoc[]
 include::indices/put-mapping.asciidoc[]
+include::indices/index-mode.asciidoc[]

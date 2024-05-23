@@ -112,7 +112,7 @@ public class UpdateIndexMigrationVersionAction extends ActionType<UpdateIndexMig
             );
             this.updateIndexMigrationVersionTaskQueue = clusterService.createTaskQueue(
                 "update-index-migration-version-task-queue",
-                Priority.HIGH,
+                Priority.LOW,
                 UPDATE_INDEX_MIGRATION_VERSION_TASK_EXECUTOR
             );
         }

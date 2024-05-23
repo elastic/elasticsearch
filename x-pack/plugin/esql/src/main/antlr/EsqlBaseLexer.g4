@@ -10,6 +10,7 @@ GROK : 'grok'                 -> pushMode(EXPRESSION_MODE);
 INLINESTATS : 'inlinestats'   -> pushMode(EXPRESSION_MODE);
 KEEP : 'keep'                 -> pushMode(PROJECT_MODE);
 LIMIT : 'limit'               -> pushMode(EXPRESSION_MODE);
+LOOKUP : 'lookup'             -> pushMode(LOOKUP_MODE);
 META : 'meta'                 -> pushMode(META_MODE);
 METRICS : 'metrics'           -> pushMode(METRICS_MODE);
 MV_EXPAND : 'mv_expand'       -> pushMode(MVEXPAND_MODE);
@@ -341,6 +342,33 @@ ENRICH_FIELD_MULTILINE_COMMENT
     ;
 
 ENRICH_FIELD_WS
+    : WS -> channel(HIDDEN)
+    ;
+
+// LOOKUP ON key
+mode LOOKUP_MODE;
+LOOKUP_PIPE : PIPE -> type(PIPE), popMode;
+LOOKUP_COMMA : COMMA -> type(COMMA);
+LOOKUP_DOT: DOT -> type(DOT);
+LOOKUP_ON : ON -> type(ON);
+
+LOOKUP_FIELD_ID_PATTERN
+    : ID_PATTERN -> type(ID_PATTERN)
+    ;
+
+LOOKUP_QUOTED_IDENTIFIER
+    : QUOTED_IDENTIFIER -> type(QUOTED_IDENTIFIER)
+    ;
+
+LOOKUP_LINE_COMMENT
+    : LINE_COMMENT -> channel(HIDDEN)
+    ;
+
+LOOKUP_MULTILINE_COMMENT
+    : MULTILINE_COMMENT -> channel(HIDDEN)
+    ;
+
+LOOKUP_WS
     : WS -> channel(HIDDEN)
     ;
 

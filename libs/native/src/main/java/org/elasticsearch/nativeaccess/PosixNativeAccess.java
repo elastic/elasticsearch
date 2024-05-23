@@ -16,6 +16,9 @@ import java.util.Optional;
 
 abstract class PosixNativeAccess extends AbstractNativeAccess {
 
+    public static final int MCL_CURRENT = 1;
+    public static final int ENOMEM = 12;
+
     protected final PosixCLibrary libc;
     protected final VectorSimilarityFunctions vectorDistance;
     protected final PosixConstants constants;
@@ -74,8 +77,61 @@ abstract class PosixNativeAccess extends AbstractNativeAccess {
     }
 
     @Override
+    public void tryLockMemory() {
+        int result = libc.mlockall(MCL_CURRENT);
+        if (result == 0) {
+            isMemoryLocked = true;
+            return;
+        }
+
+        // mlockall failed for some reason
+        int errno = libc.errno();
+        String errMsg = libc.strerror(errno);
+        logger.warn("Unable to lock JVM Memory: error={}, reason={}", errno, errMsg);
+        logger.warn("This can result in part of the JVM being swapped out.");
+
+        if (errno == ENOMEM) {
+
+            boolean rlimitSuccess = false;
+            long softLimit = 0;
+            long hardLimit = 0;
+
+            // we only know RLIMIT_MEMLOCK for these two at the moment.
+            var rlimit = libc.newRLimit();
+            if (libc.getrlimit(constants.RLIMIT_MEMLOCK(), rlimit) == 0) {
+                rlimitSuccess = true;
+                softLimit = rlimit.rlim_cur();
+                hardLimit = rlimit.rlim_max();
+            } else {
+                logger.warn("Unable to retrieve resource limits: {}", libc.strerror(libc.errno()));
+            }
+
+            if (rlimitSuccess) {
+                logger.warn(
+                    "Increase RLIMIT_MEMLOCK, soft limit: {}, hard limit: {}",
+                    rlimitToString(softLimit),
+                    rlimitToString(hardLimit)
+                );
+                logMemoryLimitInstructions();
+            } else {
+                logger.warn("Increase RLIMIT_MEMLOCK (ulimit).");
+            }
+        }
+    }
+
+    protected abstract void logMemoryLimitInstructions();
+
+    @Override
     public Optional<VectorSimilarityFunctions> getVectorSimilarityFunctions() {
         return Optional.ofNullable(vectorDistance);
+    }
+
+    String rlimitToString(long value) {
+        if (value == constants.RLIMIT_INFINITY()) {
+            return "unlimited";
+        } else {
+            return Long.toUnsignedString(value);
+        }
     }
 
     static boolean isNativeVectorLibSupported() {

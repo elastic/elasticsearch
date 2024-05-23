@@ -26,7 +26,7 @@ import static java.lang.foreign.ValueLayout.ADDRESS;
 import static java.lang.foreign.ValueLayout.JAVA_INT;
 import static java.lang.foreign.ValueLayout.JAVA_LONG;
 import static org.elasticsearch.nativeaccess.jdk.LinkerHelper.downcallHandle;
-import static org.elasticsearch.nativeaccess.jdk.MemorySegmentUtil.varHandleDropOffset;
+import static org.elasticsearch.nativeaccess.jdk.MemorySegmentUtil.varHandleWithoutOffset;
 
 class JdkPosixCLibrary implements PosixCLibrary {
 
@@ -35,7 +35,7 @@ class JdkPosixCLibrary implements PosixCLibrary {
     // errno can change between system calls, so we capture it
     private static final StructLayout CAPTURE_ERRNO_LAYOUT = Linker.Option.captureStateLayout();
     static final Linker.Option CAPTURE_ERRNO_OPTION = Linker.Option.captureCallState("errno");
-    private static final VarHandle errno$vh = CAPTURE_ERRNO_LAYOUT.varHandle(groupElement("errno"));
+    private static final VarHandle errno$vh = varHandleWithoutOffset(CAPTURE_ERRNO_LAYOUT, groupElement("errno"));
 
     private static final MethodHandle geteuid$mh = downcallHandle("geteuid", FunctionDescriptor.of(JAVA_INT));
     private static final MethodHandle strerror$mh = downcallHandle("strerror", FunctionDescriptor.of(ADDRESS, JAVA_INT));
@@ -43,6 +43,7 @@ class JdkPosixCLibrary implements PosixCLibrary {
         "getrlimit",
         FunctionDescriptor.of(JAVA_INT, JAVA_INT, ADDRESS)
     );
+    private static final MethodHandle mlockall$mh = downcallHandleWithErrno("mlockall", FunctionDescriptor.of(JAVA_INT, JAVA_INT));
 
     static final MemorySegment errnoState = Arena.ofAuto().allocate(CAPTURE_ERRNO_LAYOUT);
 
@@ -59,7 +60,7 @@ class JdkPosixCLibrary implements PosixCLibrary {
     public String strerror(int errno) {
         try {
             MemorySegment str = (MemorySegment) strerror$mh.invokeExact(errno);
-            return str.reinterpret(Long.MAX_VALUE).getUtf8String(0);
+            return MemorySegmentUtil.getString(str.reinterpret(Long.MAX_VALUE), 0);
         } catch (Throwable t) {
             throw new AssertionError(t);
         }
@@ -90,10 +91,19 @@ class JdkPosixCLibrary implements PosixCLibrary {
         }
     }
 
+    @Override
+    public int mlockall(int flags) {
+        try {
+            return (int) mlockall$mh.invokeExact(errnoState, flags);
+        } catch (Throwable t) {
+            throw new AssertionError(t);
+        }
+    }
+
     static class JdkRLimit implements RLimit {
         private static final MemoryLayout layout = MemoryLayout.structLayout(JAVA_LONG, JAVA_LONG);
-        private static final VarHandle rlim_cur$vh = varHandleDropOffset(layout.varHandle(groupElement(0)));
-        private static final VarHandle rlim_max$vh = varHandleDropOffset(layout.varHandle(groupElement(1)));
+        private static final VarHandle rlim_cur$vh = varHandleWithoutOffset(layout, groupElement(0));
+        private static final VarHandle rlim_max$vh = varHandleWithoutOffset(layout, groupElement(1));
 
         private final MemorySegment segment;
 

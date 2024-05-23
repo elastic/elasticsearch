@@ -34,6 +34,16 @@ public interface NativeAccess {
      */
     ProcessLimits getProcessLimits();
 
+    /**
+     * Attempt to lock this process's virtual memory address space into physical RAM.
+     */
+    void tryLockMemory();
+
+    /**
+     * Return whether locking memory was successful, or false otherwise.
+     */
+    boolean isMemoryLocked();
+
     Systemd systemd();
 
     /**

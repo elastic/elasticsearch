@@ -35,6 +35,7 @@ import org.elasticsearch.cluster.routing.allocation.decider.AllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.cluster.routing.allocation.decider.DiskThresholdDecider;
+import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.ThrottlingAllocationDecider;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
@@ -639,17 +640,16 @@ public class ReactiveStorageDeciderDecisionTests extends AutoscalingTestCase {
     }
 
     private static AllocationDeciders createAllocationDeciders(AllocationDecider... extraDeciders) {
-        ClusterSettings clusterSettings = ClusterSettings.createBuiltInClusterSettings(
-            Settings.builder()
-                .put(
-                    ThrottlingAllocationDecider.CLUSTER_ROUTING_ALLOCATION_NODE_INITIAL_PRIMARIES_RECOVERIES_SETTING.getKey(),
-                    Integer.MAX_VALUE
-                )
-                .build()
-        );
+        Settings settings = Settings.builder()
+            .put(
+                ThrottlingAllocationDecider.CLUSTER_ROUTING_ALLOCATION_NODE_INITIAL_PRIMARIES_RECOVERIES_SETTING.getKey(),
+                Integer.MAX_VALUE
+            )
+            .put(EnableAllocationDecider.CLUSTER_ROUTING_REBALANCE_ENABLE_SETTING.getKey(), EnableAllocationDecider.Rebalance.NONE)
+            .build();
         Collection<AllocationDecider> systemAllocationDeciders = ClusterModule.createAllocationDeciders(
-            Settings.EMPTY,
-            clusterSettings,
+            settings,
+            ClusterSettings.createBuiltInClusterSettings(settings),
             Collections.emptyList()
         );
         return new AllocationDeciders(

@@ -17,7 +17,6 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.snapshots.AbstractSnapshotIntegTestCase;
 import org.elasticsearch.snapshots.SnapshotInfo;
@@ -112,7 +111,7 @@ public abstract class AbstractFrozenAutoscalingIntegTestCase extends AbstractSna
     }
 
     protected GetAutoscalingCapacityAction.Response capacity() {
-        GetAutoscalingCapacityAction.Request request = new GetAutoscalingCapacityAction.Request(TimeValue.THIRTY_SECONDS);
+        GetAutoscalingCapacityAction.Request request = new GetAutoscalingCapacityAction.Request(TEST_REQUEST_TIMEOUT);
         return client().execute(GetAutoscalingCapacityAction.INSTANCE, request).actionGet();
     }
 
@@ -120,8 +119,8 @@ public abstract class AbstractFrozenAutoscalingIntegTestCase extends AbstractSna
         // randomly set the setting to verify it can be set.
         final Settings settings = randomBoolean() ? Settings.EMPTY : addDeciderSettings(Settings.builder()).build();
         final PutAutoscalingPolicyAction.Request request = new PutAutoscalingPolicyAction.Request(
-            TimeValue.THIRTY_SECONDS,
-            TimeValue.THIRTY_SECONDS,
+            TEST_REQUEST_TIMEOUT,
+            TEST_REQUEST_TIMEOUT,
             policyName,
             new TreeSet<>(Set.of(DataTier.DATA_FROZEN)),
             new TreeMap<>(Map.of(deciderName(), settings))

@@ -37,6 +37,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.xpack.esql.core.util.NumericUtils.unsignedLongAsNumber;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.dateTimeToLong;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.dateTimeToString;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.ipToString;
@@ -46,7 +47,6 @@ import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.stringToIP
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.stringToSpatial;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.stringToVersion;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.versionToString;
-import static org.elasticsearch.xpack.ql.util.NumericUtils.unsignedLongAsNumber;
 
 /**
  * Collection of static utility methods for helping transform response data between pages and values.

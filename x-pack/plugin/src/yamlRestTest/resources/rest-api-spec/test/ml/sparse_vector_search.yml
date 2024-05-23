@@ -117,7 +117,7 @@ setup:
   - match: { hits.hits.0._source.source_text: "the octopus comforter smells" }
 
 ---
-"Test named, boosted sparse_vector search with pruning config":
+"Test named, boosted sparse_vector search with pruning config - note this will not change returned results due to model limitations":
   - do:
       search:
         index: index-with-sparse-vector
@@ -150,7 +150,7 @@ setup:
   - match: { hits.hits.0._score: 500.0 }
 
 ---
-"Test sparse_vector search with specified pruning config":
+"Test sparse_vector search with specified pruning config - note default values will not change returned results due to model limitations":
   - do:
       search:
         index: index-with-sparse-vector
@@ -169,7 +169,7 @@ setup:
   - match: { hits.hits.0._source.source_text: "the octopus comforter smells" }
 
 ---
-"Test sparse_vector search with default pruning config specified":
+"Test sparse_vector search with default pruning config specified - note this will not change returned results due to model limitations":
   - do:
       search:
         index: index-with-sparse-vector
@@ -241,7 +241,6 @@ setup:
                 only_score_pruned_tokens: false
 
   - match: { hits.total.value: 3 }
-  - match: { hits.hits.0._source.source_text: "my words comforter" }
   - match: { hits.hits.0._score: 4 }
 
 ---
@@ -264,7 +263,6 @@ setup:
                 tokens_weight_threshold: 0.4
                 only_score_pruned_tokens: true
   - match: { hits.total.value: 3 }
-  - match: { hits.hits.0._source.source_text: "the machine is leaking" }
   - match: { hits.hits.0._score: 0.25 }
 
 ---

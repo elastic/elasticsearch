@@ -193,7 +193,6 @@ public class EsqlQueryRequestTests extends ESTestCase {
     public void testPragmasOnlyValidOnSnapshot() throws IOException {
         String json = """
             {
-                "version": "2024.04.01",
                 "query": "ROW x = 1",
                 "pragma": {"foo": "bar"}
             }

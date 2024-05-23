@@ -1,0 +1,5 @@
+pr: 108947
+summary: Provide the `DocumentSizeReporter` with index mode
+area: Infra/Metrics
+type: enhancement
+issues: []

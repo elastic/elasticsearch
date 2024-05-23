@@ -53,18 +53,14 @@ public class DateFormatters {
      * If a string cannot be parsed by the ISO parser, it then tries the java.time one.
      * If there's lots of these strings, trying the ISO parser, then the java.time parser, might cause a performance drop.
      * So provide a JVM option so that users can just use the java.time parsers, if they really need to.
+     * <p>
+     * Note that this property is sometimes set by {@code ESTestCase.setTestSysProps} to flip between implementations in tests,
+     * to ensure both are fully tested
      */
     @UpdateForV9    // evaluate if we need to deprecate/remove this
-    private static final boolean JAVA_TIME_PARSERS_ONLY;
+    private static final boolean JAVA_TIME_PARSERS_ONLY = Booleans.parseBoolean(System.getProperty("es.datetime.java_time_parsers"), false);
 
     static {
-        // if this is running in tests, use the seed to determine whether we use the ISO or java.time implementations
-        // to ensure both implementations are tested properly
-        String lastSeedDigit = System.getProperty("tests.seed", "0");
-        lastSeedDigit = lastSeedDigit.substring(lastSeedDigit.length() - 1);
-        JAVA_TIME_PARSERS_ONLY = Booleans.parseBoolean(System.getProperty("es.datetime.java_time_parsers"), false)
-            || (Integer.parseInt(lastSeedDigit, 16) & 1) == 1;
-
         // when this is used directly in tests ES logging may not have been initialized yet
         LoggerFactory logger;
         if (JAVA_TIME_PARSERS_ONLY && (logger = LoggerFactory.provider()) != null) {

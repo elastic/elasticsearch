@@ -77,18 +77,20 @@ public abstract sealed class Int7SQVectorScorerSupplier implements RandomVectorS
         long secondByteOffset = (long) secondOrd * (length + Float.BYTES);
 
         MemorySegment firstSeg = segmentSlice(firstByteOffset, length);
+        if (firstSeg == null) {
+            return fallbackScore(firstByteOffset, secondByteOffset);
+        }
         input.seek(firstByteOffset + length);
         float firstOffset = Float.intBitsToFloat(input.readInt());
 
         MemorySegment secondSeg = segmentSlice(secondByteOffset, length);
+        if (secondSeg == null) {
+            return fallbackScore(firstByteOffset, secondByteOffset);
+        }
         input.seek(secondByteOffset + length);
         float secondOffset = Float.intBitsToFloat(input.readInt());
 
-        if (firstSeg != null && secondSeg != null) {
-            return scoreFromSegments(firstSeg, firstOffset, secondSeg, secondOffset);
-        } else {
-            return fallbackScore(firstByteOffset, secondByteOffset);
-        }
+        return scoreFromSegments(firstSeg, firstOffset, secondSeg, secondOffset);
     }
 
     abstract float scoreFromSegments(MemorySegment a, float aOffset, MemorySegment b, float bOffset);

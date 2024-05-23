@@ -116,12 +116,14 @@ public class VectorScorerBenchmark {
             ScalarQuantizedVectorSimilarity.fromVectorSimilarity(VectorSimilarityFunction.DOT_PRODUCT, scoreCorrectionConstant),
             values.copy(),
             vec1,
-            vec1Offset);
+            vec1Offset
+        );
         luceneSqrScorer = new ScalarQuantizedRandomVectorScorer(
             ScalarQuantizedVectorSimilarity.fromVectorSimilarity(VectorSimilarityFunction.EUCLIDEAN, scoreCorrectionConstant),
             values.copy(),
             vec1,
-            vec1Offset);
+            vec1Offset
+        );
         nativeDotScorer = factory.getInt7ScalarQuantizedVectorScorer(DOT_PRODUCT, in, values, scoreCorrectionConstant).get().scorer(0);
         nativeSqrScorer = factory.getInt7ScalarQuantizedVectorScorer(EUCLIDEAN, in, values, scoreCorrectionConstant).get().scorer(0);
 

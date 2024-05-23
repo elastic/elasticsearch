@@ -101,7 +101,7 @@ public class TransportMultiTermVectorsAction extends HandledTransportAction<Mult
 
         if (shardRequests.size() == 0) {
             // only failures..
-            listener.onResponse(new MultiTermVectorsResponse(responses.toArray(new MultiTermVectorsItemResponse[responses.length()])));
+            listener.onResponse(new MultiTermVectorsResponse(responses.toArray(MultiTermVectorsItemResponse.class)));
         }
 
         executeShardAction(listener, responses, shardRequests);
@@ -148,9 +148,7 @@ public class TransportMultiTermVectorsAction extends HandledTransportAction<Mult
                 }
 
                 private void finishHim() {
-                    listener.onResponse(
-                        new MultiTermVectorsResponse(responses.toArray(new MultiTermVectorsItemResponse[responses.length()]))
-                    );
+                    listener.onResponse(new MultiTermVectorsResponse(responses.toArray(MultiTermVectorsItemResponse.class)));
                 }
             });
         }

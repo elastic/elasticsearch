@@ -189,7 +189,7 @@ public class TransportMultiSearchAction extends HandledTransportAction<MultiSear
             private void finish() {
                 ActionListener.respondAndRelease(
                     listener,
-                    new MultiSearchResponse(responses.toArray(new MultiSearchResponse.Item[responses.length()]), buildTookInMillis())
+                    new MultiSearchResponse(responses.toArray(MultiSearchResponse.Item.class), buildTookInMillis())
                 );
             }
 

@@ -8,8 +8,7 @@
 
 package org.elasticsearch.common.util.concurrent;
 
-import org.elasticsearch.ElasticsearchGenerationException;
-
+import java.lang.reflect.Array;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -59,15 +58,17 @@ public class AtomicArray<E> {
      */
     public void set(int i, E value) {
         array.set(i, value);
-        if (nonNullList != null) { // read first, lighter, and most times it will be null...
-            nonNullList = null;
-        }
+        resetCachedList();
     }
 
     public final void setOnce(int i, E value) {
         if (array.compareAndSet(i, null, value) == false) {
             throw new IllegalStateException("index [" + i + "] has already been set");
         }
+        resetCachedList();
+    }
+
+    private void resetCachedList() {
         if (nonNullList != null) { // read first, lighter, and most times it will be null...
             nonNullList = null;
         }
@@ -87,9 +88,10 @@ public class AtomicArray<E> {
      * Returns the it as a non null list.
      */
     public List<E> asList() {
-        if (nonNullList == null) {
-            if (array == null || array.length() == 0) {
-                nonNullList = Collections.emptyList();
+        var res = nonNullList;
+        if (res == null) {
+            if (array.length() == 0) {
+                res = Collections.emptyList();
             } else {
                 List<E> list = new ArrayList<>(array.length());
                 for (int i = 0; i < array.length(); i++) {
@@ -98,20 +100,20 @@ public class AtomicArray<E> {
                         list.add(e);
                     }
                 }
-                nonNullList = list;
+                res = list;
             }
+            nonNullList = res;
         }
-        return nonNullList;
+        return res;
     }
 
     /**
      * Copies the content of the underlying atomic array to a normal one.
      */
-    public E[] toArray(E[] a) {
-        if (a.length != array.length()) {
-            throw new ElasticsearchGenerationException("AtomicArrays can only be copied to arrays of the same size");
-        }
-        for (int i = 0; i < array.length(); i++) {
+    public E[] toArray(Class<E> clazz) {
+        @SuppressWarnings("unchecked")
+        E[] a = (E[]) Array.newInstance(clazz, array.length());
+        for (int i = 0; i < a.length; i++) {
             a[i] = array.get(i);
         }
         return a;

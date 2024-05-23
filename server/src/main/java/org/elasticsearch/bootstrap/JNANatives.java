@@ -8,12 +8,8 @@
 
 package org.elasticsearch.bootstrap;
 
-import com.sun.jna.Native;
-import com.sun.jna.WString;
-
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.lucene.util.Constants;
 
 import java.nio.file.Path;
 
@@ -33,51 +29,6 @@ class JNANatives {
     // Set to true, in case policy can be applied to all threads of the process (even existing ones)
     // otherwise they are only inherited for new threads (ES app threads)
     static boolean LOCAL_SYSTEM_CALL_FILTER_ALL = false;
-
-    /**
-     * Retrieves the short path form of the specified path.
-     *
-     * @param path the path
-     * @return the short path name (or the original path if getting the short path name fails for any reason)
-     */
-    static String getShortPathName(String path) {
-        assert Constants.WINDOWS;
-        try {
-            final WString longPath = new WString("\\\\?\\" + path);
-            // first we get the length of the buffer needed
-            final int length = JNAKernel32Library.getInstance().GetShortPathNameW(longPath, null, 0);
-            if (length == 0) {
-                logger.warn("failed to get short path name: {}", Native.getLastError());
-                return path;
-            }
-            final char[] shortPath = new char[length];
-            // knowing the length of the buffer, now we get the short name
-            if (JNAKernel32Library.getInstance().GetShortPathNameW(longPath, shortPath, length) > 0) {
-                return Native.toString(shortPath);
-            } else {
-                logger.warn("failed to get short path name: {}", Native.getLastError());
-                return path;
-            }
-        } catch (final UnsatisfiedLinkError e) {
-            return path;
-        }
-    }
-
-    static void addConsoleCtrlHandler(ConsoleCtrlHandler handler) {
-        // The console Ctrl handler is necessary on Windows platforms only.
-        if (Constants.WINDOWS) {
-            try {
-                boolean result = JNAKernel32Library.getInstance().addConsoleCtrlHandler(handler);
-                if (result) {
-                    logger.debug("console ctrl handler correctly set");
-                } else {
-                    logger.warn("unknown error {} when adding console ctrl handler", Native.getLastError());
-                }
-            } catch (UnsatisfiedLinkError e) {
-                // this will have already been logged by Kernel32Library, no need to repeat it
-            }
-        }
-    }
 
     static void tryInstallSystemCallFilter(Path tmpFile) {
         try {

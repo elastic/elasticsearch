@@ -121,7 +121,7 @@ public abstract class DocumentParserContext {
     private final Set<String> copyToFields;
 
     // Indicates if the source for this context has been cloned and gets parsed multiple times.
-    private boolean clonedSource = false;
+    private boolean clonedSource;
 
     private DocumentParserContext(
         MappingLookup mappingLookup,
@@ -140,7 +140,8 @@ public abstract class DocumentParserContext {
         ObjectMapper.Dynamic dynamic,
         Set<String> fieldsAppliedFromTemplates,
         Set<String> copyToFields,
-        DynamicMapperSize dynamicMapperSize
+        DynamicMapperSize dynamicMapperSize,
+        boolean clonedSource
     ) {
         this.mappingLookup = mappingLookup;
         this.mappingParserContext = mappingParserContext;
@@ -159,6 +160,7 @@ public abstract class DocumentParserContext {
         this.fieldsAppliedFromTemplates = fieldsAppliedFromTemplates;
         this.copyToFields = copyToFields;
         this.dynamicMappersSize = dynamicMapperSize;
+        this.clonedSource = clonedSource;
     }
 
     private DocumentParserContext(ObjectMapper parent, ObjectMapper.Dynamic dynamic, DocumentParserContext in) {
@@ -179,7 +181,8 @@ public abstract class DocumentParserContext {
             dynamic,
             in.fieldsAppliedFromTemplates,
             in.copyToFields,
-            in.dynamicMappersSize
+            in.dynamicMappersSize,
+            in.clonedSource
         );
     }
 
@@ -207,7 +210,8 @@ public abstract class DocumentParserContext {
             dynamic,
             new HashSet<>(),
             new HashSet<>(),
-            new DynamicMapperSize()
+            new DynamicMapperSize(),
+            false
         );
     }
 

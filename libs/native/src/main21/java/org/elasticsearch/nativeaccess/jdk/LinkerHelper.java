@@ -22,7 +22,7 @@ import java.lang.invoke.MethodHandles;
 class LinkerHelper {
     private static final Linker LINKER = Linker.nativeLinker();
     private static final SymbolLookup SYMBOL_LOOKUP;
-    private static final MethodHandles.Lookup MH_LOOKUP = MethodHandles.publicLookup();
+    private static final MethodHandles.Lookup MH_LOOKUP = MethodHandles.lookup();
 
     static {
         // We first check the loader lookup, which contains libs loaded by System.load and System.loadLibrary.

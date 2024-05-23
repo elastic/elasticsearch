@@ -82,12 +82,6 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
     }
 
     @Override
-    public int order() {
-        // must execute last (after the security action filter)
-        return Integer.MAX_VALUE;
-    }
-
-    @Override
     public String actionName() {
         return TransportShardBulkAction.ACTION_NAME;
     }

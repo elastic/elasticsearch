@@ -81,11 +81,11 @@ aggregate_metric_double with ignore_malformed:
           metric:
             min: 18.2
             max: 100
-            value_count: 50
             field: "field"
             sub:
               array: [1, 2, 3]
               field: "field"
+            value_count: 50
 
   - do:
       search:
@@ -96,9 +96,9 @@ aggregate_metric_double with ignore_malformed:
         metric:
           min: 18.2
           max: 100
-          value_count: 50
           field: "field"
           sub:
             array: [1, 2, 3]
             field: "field"
+          value_count: 50
 

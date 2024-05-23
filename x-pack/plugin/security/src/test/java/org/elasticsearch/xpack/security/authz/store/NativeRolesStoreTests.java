@@ -327,11 +327,12 @@ public class NativeRolesStoreTests extends ESTestCase {
     public void testPutOfRoleWithFlsDlsUnlicensed() throws IOException {
         final Client client = mock(Client.class);
         final ClusterService clusterService = mockClusterServiceWithMinNodeVersion(TransportVersion.current());
+        final FeatureService featureService = mock(FeatureService.class);
         final XPackLicenseState licenseState = mock(XPackLicenseState.class);
         final AtomicBoolean methodCalled = new AtomicBoolean(false);
 
         final SecuritySystemIndices systemIndices = new SecuritySystemIndices(clusterService.getSettings());
-        systemIndices.init(client, clusterService);
+        systemIndices.init(client, featureService, clusterService);
         final SecurityIndexManager securityIndex = systemIndices.getMainIndexManager();
 
         final NativeRolesStore rolesStore = new NativeRolesStore(
@@ -451,7 +452,8 @@ public class NativeRolesStoreTests extends ESTestCase {
             final AtomicBoolean methodCalled = new AtomicBoolean(false);
 
             final SecuritySystemIndices systemIndices = new SecuritySystemIndices(clusterService.getSettings());
-            systemIndices.init(client, clusterService);
+            final FeatureService featureService = mock(FeatureService.class);
+            systemIndices.init(client, featureService, clusterService);
             final SecurityIndexManager securityIndex = systemIndices.getMainIndexManager();
 
             final NativeRolesStore rolesStore = new NativeRolesStore(
@@ -517,7 +519,8 @@ public class NativeRolesStoreTests extends ESTestCase {
         final ClusterService clusterService = mock(ClusterService.class);
         final XPackLicenseState licenseState = mock(XPackLicenseState.class);
         final SecuritySystemIndices systemIndices = new SecuritySystemIndices(settings);
-        systemIndices.init(client, clusterService);
+        final FeatureService featureService = mock(FeatureService.class);
+        systemIndices.init(client, featureService, clusterService);
         final SecurityIndexManager securityIndex = systemIndices.getMainIndexManager();
 
         final NativeRolesStore store = new NativeRolesStore(

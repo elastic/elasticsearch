@@ -33,6 +33,7 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.index.Index;
@@ -85,20 +86,35 @@ public class SecurityIndexManager implements ClusterStateListener {
 
     private volatile State state;
     private final boolean defensiveCopy;
+    private final FeatureService featureService;
 
     private final Set<NodeFeature> allSecurityFeatures = new SecurityFeatures().getFeatures();
 
     public static SecurityIndexManager buildSecurityIndexManager(
         Client client,
         ClusterService clusterService,
+        FeatureService featureService,
         SystemIndexDescriptor descriptor
     ) {
-        final SecurityIndexManager securityIndexManager = new SecurityIndexManager(client, descriptor, State.UNRECOVERED_STATE, false);
+        final SecurityIndexManager securityIndexManager = new SecurityIndexManager(
+            featureService,
+            client,
+            descriptor,
+            State.UNRECOVERED_STATE,
+            false
+        );
         clusterService.addListener(securityIndexManager);
         return securityIndexManager;
     }
 
-    private SecurityIndexManager(Client client, SystemIndexDescriptor descriptor, State state, boolean defensiveCopy) {
+    private SecurityIndexManager(
+        FeatureService featureService,
+        Client client,
+        SystemIndexDescriptor descriptor,
+        State state,
+        boolean defensiveCopy
+    ) {
+        this.featureService = featureService;
         this.client = client;
         this.state = state;
         this.systemIndexDescriptor = descriptor;
@@ -110,7 +126,7 @@ public class SecurityIndexManager implements ClusterStateListener {
      * should be reused for multiple checks in the same workflow.
      */
     public SecurityIndexManager defensiveCopy() {
-        return new SecurityIndexManager(null, systemIndexDescriptor, state, true);
+        return new SecurityIndexManager(null, null, systemIndexDescriptor, state, true);
     }
 
     public String aliasName() {
@@ -285,7 +301,9 @@ public class SecurityIndexManager implements ClusterStateListener {
             indexHealth,
             indexState,
             indexUUID,
-            allSecurityFeatures.stream().filter(event.state().clusterFeatures()::clusterHasFeature).collect(Collectors.toSet())
+            allSecurityFeatures.stream()
+                .filter(feature -> featureService.clusterHasFeature(event.state(), feature))
+                .collect(Collectors.toSet())
         );
         this.state = newState;
 

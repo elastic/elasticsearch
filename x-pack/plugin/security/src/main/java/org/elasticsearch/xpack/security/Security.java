@@ -741,7 +741,7 @@ public class Security extends Plugin
         // See Plugin#additionalSettings()
         this.settings = environment.settings();
 
-        systemIndices.init(client, clusterService);
+        systemIndices.init(client, featureService, clusterService);
 
         this.securityMigrationExecutor.set(
             new SecurityMigrationExecutor(

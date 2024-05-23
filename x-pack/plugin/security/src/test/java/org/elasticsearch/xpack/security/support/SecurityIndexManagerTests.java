@@ -39,6 +39,7 @@ import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexVersion;
@@ -108,6 +109,7 @@ public class SecurityIndexManagerTests extends ESTestCase {
             }
         };
 
+        final FeatureService featureService = mock(FeatureService.class);
         final ClusterService clusterService = mock(ClusterService.class);
         when(clusterService.getSettings()).thenReturn(Settings.EMPTY);
         final SystemIndexDescriptor descriptor = new SecuritySystemIndices(clusterService.getSettings()).getSystemIndexDescriptors()
@@ -116,7 +118,7 @@ public class SecurityIndexManagerTests extends ESTestCase {
             .findFirst()
             .get();
         descriptorSpy = spy(descriptor);
-        manager = SecurityIndexManager.buildSecurityIndexManager(client, clusterService, descriptorSpy);
+        manager = SecurityIndexManager.buildSecurityIndexManager(client, clusterService, featureService, descriptorSpy);
     }
 
     public void testIndexWithUpToDateMappingAndTemplate() {

@@ -16,6 +16,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.VersionId;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.indices.ExecutorNames;
@@ -92,13 +93,18 @@ public class SecuritySystemIndices {
         return List.of(mainDescriptor, tokenDescriptor, profileDescriptor);
     }
 
-    public void init(Client client, ClusterService clusterService) {
+    public void init(Client client, FeatureService featureService, ClusterService clusterService) {
         if (this.initialized.compareAndSet(false, true) == false) {
             throw new IllegalStateException("Already initialized");
         }
-        this.mainIndexManager = SecurityIndexManager.buildSecurityIndexManager(client, clusterService, mainDescriptor);
-        this.tokenIndexManager = SecurityIndexManager.buildSecurityIndexManager(client, clusterService, tokenDescriptor);
-        this.profileIndexManager = SecurityIndexManager.buildSecurityIndexManager(client, clusterService, profileDescriptor);
+        this.mainIndexManager = SecurityIndexManager.buildSecurityIndexManager(client, clusterService, featureService, mainDescriptor);
+        this.tokenIndexManager = SecurityIndexManager.buildSecurityIndexManager(client, clusterService, featureService, tokenDescriptor);
+        this.profileIndexManager = SecurityIndexManager.buildSecurityIndexManager(
+            client,
+            clusterService,
+            featureService,
+            profileDescriptor
+        );
     }
 
     public SecurityIndexManager getMainIndexManager() {

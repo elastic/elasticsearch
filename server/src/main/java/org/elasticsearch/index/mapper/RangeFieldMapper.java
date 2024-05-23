@@ -463,6 +463,11 @@ public class RangeFieldMapper extends FieldMapper {
     }
 
     @Override
+    protected SyntheticSourceMode syntheticSourceMode() {
+        return SyntheticSourceMode.NATIVE;
+    }
+
+    @Override
     public SourceLoader.SyntheticFieldLoader syntheticFieldLoader() {
         if (hasDocValues == false) {
             throw new IllegalArgumentException(

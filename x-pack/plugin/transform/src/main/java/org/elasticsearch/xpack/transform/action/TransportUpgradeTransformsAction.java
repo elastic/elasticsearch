@@ -83,11 +83,11 @@ public class TransportUpgradeTransformsAction extends TransportMasterNodeAction<
             Response::new,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
-        this.transformConfigManager = transformServices.getConfigManager();
+        this.transformConfigManager = transformServices.configManager();
         this.settings = settings;
 
         this.client = client;
-        this.auditor = transformServices.getAuditor();
+        this.auditor = transformServices.auditor();
         this.indexNameExpressionResolver = indexNameExpressionResolver;
         this.securityContext = XPackSettings.SECURITY_ENABLED.get(settings)
             ? new SecurityContext(settings, threadPool.getThreadContext())

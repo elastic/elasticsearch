@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.esql;
 
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.Build;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.settings.Settings;
@@ -21,6 +20,16 @@ import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.xpack.esql.action.EsqlQueryResponse;
 import org.elasticsearch.xpack.esql.analysis.EnrichResolution;
 import org.elasticsearch.xpack.esql.analysis.Verifier;
+import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.core.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.type.DataTypes;
+import org.elasticsearch.xpack.esql.core.type.DateUtils;
+import org.elasticsearch.xpack.esql.core.type.EsField;
+import org.elasticsearch.xpack.esql.core.type.TypesTests;
+import org.elasticsearch.xpack.esql.core.util.StringUtils;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalSupplier;
@@ -30,17 +39,6 @@ import org.elasticsearch.xpack.esql.session.EsqlConfiguration;
 import org.elasticsearch.xpack.esql.stats.Metrics;
 import org.elasticsearch.xpack.esql.stats.SearchStats;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypeRegistry;
-import org.elasticsearch.xpack.esql.version.EsqlVersion;
-import org.elasticsearch.xpack.ql.expression.Attribute;
-import org.elasticsearch.xpack.ql.expression.Literal;
-import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
-import org.elasticsearch.xpack.ql.tree.Source;
-import org.elasticsearch.xpack.ql.type.DataType;
-import org.elasticsearch.xpack.ql.type.DataTypes;
-import org.elasticsearch.xpack.ql.type.DateUtils;
-import org.elasticsearch.xpack.ql.type.EsField;
-import org.elasticsearch.xpack.ql.type.TypesTests;
-import org.elasticsearch.xpack.ql.util.StringUtils;
 import org.junit.Assert;
 
 import java.io.IOException;
@@ -60,16 +58,11 @@ import static java.util.Collections.unmodifiableMap;
 import static org.elasticsearch.test.ESTestCase.randomBoolean;
 import static org.elasticsearch.test.ListMatcher.matchesList;
 import static org.elasticsearch.test.MapMatcher.assertMap;
-import static org.elasticsearch.xpack.ql.TestUtils.of;
+import static org.elasticsearch.xpack.esql.core.TestUtils.of;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.junit.Assert.assertTrue;
 
 public final class EsqlTestUtils {
-    public static String latestEsqlVersionOrSnapshot() {
-        EsqlVersion version = Build.current().isSnapshot() ? EsqlVersion.SNAPSHOT : EsqlVersion.latestReleased();
-        return version.toString();
-    }
-
     public static class TestSearchStats extends SearchStats {
         public TestSearchStats() {
             super(emptyList());

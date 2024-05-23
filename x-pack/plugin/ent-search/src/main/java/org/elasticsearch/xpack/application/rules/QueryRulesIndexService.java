@@ -243,7 +243,33 @@ public class QueryRulesIndexService {
         } catch (Exception e) {
             listener.onFailure(e);
         }
+    }
 
+    /**
+     * Creates or updates a {@link QueryRule} within a {@link QueryRuleset} with the given {@code queryRulesetId}.
+     * If the {@code queryRulesetId} is not associated with an existing {@link QueryRuleset}, a new {@link QueryRuleset} is created.
+     * @param queryRulesetId
+     * @param queryRule
+     * @param listener
+     */
+    public void putQueryRule(String queryRulesetId, QueryRule queryRule, ActionListener<DocWriteResponse> listener) {
+        getQueryRuleset(queryRulesetId, new ActionListener<>() {
+            @Override
+            public void onResponse(QueryRuleset queryRuleset) {
+                final List<QueryRule> rules = new ArrayList<>(queryRuleset.rules());
+                rules.add(queryRule);
+                putQueryRuleset(new QueryRuleset(queryRulesetId, rules), listener);
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                if (e instanceof ResourceNotFoundException) {
+                    putQueryRuleset(new QueryRuleset(queryRulesetId, List.of(queryRule)), listener);
+                    return;
+                }
+                listener.onFailure(e);
+            }
+        });
     }
 
     private void validateQueryRuleset(QueryRuleset queryRuleset) {

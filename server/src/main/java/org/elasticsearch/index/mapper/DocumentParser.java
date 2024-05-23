@@ -625,8 +625,7 @@ public final class DocumentParser {
     ) throws IOException {
         // Check if we need to record the array source. This only applies to synthetic source.
         if (context.mappingLookup().isSourceSynthetic() && context.getClonedSource() == false) {
-            boolean storeArraySourceEnabled = mapper instanceof ObjectMapper objectMapper
-                && objectMapper.storeArraySource();
+            boolean storeArraySourceEnabled = mapper instanceof ObjectMapper objectMapper && objectMapper.storeArraySource();
             boolean fieldWithFallbackSyntheticSource = mapper instanceof FieldMapper fieldMapper
                 && fieldMapper.syntheticSourceMode() == FieldMapper.SyntheticSourceMode.FALLBACK;
             if (storeArraySourceEnabled || fieldWithFallbackSyntheticSource || mapper instanceof NestedObjectMapper) {

@@ -49,11 +49,11 @@ public class DataStreamRestIT extends ESRestTestCase {
         assertNotNull(dataStreams);
         assertTrue((boolean) dataStreams.get("available"));
         assertTrue((boolean) dataStreams.get("enabled"));
-        assertThat(dataStreams.get("data_streams"), anyOf(equalTo(null), equalTo(0)));
+        assertThat(dataStreams.get("data_streams"), equalTo(0));
         assertThat(dataStreams, hasKey("failure_store"));
         Map<String, Integer> failureStoreStats = (Map<String, Integer>) dataStreams.get("failure_store");
-        assertThat(failureStoreStats.get("enabled"), anyOf(equalTo(null), equalTo(0)));
-        assertThat(failureStoreStats.get("failure_indices_count"), anyOf(equalTo(null), equalTo(0)));
+        assertThat(failureStoreStats.get("enabled_count"), equalTo(0));
+        assertThat(failureStoreStats.get("failure_indices_count"), equalTo(0));
         assertBusy(() -> {
             Map<?, ?> logsTemplate = (Map<?, ?>) ((List<?>) getLocation("/_index_template/logs").get("index_templates")).get(0);
             assertThat(logsTemplate, notNullValue());
@@ -83,7 +83,7 @@ public class DataStreamRestIT extends ESRestTestCase {
         assertThat("got: " + dataStreams, dataStreams.get("data_streams"), equalTo(2));
         assertThat("got: " + dataStreams, dataStreams.get("indices_count"), equalTo(3));
         failureStoreStats = (Map<String, Integer>) dataStreams.get("failure_store");
-        assertThat(failureStoreStats.get("enabled_count"), anyOf(equalTo(null), equalTo(1)));
+        assertThat(failureStoreStats.get("enabled_count"), equalTo(1));
         assertThat(failureStoreStats.get("failure_indices_count"), equalTo(1));
     }
 

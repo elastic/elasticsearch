@@ -8,6 +8,7 @@
 
 package org.elasticsearch.action.update;
 
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
@@ -47,6 +48,7 @@ import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.threadpool.ThreadPool.Names;
@@ -375,7 +377,20 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
             return result;
         }
 
-        Map<String, Object> updateRequestSource = updateRequest.doc().sourceAsMap();
+        if (updateRequest.script() != null) {
+            throw new ElasticsearchStatusException(
+                "Cannot apply update with a script on indices that contain inference field(s)",
+                RestStatus.BAD_REQUEST
+            );
+        }
+
+        IndexRequest doc = updateRequest.doc();
+        if (doc == null) {
+            // No doc update, nothing to do
+            return result;
+        }
+
+        Map<String, Object> updateRequestSource = doc.sourceAsMap();
         Map<String, Object> updatedSource = result.updatedSourceAsMap();
         boolean updatedSourceModified = false;
         for (var entry : inferenceFields.entrySet()) {

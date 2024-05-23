@@ -474,6 +474,46 @@ public class ConnectorIndexServiceTests extends ESSingleNodeTestCase {
         assertThat(syncStats, equalTo(indexedConnector.getSyncInfo()));
     }
 
+    public void testUpdateConnectorLastSyncStats_withPartialUpdate() throws Exception {
+        Connector connector = ConnectorTestUtils.getRandomConnector();
+        String connectorId = randomUUID();
+
+        ConnectorCreateActionResponse resp = awaitCreateConnector(connectorId, connector);
+        assertThat(resp.status(), anyOf(equalTo(RestStatus.CREATED), equalTo(RestStatus.OK)));
+
+        ConnectorSyncInfo syncStats = new ConnectorSyncInfo.Builder().setLastSyncError(randomAlphaOfLengthBetween(5, 10))
+            .setLastIndexedDocumentCount(randomLong())
+            .setLastDeletedDocumentCount(randomLong())
+            .build();
+
+        UpdateConnectorLastSyncStatsAction.Request lastSyncStats = new UpdateConnectorLastSyncStatsAction.Request(connectorId, syncStats);
+
+        DocWriteResponse updateResponse = awaitUpdateConnectorLastSyncStats(lastSyncStats);
+        assertThat(updateResponse.status(), equalTo(RestStatus.OK));
+
+        Connector indexedConnector = awaitGetConnector(connectorId);
+
+        // Check fields in the partial update of last sync stats
+        assertThat(lastSyncStats.getSyncInfo().getLastSyncError(), equalTo(indexedConnector.getSyncInfo().getLastSyncError()));
+        assertThat(
+            lastSyncStats.getSyncInfo().getLastDeletedDocumentCount(),
+            equalTo(indexedConnector.getSyncInfo().getLastDeletedDocumentCount())
+        );
+        assertThat(
+            lastSyncStats.getSyncInfo().getLastIndexedDocumentCount(),
+            equalTo(indexedConnector.getSyncInfo().getLastIndexedDocumentCount())
+        );
+
+        // Check some other fields related to last sync stats and verified that they remained unchanged
+        assertThat(connector.getSyncInfo().getLastSyncStatus(), equalTo(indexedConnector.getSyncInfo().getLastSyncStatus()));
+        assertThat(connector.getSyncInfo().getLastSyncScheduledAt(), equalTo(indexedConnector.getSyncInfo().getLastSyncScheduledAt()));
+        assertThat(
+            connector.getSyncInfo().getLastAccessControlSyncStatus(),
+            equalTo(indexedConnector.getSyncInfo().getLastAccessControlSyncStatus())
+        );
+
+    }
+
     public void testUpdateConnectorScheduling() throws Exception {
         Connector connector = ConnectorTestUtils.getRandomConnector();
         String connectorId = randomUUID();

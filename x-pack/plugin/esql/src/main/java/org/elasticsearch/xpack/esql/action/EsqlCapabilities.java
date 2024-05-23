@@ -37,12 +37,18 @@ public class EsqlCapabilities {
      */
     public static final String LOOKUP_COMMAND = "lookup_command";
 
+    /**
+     * Support for requesting the "_ignored" metadata field.
+     */
+    private static final String METADATA_IGNORED_FIELD = "metadata_field_ignored";
+
     public static final Set<String> CAPABILITIES = capabilities();
 
     private static Set<String> capabilities() {
         List<String> caps = new ArrayList<>();
         caps.add(FN_CBRT);
         caps.add(ST_CENTROID_AGG_OPTIMIZED);
+        caps.add(METADATA_IGNORED_FIELD);
         if (Build.current().isSnapshot()) {
             caps.add(LOOKUP_COMMAND);
         }

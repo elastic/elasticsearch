@@ -344,6 +344,22 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
         listener.onFailure(cause instanceof Exception ? (Exception) cause : new NotSerializableExceptionWrapper(cause));
     }
 
+    /**
+     * <p>
+     * Delete stale inference results from the provided {@link UpdateHelper.Result} instance.
+     * </p>
+     * <p>
+     * We need to do this because when handling Bulk API requests (which the Update API generates), we assume any inference results present
+     * in source are up-to-date.
+     * We do this to support reindex and update by query use cases without re-generating inference results unnecessarily.
+     * </p>
+     *
+     * @param updateRequest The update request
+     * @param result The result generated using the update request
+     * @param indexMetadata The index metadata
+     * @param mappingLookup The index's mapping lookup
+     * @return A result with stale inference results removed from source
+     */
     private static UpdateHelper.Result deleteInferenceResults(
         UpdateRequest updateRequest,
         UpdateHelper.Result result,

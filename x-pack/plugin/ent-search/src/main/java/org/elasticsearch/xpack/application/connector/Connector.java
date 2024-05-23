@@ -312,14 +312,14 @@ public class Connector implements NamedWriteable, ToXContentObject {
             ConnectorSyncInfo.LAST_ACCESS_CONTROL_SYNC_STATUS_FIELD,
             ObjectParser.ValueType.STRING_OR_NULL
         );
-        PARSER.declareLong(optionalConstructorArg(), ConnectorSyncInfo.LAST_DELETED_DOCUMENT_COUNT_FIELD);
+        PARSER.declareLongOrNull(optionalConstructorArg(), 0L, ConnectorSyncInfo.LAST_DELETED_DOCUMENT_COUNT_FIELD);
         PARSER.declareField(
             optionalConstructorArg(),
             (p, c) -> ConnectorUtils.parseNullableInstant(p, ConnectorSyncInfo.LAST_INCREMENTAL_SYNC_SCHEDULED_AT_FIELD.getPreferredName()),
             ConnectorSyncInfo.LAST_INCREMENTAL_SYNC_SCHEDULED_AT_FIELD,
             ObjectParser.ValueType.STRING_OR_NULL
         );
-        PARSER.declareLong(optionalConstructorArg(), ConnectorSyncInfo.LAST_INDEXED_DOCUMENT_COUNT_FIELD);
+        PARSER.declareLongOrNull(optionalConstructorArg(), 0L, ConnectorSyncInfo.LAST_INDEXED_DOCUMENT_COUNT_FIELD);
         PARSER.declareStringOrNull(optionalConstructorArg(), ConnectorSyncInfo.LAST_SYNC_ERROR_FIELD);
         PARSER.declareField(
             optionalConstructorArg(),

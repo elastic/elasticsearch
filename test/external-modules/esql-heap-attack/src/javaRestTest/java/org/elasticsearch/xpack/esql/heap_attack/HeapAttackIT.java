@@ -61,8 +61,6 @@ public class HeapAttackIT extends ESRestTestCase {
 
     static volatile boolean SUITE_ABORTED = false;
 
-    private static String ESQL_VERSION = "2024.04.01";
-
     @Override
     protected String getTestRestCluster() {
         return cluster.getHttpAddresses();

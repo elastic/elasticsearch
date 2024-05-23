@@ -204,7 +204,6 @@ public class EsqlQueryRequestTests extends ESTestCase {
     public void testPragmasOnlyValidOnSnapshot() throws IOException {
         String json = """
             {
-                "version": "2024.04.01",
                 "query": "ROW x = 1",
                 "pragma": {"foo": "bar"}
             }
@@ -222,7 +221,6 @@ public class EsqlQueryRequestTests extends ESTestCase {
     public void testTablesKeyword() throws IOException {
         String json = """
             {
-                "version": "2024.04.01",
                 "query": "ROW x = 1",
                 "tables": {"a": {"c:keyword": ["a", "b", null, 1, 2.0, ["c", "d"], false]}}
             }
@@ -254,7 +252,6 @@ public class EsqlQueryRequestTests extends ESTestCase {
     public void testTablesInteger() throws IOException {
         String json = """
             {
-                "version": "2024.04.01",
                 "query": "ROW x = 1",
                 "tables": {"a": {"c:integer": [1, 2, "3", null, [5, 6]]}}
             }
@@ -283,7 +280,6 @@ public class EsqlQueryRequestTests extends ESTestCase {
     public void testTablesLong() throws IOException {
         String json = """
             {
-                "version": "2024.04.01",
                 "query": "ROW x = 1",
                 "tables": {"a": {"c:long": [1, 2, "3", null, [5, 6]]}}
             }
@@ -312,7 +308,6 @@ public class EsqlQueryRequestTests extends ESTestCase {
     public void testManyTables() throws IOException {
         String json = """
             {
-                "version": "2024.04.01",
                 "query": "ROW x = 1",
                 "tables": {
                     "t1": {

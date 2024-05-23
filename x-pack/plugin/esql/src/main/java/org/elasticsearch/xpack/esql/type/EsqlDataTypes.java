@@ -7,8 +7,8 @@
 package org.elasticsearch.xpack.esql.type;
 
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.xpack.ql.type.DataType;
-import org.elasticsearch.xpack.ql.type.DataTypes;
+import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.type.DataTypes;
 
 import java.util.Collection;
 import java.util.Collections;
@@ -20,27 +20,27 @@ import java.util.stream.Stream;
 
 import static java.util.stream.Collectors.toMap;
 import static java.util.stream.Collectors.toUnmodifiableMap;
-import static org.elasticsearch.xpack.ql.type.DataTypes.BOOLEAN;
-import static org.elasticsearch.xpack.ql.type.DataTypes.BYTE;
-import static org.elasticsearch.xpack.ql.type.DataTypes.DATETIME;
-import static org.elasticsearch.xpack.ql.type.DataTypes.DOUBLE;
-import static org.elasticsearch.xpack.ql.type.DataTypes.FLOAT;
-import static org.elasticsearch.xpack.ql.type.DataTypes.HALF_FLOAT;
-import static org.elasticsearch.xpack.ql.type.DataTypes.INTEGER;
-import static org.elasticsearch.xpack.ql.type.DataTypes.IP;
-import static org.elasticsearch.xpack.ql.type.DataTypes.KEYWORD;
-import static org.elasticsearch.xpack.ql.type.DataTypes.LONG;
-import static org.elasticsearch.xpack.ql.type.DataTypes.NESTED;
-import static org.elasticsearch.xpack.ql.type.DataTypes.NULL;
-import static org.elasticsearch.xpack.ql.type.DataTypes.OBJECT;
-import static org.elasticsearch.xpack.ql.type.DataTypes.SCALED_FLOAT;
-import static org.elasticsearch.xpack.ql.type.DataTypes.SHORT;
-import static org.elasticsearch.xpack.ql.type.DataTypes.SOURCE;
-import static org.elasticsearch.xpack.ql.type.DataTypes.TEXT;
-import static org.elasticsearch.xpack.ql.type.DataTypes.UNSIGNED_LONG;
-import static org.elasticsearch.xpack.ql.type.DataTypes.UNSUPPORTED;
-import static org.elasticsearch.xpack.ql.type.DataTypes.VERSION;
-import static org.elasticsearch.xpack.ql.type.DataTypes.isNull;
+import static org.elasticsearch.xpack.esql.core.type.DataTypes.BOOLEAN;
+import static org.elasticsearch.xpack.esql.core.type.DataTypes.BYTE;
+import static org.elasticsearch.xpack.esql.core.type.DataTypes.DATETIME;
+import static org.elasticsearch.xpack.esql.core.type.DataTypes.DOUBLE;
+import static org.elasticsearch.xpack.esql.core.type.DataTypes.FLOAT;
+import static org.elasticsearch.xpack.esql.core.type.DataTypes.HALF_FLOAT;
+import static org.elasticsearch.xpack.esql.core.type.DataTypes.INTEGER;
+import static org.elasticsearch.xpack.esql.core.type.DataTypes.IP;
+import static org.elasticsearch.xpack.esql.core.type.DataTypes.KEYWORD;
+import static org.elasticsearch.xpack.esql.core.type.DataTypes.LONG;
+import static org.elasticsearch.xpack.esql.core.type.DataTypes.NESTED;
+import static org.elasticsearch.xpack.esql.core.type.DataTypes.NULL;
+import static org.elasticsearch.xpack.esql.core.type.DataTypes.OBJECT;
+import static org.elasticsearch.xpack.esql.core.type.DataTypes.SCALED_FLOAT;
+import static org.elasticsearch.xpack.esql.core.type.DataTypes.SHORT;
+import static org.elasticsearch.xpack.esql.core.type.DataTypes.SOURCE;
+import static org.elasticsearch.xpack.esql.core.type.DataTypes.TEXT;
+import static org.elasticsearch.xpack.esql.core.type.DataTypes.UNSIGNED_LONG;
+import static org.elasticsearch.xpack.esql.core.type.DataTypes.UNSUPPORTED;
+import static org.elasticsearch.xpack.esql.core.type.DataTypes.VERSION;
+import static org.elasticsearch.xpack.esql.core.type.DataTypes.isNull;
 
 public final class EsqlDataTypes {
 
@@ -249,7 +249,12 @@ public final class EsqlDataTypes {
     }
 
     public static DataType getCounterType(String typeName) {
-        return fromTypeName("counter_" + typeName);
+        final DataType rootType = widenSmallNumericTypes(fromName(typeName));
+        if (rootType == UNSUPPORTED) {
+            return rootType;
+        }
+        assert rootType == LONG || rootType == INTEGER || rootType == DOUBLE : rootType;
+        return fromTypeName("counter_" + rootType.typeName());
     }
 
     public static boolean isCounterType(DataType dt) {

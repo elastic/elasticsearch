@@ -86,6 +86,8 @@ public class AutoscalingIT extends MlNativeAutodetectIntegTestCase {
             Settings.builder().put(MlAutoscalingDeciderService.DOWN_SCALE_DELAY.getKey(), TimeValue.ZERO).build()
         );
         final PutAutoscalingPolicyAction.Request request = new PutAutoscalingPolicyAction.Request(
+            TEST_REQUEST_TIMEOUT,
+            TEST_REQUEST_TIMEOUT,
             "ml_test",
             new TreeSet<>(List.of("master", "data", "ingest", "ml")),
             deciders
@@ -94,7 +96,8 @@ public class AutoscalingIT extends MlNativeAutodetectIntegTestCase {
 
         assertBusy(
             () -> assertMlCapacity(
-                client().execute(GetAutoscalingCapacityAction.INSTANCE, new GetAutoscalingCapacityAction.Request()).actionGet(),
+                client().execute(GetAutoscalingCapacityAction.INSTANCE, new GetAutoscalingCapacityAction.Request(TEST_REQUEST_TIMEOUT))
+                    .actionGet(),
                 "Requesting scale down as tier and/or node size could be smaller",
                 0L,
                 0L
@@ -113,7 +116,8 @@ public class AutoscalingIT extends MlNativeAutodetectIntegTestCase {
         );
 
         assertMlCapacity(
-            client().execute(GetAutoscalingCapacityAction.INSTANCE, new GetAutoscalingCapacityAction.Request()).actionGet(),
+            client().execute(GetAutoscalingCapacityAction.INSTANCE, new GetAutoscalingCapacityAction.Request(TEST_REQUEST_TIMEOUT))
+                .actionGet(),
             "Requesting scale down as tier and/or node size could be smaller",
             expectedTierBytes,
             expectedNodeBytes
@@ -151,7 +155,8 @@ public class AutoscalingIT extends MlNativeAutodetectIntegTestCase {
         );
 
         assertMlCapacity(
-            client().execute(GetAutoscalingCapacityAction.INSTANCE, new GetAutoscalingCapacityAction.Request()).actionGet(),
+            client().execute(GetAutoscalingCapacityAction.INSTANCE, new GetAutoscalingCapacityAction.Request(TEST_REQUEST_TIMEOUT))
+                .actionGet(),
             "requesting scale up as number of jobs in queues exceeded configured limit",
             expectedTierBytes,
             expectedNodeBytes
@@ -165,7 +170,8 @@ public class AutoscalingIT extends MlNativeAutodetectIntegTestCase {
         expectedNodeBytes = (long) Math.ceil(ByteSizeValue.ofMb(200 + PER_JOB_OVERHEAD_MB + PER_NODE_OVERHEAD_MB).getBytes() * 100 / 30.0);
 
         assertMlCapacity(
-            client().execute(GetAutoscalingCapacityAction.INSTANCE, new GetAutoscalingCapacityAction.Request()).actionGet(),
+            client().execute(GetAutoscalingCapacityAction.INSTANCE, new GetAutoscalingCapacityAction.Request(TEST_REQUEST_TIMEOUT))
+                .actionGet(),
             "Requesting scale down as tier and/or node size could be smaller",
             expectedTierBytes,
             expectedNodeBytes
@@ -175,7 +181,8 @@ public class AutoscalingIT extends MlNativeAutodetectIntegTestCase {
         closeJob("job2");
 
         assertMlCapacity(
-            client().execute(GetAutoscalingCapacityAction.INSTANCE, new GetAutoscalingCapacityAction.Request()).actionGet(),
+            client().execute(GetAutoscalingCapacityAction.INSTANCE, new GetAutoscalingCapacityAction.Request(TEST_REQUEST_TIMEOUT))
+                .actionGet(),
             "Requesting scale down as tier and/or node size could be smaller",
             0L,
             0L
@@ -197,6 +204,8 @@ public class AutoscalingIT extends MlNativeAutodetectIntegTestCase {
             Settings.builder().put(MlAutoscalingDeciderService.DOWN_SCALE_DELAY.getKey(), TimeValue.ZERO).build()
         );
         final PutAutoscalingPolicyAction.Request request = new PutAutoscalingPolicyAction.Request(
+            TEST_REQUEST_TIMEOUT,
+            TEST_REQUEST_TIMEOUT,
             "ml_test",
             new TreeSet<>(List.of("master", "data", "ingest", "ml")),
             deciders
@@ -212,7 +221,8 @@ public class AutoscalingIT extends MlNativeAutodetectIntegTestCase {
         );
 
         assertMlCapacity(
-            client().execute(GetAutoscalingCapacityAction.INSTANCE, new GetAutoscalingCapacityAction.Request()).actionGet(),
+            client().execute(GetAutoscalingCapacityAction.INSTANCE, new GetAutoscalingCapacityAction.Request(TEST_REQUEST_TIMEOUT))
+                .actionGet(),
             "Requesting scale down as tier and/or node size could be smaller",
             expectedTierBytes,
             expectedNodeBytes
@@ -247,7 +257,8 @@ public class AutoscalingIT extends MlNativeAutodetectIntegTestCase {
         );
 
         assertMlCapacity(
-            client().execute(GetAutoscalingCapacityAction.INSTANCE, new GetAutoscalingCapacityAction.Request()).actionGet(),
+            client().execute(GetAutoscalingCapacityAction.INSTANCE, new GetAutoscalingCapacityAction.Request(TEST_REQUEST_TIMEOUT))
+                .actionGet(),
             "requesting scale up as number of jobs in queues exceeded configured limit "
                 + "or there is at least one trained model waiting for assignment "
                 + "and current capacity is not large enough for waiting jobs",

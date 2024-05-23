@@ -101,7 +101,6 @@ public final class ExchangeService extends AbstractLifecycleComponent {
             OpenExchangeRequest::new,
             new OpenExchangeRequestHandler()
         );
-
     }
 
     /**

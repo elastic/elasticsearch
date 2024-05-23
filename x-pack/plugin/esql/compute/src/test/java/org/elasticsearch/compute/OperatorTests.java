@@ -55,12 +55,12 @@ import org.elasticsearch.compute.operator.AbstractPageMappingOperator;
 import org.elasticsearch.compute.operator.Driver;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.HashAggregationOperator;
-import org.elasticsearch.compute.operator.HashLookupOperator;
 import org.elasticsearch.compute.operator.LimitOperator;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.operator.OperatorTestCase;
 import org.elasticsearch.compute.operator.OrdinalsGroupingOperator;
 import org.elasticsearch.compute.operator.PageConsumerOperator;
+import org.elasticsearch.compute.operator.RowInTableLookupOperator;
 import org.elasticsearch.compute.operator.SequenceLongBlockSourceOperator;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.Releasables;
@@ -370,7 +370,13 @@ public class OperatorTests extends MapperServiceTestCase {
                 var driver = new Driver(
                     driverContext,
                     new SequenceLongBlockSourceOperator(driverContext.blockFactory(), values, 100),
-                    List.of(new HashLookupOperator(driverContext.blockFactory(), new Block[] { primesBlock }, new int[] { 0 })),
+                    List.of(
+                        new RowInTableLookupOperator(
+                            driverContext.blockFactory(),
+                            new RowInTableLookupOperator.Key[] { new RowInTableLookupOperator.Key("primes", primesBlock) },
+                            new int[] { 0 }
+                        )
+                    ),
                     new PageConsumerOperator(page -> {
                         try {
                             BlockTestUtils.readInto(actualValues, page.getBlock(0));

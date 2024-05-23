@@ -12,14 +12,14 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.xpack.esql.VerificationException;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.type.DataTypes;
 import org.elasticsearch.xpack.esql.expression.function.AbstractFunctionTestCase;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
-import org.elasticsearch.xpack.ql.expression.Expression;
-import org.elasticsearch.xpack.ql.expression.Literal;
-import org.elasticsearch.xpack.ql.tree.Source;
-import org.elasticsearch.xpack.ql.type.DataType;
-import org.elasticsearch.xpack.ql.type.DataTypes;
 
 import java.time.Duration;
 import java.time.Period;
@@ -155,7 +155,7 @@ public class NegTests extends AbstractFunctionTestCase {
     }
 
     private Object process(Object val) {
-        if (testCase.allTypesAreRepresentable()) {
+        if (testCase.canBuildEvaluator()) {
             Neg neg = new Neg(Source.EMPTY, field("val", typeOf(val)));
             try (Block block = evaluator(neg).get(driverContext()).eval(row(List.of(val)))) {
                 return toJavaObject(block, 0);

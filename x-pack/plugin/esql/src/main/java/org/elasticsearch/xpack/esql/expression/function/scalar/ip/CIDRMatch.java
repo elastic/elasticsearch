@@ -12,26 +12,27 @@ import org.elasticsearch.common.network.CIDRUtils;
 import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.Expressions;
+import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
+import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.type.DataTypes;
+import org.elasticsearch.xpack.esql.core.util.CollectionUtils;
+import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunction;
-import org.elasticsearch.xpack.ql.expression.Expression;
-import org.elasticsearch.xpack.ql.expression.Expressions;
-import org.elasticsearch.xpack.ql.tree.NodeInfo;
-import org.elasticsearch.xpack.ql.tree.Source;
-import org.elasticsearch.xpack.ql.type.DataType;
-import org.elasticsearch.xpack.ql.type.DataTypes;
-import org.elasticsearch.xpack.ql.util.CollectionUtils;
 
 import java.util.Arrays;
 import java.util.List;
 import java.util.function.Function;
 
 import static java.util.Collections.singletonList;
+import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.FIRST;
+import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.fromIndex;
+import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isIPAndExact;
 import static org.elasticsearch.xpack.esql.expression.EsqlTypeResolutions.isStringAndExact;
-import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.FIRST;
-import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.fromIndex;
-import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isIPAndExact;
 
 /**
  * This function takes a first parameter of type IP, followed by one or more parameters evaluated to a CIDR specification:
@@ -49,10 +50,18 @@ public class CIDRMatch extends EsqlScalarFunction {
     private final Expression ipField;
     private final List<Expression> matches;
 
-    @FunctionInfo(returnType = "boolean", description = "Returns true if the provided IP is contained in one of the provided CIDR blocks.")
+    @FunctionInfo(
+        returnType = "boolean",
+        description = "Returns true if the provided IP is contained in one of the provided CIDR blocks.",
+        examples = @Example(file = "ip", tag = "cdirMatchMultipleArgs")
+    )
     public CIDRMatch(
         Source source,
-        @Param(name = "ip", type = { "ip" }) Expression ipField,
+        @Param(
+            name = "ip",
+            type = { "ip" },
+            description = "IP address of type `ip` (both IPv4 and IPv6 are supported)."
+        ) Expression ipField,
         @Param(name = "blockX", type = { "keyword", "text" }, description = "CIDR block to test the IP against.") List<Expression> matches
     ) {
         super(source, CollectionUtils.combine(singletonList(ipField), matches));

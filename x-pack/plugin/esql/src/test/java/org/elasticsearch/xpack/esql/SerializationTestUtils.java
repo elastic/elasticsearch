@@ -23,14 +23,14 @@ import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.index.query.TermsQueryBuilder;
 import org.elasticsearch.index.query.WildcardQueryBuilder;
 import org.elasticsearch.test.EqualsHashCodeTestUtils;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.io.stream.PlanNameRegistry;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamOutput;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.querydsl.query.SingleValueQuery;
 import org.elasticsearch.xpack.esql.session.EsqlConfiguration;
-import org.elasticsearch.xpack.ql.expression.Expression;
-import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -41,7 +41,16 @@ public class SerializationTestUtils {
     private static final PlanNameRegistry planNameRegistry = new PlanNameRegistry();
 
     public static void assertSerialization(PhysicalPlan plan) {
-        var deserPlan = serializeDeserialize(plan, PlanStreamOutput::writePhysicalPlanNode, PlanStreamInput::readPhysicalPlanNode);
+        assertSerialization(plan, EsqlTestUtils.TEST_CFG);
+    }
+
+    public static void assertSerialization(PhysicalPlan plan, EsqlConfiguration configuration) {
+        var deserPlan = serializeDeserialize(
+            plan,
+            PlanStreamOutput::writePhysicalPlanNode,
+            PlanStreamInput::readPhysicalPlanNode,
+            configuration
+        );
         EqualsHashCodeTestUtils.checkEqualsAndHashCode(plan, unused -> deserPlan);
     }
 
@@ -51,7 +60,16 @@ public class SerializationTestUtils {
     }
 
     public static void assertSerialization(Expression expression) {
-        Expression deserExpression = serializeDeserialize(expression, PlanStreamOutput::writeExpression, PlanStreamInput::readExpression);
+        assertSerialization(expression, EsqlTestUtils.TEST_CFG);
+    }
+
+    public static void assertSerialization(Expression expression, EsqlConfiguration configuration) {
+        Expression deserExpression = serializeDeserialize(
+            expression,
+            PlanStreamOutput::writeExpression,
+            PlanStreamInput::readExpression,
+            configuration
+        );
         EqualsHashCodeTestUtils.checkEqualsAndHashCode(expression, unused -> deserExpression);
     }
 
@@ -61,7 +79,7 @@ public class SerializationTestUtils {
 
     public static <T> T serializeDeserialize(T orig, Serializer<T> serializer, Deserializer<T> deserializer, EsqlConfiguration config) {
         try (BytesStreamOutput out = new BytesStreamOutput()) {
-            PlanStreamOutput planStreamOutput = new PlanStreamOutput(out, planNameRegistry);
+            PlanStreamOutput planStreamOutput = new PlanStreamOutput(out, planNameRegistry, config);
             serializer.write(planStreamOutput, orig);
             StreamInput in = new NamedWriteableAwareStreamInput(
                 ByteBufferStreamInput.wrap(BytesReference.toBytes(out.bytes())),

@@ -12,27 +12,27 @@ import org.apache.lucene.util.BytesRefBuilder;
 import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.core.expression.function.OptionalArgument;
+import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
+import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.type.DataTypes;
 import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
+import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunction;
-import org.elasticsearch.xpack.ql.expression.Expression;
-import org.elasticsearch.xpack.ql.expression.Literal;
-import org.elasticsearch.xpack.ql.expression.function.OptionalArgument;
-import org.elasticsearch.xpack.ql.tree.NodeInfo;
-import org.elasticsearch.xpack.ql.tree.Source;
-import org.elasticsearch.xpack.ql.type.DataType;
-import org.elasticsearch.xpack.ql.type.DataTypes;
 
 import java.util.Arrays;
 import java.util.List;
-import java.util.Objects;
 import java.util.function.Function;
 
-import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.FIRST;
-import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.SECOND;
-import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.THIRD;
-import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isString;
+import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.FIRST;
+import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.SECOND;
+import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.THIRD;
+import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isString;
 
 /**
  * Combines the values from two multivalued fields with a delimiter that joins them together.
@@ -43,13 +43,19 @@ public class MvZip extends EsqlScalarFunction implements OptionalArgument, Evalu
 
     @FunctionInfo(
         returnType = { "keyword" },
-        description = "Combines the values from two multivalued fields with a delimiter that joins them together."
+        description = "Combines the values from two multivalued fields with a delimiter that joins them together.",
+        examples = @Example(file = "string", tag = "mv_zip")
     )
     public MvZip(
         Source source,
-        @Param(name = "string1", type = { "keyword", "text" }, description = "A multivalued field") Expression mvLeft,
-        @Param(name = "string2", type = { "keyword", "text" }, description = "A multivalued field") Expression mvRight,
-        @Param(name = "delim", type = { "keyword", "text" }, description = "delimiter", optional = true) Expression delim
+        @Param(name = "string1", type = { "keyword", "text" }, description = "Multivalue expression.") Expression mvLeft,
+        @Param(name = "string2", type = { "keyword", "text" }, description = "Multivalue expression.") Expression mvRight,
+        @Param(
+            name = "delim",
+            type = { "keyword", "text" },
+            description = "Delimiter. Optional; if omitted, `,` is used as a default delimiter.",
+            optional = true
+        ) Expression delim
     ) {
         super(source, delim == null ? Arrays.asList(mvLeft, mvRight, COMMA) : Arrays.asList(mvLeft, mvRight, delim));
         this.mvLeft = mvLeft;
@@ -108,20 +114,6 @@ public class MvZip extends EsqlScalarFunction implements OptionalArgument, Evalu
     @Override
     public DataType dataType() {
         return DataTypes.KEYWORD;
-    }
-
-    @Override
-    public int hashCode() {
-        return Objects.hash(mvLeft, mvRight, delim);
-    }
-
-    @Override
-    public boolean equals(Object obj) {
-        if (obj == null || obj.getClass() != getClass()) {
-            return false;
-        }
-        MvZip other = (MvZip) obj;
-        return Objects.equals(other.mvLeft, mvLeft) && Objects.equals(other.mvRight, mvRight) && Objects.equals(other.delim, delim);
     }
 
     private static void buildOneSide(BytesRefBlock.Builder builder, int start, int end, BytesRefBlock field, BytesRef fieldScratch) {

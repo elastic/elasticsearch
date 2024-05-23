@@ -7,14 +7,30 @@
 
 package org.elasticsearch.xpack.esql.optimizer;
 
-import org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.Equals;
-import org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.GreaterThan;
-import org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.GreaterThanOrEqual;
-import org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.LessThan;
-import org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.LessThanOrEqual;
-import org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.NotEquals;
+import org.elasticsearch.xpack.esql.core.common.Failures;
+import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.Expressions;
+import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.core.expression.function.Function;
+import org.elasticsearch.xpack.esql.core.expression.predicate.Predicates;
+import org.elasticsearch.xpack.esql.core.expression.predicate.Range;
+import org.elasticsearch.xpack.esql.core.expression.predicate.logical.And;
+import org.elasticsearch.xpack.esql.core.expression.predicate.logical.BinaryLogic;
+import org.elasticsearch.xpack.esql.core.expression.predicate.logical.Not;
+import org.elasticsearch.xpack.esql.core.expression.predicate.logical.Or;
+import org.elasticsearch.xpack.esql.core.expression.predicate.operator.comparison.BinaryComparison;
+import org.elasticsearch.xpack.esql.core.plan.QueryPlan;
+import org.elasticsearch.xpack.esql.core.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.core.type.DataTypes;
+import org.elasticsearch.xpack.esql.core.util.CollectionUtils;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThan;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThanOrEqual;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.In;
-import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.NullEquals;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThan;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThanOrEqual;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.NotEquals;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
@@ -38,23 +54,6 @@ import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.plan.physical.RegexExtractExec;
 import org.elasticsearch.xpack.esql.plan.physical.RowExec;
 import org.elasticsearch.xpack.esql.plan.physical.ShowExec;
-import org.elasticsearch.xpack.ql.common.Failures;
-import org.elasticsearch.xpack.ql.expression.AttributeSet;
-import org.elasticsearch.xpack.ql.expression.Expression;
-import org.elasticsearch.xpack.ql.expression.Expressions;
-import org.elasticsearch.xpack.ql.expression.Literal;
-import org.elasticsearch.xpack.ql.expression.function.Function;
-import org.elasticsearch.xpack.ql.expression.predicate.Predicates;
-import org.elasticsearch.xpack.ql.expression.predicate.Range;
-import org.elasticsearch.xpack.ql.expression.predicate.logical.And;
-import org.elasticsearch.xpack.ql.expression.predicate.logical.BinaryLogic;
-import org.elasticsearch.xpack.ql.expression.predicate.logical.Not;
-import org.elasticsearch.xpack.ql.expression.predicate.logical.Or;
-import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.BinaryComparison;
-import org.elasticsearch.xpack.ql.plan.QueryPlan;
-import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
-import org.elasticsearch.xpack.ql.type.DataTypes;
-import org.elasticsearch.xpack.ql.util.CollectionUtils;
 
 import java.time.ZoneId;
 import java.util.ArrayList;
@@ -66,11 +65,11 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-import static org.elasticsearch.xpack.ql.common.Failure.fail;
-import static org.elasticsearch.xpack.ql.expression.Literal.FALSE;
-import static org.elasticsearch.xpack.ql.expression.Literal.TRUE;
-import static org.elasticsearch.xpack.ql.expression.predicate.Predicates.combineOr;
-import static org.elasticsearch.xpack.ql.expression.predicate.Predicates.splitOr;
+import static org.elasticsearch.xpack.esql.core.common.Failure.fail;
+import static org.elasticsearch.xpack.esql.core.expression.Literal.FALSE;
+import static org.elasticsearch.xpack.esql.core.expression.Literal.TRUE;
+import static org.elasticsearch.xpack.esql.core.expression.predicate.Predicates.combineOr;
+import static org.elasticsearch.xpack.esql.core.expression.predicate.Predicates.splitOr;
 
 class OptimizerRules {
 
@@ -195,9 +194,10 @@ class OptimizerRules {
      * This rule does NOT check for type compatibility as that phase has been
      * already be verified in the analyzer.
      */
-    public static class CombineDisjunctionsToIn extends org.elasticsearch.xpack.ql.optimizer.OptimizerRules.OptimizerExpressionRule<Or> {
+    public static class CombineDisjunctionsToIn extends org.elasticsearch.xpack.esql.core.optimizer.OptimizerRules.OptimizerExpressionRule<
+        Or> {
         CombineDisjunctionsToIn() {
-            super(org.elasticsearch.xpack.ql.optimizer.OptimizerRules.TransformDirection.UP);
+            super(org.elasticsearch.xpack.esql.core.optimizer.OptimizerRules.TransformDirection.UP);
         }
 
         protected In createIn(Expression key, List<Expression> values, ZoneId zoneId) {
@@ -261,14 +261,14 @@ class OptimizerRules {
     }
 
     /**
-     * This rule must always be placed after {@link org.elasticsearch.xpack.ql.optimizer.OptimizerRules.LiteralsOnTheRight}, since it looks
-     * at TRUE/FALSE literals' existence on the right hand-side of the {@link Equals}/{@link NotEquals} expressions.
+     * This rule must always be placed after {@link org.elasticsearch.xpack.esql.core.optimizer.OptimizerRules.LiteralsOnTheRight}
+     * since it looks at TRUE/FALSE literals' existence on the right hand-side of the {@link Equals}/{@link NotEquals} expressions.
      */
     public static final class BooleanFunctionEqualsElimination extends
-        org.elasticsearch.xpack.ql.optimizer.OptimizerRules.OptimizerExpressionRule<BinaryComparison> {
+        org.elasticsearch.xpack.esql.core.optimizer.OptimizerRules.OptimizerExpressionRule<BinaryComparison> {
 
         BooleanFunctionEqualsElimination() {
-            super(org.elasticsearch.xpack.ql.optimizer.OptimizerRules.TransformDirection.UP);
+            super(org.elasticsearch.xpack.esql.core.optimizer.OptimizerRules.TransformDirection.UP);
         }
 
         @Override
@@ -295,17 +295,17 @@ class OptimizerRules {
      * When encountering a containing {@link Range}, {@link BinaryComparison} or {@link NotEquals}, these get eliminated by the equality.
      *
      * Since this rule can eliminate Ranges and BinaryComparisons, it should be applied before
-     * {@link org.elasticsearch.xpack.ql.optimizer.OptimizerRules.CombineBinaryComparisons}.
+     * {@link org.elasticsearch.xpack.esql.core.optimizer.OptimizerRules.CombineBinaryComparisons}.
      *
      * This rule doesn't perform any promotion of {@link BinaryComparison}s, that is handled by
-     * {@link org.elasticsearch.xpack.ql.optimizer.OptimizerRules.CombineBinaryComparisons} on purpose as the resulting Range might be
-     * foldable (which is picked by the folding rule on the next run).
+     * {@link org.elasticsearch.xpack.esql.core.optimizer.OptimizerRules.CombineBinaryComparisons} on purpose as the resulting Range might
+     * be foldable (which is picked by the folding rule on the next run).
      */
-    public static final class PropagateEquals extends org.elasticsearch.xpack.ql.optimizer.OptimizerRules.OptimizerExpressionRule<
+    public static final class PropagateEquals extends org.elasticsearch.xpack.esql.core.optimizer.OptimizerRules.OptimizerExpressionRule<
         BinaryLogic> {
 
         PropagateEquals() {
-            super(org.elasticsearch.xpack.ql.optimizer.OptimizerRules.TransformDirection.DOWN);
+            super(org.elasticsearch.xpack.esql.core.optimizer.OptimizerRules.TransformDirection.DOWN);
         }
 
         public Expression rule(BinaryLogic e) {
@@ -333,8 +333,7 @@ class OptimizerRules {
             for (Expression ex : Predicates.splitAnd(and)) {
                 if (ex instanceof Range) {
                     ranges.add((Range) ex);
-                } else if (ex instanceof Equals || ex instanceof NullEquals) {
-                    BinaryComparison otherEq = (BinaryComparison) ex;
+                } else if (ex instanceof Equals otherEq) {
                     // equals on different values evaluate to FALSE
                     // ignore date/time fields as equality comparison might actually be a range check
                     if (otherEq.right().foldable() && DataTypes.isDateTime(otherEq.left().dataType()) == false) {

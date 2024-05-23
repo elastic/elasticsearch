@@ -65,9 +65,8 @@ import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.MockLogAppender;
+import org.elasticsearch.test.MockLog;
 import org.elasticsearch.test.TransportVersionUtils;
-import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.test.XContentTestUtils;
 import org.elasticsearch.threadpool.FixedExecutorBuilder;
 import org.elasticsearch.threadpool.TestThreadPool;
@@ -104,8 +103,10 @@ import org.elasticsearch.xpack.core.security.authc.RealmDomain;
 import org.elasticsearch.xpack.core.security.authc.support.AuthenticationContextSerializer;
 import org.elasticsearch.xpack.core.security.authc.support.Hasher;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
-import org.elasticsearch.xpack.core.security.authz.RoleDescriptorTests;
+import org.elasticsearch.xpack.core.security.authz.RoleDescriptorTestHelper;
 import org.elasticsearch.xpack.core.security.authz.RoleRestrictionTests;
+import org.elasticsearch.xpack.core.security.authz.permission.RemoteClusterPermissionGroup;
+import org.elasticsearch.xpack.core.security.authz.permission.RemoteClusterPermissions;
 import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilege;
 import org.elasticsearch.xpack.core.security.authz.privilege.ClusterPrivilegeResolver;
 import org.elasticsearch.xpack.core.security.authz.store.RoleReference;
@@ -151,6 +152,7 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
+import static org.elasticsearch.TransportVersions.ROLE_REMOTE_CLUSTER_PRIVS;
 import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_PRIMARY_TERM;
 import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
 import static org.elasticsearch.test.ActionListenerUtils.anyActionListener;
@@ -1039,7 +1041,7 @@ public class ApiKeyServiceTests extends ESTestCase {
         final String roleDescriptor = switch (crossClusterAccessLevel) {
             case 0 -> """
                 {
-                  "cluster": ["cross_cluster_search"]
+                  "cluster": ["cross_cluster_search", "monitor_enrich"]
                 }""";
             case 1 -> """
                 {
@@ -1047,7 +1049,7 @@ public class ApiKeyServiceTests extends ESTestCase {
                 }""";
             default -> """
                 {
-                  "cluster": ["cross_cluster_search", "cross_cluster_replication"]
+                  "cluster": ["cross_cluster_search", "monitor_enrich", "cross_cluster_replication"]
                 }""";
         };
         final int docId = randomIntBetween(0, Integer.MAX_VALUE);
@@ -1156,12 +1158,14 @@ public class ApiKeyServiceTests extends ESTestCase {
             getFastStoredHashAlgoForTests().hash(new SecureString(key.toCharArray())),
             "test",
             authentication,
-            type == ApiKey.Type.CROSS_CLUSTER ? Set.of() : Collections.singleton(SUPERUSER_ROLE_DESCRIPTOR),
+            type == ApiKey.Type.CROSS_CLUSTER
+                ? Set.of()
+                : ApiKeyService.removeUserRoleDescriptorDescriptions(Set.of(SUPERUSER_ROLE_DESCRIPTOR)),
             Instant.now(),
             Instant.now().plus(expiry),
             keyRoles,
             type,
-            Version.CURRENT,
+            ApiKey.CURRENT_API_KEY_VERSION,
             metadataMap
         );
         Map<String, Object> keyMap = XContentHelper.convertToMap(BytesReference.bytes(docSource), true, XContentType.JSON).v2();
@@ -1313,22 +1317,6 @@ public class ApiKeyServiceTests extends ESTestCase {
         List<RoleDescriptor> roleDescriptors = service.parseRoleDescriptors(apiKeyId, Map.of("a role", roleARDMap), randomApiKeyRoleType());
         assertThat(roleDescriptors, hasSize(1));
         assertThat(roleDescriptors.get(0), equalTo(roleARoleDescriptor));
-
-        Map<String, Object> superUserRdMap;
-        try (XContentBuilder builder = JsonXContent.contentBuilder()) {
-            superUserRdMap = XContentHelper.convertToMap(
-                XContentType.JSON.xContent(),
-                BytesReference.bytes(SUPERUSER_ROLE_DESCRIPTOR.toXContent(builder, ToXContent.EMPTY_PARAMS, true)).streamInput(),
-                false
-            );
-        }
-        roleDescriptors = service.parseRoleDescriptors(
-            apiKeyId,
-            Map.of(SUPERUSER_ROLE_DESCRIPTOR.getName(), superUserRdMap),
-            randomApiKeyRoleType()
-        );
-        assertThat(roleDescriptors, hasSize(1));
-        assertThat(roleDescriptors.get(0), equalTo(SUPERUSER_ROLE_DESCRIPTOR));
 
         final Map<String, Object> legacySuperUserRdMap;
         try (XContentBuilder builder = JsonXContent.contentBuilder()) {
@@ -1510,21 +1498,18 @@ public class ApiKeyServiceTests extends ESTestCase {
         IntStream.range(0, cacheSize).forEach(i -> apiKeyAuthCache.put(idPrefix + count.incrementAndGet(), new ListenableFuture<>()));
         final Logger logger = LogManager.getLogger(ApiKeyService.class);
         Loggers.setLevel(logger, Level.TRACE);
-        final MockLogAppender appender = new MockLogAppender();
-        Loggers.addAppender(logger, appender);
-        appender.start();
 
-        try {
-            appender.addExpectation(
-                new MockLogAppender.PatternSeenEventExpectation(
+        try (var mockLog = MockLog.capture(ApiKeyService.class)) {
+            mockLog.addExpectation(
+                new MockLog.PatternSeenEventExpectation(
                     "evict",
                     ApiKeyService.class.getName(),
                     Level.TRACE,
                     "API key with ID \\[" + idPrefix + "[0-9]+\\] was evicted from the authentication cache.*"
                 )
             );
-            appender.addExpectation(
-                new MockLogAppender.UnseenEventExpectation(
+            mockLog.addExpectation(
+                new MockLog.UnseenEventExpectation(
                     "no-thrashing",
                     ApiKeyService.class.getName(),
                     Level.WARN,
@@ -1532,10 +1517,10 @@ public class ApiKeyServiceTests extends ESTestCase {
                 )
             );
             apiKeyAuthCache.put(idPrefix + count.incrementAndGet(), new ListenableFuture<>());
-            appender.assertAllExpectationsMatched();
+            mockLog.assertAllExpectationsMatched();
 
-            appender.addExpectation(
-                new MockLogAppender.UnseenEventExpectation(
+            mockLog.addExpectation(
+                new MockLog.UnseenEventExpectation(
                     "replace",
                     ApiKeyService.class.getName(),
                     Level.TRACE,
@@ -1543,10 +1528,10 @@ public class ApiKeyServiceTests extends ESTestCase {
                 )
             );
             apiKeyAuthCache.put(idPrefix + count.get(), new ListenableFuture<>());
-            appender.assertAllExpectationsMatched();
+            mockLog.assertAllExpectationsMatched();
 
-            appender.addExpectation(
-                new MockLogAppender.UnseenEventExpectation(
+            mockLog.addExpectation(
+                new MockLog.UnseenEventExpectation(
                     "invalidate",
                     ApiKeyService.class.getName(),
                     Level.TRACE,
@@ -1555,11 +1540,9 @@ public class ApiKeyServiceTests extends ESTestCase {
             );
             apiKeyAuthCache.invalidate(idPrefix + count.get(), new ListenableFuture<>());
             apiKeyAuthCache.invalidateAll();
-            appender.assertAllExpectationsMatched();
+            mockLog.assertAllExpectationsMatched();
         } finally {
-            appender.stop();
             Loggers.setLevel(logger, Level.INFO);
-            Loggers.removeAppender(logger, appender);
         }
     }
 
@@ -1575,13 +1558,10 @@ public class ApiKeyServiceTests extends ESTestCase {
 
         final Logger logger = LogManager.getLogger(ApiKeyService.class);
         Loggers.setLevel(logger, Level.TRACE);
-        final MockLogAppender appender = new MockLogAppender();
-        Loggers.addAppender(logger, appender);
-        appender.start();
 
-        try {
-            appender.addExpectation(
-                new MockLogAppender.UnseenEventExpectation(
+        try (var mockLog = MockLog.capture(ApiKeyService.class)) {
+            mockLog.addExpectation(
+                new MockLog.UnseenEventExpectation(
                     "evict",
                     ApiKeyService.class.getName(),
                     Level.TRACE,
@@ -1595,11 +1575,9 @@ public class ApiKeyServiceTests extends ESTestCase {
             // Cache a new entry
             apiKeyAuthCache.put(randomValueOtherThan(apiKeyId, () -> randomAlphaOfLength(22)), new ListenableFuture<>());
             assertEquals(1, apiKeyAuthCache.count());
-            appender.assertAllExpectationsMatched();
+            mockLog.assertAllExpectationsMatched();
         } finally {
-            appender.stop();
             Loggers.setLevel(logger, Level.INFO);
-            Loggers.removeAppender(logger, appender);
         }
     }
 
@@ -1612,11 +1590,8 @@ public class ApiKeyServiceTests extends ESTestCase {
         apiKeyAuthCache.put(randomAlphaOfLength(21), new ListenableFuture<>());
         final Logger logger = LogManager.getLogger(ApiKeyService.class);
         Loggers.setLevel(logger, Level.TRACE);
-        final MockLogAppender appender = new MockLogAppender();
-        Loggers.addAppender(logger, appender);
-        appender.start();
 
-        try {
+        try (var mockLog = MockLog.capture(ApiKeyService.class)) {
             // Prepare the warning logging to trigger
             service.getEvictionCounter().add(4500);
             final long thrashingCheckIntervalInSeconds = 300L;
@@ -1628,16 +1603,16 @@ public class ApiKeyServiceTests extends ESTestCase {
             service.getLastEvictionCheckedAt().set(lastCheckedAt);
             // Ensure the counter is updated
             assertBusy(() -> assertThat(service.getEvictionCounter().longValue() >= 4500, is(true)));
-            appender.addExpectation(
-                new MockLogAppender.SeenEventExpectation(
+            mockLog.addExpectation(
+                new MockLog.SeenEventExpectation(
                     "evict",
                     ApiKeyService.class.getName(),
                     Level.TRACE,
                     "API key with ID [*] was evicted from the authentication cache*"
                 )
             );
-            appender.addExpectation(
-                new MockLogAppender.SeenEventExpectation(
+            mockLog.addExpectation(
+                new MockLog.SeenEventExpectation(
                     "thrashing",
                     ApiKeyService.class.getName(),
                     Level.WARN,
@@ -1645,23 +1620,23 @@ public class ApiKeyServiceTests extends ESTestCase {
                 )
             );
             apiKeyAuthCache.put(randomAlphaOfLength(22), new ListenableFuture<>());
-            appender.assertAllExpectationsMatched();
+            mockLog.assertAllExpectationsMatched();
 
             // Counter and timer should be reset
             assertThat(service.getLastEvictionCheckedAt().get(), lessThanOrEqualTo(System.nanoTime()));
             assertBusy(() -> assertThat(service.getEvictionCounter().longValue(), equalTo(0L)));
 
             // Will not log warning again for the next eviction because of throttling
-            appender.addExpectation(
-                new MockLogAppender.SeenEventExpectation(
+            mockLog.addExpectation(
+                new MockLog.SeenEventExpectation(
                     "evict-again",
                     ApiKeyService.class.getName(),
                     Level.TRACE,
                     "API key with ID [*] was evicted from the authentication cache*"
                 )
             );
-            appender.addExpectation(
-                new MockLogAppender.UnseenEventExpectation(
+            mockLog.addExpectation(
+                new MockLog.UnseenEventExpectation(
                     "throttling",
                     ApiKeyService.class.getName(),
                     Level.WARN,
@@ -1669,11 +1644,9 @@ public class ApiKeyServiceTests extends ESTestCase {
                 )
             );
             apiKeyAuthCache.put(randomAlphaOfLength(23), new ListenableFuture<>());
-            appender.assertAllExpectationsMatched();
+            mockLog.assertAllExpectationsMatched();
         } finally {
-            appender.stop();
             Loggers.setLevel(logger, Level.INFO);
-            Loggers.removeAppender(logger, appender);
         }
     }
 
@@ -1822,7 +1795,10 @@ public class ApiKeyServiceTests extends ESTestCase {
             RoleReference.ApiKeyRoleType.LIMITED_BY
         );
         assertEquals(1, limitedByRoleDescriptors.size());
-        assertEquals(SUPERUSER_ROLE_DESCRIPTOR, limitedByRoleDescriptors.get(0));
+        RoleDescriptor superuserWithoutDescription = ApiKeyService.removeUserRoleDescriptorDescriptions(Set.of(SUPERUSER_ROLE_DESCRIPTOR))
+            .iterator()
+            .next();
+        assertEquals(superuserWithoutDescription, limitedByRoleDescriptors.get(0));
         if (metadata == null) {
             assertNull(cachedApiKeyDoc.metadataFlattened);
         } else {
@@ -1867,6 +1843,7 @@ public class ApiKeyServiceTests extends ESTestCase {
         ApiKeyCredentials apiKeyCredentials3 = getApiKeyCredentials(docId3, apiKey3, type);
         final List<RoleDescriptor> keyRoles = List.of(
             RoleDescriptor.parserBuilder()
+                .allowRestriction(true)
                 .allow2xFormat(true)
                 .build()
                 .parse("key-role", new BytesArray("{\"cluster\":[\"monitor\"]}"), XContentType.JSON)
@@ -2358,17 +2335,17 @@ public class ApiKeyServiceTests extends ESTestCase {
         final ApiKey.Type type = randomFrom(ApiKey.Type.values());
         final Set<RoleDescriptor> oldUserRoles = type == ApiKey.Type.CROSS_CLUSTER
             ? Set.of()
-            : randomSet(0, 3, RoleDescriptorTests::randomRoleDescriptor);
+            : randomSet(0, 3, () -> RoleDescriptorTestHelper.builder().allowReservedMetadata(true).build());
         final List<RoleDescriptor> oldKeyRoles;
         if (type == ApiKey.Type.CROSS_CLUSTER) {
             oldKeyRoles = List.of(CrossClusterApiKeyRoleDescriptorBuilder.parse(randomCrossClusterApiKeyAccessField()).build());
         } else {
-            oldKeyRoles = randomList(3, RoleDescriptorTests::randomRoleDescriptor);
+            oldKeyRoles = randomList(3, () -> RoleDescriptorTestHelper.builder().allowReservedMetadata(true).build());
         }
         final long now = randomMillisUpToYear9999();
         when(clock.instant()).thenReturn(Instant.ofEpochMilli(now));
         final Map<String, Object> oldMetadata = ApiKeyTests.randomMetadata();
-        final Version oldVersion = VersionUtils.randomVersion(random());
+        final ApiKey.Version oldVersion = new ApiKey.Version(randomIntBetween(1, ApiKey.CURRENT_API_KEY_VERSION.version()));
         final ApiKeyDoc oldApiKeyDoc = ApiKeyDoc.fromXContent(
             XContentHelper.createParser(
                 XContentParserConfiguration.EMPTY,
@@ -2398,7 +2375,10 @@ public class ApiKeyServiceTests extends ESTestCase {
         final boolean changeExpiration = randomBoolean();
 
         final Set<RoleDescriptor> newUserRoles = changeUserRoles
-            ? randomValueOtherThan(oldUserRoles, () -> randomSet(0, 3, RoleDescriptorTests::randomRoleDescriptor))
+            ? randomValueOtherThan(
+                oldUserRoles,
+                () -> randomSet(0, 3, () -> RoleDescriptorTestHelper.builder().allowReservedMetadata(true).build())
+            )
             : oldUserRoles;
         final List<RoleDescriptor> newKeyRoles;
         if (changeKeyRoles) {
@@ -2411,7 +2391,10 @@ public class ApiKeyServiceTests extends ESTestCase {
                     }
                 });
             } else {
-                newKeyRoles = randomValueOtherThan(oldKeyRoles, () -> randomList(0, 3, RoleDescriptorTests::randomRoleDescriptor));
+                newKeyRoles = randomValueOtherThan(
+                    oldKeyRoles,
+                    () -> randomList(0, 3, () -> RoleDescriptorTestHelper.builder().allowReservedMetadata(true).build())
+                );
             }
         } else {
             newKeyRoles = randomBoolean() ? oldKeyRoles : null;
@@ -2419,8 +2402,8 @@ public class ApiKeyServiceTests extends ESTestCase {
         final Map<String, Object> newMetadata = changeMetadata
             ? randomValueOtherThanMany(md -> md == null || md.equals(oldMetadata), ApiKeyTests::randomMetadata)
             : (randomBoolean() ? oldMetadata : null);
-        final Version newVersion = changeVersion
-            ? randomValueOtherThan(oldVersion, () -> VersionUtils.randomVersion(random()))
+        final ApiKey.Version newVersion = changeVersion
+            ? randomValueOtherThan(oldVersion, ApiKeyServiceTests::randomApiKeyVersion)
             : oldVersion;
         final Authentication newAuthentication = changeCreator
             ? randomValueOtherThanMany(
@@ -2468,7 +2451,7 @@ public class ApiKeyServiceTests extends ESTestCase {
             assertEquals(oldApiKeyDoc.hash, updatedApiKeyDoc.hash);
             assertEquals(oldApiKeyDoc.creationTime, updatedApiKeyDoc.creationTime);
             assertEquals(oldApiKeyDoc.invalidated, updatedApiKeyDoc.invalidated);
-            assertEquals(newVersion.id, updatedApiKeyDoc.version);
+            assertEquals(newVersion.version(), updatedApiKeyDoc.version);
             final var actualUserRoles = service.parseRoleDescriptorsBytes(
                 "",
                 updatedApiKeyDoc.limitedByRoleDescriptorsBytes,
@@ -2592,7 +2575,16 @@ public class ApiKeyServiceTests extends ESTestCase {
     public void testMaybeRemoveRemoteIndicesPrivilegesWithUnsupportedVersion() {
         final String apiKeyId = randomAlphaOfLengthBetween(5, 8);
         final Set<RoleDescriptor> userRoleDescriptors = Set.copyOf(
-            randomList(2, 5, () -> RoleDescriptorTests.randomRoleDescriptor(randomBoolean(), randomBoolean(), randomBoolean()))
+            randomList(
+                2,
+                5,
+                () -> RoleDescriptorTestHelper.builder()
+                    .allowReservedMetadata(randomBoolean())
+                    .allowRemoteIndices(randomBoolean())
+                    .allowRestriction(randomBoolean())
+                    .allowRemoteClusters(false)
+                    .build()
+            )
         );
 
         // Selecting random unsupported version.
@@ -2602,11 +2594,7 @@ public class ApiKeyServiceTests extends ESTestCase {
             TransportVersionUtils.getPreviousVersion(TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY)
         );
 
-        final Set<RoleDescriptor> result = ApiKeyService.maybeRemoveRemoteIndicesPrivileges(
-            userRoleDescriptors,
-            minTransportVersion,
-            apiKeyId
-        );
+        final Set<RoleDescriptor> result = ApiKeyService.maybeRemoveRemotePrivileges(userRoleDescriptors, minTransportVersion, apiKeyId);
         assertThat(result.stream().anyMatch(RoleDescriptor::hasRemoteIndicesPrivileges), equalTo(false));
         assertThat(result.size(), equalTo(userRoleDescriptors.size()));
 
@@ -2622,29 +2610,57 @@ public class ApiKeyServiceTests extends ESTestCase {
                 "Removed API key's remote indices privileges from role(s) "
                     + userRoleNamesWithRemoteIndicesPrivileges
                     + ". Remote indices are not supported by all nodes in the cluster. "
-                    + "Use the update API Key API to re-assign remote indices to the API key(s), after the cluster upgrade is complete."
             );
         }
     }
 
-    public void testMaybeRemoveRemoteIndicesPrivilegesWithSupportedVersion() {
+    public void testMaybeRemoveRemoteClusterPrivilegesWithUnsupportedVersion() {
         final String apiKeyId = randomAlphaOfLengthBetween(5, 8);
         final Set<RoleDescriptor> userRoleDescriptors = Set.copyOf(
-            randomList(1, 3, ApiKeyServiceTests::randomRoleDescriptorWithRemoteIndexPrivileges)
+            randomList(2, 5, () -> RoleDescriptorTestHelper.builder().allowRemoteClusters(true).build())
+        );
+
+        // Selecting random unsupported version.
+        final TransportVersion minTransportVersion = TransportVersionUtils.randomVersionBetween(
+            random(),
+            TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY,
+            TransportVersionUtils.getPreviousVersion(ROLE_REMOTE_CLUSTER_PRIVS)
+        );
+
+        final Set<RoleDescriptor> result = ApiKeyService.maybeRemoveRemotePrivileges(userRoleDescriptors, minTransportVersion, apiKeyId);
+        assertThat(result.stream().anyMatch(RoleDescriptor::hasRemoteClusterPermissions), equalTo(false));
+        assertThat(result.size(), equalTo(userRoleDescriptors.size()));
+
+        // Roles for which warning headers are added.
+        final List<String> userRoleNamesWithRemoteClusterPrivileges = userRoleDescriptors.stream()
+            .filter(RoleDescriptor::hasRemoteClusterPermissions)
+            .map(RoleDescriptor::getName)
+            .sorted()
+            .toList();
+
+        if (false == userRoleNamesWithRemoteClusterPrivileges.isEmpty()) {
+            assertWarnings(
+                "Removed API key's remote cluster privileges from role(s) "
+                    + userRoleNamesWithRemoteClusterPrivileges
+                    + ". Remote cluster privileges are not supported by all nodes in the cluster."
+            );
+        }
+    }
+
+    public void testMaybeRemoveRemotePrivilegesWithSupportedVersion() {
+        final String apiKeyId = randomAlphaOfLengthBetween(5, 8);
+        final Set<RoleDescriptor> userRoleDescriptors = Set.copyOf(
+            randomList(1, 3, ApiKeyServiceTests::randomRoleDescriptorWithRemotePrivileges)
         );
 
         // Selecting random supported version.
         final TransportVersion minTransportVersion = TransportVersionUtils.randomVersionBetween(
             random(),
-            TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY,
+            ROLE_REMOTE_CLUSTER_PRIVS,
             TransportVersion.current()
         );
 
-        final Set<RoleDescriptor> result = ApiKeyService.maybeRemoveRemoteIndicesPrivileges(
-            userRoleDescriptors,
-            minTransportVersion,
-            apiKeyId
-        );
+        final Set<RoleDescriptor> result = ApiKeyService.maybeRemoveRemotePrivileges(userRoleDescriptors, minTransportVersion, apiKeyId);
 
         // User roles should be unchanged.
         assertThat(result, equalTo(userRoleDescriptors));
@@ -2913,7 +2929,12 @@ public class ApiKeyServiceTests extends ESTestCase {
         final List<RoleDescriptor> requestRoleDescriptors = randomList(
             0,
             1,
-            () -> RoleDescriptorTests.randomRoleDescriptor(randomBoolean(), false, randomBoolean())
+            () -> RoleDescriptorTestHelper.builder()
+                .allowReservedMetadata(randomBoolean())
+                .allowRemoteIndices(false)
+                .allowRestriction(randomBoolean())
+                .allowRemoteClusters(false)
+                .build()
         );
 
         final AbstractCreateApiKeyRequest createRequest = mock(AbstractCreateApiKeyRequest.class);
@@ -2937,34 +2958,27 @@ public class ApiKeyServiceTests extends ESTestCase {
         assertThat(e2.getMessage(), containsString("owner user role descriptors must not include restriction"));
     }
 
-    private static RoleDescriptor randomRoleDescriptorWithRemoteIndexPrivileges() {
+    private static RoleDescriptor randomRoleDescriptorWithRemotePrivileges() {
         return new RoleDescriptor(
             randomAlphaOfLengthBetween(3, 90),
             randomSubsetOf(ClusterPrivilegeResolver.names()).toArray(String[]::new),
-            RoleDescriptorTests.randomIndicesPrivileges(0, 3),
-            RoleDescriptorTests.randomApplicationPrivileges(),
-            RoleDescriptorTests.randomClusterPrivileges(),
+            RoleDescriptorTestHelper.randomIndicesPrivileges(0, 3),
+            RoleDescriptorTestHelper.randomApplicationPrivileges(),
+            RoleDescriptorTestHelper.randomClusterPrivileges(),
             generateRandomStringArray(5, randomIntBetween(2, 8), false, true),
-            RoleDescriptorTests.randomRoleDescriptorMetadata(randomBoolean()),
+            RoleDescriptorTestHelper.randomRoleDescriptorMetadata(randomBoolean()),
             Map.of(),
-            RoleDescriptorTests.randomRemoteIndicesPrivileges(1, 3),
-            RoleRestrictionTests.randomWorkflowsRestriction(1, 3)
+            RoleDescriptorTestHelper.randomRemoteIndicesPrivileges(1, 3),
+            new RemoteClusterPermissions().addGroup(
+                new RemoteClusterPermissionGroup(new String[] { "monitor_enrich" }, new String[] { "*" })
+            ),
+            RoleRestrictionTests.randomWorkflowsRestriction(1, 3),
+            randomAlphaOfLengthBetween(0, 10)
         );
     }
 
     private static RoleDescriptor randomRoleDescriptorWithWorkflowsRestriction() {
-        return new RoleDescriptor(
-            randomAlphaOfLengthBetween(3, 90),
-            randomSubsetOf(ClusterPrivilegeResolver.names()).toArray(String[]::new),
-            RoleDescriptorTests.randomIndicesPrivileges(0, 3),
-            RoleDescriptorTests.randomApplicationPrivileges(),
-            RoleDescriptorTests.randomClusterPrivileges(),
-            generateRandomStringArray(5, randomIntBetween(2, 8), false, true),
-            RoleDescriptorTests.randomRoleDescriptorMetadata(randomBoolean()),
-            Map.of(),
-            null,
-            RoleRestrictionTests.randomWorkflowsRestriction(1, 3)
-        );
+        return RoleDescriptorTestHelper.builder().allowReservedMetadata(true).allowRestriction(true).allowRemoteIndices(false).build();
     }
 
     public static String randomCrossClusterApiKeyAccessField() {
@@ -2991,7 +3005,7 @@ public class ApiKeyServiceTests extends ESTestCase {
                 Instant.now().plus(Duration.ofSeconds(3600)),
                 keyRoles,
                 ApiKey.Type.REST,
-                Version.CURRENT,
+                ApiKey.CURRENT_API_KEY_VERSION,
                 randomBoolean() ? null : Map.of(randomAlphaOfLengthBetween(3, 8), randomAlphaOfLengthBetween(3, 8))
             );
             final ApiKeyDoc apiKeyDoc = ApiKeyDoc.fromXContent(
@@ -3206,5 +3220,9 @@ public class ApiKeyServiceTests extends ESTestCase {
             randomBoolean(),
             mock(Realms.class)
         );
+    }
+
+    private static ApiKey.Version randomApiKeyVersion() {
+        return new ApiKey.Version(randomIntBetween(1, ApiKey.CURRENT_API_KEY_VERSION.version()));
     }
 }

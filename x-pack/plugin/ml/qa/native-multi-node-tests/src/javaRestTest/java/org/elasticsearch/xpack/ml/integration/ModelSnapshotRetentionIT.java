@@ -17,7 +17,6 @@ import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.WriteRequest;
-import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -71,7 +70,7 @@ public class ModelSnapshotRetentionIT extends MlNativeAutodetectIntegTestCase {
             client(),
             ClusterState.EMPTY_STATE,
             TestIndexNameExpressionResolver.newInstance(),
-            MasterNodeRequest.DEFAULT_MASTER_NODE_TIMEOUT,
+            TEST_REQUEST_TIMEOUT,
             future
         );
         future.actionGet();

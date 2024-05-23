@@ -18,9 +18,9 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ServiceSettings;
 import org.elasticsearch.inference.SimilarityMeasure;
-import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
+import org.elasticsearch.xpack.inference.services.settings.FilteredXContentObject;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 
 import java.io.IOException;
@@ -38,13 +38,13 @@ import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOpt
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractSimilarity;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeAsType;
 
-public class CohereServiceSettings implements ServiceSettings, CohereRateLimitServiceSettings {
+public class CohereServiceSettings extends FilteredXContentObject implements ServiceSettings, CohereRateLimitServiceSettings {
 
     public static final String NAME = "cohere_service_settings";
     public static final String OLD_MODEL_ID_FIELD = "model";
     public static final String MODEL_ID = "model_id";
     private static final Logger logger = LogManager.getLogger(CohereServiceSettings.class);
-    // The rate limit defined here is pulled for the blog: https://txt.cohere.com/free-developer-tier-announcement/ for the production tier
+    // Production key rate limits for all endpoints: https://docs.cohere.com/docs/going-live#production-key-specifications
     // 10K requests a minute
     private static final RateLimitSettings DEFAULT_RATE_LIMIT_SETTINGS = new RateLimitSettings(10_000);
 
@@ -173,6 +173,14 @@ public class CohereServiceSettings implements ServiceSettings, CohereRateLimitSe
     }
 
     public XContentBuilder toXContentFragment(XContentBuilder builder, Params params) throws IOException {
+        toXContentFragmentOfExposedFields(builder, params);
+        rateLimitSettings.toXContent(builder, params);
+
+        return builder;
+    }
+
+    @Override
+    public XContentBuilder toXContentFragmentOfExposedFields(XContentBuilder builder, Params params) throws IOException {
         if (uri != null) {
             builder.field(URL, uri.toString());
         }
@@ -188,19 +196,13 @@ public class CohereServiceSettings implements ServiceSettings, CohereRateLimitSe
         if (modelId != null) {
             builder.field(MODEL_ID, modelId);
         }
-        rateLimitSettings.toXContent(builder, params);
 
         return builder;
     }
 
     @Override
-    public ToXContentObject getFilteredXContentObject() {
-        return this;
-    }
-
-    @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.ML_INFERENCE_COHERE_EMBEDDINGS_ADDED;
+        return TransportVersions.V_8_13_0;
     }
 
     @Override

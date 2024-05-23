@@ -281,8 +281,8 @@ public class ICUCollationKeywordFieldMapperTests extends MapperTestCase {
         fields = doc.rootDoc().getFields("field");
         assertThat(fields, empty());
         fields = doc.rootDoc().getFields("_ignored");
-        assertEquals(1, fields.size());
-        assertEquals("field", fields.get(0).stringValue());
+        assertEquals(2, fields.size());
+        assertTrue(fields.stream().anyMatch(field -> "field".equals(field.stringValue())));
     }
 
     public void testUpdateIgnoreAbove() throws IOException {

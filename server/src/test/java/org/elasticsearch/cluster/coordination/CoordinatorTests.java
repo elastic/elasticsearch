@@ -39,7 +39,7 @@ import org.elasticsearch.discovery.DiscoveryModule;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.monitor.NodeHealthService;
 import org.elasticsearch.monitor.StatusInfo;
-import org.elasticsearch.test.MockLogAppender;
+import org.elasticsearch.test.MockLog;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.ToXContent;
@@ -1226,18 +1226,12 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
             List<ClusterNode> addedNodes = cluster.addNodes(randomIntBetween(1, 2));
             final long previousClusterStateVersion = cluster.getAnyLeader().getLastAppliedClusterState().version();
 
-            MockLogAppender mockAppender = new MockLogAppender();
-            try (var ignored = mockAppender.capturing(JoinHelper.class, Coordinator.class)) {
-                mockAppender.addExpectation(
-                    new MockLogAppender.SeenEventExpectation(
-                        "failed to join",
-                        JoinHelper.class.getCanonicalName(),
-                        Level.INFO,
-                        "*failed to join*"
-                    )
+            try (var mockLog = MockLog.capture(JoinHelper.class, Coordinator.class)) {
+                mockLog.addExpectation(
+                    new MockLog.SeenEventExpectation("failed to join", JoinHelper.class.getCanonicalName(), Level.INFO, "*failed to join*")
                 );
-                mockAppender.addExpectation(
-                    new MockLogAppender.SeenEventExpectation(
+                mockLog.addExpectation(
+                    new MockLog.SeenEventExpectation(
                         "failed to ping",
                         Coordinator.class.getCanonicalName(),
                         Level.WARN,
@@ -1245,7 +1239,7 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
                     )
                 );
                 cluster.runFor(10000, "failing joins");
-                mockAppender.assertAllExpectationsMatched();
+                mockLog.assertAllExpectationsMatched();
             }
 
             assertTrue(addedNodes.stream().allMatch(ClusterNode::isCandidate));
@@ -1363,13 +1357,12 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
 
             cluster1.clusterNodes.add(newNode);
 
-            MockLogAppender mockAppender = new MockLogAppender();
-            mockAppender.addExpectation(
-                new MockLogAppender.SeenEventExpectation("test1", JoinHelper.class.getCanonicalName(), Level.INFO, "*failed to join*")
-            );
-            try (var ignored = mockAppender.capturing(JoinHelper.class)) {
+            try (var mockLog = MockLog.capture(JoinHelper.class)) {
+                mockLog.addExpectation(
+                    new MockLog.SeenEventExpectation("test1", JoinHelper.class.getCanonicalName(), Level.INFO, "*failed to join*")
+                );
                 cluster1.runFor(DEFAULT_STABILISATION_TIME, "failing join validation");
-                mockAppender.assertAllExpectationsMatched();
+                mockLog.assertAllExpectationsMatched();
             }
             assertEquals(0, newNode.getLastAppliedClusterState().version());
 
@@ -1402,59 +1395,59 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
             final var leader = cluster.getAnyLeader();
             leader.addActionBlock(TransportService.HANDSHAKE_ACTION_NAME);
 
-            final var mockAppender = new MockLogAppender();
-            mockAppender.addExpectation(
-                new MockLogAppender.SeenEventExpectation(
-                    "connect-back failure",
-                    Coordinator.class.getCanonicalName(),
-                    Level.WARN,
-                    "*received join request from ["
-                        + partitionedNode.getLocalNode().descriptionWithoutAttributes()
-                        + "] but could not connect back to the joining node"
-                )
-            );
-            mockAppender.addExpectation(new MockLogAppender.LoggingExpectation() {
-                boolean matched = false;
-
-                @Override
-                public void match(LogEvent event) {
-                    if (event.getLevel() != Level.INFO) {
-                        return;
-                    }
-                    if (event.getLoggerName().equals(JoinHelper.class.getCanonicalName()) == false) {
-                        return;
-                    }
-
-                    var cause = event.getThrown();
-                    if (cause == null) {
-                        return;
-                    }
-                    cause = cause.getCause();
-                    if (cause == null) {
-                        return;
-                    }
-                    if (Regex.simpleMatch(
-                        "* failure when opening connection back from ["
-                            + leader.getLocalNode().descriptionWithoutAttributes()
-                            + "] to ["
+            try (var mockLog = MockLog.capture(Coordinator.class, JoinHelper.class)) {
+                mockLog.addExpectation(
+                    new MockLog.SeenEventExpectation(
+                        "connect-back failure",
+                        Coordinator.class.getCanonicalName(),
+                        Level.WARN,
+                        "*received join request from ["
                             + partitionedNode.getLocalNode().descriptionWithoutAttributes()
-                            + "]",
-                        cause.getMessage()
-                    ) == false) {
-                        return;
-                    }
-                    if (cause.getStackTrace() != null && cause.getStackTrace().length != 0) {
-                        return;
-                    }
-                    matched = true;
-                }
+                            + "] but could not connect back to the joining node"
+                    )
+                );
+                mockLog.addExpectation(new MockLog.LoggingExpectation() {
+                    boolean matched = false;
 
-                @Override
-                public void assertMatched() {
-                    assertTrue(matched);
-                }
-            });
-            try (var ignored = mockAppender.capturing(Coordinator.class, JoinHelper.class)) {
+                    @Override
+                    public void match(LogEvent event) {
+                        if (event.getLevel() != Level.INFO) {
+                            return;
+                        }
+                        if (event.getLoggerName().equals(JoinHelper.class.getCanonicalName()) == false) {
+                            return;
+                        }
+
+                        var cause = event.getThrown();
+                        if (cause == null) {
+                            return;
+                        }
+                        cause = cause.getCause();
+                        if (cause == null) {
+                            return;
+                        }
+                        if (Regex.simpleMatch(
+                            "* failure when opening connection back from ["
+                                + leader.getLocalNode().descriptionWithoutAttributes()
+                                + "] to ["
+                                + partitionedNode.getLocalNode().descriptionWithoutAttributes()
+                                + "]",
+                            cause.getMessage()
+                        ) == false) {
+                            return;
+                        }
+                        if (cause.getStackTrace() != null && cause.getStackTrace().length != 0) {
+                            return;
+                        }
+                        matched = true;
+                    }
+
+                    @Override
+                    public void assertMatched() {
+                        assertTrue(matched);
+                    }
+                });
+
                 cluster.runFor(
                     // This expects 8 tasks to be executed after PeerFinder handling wakeup:
                     //
@@ -1470,7 +1463,7 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
                     defaultMillis(DISCOVERY_FIND_PEERS_INTERVAL_SETTING) + 8 * DEFAULT_DELAY_VARIABILITY,
                     "allowing time for join attempt"
                 );
-                mockAppender.assertAllExpectationsMatched();
+                mockLog.assertAllExpectationsMatched();
             }
 
             leader.clearActionBlocks();
@@ -1694,9 +1687,8 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
             }
 
             for (int i = scaledRandomIntBetween(1, 10); i >= 0; i--) {
-                final MockLogAppender mockLogAppender = new MockLogAppender();
-                try (var ignored = mockLogAppender.capturing(ClusterFormationFailureHelper.class)) {
-                    mockLogAppender.addExpectation(new MockLogAppender.LoggingExpectation() {
+                try (var mockLog = MockLog.capture(ClusterFormationFailureHelper.class)) {
+                    mockLog.addExpectation(new MockLog.LoggingExpectation() {
                         final Set<DiscoveryNode> nodesLogged = new HashSet<>();
 
                         @Override
@@ -1728,7 +1720,7 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
                         }
                     });
                     cluster.runFor(warningDelayMillis + DEFAULT_DELAY_VARIABILITY, "waiting for warning to be emitted");
-                    mockLogAppender.assertAllExpectationsMatched();
+                    mockLog.assertAllExpectationsMatched();
                 }
             }
 
@@ -1763,9 +1755,8 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
             cluster.stabilise();
 
             for (int i = scaledRandomIntBetween(1, 10); i >= 0; i--) {
-                final MockLogAppender mockLogAppender = new MockLogAppender();
-                try (var ignored = mockLogAppender.capturing(Coordinator.class)) {
-                    mockLogAppender.addExpectation(new MockLogAppender.LoggingExpectation() {
+                try (var mockLog = MockLog.capture(Coordinator.class)) {
+                    mockLog.addExpectation(new MockLog.LoggingExpectation() {
                         String loggedClusterUuid;
 
                         @Override
@@ -1782,7 +1773,7 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
                         }
                     });
                     cluster.runFor(warningDelayMillis + DEFAULT_DELAY_VARIABILITY, "waiting for warning to be emitted");
-                    mockLogAppender.assertAllExpectationsMatched();
+                    mockLog.assertAllExpectationsMatched();
                 }
             }
         }
@@ -1807,11 +1798,10 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
             cluster.stabilise();
             final ClusterNode brokenNode = cluster.getAnyNodeExcept(cluster.getAnyLeader());
 
-            final MockLogAppender mockLogAppender = new MockLogAppender();
-            try (var ignored = mockLogAppender.capturing(Coordinator.CoordinatorPublication.class, LagDetector.class)) {
+            try (var mockLog = MockLog.capture(Coordinator.CoordinatorPublication.class, LagDetector.class)) {
 
-                mockLogAppender.addExpectation(
-                    new MockLogAppender.SeenEventExpectation(
+                mockLog.addExpectation(
+                    new MockLog.SeenEventExpectation(
                         "publication info message",
                         Coordinator.CoordinatorPublication.class.getCanonicalName(),
                         Level.INFO,
@@ -1823,8 +1813,8 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
                     )
                 );
 
-                mockLogAppender.addExpectation(
-                    new MockLogAppender.SeenEventExpectation(
+                mockLog.addExpectation(
+                    new MockLog.SeenEventExpectation(
                         "publication warning",
                         Coordinator.CoordinatorPublication.class.getCanonicalName(),
                         Level.WARN,
@@ -1836,8 +1826,8 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
                     )
                 );
 
-                mockLogAppender.addExpectation(
-                    new MockLogAppender.SeenEventExpectation(
+                mockLog.addExpectation(
+                    new MockLog.SeenEventExpectation(
                         "lag warning",
                         LagDetector.class.getCanonicalName(),
                         Level.WARN,
@@ -1848,8 +1838,8 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
                     )
                 );
 
-                mockLogAppender.addExpectation(
-                    new MockLogAppender.SeenEventExpectation(
+                mockLog.addExpectation(
+                    new MockLog.SeenEventExpectation(
                         "hot threads from lagging node",
                         LagDetector.class.getCanonicalName(),
                         Level.DEBUG,
@@ -1884,7 +1874,7 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
                     "waiting for messages to be emitted"
                 );
 
-                mockLogAppender.assertAllExpectationsMatched();
+                mockLog.assertAllExpectationsMatched();
             }
         }
     }

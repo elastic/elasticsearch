@@ -25,22 +25,23 @@ import org.elasticsearch.compute.operator.SourceOperator;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.cache.query.TrivialQueryCachingPolicy;
 import org.elasticsearch.index.mapper.MapperServiceTestCase;
 import org.elasticsearch.search.internal.ContextIndexSearcher;
 import org.elasticsearch.xpack.esql.TestBlockFactory;
+import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
+import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.core.expression.Order;
+import org.elasticsearch.xpack.esql.core.index.EsIndex;
+import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.DataTypes;
+import org.elasticsearch.xpack.esql.core.type.EsField;
+import org.elasticsearch.xpack.esql.core.util.StringUtils;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
 import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.esql.session.EsqlConfiguration;
-import org.elasticsearch.xpack.ql.expression.FieldAttribute;
-import org.elasticsearch.xpack.ql.expression.Literal;
-import org.elasticsearch.xpack.ql.expression.Order;
-import org.elasticsearch.xpack.ql.index.EsIndex;
-import org.elasticsearch.xpack.ql.tree.Source;
-import org.elasticsearch.xpack.ql.type.DataTypes;
-import org.elasticsearch.xpack.ql.type.EsField;
-import org.elasticsearch.xpack.ql.util.StringUtils;
 import org.hamcrest.Matcher;
 import org.junit.After;
 
@@ -81,7 +82,7 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
     public void testLuceneSourceOperatorHugeRowSize() throws IOException {
         int estimatedRowSize = randomEstimatedRowSize(estimatedRowSizeIsHuge);
         LocalExecutionPlanner.LocalExecutionPlan plan = planner().plan(
-            new EsQueryExec(Source.EMPTY, index(), List.of(), null, null, null, estimatedRowSize)
+            new EsQueryExec(Source.EMPTY, index(), IndexMode.STANDARD, List.of(), null, null, null, estimatedRowSize)
         );
         assertThat(plan.driverFactories.size(), lessThanOrEqualTo(pragmas.taskConcurrency()));
         LocalExecutionPlanner.DriverSupplier supplier = plan.driverFactories.get(0).driverSupplier();
@@ -96,7 +97,7 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
         EsQueryExec.FieldSort sort = new EsQueryExec.FieldSort(sortField, Order.OrderDirection.ASC, Order.NullsPosition.LAST);
         Literal limit = new Literal(Source.EMPTY, 10, DataTypes.INTEGER);
         LocalExecutionPlanner.LocalExecutionPlan plan = planner().plan(
-            new EsQueryExec(Source.EMPTY, index(), List.of(), null, limit, List.of(sort), estimatedRowSize)
+            new EsQueryExec(Source.EMPTY, index(), IndexMode.STANDARD, List.of(), null, limit, List.of(sort), estimatedRowSize)
         );
         assertThat(plan.driverFactories.size(), lessThanOrEqualTo(pragmas.taskConcurrency()));
         LocalExecutionPlanner.DriverSupplier supplier = plan.driverFactories.get(0).driverSupplier();
@@ -143,7 +144,8 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
             EsqlPlugin.QUERY_RESULT_TRUNCATION_MAX_SIZE.getDefault(null),
             EsqlPlugin.QUERY_RESULT_TRUNCATION_DEFAULT_SIZE.getDefault(null),
             StringUtils.EMPTY,
-            false
+            false,
+            Map.of()
         );
     }
 

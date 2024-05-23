@@ -1,7 +1,7 @@
 // Conversion-specific tests
 
 convertToBoolean
-required_feature: esql.casting_operator
+required_capability: casting_operator
 ROW zero=0::boolean, one=1::bool
 ;
 
@@ -10,7 +10,7 @@ false          |true
 ;
 
 convertToInteger
-required_feature: esql.casting_operator
+required_capability: casting_operator
 ROW zero="0"::integer, one="1"::int
 ;
 
@@ -19,7 +19,7 @@ ROW zero="0"::integer, one="1"::int
 ;
 
 convertToIP
-required_feature: esql.casting_operator
+required_capability: casting_operator
 ROW ip="1.1.1.1"::ip
 ;
 
@@ -28,7 +28,7 @@ ROW ip="1.1.1.1"::ip
 ;
 
 convertToLong
-required_feature: esql.casting_operator
+required_capability: casting_operator
 ROW long="-1"::long
 ;
 
@@ -37,18 +37,18 @@ long:long
 ;
 
 convertToLongWithWarning
-required_feature: esql.casting_operator
+required_capability: casting_operator
 ROW long="1.1.1.1"::long
 ;
-warning:Line 1:10: evaluation of [\"1.1.1.1\"::long] failed, treating result as null. Only first 20 failures recorded.
-warning:Line 1:10: org.elasticsearch.xpack.ql.InvalidArgumentException: Cannot parse number [1.1.1.1]
+warningRegex:Line 1:10: evaluation of \[\\\"1.1.1.1\\\"::long\] failed, treating result as null. Only first 20 failures recorded.
+warningRegex:Line 1:10: org.elasticsearch.xpack.(esql.core|ql).InvalidArgumentException: Cannot parse number \[1.1.1.1\]
 
 long:long
 null
 ;
 
 convertToDouble
-required_feature: esql.casting_operator
+required_capability: casting_operator
 ROW zero="0"::double
 ;
 
@@ -57,7 +57,7 @@ ROW zero="0"::double
 ;
 
 convertToString
-required_feature: esql.casting_operator
+required_capability: casting_operator
 ROW one=1::keyword, two=2::text, three=3::string
 ;
 
@@ -66,7 +66,7 @@ ROW one=1::keyword, two=2::text, three=3::string
 ;
 
 convertToDatetime
-required_feature: esql.casting_operator
+required_capability: casting_operator
 ROW date="1985-01-01T00:00:00Z"::datetime, zero=0::datetime
 ;
 
@@ -75,7 +75,7 @@ ROW date="1985-01-01T00:00:00Z"::datetime, zero=0::datetime
 ;
 
 convertToVersion
-required_feature: esql.casting_operator
+required_capability: casting_operator
 ROW ver="1.2.3"::version
 ;
 
@@ -84,7 +84,7 @@ ROW ver="1.2.3"::version
 ;
 
 convertToUnsignedLong
-required_feature: esql.casting_operator
+required_capability: casting_operator
 ROW zero="0"::unsigned_long, two=abs(-2)::UnsigneD_LOng
 ;
 
@@ -93,7 +93,7 @@ ROW zero="0"::unsigned_long, two=abs(-2)::UnsigneD_LOng
 ;
 
 convertToGeoPoint
-required_feature: esql.casting_operator
+required_capability: casting_operator
 ROW gp="POINT(0 0)"::geo_point
 ;
 
@@ -102,7 +102,7 @@ POINT (0.0 0.0)
 ;
 
 convertToGeoShape
-required_feature: esql.casting_operator
+required_capability: casting_operator
 ROW gs="POINT(0 0)"::geo_shape
 ;
 
@@ -111,7 +111,7 @@ POINT (0.0 0.0)
 ;
 
 convertToCartesianPoint
-required_feature: esql.casting_operator
+required_capability: casting_operator
 ROW cp="POINT(0 0)"::cartesian_point
 ;
 
@@ -120,7 +120,7 @@ POINT (0.0 0.0)
 ;
 
 convertToCartesianShape
-required_feature: esql.casting_operator
+required_capability: casting_operator
 ROW cs="POINT(0 0)"::cartesian_shape
 ;
 
@@ -129,7 +129,7 @@ POINT (0.0 0.0)
 ;
 
 convertChained
-required_feature: esql.casting_operator
+required_capability: casting_operator
 ROW one=1::STRING::LONG::BOOL
 ;
 
@@ -138,7 +138,7 @@ true
 ;
 
 convertWithIndexMultipleConversionsInSameExpressionAndConversionInFiltering
-required_feature: esql.casting_operator
+required_capability: casting_operator
  FROM employees
 | EVAL en_str=emp_no::STRING, bd=ABS(birth_date::LONG)::STRING
 | KEEP en_str, emp_no, bd, birth_date
@@ -153,7 +153,7 @@ required_feature: esql.casting_operator
 ;
 
 convertWithBoolExpressionAndQualifiedName
-required_feature: esql.casting_operator
+required_capability: casting_operator
  FROM employees
 | EVAL neg = (NOT still_hired)::string, sf = ROUND(height.scaled_float::double, 2)
 | KEEP emp_no, still_hired, neg, sf
@@ -169,7 +169,7 @@ required_feature: esql.casting_operator
 ;
 
 docsCastOperator
-required_feature: esql.casting_operator
+required_capability: casting_operator
 //tag::docsCastOperator[]
 ROW ver = CONCAT(("0"::INT + 1)::STRING, ".2.3")::VERSION
 //end::docsCastOperator[]

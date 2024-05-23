@@ -45,18 +45,6 @@ public class GetShutdownStatusAction extends ActionType<GetShutdownStatusAction.
 
         private final String[] nodeIds;
 
-        @Deprecated(forRemoval = true) // temporary compatibility shim
-        public Request() {
-            super(MasterNodeRequest.TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT);
-            nodeIds = Strings.EMPTY_ARRAY;
-        }
-
-        @Deprecated(forRemoval = true) // temporary compatibility shim
-        public Request(String nodeId) {
-            super(MasterNodeRequest.TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT);
-            nodeIds = new String[] { nodeId };
-        }
-
         public Request(TimeValue masterNodeTimeout, String... nodeIds) {
             super(masterNodeTimeout);
             this.nodeIds = nodeIds;

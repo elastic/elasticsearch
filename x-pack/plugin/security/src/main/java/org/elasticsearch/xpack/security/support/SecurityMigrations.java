@@ -12,8 +12,6 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.client.internal.Client;
-import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
@@ -28,7 +26,6 @@ import java.util.Map;
 import java.util.Set;
 import java.util.TreeMap;
 
-import static org.elasticsearch.xpack.security.support.SecuritySystemIndices.SECURITY_MIGRATION_FRAMEWORK;
 import static org.elasticsearch.xpack.security.support.SecuritySystemIndices.SecurityMainIndexMappingVersion.ADD_REMOTE_CLUSTER_AND_DESCRIPTION_FIELDS;
 
 public class SecurityMigrations {
@@ -65,7 +62,8 @@ public class SecurityMigrations {
 
         @Override
         public void migrate(SecurityIndexManager indexManager, Client client, ActionListener<Void> listener) {
-            BoolQueryBuilder filterQuery = new BoolQueryBuilder().filter(QueryBuilders.termQuery("type", "role"));
+            BoolQueryBuilder filterQuery = new BoolQueryBuilder().filter(QueryBuilders.termQuery("type", "role"))
+                .mustNot(QueryBuilders.existsQuery("metadata_flattened"));
             SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder().query(filterQuery).size(0).trackTotalHits(true);
             SearchRequest countRequest = new SearchRequest(indexManager.getConcreteIndexName());
             countRequest.source(searchSourceBuilder);
@@ -110,21 +108,4 @@ public class SecurityMigrations {
             return ADD_REMOTE_CLUSTER_AND_DESCRIPTION_FIELDS.id();
         }
     }));
-
-    public static boolean clusterReadyForSecurityMigration(SecurityIndexManager.State state) {
-        return state.indexAvailableForWrite && state.indexAvailableForSearch && state.isIndexUpToDate && state.indexExists();
-    }
-
-    public static boolean isEligibleSecurityMigration(
-        int clusterMappingsVersion,
-        FeatureService featureService,
-        ClusterState state,
-        SecurityMigration migration
-    ) {
-        // Check if all nodes can support feature and that the cluster is on a compatible mapping version
-        return migration != null
-            && featureService.clusterHasFeature(state, SECURITY_MIGRATION_FRAMEWORK)
-            && migration.nodeFeaturesRequired().stream().allMatch((feature) -> featureService.clusterHasFeature(state, feature))
-            && migration.minMappingVersion() <= clusterMappingsVersion;
-    }
 }

@@ -60,6 +60,7 @@ import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 import static org.elasticsearch.xpack.core.security.action.UpdateIndexMigrationVersionAction.MIGRATION_VERSION_CUSTOM_DATA_KEY;
 import static org.elasticsearch.xpack.core.security.action.UpdateIndexMigrationVersionAction.MIGRATION_VERSION_CUSTOM_KEY;
 import static org.elasticsearch.xpack.security.support.SecurityIndexManager.State.UNRECOVERED_STATE;
+import static org.elasticsearch.xpack.security.support.SecuritySystemIndices.SECURITY_MIGRATION_FRAMEWORK;
 
 /**
  * Manages the lifecycle, mapping and data upgrades/migrations of the {@code RestrictedIndicesNames#SECURITY_MAIN_ALIAS}
@@ -356,6 +357,20 @@ public class SecurityIndexManager implements ClusterStateListener {
             );
         }
         return new Tuple<>(allPrimaryShards, searchShards);
+    }
+
+    public boolean isEligibleSecurityMigration(SecurityMigrations.SecurityMigration securityMigration) {
+        return state.securityFeatures.containsAll(securityMigration.nodeFeaturesRequired())
+            && state.indexMappingVersion >= securityMigration.minMappingVersion();
+    }
+
+    public boolean isReadyForSecurityMigration(SecurityMigrations.SecurityMigration securityMigration) {
+        return state.indexAvailableForWrite
+            && state.indexAvailableForSearch
+            && state.isIndexUpToDate
+            && state.indexExists()
+            && state.securityFeatures.contains(SECURITY_MIGRATION_FRAMEWORK)
+            && isEligibleSecurityMigration(securityMigration);
     }
 
     /**

@@ -11,12 +11,9 @@ import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.client.internal.Client;
-import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.persistent.AllocatedPersistentTask;
 import org.elasticsearch.persistent.PersistentTaskState;
@@ -25,7 +22,6 @@ import org.elasticsearch.test.client.NoOpClient;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.security.action.UpdateIndexMigrationVersionResponse;
 import org.elasticsearch.xpack.core.security.support.SecurityMigrationTaskParams;
-import org.elasticsearch.xpack.security.SecurityFeatures;
 import org.junit.Before;
 
 import java.util.Map;
@@ -41,11 +37,6 @@ import static org.mockito.Mockito.when;
 public class SecurityMigrationExecutorTests extends ESTestCase {
     private ThreadPool threadPool;
     private Client client;
-
-    private ClusterService clusterService;
-
-    private FeatureService featureService;
-
     private SecurityIndexManager securityIndexManager;
 
     private int updateIndexMigrationVersionActionInvocations;
@@ -75,17 +66,7 @@ public class SecurityMigrationExecutorTests extends ESTestCase {
 
             }
         };
-
-        clusterService = mock(ClusterService.class);
-        when(clusterService.getSettings()).thenReturn(Settings.EMPTY);
-        when(clusterService.state()).thenReturn(ClusterState.EMPTY_STATE);
-
-        featureService = mock(FeatureService.class);
-        when(featureService.clusterHasFeature(any(), any())).thenReturn(true);
-
         securityIndexManager = mock(SecurityIndexManager.class);
-        when(securityIndexManager.getConcreteIndexName()).thenReturn(".security-7");
-        when(securityIndexManager.indexMappingVersion()).thenReturn(1);
     }
 
     public void testSuccessfulMigration() {
@@ -95,11 +76,7 @@ public class SecurityMigrationExecutorTests extends ESTestCase {
             threadPool.generic(),
             securityIndexManager,
             client,
-            featureService,
-            clusterService,
-            new TreeMap<>(
-                Map.of(1, generateMigration(true, true, migrateInvocations), 2, generateMigration(true, true, migrateInvocations))
-            )
+            new TreeMap<>(Map.of(1, generateMigration(migrateInvocations, true), 2, generateMigration(migrateInvocations, true)))
         );
         AllocatedPersistentTask mockTask = mock(AllocatedPersistentTask.class);
         securityMigrationExecutor.nodeOperation(mockTask, mock(SecurityMigrationTaskParams.class), mock(PersistentTaskState.class));
@@ -111,23 +88,19 @@ public class SecurityMigrationExecutorTests extends ESTestCase {
 
     public void testNoMigrationMeetsRequirements() {
         final int[] migrateInvocationsCounter = new int[1];
-        boolean failsBecauseMappingVersion = randomBoolean();
-        boolean failsBecauseMissingFeature = failsBecauseMappingVersion != true;
         SecurityMigrationExecutor securityMigrationExecutor = new SecurityMigrationExecutor(
             "test-task",
             threadPool.generic(),
             securityIndexManager,
             client,
-            featureService,
-            clusterService,
             new TreeMap<>(
                 Map.of(
                     1,
-                    generateMigration(failsBecauseMappingVersion, failsBecauseMissingFeature, migrateInvocationsCounter),
+                    generateMigration(migrateInvocationsCounter, false),
                     2,
-                    generateMigration(failsBecauseMappingVersion, failsBecauseMissingFeature, migrateInvocationsCounter),
+                    generateMigration(migrateInvocationsCounter, false),
                     3,
-                    generateMigration(failsBecauseMappingVersion, failsBecauseMissingFeature, migrateInvocationsCounter)
+                    generateMigration(migrateInvocationsCounter, false)
                 )
             )
         );
@@ -147,20 +120,18 @@ public class SecurityMigrationExecutorTests extends ESTestCase {
             threadPool.generic(),
             securityIndexManager,
             client,
-            featureService,
-            clusterService,
             new TreeMap<>(
                 Map.of(
                     1,
-                    generateMigration(true, true, migrateInvocations),
+                    generateMigration(migrateInvocations, true),
                     2,
-                    generateMigration(true, true, migrateInvocations),
+                    generateMigration(migrateInvocations, true),
                     3,
-                    generateMigration(true, false, migrateInvocations),
+                    generateMigration(migrateInvocations, false),
                     4,
-                    generateMigration(false, true, migrateInvocations),
+                    generateMigration(migrateInvocations, false),
                     5,
-                    generateMigration(true, true, migrateInvocations)
+                    generateMigration(migrateInvocations, true)
                 )
             )
         );
@@ -180,11 +151,7 @@ public class SecurityMigrationExecutorTests extends ESTestCase {
             threadPool.generic(),
             securityIndexManager,
             client,
-            featureService,
-            clusterService,
-            new TreeMap<>(
-                Map.of(1, generateMigration(true, true, migrateInvocations), 2, generateMigration(true, true, migrateInvocations))
-            )
+            new TreeMap<>(Map.of(1, generateMigration(migrateInvocations, true), 2, generateMigration(migrateInvocations, true)))
         );
 
         AllocatedPersistentTask mockTask = mock(AllocatedPersistentTask.class);
@@ -199,13 +166,12 @@ public class SecurityMigrationExecutorTests extends ESTestCase {
     }
 
     public void testMigrationThrowsRuntimeException() {
+        when(securityIndexManager.isReadyForSecurityMigration(any())).thenReturn(true);
         SecurityMigrationExecutor securityMigrationExecutor = new SecurityMigrationExecutor(
             "test-task",
             threadPool.generic(),
             securityIndexManager,
             client,
-            featureService,
-            clusterService,
             new TreeMap<>(Map.of(1, new SecurityMigrations.SecurityMigration() {
                 @Override
                 public void migrate(SecurityIndexManager indexManager, Client client, ActionListener<Void> listener) {
@@ -243,11 +209,7 @@ public class SecurityMigrationExecutorTests extends ESTestCase {
             threadPool.generic(),
             securityIndexManager,
             client,
-            featureService,
-            clusterService,
-            new TreeMap<>(
-                Map.of(1, generateMigration(true, true, migrateInvocations), 2, generateMigration(true, true, migrateInvocations))
-            )
+            new TreeMap<>(Map.of(1, generateMigration(migrateInvocations, true), 2, generateMigration(migrateInvocations, true)))
         );
         clientShouldThrowException = true;
         AllocatedPersistentTask mockTask = mock(AllocatedPersistentTask.class);
@@ -256,20 +218,8 @@ public class SecurityMigrationExecutorTests extends ESTestCase {
         verify(mockTask, times(0)).markAsCompleted();
     }
 
-    private SecurityMigrations.SecurityMigration generateMigration(
-        boolean meetsFeatureRequirement,
-        boolean meetsMappingVersionRequirement,
-        int[] migrateInvocationsCounter
-    ) {
-        final int[] mappingVersion = new int[1];
-        final Set<NodeFeature> nodeFeatures = new SecurityFeatures().getFeatures();
-        when(featureService.clusterHasFeature(any(), any())).thenReturn(false);
-        nodeFeatures.forEach(feature -> when(featureService.clusterHasFeature(clusterService.state(), feature)).thenReturn(true));
-        if (meetsMappingVersionRequirement == false) {
-            // Not meeting requirement because of mapping version
-            mappingVersion[0] = randomIntBetween(1, 1000);
-        }
-        return new SecurityMigrations.SecurityMigration() {
+    private SecurityMigrations.SecurityMigration generateMigration(int[] migrateInvocationsCounter, boolean isEligible) {
+        SecurityMigrations.SecurityMigration migration = new SecurityMigrations.SecurityMigration() {
             @Override
             public void migrate(SecurityIndexManager indexManager, Client client, ActionListener<Void> listener) {
                 migrateInvocationsCounter[0]++;
@@ -278,13 +228,15 @@ public class SecurityMigrationExecutorTests extends ESTestCase {
 
             @Override
             public Set<NodeFeature> nodeFeaturesRequired() {
-                return (meetsFeatureRequirement == false) ? Set.of(new NodeFeature("Doesn't exist")) : nodeFeatures;
+                return Set.of();
             }
 
             @Override
             public int minMappingVersion() {
-                return mappingVersion[0];
+                return 0;
             }
         };
+        when(securityIndexManager.isReadyForSecurityMigration(migration)).thenReturn(isEligible);
+        return migration;
     }
 }

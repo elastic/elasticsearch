@@ -441,8 +441,6 @@ import static org.elasticsearch.xpack.core.XPackSettings.HTTP_SSL_ENABLED;
 import static org.elasticsearch.xpack.core.security.SecurityField.FIELD_LEVEL_SECURITY_FEATURE;
 import static org.elasticsearch.xpack.core.security.authz.store.ReservedRolesStore.INCLUDED_RESERVED_ROLES_SETTING;
 import static org.elasticsearch.xpack.security.operator.OperatorPrivileges.OPERATOR_PRIVILEGES_ENABLED;
-import static org.elasticsearch.xpack.security.support.SecurityMigrations.clusterReadyForSecurityMigration;
-import static org.elasticsearch.xpack.security.support.SecurityMigrations.isEligibleSecurityMigration;
 import static org.elasticsearch.xpack.security.transport.SSLEngineUtils.extractClientCertificates;
 
 public class Security extends Plugin
@@ -749,15 +747,15 @@ public class Security extends Plugin
                 threadPool.executor(ThreadPool.Names.MANAGEMENT),
                 systemIndices.getMainIndexManager(),
                 client,
-                featureService,
-                clusterService,
                 SecurityMigrations.MIGRATIONS_BY_VERSION
             )
         );
         this.persistentTasksService.set(persistentTasksService);
 
         systemIndices.getMainIndexManager().addStateListener((oldState, newState) -> {
-            applyPendingSecurityMigrations(clusterService.state(), featureService, newState);
+            if (clusterService.state().nodes().isLocalNodeElectedMaster()) {
+                applyPendingSecurityMigrations(newState);
+            }
         });
 
         scriptServiceReference.set(scriptService);
@@ -1162,35 +1160,22 @@ public class Security extends Plugin
         return components;
     }
 
-    private void applyPendingSecurityMigrations(
-        ClusterState clusterState,
-        FeatureService featureService,
-        SecurityIndexManager.State newState
-    ) {
-        if (clusterState.nodes().isLocalNodeElectedMaster() == false) {
+    private void applyPendingSecurityMigrations(SecurityIndexManager.State newState) {
+        Map.Entry<Integer, SecurityMigrations.SecurityMigration> nextMigration = SecurityMigrations.MIGRATIONS_BY_VERSION.higherEntry(
+            newState.migrationsVersion
+        );
+
+        if (nextMigration == null) {
             return;
         }
 
-        Integer nextMigrationVersion = SecurityMigrations.MIGRATIONS_BY_VERSION.higherKey(newState.migrationsVersion);
-
         // Check if next migration that has not been applied is eligible to run on the current cluster
-        boolean eligibleSecurityMigrationExists = nextMigrationVersion != null
-            && isEligibleSecurityMigration(
-                newState.indexMappingVersion,
-                featureService,
-                clusterState,
-                SecurityMigrations.MIGRATIONS_BY_VERSION.get(nextMigrationVersion)
-            );
-
-        if (eligibleSecurityMigrationExists == false) {
+        if (systemIndices.getMainIndexManager().isEligibleSecurityMigration(nextMigration.getValue()) == false) {
             // Reset retry counter if all eligible migrations have been applied successfully
             nodeLocalMigrationRetryCount.set(0);
         } else if (nodeLocalMigrationRetryCount.get() > MAX_SECURITY_MIGRATION_RETRY_COUNT) {
             logger.warn("Security migration failed [" + nodeLocalMigrationRetryCount.get() + "] times, restart node to retry again.");
-            return;
-        }
-
-        if (eligibleSecurityMigrationExists && clusterReadyForSecurityMigration(newState)) {
+        } else if (systemIndices.getMainIndexManager().isReadyForSecurityMigration(nextMigration.getValue())) {
             nodeLocalMigrationRetryCount.incrementAndGet();
             persistentTasksService.get()
                 .sendStartRequest(

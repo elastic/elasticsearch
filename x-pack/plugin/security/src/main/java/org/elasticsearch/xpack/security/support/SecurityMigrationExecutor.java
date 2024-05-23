@@ -12,9 +12,7 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ThreadedActionListener;
 import org.elasticsearch.client.internal.Client;
-import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.persistent.AllocatedPersistentTask;
 import org.elasticsearch.persistent.PersistentTaskState;
 import org.elasticsearch.persistent.PersistentTasksExecutor;
@@ -26,15 +24,11 @@ import java.util.Map;
 import java.util.TreeMap;
 import java.util.concurrent.Executor;
 
-import static org.elasticsearch.xpack.security.support.SecurityMigrations.isEligibleSecurityMigration;
-
 public class SecurityMigrationExecutor extends PersistentTasksExecutor<SecurityMigrationTaskParams> {
 
     private static final Logger logger = LogManager.getLogger(SecurityMigrationExecutor.class);
     private final SecurityIndexManager securityIndexManager;
     private final Client client;
-    private final FeatureService featureService;
-    private final ClusterService clusterService;
     private final TreeMap<Integer, SecurityMigrations.SecurityMigration> migrationByVersion;
 
     public SecurityMigrationExecutor(
@@ -42,15 +36,11 @@ public class SecurityMigrationExecutor extends PersistentTasksExecutor<SecurityM
         Executor executor,
         SecurityIndexManager securityIndexManager,
         Client client,
-        FeatureService featureService,
-        ClusterService clusterService,
         TreeMap<Integer, SecurityMigrations.SecurityMigration> migrationByVersion
     ) {
         super(taskName, executor);
         this.securityIndexManager = securityIndexManager;
         this.client = client;
-        this.featureService = featureService;
-        this.clusterService = clusterService;
         this.migrationByVersion = migrationByVersion;
     }
 
@@ -70,13 +60,7 @@ public class SecurityMigrationExecutor extends PersistentTasksExecutor<SecurityM
         Map.Entry<Integer, SecurityMigrations.SecurityMigration> migrationEntry = migrationByVersion.higherEntry(currentMigrationVersion);
 
         // Check if all nodes can support feature and that the cluster is on a compatible mapping version
-        if (migrationEntry != null
-            && isEligibleSecurityMigration(
-                securityIndexManager.indexMappingVersion(),
-                featureService,
-                clusterService.state(),
-                migrationEntry.getValue()
-            )) {
+        if (migrationEntry != null && securityIndexManager.isReadyForSecurityMigration(migrationEntry.getValue())) {
             migrationEntry.getValue()
                 .migrate(
                     securityIndexManager,

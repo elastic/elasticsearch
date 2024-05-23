@@ -493,24 +493,26 @@ public class ConnectorIndexServiceTests extends ESSingleNodeTestCase {
 
         Connector indexedConnector = awaitGetConnector(connectorId);
 
-        // Check fields in the partial update of last sync stats
-        assertThat(lastSyncStats.getSyncInfo().getLastSyncError(), equalTo(indexedConnector.getSyncInfo().getLastSyncError()));
-        assertThat(
-            lastSyncStats.getSyncInfo().getLastDeletedDocumentCount(),
-            equalTo(indexedConnector.getSyncInfo().getLastDeletedDocumentCount())
-        );
-        assertThat(
-            lastSyncStats.getSyncInfo().getLastIndexedDocumentCount(),
-            equalTo(indexedConnector.getSyncInfo().getLastIndexedDocumentCount())
-        );
+        // Check fields from the partial update of last sync stats
+        assertThat(syncStats.getLastSyncError(), equalTo(indexedConnector.getSyncInfo().getLastSyncError()));
+        assertThat(syncStats.getLastDeletedDocumentCount(), equalTo(indexedConnector.getSyncInfo().getLastDeletedDocumentCount()));
+        assertThat(syncStats.getLastIndexedDocumentCount(), equalTo(indexedConnector.getSyncInfo().getLastIndexedDocumentCount()));
 
-        // Check some other fields related to last sync stats and verified that they remained unchanged
-        assertThat(connector.getSyncInfo().getLastSyncStatus(), equalTo(indexedConnector.getSyncInfo().getLastSyncStatus()));
-        assertThat(connector.getSyncInfo().getLastSyncScheduledAt(), equalTo(indexedConnector.getSyncInfo().getLastSyncScheduledAt()));
-        assertThat(
-            connector.getSyncInfo().getLastAccessControlSyncStatus(),
-            equalTo(indexedConnector.getSyncInfo().getLastAccessControlSyncStatus())
-        );
+        ConnectorSyncInfo nextSyncStats = new ConnectorSyncInfo.Builder().setLastIndexedDocumentCount(randomLong()).build();
+
+        lastSyncStats = new UpdateConnectorLastSyncStatsAction.Request(connectorId, nextSyncStats);
+
+        updateResponse = awaitUpdateConnectorLastSyncStats(lastSyncStats);
+        assertThat(updateResponse.status(), equalTo(RestStatus.OK));
+
+        indexedConnector = awaitGetConnector(connectorId);
+
+        // Check fields from the partial update of last sync stats
+        assertThat(nextSyncStats.getLastIndexedDocumentCount(), equalTo(indexedConnector.getSyncInfo().getLastIndexedDocumentCount()));
+
+        // Check that other fields remained unchanged
+        assertThat(syncStats.getLastSyncError(), equalTo(indexedConnector.getSyncInfo().getLastSyncError()));
+        assertThat(syncStats.getLastDeletedDocumentCount(), equalTo(indexedConnector.getSyncInfo().getLastDeletedDocumentCount()));
 
     }
 

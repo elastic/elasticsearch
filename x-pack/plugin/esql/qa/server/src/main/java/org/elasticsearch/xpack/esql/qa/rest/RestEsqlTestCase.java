@@ -460,16 +460,6 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
         assertThat(EntityUtils.toString(re.getResponse().getEntity()), containsString("Not enough actual parameters 0"));
     }
 
-    /*
-    public void testErrorMessageForInvalidParams() throws IOException {
-        ResponseException re = expectThrows(
-            ResponseException.class,
-            () -> runEsql(requestObjectBuilder().query("row a = 1").params("[{\"x\":\"y\"}]"))
-        );
-        assertThat(EntityUtils.toString(re.getResponse().getEntity()), containsString("Required [value, type]"));
-    }
-     */
-
     public void testErrorMessageForMissingTypeInParams() throws IOException {
         ResponseException re = expectThrows(
             ResponseException.class,

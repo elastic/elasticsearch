@@ -1964,8 +1964,13 @@ public abstract class Engine implements Closeable {
                     || super.blockingAllowed();
             }
         };
+        CountDownLatch latch = new CountDownLatch(1);
         drainOnCloseListener.addListener(future);
+        drainOnCloseListener.addListener(ActionListener.releasing(latch::countDown));
         try {
+            // todo: hack to circumvent same executor check here to see if more failures appear.
+            // need to make this method async, which includes making engine close async, which we should be able to do now.
+            latch.await();
             future.get();
             return true;
         } catch (ExecutionException e) {

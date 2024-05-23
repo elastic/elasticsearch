@@ -458,7 +458,16 @@ public class NodeShutdownShardsIT extends ESIntegTestCase {
         assertAcked(
             client().execute(
                 PutShutdownNodeAction.INSTANCE,
-                new PutShutdownNodeAction.Request(nodeId, type, this.getTestName(), null, nodeReplacementName, null)
+                new PutShutdownNodeAction.Request(
+                    TEST_REQUEST_TIMEOUT,
+                    TEST_REQUEST_TIMEOUT,
+                    nodeId,
+                    type,
+                    this.getTestName(),
+                    null,
+                    nodeReplacementName,
+                    null
+                )
             )
         );
     }

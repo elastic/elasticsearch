@@ -165,6 +165,8 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessIntegTestC
                 client().execute(
                     PutShutdownNodeAction.INSTANCE,
                     new PutShutdownNodeAction.Request(
+                        TEST_REQUEST_TIMEOUT,
+                        TEST_REQUEST_TIMEOUT,
                         shutdownNodeId,
                         SingleNodeShutdownMetadata.Type.SIGTERM,
                         "Shutdown for cache warming test",
@@ -323,6 +325,8 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessIntegTestC
             client().execute(
                 PutShutdownNodeAction.INSTANCE,
                 new PutShutdownNodeAction.Request(
+                    TEST_REQUEST_TIMEOUT,
+                    TEST_REQUEST_TIMEOUT,
                     shutdownNodeId,
                     SingleNodeShutdownMetadata.Type.SIGTERM,
                     "Shutdown for cache warming test",

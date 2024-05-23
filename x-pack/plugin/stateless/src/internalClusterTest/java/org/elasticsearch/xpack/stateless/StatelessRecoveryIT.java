@@ -1600,7 +1600,16 @@ public class StatelessRecoveryIT extends AbstractStatelessIntegTestCase {
         var timeout = TimeValue.timeValueSeconds(30);
         clusterAdmin().execute(
             PutShutdownNodeAction.INSTANCE,
-            new PutShutdownNodeAction.Request(getNodeId(indexNodeA), SIGTERM, "node sigterm", null, null, timeout)
+            new PutShutdownNodeAction.Request(
+                TEST_REQUEST_TIMEOUT,
+                TEST_REQUEST_TIMEOUT,
+                getNodeId(indexNodeA),
+                SIGTERM,
+                "node sigterm",
+                null,
+                null,
+                timeout
+            )
         ).actionGet(TimeValue.timeValueSeconds(10));
 
         ensureGreen(timeout);

@@ -789,9 +789,7 @@ public class AutoscalingMemoryMetricsIT extends AbstractStatelessIntegTestCase {
         ensureStableCluster(2);
         var defaultNoOfShards = projectType.getNumberOfShards();
         logger.info("--> Default No. of shards: {}", defaultNoOfShards);
-        // Make sure we go beyond min heap size (have enough shards), otherwise they all round up to the same value
-        int minNoOfShards = (int) (HeapToSystemMemory.MIN_HEAP_SIZE / SHARD_MEMORY_OVERHEAD_DEFAULT.getBytes());
-        int noOfIndices = randomIntBetween(minNoOfShards / defaultNoOfShards + 1, (int) (minNoOfShards * 1.5 / defaultNoOfShards));
+        int noOfIndices = randomIntBetween(5, 10);
         logger.info("--> No. of indices: {}", noOfIndices);
         // Create all indices with one bulk request
         var bulk = client().prepareBulk();
@@ -805,35 +803,32 @@ public class AutoscalingMemoryMetricsIT extends AbstractStatelessIntegTestCase {
         assertThat(
             totalMemoryWithDefaultShardOverhead,
             allOf(
-                greaterThan(HeapToSystemMemory.dataNode(noOfIndices * defaultNoOfShards * SHARD_MEMORY_OVERHEAD_DEFAULT.getBytes())),
-                lessThan(HeapToSystemMemory.dataNode((noOfIndices + 1) * defaultNoOfShards * SHARD_MEMORY_OVERHEAD_DEFAULT.getBytes()))
+                greaterThan(HeapToSystemMemory.tier(noOfIndices * defaultNoOfShards * SHARD_MEMORY_OVERHEAD_DEFAULT.getBytes())),
+                lessThan(HeapToSystemMemory.tier((noOfIndices * defaultNoOfShards + 1) * SHARD_MEMORY_OVERHEAD_DEFAULT.getBytes()))
             )
         );
 
-        // The heap to system memory multiplier changes at {@link HeapToSystemMemory.HEAP_THRESHOLD}, so we keep the increased shard memory
-        // overhead to a limit that allows the test to easily verify the resulting totalMemoryInBytes. Essentially, we are keeping the
-        // before and after values under the threshold that changes the multiplier.
-        var newShardMemoryOverhead = ByteSizeValue.ofMb(
-            randomLongBetween(SHARD_MEMORY_OVERHEAD_DEFAULT.getMb() + 1, SHARD_MEMORY_OVERHEAD_DEFAULT.getMb() * 2)
-        );
         // Update the shard memory overhead and ensure that it is reflected in the total tier memory recommendation
-        logger.info("--> New shard memory overhead: {} mb", newShardMemoryOverhead.getMb());
+        var increasedShardMemoryOverhead = ByteSizeValue.ofMb(SHARD_MEMORY_OVERHEAD_DEFAULT.getMb() + randomIntBetween(1, 10));
+        logger.info("--> New shard memory overhead: {} mb", increasedShardMemoryOverhead.getMb());
         assertAcked(
             admin().cluster()
                 .prepareUpdateSettings()
-                .setPersistentSettings(Map.of(SHARD_MEMORY_OVERHEAD_SETTING.getKey(), newShardMemoryOverhead))
+                .setPersistentSettings(Map.of(SHARD_MEMORY_OVERHEAD_SETTING.getKey(), increasedShardMemoryOverhead))
         );
         var getSettingsResponse = clusterAdmin().execute(ClusterGetSettingsAction.INSTANCE, new ClusterGetSettingsAction.Request())
             .actionGet();
         assertThat(
             getSettingsResponse.settings().get(SHARD_MEMORY_OVERHEAD_SETTING.getKey()),
-            equalTo(newShardMemoryOverhead.getStringRep())
+            equalTo(increasedShardMemoryOverhead.getStringRep())
         );
         var totalMemoryWithNewShardOverhead = memoryMetricService.getMemoryMetrics().totalMemoryInBytes();
-        // The heap to system memory multiplier changes at {@link HeapToSystemMemory.HEAP_THRESHOLD}, so we only compare the lower bound.
         assertThat(
             totalMemoryWithNewShardOverhead,
-            greaterThan(HeapToSystemMemory.dataNode(noOfIndices * defaultNoOfShards * newShardMemoryOverhead.getBytes()))
+            allOf(
+                greaterThan(HeapToSystemMemory.tier(noOfIndices * defaultNoOfShards * increasedShardMemoryOverhead.getBytes())),
+                lessThan(HeapToSystemMemory.tier((noOfIndices * defaultNoOfShards + 1) * increasedShardMemoryOverhead.getBytes()))
+            )
         );
     }
 

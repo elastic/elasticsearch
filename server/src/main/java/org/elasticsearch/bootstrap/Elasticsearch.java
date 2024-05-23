@@ -55,6 +55,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.bootstrap.BootstrapSettings.SECURITY_FILTER_BAD_DEFAULTS_SETTING;
+import static org.elasticsearch.nativeaccess.WindowsFunctions.ConsoleCtrlHandler.CTRL_CLOSE_EVENT;
 
 /**
  * This class starts elasticsearch.
@@ -302,17 +303,17 @@ class Elasticsearch {
 
         // listener for windows close event
         if (ctrlHandler) {
-            Natives.addConsoleCtrlHandler(new ConsoleCtrlHandler() {
-                @Override
-                public boolean handle(int code) {
+            var windowsFunctions = nativeAccess.getWindowsFunctions();
+            if (windowsFunctions != null) {
+                windowsFunctions.addConsoleCtrlHandler(code -> {
                     if (CTRL_CLOSE_EVENT == code) {
                         logger.info("running graceful exit on windows");
                         shutdown();
                         return true;
                     }
                     return false;
-                }
-            });
+                });
+            }
         }
 
         // force remainder of JNA to be loaded (if available).

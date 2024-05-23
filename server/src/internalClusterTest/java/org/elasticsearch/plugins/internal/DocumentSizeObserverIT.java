@@ -104,7 +104,8 @@ public class DocumentSizeObserverIT extends ESIntegTestCase {
 
                     DocumentSizeReporter documentParsingReporter = documentParsingProvider.newDocumentSizeReporter(
                         shardId.getIndexName(),
-                        IndexMode.STANDARD, DocumentSizeAccumulator.EMPTY_INSTANCE
+                        IndexMode.STANDARD,
+                        DocumentSizeAccumulator.EMPTY_INSTANCE
                     );
                     documentParsingReporter.onIndexingCompleted(index.parsedDoc());
 
@@ -133,7 +134,11 @@ public class DocumentSizeObserverIT extends ESIntegTestCase {
                 }
 
                 @Override
-                public DocumentSizeReporter newDocumentSizeReporter(String indexName, IndexMode indexMode, DocumentSizeAccumulator documentSizeAccumulator) {
+                public DocumentSizeReporter newDocumentSizeReporter(
+                    String indexName,
+                    IndexMode indexMode,
+                    DocumentSizeAccumulator documentSizeAccumulator
+                ) {
                     return new TestDocumentSizeReporter(indexName);
                 }
             };

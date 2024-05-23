@@ -267,13 +267,12 @@ public class EsExecutors {
         return "elasticsearch" + (nodeName.isEmpty() ? "" : "[") + nodeName + (nodeName.isEmpty() ? "" : "]") + "[" + namePrefix + "]";
     }
 
-    public static boolean assertDifferentExecutors(Thread thread1, Thread thread2) {
-        assert Assertions.ENABLED;
+    // to be used in assertions only.
+    public static boolean differentExecutors(Thread thread1, Thread thread2) {
         assert thread1 != thread2 : "only call for different threads";
         String thread1Name = executorName(thread1);
         String thread2Name = executorName(thread2);
-        assert thread1Name == null || thread2Name == null || thread1Name.equals(thread2Name) == false;
-        return true;
+        return thread1Name == null || thread2Name == null || thread1Name.equals(thread2Name) == false;
     }
 
     // visible for tests

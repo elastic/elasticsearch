@@ -154,10 +154,6 @@ public class SecurityIndexManager implements ClusterStateListener {
         return this.state.isIndexUpToDate;
     }
 
-    public int indexMappingVersion() {
-        return this.state.indexMappingVersion;
-    }
-
     /**
      * Optimization to avoid making unnecessary calls when we know the underlying shard state. This call will check that the index exists,
      * is discoverable from the alias, is not closed, and will determine if available based on the {@link Availability} parameter.
@@ -256,7 +252,6 @@ public class SecurityIndexManager implements ClusterStateListener {
             logger.debug("security index manager waiting until state has been recovered");
             return;
         }
-
         final State previousState = state;
         final IndexMetadata indexMetadata = resolveConcreteIndex(systemIndexDescriptor.getAliasName(), event.state().metadata());
         final Map<String, String> customMetadata = indexMetadata == null ? null : indexMetadata.getCustomData(MIGRATION_VERSION_CUSTOM_KEY);

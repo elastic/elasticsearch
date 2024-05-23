@@ -25,6 +25,7 @@ import org.elasticsearch.compute.operator.SourceOperator;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.cache.query.TrivialQueryCachingPolicy;
 import org.elasticsearch.index.mapper.MapperServiceTestCase;
 import org.elasticsearch.search.internal.ContextIndexSearcher;
@@ -81,7 +82,7 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
     public void testLuceneSourceOperatorHugeRowSize() throws IOException {
         int estimatedRowSize = randomEstimatedRowSize(estimatedRowSizeIsHuge);
         LocalExecutionPlanner.LocalExecutionPlan plan = planner().plan(
-            new EsQueryExec(Source.EMPTY, index(), List.of(), null, null, null, estimatedRowSize)
+            new EsQueryExec(Source.EMPTY, index(), IndexMode.STANDARD, List.of(), null, null, null, estimatedRowSize)
         );
         assertThat(plan.driverFactories.size(), lessThanOrEqualTo(pragmas.taskConcurrency()));
         LocalExecutionPlanner.DriverSupplier supplier = plan.driverFactories.get(0).driverSupplier();
@@ -96,7 +97,7 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
         EsQueryExec.FieldSort sort = new EsQueryExec.FieldSort(sortField, Order.OrderDirection.ASC, Order.NullsPosition.LAST);
         Literal limit = new Literal(Source.EMPTY, 10, DataTypes.INTEGER);
         LocalExecutionPlanner.LocalExecutionPlan plan = planner().plan(
-            new EsQueryExec(Source.EMPTY, index(), List.of(), null, limit, List.of(sort), estimatedRowSize)
+            new EsQueryExec(Source.EMPTY, index(), IndexMode.STANDARD, List.of(), null, limit, List.of(sort), estimatedRowSize)
         );
         assertThat(plan.driverFactories.size(), lessThanOrEqualTo(pragmas.taskConcurrency()));
         LocalExecutionPlanner.DriverSupplier supplier = plan.driverFactories.get(0).driverSupplier();

@@ -39,15 +39,19 @@ public class IngestLoadProbeTests extends ESTestCase {
         final TimeValue maxTimeToClearQueue = TimeValue.timeValueSeconds(10);
         // Initially average task execution time is 0.0.
         double randomQueueContribution = randomDoubleBetween(0.1, 100.0, true);
-        assertThat(calculateIngestionLoadForExecutor(0.0, 0.0, 0, maxTimeToClearQueue, randomQueueContribution), closeTo(0.0, 1e-3));
+        assertThat(
+            calculateIngestionLoadForExecutor("test", 0.0, 0.0, 0, maxTimeToClearQueue, randomQueueContribution),
+            closeTo(0.0, 1e-3)
+        );
         // When there is nothing in the queue, we'd still want to keep up with average load
         assertThat(
-            calculateIngestionLoadForExecutor(1.0, timeValueMillis(100).nanos(), 0, maxTimeToClearQueue, randomQueueContribution),
+            calculateIngestionLoadForExecutor("test", 1.0, timeValueMillis(100).nanos(), 0, maxTimeToClearQueue, randomQueueContribution),
             closeTo(1.0, 1e-3)
         );
         // A threadpool of 2 with average task time of 100ms can run 200 tasks per 10 seconds.
         assertThat(
             calculateIngestionLoadForExecutor(
+                "test",
                 0.0,
                 timeValueMillis(100).nanos(),
                 100,
@@ -60,6 +64,7 @@ public class IngestLoadProbeTests extends ESTestCase {
         // per maxTimeToClearQueue period.
         assertThat(
             calculateIngestionLoadForExecutor(
+                "test",
                 1.0,
                 timeValueMillis(100).nanos(),
                 1,
@@ -70,6 +75,7 @@ public class IngestLoadProbeTests extends ESTestCase {
         );
         assertThat(
             calculateIngestionLoadForExecutor(
+                "test",
                 1.0,
                 timeValueMillis(100).nanos(),
                 100,
@@ -80,6 +86,7 @@ public class IngestLoadProbeTests extends ESTestCase {
         );
         assertThat(
             calculateIngestionLoadForExecutor(
+                "test",
                 2.0,
                 timeValueMillis(100).nanos(),
                 200,
@@ -90,6 +97,7 @@ public class IngestLoadProbeTests extends ESTestCase {
         );
         assertThat(
             calculateIngestionLoadForExecutor(
+                "test",
                 2.0,
                 timeValueMillis(100).nanos(),
                 400,
@@ -100,6 +108,7 @@ public class IngestLoadProbeTests extends ESTestCase {
         );
         assertThat(
             calculateIngestionLoadForExecutor(
+                "test",
                 2.0,
                 timeValueMillis(100).nanos(),
                 1000,
@@ -109,7 +118,7 @@ public class IngestLoadProbeTests extends ESTestCase {
             closeTo(12.0, 1e-3)
         );
         assertThat(
-            calculateIngestionLoadForExecutor(2.0, timeValueMillis(100).nanos(), 1000, maxTimeToClearQueue, 4.00),
+            calculateIngestionLoadForExecutor("test", 2.0, timeValueMillis(100).nanos(), 1000, maxTimeToClearQueue, 4.00),
             closeTo(6.0, 1e-3)
         );
     }

@@ -138,7 +138,7 @@ class KibanaOwnedReservedRoleDescriptors {
                 RoleDescriptor.IndicesPrivileges.builder().indices("traces-apm-*").privileges("read", "read_cross_cluster").build(),
 
                 // Logstash telemetry queries of kibana task runner to access Logstash metric indices
-                RoleDescriptor.IndicesPrivileges.builder().indices("metrics-logstash.*").privileges("read", "read_cross_cluster").build(),
+                RoleDescriptor.IndicesPrivileges.builder().indices("metrics-logstash.*").privileges("read").build(),
 
                 // Data telemetry reads mappings, metadata and stats of indices
                 RoleDescriptor.IndicesPrivileges.builder().indices("*").privileges("view_index_metadata", "monitor").build(),

@@ -2517,7 +2517,8 @@ public class AuthenticationServiceTests extends ESTestCase {
             concreteSecurityIndexName,
             indexStatus,
             IndexMetadata.State.OPEN,
-            "my_uuid"
+            "my_uuid",
+            Set.of()
         );
     }
 

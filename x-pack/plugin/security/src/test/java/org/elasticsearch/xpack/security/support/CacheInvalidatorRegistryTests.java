@@ -67,7 +67,8 @@ public class CacheInvalidatorRegistryTests extends ESTestCase {
             ".security",
             ClusterHealthStatus.GREEN,
             IndexMetadata.State.OPEN,
-            "my_uuid"
+            "my_uuid",
+            Set.of()
         );
 
         cacheInvalidatorRegistry.onSecurityIndexStateChange(previousState, currentState);

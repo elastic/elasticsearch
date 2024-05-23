@@ -33,6 +33,7 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
@@ -40,14 +41,17 @@ import org.elasticsearch.indices.IndexClosedException;
 import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xpack.security.SecurityFeatures;
 
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_FORMAT_SETTING;
 import static org.elasticsearch.indices.SystemIndexDescriptor.VERSION_META_KEY;
@@ -81,6 +85,8 @@ public class SecurityIndexManager implements ClusterStateListener {
 
     private volatile State state;
     private final boolean defensiveCopy;
+
+    private final Set<NodeFeature> allSecurityFeatures = new SecurityFeatures().getFeatures();
 
     public static SecurityIndexManager buildSecurityIndexManager(
         Client client,
@@ -278,7 +284,8 @@ public class SecurityIndexManager implements ClusterStateListener {
             concreteIndexName,
             indexHealth,
             indexState,
-            indexUUID
+            indexUUID,
+            allSecurityFeatures.stream().filter(event.state().clusterFeatures()::clusterHasFeature).collect(Collectors.toSet())
         );
         this.state = newState;
 
@@ -547,7 +554,21 @@ public class SecurityIndexManager implements ClusterStateListener {
      * State of the security index.
      */
     public static class State {
-        public static final State UNRECOVERED_STATE = new State(null, false, false, false, false, null, null, null, null, null, null, null);
+        public static final State UNRECOVERED_STATE = new State(
+            null,
+            false,
+            false,
+            false,
+            false,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            Set.of()
+        );
         public final Instant creationTime;
         public final boolean isIndexUpToDate;
         public final boolean indexAvailableForSearch;
@@ -562,6 +583,7 @@ public class SecurityIndexManager implements ClusterStateListener {
         public final ClusterHealthStatus indexHealth;
         public final IndexMetadata.State indexState;
         public final String indexUUID;
+        public final Set<NodeFeature> securityFeatures;
 
         public State(
             Instant creationTime,
@@ -575,7 +597,8 @@ public class SecurityIndexManager implements ClusterStateListener {
             String concreteIndexName,
             ClusterHealthStatus indexHealth,
             IndexMetadata.State indexState,
-            String indexUUID
+            String indexUUID,
+            Set<NodeFeature> securityFeatures
         ) {
             this.creationTime = creationTime;
             this.isIndexUpToDate = isIndexUpToDate;
@@ -589,6 +612,7 @@ public class SecurityIndexManager implements ClusterStateListener {
             this.indexHealth = indexHealth;
             this.indexState = indexState;
             this.indexUUID = indexUUID;
+            this.securityFeatures = securityFeatures;
         }
 
         @Override
@@ -606,7 +630,8 @@ public class SecurityIndexManager implements ClusterStateListener {
                 && Objects.equals(minClusterMappingVersion, state.minClusterMappingVersion)
                 && Objects.equals(concreteIndexName, state.concreteIndexName)
                 && indexHealth == state.indexHealth
-                && indexState == state.indexState;
+                && indexState == state.indexState
+                && Objects.equals(securityFeatures, state.securityFeatures);
         }
 
         public boolean indexExists() {
@@ -625,7 +650,8 @@ public class SecurityIndexManager implements ClusterStateListener {
                 minClusterMappingVersion,
                 indexMappingVersion,
                 concreteIndexName,
-                indexHealth
+                indexHealth,
+                securityFeatures
             );
         }
     }

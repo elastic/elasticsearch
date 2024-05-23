@@ -1,0 +1,5 @@
+pr: 108856
+summary: Return noop instance `DocSizeObserver` for updates with scripts
+area: Infra/Metrics
+type: enhancement
+issues: []

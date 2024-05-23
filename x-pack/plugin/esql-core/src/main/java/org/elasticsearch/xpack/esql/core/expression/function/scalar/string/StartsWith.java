@@ -9,11 +9,7 @@ package org.elasticsearch.xpack.esql.core.expression.function.scalar.string;
 
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
-import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.gen.pipeline.Pipe;
-import org.elasticsearch.xpack.esql.core.expression.gen.script.ParamsBuilder;
-import org.elasticsearch.xpack.esql.core.expression.gen.script.ScriptTemplate;
-import org.elasticsearch.xpack.esql.core.expression.gen.script.Scripts;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.DataTypes;
@@ -24,7 +20,6 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.Param
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.SECOND;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isStringAndExact;
 import static org.elasticsearch.xpack.esql.core.expression.function.scalar.string.StartsWithFunctionProcessor.doProcess;
-import static org.elasticsearch.xpack.esql.core.expression.gen.script.ParamsBuilder.paramsBuilder;
 
 /**
  * Function that checks if first parameter starts with the second parameter. Both parameters should be strings
@@ -76,32 +71,6 @@ public abstract class StartsWith extends CaseInsensitiveScalarFunction {
     @Override
     public Object fold() {
         return doProcess(input.fold(), pattern.fold(), isCaseInsensitive());
-    }
-
-    @Override
-    public ScriptTemplate asScript() {
-        ScriptTemplate fieldScript = asScript(input);
-        ScriptTemplate patternScript = asScript(pattern);
-
-        return asScriptFrom(fieldScript, patternScript);
-    }
-
-    protected ScriptTemplate asScriptFrom(ScriptTemplate fieldScript, ScriptTemplate patternScript) {
-        ParamsBuilder params = paramsBuilder();
-
-        String template = formatTemplate("{ql}.startsWith(" + fieldScript.template() + ", " + patternScript.template() + ", {})");
-        params.script(fieldScript.params()).script(patternScript.params()).variable(isCaseInsensitive());
-
-        return new ScriptTemplate(template, params.build(), dataType());
-    }
-
-    @Override
-    public ScriptTemplate scriptWithField(FieldAttribute field) {
-        return new ScriptTemplate(
-            processScript(Scripts.DOC_VALUE),
-            paramsBuilder().variable(field.exactAttribute().name()).build(),
-            dataType()
-        );
     }
 
     @Override

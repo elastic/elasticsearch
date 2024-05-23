@@ -17,9 +17,6 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttributeTests;
 import org.elasticsearch.xpack.esql.core.expression.function.Function;
-import org.elasticsearch.xpack.esql.core.expression.function.aggregate.AggregateFunction;
-import org.elasticsearch.xpack.esql.core.expression.function.aggregate.CompoundAggregate;
-import org.elasticsearch.xpack.esql.core.expression.function.aggregate.InnerAggregate;
 import org.elasticsearch.xpack.esql.core.expression.gen.pipeline.AggExtractorInput;
 import org.elasticsearch.xpack.esql.core.expression.gen.pipeline.BinaryPipesTests;
 import org.elasticsearch.xpack.esql.core.expression.gen.pipeline.Pipe;
@@ -422,14 +419,7 @@ public class NodeSubclassTests<T extends B, B extends Node<B>> extends ESTestCas
          * Sometimes all of the required type information isn't in the ctor
          * so we have to hard code it here.
          */
-        if (toBuildClass == InnerAggregate.class) {
-            // InnerAggregate's AggregateFunction must be an EnclosedAgg.
-            if (argClass == AggregateFunction.class) {
-                return makeEnclosedAgg();
-            } else if (argClass == CompoundAggregate.class) {
-                return makeCompoundAgg();
-            }
-        } else if (toBuildClass == FieldAttribute.class) {
+        if (toBuildClass == FieldAttribute.class) {
             // `parent` is nullable.
             if (argClass == FieldAttribute.class && randomBoolean()) {
                 return null;
@@ -538,14 +528,6 @@ public class NodeSubclassTests<T extends B, B extends Node<B>> extends ESTestCas
         } catch (MockitoException e) {
             throw new RuntimeException("failed to mock [" + argClass.getName() + "] for [" + toBuildClass.getName() + "]", e);
         }
-    }
-
-    protected Object makeCompoundAgg() throws Exception {
-        return makeArg(TestCompoundAggregate.class);
-    }
-
-    protected Object makeEnclosedAgg() throws Exception {
-        return makeArg(TestEnclosedAgg.class);
     }
 
     protected Object pluggableMakeArg(Class<? extends Node<?>> toBuildClass, Class<?> argClass) throws Exception {

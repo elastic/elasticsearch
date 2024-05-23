@@ -8,6 +8,7 @@
 
 package org.elasticsearch.nativeaccess.jdk;
 
+import org.elasticsearch.nativeaccess.WindowsFunctions.ConsoleCtrlHandler;
 import org.elasticsearch.nativeaccess.lib.Kernel32Library;
 
 import java.lang.foreign.Arena;
@@ -18,14 +19,18 @@ import java.lang.foreign.MemorySegment;
 import java.lang.foreign.StructLayout;
 import java.lang.invoke.MethodHandle;
 import java.lang.invoke.VarHandle;
+import java.nio.charset.StandardCharsets;
 
 import static java.lang.foreign.MemoryLayout.PathElement.groupElement;
 import static java.lang.foreign.MemoryLayout.paddingLayout;
 import static java.lang.foreign.ValueLayout.ADDRESS;
 import static java.lang.foreign.ValueLayout.JAVA_BOOLEAN;
+import static java.lang.foreign.ValueLayout.JAVA_CHAR;
 import static java.lang.foreign.ValueLayout.JAVA_INT;
 import static java.lang.foreign.ValueLayout.JAVA_LONG;
 import static org.elasticsearch.nativeaccess.jdk.LinkerHelper.downcallHandle;
+import static org.elasticsearch.nativeaccess.jdk.LinkerHelper.upcallHandle;
+import static org.elasticsearch.nativeaccess.jdk.LinkerHelper.upcallStub;
 import static org.elasticsearch.nativeaccess.jdk.MemorySegmentUtil.varHandleWithoutOffset;
 
 class JdkKernel32Library implements Kernel32Library {
@@ -51,6 +56,21 @@ class JdkKernel32Library implements Kernel32Library {
     private static final MethodHandle SetProcessWorkingSetSize$mh = downcallHandleWithError(
         "SetProcessWorkingSetSize",
         FunctionDescriptor.of(ADDRESS, JAVA_LONG, JAVA_LONG)
+    );
+    private static final MethodHandle GetShortPathNameW$mh = downcallHandleWithError(
+        "GetShortPathNameW",
+        FunctionDescriptor.of(JAVA_INT, ADDRESS, ADDRESS, JAVA_INT)
+    );
+    private static final MethodHandle SetConsoleCtrlHandler$mh = downcallHandleWithError(
+        "SetConsoleCtrlHandler",
+        FunctionDescriptor.of(JAVA_BOOLEAN, ADDRESS, JAVA_BOOLEAN)
+    );
+
+    private static final FunctionDescriptor ConsoleCtrlHandler_handle$fd = FunctionDescriptor.of(JAVA_BOOLEAN, JAVA_INT);
+    private static final MethodHandle ConsoleCtrlHandler_handle$mh = upcallHandle(
+        ConsoleCtrlHandler.class,
+        "handle",
+        ConsoleCtrlHandler_handle$fd
     );
 
     private static MethodHandle downcallHandleWithError(String function, FunctionDescriptor functionDescriptor) {
@@ -204,6 +224,40 @@ class JdkKernel32Library implements Kernel32Library {
         var jdkProcess = (JdkHandle) process;
         try {
             return (boolean) SetProcessWorkingSetSize$mh.invokeExact(lastErrorState, jdkProcess.address, minSize, maxSize);
+        } catch (Throwable t) {
+            throw new AssertionError(t);
+        }
+    }
+
+    @Override
+    public int GetShortPathNameW(String lpszLongPath, char[] lpszShortPath, int cchBuffer) {
+        try (Arena arena = Arena.ofConfined()) {
+            MemorySegment wideFileName = ArenaUtil.allocateFrom(arena, lpszLongPath + "\0", StandardCharsets.UTF_16LE);
+            MemorySegment shortPath;
+            if (lpszShortPath != null) {
+                shortPath = ArenaUtil.allocate(arena, JAVA_CHAR, cchBuffer);
+            } else {
+                shortPath = MemorySegment.NULL;
+            }
+
+            int ret = (int) GetShortPathNameW$mh.invokeExact(lastErrorState, wideFileName, shortPath, cchBuffer);
+            if (shortPath != MemorySegment.NULL) {
+                for (int i = 0; i < cchBuffer; ++i) {
+                    lpszShortPath[i] = shortPath.getAtIndex(JAVA_CHAR, i);
+                }
+            }
+            return ret;
+        } catch (Throwable t) {
+            throw new AssertionError(t);
+        }
+    }
+
+    @Override
+    public boolean SetConsoleCtrlHandler(ConsoleCtrlHandler handler, boolean add) {
+        // use the global arena so the handler will have the lifetime of the jvm
+        MemorySegment nativeHandler = upcallStub(ConsoleCtrlHandler_handle$mh, handler, ConsoleCtrlHandler_handle$fd, Arena.global());
+        try {
+            return (boolean) SetConsoleCtrlHandler$mh.invokeExact(lastErrorState, nativeHandler, add);
         } catch (Throwable t) {
             throw new AssertionError(t);
         }

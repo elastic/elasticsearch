@@ -959,6 +959,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
             client.admin()
                 .cluster()
                 .preparePutRepository("test-repo")
+                .setVerify(false)
                 .setType("fs")
                 .setSettings(Settings.builder().put("location", repositoryLocation.resolve("test")))
                 .get();

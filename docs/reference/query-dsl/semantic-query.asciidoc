@@ -6,8 +6,7 @@
 
 beta[]
 
-The `semantic` query type enables you to perform semantic search on data stored
-in a <<semantic-text,`semantic_text`>> field.
+The `semantic` query type enables you to perform semantic search on data stored in a <<semantic-text,`semantic_text`>> field.
 
 
 [discrete]
@@ -42,19 +41,15 @@ query::
 The query text to be searched for on the field.
 
 
-Refer to <<semantic-search-semantic-text,this tutorial>> to learn more about
-semantic search using `semantic_text` and `semantic` query.
+Refer to <<semantic-search-semantic-text,this tutorial>> to learn more about semantic search using `semantic_text` and `semantic` query.
 
 [discrete]
 [[hybrid-search-semantic]]
 ==== Hybrid search with the `semantic` query
 
-The `semantic` query can be used as a part of a hybrid search where `semantic`
-query is combined with lexical queries. For example, the query below finds
-documents with title matching "mountain lake", and combines them with doing the
-same semantic search on the field `title_semantic`, that is a `semantic_text`
-field. The combined documents are then scored, and the top 3 top scored
-documents are returned.
+The `semantic` query can be used as a part of a hybrid search where `semantic` query is combined with lexical queries.
+For example, the query below finds documents with title matching "mountain lake", and combines them with doing the same semantic search on the field `title_semantic`, that is a `semantic_text` field.
+The combined documents are then scored, and the top 3 top scored documents are returned.
 
 [source,console]
 ------------------------------------------------------------
@@ -86,13 +81,45 @@ POST my-index/_search
 ------------------------------------------------------------
 // TEST[skip:TBD]
 
+You can also use semantic_text as part of <<rrf,Reciprocal Rank Fusion>>:
+
+[source,console]
+------------------------------------------------------------
+GET my-index/_search
+{
+  "retriever": {
+    "rrf": {
+      "retrievers": [
+        {
+          "standard": {
+            "query": {
+              "term": {
+                "text": "shoes"
+	            }
+	          }
+	        }
+	      },
+	      {
+          "semantic": {
+            "field": "semantic_field",
+	          "query": "shoes"
+	        }
+	      }
+	    ],
+	    "rank_window_size": 50,
+	    "rank_constant": 20
+	  }
+	}
+}
+------------------------------------------------------------
+// TEST[skip:TBD]
+
 
 [discrete]
 [[search-sparse-inference]]
 ==== Search with `sparse_embedding` inference
 
-When the {infer} service uses a `sparse_embedding` model, you can use a
-`sparse_vector` query on a `semantic_text` field in the following way:
+When the {infer} service uses a `sparse_embedding` model, you can use a `sparse_vector` query on a <<semantic-text,`semantic_text`>> field in the following way:
 
 [source,console]
 ------------------------------------------------------------
@@ -105,7 +132,7 @@ GET test-index/_search
         "sparse_vector": {
           "field": "inference_field.inference.chunks.embeddings",
           "inference_id": "my-inference-id",
-          "query_text": "mountain lake"
+          "query": "mountain lake"
         }
       }
     }
@@ -114,35 +141,37 @@ GET test-index/_search
 ------------------------------------------------------------
 // TEST[skip:TBD]
 
-You can customize the `sparse_vector` query to include specific settings, like
-pruning configuration.
+You can customize the `sparse_vector` query to include specific settings, like pruning configuration.
 
 
 [discrete]
 [[search-text-inferece]]
 ==== Search with text_embedding inference
 
-When the {infer} service uses a `text_embedding` model, you can use a `knn`
-query on a `semantic_text` field in the following way:
+When the {infer} service uses a `text_embedding` model, you can use a <<query-dsl-knn-query,`knn`query>> on a `semantic_text` field in the following way:
 
 [source,console]
 ------------------------------------------------------------
 GET test-index/_search
 {
   "query": {
-    "knn": {
-      "field": "inference_field",
-      "query_vector_builder": {
-        "text_embedding": { 
-          "model_id": "my_inference_id", 
-          "model_text": "mountain lake" 
-        }
-      }
-    }
-  }
+    "nested": {
+      "path": "inference_field.inference.chunks",
+      "query": {
+        "knn": {
+          "field": "inference_field.inference.chunks.embeddings",
+          "query_vector_builder": {
+            "text_embedding": {
+              "model_id": "my_inference_id",
+	            "model_text": "mountain lake"
+	          }
+	        }
+	      }
+	    }
+	  }
+	}
 }
 ------------------------------------------------------------
 // TEST[skip:TBD]
 
-You can customize the `knn` query to include specific settings, like
-`num_candidates` and `k`.
+You can customize the `knn` query to include specific settings, like `num_candidates` and `k`.

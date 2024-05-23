@@ -39,10 +39,7 @@ if (BuildParams.inFipsJvm){
 }
 
 if (BuildParams.isSnapshotBuild() == false) {
-  tasks.named("test").configure {
-    systemProperty 'es.failure_store_feature_flag_enabled', 'true'
-  }
-  tasks.named("internalClusterTest").configure {
+  tasks.withType(Test).configureEach {
     systemProperty 'es.failure_store_feature_flag_enabled', 'true'
   }
 }

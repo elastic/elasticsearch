@@ -83,6 +83,7 @@ public class IngestLoadProbe {
         for (String executorName : AverageWriteLoadSampler.WRITE_EXECUTORS) {
             var executorStats = executorStatsProvider.apply(executorName);
             totalIngestionLoad += calculateIngestionLoadForExecutor(
+                executorName,
                 executorStats.averageLoad(),
                 executorStats.averageTaskExecutionEWMA(),
                 executorStats.currentQueueSize(),
@@ -94,16 +95,18 @@ public class IngestLoadProbe {
     }
 
     static double calculateIngestionLoadForExecutor(
+        String executor,
         double averageWriteLoad,
         double averageTaskExecutionTime,
         long currentQueueSize,
         TimeValue maxTimeToClearQueue,
         double maxThreadsToHandleQueue
     ) {
-        if (logger.isTraceEnabled()) {
-            logger.trace(
-                "averageWriteLoad: {}, averageTaskExecutionTime: {}, currentQueueSize: {}, maxTimeToClearQueue: {}, "
+        if (logger.isDebugEnabled()) {
+            logger.debug(
+                "{}: averageWriteLoad: {}, averageTaskExecutionTime: {}, currentQueueSize: {}, maxTimeToClearQueue: {}, "
                     + "maxThreadsToHandleQueue: {}",
+                executor,
                 averageWriteLoad,
                 averageTaskExecutionTime,
                 currentQueueSize,

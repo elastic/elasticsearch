@@ -5,12 +5,13 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.ml.queries;
+package org.elasticsearch.xpack.core.ml.search;
 
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -21,7 +22,7 @@ import java.util.Locale;
 import java.util.Objects;
 import java.util.Set;
 
-import static org.elasticsearch.xpack.ml.queries.TextExpansionQueryBuilder.PRUNING_CONFIG;
+import static org.elasticsearch.xpack.core.ml.search.WeightedTokensQueryBuilder.PRUNING_CONFIG;
 
 public class TokenPruningConfig implements Writeable, ToXContentObject {
     public static final ParseField TOKENS_FREQ_RATIO_THRESHOLD = new ParseField("tokens_freq_ratio_threshold");
@@ -96,7 +97,7 @@ public class TokenPruningConfig implements Writeable, ToXContentObject {
     /**
      * Returns whether the filtering process retains tokens identified as non-relevant based on the specified thresholds
      * (ratio and weight). When {@code true}, only non-relevant tokens are considered for matching and scoring documents.
-     * Enabling this option is valuable for re-scoring top hits retrieved from a {@link WeightedTokensQueryBuilder} with
+     * Enabling this option is valuable for re-scoring top hits retrieved from another {@link QueryBuilder} with
      * active thresholds.
      */
     public boolean isOnlyScorePrunedTokens() {

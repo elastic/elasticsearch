@@ -12,6 +12,7 @@ composed_of:
 - apm@mappings
 - apm@settings
 - apm-10d@lifecycle
+- logs-apm@settings
 - logs-apm.error@mappings
 - logs@custom
 - logs-apm.error@custom

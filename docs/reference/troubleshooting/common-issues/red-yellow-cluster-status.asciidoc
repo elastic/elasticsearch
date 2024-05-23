@@ -220,10 +220,9 @@ don't exist or are irrecoverable, <<cluster-allocation-explain,Allocation
 Explain>> will report `no_valid_shard_copy` and you'll need to do one of the following: 
 
 * restore the missing data from <<snapshot-restore,snapshot>> 
-* re-add the missind data from its original data source
+* index the missing data from its original data source
 * accept data loss on the index-level by running <<indices-delete-index,Delete Index>>
-* accept data loss on the shard-level by running <<cluster-reroute,Cluster Reroute>> with 
-`accept_data_loss: true`
+* accept data loss on the shard-level by executing <<cluster-reroute,Cluster Reroute>> allocate_stale_primary or allocate_empty_primary command with `accept_data_loss: true`
 +
 WARNING: Only use this option if node recovery is no longer possible. This
 process allocates an empty primary shard. If the node later rejoins the cluster,

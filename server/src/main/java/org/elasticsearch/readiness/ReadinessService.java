@@ -38,6 +38,7 @@ import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Function;
 
 public class ReadinessService extends AbstractLifecycleComponent implements ClusterStateListener {
     private static final Logger logger = LogManager.getLogger(ReadinessService.class);
@@ -244,11 +245,33 @@ public class ReadinessService extends AbstractLifecycleComponent implements Clus
                 logger.info("marking node as not ready because it's shutting down");
             }
         } else {
-            boolean masterElected = clusterState.nodes().getMasterNodeId() != null;
-            boolean fileSettingsApplied = areFileSettingsApplied(clusterState);
-            logger.info("readiness: masterElected={}, fileSettingsApplied={}", masterElected, fileSettingsApplied);
+            boolean masterElected = getReadinessState(clusterState, event.previousState(), this::isMasterElected, "masterElected");
+            boolean fileSettingsApplied = getReadinessState(
+                clusterState,
+                event.previousState(),
+                this::areFileSettingsApplied,
+                "fileSettingsApplied"
+            );
             setReady(masterElected && fileSettingsApplied);
         }
+    }
+
+    private boolean getReadinessState(
+        ClusterState clusterState,
+        ClusterState previousState,
+        Function<ClusterState, Boolean> accessor,
+        String description
+    ) {
+        boolean newStateValue = accessor.apply(clusterState);
+        boolean oldStateValue = accessor.apply(previousState);
+        if (oldStateValue != newStateValue) {
+            logger.info("readiness change: {}={}", description, newStateValue);
+        }
+        return newStateValue;
+    }
+
+    private boolean isMasterElected(ClusterState clusterState) {
+        return clusterState.nodes().getMasterNodeId() != null;
     }
 
     // protected to allow mock service to override

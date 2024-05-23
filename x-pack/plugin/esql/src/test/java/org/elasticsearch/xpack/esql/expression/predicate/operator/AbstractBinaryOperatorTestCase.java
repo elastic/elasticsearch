@@ -9,17 +9,17 @@ package org.elasticsearch.xpack.esql.expression.predicate.operator;
 
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.xpack.esql.analysis.Verifier;
+import org.elasticsearch.xpack.esql.core.common.Failure;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.core.expression.predicate.BinaryOperator;
+import org.elasticsearch.xpack.esql.core.tree.Location;
+import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.type.DataTypes;
 import org.elasticsearch.xpack.esql.expression.function.AbstractFunctionTestCase;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
-import org.elasticsearch.xpack.ql.common.Failure;
-import org.elasticsearch.xpack.ql.expression.Expression;
-import org.elasticsearch.xpack.ql.expression.Literal;
-import org.elasticsearch.xpack.ql.expression.predicate.BinaryOperator;
-import org.elasticsearch.xpack.ql.tree.Location;
-import org.elasticsearch.xpack.ql.tree.Source;
-import org.elasticsearch.xpack.ql.type.DataType;
-import org.elasticsearch.xpack.ql.type.DataTypes;
 import org.hamcrest.Matcher;
 
 import java.util.Arrays;
@@ -27,9 +27,9 @@ import java.util.List;
 import java.util.Locale;
 
 import static org.elasticsearch.compute.data.BlockUtils.toJavaObject;
+import static org.elasticsearch.xpack.esql.core.type.DataTypeConverter.commonType;
+import static org.elasticsearch.xpack.esql.core.type.DataTypes.isNull;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.isRepresentable;
-import static org.elasticsearch.xpack.ql.type.DataTypeConverter.commonType;
-import static org.elasticsearch.xpack.ql.type.DataTypes.isNull;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;

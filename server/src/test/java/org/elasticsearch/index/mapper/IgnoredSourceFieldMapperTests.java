@@ -223,6 +223,23 @@ public class IgnoredSourceFieldMapperTests extends MapperServiceTestCase {
             {"path":{"name":"%s"}}""", name), syntheticSource);
     }
 
+    public void testDisabledObjectContainsArray() throws IOException {
+        String name = randomAlphaOfLength(20);
+        DocumentMapper documentMapper = createMapperService(syntheticSourceMapping(b -> {
+            b.startObject("path").field("type", "object").field("enabled", false).endObject();
+        })).documentMapper();
+        var syntheticSource = syntheticSource(documentMapper, b -> {
+            b.startArray("path");
+            {
+                b.startObject().field("foo", "A").field("bar", "B").endObject();
+                b.startObject().field("foo", "C").field("bar", "D").endObject();
+            }
+            b.endArray();
+        });
+        assertEquals("""
+            {"path":[{"foo":"A","bar":"B"},{"foo":"C","bar":"D"}]}""", syntheticSource);
+    }
+
     public void testDisabledObjectManyFields() throws IOException {
         boolean booleanValue = randomBoolean();
         int intValue = randomInt();
@@ -301,6 +318,45 @@ public class IgnoredSourceFieldMapperTests extends MapperServiceTestCase {
         });
         assertEquals(String.format(Locale.ROOT, """
             {"boolean_value":%s,"path":{"int_value":%s,"to":{"name":"%s"}}}""", booleanValue, intValue, name), syntheticSource);
+    }
+
+    public void testDisabledSubobjectContainsArray() throws IOException {
+        DocumentMapper documentMapper = createMapperService(syntheticSourceMapping(b -> {
+            b.startObject("boolean_value").field("type", "boolean").endObject();
+            b.startObject("path");
+            {
+                b.field("type", "object");
+                b.startObject("properties");
+                {
+                    b.startObject("int_value").field("type", "integer").endObject();
+                    b.startObject("to").field("type", "object").field("enabled", false).endObject();
+                }
+                b.endObject();
+            }
+            b.endObject();
+        })).documentMapper();
+
+        boolean booleanValue = randomBoolean();
+        int intValue = randomInt();
+        var syntheticSource = syntheticSource(documentMapper, b -> {
+            b.field("boolean_value", booleanValue);
+            b.startObject("path");
+            {
+                b.field("int_value", intValue);
+                b.startArray("to");
+                {
+                    b.startObject().field("foo", "A").field("bar", "B").endObject();
+                    b.startObject().field("foo", "C").field("bar", "D").endObject();
+                }
+                b.endArray();
+            }
+            b.endObject();
+        });
+        assertEquals(
+            String.format(Locale.ROOT, """
+                {"boolean_value":%s,"path":{"int_value":%s,"to":[{"foo":"A","bar":"B"},{"foo":"C","bar":"D"}]}}""", booleanValue, intValue),
+            syntheticSource
+        );
     }
 
     public void testMixedDisabledEnabledObjects() throws IOException {
@@ -564,5 +620,160 @@ public class IgnoredSourceFieldMapperTests extends MapperServiceTestCase {
         });
         assertEquals("""
             {"A":30,"B":[{"Y":300},{"X":400}],"C":10,"D":[{"Y":100},{"X":200}],"E":20}""", syntheticSource);
+    }
+
+    public void testNestedObjectWithField() throws IOException {
+        DocumentMapper documentMapper = createMapperService(syntheticSourceMapping(b -> {
+            b.startObject("path").field("type", "nested");
+            {
+                b.startObject("properties");
+                {
+                    b.startObject("foo").field("type", "keyword").endObject();
+                    b.startObject("bar").field("type", "keyword").endObject();
+                }
+                b.endObject();
+            }
+            b.endObject();
+        })).documentMapper();
+        var syntheticSource = syntheticSource(
+            documentMapper,
+            b -> { b.startObject("path").field("foo", "A").field("bar", "B").endObject(); }
+        );
+        assertEquals("""
+            {"path":{"foo":"A","bar":"B"}}""", syntheticSource);
+    }
+
+    public void testNestedObjectWithArray() throws IOException {
+        DocumentMapper documentMapper = createMapperService(syntheticSourceMapping(b -> {
+            b.startObject("path").field("type", "nested");
+            {
+                b.startObject("properties");
+                {
+                    b.startObject("foo").field("type", "keyword").endObject();
+                    b.startObject("bar").field("type", "keyword").endObject();
+                }
+                b.endObject();
+            }
+            b.endObject();
+        })).documentMapper();
+        var syntheticSource = syntheticSource(documentMapper, b -> {
+            b.startArray("path");
+            {
+                b.startObject().field("foo", "A").field("bar", "B").endObject();
+                b.startObject().field("foo", "C").field("bar", "D").endObject();
+            }
+            b.endArray();
+        });
+        assertEquals("""
+            {"path":[{"foo":"A","bar":"B"},{"foo":"C","bar":"D"}]}""", syntheticSource);
+    }
+
+    public void testNestedSubobjectWithField() throws IOException {
+        DocumentMapper documentMapper = createMapperService(syntheticSourceMapping(b -> {
+            b.startObject("boolean_value").field("type", "boolean").endObject();
+            b.startObject("path");
+            {
+                b.field("type", "object");
+                b.startObject("properties");
+                {
+                    b.startObject("int_value").field("type", "integer").endObject();
+                    b.startObject("to").field("type", "nested");
+                    {
+                        b.startObject("properties");
+                        {
+                            b.startObject("foo").field("type", "keyword").endObject();
+                            b.startObject("bar").field("type", "keyword").endObject();
+                        }
+                        b.endObject();
+                    }
+                    b.endObject();
+                }
+                b.endObject();
+            }
+            b.endObject();
+        })).documentMapper();
+
+        boolean booleanValue = randomBoolean();
+        int intValue = randomInt();
+        var syntheticSource = syntheticSource(documentMapper, b -> {
+            b.field("boolean_value", booleanValue);
+            b.startObject("path");
+            {
+                b.field("int_value", intValue);
+                b.startObject("to").field("foo", "A").field("bar", "B").endObject();
+            }
+            b.endObject();
+        });
+        assertEquals(String.format(Locale.ROOT, """
+            {"boolean_value":%s,"path":{"int_value":%s,"to":{"foo":"A","bar":"B"}}}""", booleanValue, intValue), syntheticSource);
+    }
+
+    public void testNestedSubobjectWithArray() throws IOException {
+        DocumentMapper documentMapper = createMapperService(syntheticSourceMapping(b -> {
+            b.startObject("boolean_value").field("type", "boolean").endObject();
+            b.startObject("path");
+            {
+                b.field("type", "object");
+                b.startObject("properties");
+                {
+                    b.startObject("int_value").field("type", "integer").endObject();
+                    b.startObject("to").field("type", "nested");
+                    {
+                        b.startObject("properties");
+                        {
+                            b.startObject("foo").field("type", "keyword").endObject();
+                            b.startObject("bar").field("type", "keyword").endObject();
+                        }
+                        b.endObject();
+                    }
+                    b.endObject();
+                }
+                b.endObject();
+            }
+            b.endObject();
+        })).documentMapper();
+
+        boolean booleanValue = randomBoolean();
+        int intValue = randomInt();
+        var syntheticSource = syntheticSource(documentMapper, b -> {
+            b.field("boolean_value", booleanValue);
+            b.startObject("path");
+            {
+                b.field("int_value", intValue);
+                b.startArray("to");
+                {
+                    b.startObject().field("foo", "A").field("bar", "B").endObject();
+                    b.startObject().field("foo", "C").field("bar", "D").endObject();
+                }
+                b.endArray();
+            }
+            b.endObject();
+        });
+        assertEquals(
+            String.format(Locale.ROOT, """
+                {"boolean_value":%s,"path":{"int_value":%s,"to":[{"foo":"A","bar":"B"},{"foo":"C","bar":"D"}]}}""", booleanValue, intValue),
+            syntheticSource
+        );
+    }
+
+    public void testNestedObjectIncludeInRoot() throws IOException {
+        DocumentMapper documentMapper = createMapperService(syntheticSourceMapping(b -> {
+            b.startObject("path").field("type", "nested").field("include_in_root", true);
+            {
+                b.startObject("properties");
+                {
+                    b.startObject("foo").field("type", "keyword").endObject();
+                    b.startObject("bar").field("type", "keyword").endObject();
+                }
+                b.endObject();
+            }
+            b.endObject();
+        })).documentMapper();
+        var syntheticSource = syntheticSource(
+            documentMapper,
+            b -> { b.startObject("path").field("foo", "A").field("bar", "B").endObject(); }
+        );
+        assertEquals("""
+            {"path":{"foo":"A","bar":"B"}}""", syntheticSource);
     }
 }

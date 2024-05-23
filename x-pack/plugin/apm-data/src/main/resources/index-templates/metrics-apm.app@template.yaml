@@ -1,6 +1,6 @@
 version: ${xpack.apmdata.template.version}
 index_patterns: ["metrics-apm.app.*-*"]
-priority: 140
+priority: 210
 data_stream: {}
 allow_auto_create: true
 _meta:

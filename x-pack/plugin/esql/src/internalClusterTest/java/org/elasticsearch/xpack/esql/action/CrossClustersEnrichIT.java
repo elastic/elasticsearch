@@ -457,7 +457,7 @@ public class CrossClustersEnrichIT extends AbstractMultiClustersTestCase {
     }
 
     protected EsqlQueryResponse runQuery(String query) {
-        EsqlQueryRequest request = AbstractEsqlIntegTestCase.syncRequestOnLatestVersion();
+        EsqlQueryRequest request = EsqlQueryRequest.syncEsqlQueryRequest();
         request.query(query);
         request.pragmas(AbstractEsqlIntegTestCase.randomPragmas());
         if (randomBoolean()) {

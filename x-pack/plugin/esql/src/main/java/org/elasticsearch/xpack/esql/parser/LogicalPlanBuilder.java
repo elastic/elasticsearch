@@ -14,7 +14,30 @@ import org.elasticsearch.Build;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.dissect.DissectException;
 import org.elasticsearch.dissect.DissectParser;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.xpack.esql.VerificationException;
+import org.elasticsearch.xpack.esql.core.common.Failure;
+import org.elasticsearch.xpack.esql.core.expression.Alias;
+import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.EmptyAttribute;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.Expressions;
+import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
+import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
+import org.elasticsearch.xpack.esql.core.expression.Order;
+import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
+import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
+import org.elasticsearch.xpack.esql.core.expression.UnresolvedStar;
+import org.elasticsearch.xpack.esql.core.expression.function.UnresolvedFunction;
+import org.elasticsearch.xpack.esql.core.parser.ParserUtils;
+import org.elasticsearch.xpack.esql.core.plan.TableIdentifier;
+import org.elasticsearch.xpack.esql.core.plan.logical.Filter;
+import org.elasticsearch.xpack.esql.core.plan.logical.Limit;
+import org.elasticsearch.xpack.esql.core.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.core.plan.logical.OrderBy;
+import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.DataTypes;
 import org.elasticsearch.xpack.esql.expression.UnresolvedNamePattern;
 import org.elasticsearch.xpack.esql.parser.EsqlBaseParser.MetadataOptionContext;
 import org.elasticsearch.xpack.esql.parser.EsqlBaseParser.QualifiedNamePatternContext;
@@ -33,28 +56,6 @@ import org.elasticsearch.xpack.esql.plan.logical.Rename;
 import org.elasticsearch.xpack.esql.plan.logical.Row;
 import org.elasticsearch.xpack.esql.plan.logical.meta.MetaFunctions;
 import org.elasticsearch.xpack.esql.plan.logical.show.ShowInfo;
-import org.elasticsearch.xpack.ql.common.Failure;
-import org.elasticsearch.xpack.ql.expression.Alias;
-import org.elasticsearch.xpack.ql.expression.Attribute;
-import org.elasticsearch.xpack.ql.expression.EmptyAttribute;
-import org.elasticsearch.xpack.ql.expression.Expression;
-import org.elasticsearch.xpack.ql.expression.Expressions;
-import org.elasticsearch.xpack.ql.expression.Literal;
-import org.elasticsearch.xpack.ql.expression.MetadataAttribute;
-import org.elasticsearch.xpack.ql.expression.NamedExpression;
-import org.elasticsearch.xpack.ql.expression.Order;
-import org.elasticsearch.xpack.ql.expression.ReferenceAttribute;
-import org.elasticsearch.xpack.ql.expression.UnresolvedAttribute;
-import org.elasticsearch.xpack.ql.expression.UnresolvedStar;
-import org.elasticsearch.xpack.ql.expression.function.UnresolvedFunction;
-import org.elasticsearch.xpack.ql.parser.ParserUtils;
-import org.elasticsearch.xpack.ql.plan.TableIdentifier;
-import org.elasticsearch.xpack.ql.plan.logical.Filter;
-import org.elasticsearch.xpack.ql.plan.logical.Limit;
-import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
-import org.elasticsearch.xpack.ql.plan.logical.OrderBy;
-import org.elasticsearch.xpack.ql.tree.Source;
-import org.elasticsearch.xpack.ql.type.DataTypes;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -68,11 +69,11 @@ import java.util.Set;
 import java.util.function.Function;
 
 import static org.elasticsearch.common.logging.HeaderWarning.addWarning;
+import static org.elasticsearch.xpack.esql.core.parser.ParserUtils.source;
+import static org.elasticsearch.xpack.esql.core.parser.ParserUtils.typedParsing;
+import static org.elasticsearch.xpack.esql.core.parser.ParserUtils.visitList;
 import static org.elasticsearch.xpack.esql.plan.logical.Enrich.Mode;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.stringToInt;
-import static org.elasticsearch.xpack.ql.parser.ParserUtils.source;
-import static org.elasticsearch.xpack.ql.parser.ParserUtils.typedParsing;
-import static org.elasticsearch.xpack.ql.parser.ParserUtils.visitList;
 
 public class LogicalPlanBuilder extends ExpressionBuilder {
 
@@ -234,7 +235,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
                 }
             }
         }
-        return new EsqlUnresolvedRelation(source, table, Arrays.asList(metadataMap.values().toArray(Attribute[]::new)));
+        return new EsqlUnresolvedRelation(source, table, Arrays.asList(metadataMap.values().toArray(Attribute[]::new)), IndexMode.STANDARD);
     }
 
     @Override
@@ -428,7 +429,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         }
         Source source = source(ctx);
         TableIdentifier table = new TableIdentifier(source, null, visitIndexIdentifiers(ctx.indexIdentifier()));
-        var unresolvedRelation = new EsqlUnresolvedRelation(source, table, List.of());
+        var unresolvedRelation = new EsqlUnresolvedRelation(source, table, List.of(), IndexMode.TIME_SERIES);
         if (ctx.aggregates == null && ctx.grouping == null) {
             return unresolvedRelation;
         }

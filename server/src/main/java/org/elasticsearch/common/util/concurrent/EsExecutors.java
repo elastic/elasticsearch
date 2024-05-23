@@ -13,6 +13,7 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.Processors;
+import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.node.Node;
 
@@ -264,6 +265,28 @@ public class EsExecutors {
     public static String threadName(final String nodeName, final String namePrefix) {
         // TODO missing node names should only be allowed in tests
         return "elasticsearch" + (nodeName.isEmpty() ? "" : "[") + nodeName + (nodeName.isEmpty() ? "" : "]") + "[" + namePrefix + "]";
+    }
+
+    public static boolean assertDifferentExecutors(Thread thread1, Thread thread2) {
+        assert Assertions.ENABLED;
+        assert thread1 != thread2 : "only call for different threads";
+        String thread1Name = executorName(thread1);
+        String thread2Name = executorName(thread2);
+        assert thread1Name == null || thread2Name == null || thread1Name.equals(thread2Name) == false;
+        return true;
+    }
+
+    // visible for tests
+    static String executorName(Thread thread) {
+        assert Assertions.ENABLED;
+        String name = thread.getName();
+        int executorNameEnd = name.lastIndexOf(']', name.length() - 2);
+        int executorNameStart = name.lastIndexOf('[', executorNameEnd);
+        if (executorNameStart == -1 || executorNameEnd - executorNameStart <= 1) {
+            return null;
+        }
+
+        return name.substring(executorNameStart + 1, executorNameEnd);
     }
 
     public static ThreadFactory daemonThreadFactory(Settings settings, String namePrefix) {

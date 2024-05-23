@@ -13,6 +13,7 @@ import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.service.ClusterApplierService;
 import org.elasticsearch.cluster.service.MasterService;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.common.util.concurrent.UncategorizedExecutionException;
 import org.elasticsearch.core.CheckedConsumer;
@@ -364,6 +365,7 @@ public class PlainActionFuture<T> implements ActionFuture<T>, ActionListener<T> 
          * @param finalState the state to transition to.
          */
         private boolean complete(@Nullable V v, @Nullable Exception e, int finalState) {
+            assert assertCompleteAllowed();
             boolean doCompletion = compareAndSetState(RUNNING, COMPLETING);
             if (doCompletion) {
                 // If this thread successfully transitioned to COMPLETING, set the value
@@ -377,6 +379,17 @@ public class PlainActionFuture<T> implements ActionFuture<T>, ActionListener<T> 
                 acquireShared(-1);
             }
             return doCompletion;
+        }
+
+        private boolean assertCompleteAllowed() {
+            Thread waiter = getFirstQueuedThread();
+            assert waiter == null || EsExecutors.assertDifferentExecutors(waiter, Thread.currentThread())
+                : "cannot complete future on thread "
+                    + Thread.currentThread()
+                    + " with waiter on thread "
+                    + waiter
+                    + ", could deadlock if pool was full";
+            return true;
         }
     }
 

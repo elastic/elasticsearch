@@ -22,6 +22,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
+import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -624,6 +625,14 @@ public class EsExecutorsTests extends ESTestCase {
                 randomFrom(DEFAULT, DO_NOT_TRACK)
             )
         );
+    }
+
+    public void testParseExecutorName() {
+        String executorName = randomAlphaOfLength(10);
+        ThreadFactory threadFactory = EsExecutors.daemonThreadFactory(rarely() ? null : randomAlphaOfLength(10), executorName);
+        Thread thread = threadFactory.newThread(() -> {});
+
+        assertThat(EsExecutors.executorName(thread), equalTo(executorName));
     }
 
     private static void runRejectOnShutdownTest(ExecutorService executor) {

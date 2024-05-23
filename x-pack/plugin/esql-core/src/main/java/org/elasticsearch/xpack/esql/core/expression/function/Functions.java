@@ -7,16 +7,18 @@
 package org.elasticsearch.xpack.esql.core.expression.function;
 
 import org.elasticsearch.xpack.esql.core.expression.Expression;
-import org.elasticsearch.xpack.esql.core.expression.function.aggregate.AggregateFunction;
-import org.elasticsearch.xpack.esql.core.expression.function.grouping.GroupingFunction;
 
+/**
+ * @deprecated for removal
+ */
+@Deprecated
 public abstract class Functions {
 
+    /**
+     * @deprecated for removal
+     */
+    @Deprecated
     public static boolean isAggregate(Expression e) {
-        return e instanceof AggregateFunction;
-    }
-
-    public static boolean isGrouping(Expression e) {
-        return e instanceof GroupingFunction;
+        throw new IllegalStateException("Should never reach this code");
     }
 }

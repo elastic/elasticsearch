@@ -34,11 +34,6 @@ public abstract class BinaryPredicate<T, U, R, F extends PredicateBiFunction<T, 
     }
 
     @Override
-    protected String scriptMethodName() {
-        return function.scriptMethodName();
-    }
-
-    @Override
     public int hashCode() {
         return Objects.hash(left(), right(), function.symbol());
     }

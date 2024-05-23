@@ -2179,10 +2179,12 @@ public abstract class ESTestCase extends LuceneTestCase {
         }
     }
 
-    public static <T> Exception safeAwaitFailure(SubscribableListener<T> listener) {
-        return safeAwait(SubscribableListener.newForked(exceptionListener -> {
-            listener.addListener(ActionTestUtils.assertNoSuccessListener(exceptionListener::onResponse));
-        }));
+    public static Exception safeAwaitFailure(SubscribableListener<?> listener) {
+        return safeAwait(
+            SubscribableListener.newForked(
+                exceptionListener -> listener.addListener(ActionTestUtils.assertNoSuccessListener(exceptionListener::onResponse))
+            )
+        );
     }
 
     public static void safeSleep(long millis) {

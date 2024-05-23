@@ -356,20 +356,14 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
             final var repository = createRepository(newRepositoryMetadata);
             if (request.verify()) {
                 // verify repository on local node only, different from verifyRepository method that runs on other cluster nodes
-                threadPool.executor(ThreadPool.Names.SNAPSHOT).execute(() -> {
-                    try {
+                threadPool.executor(ThreadPool.Names.SNAPSHOT)
+                    .execute(ActionRunnable.run(ActionListener.runBefore(resultListener, () -> closeRepository(repository)), () -> {
                         final var token = repository.startVerification();
                         if (token != null) {
                             repository.verify(token, clusterService.localNode());
                             repository.endVerification(token);
                         }
-                        resultListener.onResponse(null);
-                    } catch (Exception e) {
-                        resultListener.onFailure(e);
-                    } finally {
-                        closeRepository(repository);
-                    }
-                });
+                    }));
             } else {
                 closeRepository(repository);
                 resultListener.onResponse(null);

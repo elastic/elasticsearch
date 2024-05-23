@@ -98,6 +98,13 @@
         body:
           shape: ["POINT (-77.03653 38.897676)", "potato", "POINT (-71.34 41.12)"]
 
+  - do:
+      index:
+        index: test
+        id: "4"
+        body:
+          shape: ["POINT (-77.03653 1000)", "POINT (-71.34 41.12)"]
+
 
   - do:
       indices.refresh: {}
@@ -124,6 +131,13 @@
         id: "3"
 
   - match: { _source.shape: ["POINT (-77.03653 38.897676)", "potato", "POINT (-71.34 41.12)"] }
+
+  - do:
+      get:
+        index: test
+        id: "4"
+
+  - match: { _source.shape: ["POINT (-77.03653 1000)", "POINT (-71.34 41.12)"] }
 
 ---
 "geo_point":

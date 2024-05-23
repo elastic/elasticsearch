@@ -61,7 +61,7 @@ public class DateFormatters {
         // if this is running in tests, use the seed to determine whether we use the ISO or java.time implementations
         // to ensure both implementations are tested properly
         JAVA_TIME_PARSERS_ONLY = Booleans.parseBoolean(System.getProperty("es.datetime.java_time_parsers"), false)
-            || (Integer.parseInt(System.getProperty("tests.seed", "0"), 16) & 1) == 1;
+            || (Long.parseLong(System.getProperty("tests.seed", "0"), 16) & 1) == 1;
 
         // when this is used directly in tests ES logging may not have been initialized yet
         LoggerFactory logger;

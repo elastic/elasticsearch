@@ -59,7 +59,16 @@ public class NodeShutdownPluginsIT extends ESIntegTestCase {
         // Mark the node as shutting down
         client().execute(
             PutShutdownNodeAction.INSTANCE,
-            new PutShutdownNodeAction.Request(shutdownNode, SingleNodeShutdownMetadata.Type.REMOVE, "removal for testing", null, null, null)
+            new PutShutdownNodeAction.Request(
+                TEST_REQUEST_TIMEOUT,
+                TEST_REQUEST_TIMEOUT,
+                shutdownNode,
+                SingleNodeShutdownMetadata.Type.REMOVE,
+                "removal for testing",
+                null,
+                null,
+                null
+            )
         ).get();
 
         GetShutdownStatusAction.Response getResp = client().execute(
@@ -86,7 +95,10 @@ public class NodeShutdownPluginsIT extends ESIntegTestCase {
         // The shutdown node should be in the triggered list
         assertThat(triggeredNodes.get(), contains(shutdownNode));
 
-        client().execute(DeleteShutdownNodeAction.INSTANCE, new DeleteShutdownNodeAction.Request(shutdownNode)).get();
+        client().execute(
+            DeleteShutdownNodeAction.INSTANCE,
+            new DeleteShutdownNodeAction.Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, shutdownNode)
+        ).get();
 
         // The shutdown node should now not in the triggered list
         assertThat(triggeredNodes.get(), empty());

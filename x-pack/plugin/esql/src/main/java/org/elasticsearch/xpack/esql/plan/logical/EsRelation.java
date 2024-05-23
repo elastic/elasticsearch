@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.esql.plan.logical;
 
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.index.EsIndex;
@@ -26,25 +27,27 @@ public class EsRelation extends LeafPlan {
     private final EsIndex index;
     private final List<Attribute> attrs;
     private final boolean frozen;
+    private final IndexMode indexMode;
 
-    public EsRelation(Source source, EsIndex index, boolean frozen) {
-        this(source, index, flatten(source, index.mapping()), frozen);
+    public EsRelation(Source source, EsIndex index, IndexMode indexMode, boolean frozen) {
+        this(source, index, flatten(source, index.mapping()), indexMode, frozen);
     }
 
-    public EsRelation(Source source, EsIndex index, List<Attribute> attributes) {
-        this(source, index, attributes, false);
+    public EsRelation(Source source, EsIndex index, List<Attribute> attributes, IndexMode indexMode) {
+        this(source, index, attributes, indexMode, false);
     }
 
-    public EsRelation(Source source, EsIndex index, List<Attribute> attributes, boolean frozen) {
+    public EsRelation(Source source, EsIndex index, List<Attribute> attributes, IndexMode indexMode, boolean frozen) {
         super(source);
         this.index = index;
         this.attrs = attributes;
+        this.indexMode = indexMode;
         this.frozen = frozen;
     }
 
     @Override
     protected NodeInfo<EsRelation> info() {
-        return NodeInfo.create(this, EsRelation::new, index, attrs, frozen);
+        return NodeInfo.create(this, EsRelation::new, index, attrs, indexMode, frozen);
     }
 
     private static List<Attribute> flatten(Source source, Map<String, EsField> mapping) {
@@ -78,6 +81,10 @@ public class EsRelation extends LeafPlan {
         return frozen;
     }
 
+    public IndexMode indexMode() {
+        return indexMode;
+    }
+
     @Override
     public List<Attribute> output() {
         return attrs;
@@ -90,7 +97,7 @@ public class EsRelation extends LeafPlan {
 
     @Override
     public int hashCode() {
-        return Objects.hash(index, frozen);
+        return Objects.hash(index, indexMode, frozen);
     }
 
     @Override
@@ -104,7 +111,7 @@ public class EsRelation extends LeafPlan {
         }
 
         EsRelation other = (EsRelation) obj;
-        return Objects.equals(index, other.index) && frozen == other.frozen;
+        return Objects.equals(index, other.index) && indexMode == other.indexMode() && frozen == other.frozen;
     }
 
     @Override

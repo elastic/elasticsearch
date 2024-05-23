@@ -5,13 +5,8 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.ml.queries;
+package org.elasticsearch.xpack.core.ml.search;
 
-import org.apache.lucene.index.IndexReader;
-import org.apache.lucene.index.Term;
-import org.apache.lucene.search.BooleanClause;
-import org.apache.lucene.search.BooleanQuery;
-import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.ElasticsearchParseException;
@@ -27,24 +22,24 @@ import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.xpack.core.ml.inference.results.TextExpansionResults.WeightedToken;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
-
-import static org.elasticsearch.xpack.ml.queries.TextExpansionQueryBuilder.AllowedFieldType;
-import static org.elasticsearch.xpack.ml.queries.TextExpansionQueryBuilder.PRUNING_CONFIG;
+import java.util.Set;
 
 public class WeightedTokensQueryBuilder extends AbstractQueryBuilder<WeightedTokensQueryBuilder> {
     public static final String NAME = "weighted_tokens";
 
     public static final ParseField TOKENS_FIELD = new ParseField("tokens");
+    public static final ParseField PRUNING_CONFIG = new ParseField("pruning_config");
     private final String fieldName;
     private final List<WeightedToken> tokens;
     @Nullable
     private final TokenPruningConfig tokenPruningConfig;
+
+    private static final Set<String> ALLOWED_FIELD_TYPES = Set.of("sparse_vector", "rank_features");
 
     public WeightedTokensQueryBuilder(String fieldName, List<WeightedToken> tokens) {
         this(fieldName, tokens, null);
@@ -70,9 +65,8 @@ public class WeightedTokensQueryBuilder extends AbstractQueryBuilder<WeightedTok
         return fieldName;
     }
 
-    @Nullable
-    public TokenPruningConfig getTokenPruningConfig() {
-        return tokenPruningConfig;
+    public List<WeightedToken> getTokens() {
+        return tokens;
     }
 
     @Override
@@ -99,54 +93,6 @@ public class WeightedTokensQueryBuilder extends AbstractQueryBuilder<WeightedTok
         builder.endObject();
     }
 
-    /**
-     * We calculate the maximum number of unique tokens for any shard of data. The maximum is used to compute
-     * average token frequency since we don't have a unique inter-segment token count.
-     * Once we have the maximum number of unique tokens, we use the total count of tokens in the index to calculate
-     * the average frequency ratio.
-     *
-     * @param reader
-     * @param fieldDocCount
-     * @return float
-     * @throws IOException
-     */
-    private float getAverageTokenFreqRatio(IndexReader reader, int fieldDocCount) throws IOException {
-        int numUniqueTokens = 0;
-        for (var leaf : reader.getContext().leaves()) {
-            var terms = leaf.reader().terms(fieldName);
-            if (terms != null) {
-                numUniqueTokens = (int) Math.max(terms.size(), numUniqueTokens);
-            }
-        }
-        if (numUniqueTokens == 0) {
-            return 0;
-        }
-        return (float) reader.getSumDocFreq(fieldName) / fieldDocCount / numUniqueTokens;
-    }
-
-    /**
-     * Returns true if the token should be queried based on the {@code tokensFreqRatioThreshold} and {@code tokensWeightThreshold}
-     * set on the query.
-     */
-    private boolean shouldKeepToken(
-        IndexReader reader,
-        WeightedToken token,
-        int fieldDocCount,
-        float averageTokenFreqRatio,
-        float bestWeight
-    ) throws IOException {
-        if (this.tokenPruningConfig == null) {
-            return true;
-        }
-        int docFreq = reader.docFreq(new Term(fieldName, token.token()));
-        if (docFreq == 0) {
-            return false;
-        }
-        float tokenFreqRatio = (float) docFreq / fieldDocCount;
-        return tokenFreqRatio < this.tokenPruningConfig.getTokensFreqRatioThreshold() * averageTokenFreqRatio
-            || token.weight() > this.tokenPruningConfig.getTokensWeightThreshold() * bestWeight;
-    }
-
     @Override
     protected Query doToQuery(SearchExecutionContext context) throws IOException {
         final MappedFieldType ft = context.getFieldType(fieldName);
@@ -155,51 +101,21 @@ public class WeightedTokensQueryBuilder extends AbstractQueryBuilder<WeightedTok
         }
 
         final String fieldTypeName = ft.typeName();
-        if (AllowedFieldType.isFieldTypeAllowed(fieldTypeName) == false) {
+        if (ALLOWED_FIELD_TYPES.contains(fieldTypeName) == false) {
             throw new ElasticsearchParseException(
                 "["
                     + fieldTypeName
                     + "]"
                     + " is not an appropriate field type for this query. "
                     + "Allowed field types are ["
-                    + AllowedFieldType.getAllowedFieldTypesAsString()
+                    + String.join(", ", ALLOWED_FIELD_TYPES)
                     + "]."
             );
         }
 
         return (this.tokenPruningConfig == null)
-            ? queryBuilderWithAllTokens(tokens, ft, context)
-            : queryBuilderWithPrunedTokens(tokens, ft, context);
-    }
-
-    private Query queryBuilderWithAllTokens(List<WeightedToken> tokens, MappedFieldType ft, SearchExecutionContext context) {
-        var qb = new BooleanQuery.Builder();
-
-        for (var token : tokens) {
-            qb.add(new BoostQuery(ft.termQuery(token.token(), context), token.weight()), BooleanClause.Occur.SHOULD);
-        }
-        return qb.setMinimumNumberShouldMatch(1).build();
-    }
-
-    private Query queryBuilderWithPrunedTokens(List<WeightedToken> tokens, MappedFieldType ft, SearchExecutionContext context)
-        throws IOException {
-        var qb = new BooleanQuery.Builder();
-        int fieldDocCount = context.getIndexReader().getDocCount(fieldName);
-        float bestWeight = tokens.stream().map(WeightedToken::weight).reduce(0f, Math::max);
-        float averageTokenFreqRatio = getAverageTokenFreqRatio(context.getIndexReader(), fieldDocCount);
-        if (averageTokenFreqRatio == 0) {
-            return new MatchNoDocsQuery("The \"" + getName() + "\" query is against an empty field");
-        }
-
-        for (var token : tokens) {
-            boolean keep = shouldKeepToken(context.getIndexReader(), token, fieldDocCount, averageTokenFreqRatio, bestWeight);
-            keep ^= this.tokenPruningConfig.isOnlyScorePrunedTokens();
-            if (keep) {
-                qb.add(new BoostQuery(ft.termQuery(token.token(), context), token.weight()), BooleanClause.Occur.SHOULD);
-            }
-        }
-
-        return qb.setMinimumNumberShouldMatch(1).build();
+            ? WeightedTokensUtils.queryBuilderWithAllTokens(tokens, ft, context)
+            : WeightedTokensUtils.queryBuilderWithPrunedTokens(fieldName, tokenPruningConfig, tokens, ft, context);
     }
 
     @Override
@@ -224,7 +140,7 @@ public class WeightedTokensQueryBuilder extends AbstractQueryBuilder<WeightedTok
         return TransportVersions.V_8_13_0;
     }
 
-    private static float parseWeight(String token, Object weight) throws IOException {
+    private static float parseWeight(String token, Object weight) {
         if (weight instanceof Number asNumber) {
             return asNumber.floatValue();
         }

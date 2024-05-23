@@ -11,7 +11,6 @@ import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.expression.gen.pipeline.ConstantInput;
 import org.elasticsearch.xpack.esql.core.expression.gen.pipeline.Pipe;
-import org.elasticsearch.xpack.esql.core.expression.gen.script.ScriptTemplate;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 
 import java.util.List;
@@ -85,6 +84,4 @@ public abstract class Function extends Expression {
         }
         return sj.toString();
     }
-
-    public abstract ScriptTemplate asScript();
 }

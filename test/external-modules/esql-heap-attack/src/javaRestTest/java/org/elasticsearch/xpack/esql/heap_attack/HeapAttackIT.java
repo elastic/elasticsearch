@@ -584,7 +584,7 @@ public class HeapAttackIT extends ESRestTestCase {
 
     private static StringBuilder startQuery() {
         StringBuilder query = new StringBuilder();
-        query.append("\"query\":\"");
+        query.append("{\"query\":\"");
         return query;
     }
 }

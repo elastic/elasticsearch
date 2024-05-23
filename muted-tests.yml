@@ -23,6 +23,9 @@ tests:
   issue: "https://github.com/elastic/elasticsearch/issues/108857"
   method: "test {yaml=search/180_locale_dependent_mapping/Test Index and Search locale\
     \ dependent mappings / dates}"
+- class: "org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT"
+  issue: "https://github.com/elastic/elasticsearch/issues/108950"
+  method: "test {p0=health/10_basic/cluster health basic test}"
 # Examples:
 #
 #  Mute a single test case in a YAML test suite:

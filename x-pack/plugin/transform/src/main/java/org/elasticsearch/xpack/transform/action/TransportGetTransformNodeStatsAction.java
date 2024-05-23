@@ -57,7 +57,7 @@ public class TransportGetTransformNodeStatsAction extends TransportNodesAction<
             threadPool.executor(ThreadPool.Names.MANAGEMENT)
         );
         this.transportService = transportService;
-        this.scheduler = transformServices.getScheduler();
+        this.scheduler = transformServices.scheduler();
     }
 
     @Override

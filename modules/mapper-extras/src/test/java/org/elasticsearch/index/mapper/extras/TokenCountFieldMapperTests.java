@@ -33,7 +33,9 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.equalTo;
 
@@ -196,7 +198,52 @@ public class TokenCountFieldMapperTests extends MapperTestCase {
 
     @Override
     protected SyntheticSourceSupport syntheticSourceSupport(boolean ignoreMalformed) {
-        throw new AssumptionViolatedException("not supported");
+        assertFalse(ignoreMalformed);
+
+        var nullValue = usually() ? null : randomNonNegativeInt();
+        return new SyntheticSourceSupport() {
+            @Override
+            public boolean preservesExactSource() {
+                return true;
+            }
+
+            public SyntheticSourceExample example(int maxValues) {
+                if (randomBoolean()) {
+                    var value = generateValue();
+                    return new SyntheticSourceExample(value, value, this::mapping);
+                }
+
+                var array = randomList(1, 5, this::generateValue);
+                return new SyntheticSourceExample(array, array, this::mapping);
+            }
+
+            private String generateValue() {
+                return rarely()
+                    ? null
+                    : randomList(0, 10, () -> randomAlphaOfLengthBetween(0, 10)).stream().collect(Collectors.joining(" "));
+            }
+
+            private void mapping(XContentBuilder b) throws IOException {
+                b.field("type", "token_count").field("analyzer", "keyword");
+                if (rarely()) {
+                    b.field("index", false);
+                }
+                if (rarely()) {
+                    b.field("store", true);
+                }
+                if (rarely()) {
+                    b.field("doc_values", false);
+                }
+                if (nullValue != null) {
+                    b.field("null_value", nullValue);
+                }
+            }
+
+            @Override
+            public List<SyntheticSourceInvalidExample> invalidExample() throws IOException {
+                return List.of();
+            }
+        };
     }
 
     @Override

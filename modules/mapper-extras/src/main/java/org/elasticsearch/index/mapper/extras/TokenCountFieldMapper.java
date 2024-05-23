@@ -12,6 +12,7 @@ import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.tokenattributes.PositionIncrementAttribute;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
+import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.index.mapper.DocValueFetcher;
 import org.elasticsearch.index.mapper.DocumentParserContext;
 import org.elasticsearch.index.mapper.FieldMapper;
@@ -124,6 +125,11 @@ public class TokenCountFieldMapper extends FieldMapper {
             }
             return new DocValueFetcher(docValueFormat(format, null), context.getForField(this, FielddataOperation.SEARCH));
         }
+
+        @Override
+        public BlockLoader blockLoader(BlockLoaderContext blContext) {
+            return null;
+        }
     }
 
     public static TypeParser PARSER = new TypeParser((n, c) -> new Builder(n));
@@ -214,5 +220,10 @@ public class TokenCountFieldMapper extends FieldMapper {
     @Override
     public FieldMapper.Builder getMergeBuilder() {
         return new Builder(simpleName()).init(this);
+    }
+
+    @Override
+    protected SyntheticSourceMode syntheticSourceMode() {
+        return SyntheticSourceMode.FALLBACK;
     }
 }

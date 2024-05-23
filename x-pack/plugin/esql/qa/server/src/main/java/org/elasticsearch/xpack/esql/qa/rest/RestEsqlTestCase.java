@@ -111,7 +111,6 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
     public static class RequestObjectBuilder {
         private final XContentBuilder builder;
         private boolean isBuilt = false;
-        private String version;
 
         private Boolean keepOnCompletion = null;
 
@@ -126,11 +125,6 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
 
         public RequestObjectBuilder query(String query) throws IOException {
             builder.field("query", query);
-            return this;
-        }
-
-        public RequestObjectBuilder version(String version) throws IOException {
-            this.version = version;
             return this;
         }
 
@@ -178,9 +172,6 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
 
         public RequestObjectBuilder build() throws IOException {
             if (isBuilt == false) {
-                if (version != null) {
-                    builder.field("version", version);
-                }
                 builder.endObject();
                 isBuilt = true;
             }
@@ -620,10 +611,6 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
         RequestOptions.Builder options = request.getOptions().toBuilder();
         options.setWarningsHandler(WarningsHandler.PERMISSIVE); // We assert the warnings ourselves
         options.addHeader("Content-Type", mediaType);
-        if ("true".equals(System.getProperty("tests.version_parameter_unsupported"))) {
-            // Masquerade as an old version of the official client, so we get the oldest version by default
-            options.addHeader("x-elastic-client-meta", "es=8.13");
-        }
 
         if (randomBoolean()) {
             options.addHeader("Accept", mediaType);
@@ -649,10 +636,6 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
         RequestOptions.Builder options = request.getOptions().toBuilder();
         options.setWarningsHandler(WarningsHandler.PERMISSIVE); // We assert the warnings ourselves
         options.addHeader("Content-Type", mediaType);
-        if ("true".equals(System.getProperty("tests.version_parameter_unsupported"))) {
-            // Masquerade as an old version of the official client, so we get the oldest version by default
-            options.addHeader("x-elastic-client-meta", "es=8.13");
-        }
 
         if (randomBoolean()) {
             options.addHeader("Accept", mediaType);
@@ -935,12 +918,8 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
         return "[" + value + ", " + value + "]";
     }
 
-    public static RequestObjectBuilder requestObjectBuilder(String version) throws IOException {
-        return new RequestObjectBuilder().version(version);
-    }
-
     public static RequestObjectBuilder requestObjectBuilder() throws IOException {
-        return requestObjectBuilder(EsqlTestUtils.latestEsqlVersionOrSnapshot());
+        return new RequestObjectBuilder();
     }
 
     @After

@@ -613,6 +613,20 @@ public final class DocumentParser {
 
     private static void parseArrayDynamic(DocumentParserContext context, String currentFieldName) throws IOException {
         ensureNotStrict(context, currentFieldName);
+        if (context.dynamic() == ObjectMapper.Dynamic.FALSE) {
+            if (context.canAddIgnoredField()) {
+                context.addIgnoredField(
+                    IgnoredSourceFieldMapper.NameValue.fromContext(
+                        context,
+                        context.path().pathAsText(currentFieldName),
+                        XContentDataHelper.encodeToken(context.parser())
+                    )
+                );
+            } else {
+                context.parser().skipChildren();
+            }
+            return;
+        }
         Mapper objectMapperFromTemplate = DynamicFieldsBuilder.createObjectMapperFromTemplate(context, currentFieldName);
         if (objectMapperFromTemplate == null) {
             parseNonDynamicArray(context, objectMapperFromTemplate, currentFieldName, currentFieldName);
@@ -642,12 +656,11 @@ public final class DocumentParser {
         String arrayFieldName
     ) throws IOException {
         // Check if we need to record the array source. This only applies to synthetic source.
-        if (context.mappingLookup().isSourceSynthetic() && context.getClonedSource() == false) {
-            if (mapper instanceof NestedObjectMapper
-                || (mapper instanceof ObjectMapper objectMapper
-                    && (objectMapper.storeArraySource()
-                        || objectMapper.dynamic == ObjectMapper.Dynamic.RUNTIME
-                        || objectMapper.dynamic == ObjectMapper.Dynamic.FALSE))) {
+        if (context.canAddIgnoredField()) {
+            if ((mapper instanceof ObjectMapper objectMapper
+                && (objectMapper.storeArraySource() || objectMapper.dynamic == ObjectMapper.Dynamic.RUNTIME))
+                || mapper instanceof NestedObjectMapper
+                || context.dynamic() == ObjectMapper.Dynamic.RUNTIME) {
                 // Clone the DocumentParserContext to parse its subtree twice.
                 Tuple<DocumentParserContext, XContentBuilder> tuple = XContentDataHelper.cloneSubContext(context);
                 context.addIgnoredField(
@@ -658,16 +671,17 @@ public final class DocumentParser {
                     )
                 );
                 context = tuple.v1();
-            } else if (mapper instanceof ObjectMapper objectMapper && objectMapper.isEnabled() == false) {
-                context.addIgnoredField(
-                    IgnoredSourceFieldMapper.NameValue.fromContext(
-                        context,
-                        context.path().pathAsText(arrayFieldName),
-                        XContentDataHelper.encodeToken(context.parser())
-                    )
-                );
-                return;
-            }
+            } else if (mapper instanceof ObjectMapper objectMapper
+                && (objectMapper.isEnabled() == false || objectMapper.dynamic == ObjectMapper.Dynamic.FALSE)) {
+                    context.addIgnoredField(
+                        IgnoredSourceFieldMapper.NameValue.fromContext(
+                            context,
+                            context.path().pathAsText(arrayFieldName),
+                            XContentDataHelper.encodeToken(context.parser())
+                        )
+                    );
+                    return;
+                }
         }
 
         XContentParser parser = context.parser();

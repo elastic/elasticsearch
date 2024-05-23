@@ -749,7 +749,7 @@ subobject with dynamic override:
 
 
 ---
-array in object with dynamic override:
+object array in object with dynamic override:
   - requires:
       cluster_features: ["mapper.track_ignored_source"]
       reason: requires tracking ignored source
@@ -791,6 +791,49 @@ array in object with dynamic override:
   - match: { hits.hits.0._source.path_no.1.name: foo }
   - match: { hits.hits.0._source.path_runtime.0.some_int: 20 }
   - match: { hits.hits.0._source.path_runtime.1.name: bar }
+
+
+---
+value array in object with dynamic override:
+  - requires:
+      cluster_features: ["mapper.track_ignored_source"]
+      reason: requires tracking ignored source
+
+  - do:
+      indices.create:
+        index: test
+        body:
+          mappings:
+            _source:
+              mode: synthetic
+            properties:
+              path_no:
+                dynamic: false
+                properties:
+                  name:
+                    type: keyword
+              path_runtime:
+                dynamic: runtime
+                properties:
+                  name:
+                    type: keyword
+
+  - do:
+      bulk:
+        index: test
+        refresh: true
+        body:
+          - '{ "create": { } }'
+          - '{ "path_no": { "values": [ "A", "B" ] }, "path_runtime": { "values": [ "C", "D" ] }, "name": "foo" }'
+
+  - do:
+      search:
+        index: test
+
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0._source.name: foo }
+  - match: { hits.hits.0._source.path_no.values: [ A, B] }
+  - match: { hits.hits.0._source.path_runtime.values: [ C, D] }
 
 
 ---

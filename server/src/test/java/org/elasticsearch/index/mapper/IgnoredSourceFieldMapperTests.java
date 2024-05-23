@@ -857,6 +857,18 @@ public class IgnoredSourceFieldMapperTests extends MapperServiceTestCase {
             {"path":[{"name":"foo"},{"name":"bar"}]}""", syntheticSource);
     }
 
+    public void testNoDynamicObjectSimpleValueArray() throws IOException {
+        DocumentMapper documentMapper = createMapperService(syntheticSourceMapping(b -> {
+            b.startObject("path").field("type", "object").field("dynamic", "false").endObject();
+        })).documentMapper();
+        var syntheticSource = syntheticSource(
+            documentMapper,
+            b -> { b.startObject("path").array("name", "A", "B", "C", "D").endObject(); }
+        );
+        assertEquals("""
+            {"path":{"name":["A","B","C","D"]}}""", syntheticSource);
+    }
+
     public void testNoDynamicObjectNestedArray() throws IOException {
         DocumentMapper documentMapper = createMapperService(syntheticSourceMapping(b -> {
             b.startObject("path").field("type", "object").field("dynamic", "false").endObject();
@@ -951,6 +963,18 @@ public class IgnoredSourceFieldMapperTests extends MapperServiceTestCase {
         });
         assertEquals("""
             {"path":[{"name":"foo"},{"name":"bar"}]}""", syntheticSource);
+    }
+
+    public void testRuntimeDynamicObjectSimpleValueArray() throws IOException {
+        DocumentMapper documentMapper = createMapperService(syntheticSourceMapping(b -> {
+            b.startObject("path").field("type", "object").field("dynamic", "runtime").endObject();
+        })).documentMapper();
+        var syntheticSource = syntheticSource(
+            documentMapper,
+            b -> { b.startObject("path").array("name", "A", "B", "C", "D").endObject(); }
+        );
+        assertEquals("""
+            {"path":{"name":["A","B","C","D"]}}""", syntheticSource);
     }
 
     public void testRuntimeDynamicObjectNestedArray() throws IOException {

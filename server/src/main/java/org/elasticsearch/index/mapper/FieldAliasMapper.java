@@ -15,6 +15,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import java.io.IOException;
 import java.util.Collections;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
@@ -116,11 +117,6 @@ public final class FieldAliasMapper extends Mapper {
     @Override
     public int getTotalFieldsCount() {
         return 1;
-    }
-
-    @Override
-    public int getTotalSparseVectorFieldCount() {
-        return 0;
     }
 
     public static class TypeParser implements Mapper.TypeParser {

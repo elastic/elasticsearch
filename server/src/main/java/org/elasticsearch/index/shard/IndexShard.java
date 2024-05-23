@@ -1431,11 +1431,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
     public SparseVectorStats sparseVectorStats() {
         readAllowed();
-        int totalSparseVectorFieldCount = 0;
-        for (Mapper mapper : mapperService.mappingLookup().fieldMappers()) {
-            totalSparseVectorFieldCount += mapper.getTotalSparseVectorFieldCount();
-        }
-        return new SparseVectorStats(totalSparseVectorFieldCount);
+        return getEngine().sparseVectorStats(mapperService.mappingLookup());
     }
 
     public BulkStats bulkStats() {

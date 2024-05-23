@@ -52,6 +52,7 @@ import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.core.Strings.format;
@@ -434,15 +435,6 @@ public abstract class FieldMapper extends Mapper {
     @Override
     public int getTotalFieldsCount() {
         return 1 + Stream.of(multiFields.mappers).mapToInt(FieldMapper::getTotalFieldsCount).sum();
-    }
-
-    @Override
-    public int getTotalSparseVectorFieldCount() {
-        int inc = mappedFieldType instanceof SparseVectorFieldMapper.SparseVectorFieldType ? 1 : 0;
-        return inc + Stream.of(multiFields.mappers)
-            .filter(m -> m instanceof SparseVectorFieldMapper)
-            .mapToInt(FieldMapper::getTotalFieldsCount)
-            .sum();
     }
 
     public Map<String, NamedAnalyzer> indexAnalyzers() {

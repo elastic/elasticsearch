@@ -19,7 +19,6 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.mapper.MapperService.MergeReason;
-import org.elasticsearch.index.mapper.vectors.SparseVectorFieldMapper;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -34,6 +33,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.TreeMap;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 public class ObjectMapper extends Mapper {
@@ -203,11 +203,6 @@ public class ObjectMapper extends Mapper {
     @Override
     public int getTotalFieldsCount() {
         return 1 + mappers.values().stream().mapToInt(Mapper::getTotalFieldsCount).sum();
-    }
-
-    @Override
-    public int getTotalSparseVectorFieldCount() {
-        return mappers.values().stream().mapToInt(Mapper::getTotalSparseVectorFieldCount).sum();
     }
 
     public static class TypeParser implements Mapper.TypeParser {

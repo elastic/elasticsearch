@@ -152,9 +152,7 @@ public class ClusterStatsIndices implements ToXContentFragment {
     }
 
     public SparseVectorStats getSparseVectorStats() {
-        OptionalLong maybeSparseVectorFieldCount = mappings.getTotalSparseVectorFieldCount();
-        long sparseVectorFieldCount = maybeSparseVectorFieldCount.isPresent() ? maybeSparseVectorFieldCount.getAsLong() : 0;
-        return new SparseVectorStats(sparseVectorFieldCount);
+        return sparseVectorStats;
     }
 
     static final class Fields {

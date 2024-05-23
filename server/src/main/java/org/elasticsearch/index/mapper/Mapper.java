@@ -15,6 +15,7 @@ import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.xcontent.ToXContentFragment;
 
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
@@ -145,6 +146,4 @@ public abstract class Mapper implements ToXContentFragment, Iterable<Mapper> {
      * Defines how this mapper counts towards {@link MapperService#INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING}.
      */
     public abstract int getTotalFieldsCount();
-
-    public abstract int getTotalSparseVectorFieldCount();
 }

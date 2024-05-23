@@ -277,7 +277,6 @@ public class EsExecutors {
 
     // visible for tests
     static String executorName(Thread thread) {
-        assert Assertions.ENABLED;
         String name = thread.getName();
         int executorNameEnd = name.lastIndexOf(']', name.length() - 2);
         int executorNameStart = name.lastIndexOf('[', executorNameEnd);

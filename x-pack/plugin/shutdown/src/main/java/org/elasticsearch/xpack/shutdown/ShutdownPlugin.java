@@ -74,7 +74,7 @@ public class ShutdownPlugin extends Plugin implements ActionPlugin {
     }
 
     @UpdateForV9 // always true in v9 so can be removed
-    static boolean serializedWithParentTaskAndTimeouts(TransportVersion transportVersion) {
+    static boolean serializesWithParentTaskAndTimeouts(TransportVersion transportVersion) {
         return transportVersion.isPatchFrom(TransportVersions.V_8_13_4)
             || transportVersion.isPatchFrom(TransportVersions.SHUTDOWN_REQUEST_TIMEOUTS_FIX_8_14)
             || transportVersion.onOrAfter(TransportVersions.SHUTDOWN_REQUEST_TIMEOUTS_FIX);

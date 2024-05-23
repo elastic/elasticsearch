@@ -27,7 +27,7 @@ import java.io.IOException;
 import static org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata.GRACE_PERIOD_ADDED_VERSION;
 import static org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata.REPLACE_SHUTDOWN_TYPE_ADDED_VERSION;
 import static org.elasticsearch.core.Strings.format;
-import static org.elasticsearch.xpack.shutdown.ShutdownPlugin.serializedWithParentTaskAndTimeouts;
+import static org.elasticsearch.xpack.shutdown.ShutdownPlugin.serializesWithParentTaskAndTimeouts;
 
 public class PutShutdownNodeAction extends ActionType<AcknowledgedResponse> {
 
@@ -114,7 +114,7 @@ public class PutShutdownNodeAction extends ActionType<AcknowledgedResponse> {
 
         @UpdateForV9 // inline when bwc no longer needed
         public static Request readFrom(StreamInput in) throws IOException {
-            if (serializedWithParentTaskAndTimeouts(in.getTransportVersion())) {
+            if (serializesWithParentTaskAndTimeouts(in.getTransportVersion())) {
                 return new Request(in);
             } else {
                 return new Request(TimeValue.THIRTY_SECONDS, TimeValue.THIRTY_SECONDS, in);
@@ -123,7 +123,7 @@ public class PutShutdownNodeAction extends ActionType<AcknowledgedResponse> {
 
         private Request(StreamInput in) throws IOException {
             super(in);
-            assert serializedWithParentTaskAndTimeouts(in.getTransportVersion());
+            assert serializesWithParentTaskAndTimeouts(in.getTransportVersion());
             this.nodeId = in.readString();
             this.type = in.readEnum(SingleNodeShutdownMetadata.Type.class);
             this.reason = in.readString();
@@ -135,7 +135,7 @@ public class PutShutdownNodeAction extends ActionType<AcknowledgedResponse> {
         @UpdateForV9 // remove when bwc no longer needed
         private Request(TimeValue masterNodeTimeout, TimeValue ackTimeout, StreamInput in) throws IOException {
             super(masterNodeTimeout, ackTimeout);
-            assert serializedWithParentTaskAndTimeouts(in.getTransportVersion()) == false;
+            assert serializesWithParentTaskAndTimeouts(in.getTransportVersion()) == false;
             this.nodeId = in.readString();
             this.type = in.readEnum(SingleNodeShutdownMetadata.Type.class);
             this.reason = in.readString();
@@ -154,7 +154,7 @@ public class PutShutdownNodeAction extends ActionType<AcknowledgedResponse> {
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            if (serializedWithParentTaskAndTimeouts(out.getTransportVersion())) {
+            if (serializesWithParentTaskAndTimeouts(out.getTransportVersion())) {
                 super.writeTo(out);
             }
             out.writeString(nodeId);

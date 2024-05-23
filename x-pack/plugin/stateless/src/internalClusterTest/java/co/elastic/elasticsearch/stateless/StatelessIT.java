@@ -775,8 +775,10 @@ public class StatelessIT extends AbstractStatelessIntegTestCase {
                     TimeValue.timeValueMinutes(randomIntBetween(1, 5))
                 )
             ).get();
-            var shutdownStatus = client().execute(GetShutdownStatusAction.INSTANCE, new GetShutdownStatusAction.Request())
-                .actionGet(10, TimeUnit.SECONDS);
+            var shutdownStatus = client().execute(
+                GetShutdownStatusAction.INSTANCE,
+                new GetShutdownStatusAction.Request(TEST_REQUEST_TIMEOUT)
+            ).actionGet(10, TimeUnit.SECONDS);
             assertThat(shutdownStatus.getShutdownStatuses(), hasSize(1));
             if (searchNodes.equals(List.of(shutdownNode))) {
                 assertThat(

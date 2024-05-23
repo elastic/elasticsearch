@@ -44,6 +44,10 @@ public interface NativeAccess {
      */
     boolean isMemoryLocked();
 
+    void tryInstallExecSandbox();
+
+    ExecSandboxState getExecSandboxState();
+
     Systemd systemd();
 
     /**
@@ -71,4 +75,10 @@ public interface NativeAccess {
      * @return the buffer
      */
     CloseableByteBuffer newBuffer(int len);
+
+    enum ExecSandboxState {
+        NONE,
+        EXISTING_THREADS,
+        ALL_THREADS
+    }
 }

@@ -26,6 +26,10 @@ public non-sealed interface PosixCLibrary extends NativeLibrary {
         long rlim_cur();
 
         long rlim_max();
+
+        void rlim_cur(long v);
+
+        void rlim_max(long v);
     }
 
     /**
@@ -41,6 +45,8 @@ public non-sealed interface PosixCLibrary extends NativeLibrary {
      */
     int getrlimit(int resource, RLimit rlimit);
 
+    int setrlimit(int resource, RLimit rlimit);
+
     /**
      * Lock all the current process's virtual address space into RAM.
      * @param flags flags determining how memory will be locked
@@ -48,6 +54,22 @@ public non-sealed interface PosixCLibrary extends NativeLibrary {
      * @see <a href="https://man7.org/linux/man-pages/man2/mlock.2.html">mlockall manpage</a>
      */
     int mlockall(int flags);
+
+    interface FStore {
+        void set_flags(int flags); /* IN: flags word */
+
+        void set_posmode(int posmode); /* IN: indicates offset field */
+
+        void set_offset(long offset); /* IN: start of the region */
+
+        void set_length(long length); /* IN: size of the region */
+
+        long bytesalloc(); /* OUT: number of bytes allocated */
+    }
+
+    FStore newFStore();
+
+    int fcntl(int fd, int cmd, FStore fst);
 
     /**
      * Return a string description for an error.

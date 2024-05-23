@@ -293,7 +293,7 @@ class Elasticsearch {
              *
              * TODO: should we fail hard here if system call filters fail to install, or remain lenient in non-production environments?
              */
-            Natives.tryInstallSystemCallFilter(tmpFile);
+            nativeAccess.tryInstallExecSandbox();
         }
 
         // mlockall if requested

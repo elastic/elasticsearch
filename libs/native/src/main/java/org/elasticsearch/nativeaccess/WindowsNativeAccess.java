@@ -27,6 +27,16 @@ class WindowsNativeAccess extends AbstractNativeAccess {
     public static final int PAGE_GUARD = 0x0100;
     public static final int MEM_COMMIT = 0x1000;
 
+    /**
+     * Constant for JOBOBJECT_BASIC_LIMIT_INFORMATION in Query/Set InformationJobObject
+     */
+    private static final int JOBOBJECT_BASIC_LIMIT_INFORMATION_CLASS = 2;
+
+    /**
+     * Constant for LimitFlags, indicating a process limit has been set
+     */
+    private static final int JOB_OBJECT_LIMIT_ACTIVE_PROCESS = 8;
+
     private final Kernel32Library kernel;
     private final WindowsFunctions windowsFunctions;
 
@@ -66,6 +76,38 @@ class WindowsNativeAccess extends AbstractNativeAccess {
             isMemoryLocked = true;
         }
         // note: no need to close the process handle because GetCurrentProcess returns a pseudo handle
+    }
+
+    @Override
+    public void tryInstallExecSandbox() {
+        // create a new Job
+        Handle job = kernel.CreateJobObjectW();
+        if (job == null) {
+            throw new UnsupportedOperationException("CreateJobObject: " + kernel.GetLastError());
+        }
+
+        try {
+            // retrieve the current basic limits of the job
+            int clazz = JOBOBJECT_BASIC_LIMIT_INFORMATION_CLASS;
+            var info = kernel.newJobObjectBasicLimitInformation();
+            if (kernel.QueryInformationJobObject(job, clazz, info) == false) {
+                throw new UnsupportedOperationException("QueryInformationJobObject: " + kernel.GetLastError());
+            }
+            // modify the number of active processes to be 1 (exactly the one process we will add to the job).
+            info.setActiveProcessLimit(1);
+            info.setLimitFlags(JOB_OBJECT_LIMIT_ACTIVE_PROCESS);
+            if (kernel.SetInformationJobObject(job, clazz, info) == false) {
+                throw new UnsupportedOperationException("SetInformationJobObject: " + kernel.GetLastError());
+            }
+            // assign ourselves to the job
+            if (kernel.AssignProcessToJobObject(job, kernel.GetCurrentProcess()) == false) {
+                throw new UnsupportedOperationException("AssignProcessToJobObject: " + kernel.GetLastError());
+            }
+        } finally {
+            kernel.CloseHandle(job);
+        }
+
+        logger.debug("Windows ActiveProcessLimit initialization successful");
     }
 
     @Override

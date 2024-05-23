@@ -42,6 +42,16 @@ class NoopNativeAccess implements NativeAccess {
     }
 
     @Override
+    public void tryInstallExecSandbox() {
+        logger.warn("Cannot install system call filter because native access is not available");
+    }
+
+    @Override
+    public ExecSandboxState getExecSandboxState() {
+        return ExecSandboxState.NONE;
+    }
+
+    @Override
     public Systemd systemd() {
         logger.warn("Cannot get systemd access because native access is not available");
         return null;

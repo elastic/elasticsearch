@@ -22,6 +22,7 @@ abstract class AbstractNativeAccess implements NativeAccess {
     private final JavaLibrary javaLib;
     private final Zstd zstd;
     protected boolean isMemoryLocked = false;
+    protected ExecSandboxState execSandboxState = ExecSandboxState.NONE;
 
     protected AbstractNativeAccess(String name, NativeLibraryProvider libraryProvider) {
         this.name = name;
@@ -52,5 +53,10 @@ abstract class AbstractNativeAccess implements NativeAccess {
     @Override
     public boolean isMemoryLocked() {
         return isMemoryLocked;
+    }
+
+    @Override
+    public ExecSandboxState getExecSandboxState() {
+        return execSandboxState;
     }
 }

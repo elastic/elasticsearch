@@ -72,6 +72,22 @@ class JdkKernel32Library implements Kernel32Library {
         "handle",
         ConsoleCtrlHandler_handle$fd
     );
+    private static final MethodHandle CreateJobObjectW$mh = downcallHandleWithError(
+        "CreateJobObjectW",
+        FunctionDescriptor.of(ADDRESS, ADDRESS, ADDRESS)
+    );
+    private static final MethodHandle AssignProcessToJobObject$mh = downcallHandleWithError(
+        "AssignProcessToJobObject",
+        FunctionDescriptor.of(JAVA_BOOLEAN, ADDRESS, ADDRESS)
+    );
+    private static final MethodHandle QueryInformationJobObject$mh = downcallHandleWithError(
+        "QueryInformationJobObject",
+        FunctionDescriptor.of(JAVA_BOOLEAN, ADDRESS, JAVA_INT, ADDRESS, JAVA_INT, ADDRESS)
+    );
+    private static final MethodHandle SetInformationJobObject$mh = downcallHandleWithError(
+        "SetInformationJobObject",
+        FunctionDescriptor.of(JAVA_BOOLEAN, ADDRESS, JAVA_INT, ADDRESS, JAVA_INT)
+    );
 
     private static MethodHandle downcallHandleWithError(String function, FunctionDescriptor functionDescriptor) {
         return downcallHandle(function, functionDescriptor, CAPTURE_GETLASTERROR_OPTION);
@@ -143,6 +159,37 @@ class JdkKernel32Library implements Kernel32Library {
         @Override
         public long Type() {
             return (long) Type$vh.get(segment);
+        }
+    }
+
+    static class JdkJobObjectBasicLimitInformation implements JobObjectBasicLimitInformation {
+        private static final MemoryLayout layout = MemoryLayout.structLayout(
+            paddingLayout(16),
+            JAVA_INT,
+            paddingLayout(20),
+            JAVA_INT,
+            paddingLayout(20)
+        ).withByteAlignment(8);
+
+        private static final VarHandle LimitFlags$vh = layout.varHandle(groupElement(1));
+        private static final VarHandle ActiveProcessLimit$vh = layout.varHandle(groupElement(3));
+
+        private final MemorySegment segment;
+
+        JdkJobObjectBasicLimitInformation() {
+            var arena = Arena.ofAuto();
+            this.segment = arena.allocate(layout);
+            segment.fill((byte) 0);
+        }
+
+        @Override
+        public void setLimitFlags(int v) {
+            LimitFlags$vh.set(segment, v);
+        }
+
+        @Override
+        public void setActiveProcessLimit(int v) {
+            ActiveProcessLimit$vh.set(segment, v);
         }
     }
 
@@ -258,6 +305,75 @@ class JdkKernel32Library implements Kernel32Library {
         MemorySegment nativeHandler = upcallStub(ConsoleCtrlHandler_handle$mh, handler, ConsoleCtrlHandler_handle$fd, Arena.global());
         try {
             return (boolean) SetConsoleCtrlHandler$mh.invokeExact(lastErrorState, nativeHandler, add);
+        } catch (Throwable t) {
+            throw new AssertionError(t);
+        }
+    }
+
+    @Override
+    public Handle CreateJobObjectW() {
+        try {
+            return new JdkHandle((MemorySegment) CreateJobObjectW$mh.invokeExact(lastErrorState, MemorySegment.NULL, MemorySegment.NULL));
+        } catch (Throwable t) {
+            throw new AssertionError(t);
+        }
+    }
+
+    @Override
+    public boolean AssignProcessToJobObject(Handle job, Handle process) {
+        assert job instanceof JdkHandle;
+        assert process instanceof JdkHandle;
+        var jdkJob = (JdkHandle) job;
+        var jdkProcess = (JdkHandle) process;
+
+        try {
+            return (boolean) AssignProcessToJobObject$mh.invokeExact(lastErrorState, jdkJob.address, jdkProcess.address);
+        } catch (Throwable t) {
+            throw new AssertionError(t);
+        }
+    }
+
+    @Override
+    public JobObjectBasicLimitInformation newJobObjectBasicLimitInformation() {
+        return new JdkJobObjectBasicLimitInformation();
+    }
+
+    @Override
+    public boolean QueryInformationJobObject(Handle job, int infoClass, JobObjectBasicLimitInformation info) {
+        assert job instanceof JdkHandle;
+        assert info instanceof JdkJobObjectBasicLimitInformation;
+        var jdkJob = (JdkHandle) job;
+        var jdkInfo = (JdkJobObjectBasicLimitInformation) info;
+
+        try {
+            return (boolean) QueryInformationJobObject$mh.invokeExact(
+                lastErrorState,
+                jdkJob.address,
+                infoClass,
+                jdkInfo.segment,
+                (int) jdkInfo.segment.byteSize(),
+                MemorySegment.NULL
+            );
+        } catch (Throwable t) {
+            throw new AssertionError(t);
+        }
+    }
+
+    @Override
+    public boolean SetInformationJobObject(Handle job, int infoClass, JobObjectBasicLimitInformation info) {
+        assert job instanceof JdkHandle;
+        assert info instanceof JdkJobObjectBasicLimitInformation;
+        var jdkJob = (JdkHandle) job;
+        var jdkInfo = (JdkJobObjectBasicLimitInformation) info;
+
+        try {
+            return (boolean) SetInformationJobObject$mh.invokeExact(
+                lastErrorState,
+                jdkJob.address,
+                infoClass,
+                jdkInfo.segment,
+                (int) jdkInfo.segment.byteSize()
+            );
         } catch (Throwable t) {
             throw new AssertionError(t);
         }

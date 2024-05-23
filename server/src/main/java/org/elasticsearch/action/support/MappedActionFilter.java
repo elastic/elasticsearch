@@ -8,6 +8,31 @@
 
 package org.elasticsearch.action.support;
 
-public interface MappedActionFilter extends ActionFilter {
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionRequest;
+import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.tasks.Task;
+
+/**
+ * An action filter that is run only for a single action.
+ *
+ * Note: This is an independent interface from {@link ActionFilter} so that it does not
+ * have an order. The relative order of executed MappedActionFilter with the same action name
+ * is undefined.
+ */
+public interface MappedActionFilter {
+    /** Return the name of the action for which this filter should be run */
     String actionName();
+
+    /**
+     * Enables filtering the execution of an action on the request side, either by sending a response through the
+     * {@link ActionListener} or by continuing the execution through the given {@link ActionFilterChain chain}
+     */
+    <Request extends ActionRequest, Response extends ActionResponse> void apply(
+        Task task,
+        String action,
+        Request request,
+        ActionListener<Response> listener,
+        ActionFilterChain<Request, Response> chain
+    );
 }

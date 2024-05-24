@@ -2,6 +2,7 @@
 "Capabilities API":
 
   - requires:
+      test_runner_features: [capabilities]
       capabilities:
         - method: GET
           path: /_capabilities

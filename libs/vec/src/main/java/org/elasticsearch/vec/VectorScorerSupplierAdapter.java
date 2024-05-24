@@ -41,6 +41,6 @@ public final class VectorScorerSupplierAdapter implements RandomVectorScorerSupp
 
     @Override
     public RandomVectorScorerSupplier copy() throws IOException {
-        return this; // no need to copy, thread-safe
+        return new VectorScorerSupplierAdapter(scorer.copy());
     }
 }

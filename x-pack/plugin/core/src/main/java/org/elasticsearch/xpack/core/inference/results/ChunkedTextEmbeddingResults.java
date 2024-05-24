@@ -18,7 +18,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
 import static org.elasticsearch.xpack.core.inference.results.TextEmbeddingUtils.validateInputSizeAgainstEmbeddings;
 
@@ -50,8 +50,8 @@ public class ChunkedTextEmbeddingResults implements ChunkedInferenceServiceResul
         return results;
     }
 
-    public static ChunkedTextEmbeddingResults of(String input, List<Float> floatEmbeddings) {
-        double[] doubleEmbeddings = floatEmbeddings.stream().mapToDouble(ChunkedTextEmbeddingResults::floatToDouble).toArray();
+    public static ChunkedTextEmbeddingResults of(String input, float[] floatEmbeddings) {
+        double[] doubleEmbeddings = IntStream.range(0, floatEmbeddings.length).mapToDouble(i -> floatEmbeddings[i]).toArray();
 
         return new ChunkedTextEmbeddingResults(
             List.of(
@@ -115,12 +115,7 @@ public class ChunkedTextEmbeddingResults implements ChunkedInferenceServiceResul
 
     @Override
     public Map<String, Object> asMap() {
-        return Map.of(
-            FIELD_NAME,
-            chunks.stream()
-                .map(org.elasticsearch.xpack.core.ml.inference.results.ChunkedTextEmbeddingResults.EmbeddingChunk::asMap)
-                .collect(Collectors.toList())
-        );
+        return Map.of(FIELD_NAME, chunks);
     }
 
     @Override

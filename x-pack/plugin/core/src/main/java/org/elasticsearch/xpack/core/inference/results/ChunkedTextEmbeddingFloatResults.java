@@ -15,9 +15,13 @@ import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
+<<<<<<< HEAD
+=======
+import java.util.Arrays;
+>>>>>>> main
 import java.util.List;
 import java.util.Map;
-import java.util.stream.Collectors;
+import java.util.Objects;
 
 public record ChunkedTextEmbeddingFloatResults(List<EmbeddingChunk<Float>> chunks) implements ChunkedInferenceServiceResults {
 
@@ -55,7 +59,7 @@ public record ChunkedTextEmbeddingFloatResults(List<EmbeddingChunk<Float>> chunk
 
     @Override
     public Map<String, Object> asMap() {
-        return Map.of(FIELD_NAME, chunks.stream().map(EmbeddingChunk::asMap).collect(Collectors.toList()));
+        return Map.of(FIELD_NAME, chunks);
     }
 
     @Override
@@ -66,4 +70,69 @@ public record ChunkedTextEmbeddingFloatResults(List<EmbeddingChunk<Float>> chunk
     public List<EmbeddingChunk<Float>> getChunks() {
         return chunks;
     }
+<<<<<<< HEAD
+=======
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        ChunkedTextEmbeddingFloatResults that = (ChunkedTextEmbeddingFloatResults) o;
+        return Objects.equals(chunks, that.chunks);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(chunks);
+    }
+
+    public record EmbeddingChunk(String matchedText, float[] embedding) implements Writeable, ToXContentObject {
+
+        public EmbeddingChunk(StreamInput in) throws IOException {
+            this(in.readString(), in.readFloatArray());
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeString(matchedText);
+            out.writeFloatArray(embedding);
+        }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            builder.startObject();
+            builder.field(ChunkedNlpInferenceResults.TEXT, matchedText);
+
+            builder.startArray(ChunkedNlpInferenceResults.INFERENCE);
+            for (float value : embedding) {
+                builder.value(value);
+            }
+            builder.endArray();
+
+            builder.endObject();
+            return builder;
+        }
+
+        @Override
+        public String toString() {
+            return Strings.toString(this);
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            EmbeddingChunk that = (EmbeddingChunk) o;
+            return Objects.equals(matchedText, that.matchedText) && Arrays.equals(embedding, that.embedding);
+        }
+
+        @Override
+        public int hashCode() {
+            int result = Objects.hash(matchedText);
+            result = 31 * result + Arrays.hashCode(embedding);
+            return result;
+        }
+    }
+
+>>>>>>> main
 }

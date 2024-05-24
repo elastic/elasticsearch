@@ -22,6 +22,7 @@ import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.ModelConfigurations;
+import org.elasticsearch.inference.ModelSecrets;
 import org.elasticsearch.inference.ServiceSettings;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.rest.RestStatus;
@@ -31,7 +32,7 @@ import org.elasticsearch.xpack.core.inference.results.ChunkedSparseEmbeddingResu
 import org.elasticsearch.xpack.core.inference.results.SparseEmbedding;
 import org.elasticsearch.xpack.core.inference.results.SparseEmbeddingResults;
 import org.elasticsearch.xpack.core.ml.inference.results.ChunkedTextExpansionResults;
-import org.elasticsearch.xpack.core.ml.inference.results.TextExpansionResults;
+import org.elasticsearch.xpack.core.ml.search.WeightedToken;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -45,8 +46,17 @@ public class TestSparseInferenceServiceExtension implements InferenceServiceExte
         return List.of(TestInferenceService::new);
     }
 
+    public static class TestSparseModel extends Model {
+        public TestSparseModel(String inferenceEntityId, TestServiceSettings serviceSettings) {
+            super(
+                new ModelConfigurations(inferenceEntityId, TaskType.SPARSE_EMBEDDING, TestInferenceService.NAME, serviceSettings),
+                new ModelSecrets(new AbstractTestInferenceService.TestSecretSettings("api_key"))
+            );
+        }
+    }
+
     public static class TestInferenceService extends AbstractTestInferenceService {
-        private static final String NAME = "test_service";
+        public static final String NAME = "test_service";
 
         public TestInferenceService(InferenceServiceExtension.InferenceServiceFactoryContext context) {}
 
@@ -120,9 +130,15 @@ public class TestSparseInferenceServiceExtension implements InferenceServiceExte
         private SparseEmbeddingResults makeResults(List<String> input) {
             var embeddings = new ArrayList<SparseEmbedding>();
             for (int i = 0; i < input.size(); i++) {
+<<<<<<< HEAD
                 var tokens = new ArrayList<SparseEmbedding.WeightedToken>();
                 for (int j = 0; j < 5; j++) {
                     tokens.add(new SparseEmbedding.WeightedToken("feature_" + j, stringWeight(input.get(i), j)));
+=======
+                var tokens = new ArrayList<WeightedToken>();
+                for (int j = 0; j < 5; j++) {
+                    tokens.add(new WeightedToken("feature_" + j, generateEmbedding(input.get(i), j)));
+>>>>>>> main
                 }
                 embeddings.add(new SparseEmbedding(tokens, false));
             }
@@ -132,9 +148,9 @@ public class TestSparseInferenceServiceExtension implements InferenceServiceExte
         private List<ChunkedInferenceServiceResults> makeChunkedResults(List<String> input) {
             List<ChunkedInferenceServiceResults> results = new ArrayList<>();
             for (int i = 0; i < input.size(); i++) {
-                var tokens = new ArrayList<TextExpansionResults.WeightedToken>();
+                var tokens = new ArrayList<WeightedToken>();
                 for (int j = 0; j < 5; j++) {
-                    tokens.add(new TextExpansionResults.WeightedToken("feature_" + j, stringWeight(input.get(i), j)));
+                    tokens.add(new WeightedToken("feature_" + j, generateEmbedding(input.get(i), j)));
                 }
                 results.add(
                     new ChunkedSparseEmbeddingResults(List.of(new ChunkedTextExpansionResults.ChunkedResult(input.get(i), tokens)))
@@ -145,6 +161,11 @@ public class TestSparseInferenceServiceExtension implements InferenceServiceExte
 
         protected ServiceSettings getServiceSettingsFromMap(Map<String, Object> serviceSettingsMap) {
             return TestServiceSettings.fromMap(serviceSettingsMap);
+        }
+
+        private static float generateEmbedding(String input, int position) {
+            // Ensure non-negative and non-zero values for features
+            return Math.abs(input.hashCode()) + 1 + position;
         }
     }
 

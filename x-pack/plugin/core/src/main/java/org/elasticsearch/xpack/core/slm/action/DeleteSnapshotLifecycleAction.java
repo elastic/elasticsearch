@@ -33,9 +33,12 @@ public class DeleteSnapshotLifecycleAction extends ActionType<AcknowledgedRespon
             lifecycleId = in.readString();
         }
 
-        public Request() {}
+        public Request() {
+            super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT, DEFAULT_ACK_TIMEOUT);
+        }
 
         public Request(String lifecycleId) {
+            super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT, DEFAULT_ACK_TIMEOUT);
             this.lifecycleId = Objects.requireNonNull(lifecycleId, "id may not be null");
         }
 

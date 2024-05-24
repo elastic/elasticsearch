@@ -346,26 +346,6 @@ public interface EsqlBaseParserListener extends ParseTreeListener {
    */
   void exitIndexIdentifier(EsqlBaseParser.IndexIdentifierContext ctx);
   /**
-   * Enter a parse tree produced by {@link EsqlBaseParser#fromOptions}.
-   * @param ctx the parse tree
-   */
-  void enterFromOptions(EsqlBaseParser.FromOptionsContext ctx);
-  /**
-   * Exit a parse tree produced by {@link EsqlBaseParser#fromOptions}.
-   * @param ctx the parse tree
-   */
-  void exitFromOptions(EsqlBaseParser.FromOptionsContext ctx);
-  /**
-   * Enter a parse tree produced by {@link EsqlBaseParser#configOption}.
-   * @param ctx the parse tree
-   */
-  void enterConfigOption(EsqlBaseParser.ConfigOptionContext ctx);
-  /**
-   * Exit a parse tree produced by {@link EsqlBaseParser#configOption}.
-   * @param ctx the parse tree
-   */
-  void exitConfigOption(EsqlBaseParser.ConfigOptionContext ctx);
-  /**
    * Enter a parse tree produced by {@link EsqlBaseParser#metadata}.
    * @param ctx the parse tree
    */

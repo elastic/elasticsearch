@@ -261,7 +261,7 @@ public class UpdateDataStreamGlobalRetentionServiceTests extends ESTestCase {
             .setReplicated(replicated)
             .setLifecycle(lifecycle)
             .setFailureStoreEnabled(failureStores.isEmpty() == false)
-            .setFailureIndices(failureStores);
+            .setFailureIndices(DataStream.DataStreamIndices.failureIndicesBuilder(failureStores).build());
         if (randomBoolean()) {
             builder.setSystem(true);
             builder.setHidden(true);

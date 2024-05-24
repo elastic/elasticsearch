@@ -15,19 +15,29 @@ import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.store.MMapDirectory;
+import org.apache.lucene.util.hnsw.RandomVectorScorer;
 
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Random;
+import java.util.concurrent.Callable;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
+import java.util.function.Predicate;
+import java.util.stream.IntStream;
 
+import static org.elasticsearch.test.hamcrest.OptionalMatchers.isEmpty;
 import static org.elasticsearch.vec.VectorSimilarityType.COSINE;
 import static org.elasticsearch.vec.VectorSimilarityType.DOT_PRODUCT;
 import static org.elasticsearch.vec.VectorSimilarityType.EUCLIDEAN;
 import static org.elasticsearch.vec.VectorSimilarityType.MAXIMUM_INNER_PRODUCT;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
 // @com.carrotsearch.randomizedtesting.annotations.Repeat(iterations = 100)
 public class VectorScorerFactoryTests extends AbstractVectorTestCase {
@@ -92,6 +102,51 @@ public class VectorScorerFactoryTests extends AbstractVectorTestCase {
                     assertThat(scorer.score(0, 1), equalTo(expected));
                     assertThat((new VectorScorerSupplierAdapter(scorer)).scorer(0).score(1), equalTo(expected));
                 }
+            }
+        }
+    }
+
+    public void testNonNegativeDotProduct() throws IOException {
+        assumeTrue(notSupportedMsg(), supported());
+        var factory = AbstractVectorTestCase.factory.get();
+
+        try (Directory dir = new MMapDirectory(createTempDir(getTestName()), MMapDirectory.DEFAULT_MAX_CHUNK_SIZE)) {
+            // keep vecs `0` so dot product is `0`
+            byte[] vec1 = new byte[32];
+            byte[] vec2 = new byte[32];
+            String fileName = getTestName() + "-32";
+            try (IndexOutput out = dir.createOutput(fileName, IOContext.DEFAULT)) {
+                var negativeOffset = floatToByteArray(-5f);
+                byte[] bytes = concat(vec1, negativeOffset, vec2, negativeOffset);
+                out.writeBytes(bytes, 0, bytes.length);
+            }
+            try (IndexInput in = dir.openInput(fileName, IOContext.DEFAULT)) {
+                // dot product
+                float expected = 0f; // TODO fix in Lucene: https://github.com/apache/lucene/pull/13356 luceneScore(DOT_PRODUCT, vec1, vec2,
+                                     // 1, -5, -5);
+                var scorer = factory.getInt7ScalarQuantizedVectorScorer(32, 2, 1, DOT_PRODUCT, in).get();
+                assertThat(scorer.score(0, 1), equalTo(expected));
+                assertThat(scorer.score(0, 1), greaterThanOrEqualTo(0f));
+                assertThat((new VectorScorerSupplierAdapter(scorer)).scorer(0).score(1), equalTo(expected));
+                // max inner product
+                expected = luceneScore(MAXIMUM_INNER_PRODUCT, vec1, vec2, 1, -5, -5);
+                scorer = factory.getInt7ScalarQuantizedVectorScorer(32, 2, 1, MAXIMUM_INNER_PRODUCT, in).get();
+                assertThat(scorer.score(0, 1), greaterThanOrEqualTo(0f));
+                assertThat(scorer.score(0, 1), equalTo(expected));
+                assertThat((new VectorScorerSupplierAdapter(scorer)).scorer(0).score(1), equalTo(expected));
+                // cosine
+                expected = 0f; // TODO fix in Lucene: https://github.com/apache/lucene/pull/13356 luceneScore(COSINE, vec1, vec2, 1, -5,
+                               // -5);
+                scorer = factory.getInt7ScalarQuantizedVectorScorer(32, 2, 1, COSINE, in).get();
+                assertThat(scorer.score(0, 1), equalTo(expected));
+                assertThat(scorer.score(0, 1), greaterThanOrEqualTo(0f));
+                assertThat((new VectorScorerSupplierAdapter(scorer)).scorer(0).score(1), equalTo(expected));
+                // euclidean
+                expected = luceneScore(EUCLIDEAN, vec1, vec2, 1, -5, -5);
+                scorer = factory.getInt7ScalarQuantizedVectorScorer(32, 2, 1, EUCLIDEAN, in).get();
+                assertThat(scorer.score(0, 1), equalTo(expected));
+                assertThat(scorer.score(0, 1), greaterThanOrEqualTo(0f));
+                assertThat((new VectorScorerSupplierAdapter(scorer)).scorer(0).score(1), equalTo(expected));
             }
         }
     }
@@ -278,6 +333,78 @@ public class VectorScorerFactoryTests extends AbstractVectorTestCase {
                     assertThat((new VectorScorerSupplierAdapter(scorer)).scorer(idx0).score(idx1), equalTo(expected));
                 }
             }
+        }
+    }
+
+    public void testRace() throws Exception {
+        testRaceImpl(COSINE);
+        testRaceImpl(DOT_PRODUCT);
+        testRaceImpl(EUCLIDEAN);
+        testRaceImpl(MAXIMUM_INNER_PRODUCT);
+    }
+
+    // Tests that copies in threads do not interfere with each other
+    void testRaceImpl(VectorSimilarityType sim) throws Exception {
+        assumeTrue(notSupportedMsg(), supported());
+        var factory = AbstractVectorTestCase.factory.get();
+
+        final long maxChunkSize = 32;
+        final int dims = 34; // dimensions that are larger than the chunk size, to force fallback
+        byte[] vec1 = new byte[dims];
+        byte[] vec2 = new byte[dims];
+        IntStream.range(0, dims).forEach(i -> vec1[i] = 1);
+        IntStream.range(0, dims).forEach(i -> vec2[i] = 2);
+        try (Directory dir = new MMapDirectory(createTempDir("testRace"), maxChunkSize)) {
+            String fileName = getTestName() + "-" + dims;
+            try (IndexOutput out = dir.createOutput(fileName, IOContext.DEFAULT)) {
+                var one = floatToByteArray(1f);
+                byte[] bytes = concat(vec1, one, vec1, one, vec2, one, vec2, one);
+                out.writeBytes(bytes, 0, bytes.length);
+            }
+            var expectedScore1 = luceneScore(sim, vec1, vec1, 1, 1, 1);
+            var expectedScore2 = luceneScore(sim, vec2, vec2, 1, 1, 1);
+
+            try (IndexInput in = dir.openInput(fileName, IOContext.DEFAULT)) {
+                var scoreSupplier = factory.getInt7ScalarQuantizedVectorScorer(dims, 4, 1, sim, in).get();
+                var scorer = new VectorScorerSupplierAdapter(scoreSupplier);
+                var tasks = List.<Callable<Optional<Throwable>>>of(
+                    new ScoreCallable(scorer.copy().scorer(0), 1, expectedScore1),
+                    new ScoreCallable(scorer.copy().scorer(2), 3, expectedScore2)
+                );
+                var executor = Executors.newFixedThreadPool(2);
+                var results = executor.invokeAll(tasks);
+                executor.shutdown();
+                assertTrue(executor.awaitTermination(60, TimeUnit.SECONDS));
+                assertThat(results.stream().filter(Predicate.not(Future::isDone)).count(), equalTo(0L));
+                for (var res : results) {
+                    assertThat("Unexpected exception" + res.get(), res.get(), isEmpty());
+                }
+            }
+        }
+    }
+
+    static class ScoreCallable implements Callable<Optional<Throwable>> {
+
+        final RandomVectorScorer scorer;
+        final int ord;
+        final float expectedScore;
+
+        ScoreCallable(RandomVectorScorer scorer, int ord, float expectedScore) {
+            this.scorer = scorer;
+            this.ord = ord;
+            this.expectedScore = expectedScore;
+        }
+
+        @Override
+        public Optional<Throwable> call() throws Exception {
+            try {
+                for (int i = 0; i < 100; i++) {
+                    assertThat(scorer.score(ord), equalTo(expectedScore));
+                }
+            } catch (Throwable t) {
+                return Optional.of(t);
+            }
+            return Optional.empty();
         }
     }
 

@@ -269,6 +269,7 @@ public class HeapAttackIT extends ESRestTestCase {
         assertMap(map, matchesMap().entry("columns", columns).entry("values", hasSize(10_000)));
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch-serverless/issues/1874")
     public void testTooManyEval() throws IOException {
         initManyLongs();
         assertCircuitBreaks(() -> manyEval(490));

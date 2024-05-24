@@ -3,6 +3,8 @@
  * or more contributor license agreements. Licensed under the Elastic License
  * 2.0; you may not use this file except in compliance with the Elastic License
  * 2.0.
+ *
+ * this file was contributed to by a generative AI
  */
 
 package org.elasticsearch.xpack.inference.external.response.cohere;
@@ -190,9 +192,13 @@ public class CohereEmbeddingsResponseEntity {
 
     private static ByteEmbedding parseByteArrayEntry(XContentParser parser) throws IOException {
         XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_ARRAY, parser.currentToken(), parser);
-        List<Byte> embeddingValues = XContentParserUtils.parseList(parser, CohereEmbeddingsResponseEntity::parseEmbeddingInt8Entry);
+        List<Byte> embeddingValuesList = XContentParserUtils.parseList(parser, CohereEmbeddingsResponseEntity::parseEmbeddingInt8Entry);
 
+<<<<<<< HEAD
         return new ByteEmbedding(embeddingValues);
+=======
+        return TextEmbeddingByteResults.Embedding.of(embeddingValuesList);
+>>>>>>> main
     }
 
     private static Byte parseEmbeddingInt8Entry(XContentParser parser) throws IOException {
@@ -218,9 +224,14 @@ public class CohereEmbeddingsResponseEntity {
 
     private static FloatEmbedding parseFloatArrayEntry(XContentParser parser) throws IOException {
         XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_ARRAY, parser.currentToken(), parser);
+<<<<<<< HEAD
         List<Float> embeddingValues = XContentParserUtils.parseList(parser, CohereEmbeddingsResponseEntity::parseEmbeddingFloatEntry);
 
         return new FloatEmbedding(embeddingValues);
+=======
+        List<Float> embeddingValuesList = XContentParserUtils.parseList(parser, CohereEmbeddingsResponseEntity::parseEmbeddingFloatEntry);
+        return TextEmbeddingResults.Embedding.of(embeddingValuesList);
+>>>>>>> main
     }
 
     private static Float parseEmbeddingFloatEntry(XContentParser parser) throws IOException {

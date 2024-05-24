@@ -44,7 +44,7 @@ public class CohereServiceSettings extends FilteredXContentObject implements Ser
     public static final String OLD_MODEL_ID_FIELD = "model";
     public static final String MODEL_ID = "model_id";
     private static final Logger logger = LogManager.getLogger(CohereServiceSettings.class);
-    // The rate limit defined here is pulled for the blog: https://txt.cohere.com/free-developer-tier-announcement/ for the production tier
+    // Production key rate limits for all endpoints: https://docs.cohere.com/docs/going-live#production-key-specifications
     // 10K requests a minute
     private static final RateLimitSettings DEFAULT_RATE_LIMIT_SETTINGS = new RateLimitSettings(10_000);
 

@@ -12,7 +12,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.core.LoggerContext;
 import org.apache.logging.log4j.core.config.Configurator;
-import org.apache.lucene.util.Constants;
 import org.apache.lucene.util.StringHelper;
 import org.apache.lucene.util.VectorUtil;
 import org.elasticsearch.Build;
@@ -280,9 +279,10 @@ class Elasticsearch {
      */
     static void initializeNatives(final Path tmpFile, final boolean mlockAll, final boolean systemCallFilter, final boolean ctrlHandler) {
         final Logger logger = LogManager.getLogger(Elasticsearch.class);
+        var nativeAccess = NativeAccess.instance();
 
         // check if the user is running as root, and bail
-        if (NativeAccess.instance().definitelyRunningAsRoot()) {
+        if (nativeAccess.definitelyRunningAsRoot()) {
             throw new RuntimeException("can not run elasticsearch as root");
         }
 
@@ -297,11 +297,7 @@ class Elasticsearch {
 
         // mlockall if requested
         if (mlockAll) {
-            if (Constants.WINDOWS) {
-                Natives.tryVirtualLock();
-            } else {
-                Natives.tryMlockall();
-            }
+            nativeAccess.tryLockMemory();
         }
 
         // listener for windows close event
@@ -325,10 +321,6 @@ class Elasticsearch {
         } catch (Exception ignored) {
             // we've already logged this.
         }
-
-        Natives.trySetMaxNumberOfThreads();
-        Natives.trySetMaxSizeVirtualMemory();
-        Natives.trySetMaxFileSize();
 
         // init lucene random seed. it will use /dev/urandom where available:
         StringHelper.randomId();

@@ -15,7 +15,6 @@ import org.elasticsearch.xpack.core.inference.results.FloatEmbedding;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.List;
 
 public class ChunkedTextEmbeddingFloatResultsTests extends AbstractWireSerializingTestCase<ChunkedTextEmbeddingFloatResults> {
 
@@ -32,10 +31,9 @@ public class ChunkedTextEmbeddingFloatResultsTests extends AbstractWireSerializi
 
     private static EmbeddingChunk<Float> createRandomChunk() {
         int columns = randomIntBetween(1, 10);
-        List<Float> floats = new ArrayList<>(columns);
-
+        float[] floats = new float[columns];
         for (int i = 0; i < columns; i++) {
-            floats.add(randomFloat());
+            floats[i] = randomFloat();
         }
 
         return new EmbeddingChunk<Float>(randomAlphaOfLength(6), new FloatEmbedding(floats));
@@ -53,6 +51,6 @@ public class ChunkedTextEmbeddingFloatResultsTests extends AbstractWireSerializi
 
     @Override
     protected ChunkedTextEmbeddingFloatResults mutateInstance(ChunkedTextEmbeddingFloatResults instance) throws IOException {
-        return null;
+        return randomValueOtherThan(instance, this::createTestInstance);
     }
 }

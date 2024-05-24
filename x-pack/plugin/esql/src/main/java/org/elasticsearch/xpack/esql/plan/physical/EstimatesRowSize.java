@@ -10,10 +10,9 @@ package org.elasticsearch.xpack.esql.plan.physical;
 import org.elasticsearch.compute.data.DocVector;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
-import org.elasticsearch.xpack.ql.expression.Expression;
-import org.elasticsearch.xpack.ql.type.DataType;
-import org.elasticsearch.xpack.ql.type.DataTypes;
 
 import java.util.List;
 
@@ -106,12 +105,13 @@ public interface EstimatesRowSize {
         ElementType elementType = PlannerUtils.toElementType(dataType);
         return switch (elementType) {
             case BOOLEAN -> 1;
-            case BYTES_REF -> {
-                if (dataType == DataTypes.IP) {
-                    yield 16;
-                }
-                yield 50; // wild estimate for the size of a string.
-            }
+            case BYTES_REF -> switch (dataType.typeName()) {
+                case "ip" -> 16;      // IP addresses, both IPv4 and IPv6, are encoded using 16 bytes.
+                case "version" -> 15; // 8.15.2-SNAPSHOT is 15 bytes, most are shorter, some can be longer
+                case "geo_point", "cartesian_point" -> 21;  // WKB for points is typically 21 bytes.
+                case "geo_shape", "cartesian_shape" -> 200; // wild estimate, based on some test data (airport_city_boundaries)
+                default -> 50; // wild estimate for the size of a string.
+            };
             case DOC -> throw new EsqlIllegalArgumentException("can't load a [doc] with field extraction");
             case DOUBLE -> Double.BYTES;
             case INT -> Integer.BYTES;

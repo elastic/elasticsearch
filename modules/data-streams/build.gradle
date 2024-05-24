@@ -20,6 +20,7 @@ restResources {
 
 dependencies {
   testImplementation project(path: ':test:test-clusters')
+  internalClusterTestImplementation project(":modules:mapper-extras")
 }
 
 tasks.named('yamlRestTest') {
@@ -35,4 +36,10 @@ if (BuildParams.inFipsJvm){
   // Tracked in :
   tasks.named("javaRestTest").configure{enabled = false }
   tasks.named("yamlRestTest").configure{enabled = false }
+}
+
+if (BuildParams.isSnapshotBuild() == false) {
+  tasks.named("internalClusterTest").configure {
+    systemProperty 'es.failure_store_feature_flag_enabled', 'true'
+  }
 }

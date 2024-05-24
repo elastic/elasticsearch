@@ -19,6 +19,7 @@ import java.io.IOException;
 import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.POST;
+import static org.elasticsearch.rest.RestUtils.getAckTimeout;
 import static org.elasticsearch.rest.RestUtils.getMasterNodeTimeout;
 
 public class RestMoveToStepAction extends BaseRestHandler {
@@ -40,7 +41,7 @@ public class RestMoveToStepAction extends BaseRestHandler {
         try (XContentParser parser = restRequest.contentParser()) {
             request = TransportMoveToStepAction.Request.parseRequest(index, parser);
         }
-        request.ackTimeout(restRequest.paramAsTime("timeout", request.ackTimeout()));
+        request.ackTimeout(getAckTimeout(restRequest));
         request.masterNodeTimeout(getMasterNodeTimeout(restRequest));
         return channel -> client.execute(ILMActions.MOVE_TO_STEP, request, new RestToXContentListener<>(channel));
     }

@@ -16,7 +16,7 @@ eth2           |epsilon        |[fe81::cae2:65ff:fece:feb9, fe82::cae2:65ff:fece
 ;
 
 equals
-required_feature: esql.mv_warn
+required_capability: mv_warn
 
 from hosts | sort host, card | where ip0 == ip1 | keep card, host, ip0, ip1;
 warning:Line 1:38: evaluation of [ip0 == ip1] failed, treating result as null. Only first 20 failures recorded.
@@ -60,7 +60,7 @@ eth2           |epsilon        |[fe81::cae2:65ff:fece:feb9, fe82::cae2:65ff:fece
 ;
 
 lessThan
-required_feature: esql.mv_warn
+required_capability: mv_warn
 
 from hosts | sort host, card, ip1 | where ip0 < ip1 | keep card, host, ip0, ip1;
 warning:Line 1:43: evaluation of [ip0 < ip1] failed, treating result as null. Only first 20 failures recorded.
@@ -73,7 +73,7 @@ lo0            |gamma          |fe80::cae2:65ff:fece:feb9|fe81::cae2:65ff:fece:f
 ;
 
 notEquals
-required_feature: esql.mv_warn
+required_capability: mv_warn
 
 from hosts | sort host, card, ip1 | where ip0 != ip1 | keep card, host, ip0, ip1;
 warning:Line 1:43: evaluation of [ip0 != ip1] failed, treating result as null. Only first 20 failures recorded.
@@ -125,7 +125,7 @@ null           |[127.0.0.1, 127.0.0.2, 127.0.0.3]
 ;
 
 conditional
-required_feature: esql.mv_warn
+required_capability: mv_warn
 
 from hosts | eval eq=case(ip0==ip1, ip0, ip1) | keep eq, ip0, ip1;
 ignoreOrder:true
@@ -146,7 +146,7 @@ fe80::cae2:65ff:fece:fec1                             |[fe80::cae2:65ff:fece:feb
 ;
 
 in
-required_feature: esql.mv_warn
+required_capability: mv_warn
 
 from hosts | eval eq=case(ip0==ip1, ip0, ip1) | where eq in (ip0, ip1) | keep card, host, ip0, ip1, eq;
 ignoreOrder:true
@@ -168,7 +168,7 @@ eth0           |epsilon        |[fe80::cae2:65ff:fece:feb9, fe80::cae2:65ff:fece
 
 
 inWithWarningsRegex#[skip:-8.13.99, reason:regex warnings in tests introduced in v 8.14.0]
-required_feature: esql.mv_warn
+required_capability: mv_warn
 
 from hosts | eval eq=case(ip0==ip1, ip0, ip1) | where eq in (ip0, ip1) | keep card, host, ip0, ip1, eq;
 ignoreOrder:true
@@ -188,7 +188,7 @@ eth0           |epsilon        |[fe80::cae2:65ff:fece:feb9, fe80::cae2:65ff:fece
 ;
 
 cidrMatchSimple
-required_feature: esql.mv_warn
+required_capability: mv_warn
 
 from hosts | where cidr_match(ip1, "127.0.0.2/32") | keep card, host, ip0, ip1;
 warning:Line 1:20: evaluation of [cidr_match(ip1, \"127.0.0.2/32\")] failed, treating result as null. Only first 20 failures recorded.
@@ -199,7 +199,7 @@ eth1           |beta           |127.0.0.1      |127.0.0.2
 ;
 
 cidrMatchNullField
-required_feature: esql.mv_warn
+required_capability: mv_warn
 
 from hosts | where cidr_match(ip0, "127.0.0.2/32") is null | keep card, host, ip0, ip1;
 ignoreOrder:true
@@ -213,7 +213,7 @@ eth2           |epsilon        |[fe81::cae2:65ff:fece:feb9, fe82::cae2:65ff:fece
 ;
 
 cdirMatchMultipleArgs
-required_feature: esql.mv_warn
+required_capability: mv_warn
 
 //tag::cdirMatchMultipleArgs[]
 FROM hosts 
@@ -233,7 +233,7 @@ eth0           |gamma          |fe80::cae2:65ff:fece:feb9|127.0.0.3
 ;
 
 cidrMatchFunctionArg
-required_feature: esql.mv_warn
+required_capability: mv_warn
 
 from hosts | where cidr_match(ip1, concat("127.0.0.2", "/32"), "127.0.0.3/32") | keep card, host, ip0, ip1;
 ignoreOrder:true
@@ -246,7 +246,7 @@ eth0           |gamma          |fe80::cae2:65ff:fece:feb9|127.0.0.3
 ;
 
 cidrMatchFieldArg
-required_feature: esql.mv_warn
+required_capability: mv_warn
 
 from hosts | eval cidr="127.0.0.2" | where cidr_match(ip1, cidr, "127.0.0.3/32") | keep card, host, ip0, ip1;
 ignoreOrder:true
@@ -294,7 +294,7 @@ eth0           |beta           |127.0.0.1  |::1
 ;
 
 pushDownIPWithIn
-required_feature: esql.mv_warn
+required_capability: mv_warn
 
 from hosts | where ip1 in (to_ip("::1"), to_ip("127.0.0.1")) | keep card, host, ip0, ip1;
 ignoreOrder:true
@@ -308,7 +308,7 @@ eth0           |beta           |127.0.0.1   |::1
 ;
 
 pushDownIPWithComparision
-required_feature: esql.mv_warn
+required_capability: mv_warn
 
 from hosts | where ip1 > to_ip("127.0.0.1") | keep card, ip1;
 ignoreOrder:true
@@ -324,7 +324,7 @@ eth0           |fe80::cae2:65ff:fece:fec1
 ;
 
 mvSort
-required_feature: esql.mv_sort
+required_capability: mv_sort
 
 FROM hosts
 | eval sd = mv_sort(ip1, "DESC"), sa = mv_sort(ip1)
@@ -342,7 +342,7 @@ epsilon      | [fe81::cae2:65ff:fece:feb9, fe82::cae2:65ff:fece:fec0] | [fe81::c
 ;
 
 mvSlice
-required_feature: esql.mv_sort
+required_capability: mv_sort
 
 from hosts
 | where host == "epsilon"
@@ -358,7 +358,7 @@ epsilon      | [fe81::cae2:65ff:fece:feb9, fe82::cae2:65ff:fece:fec0] | [fe81::c
 ;
 
 mvSlice
-required_feature: esql.mv_sort
+required_capability: mv_sort
 
 from hosts
 | where host == "epsilon"
@@ -374,7 +374,7 @@ epsilon      | [fe81::cae2:65ff:fece:feb9, fe82::cae2:65ff:fece:fec0] | [fe81::c
 ;
 
 mvZip
-required_feature: esql.mv_sort
+required_capability: mv_sort
 
 from hosts
 | eval zip = mv_zip(to_string(description), to_string(ip0), "@@")
@@ -392,7 +392,7 @@ epsilon      | null                          | null                             
 ;
 
 values
-required_feature: esql.agg_values
+required_capability: agg_values
 
   FROM hosts
 | STATS ip0=MV_SORT(VALUES(ip0))
@@ -403,7 +403,7 @@ required_feature: esql.agg_values
 ;
 
 valuesGrouped
-required_feature: esql.agg_values
+required_capability: agg_values
 
   FROM hosts
 | EVAL host=SUBSTRING(host, 0, 1)
@@ -419,7 +419,7 @@ fe80::cae2:65ff:fece:feb9 | g
 ;
 
 valuesGroupedByOrdinals
-required_feature: esql.agg_values
+required_capability: agg_values
 
   FROM hosts
 | STATS ip0=MV_SORT(VALUES(ip0)) BY host
@@ -434,7 +434,7 @@ fe80::cae2:65ff:fece:feb9 | gamma
 ;
 
 implictCastingEqual
-required_feature: esql.string_literal_auto_casting_extended
+required_capability: string_literal_auto_casting_extended
 from hosts | where mv_first(ip0) == "127.0.0.1" | keep host, ip0 | sort host;
 
 host:keyword | ip0:ip
@@ -445,7 +445,7 @@ beta         | 127.0.0.1
 ;
 
 implictCastingNotEqual
-required_feature: esql.string_literal_auto_casting_extended
+required_capability: string_literal_auto_casting_extended
 from hosts | where mv_first(ip0) != "127.0.0.1" | keep host, ip0 | sort host, ip0 | limit 3;
 
 host:keyword | ip0:ip
@@ -455,7 +455,7 @@ epsilon      | [fe81::cae2:65ff:fece:feb9, fe82::cae2:65ff:fece:fec0]
 ;
 
 implictCastingGreaterThan
-required_feature: esql.string_literal_auto_casting_extended
+required_capability: string_literal_auto_casting_extended
 from hosts | where mv_first(ip0) > "127.0.0.1" | keep host, ip0 | sort host, ip0 | limit 3;
 
 host:keyword | ip0:ip
@@ -465,7 +465,7 @@ gamma        | fe80::cae2:65ff:fece:feb9
 ;
 
 implictCastingLessThanOrEqual
-required_feature: esql.string_literal_auto_casting_extended
+required_capability: string_literal_auto_casting_extended
 from hosts | where mv_first(ip0) <= "127.0.0.1" | keep host, ip0 | sort host, ip0 | limit 3;
 
 host:keyword | ip0:ip
@@ -475,7 +475,7 @@ beta         | 127.0.0.1
 ;
 
 implictCastingIn
-required_feature: esql.string_literal_auto_casting_extended
+required_capability: string_literal_auto_casting_extended
 from hosts | where mv_first(ip0) in ( "127.0.0.1", "::1") | keep host, ip0 | sort host, ip0;
 
 host:keyword | ip0:ip

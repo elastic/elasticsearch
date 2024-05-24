@@ -30,6 +30,7 @@ import java.util.Locale;
 import static org.elasticsearch.rest.ChunkedRestResponseBody.fromTextChunks;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestResponse.TEXT_CONTENT_TYPE;
+import static org.elasticsearch.rest.RestUtils.getTimeout;
 
 @ServerlessScope(Scope.INTERNAL)
 public class RestNodesHotThreadsAction extends BaseRestHandler {
@@ -111,7 +112,7 @@ public class RestNodesHotThreadsAction extends BaseRestHandler {
         );
         nodesHotThreadsRequest.interval(request.paramAsTime("interval", nodesHotThreadsRequest.interval()));
         nodesHotThreadsRequest.snapshots(request.paramAsInt("snapshots", nodesHotThreadsRequest.snapshots()));
-        nodesHotThreadsRequest.timeout(request.paramAsTime("timeout", nodesHotThreadsRequest.timeout()));
+        nodesHotThreadsRequest.timeout(getTimeout(request));
         return channel -> client.execute(TransportNodesHotThreadsAction.TYPE, nodesHotThreadsRequest, new RestResponseListener<>(channel) {
             @Override
             public RestResponse buildResponse(NodesHotThreadsResponse response) {

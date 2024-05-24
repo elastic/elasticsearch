@@ -39,10 +39,12 @@ public class UpdateWatcherSettingsAction extends ActionType<AcknowledgedResponse
         private final Map<String, Object> settings;
 
         public Request(Map<String, Object> settings) {
+            super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT, DEFAULT_ACK_TIMEOUT);
             this.settings = settings;
         }
 
         public Request(StreamInput in) throws IOException {
+            super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT, DEFAULT_ACK_TIMEOUT);
             this.settings = in.readGenericMap();
         }
 

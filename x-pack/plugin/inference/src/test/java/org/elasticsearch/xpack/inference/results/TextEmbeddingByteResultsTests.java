@@ -34,12 +34,13 @@ public class TextEmbeddingByteResultsTests extends AbstractWireSerializingTestCa
 
     private static ByteEmbedding createRandomEmbedding() {
         int columns = randomIntBetween(1, 10);
-        List<Byte> floats = new ArrayList<>(columns);
+        byte[] bytes = new byte[columns];
 
         for (int i = 0; i < columns; i++) {
-            floats.add(randomByte());
+            bytes[i] = randomByte();
         }
 
+<<<<<<< HEAD
         return new ByteEmbedding(floats);
     }
 
@@ -50,6 +51,13 @@ public class TextEmbeddingByteResultsTests extends AbstractWireSerializingTestCa
             entity.asMap(),
             is(Map.of(TextEmbeddingByteResults.TEXT_EMBEDDING_BYTES, List.of(Map.of(ByteEmbedding.EMBEDDING, List.of((byte) 23)))))
         );
+=======
+        return new TextEmbeddingByteResults.Embedding(bytes);
+    }
+
+    public void testToXContent_CreatesTheRightFormatForASingleEmbedding() throws IOException {
+        var entity = new TextEmbeddingByteResults(List.of(new TextEmbeddingByteResults.Embedding(new byte[] { (byte) 23 })));
+>>>>>>> main
 
         String xContentResult = Strings.toString(entity, true, true);
         assertThat(xContentResult, is("""
@@ -66,6 +74,7 @@ public class TextEmbeddingByteResultsTests extends AbstractWireSerializingTestCa
 
     public void testToXContent_CreatesTheRightFormatForMultipleEmbeddings() throws IOException {
         var entity = new TextEmbeddingByteResults(
+<<<<<<< HEAD
             List.of(new ByteEmbedding(List.of((byte) 23)), new ByteEmbedding(List.of((byte) 24)))
 
         );
@@ -77,6 +86,11 @@ public class TextEmbeddingByteResultsTests extends AbstractWireSerializingTestCa
                     TextEmbeddingByteResults.TEXT_EMBEDDING_BYTES,
                     List.of(Map.of(ByteEmbedding.EMBEDDING, List.of((byte) 23)), Map.of(ByteEmbedding.EMBEDDING, List.of((byte) 24)))
                 )
+=======
+            List.of(
+                new TextEmbeddingByteResults.Embedding(new byte[] { (byte) 23 }),
+                new TextEmbeddingByteResults.Embedding(new byte[] { (byte) 24 })
+>>>>>>> main
             )
         );
 
@@ -100,7 +114,14 @@ public class TextEmbeddingByteResultsTests extends AbstractWireSerializingTestCa
 
     public void testTransformToCoordinationFormat() {
         var results = new TextEmbeddingByteResults(
+<<<<<<< HEAD
             List.of(new ByteEmbedding(List.of((byte) 23, (byte) 24)), new ByteEmbedding(List.of((byte) 25, (byte) 26)))
+=======
+            List.of(
+                new TextEmbeddingByteResults.Embedding(new byte[] { (byte) 23, (byte) 24 }),
+                new TextEmbeddingByteResults.Embedding(new byte[] { (byte) 25, (byte) 26 })
+            )
+>>>>>>> main
         ).transformToCoordinationFormat();
 
         assertThat(

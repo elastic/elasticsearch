@@ -352,7 +352,7 @@ Will become:
 // TEST[s/^/{"_source":/ s/\n$/}/]
 
 [[range-synthetic-source-inclusive]]
-Range field vales are always represented as inclusive on both sides with bounds adjusted accordingly. For example:
+Range field vales are always represented as inclusive on both sides with bounds adjusted accordingly. Default values for range bounds are represented as `null`. This is true even if range bound was explicitly provided. For example:
 [source,console,id=synthetic-source-range-normalization-example]
 ----
 PUT idx
@@ -383,6 +383,42 @@ Will become:
   "my_range": {
     "gte": 201,
     "lte": 299
+  }
+}
+----
+// TEST[s/^/{"_source":/ s/\n$/}/]
+
+[[range-synthetic-source-default-bounds]]
+Default values for range bounds are represented as `null` in synthetic source. This is true even if range bound was explicitly provided with default value. For example:
+[source,console,id=synthetic-source-range-bounds-example]
+----
+PUT idx
+{
+  "mappings": {
+    "_source": { "mode": "synthetic" },
+    "properties": {
+      "my_range": { "type": "integer_range" }
+    }
+  }
+}
+
+PUT idx/_doc/1
+{
+  "my_range": {
+    "lte": 2147483647
+  }
+}
+----
+// TEST[s/$/\nGET idx\/_doc\/1?filter_path=_source\n/]
+
+Will become:
+
+[source,console-result]
+----
+{
+  "my_range": {
+    "gte": null,
+    "lte": null
   }
 }
 ----

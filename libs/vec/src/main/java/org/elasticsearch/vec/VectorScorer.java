@@ -22,4 +22,6 @@ public interface VectorScorer {
     /** The maximum ordinal of vector this scorer can score. */
     int maxOrd();
 
+    VectorScorer copy();
+
 }

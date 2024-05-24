@@ -14,7 +14,6 @@ import org.elasticsearch.xpack.core.inference.results.ByteEmbedding;
 import org.elasticsearch.xpack.core.inference.results.ChunkedTextEmbeddingByteResults;
 import org.elasticsearch.xpack.core.inference.results.EmbeddingChunk;
 import org.elasticsearch.xpack.core.inference.results.TextEmbeddingByteResults;
-import org.elasticsearch.xpack.core.ml.inference.results.ChunkedNlpInferenceResults;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -38,10 +37,9 @@ public class ChunkedTextEmbeddingByteResultsTests extends AbstractWireSerializin
 
     private static EmbeddingChunk<Byte> createRandomChunk() {
         int columns = randomIntBetween(1, 10);
-        List<Byte> bytes = new ArrayList<>(columns);
-
+        byte[] bytes = new byte[columns];
         for (int i = 0; i < columns; i++) {
-            bytes.add(randomByte());
+            bytes[i] = randomByte();
         }
 
         return new EmbeddingChunk<>(randomAlphaOfLength(6), new ByteEmbedding(bytes));
@@ -49,7 +47,11 @@ public class ChunkedTextEmbeddingByteResultsTests extends AbstractWireSerializin
 
     public void testToXContent_CreatesTheRightJsonForASingleChunk() {
         var entity = new ChunkedTextEmbeddingByteResults(
+<<<<<<< HEAD
             List.of(new EmbeddingChunk<Byte>("text", new ByteEmbedding(List.of((byte) 1)))),
+=======
+            List.of(new ChunkedTextEmbeddingByteResults.EmbeddingChunk("text", new byte[] { (byte) 1 })),
+>>>>>>> main
             false
         );
 
@@ -58,7 +60,7 @@ public class ChunkedTextEmbeddingByteResultsTests extends AbstractWireSerializin
             is(
                 Map.of(
                     ChunkedTextEmbeddingByteResults.FIELD_NAME,
-                    List.of(Map.of(ChunkedNlpInferenceResults.TEXT, "text", ChunkedNlpInferenceResults.INFERENCE, List.of((byte) 1)))
+                    List.of(new ChunkedTextEmbeddingByteResults.EmbeddingChunk("text", new byte[] { (byte) 1 }))
                 )
             )
         );
@@ -79,7 +81,11 @@ public class ChunkedTextEmbeddingByteResultsTests extends AbstractWireSerializin
     public void testToXContent_CreatesTheRightJsonForASingleChunk_ForTextEmbeddingByteResults() {
         var entity = ChunkedTextEmbeddingByteResults.of(
             List.of("text"),
+<<<<<<< HEAD
             new TextEmbeddingByteResults(List.of(new ByteEmbedding(List.of((byte) 1))))
+=======
+            new TextEmbeddingByteResults(List.of(new TextEmbeddingByteResults.Embedding(new byte[] { (byte) 1 })))
+>>>>>>> main
         );
 
         assertThat(entity.size(), is(1));
@@ -91,7 +97,7 @@ public class ChunkedTextEmbeddingByteResultsTests extends AbstractWireSerializin
             is(
                 Map.of(
                     ChunkedTextEmbeddingByteResults.FIELD_NAME,
-                    List.of(Map.of(ChunkedNlpInferenceResults.TEXT, "text", ChunkedNlpInferenceResults.INFERENCE, List.of((byte) 1)))
+                    List.of(new ChunkedTextEmbeddingByteResults.EmbeddingChunk("text", new byte[] { (byte) 1 }))
                 )
             )
         );
@@ -114,7 +120,11 @@ public class ChunkedTextEmbeddingByteResultsTests extends AbstractWireSerializin
             IllegalArgumentException.class,
             () -> ChunkedTextEmbeddingByteResults.of(
                 List.of("text", "text2"),
+<<<<<<< HEAD
                 new TextEmbeddingByteResults(List.of(new ByteEmbedding(List.of((byte) 1))))
+=======
+                new TextEmbeddingByteResults(List.of(new TextEmbeddingByteResults.Embedding(new byte[] { (byte) 1 })))
+>>>>>>> main
             )
         );
 
@@ -133,6 +143,6 @@ public class ChunkedTextEmbeddingByteResultsTests extends AbstractWireSerializin
 
     @Override
     protected ChunkedTextEmbeddingByteResults mutateInstance(ChunkedTextEmbeddingByteResults instance) throws IOException {
-        return null;
+        return randomValueOtherThan(instance, ChunkedTextEmbeddingByteResultsTests::createRandomResults);
     }
 }

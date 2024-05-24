@@ -16,6 +16,7 @@ import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.ml.inference.results.TextExpansionResults;
+import org.elasticsearch.xpack.core.ml.search.WeightedToken;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -105,7 +106,7 @@ public record SparseEmbeddingResults(List<SparseEmbedding> embeddings) implement
                     DEFAULT_RESULTS_FIELD,
                     embedding.getEmbedding()
                         .stream()
-                        .map(weightedToken -> new TextExpansionResults.WeightedToken(weightedToken.token(), weightedToken.weight()))
+                        .map(weightedToken -> new WeightedToken(weightedToken.token(), weightedToken.weight()))
                         .toList(),
                     embedding.isTruncated()
                 )

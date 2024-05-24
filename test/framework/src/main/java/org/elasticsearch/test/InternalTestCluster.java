@@ -2582,7 +2582,6 @@ public final class InternalTestCluster extends TestCluster {
     }
 
     public void awaitIndexShardCloseAsyncTasks() {
-        // ES-8334 TODO build this wait into the relevant APIs (especially, delete-index and close-index)
         final var latch = new CountDownLatch(1);
         try (var refs = new RefCountingRunnable(latch::countDown)) {
             for (final var nodeAndClient : nodes.values()) {

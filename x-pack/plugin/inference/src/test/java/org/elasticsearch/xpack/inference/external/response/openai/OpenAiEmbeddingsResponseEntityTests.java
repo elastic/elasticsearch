@@ -50,7 +50,14 @@ public class OpenAiEmbeddingsResponseEntityTests extends ESTestCase {
             new HttpResult(mock(HttpResponse.class), responseJson.getBytes(StandardCharsets.UTF_8))
         );
 
+<<<<<<< HEAD
         assertThat(parsedResults.embeddings(), is(List.of(new FloatEmbedding(List.of(0.014539449F, -0.015288644F)))));
+=======
+        assertThat(
+            parsedResults.embeddings(),
+            is(List.of(new TextEmbeddingResults.Embedding(new float[] { 0.014539449F, -0.015288644F })))
+        );
+>>>>>>> main
     }
 
     public void testFromResponse_CreatesResultsForMultipleItems() throws IOException {
@@ -90,7 +97,16 @@ public class OpenAiEmbeddingsResponseEntityTests extends ESTestCase {
 
         assertThat(
             parsedResults.embeddings(),
+<<<<<<< HEAD
             is(List.of(new FloatEmbedding(List.of(0.014539449F, -0.015288644F)), new FloatEmbedding(List.of(0.0123F, -0.0123F))))
+=======
+            is(
+                List.of(
+                    new TextEmbeddingResults.Embedding(new float[] { 0.014539449F, -0.015288644F }),
+                    new TextEmbeddingResults.Embedding(new float[] { 0.0123F, -0.0123F })
+                )
+            )
+>>>>>>> main
         );
     }
 
@@ -257,7 +273,11 @@ public class OpenAiEmbeddingsResponseEntityTests extends ESTestCase {
             new HttpResult(mock(HttpResponse.class), responseJson.getBytes(StandardCharsets.UTF_8))
         );
 
+<<<<<<< HEAD
         assertThat(parsedResults.embeddings(), is(List.of(new FloatEmbedding(List.of(1.0F)))));
+=======
+        assertThat(parsedResults.embeddings(), is(List.of(new TextEmbeddingResults.Embedding(new float[] { 1.0F }))));
+>>>>>>> main
     }
 
     public void testFromResponse_SucceedsWhenEmbeddingValueIsLong() throws IOException {
@@ -286,7 +306,11 @@ public class OpenAiEmbeddingsResponseEntityTests extends ESTestCase {
             new HttpResult(mock(HttpResponse.class), responseJson.getBytes(StandardCharsets.UTF_8))
         );
 
+<<<<<<< HEAD
         assertThat(parsedResults.embeddings(), is(List.of(new FloatEmbedding(List.of(4.0294965E10F)))));
+=======
+        assertThat(parsedResults.embeddings(), is(List.of(new TextEmbeddingResults.Embedding(new float[] { 4.0294965E10F }))));
+>>>>>>> main
     }
 
     public void testFromResponse_FailsWhenEmbeddingValueIsAnObject() {
@@ -375,9 +399,15 @@ public class OpenAiEmbeddingsResponseEntityTests extends ESTestCase {
             parsedResults.embeddings(),
             is(
                 List.of(
+<<<<<<< HEAD
                     new FloatEmbedding(List.of(-0.9F, 0.5F, 0.3F)),
                     new FloatEmbedding(List.of(0.1F, 0.5F)),
                     new FloatEmbedding(List.of(0.5F, 0.5F))
+=======
+                    new TextEmbeddingResults.Embedding(new float[] { -0.9F, 0.5F, 0.3F }),
+                    new TextEmbeddingResults.Embedding(new float[] { 0.1F, 0.5F }),
+                    new TextEmbeddingResults.Embedding(new float[] { 0.5F, 0.5F })
+>>>>>>> main
                 )
             )
         );

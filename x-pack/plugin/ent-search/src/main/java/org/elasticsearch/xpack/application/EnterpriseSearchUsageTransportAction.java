@@ -163,6 +163,7 @@ public class EnterpriseSearchUsageTransportAction extends XPackUsageFeatureTrans
 
         // Step 1: Fetch analytics collections count
         GetAnalyticsCollectionAction.Request analyticsCollectionsCountRequest = new GetAnalyticsCollectionAction.Request(
+            request.masterNodeTimeout(),
             new String[] { "*" }
         );
 

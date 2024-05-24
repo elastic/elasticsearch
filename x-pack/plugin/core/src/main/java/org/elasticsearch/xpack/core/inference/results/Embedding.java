@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.core.inference.results;
 
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -17,16 +18,21 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
-public abstract class Embedding<T> implements Writeable, ToXContentObject {
+public abstract class Embedding<T extends Embedding.EmbeddingValues> implements Writeable, ToXContentObject {
     public static final String EMBEDDING = "embedding";
 
-    protected final List<T> embedding;
+    public interface EmbeddingValues {
+        int size();
+        XContentBuilder valuesToXContent(String fieldName, XContentBuilder builder, Params params);
+    }
 
-    protected Embedding(List<T> embedding) {
+    protected final T embedding;
+
+    protected Embedding(T embedding) {
         this.embedding = embedding;
     }
 
-    public List<T> getEmbedding() {
+    public T getEmbedding() {
         return embedding;
     }
 
@@ -41,13 +47,7 @@ public abstract class Embedding<T> implements Writeable, ToXContentObject {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-
-        builder.startArray(EMBEDDING);
-        for (var value : embedding) {
-            builder.value(value);
-        }
-        builder.endArray();
-
+        embedding.valuesToXContent(EMBEDDING, builder, params);
         builder.endObject();
         return builder;
     }

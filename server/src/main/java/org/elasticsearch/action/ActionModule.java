@@ -807,6 +807,7 @@ public class ActionModule extends AbstractModule {
                     finalFilters.add(filter);
                 }
             }
+            mappedFilters.addAll(plugin.getMappedActionFilters());
         }
         if (mappedFilters.isEmpty() == false) {
             finalFilters.add(new MappedActionFilters(mappedFilters));

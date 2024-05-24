@@ -14,6 +14,8 @@ import org.apache.lucene.search.Query;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.fielddata.FieldDataContext;
@@ -103,7 +105,8 @@ public final class DocumentParser {
             context.reorderParentAndGetDocs(),
             context.sourceToParse().source(),
             context.sourceToParse().getXContentType(),
-            dynamicUpdate
+            dynamicUpdate,
+            documentSizeObserver
         ) {
             @Override
             public String documentDescription() {
@@ -284,6 +287,20 @@ public final class DocumentParser {
         }
 
         if (context.parent().isNested()) {
+            // Handle a nested object that doesn't contain an array. Arrays are handled in #parseNonDynamicArray.
+            if (context.mappingLookup().isSourceSynthetic() && context.getClonedSource() == false) {
+                Tuple<DocumentParserContext, XContentBuilder> tuple = XContentDataHelper.cloneSubContext(context);
+                context.addIgnoredField(
+                    new IgnoredSourceFieldMapper.NameValue(
+                        context.parent().name(),
+                        context.parent().fullPath().indexOf(context.parent().simpleName()),
+                        XContentDataHelper.encodeXContentBuilder(tuple.v2())
+                    )
+                );
+                context = tuple.v1();
+                token = context.parser().currentToken();
+                parser = context.parser();
+            }
             context = context.createNestedContext((NestedObjectMapper) context.parent());
         }
 
@@ -414,7 +431,22 @@ public final class DocumentParser {
                 parseObjectOrNested(context.createFlattenContext(currentFieldName));
                 context.path().add(currentFieldName);
             } else {
-                fieldMapper.parse(context);
+                if (context.mappingLookup().isSourceSynthetic()
+                    && fieldMapper.syntheticSourceMode() == FieldMapper.SyntheticSourceMode.FALLBACK) {
+                    Tuple<DocumentParserContext, XContentBuilder> contextWithSourceToStore = XContentDataHelper.cloneSubContext(context);
+
+                    context.addIgnoredField(
+                        IgnoredSourceFieldMapper.NameValue.fromContext(
+                            context,
+                            fieldMapper.name(),
+                            XContentDataHelper.encodeXContentBuilder(contextWithSourceToStore.v2())
+                        )
+                    );
+
+                    fieldMapper.parse(contextWithSourceToStore.v1());
+                } else {
+                    fieldMapper.parse(context);
+                }
             }
             if (context.isWithinCopyTo() == false) {
                 List<String> copyToFields = fieldMapper.copyTo().copyToFields();
@@ -550,7 +582,7 @@ public final class DocumentParser {
             if (parsesArrayValue(mapper)) {
                 parseObjectOrField(context, mapper);
             } else {
-                parseNonDynamicArray(context, lastFieldName, lastFieldName);
+                parseNonDynamicArray(context, mapper, lastFieldName, lastFieldName);
             }
         } else {
             parseArrayDynamic(context, lastFieldName);
@@ -564,7 +596,7 @@ public final class DocumentParser {
         } else {
             Mapper objectMapperFromTemplate = DynamicFieldsBuilder.createObjectMapperFromTemplate(context, currentFieldName);
             if (objectMapperFromTemplate == null) {
-                parseNonDynamicArray(context, currentFieldName, currentFieldName);
+                parseNonDynamicArray(context, objectMapperFromTemplate, currentFieldName, currentFieldName);
             } else {
                 if (parsesArrayValue(objectMapperFromTemplate)) {
                     if (context.addDynamicMapper(objectMapperFromTemplate) == false) {
@@ -575,7 +607,7 @@ public final class DocumentParser {
                     parseObjectOrField(context, objectMapperFromTemplate);
                     context.path().remove();
                 } else {
-                    parseNonDynamicArray(context, currentFieldName, currentFieldName);
+                    parseNonDynamicArray(context, objectMapperFromTemplate, currentFieldName, currentFieldName);
                 }
             }
         }
@@ -585,8 +617,37 @@ public final class DocumentParser {
         return mapper instanceof FieldMapper && ((FieldMapper) mapper).parsesArrayValue();
     }
 
-    private static void parseNonDynamicArray(DocumentParserContext context, final String lastFieldName, String arrayFieldName)
-        throws IOException {
+    private static void parseNonDynamicArray(
+        DocumentParserContext context,
+        @Nullable Mapper mapper,
+        final String lastFieldName,
+        String arrayFieldName
+    ) throws IOException {
+        // Check if we need to record the array source. This only applies to synthetic source.
+        if (context.mappingLookup().isSourceSynthetic() && context.getClonedSource() == false) {
+            if ((mapper instanceof ObjectMapper objectMapper && objectMapper.storeArraySource()) || mapper instanceof NestedObjectMapper) {
+                // Clone the DocumentParserContext to parse its subtree twice.
+                Tuple<DocumentParserContext, XContentBuilder> tuple = XContentDataHelper.cloneSubContext(context);
+                context.addIgnoredField(
+                    IgnoredSourceFieldMapper.NameValue.fromContext(
+                        context,
+                        context.path().pathAsText(arrayFieldName),
+                        XContentDataHelper.encodeXContentBuilder(tuple.v2())
+                    )
+                );
+                context = tuple.v1();
+            } else if (mapper instanceof ObjectMapper objectMapper && objectMapper.isEnabled() == false) {
+                context.addIgnoredField(
+                    IgnoredSourceFieldMapper.NameValue.fromContext(
+                        context,
+                        context.path().pathAsText(arrayFieldName),
+                        XContentDataHelper.encodeToken(context.parser())
+                    )
+                );
+                return;
+            }
+        }
+
         XContentParser parser = context.parser();
         XContentParser.Token token;
         while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {

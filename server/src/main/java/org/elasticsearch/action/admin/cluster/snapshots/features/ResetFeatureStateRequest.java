@@ -22,7 +22,9 @@ public class ResetFeatureStateRequest extends MasterNodeRequest<ResetFeatureStat
         return new ResetFeatureStateRequest(in);
     }
 
-    public ResetFeatureStateRequest() {}
+    public ResetFeatureStateRequest() {
+        super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT);
+    }
 
     private ResetFeatureStateRequest(StreamInput in) throws IOException {
         super(in);

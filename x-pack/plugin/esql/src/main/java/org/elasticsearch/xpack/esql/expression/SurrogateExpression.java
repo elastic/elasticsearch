@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.esql.expression;
 
-import org.elasticsearch.xpack.ql.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
 
 /**
  * Interface signaling to the planner that the declaring expression

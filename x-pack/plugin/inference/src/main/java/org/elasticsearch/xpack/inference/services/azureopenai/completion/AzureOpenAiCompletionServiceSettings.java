@@ -120,7 +120,7 @@ public class AzureOpenAiCompletionServiceSettings extends FilteredXContentObject
 
     @Override
     public RateLimitSettings rateLimitSettings() {
-        return DEFAULT_RATE_LIMIT_SETTINGS;
+        return rateLimitSettings;
     }
 
     public String apiVersion() {

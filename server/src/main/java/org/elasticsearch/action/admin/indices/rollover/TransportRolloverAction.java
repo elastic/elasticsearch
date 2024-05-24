@@ -181,11 +181,6 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
         final String trialRolloverIndexName = trialRolloverNames.rolloverName();
         MetadataRolloverService.validateIndexName(clusterState, trialRolloverIndexName);
 
-        if (rolloverRequest.isLazy() && targetFailureStore && DataStream.isFailureStoreFeatureFlagEnabled() == false) {
-            listener.onFailure(new IllegalArgumentException("Not all nodes in this cluster support lazily rolling over a failure store"));
-            return;
-        }
-
         boolean isDataStream = metadata.dataStreams().containsKey(rolloverRequest.getRolloverTarget());
         if (rolloverRequest.isLazy()) {
             if (isDataStream == false || rolloverRequest.getConditions().hasConditions()) {

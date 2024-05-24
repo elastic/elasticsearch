@@ -35,7 +35,6 @@ import java.util.Map;
 public final class LazyRolloverAction extends ActionType<RolloverResponse> {
 
     public static final NodeFeature DATA_STREAM_LAZY_ROLLOVER = new NodeFeature("data_stream.rollover.lazy");
-    public static final NodeFeature FAILURE_STORE_LAZY_ROLLOVER = new NodeFeature("data_stream.rollover.lazy.failure_store");
 
     public static final LazyRolloverAction INSTANCE = new LazyRolloverAction();
     public static final String NAME = "indices:admin/data_stream/lazy_rollover";

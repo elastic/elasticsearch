@@ -152,4 +152,20 @@ public class QueryTranslatorTests extends ESTestCase {
             .*must.*esql_single_value":\\{"field":"unsigned_long\"""" + """
             .*"range":\\{"unsigned_long":\\{"gte":2147483648,.*"range":\\{"unsigned_long":\\{"lte":2147483650,.*"""));
     }
+
+    public void testSpatialRelates() {
+        // TODO: bring back SingleValueQuery once it can handle LeafShapeFieldData
+
+        assertQueryTranslation("""
+            FROM airports
+            | WHERE ST_INTERSECTS(geo_point, TO_GEOSHAPE("POLYGON((42 14, 43 14, 43 15, 42 15, 42 14))"))""", containsString("""
+            {"geo_shape":{"field":"geo_point","queryRelation":"INTERSECTS",""" + """
+            "shape":"polygon=linearring(x=[42.0,43.0,43.0,42.0,42.0],y=[14.0,14.0,15.0,15.0,14.0])"}}"""));
+
+        assertQueryTranslation("""
+            FROM airports
+            | WHERE ST_INTERSECTS(TO_GEOSHAPE("POLYGON((42 14, 43 14, 43 15, 42 15, 42 14))"), geo_point)""", containsString("""
+            {"geo_shape":{"field":"geo_point","queryRelation":"INTERSECTS",""" + """
+            "shape":"polygon=linearring(x=[42.0,43.0,43.0,42.0,42.0],y=[14.0,14.0,15.0,15.0,14.0])"}}"""));
+    }
 }

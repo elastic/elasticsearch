@@ -18,6 +18,7 @@ import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.IndexOrDocValuesQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.geo.LuceneGeometriesUtils;
 import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -122,18 +123,32 @@ public class SpatialRelatesQuery extends Query {
     public abstract class ShapeQueryBuilder implements QueryBuilder {
 
         @Override
+        public String toString() {
+            return Strings.toString(this, true, true);
+        }
+
+        @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            throw new UnsupportedOperationException("Unimplemented: toXContent()");
+            builder.startObject();
+            doXContent(builder, params);
+            builder.endObject();
+            return builder;
+        }
+
+        protected void doXContent(XContentBuilder builder, Params params) throws IOException {
+            builder.field("field", field.toString());
+            builder.field("queryRelation", queryRelation.toString());
+            builder.field("shape", shape.toString());
         }
 
         @Override
         public TransportVersion getMinimalSupportedVersion() {
-            throw new UnsupportedOperationException("Unimplemented: toXContent()");
+            throw new UnsupportedOperationException("Unimplemented: getMinimalSupportedVersion()");
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            throw new UnsupportedOperationException("Unimplemented: toXContent()");
+            throw new UnsupportedOperationException("Unimplemented: writeTo()");
         }
 
         @Override
@@ -189,11 +204,18 @@ public class SpatialRelatesQuery extends Query {
     }
 
     private class GeoShapeQueryBuilder extends ShapeQueryBuilder {
-        public final String NAME = "geo_shape";
+        public static final String NAME = "geo_shape";
 
         @Override
         public String getWriteableName() {
             return "GeoShapeQueryBuilder";
+        }
+
+        @Override
+        public void doXContent(XContentBuilder builder, Params params) throws IOException {
+            builder.startObject(NAME);
+            super.doXContent(builder, params);
+            builder.endObject();
         }
 
         @Override
@@ -210,9 +232,18 @@ public class SpatialRelatesQuery extends Query {
     }
 
     private class CartesianShapeQueryBuilder extends ShapeQueryBuilder {
+        public static final String NAME = "cartesian_shape";
+
         @Override
         public String getWriteableName() {
             return "CartesianShapeQueryBuilder";
+        }
+
+        @Override
+        public void doXContent(XContentBuilder builder, Params params) throws IOException {
+            builder.startObject(NAME);
+            super.doXContent(builder, params);
+            builder.endObject();
         }
 
         @Override

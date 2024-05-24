@@ -23,6 +23,9 @@
         "float": {
             "type": "float"
         },
+        "geo_point": {
+          "type": "geo_point"
+        },
         "half_float": {
             "type": "half_float"
         },

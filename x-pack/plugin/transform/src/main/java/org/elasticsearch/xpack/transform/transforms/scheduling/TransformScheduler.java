@@ -61,8 +61,7 @@ public final class TransformScheduler {
         void triggered(Event event);
     }
 
-    public record Stats(int registeredTransformCount, String peekTransformName) {
-    }
+    public record Stats(int registeredTransformCount, String peekTransformName) {}
 
     private static final Logger logger = LogManager.getLogger(TransformScheduler.class);
 

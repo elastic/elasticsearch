@@ -93,10 +93,6 @@ public final class ExpressionTranslators {
         new Scalars()
     );
 
-    public static Query toQuery(Expression e) {
-        return toQuery(e, new QlTranslatorHandler());
-    }
-
     public static Query toQuery(Expression e, TranslatorHandler handler) {
         Query translation = null;
         for (ExpressionTranslator<?> translator : QUERY_TRANSLATORS) {

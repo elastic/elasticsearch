@@ -53,6 +53,7 @@ import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
+import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardNotStartedException;
@@ -122,6 +123,22 @@ public class TransportGetVirtualBatchedCompoundCommitChunkAction extends Transpo
                 request.setParentTask(clusterService.localNode().getId(), task.getId());
             }
 
+            // A relocation of the primary will fail the ongoing search shard recovery by closing the shard.
+            // The initial closing shard is done on the cluster applier thread which needs to obtain the engineMutex.
+            // But opening the engine (as part of the recovery) holds the engineMutex which prevents the indexShard
+            // from being closed and in turn cluster state update. Hence, the retry will never succeed.
+            // On the other hand, the search shard itself can relocate while serving a search request. If the shard's
+            // IndexService or IndexShard is already removed from the parent service, there is no need to retry either.
+            // TODO: Consider removing retries (ES-8402, ES-8601), shard reinit (ES-8602) and release engineMutex (ES-8600)
+            final boolean shouldRetryOnPrimaryNotFound;
+            final IndexService indexService = indicesService.indexService(request.getShardId().getIndex());
+            if (indexService != null) {
+                final IndexShard shard = indexService.getShardOrNull(request.getShardId().id());
+                shouldRetryOnPrimaryNotFound = shard != null && shard.state() != IndexShardState.RECOVERING;
+            } else {
+                shouldRetryOnPrimaryNotFound = false;
+            }
+
             final RetryableAction<GetVirtualBatchedCompoundCommitChunkResponse> retryableAction = new RetryableAction<>(
                 logger,
                 transportService.getThreadPool(),
@@ -139,6 +156,9 @@ public class TransportGetVirtualBatchedCompoundCommitChunkAction extends Transpo
                 @Override
                 public boolean shouldRetry(Exception e) {
                     if (ExceptionsHelper.unwrap(e, IndexNotFoundException.class, ShardNotFoundException.class) != null) {
+                        if (shouldRetryOnPrimaryNotFound == false) {
+                            return false;
+                        }
                         // If the index shard is still available (meaning it relocated), retry.
                         var indexRoutingTable = clusterService.state().routingTable().index(request.getShardId().getIndex());
                         return indexRoutingTable != null && indexRoutingTable.shard(request.getShardId().id()) != null;

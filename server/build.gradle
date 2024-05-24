@@ -59,7 +59,7 @@ dependencies {
 
   // utilities
   api project(":libs:elasticsearch-cli")
-  implementation 'com.carrotsearch:hppc:0.8.1'
+  implementation 'com.carrotsearch:hppc:0.9.1'
 
   // precentil ranks aggregation
   api 'org.hdrhistogram:HdrHistogram:2.1.9'

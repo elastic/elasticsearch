@@ -100,13 +100,6 @@ public record AutoExpandReplicas(int minReplicas, int maxReplicas, boolean enabl
 
     public int getDesiredNumberOfReplicas(IndexMetadata indexMetadata, RoutingAllocation allocation) {
         assert enabled : "should only be called when enabled";
-        // Make sure in stateless auto-expand indices always have 1 replica to ensure all shard roles are always present
-        if (Objects.equals(
-            indexMetadata.getSettings().get(ExistingShardsAllocator.EXISTING_SHARDS_ALLOCATOR_SETTING.getKey()),
-            "stateless"
-        )) {
-            return 1;
-        }
         int numMatchingDataNodes = 0;
         for (DiscoveryNode discoveryNode : allocation.nodes().getDataNodes().values()) {
             Decision decision = allocation.deciders().shouldAutoExpandToNode(indexMetadata, discoveryNode, allocation);
@@ -150,8 +143,21 @@ public record AutoExpandReplicas(int minReplicas, int maxReplicas, boolean enabl
         for (final IndexMetadata indexMetadata : metadata) {
             if (indexMetadata.getState() == IndexMetadata.State.OPEN || isIndexVerifiedBeforeClosed(indexMetadata)) {
                 AutoExpandReplicas autoExpandReplicas = indexMetadata.getAutoExpandReplicas();
+                // Make sure auto-expand is applied only when configured, and entirely disabled in stateless
                 if (autoExpandReplicas.enabled() == false) {
                     continue;
+                }
+                // Special case for stateless indices: auto-expand is disabled, unless number_of_replicas has been set
+                // manually to 0 via index settings, which needs to be converted to 1.
+                if (Objects.equals(
+                    indexMetadata.getSettings().get(ExistingShardsAllocator.EXISTING_SHARDS_ALLOCATOR_SETTING.getKey()),
+                    "stateless"
+                )) {
+                    if (indexMetadata.getNumberOfReplicas() == 0) {
+                        nrReplicasChanged.computeIfAbsent(1, ArrayList::new).add(indexMetadata.getIndex().getName());
+                    } else {
+                        continue;
+                    }
                 }
                 if (allocation == null) {
                     allocation = allocationSupplier.get();

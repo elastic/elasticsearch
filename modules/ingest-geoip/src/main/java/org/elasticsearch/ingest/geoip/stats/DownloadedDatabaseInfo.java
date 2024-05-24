@@ -47,10 +47,10 @@ public record DownloadedDatabaseInfo(String name, DownloadAttempt successfulAtte
         builder.startObject();
         builder.field("name", name);
         if (successfulAttempt != null) {
-            builder.field("last_success", successfulAttempt);
+            builder.field("last_success", successfulAttempt, params);
         }
         if (failedAttempt != null) {
-            builder.field("last_failure", failedAttempt);
+            builder.field("last_failure", failedAttempt, params);
         }
         builder.endObject();
         return builder;

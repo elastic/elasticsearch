@@ -115,7 +115,7 @@ public class GeoIpStatsAction {
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             GeoIpDownloaderStats stats = getDownloaderStats();
             builder.startObject();
-            builder.field("stats", stats);
+            builder.field("stats", stats, params);
             builder.startObject("nodes");
             for (Map.Entry<String, NodeResponse> e : getNodesMap().entrySet()) {
                 NodeResponse response = e.getValue();

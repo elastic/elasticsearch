@@ -68,8 +68,10 @@ class JnaLinuxCLibrary implements LinuxCLibrary {
         try {
             this.functions = Native.load("c", NativeFunctions.class);
         } catch (UnsatisfiedLinkError e) {
-            throw new UnsupportedOperationException("seccomp unavailable: could not link methods. requires kernel 3.5+ "
-                + "with CONFIG_SECCOMP and CONFIG_SECCOMP_FILTER compiled in");
+            throw new UnsupportedOperationException(
+                "seccomp unavailable: could not link methods. requires kernel 3.5+ "
+                    + "with CONFIG_SECCOMP and CONFIG_SECCOMP_FILTER compiled in"
+            );
         }
     }
 

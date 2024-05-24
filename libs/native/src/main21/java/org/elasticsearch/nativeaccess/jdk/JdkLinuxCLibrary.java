@@ -37,8 +37,10 @@ class JdkLinuxCLibrary implements LinuxCLibrary {
                 FunctionDescriptor.of(JAVA_INT, JAVA_INT, JAVA_LONG, JAVA_LONG, JAVA_LONG, JAVA_LONG)
             );
         } catch (UnsatisfiedLinkError e) {
-            throw new UnsupportedOperationException("seccomp unavailable: could not link methods. requires kernel 3.5+ "
-                + "with CONFIG_SECCOMP and CONFIG_SECCOMP_FILTER compiled in");
+            throw new UnsupportedOperationException(
+                "seccomp unavailable: could not link methods. requires kernel 3.5+ "
+                    + "with CONFIG_SECCOMP and CONFIG_SECCOMP_FILTER compiled in"
+            );
         }
     }
     private static final MethodHandle syscall$mh = downcallHandle(

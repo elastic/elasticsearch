@@ -64,8 +64,9 @@ public class RolloverStep extends AsyncActionStep {
             boolean isFailureStoreWriteIndex = indexMetadata.getIndex().equals(dataStream.getFailureStoreWriteIndex());
             if (isFailureStoreWriteIndex == false && dataStream.getWriteIndex().equals(indexMetadata.getIndex()) == false) {
                 logger.warn(
-                    "index [{}] is not the write index for data stream [{}]. skipping rollover for policy [{}]",
+                    "index [{}] is not the {}write index for data stream [{}]. skipping rollover for policy [{}]",
                     indexName,
+                    dataStream.isFailureStoreIndex(indexName) ? "failure store " : "",
                     dataStream.getName(),
                     indexMetadata.getLifecyclePolicyName()
                 );

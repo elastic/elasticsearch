@@ -35,6 +35,8 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -210,17 +212,29 @@ public class TokenCountFieldMapperTests extends MapperTestCase {
             public SyntheticSourceExample example(int maxValues) {
                 if (randomBoolean()) {
                     var value = generateValue();
-                    return new SyntheticSourceExample(value, value, this::mapping);
+                    return new SyntheticSourceExample(value.text, value.text, value.tokenCount, this::mapping);
                 }
 
-                var array = randomList(1, 5, this::generateValue);
-                return new SyntheticSourceExample(array, array, this::mapping);
+                var values = randomList(1, 5, this::generateValue);
+
+                var textArray = values.stream().map(Value::text).toList();
+
+                var blockExpectedList = values.stream().map(Value::tokenCount).filter(Objects::nonNull).toList();
+                var blockExpected = blockExpectedList.size() == 1 ? blockExpectedList.get(0) : blockExpectedList;
+
+                return new SyntheticSourceExample(textArray, textArray, blockExpected, this::mapping);
             }
 
-            private String generateValue() {
-                return rarely()
-                    ? null
-                    : randomList(0, 10, () -> randomAlphaOfLengthBetween(0, 10)).stream().collect(Collectors.joining(" "));
+            private record Value(String text, Integer tokenCount) {}
+
+            private Value generateValue() {
+                if (rarely()) {
+                    return new Value(null, null);
+                }
+
+                var text = randomList(0, 10, () -> randomAlphaOfLengthBetween(0, 10)).stream().collect(Collectors.joining(" "));
+                // with keyword analyzer token count is always 1
+                return new Value(text, 1);
             }
 
             private void mapping(XContentBuilder b) throws IOException {
@@ -230,9 +244,6 @@ public class TokenCountFieldMapperTests extends MapperTestCase {
                 }
                 if (rarely()) {
                     b.field("store", true);
-                }
-                if (rarely()) {
-                    b.field("doc_values", false);
                 }
                 if (nullValue != null) {
                     b.field("null_value", nullValue);
@@ -244,6 +255,11 @@ public class TokenCountFieldMapperTests extends MapperTestCase {
                 return List.of();
             }
         };
+    }
+
+    protected Function<Object, Object> loadBlockExpected() {
+        // we can get either a number from doc values or null
+        return v -> v != null ? (Number) v : null;
     }
 
     @Override

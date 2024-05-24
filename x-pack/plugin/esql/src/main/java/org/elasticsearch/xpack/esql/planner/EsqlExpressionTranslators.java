@@ -353,6 +353,7 @@ public final class EsqlExpressionTranslators {
                     return handler.wrapFunctionQuery(f, cm.ipField(), () -> query);
                 }
             }
+            // TODO we could optimize starts_with as well
 
             return ExpressionTranslators.Scalars.doTranslate(f, handler);
         }

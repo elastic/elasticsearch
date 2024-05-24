@@ -28,7 +28,7 @@ public class IndexInputUtilsTests extends ESTestCase {
     public void testSingleSegment() throws IOException {
         try (Directory dir = new MMapDirectory(createTempDir(getTestName()))) {
             for (int times = 0; times < TIMES; times++) {
-                String fileName = getTestName() + times;
+                String fileName = "testSingleSegment" + times;
                 int size = randomIntBetween(10, 127);
                 try (IndexOutput out = dir.createOutput(fileName, IOContext.DEFAULT)) {
                     byte[] ba = new byte[size];
@@ -80,7 +80,7 @@ public class IndexInputUtilsTests extends ESTestCase {
     public void testMultiSegment() throws IOException {
         try (Directory dir = new MMapDirectory(createTempDir(getTestName()), 32L)) {
             for (int times = 0; times < TIMES; times++) {
-                String fileName = getTestName() + times;
+                String fileName = "testMultiSegment" + times;
                 int size = randomIntBetween(65, 1511);
                 int expectedNumSegs = size / 32 + 1;
                 try (IndexOutput out = dir.createOutput(fileName, IOContext.DEFAULT)) {

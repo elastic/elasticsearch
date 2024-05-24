@@ -14,6 +14,9 @@ import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.client.RestClientBuilder;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.SecureString;
@@ -36,9 +39,11 @@ import java.nio.file.Path;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Map;
+import java.util.concurrent.CountDownLatch;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.test.SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING;
+import static org.elasticsearch.xpack.core.security.action.UpdateIndexMigrationVersionAction.MIGRATION_VERSION_CUSTOM_KEY;
 import static org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
 import static org.hamcrest.Matchers.hasItem;
 
@@ -77,10 +82,30 @@ public abstract class SecuritySingleNodeTestCase extends ESSingleNodeTestCase {
 
     @Override
     public void tearDown() throws Exception {
+        awaitSecurityMigration();
         super.tearDown();
         if (resetNodeAfterTest()) {
             tearDownRestClient();
         }
+    }
+
+    private boolean isMigrationComplete(ClusterState state) {
+        IndexMetadata indexMetadata = state.metadata().getIndices().get(".security-7");
+        return indexMetadata == null || indexMetadata.getCustomData(MIGRATION_VERSION_CUSTOM_KEY) != null;
+    }
+
+    private void awaitSecurityMigration() {
+        final var latch = new CountDownLatch(1);
+        ClusterService clusterService = getInstanceFromNode(ClusterService.class);
+        clusterService.addListener((event) -> {
+            if (isMigrationComplete(event.state())) {
+                latch.countDown();
+            }
+        });
+        if (isMigrationComplete(clusterService.state())) {
+            latch.countDown();
+        }
+        safeAwait(latch);
     }
 
     private static void tearDownRestClient() {

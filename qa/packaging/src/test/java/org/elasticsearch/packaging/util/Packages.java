@@ -104,7 +104,6 @@ public class Packages {
         if (Version.fromString(distribution.baseVersion).onOrAfter(Version.V_7_13_0)) {
             ServerUtils.disableGeoIpDownloader(installation);
         }
-        ServerUtils.enableBootstrapChecks(installation.config);
 
         return installation;
     }

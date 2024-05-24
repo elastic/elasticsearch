@@ -40,11 +40,7 @@ public class DockerRun {
     private DockerRun() {}
 
     public static DockerRun builder() {
-
-        var builder = new DockerRun();
-        // Disable this setting by default in the Docker tests
-        builder.envVar("ingest.geoip.downloader.enabled", "false");
-        return builder;
+        return new DockerRun().envVar("ingest.geoip.downloader.enabled", "false");
     }
 
     public DockerRun distribution(Distribution distribution) {

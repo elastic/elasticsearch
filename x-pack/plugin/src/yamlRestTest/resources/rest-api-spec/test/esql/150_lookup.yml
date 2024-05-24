@@ -18,6 +18,15 @@ index named lookup:
 
 ---
 lookup command unsupported:
+  - requires:
+      test_runner_features: [capabilities]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: [method, path, parameters, capabilities]
+          capabilities: [lookup]
+      reason: "LOOKUP command required"
+
   - do:
       bulk:
         index: lookup

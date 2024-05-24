@@ -22,7 +22,7 @@ LOOKUP:keyword
 ;
 
 evalNamedLookup
-ROW a = "a" | EVAL lookup = CONCAT(a, 1::keyword)
+ROW a = "a" | EVAL lookup = CONCAT(a, "1")
 ;
 
 a:keyword | lookup:keyword

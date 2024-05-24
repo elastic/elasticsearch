@@ -145,17 +145,30 @@ public class EsqlQueryRequestTests extends ESTestCase {
         Locale locale = randomLocale(random());
         QueryBuilder filter = randomQueryBuilder();
 
-        String paramsString = """
+        String paramsString1 = """
             ,"params":[ {"1" : "v1" }] }""";
-        String json = String.format(Locale.ROOT, """
+        String json1 = String.format(Locale.ROOT, """
             {
                 "query": "%s",
                 "columnar": %s,
                 "locale": "%s",
                 "filter": %s
-                %s""", query, columnar, locale.toLanguageTag(), filter, paramsString);
+                %s""", query, columnar, locale.toLanguageTag(), filter, paramsString1);
 
-        Exception e = expectThrows(XContentParseException.class, () -> parseEsqlQueryRequestSync(json));
+        Exception e = expectThrows(XContentParseException.class, () -> parseEsqlQueryRequestSync(json1));
+        assertThat(e.getMessage(), containsString("failed to parse field [params]"));
+
+        String paramsString2 = """
+            ,"params":[ {"1x" : "v1" }] }""";
+        String json2 = String.format(Locale.ROOT, """
+            {
+                "query": "%s",
+                "columnar": %s,
+                "locale": "%s",
+                "filter": %s
+                %s""", query, columnar, locale.toLanguageTag(), filter, paramsString2);
+
+        e = expectThrows(XContentParseException.class, () -> parseEsqlQueryRequestSync(json2));
         assertThat(e.getMessage(), containsString("failed to parse field [params]"));
     }
 

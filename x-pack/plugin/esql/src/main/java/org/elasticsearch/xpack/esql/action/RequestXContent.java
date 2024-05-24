@@ -144,13 +144,21 @@ final class RequestXContent {
                 if (token == XContentParser.Token.START_OBJECT) {
                     // we are at the start of a value/type pair... hopefully
                     param = PARAM_PARSER.apply(p, null);
+                    if (param.fields.size() > 1) {
+                        throw new InvalidArgumentException("Multiple parameters in one curly bracket is not supported.");
+                    }
                     for (Map.Entry<String, Object> entry : param.fields.entrySet()) {
                         // don't allow integer as a key
-                        if (entry.getKey().chars().allMatch(Character::isDigit)) {
-                            throw new InvalidArgumentException("Number " + entry.getKey() + " is not a valid name for a parameter.");
+                        if (Character.isDigit(entry.getKey().charAt(0))) {
+                            throw new InvalidArgumentException(
+                                entry.getKey() + ", starts with a digit, is not a valid parameter name."
+                            );
                         }
                         type = EsqlDataTypes.fromJava(entry.getValue());
-                        currentParam = new QueryParam(entry.getKey(), entry.getValue(), type == null ? DataTypes.KEYWORD : type);
+                        if (type == null) {
+                            throw new XContentParseException(loc, "Failed to parse object: unexpected parameter [" + entry + "] found");
+                        }
+                        currentParam = new QueryParam(entry.getKey(), entry.getValue(), type);
                         namedParameter = true;
                         if (unnamedParameter && namedParameter) {
                             throw new InvalidArgumentException(

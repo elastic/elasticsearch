@@ -460,15 +460,7 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
         assertThat(EntityUtils.toString(re.getResponse().getEntity()), containsString("Not enough actual parameters 0"));
     }
 
-    public void testErrorMessageForMissingTypeInParams() throws IOException {
-        ResponseException re = expectThrows(
-            ResponseException.class,
-            () -> runEsql(requestObjectBuilder().query("row a = 1").params("[\"x\", 123, true, {\"value\": \"y\"}]"))
-        );
-        assertThat(EntityUtils.toString(re.getResponse().getEntity()), containsString("Params contain both named and unnamed parameters"));
-    }
-
-    public void testErrorMessageForMissingValueInParams() throws IOException {
+    public void testErrorMessageForMixedUnnamedAndNamedParams() throws IOException {
         ResponseException re = expectThrows(
             ResponseException.class,
             () -> runEsql(requestObjectBuilder().query("row a = 1").params("[\"x\", 123, true, {\"type\": \"y\"}]"))
@@ -476,14 +468,14 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
         assertThat(EntityUtils.toString(re.getResponse().getEntity()), containsString("Params contain both named and unnamed parameters"));
     }
 
-    public void testErrorMessageForInvalidTypeInParams() throws IOException {
+    public void testErrorMessageForMultipleParamsInOneBracket() throws IOException {
         ResponseException re = expectThrows(
             ResponseException.class,
             () -> runEsqlSync(requestObjectBuilder().query("row a = 1 | eval x = ?").params("[{\"type\": \"byte\", \"value\": 5}]"))
         );
         assertThat(
             EntityUtils.toString(re.getResponse().getEntity()),
-            containsString("EVAL does not support type [byte] in expression [?]")
+            containsString("Multiple parameters in one curly bracket is not supported.")
         );
     }
 
@@ -529,12 +521,9 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
     public void testErrorMessageForArrayValuesInParams() throws IOException {
         ResponseException re = expectThrows(
             ResponseException.class,
-            () -> runEsql(requestObjectBuilder().query("row a = 1 | eval x = ?").params("[{\"type\": \"integer\", \"value\": [5, 6, 7]}]"))
+            () -> runEsql(requestObjectBuilder().query("row a = 1 | eval x = ?").params("[{\"n1\": [5, 6, 7]}]"))
         );
-        assertThat(
-            EntityUtils.toString(re.getResponse().getEntity()),
-            containsString("[params] value doesn't support values of type: START_ARRAY")
-        );
+        assertThat(EntityUtils.toString(re.getResponse().getEntity()), containsString("Failed to parse object: unexpected parameter"));
     }
 
     private static String expectedTextBody(String format, int count, @Nullable Character csvDelimiter) {

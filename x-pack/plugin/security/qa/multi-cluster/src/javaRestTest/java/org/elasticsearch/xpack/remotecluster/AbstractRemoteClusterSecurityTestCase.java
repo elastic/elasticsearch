@@ -77,6 +77,7 @@ public abstract class AbstractRemoteClusterSecurityTestCase extends ESRestTestCa
         .configFile("remote-cluster-client.key", Resource.fromClasspath("ssl/remote-cluster-client.key"))
         .configFile("remote-cluster-client.crt", Resource.fromClasspath("ssl/remote-cluster-client.crt"))
         .configFile("remote-cluster-client-ca.crt", Resource.fromClasspath("ssl/remote-cluster-client-ca.crt"))
+        .module("reindex") // Needed for the role metadata migration
         .user(USER, PASS.toString());
 
     protected static ElasticsearchCluster fulfillingCluster;

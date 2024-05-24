@@ -16,7 +16,6 @@ import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.TypedAttribute;
-import org.elasticsearch.xpack.esql.core.expression.function.scalar.ScalarFunction;
 import org.elasticsearch.xpack.esql.core.expression.predicate.Range;
 import org.elasticsearch.xpack.esql.core.expression.predicate.fulltext.MatchQueryPredicate;
 import org.elasticsearch.xpack.esql.core.expression.predicate.fulltext.MultiMatchQueryPredicate;
@@ -413,19 +412,6 @@ public final class ExpressionTranslators {
             }
 
             return queries.stream().reduce((q1, q2) -> or(in.source(), q1, q2)).get();
-        }
-    }
-
-    public static class Scalars extends ExpressionTranslator<ScalarFunction> {
-
-        @Override
-        protected Query asQuery(ScalarFunction f, TranslatorHandler handler) {
-            return doTranslate(f, handler);
-        }
-
-        @Deprecated(forRemoval = true)
-        public static Query doTranslate(ScalarFunction f, TranslatorHandler handler) {
-            throw new QlIllegalArgumentException("Cannot translate expression:[" + f.sourceText() + "]");
         }
     }
 

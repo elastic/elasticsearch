@@ -354,7 +354,7 @@ public final class EsqlExpressionTranslators {
             }
             // TODO we could optimize starts_with as well
 
-            return ExpressionTranslators.Scalars.doTranslate(f, handler);
+            throw new QlIllegalArgumentException("Cannot translate expression:[" + f.sourceText() + "]");
         }
     }
 

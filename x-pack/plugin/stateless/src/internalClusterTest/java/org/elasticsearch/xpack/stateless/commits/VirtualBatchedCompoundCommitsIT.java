@@ -854,4 +854,135 @@ public class VirtualBatchedCompoundCommitsIT extends AbstractStatelessIntegTestC
             assertNoFailuresAndResponse(searchFuture, response -> {});
         }
     }
+
+    public void testGetVirtualBatchedCompoundCommitShouldNotStuckForConcurrentShardClose() throws Exception {
+        startMasterOnlyNode();
+        final var indexNodeA = startIndexNode();
+        var searchNode = startSearchNode();
+        final var indexNodeB = startIndexNode();
+        ensureStableCluster(4);
+        var indexName = randomIdentifier();
+        createIndex(indexName, indexSettings(1, 0).put("index.routing.allocation.exclude._name", indexNodeB).build());
+        ensureGreen(indexName);
+
+        // Index some docs
+        final IndexedDocs indexedDocs = indexDocsAndRefresh(indexName);
+        var shardId = findIndexShard(indexName).shardId();
+        var statelessCommitService = internalCluster().getInstance(StatelessCommitService.class, indexNodeA);
+
+        // Ensure VBCC not yet uploaded
+        assertNotNull(statelessCommitService.getCurrentVirtualBcc(shardId));
+
+        CountDownLatch getVBCCChunkSent = new CountDownLatch(1);
+        CountDownLatch getVBCCChunkBlocked = new CountDownLatch(1);
+        final var transportService = MockTransportService.getInstance(searchNode);
+        transportService.addSendBehavior((connection, requestId, action, request, options) -> {
+            if (connection.getNode().getName().equals(indexNodeA)
+                && action.equals(TransportGetVirtualBatchedCompoundCommitChunkAction.NAME + "[p]")) {
+                getVBCCChunkSent.countDown();
+                safeAwait(getVBCCChunkBlocked);
+            }
+            connection.sendRequest(requestId, action, request, options);
+        });
+
+        updateIndexSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1), indexName);
+
+        // Wait till search shard start recovery
+        safeAwait(getVBCCChunkSent);
+
+        // Relocate primary, which will make original indexing node throw IndexNotFoundException for GetVBCC action
+        updateIndexSettings(Settings.builder().put("index.routing.allocation.exclude._name", indexNodeA), indexName);
+        awaitClusterState(
+            logger,
+            indexNodeA,
+            clusterState -> clusterState.routingTable()
+                .index(indexName)
+                .shard(shardId.id())
+                .primaryShard()
+                .currentNodeId()
+                .equals(getNodeId(indexNodeB))
+        );
+        assertBusy(() -> assertThat(internalCluster().nodesInclude(indexName), not(hasItem(indexNodeA))));
+        logger.info("--> relocated primary");
+
+        final var indexNodeATransportService = MockTransportService.getInstance(indexNodeA);
+        indexNodeATransportService.addRequestHandlingBehavior(
+            TransportGetVirtualBatchedCompoundCommitChunkAction.NAME + "[p]",
+            (handler, request, channel, task) -> handler.messageReceived(request, new TransportChannel() {
+                @Override
+                public void sendResponse(Exception exception) {
+                    assertThat(exception, instanceOf(IndexNotFoundException.class));
+                    channel.sendResponse(exception);
+                }
+
+                @Override
+                public String getProfileName() {
+                    return channel.getProfileName();
+                }
+
+                @Override
+                public void sendResponse(TransportResponse response) {
+                    assert false : "unexpectedly trying to send response " + response;
+                }
+            }, task)
+        );
+
+        getVBCCChunkBlocked.countDown();
+        // The first recovery for the search shard will fail but it will recover quickly again with the new primary
+        ensureGreen(indexName);
+    }
+
+    public void testSearchKeepsRunningWhenSearchShardRelocates() throws Exception {
+        startMasterOnlyNode();
+        final var indexNode = startIndexNode();
+        var searchNodeA = startSearchNode();
+        var searchNodeB = startSearchNode();
+        ensureStableCluster(4);
+        var indexName = randomIdentifier();
+        createIndex(indexName, indexSettings(1, 1).put("index.routing.allocation.exclude._name", searchNodeB).build());
+        ensureGreen(indexName);
+
+        // Index some docs
+        final IndexedDocs indexedDocs = indexDocsAndRefresh(indexName);
+        var shardId = findIndexShard(indexName).shardId();
+        var statelessCommitService = internalCluster().getInstance(StatelessCommitService.class, indexNode);
+        // Ensure VBCC not yet uploaded
+        assertNotNull(statelessCommitService.getCurrentVirtualBcc(shardId));
+
+        // Empty cache on search node, to ensure an action is sent to the indexing node
+        evictSearchShardCache(indexName);
+
+        final var getVBCCChunkSent = new CountDownLatch(1);
+        final var getVBCCChunkBlocked = new CountDownLatch(1);
+        final var searchNodeATransportService = MockTransportService.getInstance(searchNodeA);
+        searchNodeATransportService.addSendBehavior((connection, requestId, action, request, options) -> {
+            if (connection.getNode().getName().equals(indexNode)
+                && action.equals(TransportGetVirtualBatchedCompoundCommitChunkAction.NAME + "[p]")) {
+                getVBCCChunkSent.countDown();
+                safeAwait(getVBCCChunkBlocked);
+            }
+            connection.sendRequest(requestId, action, request, options);
+        });
+
+        final CountDownLatch searchCompletionLatch = new CountDownLatch(1);
+        final Thread searchThread = new Thread(() -> {
+            validateSearchResponse(indexName, TestSearchType.MATCH_ALL, indexedDocs);
+            searchCompletionLatch.countDown();
+        });
+        logger.info("--> starting search");
+        searchThread.start();
+
+        // Wait till search shard start searching
+        safeAwait(getVBCCChunkSent);
+
+        // Relocate the search shard
+        updateIndexSettings(Settings.builder().put("index.routing.allocation.exclude._name", searchNodeA), indexName);
+        assertBusy(() -> assertThat(internalCluster().nodesInclude(indexName), not(hasItem(searchNodeA))));
+        logger.info("--> relocated search shard");
+
+        getVBCCChunkBlocked.countDown();
+        ensureGreen(indexName);
+        safeAwait(searchCompletionLatch);
+        searchThread.join();
+    }
 }

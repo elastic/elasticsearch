@@ -25,10 +25,7 @@ public class BootstrapCheckTests extends PackagingTestCase {
     }
 
     public void test20RunWithBootstrapChecks() throws Exception {
-        configureBootstrapChecksAndRun(Map.of(
-            "discovery.seed_hosts",  "[]",
-            "xpack.security.enabled", "false"
-        ));
+        configureBootstrapChecksAndRun(Map.of("discovery.seed_hosts", "[]", "xpack.security.enabled", "false"));
     }
 
     private void configureBootstrapChecksAndRun(Map<String, String> settings) throws Exception {

@@ -10,17 +10,11 @@ package org.elasticsearch.xpack.application.rules.action;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xpack.application.EnterpriseSearchModuleTestUtils;
 import org.elasticsearch.xpack.application.rules.QueryRule;
-import org.elasticsearch.xpack.application.rules.QueryRuleCriteria;
-import org.elasticsearch.xpack.application.rules.QueryRuleset;
-import org.elasticsearch.xpack.application.search.SearchApplicationTestUtils;
 import org.elasticsearch.xpack.core.ml.AbstractBWCSerializationTestCase;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.List;
-
-import static org.elasticsearch.xpack.application.rules.QueryRuleCriteria.CRITERIA_METADATA_VALUES_TRANSPORT_VERSION;
 
 public class PutQueryRuleActionRequestBWCSerializingTests extends AbstractBWCSerializationTestCase<PutQueryRuleAction.Request> {
 
@@ -35,7 +29,7 @@ public class PutQueryRuleActionRequestBWCSerializingTests extends AbstractBWCSer
     @Override
     protected PutQueryRuleAction.Request createTestInstance() {
         this.queryRulesetId = randomAlphaOfLengthBetween(5, 10);
-        this.queryRule = SearchApplicationTestUtils.randomQueryRule();
+        this.queryRule = EnterpriseSearchModuleTestUtils.randomQueryRule();
         return new PutQueryRuleAction.Request(queryRulesetId, queryRule);
     }
 

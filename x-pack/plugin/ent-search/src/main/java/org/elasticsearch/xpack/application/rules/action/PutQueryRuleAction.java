@@ -122,7 +122,7 @@ public class PutQueryRuleAction {
         }
 
         private static final ConstructingObjectParser<Request, String> PARSER = new ConstructingObjectParser<>(
-            "put_query_rules_request",
+            "put_query_rule_request",
             p -> new Request((String) p[0], (QueryRule) p[2])
         );
 

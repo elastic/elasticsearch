@@ -8,12 +8,14 @@
 package org.elasticsearch.xpack.application.rules;
 
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
@@ -53,6 +55,11 @@ public class QueryRule implements Writeable, ToXContentObject {
     private final QueryRuleType type;
     private final List<QueryRuleCriteria> criteria;
     private final Map<String, Object> actions;
+    private final int priority;
+
+    static final int MIN_PRIORITY = 0;
+    static final int MAX_PRIORITY = 1000000;
+    static final int DEFAULT_PRIORITY = MAX_PRIORITY + 1;
 
     public enum QueryRuleType {
         PINNED;
@@ -79,8 +86,16 @@ public class QueryRule implements Writeable, ToXContentObject {
      * @param type                      The {@link QueryRuleType} of this rule
      * @param criteria                  The {@link QueryRuleCriteria} required for a query to match this rule
      * @param actions                   The actions that should be taken if this rule is matched, dependent on the type of rule
+     * @param priority        If specified, assigns a priority to the rule. Rules with specified priorities are applied before
+     *                                  rules without specified priorities, in ascending priority order.
      */
-    public QueryRule(String id, QueryRuleType type, List<QueryRuleCriteria> criteria, Map<String, Object> actions) {
+    public QueryRule(
+        String id,
+        QueryRuleType type,
+        List<QueryRuleCriteria> criteria,
+        Map<String, Object> actions,
+        @Nullable Integer priority
+    ) {
         if (Strings.isNullOrEmpty(id)) {
             throw new IllegalArgumentException("Query rule id cannot be null or blank");
         }
@@ -100,6 +115,7 @@ public class QueryRule implements Writeable, ToXContentObject {
             throw new IllegalArgumentException("Query rule actions cannot be empty");
         }
         this.actions = actions;
+        this.priority = priority != null ? priority : DEFAULT_PRIORITY;
 
         validate();
     }
@@ -109,6 +125,12 @@ public class QueryRule implements Writeable, ToXContentObject {
         this.type = QueryRuleType.queryRuleType(in.readString());
         this.criteria = in.readCollectionAsList(QueryRuleCriteria::new);
         this.actions = in.readGenericMap();
+
+        if (in.getTransportVersion().onOrAfter(TransportVersions.QUERY_RULE_CRUD_API_PUT)) {
+            this.priority = in.readOptionalVInt();
+        } else {
+            this.priority = DEFAULT_PRIORITY;
+        }
 
         validate();
     }
@@ -146,6 +168,9 @@ public class QueryRule implements Writeable, ToXContentObject {
         out.writeString(type.toString());
         out.writeCollection(criteria);
         out.writeGenericMap(actions);
+        if (out.getTransportVersion().onOrAfter(TransportVersions.QUERY_RULE_CRUD_API_PUT)) {
+            out.writeOptionalVInt(priority);
+        }
     }
 
     @SuppressWarnings("unchecked")
@@ -157,7 +182,8 @@ public class QueryRule implements Writeable, ToXContentObject {
             final QueryRuleType type = QueryRuleType.queryRuleType((String) params[1]);
             final List<QueryRuleCriteria> criteria = (List<QueryRuleCriteria>) params[2];
             final Map<String, Object> actions = (Map<String, Object>) params[3];
-            return new QueryRule(id, type, criteria, actions);
+            final Integer priority = (Integer) params[4];
+            return new QueryRule(id, type, criteria, actions, priority);
         }
     );
 
@@ -165,12 +191,14 @@ public class QueryRule implements Writeable, ToXContentObject {
     public static final ParseField TYPE_FIELD = new ParseField("type");
     public static final ParseField CRITERIA_FIELD = new ParseField("criteria");
     public static final ParseField ACTIONS_FIELD = new ParseField("actions");
+    public static final ParseField PRIORITY_FIELD = new ParseField("priority");
 
     static {
         PARSER.declareStringOrNull(optionalConstructorArg(), ID_FIELD);
         PARSER.declareString(constructorArg(), TYPE_FIELD);
         PARSER.declareObjectArray(constructorArg(), (p, c) -> QueryRuleCriteria.fromXContent(p), CRITERIA_FIELD);
         PARSER.declareObject(constructorArg(), (p, c) -> p.map(), ACTIONS_FIELD);
+        PARSER.declareIntOrNull(optionalConstructorArg(), DEFAULT_PRIORITY, PRIORITY_FIELD);
     }
 
     /**
@@ -213,7 +241,9 @@ public class QueryRule implements Writeable, ToXContentObject {
             builder.xContentList(CRITERIA_FIELD.getPreferredName(), criteria);
             builder.field(ACTIONS_FIELD.getPreferredName());
             builder.map(actions);
-
+            if (priority != DEFAULT_PRIORITY) {
+                builder.field(PRIORITY_FIELD.getPreferredName(), priority);
+            }
         }
         builder.endObject();
         return builder;
@@ -255,6 +285,10 @@ public class QueryRule implements Writeable, ToXContentObject {
         return actions;
     }
 
+    public int priority() {
+        return priority;
+    }
+
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
@@ -263,12 +297,13 @@ public class QueryRule implements Writeable, ToXContentObject {
         return Objects.equals(id, queryRule.id)
             && type == queryRule.type
             && Objects.equals(criteria, queryRule.criteria)
-            && Objects.equals(actions, queryRule.actions);
+            && Objects.equals(actions, queryRule.actions)
+            && Objects.equals(priority, queryRule.priority);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(id, type, criteria, actions);
+        return Objects.hash(id, type, criteria, actions, priority);
     }
 
     @Override

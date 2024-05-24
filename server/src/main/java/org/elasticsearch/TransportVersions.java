@@ -177,6 +177,7 @@ public class TransportVersions {
     public static final TransportVersion ESQL_ADD_INDEX_MODE_TO_SOURCE = def(8_668_00_0);
     public static final TransportVersion GET_SHUTDOWN_STATUS_TIMEOUT = def(8_669_00_0);
     public static final TransportVersion FAILURE_STORE_TELEMETRY = def(8_670_00_0);
+    public static final TransportVersion QUERY_RULE_CRUD_API_PUT = def(8_671_00_0);
 
     /*
      * STOP! READ THIS FIRST! No, really,

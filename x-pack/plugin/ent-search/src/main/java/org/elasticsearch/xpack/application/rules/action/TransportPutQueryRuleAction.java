@@ -18,7 +18,6 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.application.rules.QueryRule;
 import org.elasticsearch.xpack.application.rules.QueryRulesIndexService;
-import org.elasticsearch.xpack.application.rules.QueryRuleset;
 
 public class TransportPutQueryRuleAction extends HandledTransportAction<PutQueryRuleAction.Request, PutQueryRuleAction.Response> {
     protected final QueryRulesIndexService systemIndexService;

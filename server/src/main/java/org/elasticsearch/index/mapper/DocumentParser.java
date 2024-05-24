@@ -659,6 +659,8 @@ public final class DocumentParser {
         if (context.canAddIgnoredField()) {
             if ((mapper instanceof ObjectMapper objectMapper
                 && (objectMapper.storeArraySource() || objectMapper.dynamic == ObjectMapper.Dynamic.RUNTIME))
+                || (mapper instanceof FieldMapper fieldMapper
+                    && fieldMapper.syntheticSourceMode() == FieldMapper.SyntheticSourceMode.FALLBACK)
                 || mapper instanceof NestedObjectMapper
                 || context.dynamic() == ObjectMapper.Dynamic.RUNTIME) {
                 // Clone the DocumentParserContext to parse its subtree twice.
@@ -897,21 +899,7 @@ public final class DocumentParser {
 
         @Override
         protected void parseCreateField(DocumentParserContext context) {
-            // Run-time fields are mapped to this mapper, so it needs to handle storing values for use in synthetic source.
-            // #parseValue calls this method once the run-time field is created.
-            if (context.dynamic() == ObjectMapper.Dynamic.RUNTIME && context.canAddIgnoredField()) {
-                try {
-                    context.addIgnoredField(
-                        IgnoredSourceFieldMapper.NameValue.fromContext(
-                            context,
-                            context.path().pathAsText(context.parser().currentName()),
-                            XContentDataHelper.encodeToken(context.parser())
-                        )
-                    );
-                } catch (IOException e) {
-                    throw new IllegalArgumentException("failed to parse run-time field under [" + context.path().pathAsText("") + " ]", e);
-                }
-            }
+            // field defined as runtime field, don't index anything
         }
 
         @Override

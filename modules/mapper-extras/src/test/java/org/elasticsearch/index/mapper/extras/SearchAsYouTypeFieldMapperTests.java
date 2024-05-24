@@ -827,12 +827,25 @@ public class SearchAsYouTypeFieldMapperTests extends MapperTestCase {
     @Override
     protected SyntheticSourceSupport syntheticSourceSupport(boolean syntheticSource) {
         return new SyntheticSourceSupport() {
+            @Override
+            public boolean preservesExactSource() {
+                return true;
+            }
+
             public SyntheticSourceExample example(int maxValues) {
-                String value = rarely()
+                if (randomBoolean()) {
+                    var value = generateValue();
+                    return new SyntheticSourceExample(value, value, this::mapping);
+                }
+
+                var array = randomList(1, 5, this::generateValue);
+                return new SyntheticSourceExample(array, array, this::mapping);
+            }
+
+            private Object generateValue() {
+                return rarely()
                     ? null
                     : randomList(0, 10, () -> randomAlphaOfLengthBetween(0, 10)).stream().collect(Collectors.joining(" "));
-
-                return new SyntheticSourceExample(value, value, this::mapping);
             }
 
             private void mapping(XContentBuilder b) throws IOException {

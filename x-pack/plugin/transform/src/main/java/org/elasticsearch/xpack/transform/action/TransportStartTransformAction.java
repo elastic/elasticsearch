@@ -117,10 +117,10 @@ public class TransportStartTransformAction extends TransportMasterNodeAction<Sta
             StartTransformAction.Response::new,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
-        this.transformConfigManager = transformServices.getConfigManager();
+        this.transformConfigManager = transformServices.configManager();
         this.persistentTasksService = persistentTasksService;
         this.client = client;
-        this.auditor = transformServices.getAuditor();
+        this.auditor = transformServices.auditor();
         this.destIndexSettings = transformExtensionHolder.getTransformExtension().getTransformDestinationIndexSettings();
     }
 

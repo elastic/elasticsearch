@@ -216,18 +216,19 @@ unassigned. See <<high-jvm-memory-pressure>>.
 
 If a node containing a primary shard is lost, {es} can typically replace it
 using a replica on another node. If you can't recover the node and replicas
-don't exist or are irrecoverable, you'll need to re-add the missing data from a
-<<snapshot-restore,snapshot>> or the original data source.
+don't exist or are irrecoverable, <<cluster-allocation-explain,Allocation 
+Explain>> will report `no_valid_shard_copy` and you'll need to do one of the following: 
 
+* restore the missing data from <<snapshot-restore,snapshot>> 
+* index the missing data from its original data source
+* accept data loss on the index-level by running <<indices-delete-index,Delete Index>>
+* accept data loss on the shard-level by executing <<cluster-reroute,Cluster Reroute>> allocate_stale_primary or allocate_empty_primary command with `accept_data_loss: true`
++
 WARNING: Only use this option if node recovery is no longer possible. This
 process allocates an empty primary shard. If the node later rejoins the cluster,
 {es} will overwrite its primary shard with data from this newer empty shard,
 resulting in data loss.
-
-Use the <<cluster-reroute,cluster reroute API>> to manually allocate the
-unassigned primary shard to another data node in the same tier. Set
-`accept_data_loss` to `true`.
-
++
 [source,console]
 ----
 POST _cluster/reroute?metric=none
@@ -246,7 +247,3 @@ POST _cluster/reroute?metric=none
 ----
 // TEST[s/^/PUT my-index\n/]
 // TEST[catch:bad_request]
-
-If you backed up the missing index data to a snapshot, use the
-<<restore-snapshot-api,restore snapshot API>> to restore the individual index.
-Alternatively, you can index the missing data from the original data source.

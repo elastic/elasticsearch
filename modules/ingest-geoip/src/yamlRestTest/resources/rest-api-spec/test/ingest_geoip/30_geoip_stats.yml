@@ -7,9 +7,23 @@
   - gte: { stats.skipped_updates: 0 }
   - gte: { stats.databases_count: 0 }
   - gte: { stats.total_download_time: 0 }
+  - is_true: stats.downloader_attempts
+  - length: { stats.downloader_attempts: 4 }
+  - match: { stats.downloader_attempts.0.name: "GeoLite2-ASN.mmdb" }
+  - match: { stats.downloader_attempts.0.last_success.md5: "61c38f0fcec4a7b0b359201f124004df" }
+  - gte: { stats.downloader_attempts.0.last_success.download_date_in_millis: 0 }
+  - gte: { stats.downloader_attempts.0.last_success.download_time_in_millis: 0 }
+  - match: { stats.downloader_attempts.0.last_success.source: "127.0.0.1" }
+  - gte: { stats.downloader_attempts.0.last_success.build_date_in_millis: 0 }
   - is_true: nodes
   - set:
       nodes._arbitrary_key_: node_id
+  - is_true: nodes.$node_id.databases
+  - length: { nodes.$node_id.databases: 4 }
+  - match: { nodes.$node_id.databases.0.name: "GeoLite2-ASN.mmdb" }
+  - match: { nodes.$node_id.databases.0.md5: "61c38f0fcec4a7b0b359201f124004df" }
+  - gte: { nodes.$node_id.databases.0.build_date_in_millis: 0 }
+  - match: { nodes.$node_id.databases.0.type: "GeoLite2-ASN" }
   - gte: { nodes.$node_id.cache_stats.count: 0 }
   - gte: { nodes.$node_id.cache_stats.hits: 0 }
   - gte: { nodes.$node_id.cache_stats.misses: 0 }

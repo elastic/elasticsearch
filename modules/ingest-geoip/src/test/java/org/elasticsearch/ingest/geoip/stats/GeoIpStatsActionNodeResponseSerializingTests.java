@@ -52,9 +52,9 @@ public class GeoIpStatsActionNodeResponseSerializingTests extends AbstractWireSe
     private static RetrievedDatabaseInfo randomRetrievedDatabaseInfo() {
         return new RetrievedDatabaseInfo(
             randomAlphaOfLengthBetween(5, 10),
-            randomAlphaOfLengthBetween(5, 10),
-            randomLong(),
-            randomAlphaOfLengthBetween(5, 10)
+            randomBoolean() ? null : randomAlphaOfLengthBetween(5, 10),
+            randomBoolean() ? null : randomLong(),
+            randomBoolean() ? null : randomAlphaOfLengthBetween(5, 10)
         );
     }
 }

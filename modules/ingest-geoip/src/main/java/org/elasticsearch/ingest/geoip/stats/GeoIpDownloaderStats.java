@@ -182,18 +182,22 @@ public class GeoIpDownloaderStats implements Task.Status {
         );
     }
 
+    public GeoIpDownloaderStats failedDownloadDatabaseUnknown(Exception exception) {
+        return failedDownload(null, null, exception, null, null, null, null);
+    }
+
     public GeoIpDownloaderStats failedDownload(
         String name,
         String md5,
         Exception exception,
-        long downloadDate,
+        Long downloadDate,
         Long buildDate,
         String source,
-        long downloadTime
+        Long downloadTime
     ) {
-        TreeMap<String, DownloadedDatabaseInfo> updatedDatabaseInfos;
-        if (downloadedDatabaseInfos == null) {
-            updatedDatabaseInfos = null;
+        SortedMap<String, DownloadedDatabaseInfo> updatedDatabaseInfos;
+        if (name == null || downloadedDatabaseInfos == null) {
+            updatedDatabaseInfos = downloadedDatabaseInfos;
         } else {
             DownloadedDatabaseInfo downloadedDatabaseInfo = downloadedDatabaseInfos.get(name);
             DownloadedDatabaseInfo updatedDownloadedDatabaseInfo;

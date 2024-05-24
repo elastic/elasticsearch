@@ -9,7 +9,6 @@
 package org.elasticsearch.ingest.geoip.stats;
 
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
@@ -84,12 +83,8 @@ public class GeoIpDownloaderStatsSerializingTests extends AbstractXContentSerial
 
         DOWNLOAD_ATTEMPT_PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), new ParseField("md5"));
         DOWNLOAD_ATTEMPT_PARSER.declareLong(ConstructingObjectParser.optionalConstructorArg(), new ParseField("download_date_in_millis"));
-        DOWNLOAD_ATTEMPT_PARSER.declareString(
-            ConstructingObjectParser.constructorArg(),
-            s -> TimeValue.parseTimeValue(s, "").getMillis(),
-            new ParseField("download_time")
-        );
-        DOWNLOAD_ATTEMPT_PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), new ParseField("provider"));
+        DOWNLOAD_ATTEMPT_PARSER.declareLong(ConstructingObjectParser.optionalConstructorArg(), new ParseField("download_time_in_millis"));
+        DOWNLOAD_ATTEMPT_PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), new ParseField("source"));
         DOWNLOAD_ATTEMPT_PARSER.declareLong(ConstructingObjectParser.optionalConstructorArg(), new ParseField("build_date_in_millis"));
         DOWNLOAD_ATTEMPT_PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), new ParseField("error_message"));
     }

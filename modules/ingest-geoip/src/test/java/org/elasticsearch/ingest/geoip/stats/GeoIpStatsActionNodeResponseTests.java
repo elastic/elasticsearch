@@ -49,9 +49,9 @@ public class GeoIpStatsActionNodeResponseTests extends ESTestCase {
     private static RetrievedDatabaseInfo randomRetrievedDatabaseInfo() {
         return new RetrievedDatabaseInfo(
             randomAlphaOfLengthBetween(5, 10),
-            randomAlphaOfLengthBetween(5, 10),
-            randomLong(),
-            randomAlphaOfLengthBetween(5, 10)
+            randomBoolean() ? null : randomAlphaOfLengthBetween(5, 10),
+            randomBoolean() ? null : randomLong(),
+            randomBoolean() ? null : randomAlphaOfLengthBetween(5, 10)
         );
     }
 }

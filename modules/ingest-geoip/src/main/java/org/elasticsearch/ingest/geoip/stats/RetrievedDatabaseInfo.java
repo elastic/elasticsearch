@@ -11,10 +11,13 @@ package org.elasticsearch.ingest.geoip.stats;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.core.Nullable;
 
 import java.io.IOException;
 
-public record RetrievedDatabaseInfo(String name, String md5, Long buildDateInMillis, String type) implements Writeable {
+public record RetrievedDatabaseInfo(String name, @Nullable String md5, @Nullable Long buildDateInMillis, @Nullable String type)
+    implements
+        Writeable {
 
     public RetrievedDatabaseInfo(StreamInput in) throws IOException {
         this(in.readString(), in.readOptionalString(), in.readOptionalLong(), in.readOptionalString());

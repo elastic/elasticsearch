@@ -96,7 +96,10 @@ public record DownloadedDatabaseInfo(String name, DownloadAttempt successfulAtte
                 builder.timeField("download_date_in_millis", "download_date", downloadAttemptTimeInMillis);
             }
             if (downloadDurationInMillis != null) {
-                builder.field("download_time", TimeValue.timeValueMillis(downloadDurationInMillis).toString());
+                builder.field("download_time_in_millis", TimeValue.timeValueMillis(downloadDurationInMillis).millis());
+                if (params.paramAsBoolean("human", false)) {
+                    builder.field("download_time", TimeValue.timeValueMillis(downloadDurationInMillis).toString());
+                }
             }
             if (source != null) {
                 builder.field("source", source);

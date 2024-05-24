@@ -21,29 +21,35 @@ class Estimator:
     self.variance = None
     self.smoothing_factor = smoothing_factor
     self.autodetect_dynamics_change = autodetect_dynamics_change
+    self.dynamics_changed_last_time = False
 
   def dynamics_change_detected(self, value, variance):
     """Returns whether if the (value, variance) is more than 10 stddev unlikely."""
     return (self.variance is not None and self.autodetect_dynamics_change
             and abs(value - self.value) ** 2.0 / (self.variance + variance) > 100.0)
 
-  def add(self, value, variance, dynamics_changed=False) -> None:
-    process_variance = variance / self.smoothing_factor
-
-    if dynamics_changed or self.dynamics_change_detected(value, variance):
-      # If we know we likely had a change in the quantity we're estimating or the prediction is 10 stddev off,
-      # we inject extra noise in the dynamics for this step.
-      process_variance *= self.smoothing_factor
-      print(f'dynamic changed: value={value} state={self.value} +-/ {self.error()} '
-            f'(external event={dynamics_changed})')
-
+  def add(self, value, variance, dynamics_changed_external=False) -> None:
     if self.variance is None:
       self.value = value
       self.variance = variance
-    else:
-      gain = (self.variance + process_variance) / (self.variance + process_variance + variance)
-      self.value += gain * (value - self.value)
-      self.variance = (1 - gain) * (self.variance + process_variance)
+      self.dynamics_changed_last_time = True
+      return
+
+    process_variance = variance / self.smoothing_factor
+
+    dynamics_changed = dynamics_changed_external or self.dynamics_change_detected(value, variance)
+    if dynamics_changed or self.dynamics_changed_last_time:
+      # If we know we likely had a change in the quantity we're estimating or the prediction is 10 stddev off,
+      # we inject extra noise in the dynamics for this step.
+      process_variance = value
+      print(f'dynamic changed: value={value:.3f}±{math.sqrt(variance):.3f} '
+            f'state={self.value:.3f}±{self.error():.23} '
+            f'(external={dynamics_changed})')
+    self.dynamics_changed_last_time = dynamics_changed
+
+    gain = (self.variance + process_variance) / (self.variance + process_variance + variance)
+    self.value += gain * (value - self.value)
+    self.variance = (1 - gain) * (self.variance + process_variance)
 
   def estimate(self) -> float:
     return self.value

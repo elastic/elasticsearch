@@ -152,9 +152,9 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
         // important: note that we pass the context object as lock object
         super(threadPool, initialState, initialPosition, jobStats, context);
         ExceptionsHelper.requireNonNull(transformServices, "transformServices");
-        this.transformsConfigManager = transformServices.getConfigManager();
+        this.transformsConfigManager = transformServices.configManager();
         this.checkpointProvider = ExceptionsHelper.requireNonNull(checkpointProvider, "checkpointProvider");
-        this.auditor = transformServices.getAuditor();
+        this.auditor = transformServices.auditor();
         this.transformConfig = ExceptionsHelper.requireNonNull(transformConfig, "transformConfig");
         this.progress = transformProgress != null ? transformProgress : new TransformProgress();
         this.lastCheckpoint = ExceptionsHelper.requireNonNull(lastCheckpoint, "lastCheckpoint");

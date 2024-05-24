@@ -1047,15 +1047,22 @@ public class TrainedModelAssignmentClusterService implements ClusterStateListene
         if (event.changedCustomMetadataSet().contains(PersistentTasksCustomMetadata.TYPE) == false) {
             return Optional.empty();
         }
-        final PersistentTasksCustomMetadata previousPersistentTasks = event.previousState()
-            .getMetadata()
-            .custom(PersistentTasksCustomMetadata.TYPE);
-        final PersistentTasksCustomMetadata currentPersistentTasks = event.state().getMetadata().custom(PersistentTasksCustomMetadata.TYPE);
-        Set<String> previousMlTaskIds = findMlProcessTaskIds(previousPersistentTasks);
+
+        PersistentTasksCustomMetadata previousPersistentTasks = PersistentTasksCustomMetadata.getPersistentTasksCustomMetadata(
+            event.previousState()
+        );
+        if (previousPersistentTasks == null) { // no previous jobs so nothing has stopped
+            return Optional.empty();
+        }
+
+        PersistentTasksCustomMetadata currentPersistentTasks = PersistentTasksCustomMetadata.getPersistentTasksCustomMetadata(
+            event.state()
+        );
         Set<String> currentMlTaskIds = findMlProcessTaskIds(currentPersistentTasks);
-        Set<String> stoppedTaskTypes = previousMlTaskIds.stream()
-            .filter(id -> currentMlTaskIds.contains(id) == false) // remove the tasks that are still present. Stopped Ids only.
-            .map(previousPersistentTasks::getTask)
+
+        Set<PersistentTasksCustomMetadata.PersistentTask<?>> previousMlTasks = MlTasks.findMlProcessTasks(previousPersistentTasks);
+        Set<String> stoppedTaskTypes = previousMlTasks.stream()
+            .filter(task -> currentMlTaskIds.contains(task.getId()) == false) // remove the tasks that are still present. Stopped Ids only.
             .map(PersistentTasksCustomMetadata.PersistentTask::getTaskName)
             .map(MlTasks::prettyPrintTaskName)
             .collect(Collectors.toSet());

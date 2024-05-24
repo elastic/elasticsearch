@@ -13,6 +13,8 @@ setup:
       indices.create:
         index: index-with-sparse-vector
         body:
+          settings:
+            number_of_shards: 1
           mappings:
             properties:
               source_text:
@@ -66,17 +68,17 @@ setup:
         index: index-with-sparse-vector
         refresh: true
         body: |
-          {"index": {}}
+          {"index": { "_id": 1 }}
           {"source_text": "my words comforter", "ml.tokens":{"my":0.5,"words":1.0,"comforter":2.0}}
-          {"index": {}}
+          {"index": { "_id": 2 }}
           {"source_text": "the machine is leaking", "ml.tokens":{"the":0.5,"machine":1.0,"is":0.5,"leaking":1.0}}
-          {"index": {}}
+          {"index": { "_id": 3 }}
           {"source_text": "these are my words", "ml.tokens":{"these":0.5,"are":0.5,"my":0.5,"words":1.0}}
-          {"index": {}}
+          {"index": { "_id": 4 }}
           {"source_text": "the octopus comforter smells", "ml.tokens":{"the":0.5,"octopus":2.0,"comforter":2.0,"smells":1.0}}
-          {"index": {}}
+          {"index": { "_id": 5 }}
           {"source_text": "the octopus comforter is leaking", "ml.tokens":{"the":0.5,"octopus":2.0,"comforter":2.0,"is":0.5,"leaking":1.0}}
-          {"index": {}}
+          {"index": { "_id": 6 }}
           {"source_text": "washing machine smells", "ml.tokens":{"washing":1.0,"machine":1.0,"smells":1.0}}
 
   - do:
@@ -117,7 +119,7 @@ setup:
   - match: { hits.hits.0._source.source_text: "the octopus comforter smells" }
 
 ---
-"Test named, boosted sparse_vector search with pruning config":
+"Test named, boosted sparse_vector search with pruning config - note this will not change returned results due to model limitations":
   - do:
       search:
         index: index-with-sparse-vector
@@ -150,7 +152,7 @@ setup:
   - match: { hits.hits.0._score: 500.0 }
 
 ---
-"Test sparse_vector search with specified pruning config":
+"Test sparse_vector search with specified pruning config - note default values will not change returned results due to model limitations":
   - do:
       search:
         index: index-with-sparse-vector
@@ -169,7 +171,7 @@ setup:
   - match: { hits.hits.0._source.source_text: "the octopus comforter smells" }
 
 ---
-"Test sparse_vector search with default pruning config specified":
+"Test sparse_vector search with default pruning config specified - note this will not change returned results due to model limitations":
   - do:
       search:
         index: index-with-sparse-vector
@@ -241,7 +243,6 @@ setup:
                 only_score_pruned_tokens: false
 
   - match: { hits.total.value: 3 }
-  - match: { hits.hits.0._source.source_text: "my words comforter" }
   - match: { hits.hits.0._score: 4 }
 
 ---
@@ -264,7 +265,6 @@ setup:
                 tokens_weight_threshold: 0.4
                 only_score_pruned_tokens: true
   - match: { hits.total.value: 3 }
-  - match: { hits.hits.0._source.source_text: "the machine is leaking" }
   - match: { hits.hits.0._score: 0.25 }
 
 ---

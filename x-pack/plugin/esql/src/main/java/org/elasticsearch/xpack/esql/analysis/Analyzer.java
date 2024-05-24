@@ -162,7 +162,13 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             if (context.indexResolution().isValid() == false) {
                 return plan.unresolvedMessage().equals(context.indexResolution().toString())
                     ? plan
-                    : new EsqlUnresolvedRelation(plan.source(), plan.table(), plan.metadataFields(), context.indexResolution().toString());
+                    : new EsqlUnresolvedRelation(
+                        plan.source(),
+                        plan.table(),
+                        plan.metadataFields(),
+                        plan.indexMode(),
+                        context.indexResolution().toString()
+                    );
             }
             TableIdentifier table = plan.table();
             if (context.indexResolution().matches(table.index()) == false) {
@@ -171,6 +177,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                     plan.source(),
                     plan.table(),
                     plan.metadataFields(),
+                    plan.indexMode(),
                     "invalid [" + table + "] resolution to [" + context.indexResolution() + "]"
                 );
             }
@@ -178,7 +185,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             EsIndex esIndex = context.indexResolution().get();
             var attributes = mappingAsAttributes(plan.source(), esIndex.mapping());
             attributes.addAll(plan.metadataFields());
-            return new EsRelation(plan.source(), esIndex, attributes.isEmpty() ? NO_FIELDS : attributes);
+            return new EsRelation(plan.source(), esIndex, attributes.isEmpty() ? NO_FIELDS : attributes, plan.indexMode());
         }
 
     }

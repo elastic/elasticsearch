@@ -166,7 +166,6 @@ public class BasicBlockTests extends ESTestCase {
             assertThat(block.asVector().getPositionCount(), is(positionCount));
             assertThat(block.asVector().asBlock().getTotalValueCount(), is(positionCount));
             assertThat(block.asVector().asBlock().getPositionCount(), is(positionCount));
-            assertThat(block.nullValuesCount(), is(0));
             assertThat(block.mayHaveNulls(), is(false));
             assertThat(block.areAllValuesNull(), is(false));
             assertThat(block.mayHaveMultivaluedFields(), is(false));
@@ -823,7 +822,6 @@ public class BasicBlockTests extends ESTestCase {
                     assertThat(block.getInt(i), is(values[i]));
                 }
             }
-            assertThat(block.nullValuesCount(), is(nullCount));
             assertThat(block.asVector(), nullCount > 0 ? is(nullValue()) : is(notNullValue()));
             block.close();
         }
@@ -857,7 +855,6 @@ public class BasicBlockTests extends ESTestCase {
                     assertThat(block.getLong(i), is(values[i]));
                 }
             }
-            assertThat(block.nullValuesCount(), is(nullCount));
             assertThat(block.asVector(), nullCount > 0 ? is(nullValue()) : is(notNullValue()));
             block.close();
         }
@@ -891,7 +888,6 @@ public class BasicBlockTests extends ESTestCase {
                     assertThat(block.getDouble(i), is(values[i]));
                 }
             }
-            assertThat(block.nullValuesCount(), is(nullCount));
             assertThat(block.asVector(), nullCount > 0 ? is(nullValue()) : is(notNullValue()));
             block.close();
         }
@@ -925,7 +921,6 @@ public class BasicBlockTests extends ESTestCase {
                     assertThat(block.getBoolean(i), is(values[i]));
                 }
             }
-            assertThat(block.nullValuesCount(), is(nullCount));
             assertThat(block.asVector(), nullCount > 0 ? is(nullValue()) : is(notNullValue()));
             block.close();
         }

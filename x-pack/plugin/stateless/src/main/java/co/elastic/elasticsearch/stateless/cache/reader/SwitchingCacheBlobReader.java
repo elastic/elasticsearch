@@ -76,7 +76,7 @@ public class SwitchingCacheBlobReader implements CacheBlobReader {
                 if (ExceptionsHelper.unwrapCause(ex) instanceof ResourceNotFoundException) {
                     logger.debug(
                         () -> Strings.format(
-                            "switching blob reading from [{}] to [{}] due to exception",
+                            "switching blob reading from [%s] to [%s] due to exception",
                             cacheBlobReaderForNonUploaded,
                             cacheBlobReaderForUploaded
                         ),

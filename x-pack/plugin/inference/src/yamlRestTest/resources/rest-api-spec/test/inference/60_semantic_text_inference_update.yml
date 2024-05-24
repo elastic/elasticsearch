@@ -317,7 +317,18 @@ setup:
   - match: { items.0.update.status: 400 }
   - match: { items.0.update.error.reason: "Cannot apply update with a script on indices that contain [semantic_text] field(s)" }
 
-# TODO: test update API here
+  - do:
+      catch: bad_request
+      update:
+        index: test-index
+        id: doc_1
+        body:
+          script:
+            source: "ctx._source.new_field = \"hello\""
+            lang: "painless"
+
+  - match: { error.type: "status_exception" }
+  - match: { error.reason: "Cannot apply update with a script on indices that contain inference field(s)" }
 
 ---
 "semantic_text copy_to needs values for every source field for bulk updates":

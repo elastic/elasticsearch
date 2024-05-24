@@ -53,15 +53,7 @@ public enum IndexMode {
     STANDARD("standard") {
         @Override
         void validateWithOtherSettings(Map<Setting<?>, Object> settings) {
-            settingRequiresTimeSeries(settings, IndexMetadata.INDEX_ROUTING_PATH);
-            settingRequiresTimeSeries(settings, IndexSettings.TIME_SERIES_START_TIME);
-            settingRequiresTimeSeries(settings, IndexSettings.TIME_SERIES_END_TIME);
-        }
-
-        private static void settingRequiresTimeSeries(Map<Setting<?>, Object> settings, Setting<?> setting) {
-            if (false == Objects.equals(setting.getDefault(Settings.EMPTY), settings.get(setting))) {
-                throw new IllegalArgumentException("[" + setting.getKey() + "] requires " + tsdbMode());
-            }
+            IndexMode.validateTimeSeriesSettings(settings);
         }
 
         @Override
@@ -232,7 +224,9 @@ public enum IndexMode {
     },
     LOGS("logs") {
         @Override
-        void validateWithOtherSettings(Map<Setting<?>, Object> settings) {}
+        void validateWithOtherSettings(Map<Setting<?>, Object> settings) {
+            IndexMode.validateTimeSeriesSettings(settings);
+        }
 
         @Override
         public void validateMapping(MappingLookup lookup) {}
@@ -299,6 +293,18 @@ public enum IndexMode {
             return true;
         }
     };
+
+    private static void validateTimeSeriesSettings(Map<Setting<?>, Object> settings) {
+        settingRequiresTimeSeries(settings, IndexMetadata.INDEX_ROUTING_PATH);
+        settingRequiresTimeSeries(settings, IndexSettings.TIME_SERIES_START_TIME);
+        settingRequiresTimeSeries(settings, IndexSettings.TIME_SERIES_END_TIME);
+    }
+
+    private static void settingRequiresTimeSeries(Map<Setting<?>, Object> settings, Setting<?> setting) {
+        if (false == Objects.equals(setting.getDefault(Settings.EMPTY), settings.get(setting))) {
+            throw new IllegalArgumentException("[" + setting.getKey() + "] requires " + tsdbMode());
+        }
+    }
 
     protected static String tsdbMode() {
         return "[" + IndexSettings.MODE.getKey() + "=time_series]";

@@ -90,12 +90,14 @@ sorting and other parameters whose value affects indexing or query performances.
 +
 [source,console]
 ----------------
-PUT my-index-000001{
-   "settings":{
-      "index":{
-         "mode":"standard" <1>
-      }
-   }
+PUT my-index-000001
+{
+  "settings": {
+    "index":{
+      "mode":"standard"
+    }
+  }
+}
 ----------------
 +
 <1> This index uses the `standard` index mode

@@ -27,6 +27,7 @@ import java.io.IOException;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
@@ -73,6 +74,7 @@ public class GeoIpDownloaderStatsIT extends AbstractGeoIpIT {
         assertThat(jsonMapView.get("stats.skipped_updates"), equalTo(0));
         assertThat(jsonMapView.get("stats.databases_count"), equalTo(0));
         assertThat(jsonMapView.get("stats.total_download_time"), equalTo(0));
+        assertEquals(0, jsonMapView.<List<Object>>get("stats.downloader_attempts").size());
         assertEquals(0, jsonMapView.<Map<String, Object>>get("nodes").size());
         putPipeline();
         updateClusterSettings(Settings.builder().put(GeoIpDownloaderTaskExecutor.ENABLED_SETTING.getKey(), true));
@@ -85,6 +87,21 @@ public class GeoIpDownloaderStatsIT extends AbstractGeoIpIT {
             assertThat(view.get("stats.skipped_updates"), equalTo(0));
             assertThat(view.get("stats.databases_count"), equalTo(4));
             assertThat(view.get("stats.total_download_time"), greaterThan(0));
+            assertEquals(4, view.<List<Object>>get("stats.downloader_attempts").size());
+            List<Map<String, Object>> downloaderAttempts = view.get("stats.downloader_attempts");
+            assertThat(
+                downloaderAttempts.stream().map(m -> m.get("name")).collect(Collectors.toSet()),
+                containsInAnyOrder("GeoLite2-City.mmdb", "GeoLite2-ASN.mmdb", "GeoLite2-Country.mmdb", "MyCustomGeoLite2-City.mmdb")
+            );
+            for (Map<String, Object> downloaderAttempt : downloaderAttempts) {
+                assertThat(downloaderAttempt.keySet().size(), equalTo(2));
+                @SuppressWarnings("unchecked")
+                Map<String, Object> lastSuccess = (Map<String, Object>) downloaderAttempt.get("last_success");
+                assertThat(
+                    lastSuccess.keySet(),
+                    containsInAnyOrder("md5", "download_date_in_millis", "download_time_in_millis", "source", "build_date_in_millis")
+                );
+            }
             Map<String, Map<String, List<Map<String, Object>>>> nodes = view.get("nodes");
             assertThat(nodes.values(), hasSize(greaterThan(0)));
             for (Map<String, List<Map<String, Object>>> value : nodes.values()) {
@@ -93,8 +110,11 @@ public class GeoIpDownloaderStatsIT extends AbstractGeoIpIT {
                     value.get("databases").stream().map(m -> m.get("name")).collect(Collectors.toSet()),
                     containsInAnyOrder("GeoLite2-City.mmdb", "GeoLite2-ASN.mmdb", "GeoLite2-Country.mmdb", "MyCustomGeoLite2-City.mmdb")
                 );
+                for (Map<String, Object> database : value.get("databases")) {
+                    assertThat(database.keySet(), containsInAnyOrder("name", "md5", "build_date_in_millis", "type"));
+                }
             }
-        });
+        }, 2, TimeUnit.MINUTES);
     }
 
     private void putPipeline() throws IOException {

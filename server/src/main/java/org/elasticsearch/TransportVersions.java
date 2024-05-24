@@ -172,6 +172,7 @@ public class TransportVersions {
     public static final TransportVersion SEMANTIC_QUERY = def(8_663_00_0);
     public static final TransportVersion GET_AUTOSCALING_CAPACITY_UNUSED_TIMEOUT = def(8_664_00_0);
     public static final TransportVersion SIMULATE_VALIDATES_MAPPINGS = def(8_665_00_0);
+    public static final TransportVersion ML_INFERENCE_GOOGLE_AI_STUDIO_COMPLETION_ADDED = def(8_666_00_0);
 
     /*
      * STOP! READ THIS FIRST! No, really,

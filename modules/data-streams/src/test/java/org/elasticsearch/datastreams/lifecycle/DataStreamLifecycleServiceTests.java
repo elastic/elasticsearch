@@ -355,7 +355,7 @@ public class DataStreamLifecycleServiceTests extends ESTestCase {
                     .put(indexMetadata.getSettings())
                     .put(
                         IndexMetadata.INDEX_DOWNSAMPLE_STATUS_KEY,
-                        randomValueOtherThan(UNKNOWN, () -> randomFrom(IndexMetadata.DownsampleTaskStatus.values()))
+                        STARTED // See: See TransportDownsampleAction#createDownsampleIndex(...)
                     )
             );
             indexMetaBuilder.putCustom(

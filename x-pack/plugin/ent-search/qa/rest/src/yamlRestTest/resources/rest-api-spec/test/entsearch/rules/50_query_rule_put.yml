@@ -1,0 +1,121 @@
+setup:
+  - requires:
+      cluster_features: [ "gte_v8.15.0" ]
+      reason: Introduced in 8.15.0
+
+---
+'Create query rule with existing ruleset':
+  - do:
+      query_ruleset.put:
+        ruleset_id: test-ruleset
+        body:
+          rules:
+            - rule_id: query-rule-id1
+              type: pinned
+              criteria:
+                - type: exact
+                  metadata: query_string
+                  values: [ elastic ]
+              actions:
+                ids:
+                  - 'id1'
+                  - 'id2'
+            - rule_id: query-rule-id2
+              type: pinned
+              criteria:
+                - type: exact
+                  metadata: query_string
+                  values: [ kibana ]
+              actions:
+                docs:
+                  - '_index': 'test-index1'
+                    '_id': 'id3'
+                  - '_index': 'test-index2'
+                    '_id': 'id4'
+              priority: 1
+
+  - match: { result: 'created' }
+
+  - do:
+      query_rule.put:
+        ruleset_id: test-ruleset
+        rule_id: query-rule-id3
+        body:
+          rules:
+            rule_id: 'query-rule-id3'
+            type: 'pinned'
+            criteria:
+              type: 'exact'
+              metadata: 'query_string'
+              values: [ 'logstash' ]
+            actions:
+              ids:
+                - 'id1'
+            priority: 2
+
+  - match: { result: 'created' }
+
+---
+'Create Query Ruleset - Resource already exists':
+  - do:
+      query_rule.put:
+        ruleset_id: test-query-ruleset-recreating
+        rule_id: abc
+        body:
+          rules:
+            rule_id: 'abc'
+            type: 'pinned'
+            criteria:
+              type: 'exact'
+              metadata: 'query_string'
+              values: [ 'elastic' ]
+            actions:
+              ids:
+                - 'id1'
+            priority: 5
+
+  - match: { result: 'created' }
+
+  - do:
+      query_rule.put:
+        ruleset_id: test-query-ruleset-recreating
+        rule_id: abc
+        body:
+          rules:
+            rule_id: 'abc'
+            type: 'pinned'
+            criteria:
+              type: 'exact'
+              metadata: 'query_string'
+              values: [ 'elastic' ]
+            actions:
+              ids:
+                - 'id2'
+            priority: 3
+
+  - match: { result: 'updated' }
+
+---
+'Create Query Rule - Insufficient privilege':
+  - skip:
+      features: headers
+
+  - do:
+      catch: forbidden
+      headers: { Authorization: "Basic ZW50c2VhcmNoLXVzZXI6ZW50c2VhcmNoLXVzZXItcGFzc3dvcmQ=" }  # user
+      query_rule.put:
+        ruleset_id: forbidden-query-ruleset
+        rule_id: abc
+        body:
+          rule_id: 'abc'
+          type: 'pinned'
+          criteria:
+            type: 'exact'
+            metadata: 'query_string'
+            values: [ 'elastic' ]
+          actions:
+            ids:
+              - 'id1'
+              - 'id2'
+
+  - match: { error.type: 'security_exception' }

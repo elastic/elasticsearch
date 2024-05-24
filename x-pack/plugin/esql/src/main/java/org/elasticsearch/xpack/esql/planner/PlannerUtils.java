@@ -162,7 +162,7 @@ public class PlannerUtils {
             if (filter != null) {
                 physicalFragment = physicalFragment.transformUp(
                     EsSourceExec.class,
-                    query -> new EsSourceExec(Source.EMPTY, query.index(), query.output(), filter)
+                    query -> new EsSourceExec(Source.EMPTY, query.index(), query.output(), filter, query.indexMode())
                 );
             }
             var localOptimized = physicalOptimizer.localOptimize(physicalFragment);
@@ -270,6 +270,9 @@ public class PlannerUtils {
         }
         if (dataType == EsQueryExec.DOC_DATA_TYPE) {
             return ElementType.DOC;
+        }
+        if (dataType == EsQueryExec.TSID_DATA_TYPE) {
+            return ElementType.BYTES_REF;
         }
         if (EsqlDataTypes.isSpatialPoint(dataType)) {
             return fieldExtractPreference == DOC_VALUES ? ElementType.LONG : ElementType.BYTES_REF;

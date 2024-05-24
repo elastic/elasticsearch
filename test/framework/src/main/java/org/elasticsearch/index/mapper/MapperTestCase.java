@@ -1093,6 +1093,14 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
 
     public interface SyntheticSourceSupport {
         /**
+         * @return True if synthetic source support is implemented to exactly store the source
+         *         without modifications.
+         */
+        default boolean preservesExactSource() {
+            return false;
+        }
+
+        /**
          * Examples that should work when source is generated from doc values.
          */
         SyntheticSourceExample example(int maxValues) throws IOException;
@@ -1115,7 +1123,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
         assertSyntheticSource(syntheticSourceSupport(ignoreMalformed).example(5));
     }
 
-    public final void testSyntheticSourceIgnoreMalformedExamples() throws IOException {
+    public void testSyntheticSourceIgnoreMalformedExamples() throws IOException {
         assumeTrue("type doesn't support ignore_malformed", supportsIgnoreMalformed());
         CheckedConsumer<XContentBuilder, IOException> mapping = syntheticSourceSupport(true).example(1).mapping();
         for (ExampleMalformedValue v : exampleMalformedValues()) {
@@ -1177,7 +1185,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
             ) {
                 for (int i = 0; i < count; i++) {
                     if (rarely() && supportsEmptyInputArray()) {
-                        expected[i] = "{}";
+                        expected[i] = support.preservesExactSource() ? "{\"field\":[]}" : "{}";
                         iw.addDocument(mapper.parse(source(b -> b.startArray("field").endArray())).rootDoc());
                         continue;
                     }
@@ -1236,13 +1244,16 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
     public final void testSyntheticEmptyList() throws IOException {
         assumeTrue("Field does not support [] as input", supportsEmptyInputArray());
         boolean ignoreMalformed = supportsIgnoreMalformed() ? rarely() : false;
-        SyntheticSourceExample syntheticSourceExample = syntheticSourceSupport(ignoreMalformed).example(5);
+        SyntheticSourceSupport support = syntheticSourceSupport(ignoreMalformed);
+        SyntheticSourceExample syntheticSourceExample = support.example(5);
         DocumentMapper mapper = createDocumentMapper(syntheticSourceMapping(b -> {
             b.startObject("field");
             syntheticSourceExample.mapping().accept(b);
             b.endObject();
         }));
-        assertThat(syntheticSource(mapper, b -> b.startArray("field").endArray()), equalTo("{}"));
+
+        var expected = support.preservesExactSource() ? "{\"field\":[]}" : "{}";
+        assertThat(syntheticSource(mapper, b -> b.startArray("field").endArray()), equalTo(expected));
     }
 
     public final void testSyntheticEmptyListNoDocValuesLoader() throws IOException {

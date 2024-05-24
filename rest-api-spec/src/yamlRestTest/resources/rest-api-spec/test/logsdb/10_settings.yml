@@ -432,3 +432,113 @@ override sort field using nested field type:
   - match: { error.root_cause.0.type: "illegal_argument_exception" }
   - match: { error.type: "illegal_argument_exception" }
   - match: { error.reason: "cannot have nested fields when index sort is activated" }
+
+---
+routing path not allowed in logs mode:
+  - requires:
+      cluster_features: ["gte_v8.15.0"]
+      reason: introduced in 8.15.0
+
+  - do:
+      catch: bad_request
+      indices.create:
+        index: test
+        body:
+          settings:
+            index:
+              mode: logs
+              number_of_replicas: 0
+              number_of_shards: 2
+              routing_path: [ "hostname", "agent_id" ]
+          mappings:
+            properties:
+              "@timestamp":
+                type: date
+              hostname:
+                type: keyword
+              agent_id:
+                type: keyword
+              process_id:
+                type: integer
+              http_method:
+                type: keyword
+              message:
+                type: text
+
+  - match: { error.root_cause.0.type: "illegal_argument_exception" }
+  - match: { error.type: "illegal_argument_exception" }
+  - match: { error.reason: "[index.routing_path] requires [index.mode=time_series]" }
+
+---
+start time not allowed in logs mode:
+  - requires:
+      cluster_features: ["gte_v8.15.0"]
+      reason: introduced in 8.15.0
+
+  - do:
+      catch: bad_request
+      indices.create:
+        index: test
+        body:
+          settings:
+            index:
+              mode: logs
+              number_of_replicas: 0
+              number_of_shards: 2
+              time_series:
+                start_time: 2023-01-01T00:00:00Z
+          mappings:
+            properties:
+              "@timestamp":
+                type: date
+              hostname:
+                type: keyword
+              agent_id:
+                type: keyword
+              process_id:
+                type: integer
+              http_method:
+                type: keyword
+              message:
+                type: text
+
+  - match: { error.root_cause.0.type: "illegal_argument_exception" }
+  - match: { error.type: "illegal_argument_exception" }
+  - match: { error.reason: "[index.time_series.start_time] requires [index.mode=time_series]" }
+
+---
+end time not allowed in logs mode:
+  - requires:
+      cluster_features: ["gte_v8.15.0"]
+      reason: introduced in 8.15.0
+
+  - do:
+      catch: bad_request
+      indices.create:
+        index: test
+        body:
+          settings:
+            index:
+              mode: logs
+              number_of_replicas: 0
+              number_of_shards: 2
+              time_series:
+                end_time: 2023-01-30T00:00:00Z
+          mappings:
+            properties:
+              "@timestamp":
+                type: date
+              hostname:
+                type: keyword
+              agent_id:
+                type: keyword
+              process_id:
+                type: integer
+              http_method:
+                type: keyword
+              message:
+                type: text
+
+  - match: { error.root_cause.0.type: "illegal_argument_exception" }
+  - match: { error.type: "illegal_argument_exception" }
+  - match: { error.reason: "[index.time_series.end_time] requires [index.mode=time_series]" }

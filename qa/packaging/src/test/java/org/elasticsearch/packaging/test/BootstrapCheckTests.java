@@ -25,7 +25,18 @@ public class BootstrapCheckTests extends PackagingTestCase {
     }
 
     public void test20RunWithBootstrapChecks() throws Exception {
-        configureBootstrapChecksAndRun(Map.of("xpack.security.enabled", "false", "discovery.type", "single-node"));
+        configureBootstrapChecksAndRun(
+            Map.of(
+                "xpack.security.enabled",
+                "false",
+                "xpack.security.http.ssl.enabled",
+                "false",
+                "xpack.security.enrollment.enabled",
+                "false",
+                "discovery.type",
+                "single-node"
+            )
+        );
     }
 
     private void configureBootstrapChecksAndRun(Map<String, String> settings) throws Exception {
@@ -42,8 +53,6 @@ public class BootstrapCheckTests extends PackagingTestCase {
                 ServerUtils.addSettingToExistingConfiguration(installation.config, setting.getKey(), setting.getValue());
             }
             ServerUtils.removeSettingFromExistingConfiguration(installation.config, "cluster.initial_master_nodes");
-            ServerUtils.removeSettingFromExistingConfiguration(installation.config, "xpack.security.enrollment.enabled");
-            ServerUtils.removeSettingFromExistingConfiguration(installation.config, "xpack.security.http.ssl.enabled");
         }
 
         startElasticsearch();

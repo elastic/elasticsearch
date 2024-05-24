@@ -93,12 +93,14 @@ public class DataStreamLifecycleHealthIndicatorService implements HealthIndicato
                     + " repeatedly encountered errors whilst trying to advance in its lifecycle",
                 createDetails(verbose, dataStreamLifecycleHealthInfo),
                 STAGNATING_INDEX_IMPACT,
-                List.of(
-                    new Diagnosis(
-                        STAGNATING_BACKING_INDICES_DIAGNOSIS_DEF,
-                        List.of(new Diagnosis.Resource(Diagnosis.Resource.Type.INDEX, affectedIndices))
+                verbose
+                    ? List.of(
+                        new Diagnosis(
+                            STAGNATING_BACKING_INDICES_DIAGNOSIS_DEF,
+                            List.of(new Diagnosis.Resource(Diagnosis.Resource.Type.INDEX, affectedIndices))
+                        )
                     )
-                )
+                    : List.of()
             );
         }
     }

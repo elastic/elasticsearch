@@ -167,7 +167,7 @@ public class StackTemplateRegistry extends IndexTemplateRegistry {
 
     static {
         final Map<String, ComponentTemplate> componentTemplates = new HashMap<>();
-        for (IndexTemplateConfig config : List.of(
+        List<IndexTemplateConfig> configs = List.of(
             new IndexTemplateConfig(
                 DATA_STREAMS_MAPPINGS_COMPONENT_TEMPLATE_NAME,
                 "/data-streams@mappings.json",
@@ -238,7 +238,17 @@ public class StackTemplateRegistry extends IndexTemplateRegistry {
                 TEMPLATE_VERSION_VARIABLE,
                 ADDITIONAL_TEMPLATE_VARIABLES
             )
-        )) {
+        );
+        configs.add(
+            new IndexTemplateConfig(
+                LOGS_SETTINGS_COMPONENT_TEMPLATE_NAME,
+                "/logs@settings-logsdb.json",
+                REGISTRY_VERSION,
+                TEMPLATE_VERSION_VARIABLE,
+                ADDITIONAL_TEMPLATE_VARIABLES
+            )
+        );
+        for (IndexTemplateConfig config : configs) {
             try {
                 componentTemplates.put(
                     config.getTemplateName(),

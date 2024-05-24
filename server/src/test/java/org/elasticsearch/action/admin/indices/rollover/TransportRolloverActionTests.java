@@ -116,7 +116,6 @@ public class TransportRolloverActionTests extends ESTestCase {
         mockClusterService,
         telemetryPlugin.getTelemetryProvider(Settings.EMPTY)
     );
-
     final DataStreamAutoShardingService dataStreamAutoShardingService = new DataStreamAutoShardingService(
         Settings.EMPTY,
         mockClusterService,

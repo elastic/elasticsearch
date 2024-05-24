@@ -112,6 +112,7 @@ public class Archives {
 
         Installation installation = Installation.ofArchive(sh, distribution, fullInstallPath);
         ServerUtils.disableGeoIpDownloader(installation);
+        ServerUtils.enableBootstrapChecks(installation.config);
 
         return installation;
     }

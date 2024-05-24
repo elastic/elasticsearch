@@ -454,6 +454,7 @@ public final class ExpressionTranslators {
             return doTranslate(f, handler);
         }
 
+        @Deprecated(forRemoval = true)
         public static Query doTranslate(ScalarFunction f, TranslatorHandler handler) {
             throw new QlIllegalArgumentException("Cannot translate expression:[" + f.sourceText() + "]");
         }

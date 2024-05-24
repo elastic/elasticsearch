@@ -11,9 +11,9 @@ package org.elasticsearch.transport;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.Randomness;
-import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.Releasable;
@@ -64,10 +64,30 @@ public final class LeakTracker {
         contextHint = hint;
     }
 
-    public static ReleasableBytesReference releaseEventually(ReleasableBytesReference referent) {
-        final RefCounted refCounted = referent.getRefCounted();
-        var cleanable = cleaner.register(referent, refCounted::decRef);
-        return new ReleasableBytesReference(referent, cleanable::clean);
+    public static RefCounted decrementEventually(RefCounted refCounted) {
+        return new AbstractRefCounted() {
+
+            private final Cleaner.Cleanable cleanable = cleaner.register(this, refCounted::decRef);
+
+            @Override
+            protected void closeInternal() {
+                cleanable.clean();
+            }
+
+            @Override
+            public int hashCode() {
+                // It's legitimate to wrap the resource twice, with two different wrap() calls, which would yield different objects
+                // if and only if assertions are enabled. So we'd better not ever use these things as map keys etc.
+                throw new AssertionError("almost certainly a mistake to need the hashCode() of an eventual-release RefCounted");
+            }
+
+            @Override
+            public boolean equals(Object obj) {
+                // It's legitimate to wrap the resource twice, with two different wrap() calls, which would yield different objects
+                // if and only if assertions are enabled. So we'd better not ever use these things as map keys etc.
+                throw new AssertionError("almost certainly a mistake to compare a eventual-release RefCounted for equality");
+            }
+        };
     }
 
     public static Releasable wrap(Releasable releasable) {

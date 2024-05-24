@@ -216,7 +216,7 @@ public final class SearchHit implements Writeable, ToXContentObject, RefCounted 
             source = null;
         } else {
             if (pooled == false) {
-                source = LeakTracker.releaseEventually(source);
+                source = source.releaseEventually();
             }
         }
         Explanation explanation = null;

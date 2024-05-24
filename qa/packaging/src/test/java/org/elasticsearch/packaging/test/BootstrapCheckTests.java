@@ -25,9 +25,7 @@ public class BootstrapCheckTests extends PackagingTestCase {
     }
 
     public void test20RunWithBootstrapChecks() throws Exception {
-        configureBootstrapChecksAndRun(
-            Map.of("xpack.security.enabled", "false", "discovery.type", "single-node")
-        );
+        configureBootstrapChecksAndRun(Map.of("xpack.security.enabled", "false", "discovery.type", "single-node"));
     }
 
     private void configureBootstrapChecksAndRun(Map<String, String> settings) throws Exception {

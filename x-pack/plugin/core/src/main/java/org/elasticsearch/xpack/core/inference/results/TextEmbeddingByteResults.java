@@ -3,6 +3,8 @@
  * or more contributor license agreements. Licensed under the Elastic License
  * 2.0; you may not use this file except in compliance with the Elastic License
  * 2.0.
+ *
+ * this file was contributed to by a generative AI
  */
 
 package org.elasticsearch.xpack.core.inference.results;
@@ -18,10 +20,11 @@ import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.stream.Collectors;
+import java.util.Objects;
 
 /**
  * Writes a text embedding result in the follow json format
@@ -76,8 +79,13 @@ public record TextEmbeddingByteResults(List<Embedding> embeddings) implements In
     @Override
     public List<? extends InferenceResults> transformToCoordinationFormat() {
         return embeddings.stream()
-            .map(embedding -> embedding.values.stream().mapToDouble(value -> value).toArray())
-            .map(values -> new org.elasticsearch.xpack.core.ml.inference.results.TextEmbeddingResults(TEXT_EMBEDDING_BYTES, values, false))
+            .map(
+                embedding -> new org.elasticsearch.xpack.core.ml.inference.results.TextEmbeddingResults(
+                    TEXT_EMBEDDING_BYTES,
+                    embedding.toDoubleArray(),
+                    false
+                )
+            )
             .toList();
     }
 
@@ -85,7 +93,7 @@ public record TextEmbeddingByteResults(List<Embedding> embeddings) implements In
     @SuppressWarnings("deprecation")
     public List<? extends InferenceResults> transformToLegacyFormat() {
         var legacyEmbedding = new LegacyTextEmbeddingResults(
-            embeddings.stream().map(embedding -> new LegacyTextEmbeddingResults.Embedding(embedding.toFloats())).toList()
+            embeddings.stream().map(embedding -> new LegacyTextEmbeddingResults.Embedding(embedding.toFloatArray())).toList()
         );
 
         return List.of(legacyEmbedding);
@@ -93,21 +101,42 @@ public record TextEmbeddingByteResults(List<Embedding> embeddings) implements In
 
     public Map<String, Object> asMap() {
         Map<String, Object> map = new LinkedHashMap<>();
-        map.put(TEXT_EMBEDDING_BYTES, embeddings.stream().map(Embedding::asMap).collect(Collectors.toList()));
+        map.put(TEXT_EMBEDDING_BYTES, embeddings);
 
         return map;
     }
 
-    public record Embedding(List<Byte> values) implements Writeable, ToXContentObject, EmbeddingInt {
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        TextEmbeddingByteResults that = (TextEmbeddingByteResults) o;
+        return Objects.equals(embeddings, that.embeddings);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(embeddings);
+    }
+
+    public record Embedding(byte[] values) implements Writeable, ToXContentObject, EmbeddingInt {
         public static final String EMBEDDING = "embedding";
 
         public Embedding(StreamInput in) throws IOException {
-            this(in.readCollectionAsImmutableList(StreamInput::readByte));
+            this(in.readByteArray());
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeCollection(values, StreamOutput::writeByte);
+            out.writeByteArray(values);
+        }
+
+        public static Embedding of(List<Byte> embeddingValuesList) {
+            byte[] embeddingValues = new byte[embeddingValuesList.size()];
+            for (int i = 0; i < embeddingValuesList.size(); i++) {
+                embeddingValues[i] = embeddingValuesList.get(i);
+            }
+            return new Embedding(embeddingValues);
         }
 
         @Override
@@ -115,7 +144,7 @@ public record TextEmbeddingByteResults(List<Embedding> embeddings) implements In
             builder.startObject();
 
             builder.startArray(EMBEDDING);
-            for (Byte value : values) {
+            for (byte value : values) {
                 builder.value(value);
             }
             builder.endArray();
@@ -129,17 +158,38 @@ public record TextEmbeddingByteResults(List<Embedding> embeddings) implements In
             return Strings.toString(this);
         }
 
-        public Map<String, Object> asMap() {
-            return Map.of(EMBEDDING, values);
+        private float[] toFloatArray() {
+            float[] floatArray = new float[values.length];
+            for (int i = 0; i < values.length; i++) {
+                floatArray[i] = ((Byte) values[i]).floatValue();
+            }
+            return floatArray;
         }
 
-        public List<Float> toFloats() {
-            return values.stream().map(Byte::floatValue).toList();
+        private double[] toDoubleArray() {
+            double[] doubleArray = new double[values.length];
+            for (int i = 0; i < values.length; i++) {
+                doubleArray[i] = ((Byte) values[i]).floatValue();
+            }
+            return doubleArray;
         }
 
         @Override
         public int getSize() {
-            return values().size();
+            return values().length;
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            Embedding embedding = (Embedding) o;
+            return Arrays.equals(values, embedding.values);
+        }
+
+        @Override
+        public int hashCode() {
+            return Arrays.hashCode(values);
         }
     }
 }

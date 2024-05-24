@@ -36,10 +36,15 @@ public class EsqlCapabilities {
      */
     private static final String ST_CENTROID_AGG_OPTIMIZED = "st_centroid_agg_optimized";
 
-    static final Set<String> CAPABILITIES = capabilities();
+    /**
+     * Support for requesting the "_ignored" metadata field.
+     */
+    private static final String METADATA_IGNORED_FIELD = "metadata_field_ignored";
+
+    public static final Set<String> CAPABILITIES = capabilities();
 
     private static Set<String> capabilities() {
-        List<String> caps = new ArrayList<>(List.of(FN_CBRT, ST_CENTROID_AGG_OPTIMIZED, FN_MV_APPEND));
+        List<String> caps = new ArrayList<>(List.of(FN_CBRT, ST_CENTROID_AGG_OPTIMIZED, METADATA_IGNORED_FIELD, FN_MV_APPEND));
 
         /*
          * Add all of our cluster features without the leading "esql."

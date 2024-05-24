@@ -442,15 +442,15 @@ public class TransportGetTrainedModelsStatsAction extends TransportAction<
 
     private static IngestStats mergeStats(List<IngestStats> ingestStatsList) {
 
-        Map<String, IngestStatsAccumulator> pipelineStatsAcc = Maps.newLinkedHashMapWithExpectedSize(ingestStatsList.size());
+        Map<String, PipelineStatsAccumulator> pipelineStatsAcc = Maps.newLinkedHashMapWithExpectedSize(ingestStatsList.size());
         Map<String, Map<String, IngestStatsAccumulator>> processorStatsAcc = Maps.newLinkedHashMapWithExpectedSize(ingestStatsList.size());
         IngestStatsAccumulator totalStats = new IngestStatsAccumulator();
         ingestStatsList.forEach(ingestStats -> {
 
             ingestStats.pipelineStats()
                 .forEach(
-                    pipelineStat -> pipelineStatsAcc.computeIfAbsent(pipelineStat.pipelineId(), p -> new IngestStatsAccumulator())
-                        .inc(pipelineStat.stats())
+                    pipelineStat -> pipelineStatsAcc.computeIfAbsent(pipelineStat.pipelineId(), p -> new PipelineStatsAccumulator())
+                        .inc(pipelineStat)
                 );
 
             ingestStats.processorStats().forEach((pipelineId, processorStat) -> {
@@ -468,7 +468,9 @@ public class TransportGetTrainedModelsStatsAction extends TransportAction<
 
         List<IngestStats.PipelineStat> pipelineStatList = new ArrayList<>(pipelineStatsAcc.size());
         pipelineStatsAcc.forEach(
-            (pipelineId, accumulator) -> pipelineStatList.add(new IngestStats.PipelineStat(pipelineId, accumulator.build()))
+            (pipelineId, accumulator) -> pipelineStatList.add(
+                new IngestStats.PipelineStat(pipelineId, accumulator.buildStats(), accumulator.buildByteStats())
+            )
         );
 
         Map<String, List<IngestStats.ProcessorStat>> processorStatList = Maps.newLinkedHashMapWithExpectedSize(processorStatsAcc.size());
@@ -507,6 +509,27 @@ public class TransportGetTrainedModelsStatsAction extends TransportAction<
         IngestStats.Stats build() {
             return new IngestStats.Stats(ingestCount.count(), ingestTimeInMillis.count(), ingestCurrent.count(), ingestFailedCount.count());
         }
+    }
+
+    private static class PipelineStatsAccumulator {
+        IngestStatsAccumulator ingestStatsAccumulator = new IngestStatsAccumulator();
+        CounterMetric ingestBytesConsumed = new CounterMetric();
+        CounterMetric ingestBytesProduced = new CounterMetric();
+
+        void inc(IngestStats.PipelineStat s) {
+            ingestStatsAccumulator.inc(s.stats());
+            ingestBytesConsumed.inc(s.byteStats().bytesIngested());
+            ingestBytesProduced.inc(s.byteStats().bytesProduced());
+        }
+
+        IngestStats.Stats buildStats() {
+            return ingestStatsAccumulator.build();
+        }
+
+        IngestStats.ByteStats buildByteStats() {
+            return new IngestStats.ByteStats(ingestBytesConsumed.count(), ingestBytesProduced.count());
+        }
+
     }
 
 }

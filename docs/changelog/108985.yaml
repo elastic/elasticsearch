@@ -1,0 +1,5 @@
+pr: 108985
+summary: Adding more details about downloaded geoip database files
+area: Ingest Node
+type: enhancement
+issues: []

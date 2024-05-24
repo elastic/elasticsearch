@@ -44,7 +44,7 @@ public class CompletionStatsCache implements ReferenceManager.RefreshListener {
     }
 
     public CompletionStats get(String... fieldNamePatterns) {
-        final PlainActionFuture<CompletionStats> newFuture = new UnsafePlainActionFuture<>(ThreadPool.Names.GENERIC);
+        final PlainActionFuture<CompletionStats> newFuture = new UnsafePlainActionFuture<>(ThreadPool.Names.MANAGEMENT);
         final PlainActionFuture<CompletionStats> oldFuture = completionStatsFutureRef.compareAndExchange(null, newFuture);
 
         if (oldFuture != null) {

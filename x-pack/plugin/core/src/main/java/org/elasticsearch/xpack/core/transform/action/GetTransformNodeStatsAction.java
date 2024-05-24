@@ -34,6 +34,7 @@ public class GetTransformNodeStatsAction extends ActionType<GetTransformNodeStat
 
     private static final String TOTAL_FIELD_NAME = "total";
     private static final String REGISTERED_TRANSFORM_COUNT_FIELD_NAME = "registered_transform_count";
+    private static final String PEEK_TRANSFORM_FIELD_NAME = "peek_transform";
 
     private GetTransformNodeStatsAction() {
         super(NAME);
@@ -112,31 +113,40 @@ public class GetTransformNodeStatsAction extends ActionType<GetTransformNodeStat
     public static class NodeStatsResponse extends BaseNodeResponse implements ToXContentObject {
 
         private final int registeredTransformCount;
+        private final String peekTransformName;
 
         public int getRegisteredTransformCount() {
             return this.registeredTransformCount;
         }
 
         public NodeStatsResponse(DiscoveryNode node, int registeredTransformCount) {
+            this(node, registeredTransformCount, null);
+        }
+
+        public NodeStatsResponse(DiscoveryNode node, int registeredTransformCount, String peekTransformName) {
             super(node);
             this.registeredTransformCount = registeredTransformCount;
+            this.peekTransformName = peekTransformName;
         }
 
         public NodeStatsResponse(StreamInput in) throws IOException {
             super(in);
             this.registeredTransformCount = in.readVInt();
+            this.peekTransformName = in.readOptionalString();
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             out.writeVInt(this.registeredTransformCount);
+            out.writeOptionalString(peekTransformName);
         }
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, ToXContent.Params params) throws IOException {
             builder.startObject();
             builder.field(REGISTERED_TRANSFORM_COUNT_FIELD_NAME, registeredTransformCount);
+            builder.field(PEEK_TRANSFORM_FIELD_NAME, peekTransformName);
             return builder.endObject();
         }
     }

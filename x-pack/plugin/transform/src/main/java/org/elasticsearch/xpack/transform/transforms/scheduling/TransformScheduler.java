@@ -21,6 +21,7 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.elasticsearch.core.Strings.format;
@@ -58,6 +59,9 @@ public final class TransformScheduler {
          * @param event event structure containing data that might be useful to the listener
          */
         void triggered(Event event);
+    }
+
+    public record Stats(int registeredTransformCount, String peekTransformName) {
     }
 
     private static final Logger logger = LogManager.getLogger(TransformScheduler.class);
@@ -270,12 +274,20 @@ public final class TransformScheduler {
         scheduledTasks.remove(transformId);
     }
 
+    public Stats getStats() {
+        return new Stats(
+            scheduledTasks.size(),
+            Optional.ofNullable(scheduledTasks.first()).map(TransformScheduledTask::getTransformId).orElse(null)
+        );
+    }
+
+    // Visible for testing
     /**
      * Returns the number of transforms currently in the queue.
      *
      * @return number of transforms currently in the queue
      */
-    public int getRegisteredTransformCount() {
+    int getRegisteredTransformCount() {
         return scheduledTasks.size();
     }
 

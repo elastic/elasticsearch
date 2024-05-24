@@ -751,7 +751,7 @@ public class ObjectStoreService extends AbstractLifecycleComponent {
         public void onFailure(Exception e) {
             // Might be 100 files only log when debug enabled
             if (logger.isDebugEnabled()) {
-                logger.warn(() -> format("exception while attempting to delete blob files [{}]", toDeleteInThisTask), e);
+                logger.warn(() -> format("exception while attempting to delete blob files [%s]", toDeleteInThisTask), e);
             } else {
                 logger.warn("exception while attempting to delete blob files", e);
             }
@@ -800,7 +800,7 @@ public class ObjectStoreService extends AbstractLifecycleComponent {
             final var level = lifecycle.started() ? Level.WARN : Level.DEBUG;
             if (logger.isDebugEnabled()) {
                 // Might be 100 files, only log when debug enabled
-                logger.log(level, () -> format("exception while attempting to delete blob files [{}]", blobPathStream().toList()), e);
+                logger.log(level, () -> format("exception while attempting to delete blob files [%s]", blobPathStream().toList()), e);
             } else {
                 logger.log(level, () -> "exception while attempting to delete blob files", e);
             }

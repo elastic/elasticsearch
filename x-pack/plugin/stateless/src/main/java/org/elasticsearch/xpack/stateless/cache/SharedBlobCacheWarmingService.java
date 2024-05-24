@@ -533,7 +533,7 @@ public class SharedBlobCacheWarmingService {
 
             @Override
             public void onFailure(Exception e) {
-                logger.error(() -> format("%s failed to warm region {}", indexShard.shardId(), blobRegion), e);
+                logger.error(() -> format("%s failed to warm region %s", indexShard.shardId(), blobRegion), e);
             }
         }
     }

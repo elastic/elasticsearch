@@ -44,8 +44,14 @@ public interface NativeAccess {
      */
     boolean isMemoryLocked();
 
+    /**
+     * Attempts to install a system call filter to block process execution.
+     */
     void tryInstallExecSandbox();
 
+    /**
+     * Return whether installing the exec system call filters was successful, and to what degree.
+     */
     ExecSandboxState getExecSandboxState();
 
     Systemd systemd();
@@ -76,9 +82,15 @@ public interface NativeAccess {
      */
     CloseableByteBuffer newBuffer(int len);
 
+    /**
+     * Possible stats for execution filtering.
+     */
     enum ExecSandboxState {
+        /** No execution filtering */
         NONE,
+        /** Exec is blocked for threads that were already created */
         EXISTING_THREADS,
+        /** Exec is blocked for all current and future threads */
         ALL_THREADS
     }
 }

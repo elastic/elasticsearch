@@ -78,6 +78,14 @@ class WindowsNativeAccess extends AbstractNativeAccess {
         // note: no need to close the process handle because GetCurrentProcess returns a pseudo handle
     }
 
+    /**
+     * Install exec system call filtering on Windows.
+     * <p>
+     * Process creation is restricted with {@code SetInformationJobObject/ActiveProcessLimit}.
+     * <p>
+     * Note: This is not intended as a real sandbox. It is another level of security, mostly intended to annoy
+     * security researchers and make their lives more difficult in achieving "remote execution" exploits.
+     */
     @Override
     public void tryInstallExecSandbox() {
         // create a new Job

@@ -316,13 +316,6 @@ class Elasticsearch {
             }
         }
 
-        // force remainder of JNA to be loaded (if available).
-        try {
-            JNAKernel32Library.getInstance();
-        } catch (Exception ignored) {
-            // we've already logged this.
-        }
-
         // init lucene random seed. it will use /dev/urandom where available:
         StringHelper.randomId();
 

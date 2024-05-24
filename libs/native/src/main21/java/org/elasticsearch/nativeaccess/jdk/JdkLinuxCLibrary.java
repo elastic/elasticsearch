@@ -29,10 +29,18 @@ import static org.elasticsearch.nativeaccess.jdk.JdkPosixCLibrary.errnoState;
 import static org.elasticsearch.nativeaccess.jdk.LinkerHelper.downcallHandle;
 
 class JdkLinuxCLibrary implements LinuxCLibrary {
-    private static final MethodHandle prctl$mh = downcallHandleWithErrno(
-        "prctl",
-        FunctionDescriptor.of(JAVA_INT, JAVA_INT, JAVA_LONG, JAVA_LONG, JAVA_LONG, JAVA_LONG)
-    );
+    private static final MethodHandle prctl$mh;
+    static {
+        try {
+            prctl$mh = downcallHandleWithErrno(
+                "prctl",
+                FunctionDescriptor.of(JAVA_INT, JAVA_INT, JAVA_LONG, JAVA_LONG, JAVA_LONG, JAVA_LONG)
+            );
+        } catch (UnsatisfiedLinkError e) {
+            throw new UnsupportedOperationException("seccomp unavailable: could not link methods. requires kernel 3.5+ "
+                + "with CONFIG_SECCOMP and CONFIG_SECCOMP_FILTER compiled in");
+        }
+    }
     private static final MethodHandle syscall$mh = downcallHandle(
         "syscall",
         FunctionDescriptor.of(JAVA_LONG, JAVA_LONG, JAVA_INT, JAVA_INT, JAVA_LONG),

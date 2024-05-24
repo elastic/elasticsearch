@@ -44,6 +44,21 @@ class MacNativeAccess extends PosixNativeAccess {
         // we don't have instructions for macos
     }
 
+    /**
+     * Installs exec system call filtering on MacOS.
+     * <p>
+     * Two different methods of filtering are used. Since MacOS is BSD based, process creation
+     * is first restricted with {@code setrlimit(RLIMIT_NPROC)}.
+     * <p>
+     * Additionally, on Mac OS X Leopard or above, a custom {@code sandbox(7)} ("Seatbelt") profile is installed that
+     * denies the following rules:
+     * <ul>
+     *   <li>{@code process-fork}</li>
+     *   <li>{@code process-exec}</li>
+     * </ul>
+     * @see <a href="https://reverse.put.as/wp-content/uploads/2011/06/The-Apple-Sandbox-BHDC2011-Paper.pdf">
+     *  *      https://reverse.put.as/wp-content/uploads/2011/06/The-Apple-Sandbox-BHDC2011-Paper.pdf</a>
+     */
     @Override
     public void tryInstallExecSandbox() {
         initBsdSandbox();

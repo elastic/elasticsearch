@@ -60,14 +60,17 @@ class JnaLinuxCLibrary implements LinuxCLibrary {
          * this is the only way, DON'T use it on some other architecture unless you know wtf you are doing
          */
         NativeLong syscall(NativeLong number, Object... args);
-
-        int fallocate(int fd, int mode, long offset, long length);
     }
 
     private final NativeFunctions functions;
 
     JnaLinuxCLibrary() {
-        this.functions = Native.load("c", NativeFunctions.class);
+        try {
+            this.functions = Native.load("c", NativeFunctions.class);
+        } catch (UnsatisfiedLinkError e) {
+            throw new UnsupportedOperationException("seccomp unavailable: could not link methods. requires kernel 3.5+ "
+                + "with CONFIG_SECCOMP and CONFIG_SECCOMP_FILTER compiled in");
+        }
     }
 
     @Override

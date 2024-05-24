@@ -120,6 +120,28 @@ class LinuxNativeAccess extends PosixNativeAccess {
         logger.warn("If you are logged in interactively, you will have to re-login for the new limits to take effect.");
     }
 
+    /**
+     * Installs exec system call filtering for Linux.
+     * <p>
+     * On Linux exec system call filtering currently supports amd64 and aarch64 architectures.
+     * It requires Linux kernel 3.5 or above, and {@code CONFIG_SECCOMP} and {@code CONFIG_SECCOMP_FILTER}
+     * compiled into the kernel.
+     * <p>
+     * On Linux BPF Filters are installed using either {@code seccomp(2)} (3.17+) or {@code prctl(2)} (3.5+). {@code seccomp(2)}
+     * is preferred, as it allows filters to be applied to any existing threads in the process, and one motivation
+     * here is to protect against bugs in the JVM. Otherwise, code will fall back to the {@code prctl(2)} method
+     * which will at least protect elasticsearch application threads.
+     * <p>
+     * Linux BPF filters will return {@code EACCES} (Access Denied) for the following system calls:
+     * <ul>
+     *   <li>{@code execve}</li>
+     *   <li>{@code fork}</li>
+     *   <li>{@code vfork}</li>
+     *   <li>{@code execveat}</li>
+     * </ul>
+     * @see <a href="http://www.kernel.org/doc/Documentation/prctl/seccomp_filter.txt">
+     *  *      http://www.kernel.org/doc/Documentation/prctl/seccomp_filter.txt</a>
+     */
     @Override
     public void tryInstallExecSandbox() {
         // first be defensive: we can give nice errors this way, at the very least.
@@ -129,15 +151,6 @@ class LinuxNativeAccess extends PosixNativeAccess {
         if (arch == null) {
             throw new UnsupportedOperationException("seccomp unavailable: '" + archId + "' architecture unsupported");
         }
-
-        // TODO: move this UOE to when binding methods in jna/jdk impls
-        // we couldn't link methods, could be some really ancient kernel (e.g. < 2.1.57) or some bug
-        /*if (linux_libc == null) {
-            throw new UnsupportedOperationException(
-                "seccomp unavailable: could not link methods. requires kernel 3.5+ "
-                    + "with CONFIG_SECCOMP and CONFIG_SECCOMP_FILTER compiled in"
-            );
-        }*/
 
         // try to check system calls really are who they claim
         // you never know (e.g. https://chromium.googlesource.com/chromium/src.git/+/master/sandbox/linux/seccomp-bpf/sandbox_bpf.cc#57)

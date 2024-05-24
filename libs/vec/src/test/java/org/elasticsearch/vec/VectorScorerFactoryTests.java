@@ -10,6 +10,7 @@ package org.elasticsearch.vec;
 
 import com.carrotsearch.randomizedtesting.generators.RandomNumbers;
 
+import org.apache.lucene.codecs.lucene99.Lucene99ScalarQuantizedVectorScorer;
 import org.apache.lucene.codecs.lucene99.OffHeapQuantizedByteVectorValues;
 import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.store.Directory;
@@ -18,7 +19,9 @@ import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.store.MMapDirectory;
 import org.apache.lucene.util.hnsw.RandomVectorScorer;
+import org.apache.lucene.util.hnsw.RandomVectorScorerSupplier;
 import org.apache.lucene.util.quantization.RandomAccessQuantizedByteVectorValues;
+import org.apache.lucene.util.quantization.ScalarQuantizer;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -86,8 +89,12 @@ public class VectorScorerFactoryTests extends AbstractVectorTestCase {
                 try (IndexInput in = dir.openInput(fileName, IOContext.DEFAULT)) {
                     for (var sim : List.of(COSINE, DOT_PRODUCT, EUCLIDEAN, MAXIMUM_INNER_PRODUCT)) {
                         var values = vectorValues(dims, 2, in, VectorSimilarityType.of(sim));
-                        float expected = luceneScore(sim, vec1, vec2, 1, 1, 1);
-                        var supplier = factory.getInt7ScalarQuantizedVectorScorer(sim, in, values, 1).get();
+                        float scc = values.getScalarQuantizer().getConstantMultiplier();
+                        float expected = luceneScore(sim, vec1, vec2, scc, 1, 1);
+
+                        var luceneSupplier = luceneScoreSupplier(values, VectorSimilarityType.of(sim)).scorer(0);
+                        assertThat(luceneSupplier.score(1), equalTo(expected));
+                        var supplier = factory.getInt7ScalarQuantizedVectorScorer(sim, in, values, scc).get();
                         assertThat(supplier.scorer(0).score(1), equalTo(expected));
                     }
                 }
@@ -112,7 +119,7 @@ public class VectorScorerFactoryTests extends AbstractVectorTestCase {
             try (IndexInput in = dir.openInput(fileName, IOContext.DEFAULT)) {
                 var values = vectorValues(32, 2, in, VectorSimilarityType.of(DOT_PRODUCT));
                 // dot product
-                float expected = 0f; 
+                float expected = 0f;
                 assertThat(luceneScore(DOT_PRODUCT, vec1, vec2, 1, -5, -5), equalTo(expected));
                 var supplier = factory.getInt7ScalarQuantizedVectorScorer(DOT_PRODUCT, in, values, 1).get();
                 assertThat(supplier.scorer(0).score(1), equalTo(expected));
@@ -342,7 +349,7 @@ public class VectorScorerFactoryTests extends AbstractVectorTestCase {
         }
 
         @Override
-        public Optional<Throwable> call() throws Exception {
+        public Optional<Throwable> call() {
             try {
                 for (int i = 0; i < 100; i++) {
                     assertThat(scorer.score(ord), equalTo(expectedScore));
@@ -355,7 +362,14 @@ public class VectorScorerFactoryTests extends AbstractVectorTestCase {
     }
 
     RandomAccessQuantizedByteVectorValues vectorValues(int dims, int size, IndexInput in, VectorSimilarityFunction sim) throws IOException {
-        return new OffHeapQuantizedByteVectorValues.DenseOffHeapVectorValues(dims, size, in.slice("values", 0, in.length()));
+        var sq = new ScalarQuantizer(0.1f, 0.9f, (byte) 7);
+        var slice = in.slice("values", 0, in.length());
+        return new OffHeapQuantizedByteVectorValues.DenseOffHeapVectorValues(dims, size, sq, false, sim, null, slice);
+    }
+
+    RandomVectorScorerSupplier luceneScoreSupplier(RandomAccessQuantizedByteVectorValues values, VectorSimilarityFunction sim)
+        throws IOException {
+        return new Lucene99ScalarQuantizedVectorScorer(null).getRandomVectorScorerSupplier(sim, values);
     }
 
     // creates the vector based on the given ordinal, which is reproducible given the ord and dims

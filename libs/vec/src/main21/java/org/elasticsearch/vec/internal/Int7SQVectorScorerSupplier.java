@@ -9,9 +9,9 @@
 package org.elasticsearch.vec.internal;
 
 import org.apache.lucene.store.IndexInput;
+import org.apache.lucene.util.hnsw.RandomAccessVectorValues;
 import org.apache.lucene.util.hnsw.RandomVectorScorer;
 import org.apache.lucene.util.hnsw.RandomVectorScorerSupplier;
-import org.apache.lucene.util.quantization.RandomAccessQuantizedByteVectorValues;
 import org.apache.lucene.util.quantization.ScalarQuantizedVectorSimilarity;
 
 import java.io.IOException;
@@ -24,11 +24,13 @@ import static org.apache.lucene.util.quantization.ScalarQuantizedVectorSimilarit
 
 public abstract sealed class Int7SQVectorScorerSupplier implements RandomVectorScorerSupplier {
 
+    static final byte BITS = 7;
+
     final int dims;
     final int maxOrd;
     final float scoreCorrectionConstant;
     final IndexInput input;
-    final RandomAccessQuantizedByteVectorValues values; // to support ordToDoc/getAcceptOrds
+    final RandomAccessVectorValues values; // to support ordToDoc/getAcceptOrds
     final ScalarQuantizedVectorSimilarity fallbackScorer;
 
     final MemorySegment segment;
@@ -39,7 +41,7 @@ public abstract sealed class Int7SQVectorScorerSupplier implements RandomVectorS
 
     protected Int7SQVectorScorerSupplier(
         IndexInput input,
-        RandomAccessQuantizedByteVectorValues values,
+        RandomAccessVectorValues values,
         float scoreCorrectionConstant,
         ScalarQuantizedVectorSimilarity fallbackScorer
     ) {
@@ -112,7 +114,7 @@ public abstract sealed class Int7SQVectorScorerSupplier implements RandomVectorS
     @Override
     public RandomVectorScorer scorer(int ord) {
         checkOrdinal(ord);
-        return new RandomVectorScorer.AbstractRandomVectorScorer<>(values) {
+        return new RandomVectorScorer.AbstractRandomVectorScorer(values) {
             @Override
             public float score(int node) throws IOException {
                 return scoreFromOrds(ord, node);
@@ -141,8 +143,8 @@ public abstract sealed class Int7SQVectorScorerSupplier implements RandomVectorS
 
     public static final class EuclideanSupplier extends Int7SQVectorScorerSupplier {
 
-        public EuclideanSupplier(IndexInput input, RandomAccessQuantizedByteVectorValues values, float scoreCorrectionConstant) {
-            super(input, values, scoreCorrectionConstant, fromVectorSimilarity(EUCLIDEAN, scoreCorrectionConstant));
+        public EuclideanSupplier(IndexInput input, RandomAccessVectorValues values, float scoreCorrectionConstant) {
+            super(input, values, scoreCorrectionConstant, fromVectorSimilarity(EUCLIDEAN, scoreCorrectionConstant, BITS));
         }
 
         @Override
@@ -158,24 +160,10 @@ public abstract sealed class Int7SQVectorScorerSupplier implements RandomVectorS
         }
     }
 
-    // This will be removed when we upgrade to 9.11, see https://github.com/apache/lucene/pull/13356
-    static final class DelegateDotScorer implements ScalarQuantizedVectorSimilarity {
-        final ScalarQuantizedVectorSimilarity delegate;
-
-        DelegateDotScorer(float scoreCorrectionConstant) {
-            delegate = fromVectorSimilarity(DOT_PRODUCT, scoreCorrectionConstant);
-        }
-
-        @Override
-        public float score(byte[] queryVector, float queryVectorOffset, byte[] storedVector, float vectorOffset) {
-            return Math.max(delegate.score(queryVector, queryVectorOffset, storedVector, vectorOffset), 0f);
-        }
-    }
-
     public static final class DotProductSupplier extends Int7SQVectorScorerSupplier {
 
-        public DotProductSupplier(IndexInput input, RandomAccessQuantizedByteVectorValues values, float scoreCorrectionConstant) {
-            super(input, values, scoreCorrectionConstant, new DelegateDotScorer(scoreCorrectionConstant));
+        public DotProductSupplier(IndexInput input, RandomAccessVectorValues values, float scoreCorrectionConstant) {
+            super(input, values, scoreCorrectionConstant, fromVectorSimilarity(DOT_PRODUCT, scoreCorrectionConstant, BITS));
         }
 
         @Override
@@ -194,8 +182,8 @@ public abstract sealed class Int7SQVectorScorerSupplier implements RandomVectorS
 
     public static final class MaxInnerProductSupplier extends Int7SQVectorScorerSupplier {
 
-        public MaxInnerProductSupplier(IndexInput input, RandomAccessQuantizedByteVectorValues values, float scoreCorrectionConstant) {
-            super(input, values, scoreCorrectionConstant, fromVectorSimilarity(MAXIMUM_INNER_PRODUCT, scoreCorrectionConstant));
+        public MaxInnerProductSupplier(IndexInput input, RandomAccessVectorValues values, float scoreCorrectionConstant) {
+            super(input, values, scoreCorrectionConstant, fromVectorSimilarity(MAXIMUM_INNER_PRODUCT, scoreCorrectionConstant, BITS));
         }
 
         @Override

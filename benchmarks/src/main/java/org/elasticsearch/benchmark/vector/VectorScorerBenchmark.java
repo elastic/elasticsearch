@@ -8,6 +8,7 @@
 
 package org.elasticsearch.benchmark.vector;
 
+import org.apache.lucene.codecs.lucene99.Lucene99ScalarQuantizedVectorScorer;
 import org.apache.lucene.codecs.lucene99.OffHeapQuantizedByteVectorValues;
 import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.store.Directory;
@@ -16,9 +17,9 @@ import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.store.MMapDirectory;
 import org.apache.lucene.util.hnsw.RandomVectorScorer;
+import org.apache.lucene.util.hnsw.RandomVectorScorerSupplier;
 import org.apache.lucene.util.quantization.RandomAccessQuantizedByteVectorValues;
-import org.apache.lucene.util.quantization.ScalarQuantizedRandomVectorScorer;
-import org.apache.lucene.util.quantization.ScalarQuantizedVectorSimilarity;
+import org.apache.lucene.util.quantization.ScalarQuantizer;
 import org.elasticsearch.common.logging.LogConfigurator;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.vec.VectorScorerFactory;
@@ -93,7 +94,6 @@ public class VectorScorerBenchmark {
             throw new AssertionError("Vector scorer factory not present. Cannot run the benchmark. " + msg);
         }
         factory = optionalVectorScorerFactory.get();
-        scoreCorrectionConstant = 1f;
         vec1 = new byte[dims];
         vec2 = new byte[dims];
 
@@ -110,20 +110,12 @@ public class VectorScorerBenchmark {
             out.writeInt(Float.floatToIntBits(vec2Offset));
         }
         in = dir.openInput("vector.data", IOContext.DEFAULT);
-        var values = vectorValues(dims, 2, in);
+        var values = vectorValues(dims, 2, in, VectorSimilarityFunction.DOT_PRODUCT);
+        scoreCorrectionConstant = values.getScalarQuantizer().getConstantMultiplier();
+        luceneDotScorer = luceneScoreSupplier(values, VectorSimilarityFunction.DOT_PRODUCT).scorer(0);
+        values = vectorValues(dims, 2, in, VectorSimilarityFunction.EUCLIDEAN);
+        luceneSqrScorer = luceneScoreSupplier(values, VectorSimilarityFunction.EUCLIDEAN).scorer(0);
 
-        luceneDotScorer = new ScalarQuantizedRandomVectorScorer(
-            ScalarQuantizedVectorSimilarity.fromVectorSimilarity(VectorSimilarityFunction.DOT_PRODUCT, scoreCorrectionConstant, (byte) 7),
-            values.copy(),
-            vec1,
-            vec1Offset
-        );
-        luceneSqrScorer = new ScalarQuantizedRandomVectorScorer(
-            ScalarQuantizedVectorSimilarity.fromVectorSimilarity(VectorSimilarityFunction.EUCLIDEAN, scoreCorrectionConstant, (byte) 7),
-            values.copy(),
-            vec1,
-            vec1Offset
-        );
         nativeDotScorer = factory.getInt7ScalarQuantizedVectorScorer(DOT_PRODUCT, in, values, scoreCorrectionConstant).get().scorer(0);
         nativeSqrScorer = factory.getInt7ScalarQuantizedVectorScorer(EUCLIDEAN, in, values, scoreCorrectionConstant).get().scorer(0);
 
@@ -197,8 +189,15 @@ public class VectorScorerBenchmark {
         return 1 / (1f + adjustedDistance);
     }
 
-    RandomAccessQuantizedByteVectorValues vectorValues(int dims, int size, IndexInput in) throws IOException {
-        return new OffHeapQuantizedByteVectorValues.DenseOffHeapVectorValues(dims, size, in.slice("values", 0, in.length()));
+    RandomAccessQuantizedByteVectorValues vectorValues(int dims, int size, IndexInput in, VectorSimilarityFunction sim) throws IOException {
+        var sq = new ScalarQuantizer(0.1f, 0.9f, (byte) 7);
+        var slice = in.slice("values", 0, in.length());
+        return new OffHeapQuantizedByteVectorValues.DenseOffHeapVectorValues(dims, size, sq, false, sim, null, slice);
+    }
+
+    RandomVectorScorerSupplier luceneScoreSupplier(RandomAccessQuantizedByteVectorValues values, VectorSimilarityFunction sim)
+        throws IOException {
+        return new Lucene99ScalarQuantizedVectorScorer(null).getRandomVectorScorerSupplier(sim, values);
     }
 
     // Unsigned int7 byte vectors have values in the range of 0 to 127 (inclusive).

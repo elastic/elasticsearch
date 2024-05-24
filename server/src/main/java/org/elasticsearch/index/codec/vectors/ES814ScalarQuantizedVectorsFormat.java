@@ -36,7 +36,6 @@ import org.apache.lucene.util.quantization.QuantizedVectorsReader;
 import org.apache.lucene.util.quantization.RandomAccessQuantizedByteVectorValues;
 import org.apache.lucene.util.quantization.ScalarQuantizer;
 import org.elasticsearch.vec.VectorScorerFactory;
-import org.elasticsearch.vec.VectorScorerSupplierAdapter;
 import org.elasticsearch.vec.VectorSimilarityType;
 
 import java.io.IOException;
@@ -212,13 +211,11 @@ public class ES814ScalarQuantizedVectorsFormat extends FlatVectorsFormat {
                 if (factory.isPresent()) {
                     var scorer = factory.get()
                         .getInt7ScalarQuantizedVectorScorer(
-                            qValues.dimension(),
-                            qValues.size(),
-                            qValues.getScalarQuantizer().getConstantMultiplier(),
                             VectorSimilarityType.of(sim),
-                            values.getSlice()
-                        )
-                        .map(VectorScorerSupplierAdapter::new);
+                            values.getSlice(),
+                            values,
+                            qValues.getScalarQuantizer().getConstantMultiplier()
+                        );
                     if (scorer.isPresent()) {
                         return scorer.get();
                     }

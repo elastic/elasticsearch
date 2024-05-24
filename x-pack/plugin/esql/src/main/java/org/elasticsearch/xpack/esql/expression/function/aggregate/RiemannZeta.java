@@ -1,0 +1,86 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
+ */
+package org.elasticsearch.xpack.esql.expression.function.aggregate;
+
+import org.elasticsearch.compute.aggregation.AggregatorFunctionSupplier;
+import org.elasticsearch.compute.aggregation.SumDoubleAggregatorFunctionSupplier;
+import org.elasticsearch.compute.aggregation.SumIntAggregatorFunctionSupplier;
+import org.elasticsearch.compute.aggregation.SumLongAggregatorFunctionSupplier;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
+import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.type.DataTypes;
+import org.elasticsearch.xpack.esql.core.util.StringUtils;
+import org.elasticsearch.xpack.esql.expression.SurrogateExpression;
+import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
+import org.elasticsearch.xpack.esql.expression.function.Param;
+import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvSum;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Mul;
+
+import java.util.List;
+
+import static org.elasticsearch.xpack.esql.core.type.DataTypes.*;
+
+/**
+ * Sum all values of a field in matching documents.
+ */
+public class RiemannZeta extends NumericAggregate implements SurrogateExpression {
+    private final Expression p;
+
+    @FunctionInfo(returnType = "double", description = "todo", isAggregation = true)
+    public RiemannZeta(
+        Source source,
+        @Param(name = "number", type = { "double" }) Expression field,
+        @Param(name = "p", type = { "double" }) Expression p
+    ) {
+        super(source, field, List.of(p));
+        this.p = p;
+    }
+
+    @Override
+    protected NodeInfo<RiemannZeta> info() {
+        return NodeInfo.create(this, RiemannZeta::new, field(), p);
+    }
+
+    @Override
+    public RiemannZeta replaceChildren(List<Expression> newChildren) {
+        return new RiemannZeta(source(), newChildren.get(0), newChildren.get(1));
+    }
+
+    @Override
+    public DataType dataType() {
+        return field().dataType();
+    }
+
+    @Override
+    protected AggregatorFunctionSupplier longSupplier(List<Integer> inputChannels) {
+        return new SumLongAggregatorFunctionSupplier(inputChannels);
+    }
+
+    @Override
+    protected AggregatorFunctionSupplier intSupplier(List<Integer> inputChannels) {
+        return new SumIntAggregatorFunctionSupplier(inputChannels);
+    }
+
+    @Override
+    protected AggregatorFunctionSupplier doubleSupplier(List<Integer> inputChannels) {
+        return new SumDoubleAggregatorFunctionSupplier(inputChannels);
+    }
+
+    @Override
+    public Expression surrogate() {
+        var s = source();
+        var field = field();
+
+        // SUM(const) is equivalent to MV_SUM(const)*COUNT(*).
+        return field.foldable()
+            ? new Mul(s, new MvSum(s, field), new Count(s, new Literal(s, StringUtils.WILDCARD, DataTypes.KEYWORD)))
+            : null;
+    }
+}

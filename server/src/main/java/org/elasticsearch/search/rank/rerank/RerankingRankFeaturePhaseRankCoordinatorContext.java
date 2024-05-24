@@ -10,7 +10,6 @@ package org.elasticsearch.search.rank.rerank;
 
 import org.apache.lucene.search.ScoreDoc;
 import org.elasticsearch.search.SearchPhaseResult;
-import org.elasticsearch.search.query.QuerySearchResult;
 import org.elasticsearch.search.rank.context.RankFeaturePhaseRankCoordinatorContext;
 import org.elasticsearch.search.rank.feature.RankFeatureDoc;
 import org.elasticsearch.search.rank.feature.RankFeatureResult;
@@ -62,17 +61,8 @@ public abstract class RerankingRankFeaturePhaseRankCoordinatorContext extends Ra
     private RankFeatureDoc[] extractFeatures(List<RankFeatureResult> searchPhaseResults) {
         List<RankFeatureDoc> docFeatures = new ArrayList<>();
         for (SearchPhaseResult searchPhaseResult : searchPhaseResults) {
-            if (searchPhaseResult instanceof RankFeatureResult rankFeatureResult) {
-                RankFeatureShardResult shardResult = rankFeatureResult.shardResult();
-                docFeatures.addAll(Arrays.stream(shardResult.rankFeatureDocs).toList());
-            } else if (searchPhaseResult instanceof QuerySearchResult queryPhaseResult) {
-                if (queryPhaseResult.topDocs() == null) {
-                    continue;
-                }
-                for (ScoreDoc scoreDoc : queryPhaseResult.topDocs().topDocs.scoreDocs) {
-                    docFeatures.add(new RankFeatureDoc(scoreDoc.doc, scoreDoc.score, scoreDoc.shardIndex));
-                }
-            }
+            RankFeatureShardResult shardResult = searchPhaseResult.rankFeatureResult().shardResult();
+            docFeatures.addAll(Arrays.stream(shardResult.rankFeatureDocs).toList());
         }
         return docFeatures.toArray(new RankFeatureDoc[0]);
     }

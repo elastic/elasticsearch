@@ -38,6 +38,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.NotSerializableExceptionWrapper;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexService;
@@ -400,7 +401,8 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
             if (mapper instanceof InferenceFieldMapper inferenceFieldMapper) {
                 String[] sourceFields = entry.getValue().getSourceFields();
                 for (String sourceField : sourceFields) {
-                    if (sourceField.equals(inferenceFieldName) == false && updateRequestSource.containsKey(sourceField)) {
+                    if (sourceField.equals(inferenceFieldName) == false
+                        && XContentMapValues.extractValue(sourceField, updateRequestSource) != null) {
                         // Replace the inference field's value with its original value (i.e. the user-specified value).
                         // This has two important side effects:
                         // - The inference field value will remain parsable by its mapper

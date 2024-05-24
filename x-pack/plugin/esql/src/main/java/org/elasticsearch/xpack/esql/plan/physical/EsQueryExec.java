@@ -86,7 +86,7 @@ public class EsQueryExec extends LeafExec implements EstimatesRowSize {
 
     private static List<Attribute> sourceAttributes(Source source, IndexMode indexMode) {
         return switch (indexMode) {
-            case STANDARD -> List.of(new FieldAttribute(source, DOC_ID_FIELD.getName(), DOC_ID_FIELD));
+            case STANDARD, LOGS -> List.of(new FieldAttribute(source, DOC_ID_FIELD.getName(), DOC_ID_FIELD));
             case TIME_SERIES -> List.of(
                 new FieldAttribute(source, DOC_ID_FIELD.getName(), DOC_ID_FIELD),
                 new FieldAttribute(source, TSID_FIELD.getName(), TSID_FIELD),

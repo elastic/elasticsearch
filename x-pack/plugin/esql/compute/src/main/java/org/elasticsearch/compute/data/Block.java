@@ -105,11 +105,6 @@ public interface Block extends Accountable, BlockLoader.Block, NamedWriteable, R
     boolean isNull(int position);
 
     /**
-     * @return the number of null values in this block.
-     */
-    int nullValuesCount();
-
-    /**
      * @return true if some values might be null. False, if all values are guaranteed to be not null.
      */
     boolean mayHaveNulls();

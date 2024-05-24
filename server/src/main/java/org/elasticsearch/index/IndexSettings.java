@@ -596,15 +596,15 @@ public final class IndexSettings {
         Property.ServerlessPublic
     );
 
-    private static final Boolean LOGS_MODE_MODE_FEATURE_FLAG_ENABLED;
+    private static final Boolean LOGS_MODE_FEATURE_FLAG_ENABLED;
 
     static {
         final String property = System.getProperty("es.index_mode_logs_feature_flag_enabled");
-        LOGS_MODE_MODE_FEATURE_FLAG_ENABLED = Booleans.parseBoolean(property, false);
+        LOGS_MODE_FEATURE_FLAG_ENABLED = Booleans.parseBoolean(property, false);
     }
     public static final Setting<Boolean> LOGS_INDEX_MODE_ENABLED = Setting.boolSetting(
         "index.mode.logs.enabled",
-        LOGS_MODE_MODE_FEATURE_FLAG_ENABLED,
+        LOGS_MODE_FEATURE_FLAG_ENABLED,
         Setting.Property.NodeScope
     );
 

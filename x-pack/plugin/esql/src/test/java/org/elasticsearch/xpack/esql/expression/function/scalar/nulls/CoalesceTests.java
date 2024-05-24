@@ -18,13 +18,19 @@ import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.type.DataTypes;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.evaluator.EvalMapper;
 import org.elasticsearch.xpack.esql.expression.function.AbstractFunctionTestCase;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 import org.elasticsearch.xpack.esql.expression.function.scalar.VaragsTestCaseBuilder;
+import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.SpatialRelatesFunctionTestCase;
 import org.elasticsearch.xpack.esql.planner.Layout;
+import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
+import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
 
+import java.time.ZonedDateTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -45,12 +51,67 @@ public class CoalesceTests extends AbstractFunctionTestCase {
      */
     @ParametersFactory
     public static Iterable<Object[]> parameters() {
+        List<TestCaseSupplier> suppliers = new ArrayList<>();
         VaragsTestCaseBuilder builder = new VaragsTestCaseBuilder(type -> "Coalesce");
         builder.expectString(strings -> strings.filter(v -> v != null).findFirst());
         builder.expectLong(longs -> longs.filter(v -> v != null).findFirst());
         builder.expectInt(ints -> ints.filter(v -> v != null).findFirst());
         builder.expectBoolean(booleans -> booleans.filter(v -> v != null).findFirst());
-        return parameterSuppliersFromTypedData(builder.suppliers());
+        suppliers.addAll(builder.suppliers());
+        addSpatialCombinations(suppliers);
+        suppliers.add(
+            new TestCaseSupplier(
+                List.of(DataTypes.IP, DataTypes.IP),
+                () -> new TestCaseSupplier.TestCase(
+                    List.of(
+                        new TestCaseSupplier.TypedData(EsqlDataTypeConverter.stringToIP("192.168.0.10"), DataTypes.IP, "first"),
+                        new TestCaseSupplier.TypedData(EsqlDataTypeConverter.stringToIP("192.168.0.20"), DataTypes.IP, "second")
+                    ),
+                    "CoalesceEvaluator[values=[Attribute[channel=0], Attribute[channel=1]]]",
+                    DataTypes.IP,
+                    equalTo(EsqlDataTypeConverter.stringToIP("192.168.0.10"))
+                )
+            )
+        );
+        ZonedDateTime firstDate = ZonedDateTime.parse("2023-12-04T10:15:30Z");
+        ZonedDateTime secondDate = ZonedDateTime.parse("2023-12-05T10:45:00Z");
+        suppliers.add(
+            new TestCaseSupplier(
+                List.of(DataTypes.DATETIME, DataTypes.DATETIME),
+                () -> new TestCaseSupplier.TestCase(
+                    List.of(
+                        new TestCaseSupplier.TypedData(firstDate.toInstant().toEpochMilli(), DataTypes.DATETIME, "first"),
+                        new TestCaseSupplier.TypedData(secondDate.toInstant().toEpochMilli(), DataTypes.DATETIME, "second")
+                    ),
+                    "CoalesceEvaluator[values=[Attribute[channel=0], Attribute[channel=1]]]",
+                    DataTypes.DATETIME,
+                    equalTo(firstDate.toInstant().toEpochMilli())
+                )
+            )
+        );
+
+        return parameterSuppliersFromTypedData(suppliers);
+    }
+
+    protected static void addSpatialCombinations(List<TestCaseSupplier> suppliers) {
+        for (DataType dataType : List.of(
+            EsqlDataTypes.GEO_POINT,
+            EsqlDataTypes.GEO_SHAPE,
+            EsqlDataTypes.CARTESIAN_POINT,
+            EsqlDataTypes.CARTESIAN_SHAPE
+        )) {
+            TestCaseSupplier.TypedDataSupplier leftDataSupplier = SpatialRelatesFunctionTestCase.testCaseSupplier(dataType);
+            TestCaseSupplier.TypedDataSupplier rightDataSupplier = SpatialRelatesFunctionTestCase.testCaseSupplier(dataType);
+            suppliers.add(
+                TestCaseSupplier.testCaseSupplier(
+                    leftDataSupplier,
+                    rightDataSupplier,
+                    (l, r) -> equalTo("CoalesceEvaluator[values=[Attribute[channel=0], Attribute[channel=1]]]"),
+                    dataType,
+                    (l, r) -> l
+                )
+            );
+        }
     }
 
     @Override

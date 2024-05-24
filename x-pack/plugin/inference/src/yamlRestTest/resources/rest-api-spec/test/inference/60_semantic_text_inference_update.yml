@@ -169,7 +169,7 @@ setup:
   - match:  { _source.non_inference_field: "non inference test" }
 
 ---
-"Updating semantic_text source field recalculates embeddings when using the update API":
+"Partial updates work when using the update API":
   - do:
       indices.create:
         index: test-copy-to-index
@@ -231,6 +231,71 @@ setup:
   - length: { _source.dense_field.inference.chunks: 2 }
   - match: { _source.dense_field.inference.chunks.1.text: "dense data 3" }
   - exists: _source.dense_field.inference.chunks.1.embeddings
+
+---
+"Partial updates work when using the update API and the semantic_text field's original value is null":
+  - do:
+      indices.create:
+        index: test-copy-to-index
+        body:
+          mappings:
+            properties:
+              sparse_field:
+                type: semantic_text
+                inference_id: sparse-inference-id
+              sparse_source_field:
+                type: text
+                copy_to: sparse_field
+              dense_field:
+                type: semantic_text
+                inference_id: dense-inference-id
+              dense_source_field:
+                type: text
+                copy_to: dense_field
+
+  # Don't set sparse_field or dense_field so their original value is null
+  - do:
+      index:
+        index: test-copy-to-index
+        id: doc_1
+        body:
+          sparse_source_field: "sparse data 2"
+          dense_source_field: "dense data 2"
+
+  - do:
+      get:
+        index: test-copy-to-index
+        id: doc_1
+
+  - match: { _source.sparse_field.text: null }
+  - length: { _source.sparse_field.inference.chunks: 1 }
+  - match: { _source.sparse_field.inference.chunks.0.text: "sparse data 2" }
+  - exists: _source.sparse_field.inference.chunks.0.embeddings
+  - match: { _source.dense_field.text: null }
+  - length: { _source.dense_field.inference.chunks: 1 }
+  - match: { _source.dense_field.inference.chunks.0.text: "dense data 2" }
+  - exists: _source.dense_field.inference.chunks.0.embeddings
+
+  - do:
+      update:
+        index: test-copy-to-index
+        id: doc_1
+        body:
+          doc: { "sparse_source_field": "sparse data 3", "dense_source_field": "dense data 3" }
+
+  - do:
+      get:
+        index: test-copy-to-index
+        id: doc_1
+
+  - match: { _source.sparse_field.text: null }
+  - length: { _source.sparse_field.inference.chunks: 1 }
+  - match: { _source.sparse_field.inference.chunks.0.text: "sparse data 3" }
+  - exists: _source.sparse_field.inference.chunks.0.embeddings
+  - match: { _source.dense_field.text: null }
+  - length: { _source.dense_field.inference.chunks: 1 }
+  - match: { _source.dense_field.inference.chunks.0.text: "dense data 3" }
+  - exists: _source.dense_field.inference.chunks.0.embeddings
 
 ---
 "Updates with script are not allowed":

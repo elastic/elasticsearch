@@ -130,9 +130,7 @@ field to collect the values of other fields for semantic search. Each value has
 its embeddings calculated separately; each field value is a separate chunk in
 the resulting embeddings.
 
-This imposes some restrictions on updating documents with `semantic_text`:
+This imposes restrictions on updating documents with `semantic_text`:
+
 * In bulk requests, all fields that are copied to a `semantic_text` field must
 have a value to ensure every embedding is calculated correctly.
-* Individual document updates will always recalculate embeddings for
-`semantic_text` fields that are the target of `copy_to` fields - even when the
-fields have not been changed.

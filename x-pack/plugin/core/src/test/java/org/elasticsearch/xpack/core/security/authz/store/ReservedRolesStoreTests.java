@@ -995,6 +995,33 @@ public class ReservedRolesStoreTests extends ESTestCase {
             assertThat(kibanaRole.indices().allowedIndicesMatcher(RolloverAction.NAME).test(indexAbstraction), is(true));
         });
 
+        Arrays.asList("logs-osquery_manager.action.responses-" + randomAlphaOfLength(randomIntBetween(0, 13))).forEach((index) -> {
+            final IndexAbstraction indexAbstraction = mockIndexAbstraction(index);
+            assertThat(kibanaRole.indices().allowedIndicesMatcher("indices:foo").test(indexAbstraction), is(false));
+            assertThat(kibanaRole.indices().allowedIndicesMatcher("indices:bar").test(indexAbstraction), is(false));
+            assertThat(
+                kibanaRole.indices().allowedIndicesMatcher(TransportDeleteIndexAction.TYPE.name()).test(indexAbstraction),
+                is(false)
+            );
+            assertThat(kibanaRole.indices().allowedIndicesMatcher(GetIndexAction.NAME).test(indexAbstraction), is(true));
+            assertThat(
+                kibanaRole.indices().allowedIndicesMatcher(TransportCreateIndexAction.TYPE.name()).test(indexAbstraction),
+                is(false)
+            );
+            assertThat(kibanaRole.indices().allowedIndicesMatcher(TransportIndexAction.NAME).test(indexAbstraction), is(false));
+            assertThat(kibanaRole.indices().allowedIndicesMatcher(TransportDeleteAction.NAME).test(indexAbstraction), is(false));
+            assertThat(kibanaRole.indices().allowedIndicesMatcher(TransportSearchAction.TYPE.name()).test(indexAbstraction), is(true));
+            assertThat(kibanaRole.indices().allowedIndicesMatcher(TransportMultiSearchAction.TYPE.name()).test(indexAbstraction), is(true));
+            assertThat(kibanaRole.indices().allowedIndicesMatcher(TransportGetAction.TYPE.name()).test(indexAbstraction), is(true));
+            assertThat(kibanaRole.indices().allowedIndicesMatcher(READ_CROSS_CLUSTER_NAME).test(indexAbstraction), is(false));
+            assertThat(
+                kibanaRole.indices().allowedIndicesMatcher(TransportUpdateSettingsAction.TYPE.name()).test(indexAbstraction),
+                is(true)
+            );
+            assertThat(kibanaRole.indices().allowedIndicesMatcher(TransportPutMappingAction.TYPE.name()).test(indexAbstraction), is(true));
+            assertThat(kibanaRole.indices().allowedIndicesMatcher(RolloverAction.NAME).test(indexAbstraction), is(true));
+        });
+
         // Tests for third-party agent indices that `kibana_system` has only `read` access
         Arrays.asList(
             "logs-sentinel_one." + randomAlphaOfLength(randomIntBetween(0, 13)),
@@ -1496,6 +1523,34 @@ public class ReservedRolesStoreTests extends ESTestCase {
                 kibanaRole.indices().allowedIndicesMatcher("indices:monitor/" + randomAlphaOfLengthBetween(3, 8)).test(indexAbstraction),
                 is(true)
             );
+        });
+
+        // read-only index for Osquery actions responses
+        Arrays.asList("logs-osquery_manager.action.responses-" + randomAlphaOfLength(randomIntBetween(0, 13))).forEach((cspIndex) -> {
+            final IndexAbstraction indexAbstraction = mockIndexAbstraction(cspIndex);
+            assertThat(kibanaRole.indices().allowedIndicesMatcher("indices:foo").test(indexAbstraction), is(false));
+            assertThat(kibanaRole.indices().allowedIndicesMatcher("indices:bar").test(indexAbstraction), is(false));
+            assertThat(
+                kibanaRole.indices().allowedIndicesMatcher(TransportDeleteIndexAction.TYPE.name()).test(indexAbstraction),
+                is(false)
+            );
+            assertThat(kibanaRole.indices().allowedIndicesMatcher(GetIndexAction.NAME).test(indexAbstraction), is(true));
+            assertThat(
+                kibanaRole.indices().allowedIndicesMatcher(TransportCreateIndexAction.TYPE.name()).test(indexAbstraction),
+                is(false)
+            );
+            assertThat(kibanaRole.indices().allowedIndicesMatcher(TransportIndexAction.NAME).test(indexAbstraction), is(false));
+            assertThat(kibanaRole.indices().allowedIndicesMatcher(TransportDeleteAction.NAME).test(indexAbstraction), is(false));
+            assertThat(kibanaRole.indices().allowedIndicesMatcher(TransportSearchAction.TYPE.name()).test(indexAbstraction), is(true));
+            assertThat(kibanaRole.indices().allowedIndicesMatcher(TransportMultiSearchAction.TYPE.name()).test(indexAbstraction), is(true));
+            assertThat(kibanaRole.indices().allowedIndicesMatcher(TransportGetAction.TYPE.name()).test(indexAbstraction), is(true));
+            assertThat(kibanaRole.indices().allowedIndicesMatcher(READ_CROSS_CLUSTER_NAME).test(indexAbstraction), is(false));
+            assertThat(
+                kibanaRole.indices().allowedIndicesMatcher(TransportUpdateSettingsAction.TYPE.name()).test(indexAbstraction),
+                is(true)
+            );
+            assertThat(kibanaRole.indices().allowedIndicesMatcher(TransportPutMappingAction.TYPE.name()).test(indexAbstraction), is(true));
+            assertThat(kibanaRole.indices().allowedIndicesMatcher(RolloverAction.NAME).test(indexAbstraction), is(true));
         });
 
         // read-only datastream for csp indices

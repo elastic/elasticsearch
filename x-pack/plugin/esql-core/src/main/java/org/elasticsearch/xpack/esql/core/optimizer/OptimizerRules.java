@@ -16,7 +16,6 @@ import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.expression.Order;
 import org.elasticsearch.xpack.esql.core.expression.function.Function;
-import org.elasticsearch.xpack.esql.core.expression.function.Functions;
 import org.elasticsearch.xpack.esql.core.expression.function.scalar.ScalarFunction;
 import org.elasticsearch.xpack.esql.core.expression.function.scalar.SurrogateFunction;
 import org.elasticsearch.xpack.esql.core.expression.predicate.BinaryOperator;
@@ -45,12 +44,10 @@ import org.elasticsearch.xpack.esql.core.expression.predicate.operator.compariso
 import org.elasticsearch.xpack.esql.core.expression.predicate.operator.comparison.NullEquals;
 import org.elasticsearch.xpack.esql.core.expression.predicate.regex.RegexMatch;
 import org.elasticsearch.xpack.esql.core.expression.predicate.regex.StringPattern;
-import org.elasticsearch.xpack.esql.core.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.core.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.core.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.core.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.core.plan.logical.OrderBy;
-import org.elasticsearch.xpack.esql.core.plan.logical.UnaryPlan;
 import org.elasticsearch.xpack.esql.core.rule.Rule;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.DataTypes;
@@ -1267,46 +1264,6 @@ public final class OptimizerRules {
 
         protected In createIn(Expression key, List<Expression> values, ZoneId zoneId) {
             return new In(key.source(), key, values, zoneId);
-        }
-    }
-
-    public static class PushDownAndCombineFilters extends OptimizerRule<Filter> {
-
-        @Override
-        protected LogicalPlan rule(Filter filter) {
-            LogicalPlan plan = filter;
-            LogicalPlan child = filter.child();
-            Expression condition = filter.condition();
-
-            if (child instanceof Filter f) {
-                plan = f.with(new And(f.source(), f.condition(), condition));
-            }
-            // as it stands, all other unary plans should allow filters to be pushed down
-            else if (child instanceof UnaryPlan unary) {
-                // in case of aggregates, worry about filters that contain aggregations
-                if (unary instanceof Aggregate && condition.anyMatch(Functions::isAggregate)) {
-                    List<Expression> conjunctions = new ArrayList<>(splitAnd(condition));
-                    List<Expression> inPlace = new ArrayList<>();
-                    // extract all conjunctions containing aggregates
-                    for (Iterator<Expression> iterator = conjunctions.iterator(); iterator.hasNext();) {
-                        Expression conjunction = iterator.next();
-                        if (conjunction.anyMatch(Functions::isAggregate)) {
-                            inPlace.add(conjunction);
-                            iterator.remove();
-                        }
-                    }
-                    // if at least one expression can be pushed down, update the tree
-                    if (conjunctions.size() > 0) {
-                        child = unary.replaceChild(filter.with(unary.child(), Predicates.combineAnd(conjunctions)));
-                        plan = filter.with(child, Predicates.combineAnd(inPlace));
-                    }
-                } else {
-                    // push down filter
-                    plan = unary.replaceChild(filter.with(unary.child(), condition));
-                }
-            }
-
-            return plan;
         }
     }
 

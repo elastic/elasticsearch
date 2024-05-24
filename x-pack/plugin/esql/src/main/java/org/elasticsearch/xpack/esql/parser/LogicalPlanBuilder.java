@@ -14,6 +14,7 @@ import org.elasticsearch.Build;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.dissect.DissectException;
 import org.elasticsearch.dissect.DissectParser;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.core.common.Failure;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
@@ -234,7 +235,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
                 }
             }
         }
-        return new EsqlUnresolvedRelation(source, table, Arrays.asList(metadataMap.values().toArray(Attribute[]::new)));
+        return new EsqlUnresolvedRelation(source, table, Arrays.asList(metadataMap.values().toArray(Attribute[]::new)), IndexMode.STANDARD);
     }
 
     @Override
@@ -428,7 +429,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         }
         Source source = source(ctx);
         TableIdentifier table = new TableIdentifier(source, null, visitIndexIdentifiers(ctx.indexIdentifier()));
-        var unresolvedRelation = new EsqlUnresolvedRelation(source, table, List.of());
+        var unresolvedRelation = new EsqlUnresolvedRelation(source, table, List.of(), IndexMode.TIME_SERIES);
         if (ctx.aggregates == null && ctx.grouping == null) {
             return unresolvedRelation;
         }

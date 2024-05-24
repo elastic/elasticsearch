@@ -94,6 +94,7 @@ public class PriorityProcessWorkerExecutorService extends AbstractProcessWorkerE
 
         // PriorityBlockingQueue::offer always returns true
         queue.offer(new OrderedRunnable(priority, tieBreaker, contextHolder.preserveContext(command)));
+        //System.out.println("ADD TO QUEUE: size=" + queue.size());
         if (isShutdown()) {
             // the worker shutdown during this function
             notifyQueueRunnables();

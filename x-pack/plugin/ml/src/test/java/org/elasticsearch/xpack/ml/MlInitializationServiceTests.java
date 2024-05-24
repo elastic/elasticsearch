@@ -95,6 +95,7 @@ public class MlInitializationServiceTests extends ESTestCase {
     public void testNodeGoesFromMasterToNonMasterAndBack() {
         MlDailyMaintenanceService initialDailyMaintenanceService = mock(MlDailyMaintenanceService.class);
 
+        // TODO: fix
         MlInitializationService initializationService = new MlInitializationService(
             client,
             threadPool,

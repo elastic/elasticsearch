@@ -108,6 +108,7 @@ public abstract class AbstractProcessWorkerExecutorService<T extends Runnable> e
         try {
             while (running.get()) {
                 Runnable runnable = queue.poll(500, TimeUnit.MILLISECONDS);
+                //System.out.println("GET FROM QUEUE: size=" + queue.size());
                 if (runnable != null) {
                     try {
                         runnable.run();

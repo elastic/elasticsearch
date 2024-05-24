@@ -1277,6 +1277,8 @@ public class MachineLearning extends Plugin
             new MlAutoscalingDeciderService(memoryTracker, settings, nodeAvailabilityZoneMapper, clusterService)
         );
 
+        // Create trained models scaler?
+
         MlInitializationService mlInitializationService = new MlInitializationService(
             settings,
             threadPool,

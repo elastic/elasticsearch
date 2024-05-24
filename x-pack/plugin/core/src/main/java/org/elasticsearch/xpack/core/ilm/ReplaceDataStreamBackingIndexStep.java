@@ -87,7 +87,7 @@ public class ReplaceDataStreamBackingIndexStep extends ClusterStateActionStep {
         }
 
         boolean isFailureStoreWriteIndex = index.equals(dataStream.getFailureStoreWriteIndex());
-        if (isFailureStoreWriteIndex || index.equals(dataStream.getWriteIndex())) {
+        if (isFailureStoreWriteIndex || dataStream.getWriteIndex().equals(index)) {
             String errorMessage = String.format(
                 Locale.ROOT,
                 "index [%s] is the%s write index for data stream [%s], pausing "

@@ -17,6 +17,7 @@ import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.Index;
 
 import java.util.Locale;
 
@@ -40,7 +41,8 @@ public class DeleteStep extends AsyncRetryDuringSnapshotActionStep {
         DataStream dataStream = indexAbstraction.getParentDataStream();
 
         if (dataStream != null) {
-            boolean isFailureStoreWriteIndex = indexMetadata.getIndex().equals(dataStream.getFailureStoreWriteIndex());
+            Index failureStoreWriteIndex = dataStream.getFailureStoreWriteIndex();
+            boolean isFailureStoreWriteIndex = failureStoreWriteIndex != null && indexName.equals(failureStoreWriteIndex.getName());
 
             // using index name equality across this if/else branch as the UUID of the index might change via restoring a data stream
             // with one index from snapshot
@@ -57,7 +59,7 @@ public class DeleteStep extends AsyncRetryDuringSnapshotActionStep {
                     listener.delegateFailureAndWrap((l, response) -> l.onResponse(null))
                 );
                 return;
-            } else if (isFailureStoreWriteIndex || indexMetadata.getIndex().equals(dataStream.getWriteIndex())) {
+            } else if (isFailureStoreWriteIndex || dataStream.getWriteIndex().getName().equals(indexName)) {
                 String errorMessage = String.format(
                     Locale.ROOT,
                     "index [%s] is the%s write index for data stream [%s]. "

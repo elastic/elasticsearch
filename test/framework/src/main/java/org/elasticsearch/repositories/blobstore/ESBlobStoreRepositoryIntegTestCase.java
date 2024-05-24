@@ -91,13 +91,8 @@ public abstract class ESBlobStoreRepositoryIntegTestCase extends ESIntegTestCase
         return Settings.builder().put("compress", randomBoolean()).build();
     }
 
-    /**
-     * Create a repository without verification, assuming the repository is perfectly valid.
-     * If the repository can be invalid, use another method
-     * {@link ESBlobStoreRepositoryIntegTestCase#createRepository(String repoName, boolean verify)}
-     */
     protected final String createRepository(final String name) {
-        return createRepository(name, false);
+        return createRepository(name, true);
     }
 
     protected final String createRepository(final String name, final boolean verify) {

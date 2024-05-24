@@ -184,6 +184,24 @@ public class RepositoriesServiceTests extends ESTestCase {
         assertThrows(RepositoryMissingException.class, () -> { repositoriesService.repository(repoName); });
     }
 
+    public void testPutRepositoryVerificationFailsOnExisting() {
+        var repoName = randomAlphaOfLengthBetween(10, 25);
+        var request = new PutRepositoryRequest().name(repoName).type(TestRepository.TYPE).verify(true);
+        var resultListener = new SubscribableListener<AcknowledgedResponse>();
+        repositoriesService.registerRepository(request, resultListener);
+        var ackResponse = safeAwait(resultListener);
+        assertTrue(ackResponse.isAcknowledged());
+
+        // try to update existing repository with faulty repo and make sure it is not applied
+        request = new PutRepositoryRequest().name(repoName).type(VerificationFailRepository.TYPE).verify(true);
+        resultListener = new SubscribableListener<>();
+        repositoriesService.registerRepository(request, resultListener);
+        var failure = safeAwaitFailure(resultListener);
+        assertThat(failure, isA(RepositoryVerificationException.class));
+        var repository = repositoriesService.repository(repoName);
+        assertEquals(repository.getMetadata().type(), TestRepository.TYPE);
+    }
+
     public void testPutRepositorySkipVerification() {
         var repoName = randomAlphaOfLengthBetween(10, 25);
         var request = new PutRepositoryRequest().name(repoName).type(VerificationFailRepository.TYPE).verify(false);

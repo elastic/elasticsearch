@@ -1576,12 +1576,7 @@ public class DataStreamLifecycleServiceTests extends ESTestCase {
         String firstGenIndexName = DataStream.getDefaultBackingIndexName(dataStreamName, 1);
         var imd = builder.get(firstGenIndexName);
         var imdBuilder = new IndexMetadata.Builder(imd);
-        imdBuilder.settings(
-            Settings.builder()
-                .put(imd.getSettings())
-                .put(IndexMetadata.INDEX_DOWNSAMPLE_STATUS.getKey(), status)
-                .build()
-        );
+        imdBuilder.settings(Settings.builder().put(imd.getSettings()).put(IndexMetadata.INDEX_DOWNSAMPLE_STATUS.getKey(), status).build());
         builder.put(imdBuilder);
 
         // Attaching state:

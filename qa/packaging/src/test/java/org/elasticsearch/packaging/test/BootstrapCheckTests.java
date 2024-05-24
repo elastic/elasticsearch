@@ -44,6 +44,8 @@ public class BootstrapCheckTests extends PackagingTestCase {
                 ServerUtils.addSettingToExistingConfiguration(installation.config, setting.getKey(), setting.getValue());
             }
             ServerUtils.removeSettingFromExistingConfiguration(installation.config, "cluster.initial_master_nodes");
+            ServerUtils.removeSettingFromExistingConfiguration(installation.config, "xpack.security.enrollment.enabled");
+            ServerUtils.removeSettingFromExistingConfiguration(installation.config, "xpack.security.http.ssl.enabled");
         }
 
         startElasticsearch();

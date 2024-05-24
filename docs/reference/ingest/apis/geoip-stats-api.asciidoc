@@ -41,6 +41,14 @@ Download statistics for all GeoIP2 databases.
 (integer)
 Total number of successful database downloads.
 
+`name`::
+(string)
+Name of the database.
+
+`md5`::
+(string)
+MD5 hash of the database.
+
 `failed_downloads`::
 (integer)
 Total number of failed database downloads.
@@ -56,6 +64,104 @@ Current number of databases available for use.
 `skipped_updates`::
 (integer)
 Total number of database updates skipped.
+`downloader_attempts`::
+(array of objects)
+This provides information about each database that this {es} cluster attempted to download from a remote source.
++
+.Properties of `downloader_attempts` objects
+[%collapsible%open]
+======
+
+`name`::
+(string)
+Name of the database.
+
+`last_success`::
+(object)
+Information about the most recent successful download (if any) of this database. This information does not persist across node restarts.
++
+.Properties of `last_success`
+
+[%collapsible%open]
+=======
+`md5`::
+(string)
+MD5 hash of the database.
+
+`download_date_in_millis`::
+(long)
+The date that the database was downloaded from the remote system to a node in the {es} cluster, represented as epoch milliseconds
+
+`download_date`::
+(string)
+The date that the database was downloaded from the remote system to a node in the {es} cluster, in a human-readable format. Returned only
+if the `human` request parameter is passed.
+
+`download_time_in_millis`::
+(long)
+The amount of time in milliseconds that it took to download the database from the remote system to a node in the {es} cluster.
+
+`download_time`::
+(string)
+The amount of time in milliseconds that it took to download the database from the remote system to a node in the {es} cluster, in a
+human-readable format. Returned only if the `human` request parameter is passed.
+
+`build_date_in_millis`::
+(long)
+The build date of the database represented as epoch milliseconds
+
+`build_date`::
+(string)
+The build date of the database in a human-readable format. Returned only if the `human` request parameter is passed.
+=======
+
+`last_failure`::
+(object)
+Information about the most recent failed download (if any) of this database. This information does not persist across node restarts.
++
+.Properties of `last_failure`
+
+[%collapsible%open]
+=======
+`md5`::
+(string)
+MD5 hash of the database.
+
+`download_date_in_millis`::
+(long)
+The date that the database was attempted to be downloaded from the remote system to a node in the {es} cluster, represented as epoch
+milliseconds
+
+`download_date`::
+(string)
+The date that the database was attempted to be downloaded from the remote system to a node in the {es} cluster, in a human-readable format.
+Returned only
+if the `human` request parameter is passed.
+
+`download_time_in_millis`::
+(long)
+The amount of time in milliseconds that the failed download from the remote system to a node in the {es} cluster took.
+
+`download_time`::
+(string)
+The amount of time in milliseconds that the failed download from the remote system to a node in the {es} cluster took, in a
+human-readable format. Returned only if the `human` request parameter is passed.
+
+`build_date_in_millis`::
+(long)
+The build date of the database represented as epoch milliseconds, if known.
+
+`build_date`::
+(string)
+The build date of the database represented as epoch milliseconds, if known.. Returned only if the `human` request parameter is passed.
+
+`error_message`::
+(string)
+A message explaining why the download failed.
+
+=======
+
+======
 ====
 
 `nodes`::
@@ -74,7 +180,7 @@ Downloaded databases for the node. The field key is the node ID.
 =====
 `databases`::
 (array of objects)
-Downloaded databases for the node.
+This provides information about each database that was pulled down from an {es} index onto this node.
 +
 .Properties of `databases` objects
 [%collapsible%open]
@@ -82,6 +188,22 @@ Downloaded databases for the node.
 `name`::
 (string)
 Name of the database.
+
+`md5`::
+(string)
+MD5 hash of the database.
+
+`build_date_in_millis`::
+(long)
+The build date of the database represented as epoch milliseconds
+
+`build_date`::
+(long)
+The build date of the database in a human-readable format. Returned only if the `human` request parameter is passed.
+
+`type`::
+(string)
+The type of the database.
 ======
 `cache_stats`::
 (object)

@@ -150,9 +150,7 @@ final class RequestXContent {
                     for (Map.Entry<String, Object> entry : param.fields.entrySet()) {
                         // don't allow integer as a key
                         if (Character.isDigit(entry.getKey().charAt(0))) {
-                            throw new InvalidArgumentException(
-                                entry.getKey() + ", starts with a digit, is not a valid parameter name."
-                            );
+                            throw new InvalidArgumentException(entry.getKey() + ", starts with a digit, is not a valid parameter name.");
                         }
                         type = EsqlDataTypes.fromJava(entry.getValue());
                         if (type == null) {

@@ -169,6 +169,70 @@ setup:
   - match:  { _source.non_inference_field: "non inference test" }
 
 ---
+"Updating semantic_text source field recalculates embeddings when using the update API":
+  - do:
+      indices.create:
+        index: test-copy-to-index
+        body:
+          mappings:
+            properties:
+              sparse_field:
+                type: semantic_text
+                inference_id: sparse-inference-id
+              sparse_source_field:
+                type: text
+                copy_to: sparse_field
+              dense_field:
+                type: semantic_text
+                inference_id: dense-inference-id
+              dense_source_field:
+                type: text
+                copy_to: dense_field
+
+  - do:
+      index:
+        index: test-copy-to-index
+        id: doc_1
+        body:
+          sparse_field: "sparse data 1"
+          sparse_source_field: "sparse data 2"
+          dense_field: "dense data 1"
+          dense_source_field: "dense data 2"
+
+  - do:
+      get:
+        index: test-copy-to-index
+        id: doc_1
+
+  - length: { _source.sparse_field.inference.chunks: 2 }
+  - match: { _source.sparse_field.inference.chunks.1.text: "sparse data 2" }
+  - exists: _source.sparse_field.inference.chunks.1.embeddings
+  - length: { _source.dense_field.inference.chunks: 2 }
+  - match: { _source.dense_field.inference.chunks.1.text: "dense data 2" }
+  - exists: _source.dense_field.inference.chunks.1.embeddings
+
+  - do:
+      update:
+        index: test-copy-to-index
+        id: doc_1
+        body:
+          doc: { "sparse_source_field": "sparse data 3", "dense_source_field": "dense data 3" }
+
+  - do:
+      get:
+        index: test-copy-to-index
+        id: doc_1
+
+  - match: { _source.sparse_field.text: "sparse data 1" }
+  - length: { _source.sparse_field.inference.chunks: 2 }
+  - match: { _source.sparse_field.inference.chunks.1.text: "sparse data 3" }
+  - exists: _source.sparse_field.inference.chunks.1.embeddings
+  - match: { _source.dense_field.text: "dense data 1" }
+  - length: { _source.dense_field.inference.chunks: 2 }
+  - match: { _source.dense_field.inference.chunks.1.text: "dense data 3" }
+  - exists: _source.dense_field.inference.chunks.1.embeddings
+
+---
 "Updates with script are not allowed":
   - do:
       bulk:
@@ -187,6 +251,8 @@ setup:
   - match: { errors: true }
   - match: { items.0.update.status: 400 }
   - match: { items.0.update.error.reason: "Cannot apply update with a script on indices that contain [semantic_text] field(s)" }
+
+# TODO: test update API here
 
 ---
 "semantic_text copy_to needs values for every source field for bulk updates":
@@ -224,70 +290,6 @@ setup:
 
   - match: { items.0.update.status: 400 }
   - match: { items.0.update.error.reason: "Field [another_source_field] must be specified on an update request to calculate inference for field [sparse_field]" }
-
----
-"Updating semantic_text fields with multiple source fields recalculates embeddings":
-  - do:
-      indices.create:
-        index: test-copy-to-index
-        body:
-          mappings:
-            properties:
-              sparse_field:
-                type: semantic_text
-                inference_id: sparse-inference-id
-              sparse_source_field:
-                type: text
-                copy_to: sparse_field
-              dense_field:
-                type: semantic_text
-                inference_id: dense-inference-id
-              dense_source_field:
-                type: text
-                copy_to: dense_field
-
-  - do:
-      index:
-        index: test-copy-to-index
-        id: doc_1
-        body:
-          sparse_field: "sparse data 1"
-          sparse_source_field: "sparse data 2"
-          dense_field: "dense data 1"
-          dense_source_field: "dense data 2"
-
-  - do:
-      get:
-        index: test-copy-to-index
-        id: doc_1
-
-  - length: { _source.sparse_field.inference.chunks: 2 }
-  - match: { _source.sparse_field.inference.chunks.1.text: "sparse data 2" }
-  - set: { _source.sparse_field.inference.chunks.1.embeddings: sparse_field_embedding_1 }
-  - length: { _source.dense_field.inference.chunks: 2 }
-  - match: { _source.dense_field.inference.chunks.1.text: "dense data 2" }
-  - set: { _source.dense_field.inference.chunks.1.embeddings: dense_field_embedding_1 }
-
-  - do:
-      update:
-        index: test-copy-to-index
-        id: doc_1
-        body:
-          doc: { "sparse_source_field": "sparse data 3", "dense_source_field": "dense data 3" }
-
-  - do:
-      get:
-        index: test-copy-to-index
-        id: doc_1
-
-  - match: { _source.sparse_field.text: "sparse data 1" }
-  - length: { _source.sparse_field.inference.chunks: 2 }
-  # TODO: Check that embeddings changed
-  - match: { _source.sparse_field.inference.chunks.1.text: "sparse data 3" }
-  - match: { _source.dense_field.text: "dense data 1" }
-  - length: { _source.dense_field.inference.chunks: 2 }
-  # TODO: Check that embeddings changed
-  - match: { _source.dense_field.inference.chunks.1.text: "dense data 3" }
 
 ---
 "Calculates embeddings for bulk operations - update":

@@ -160,7 +160,7 @@ public class QueryRuleTests extends ESTestCase {
             QueryRule.QueryRuleType.PINNED,
             List.of(new QueryRuleCriteria(EXACT, "query", List.of("elastic"))),
             Map.of("ids", List.of("id1", "id2")),
-            randomBoolean() ? randomIntBetween(MIN_PRIORITY, MAX_PRIORITY) : null
+            EnterpriseSearchModuleTestUtils.randomQueryRulePriority()
         );
         AppliedQueryRules appliedQueryRules = new AppliedQueryRules();
         rule.applyRule(appliedQueryRules, Map.of("query", "elastic"));
@@ -177,7 +177,7 @@ public class QueryRuleTests extends ESTestCase {
             QueryRule.QueryRuleType.PINNED,
             List.of(new QueryRuleCriteria(PREFIX, "query", List.of("elastic")), new QueryRuleCriteria(SUFFIX, "query", List.of("search"))),
             Map.of("ids", List.of("id1", "id2")),
-            randomBoolean() ? randomIntBetween(MIN_PRIORITY, MAX_PRIORITY) : null
+            EnterpriseSearchModuleTestUtils.randomQueryRulePriority()
         );
         AppliedQueryRules appliedQueryRules = new AppliedQueryRules();
         rule.applyRule(appliedQueryRules, Map.of("query", "elastic - you know, for search"));

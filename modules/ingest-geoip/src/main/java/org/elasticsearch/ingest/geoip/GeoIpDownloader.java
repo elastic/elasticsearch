@@ -187,10 +187,10 @@ public class GeoIpDownloader extends AllocatedPersistentTask {
             source = endpoint;
         }
         Long buildDate = null;
-        Integer updatedDateInSeconds = (Integer) databaseInfo.get("updated");
+        Number updatedDateInSeconds = (Number) databaseInfo.get("updated"); // This can come in as an Integer or a Long
         Integer updatedAgeInSeconds = (Integer) databaseInfo.get("age");
         if (updatedDateInSeconds != null && updatedAgeInSeconds != null) {
-            buildDate = (updatedDateInSeconds - updatedAgeInSeconds) * 1000L;
+            buildDate = (updatedDateInSeconds.longValue() - updatedAgeInSeconds) * 1000L;
         }
         try (InputStream is = httpClient.get(url)) {
             int firstChunk = state.contains(name) ? state.get(name).lastChunk() + 1 : 0;

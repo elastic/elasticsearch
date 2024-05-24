@@ -37,6 +37,7 @@ public class BootstrapCheckTests extends PackagingTestCase {
                 "single-node"
             )
         );
+        stopElasticsearch();
     }
 
     private void configureBootstrapChecksAndRun(Map<String, String> settings) throws Exception {

@@ -393,9 +393,7 @@ class KibanaOwnedReservedRoleDescriptors {
                     .privileges("read", "view_index_metadata")
                     .build(),
                 RoleDescriptor.IndicesPrivileges.builder()
-                    .indices(
-                        "logs-wiz.cloud_configuration_finding_latest-default*"
-                    )
+                    .indices("logs-wiz.cloud_configuration_finding_latest-default*")
                     .privileges(
                         "create_index",
                         "read",

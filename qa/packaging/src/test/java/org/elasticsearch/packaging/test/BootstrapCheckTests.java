@@ -26,7 +26,7 @@ public class BootstrapCheckTests extends PackagingTestCase {
 
     public void test20RunWithBootstrapChecks() throws Exception {
         configureBootstrapChecksAndRun(
-            Map.of("discovery.seed_hosts", "[]", "xpack.security.enabled", "false", "discovery.type", "single-node")
+            Map.of("xpack.security.enabled", "false", "discovery.type", "single-node")
         );
     }
 
@@ -43,6 +43,7 @@ public class BootstrapCheckTests extends PackagingTestCase {
             for (var setting : settings.entrySet()) {
                 ServerUtils.addSettingToExistingConfiguration(installation.config, setting.getKey(), setting.getValue());
             }
+            ServerUtils.removeSettingFromExistingConfiguration(installation.config, "cluster.initial_master_nodes");
         }
 
         startElasticsearch();

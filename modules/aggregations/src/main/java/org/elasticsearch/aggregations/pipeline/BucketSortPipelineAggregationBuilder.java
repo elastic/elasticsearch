@@ -84,7 +84,7 @@ public class BucketSortPipelineAggregationBuilder extends AbstractPipelineAggreg
     private GapPolicy gapPolicy = GapPolicy.SKIP;
 
     public BucketSortPipelineAggregationBuilder(String name, List<FieldSortBuilder> sorts) {
-        super(name, NAME, sorts == null ? new String[0] : sorts.stream().map(s -> s.getFieldName()).toArray(String[]::new));
+        super(name, NAME, sorts == null ? new String[0] : sorts.stream().map(FieldSortBuilder::getFieldName).toArray(String[]::new));
         this.sorts = sorts == null ? Collections.emptyList() : sorts;
     }
 

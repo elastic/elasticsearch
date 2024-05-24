@@ -10,63 +10,49 @@ package org.elasticsearch.compute.data;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
-import org.elasticsearch.common.breaker.NoopCircuitBreaker;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.BytesRefArray;
 import org.elasticsearch.compute.data.Block.MvOrdering;
 
 import java.util.BitSet;
-import java.util.List;
-import java.util.ServiceLoader;
 
 public class BlockFactory {
+    public static final String LOCAL_BREAKER_OVER_RESERVED_SIZE_SETTING = "esql.block_factory.local_breaker.over_reserved";
+    public static final ByteSizeValue LOCAL_BREAKER_OVER_RESERVED_DEFAULT_SIZE = ByteSizeValue.ofKb(4);
 
-    private static final BlockFactory NON_BREAKING = BlockFactory.getInstance(
-        new NoopCircuitBreaker("noop-esql-breaker"),
-        BigArrays.NON_RECYCLING_INSTANCE
-    );
+    public static final String LOCAL_BREAKER_OVER_RESERVED_MAX_SIZE_SETTING = "esql.block_factory.local_breaker.max_over_reserved";
+    public static final ByteSizeValue LOCAL_BREAKER_OVER_RESERVED_DEFAULT_MAX_SIZE = ByteSizeValue.ofKb(16);
 
-    private static final BlockFactory GLOBAL = loadGlobalFactory();
-    // new BlockFactory(new NoopCircuitBreaker("esql_noop_breaker"), BigArrays.NON_RECYCLING_INSTANCE);
-
-    private static BlockFactory loadGlobalFactory() {
-        ServiceLoader<BlockFactoryParameters> loader = ServiceLoader.load(
-            BlockFactoryParameters.class,
-            BlockFactory.class.getClassLoader()
-        );
-        List<ServiceLoader.Provider<BlockFactoryParameters>> impls = loader.stream().toList();
-        if (impls.size() != 1) {
-            throw new AssertionError("expected exactly one impl, but got:" + impls);
-        }
-        BlockFactoryParameters params = impls.get(0).get();
-        return new BlockFactory(params.breaker(), params.bigArrays());
-    }
+    public static final String MAX_BLOCK_PRIMITIVE_ARRAY_SIZE_SETTING = "esql.block_factory.max_block_primitive_array_size";
+    public static final ByteSizeValue DEFAULT_MAX_BLOCK_PRIMITIVE_ARRAY_SIZE = ByteSizeValue.ofKb(512);
 
     private final CircuitBreaker breaker;
 
     private final BigArrays bigArrays;
+    private final long maxPrimitiveArrayBytes;
+    private final BlockFactory parent;
 
-    private BlockFactory(CircuitBreaker breaker, BigArrays bigArrays) {
+    public BlockFactory(CircuitBreaker breaker, BigArrays bigArrays) {
+        this(breaker, bigArrays, DEFAULT_MAX_BLOCK_PRIMITIVE_ARRAY_SIZE);
+    }
+
+    public BlockFactory(CircuitBreaker breaker, BigArrays bigArrays, ByteSizeValue maxPrimitiveArraySize) {
+        this(breaker, bigArrays, maxPrimitiveArraySize, null);
+    }
+
+    protected BlockFactory(CircuitBreaker breaker, BigArrays bigArrays, ByteSizeValue maxPrimitiveArraySize, BlockFactory parent) {
+        assert breaker instanceof LocalCircuitBreaker == false
+            || (parent != null && ((LocalCircuitBreaker) breaker).parentBreaker() == parent.breaker)
+            : "use local breaker without parent block factory";
         this.breaker = breaker;
         this.bigArrays = bigArrays;
-    }
-
-    /**
-     * Returns the global ESQL block factory.
-     */
-    public static BlockFactory getGlobalInstance() {
-        return GLOBAL;
-    }
-
-    /**
-     * Returns the Non-Breaking block factory.
-     */
-    public static BlockFactory getNonBreakingInstance() {
-        return NON_BREAKING;
+        this.parent = parent;
+        this.maxPrimitiveArrayBytes = maxPrimitiveArraySize.getBytes();
     }
 
     public static BlockFactory getInstance(CircuitBreaker breaker, BigArrays bigArrays) {
-        return new BlockFactory(breaker, bigArrays);
+        return new BlockFactory(breaker, bigArrays, DEFAULT_MAX_BLOCK_PRIMITIVE_ARRAY_SIZE, null);
     }
 
     // For testing
@@ -79,27 +65,27 @@ public class BlockFactory {
         return bigArrays;
     }
 
+    protected BlockFactory parent() {
+        return parent != null ? parent : this;
+    }
+
+    public BlockFactory newChildFactory(LocalCircuitBreaker childBreaker) {
+        if (childBreaker.parentBreaker() != breaker) {
+            throw new IllegalStateException("Different parent breaker");
+        }
+        return new BlockFactory(childBreaker, bigArrays, ByteSizeValue.ofBytes(maxPrimitiveArrayBytes), this);
+    }
+
     /**
      * Adjust the circuit breaker with the given delta, if the delta is negative, the breaker will
-     * be adjusted without tripping.  If the data was already created before calling this method,
-     * and the breaker trips, we add the delta without breaking to account for the created data.
-     * If the data has not been created yet, we do not add the delta to the breaker if it trips.
+     * be adjusted without tripping.
+     * @throws CircuitBreakingException if the breaker was put above its limit
      */
-    void adjustBreaker(final long delta, final boolean isDataAlreadyCreated) {
+    void adjustBreaker(final long delta) throws CircuitBreakingException {
         // checking breaker means potentially tripping, but it doesn't
         // have to if the delta is negative
         if (delta > 0) {
-            try {
-                breaker.addEstimateBytesAndMaybeBreak(delta, "<esql_block_factory>");
-            } catch (CircuitBreakingException e) {
-                if (isDataAlreadyCreated) {
-                    // since we've already created the data, we need to
-                    // add it so closing the stream re-adjusts properly
-                    breaker.addWithoutBreaking(delta);
-                }
-                // re-throw the original exception
-                throw e;
-            }
+            breaker.addEstimateBytesAndMaybeBreak(delta, "<esql_block_factory>");
         } else {
             breaker.addWithoutBreaking(delta);
         }
@@ -108,25 +94,25 @@ public class BlockFactory {
     /** Pre-adjusts the breaker for the given position count and element type. Returns the pre-adjusted amount. */
     public long preAdjustBreakerForBoolean(int positionCount) {
         long bytes = (long) positionCount * Byte.BYTES;
-        adjustBreaker(bytes, false);
+        adjustBreaker(bytes);
         return bytes;
     }
 
     public long preAdjustBreakerForInt(int positionCount) {
         long bytes = (long) positionCount * Integer.BYTES;
-        adjustBreaker(bytes, false);
+        adjustBreaker(bytes);
         return bytes;
     }
 
     public long preAdjustBreakerForLong(int positionCount) {
         long bytes = (long) positionCount * Long.BYTES;
-        adjustBreaker(bytes, false);
+        adjustBreaker(bytes);
         return bytes;
     }
 
     public long preAdjustBreakerForDouble(int positionCount) {
         long bytes = (long) positionCount * Double.BYTES;
-        adjustBreaker(bytes, false);
+        adjustBreaker(bytes);
         return bytes;
     }
 
@@ -134,15 +120,20 @@ public class BlockFactory {
         return new BooleanBlockBuilder(estimatedSize, this);
     }
 
-    public BooleanBlock newBooleanArrayBlock(
-        boolean[] values,
-        int positionCount,
-        int[] firstValueIndexes,
-        BitSet nulls,
-        MvOrdering mvOrdering
-    ) {
-        var b = new BooleanArrayBlock(values, positionCount, firstValueIndexes, nulls, mvOrdering, this);
-        adjustBreaker(b.ramBytesUsed(), true);
+    /**
+     * Build a {@link BooleanVector.FixedBuilder} that never grows.
+     */
+    public BooleanVector.FixedBuilder newBooleanVectorFixedBuilder(int size) {
+        return new BooleanVectorFixedBuilder(size, this);
+    }
+
+    public final BooleanBlock newBooleanArrayBlock(boolean[] values, int pc, int[] firstValueIndexes, BitSet nulls, MvOrdering mvOrdering) {
+        return newBooleanArrayBlock(values, pc, firstValueIndexes, nulls, mvOrdering, 0L);
+    }
+
+    public BooleanBlock newBooleanArrayBlock(boolean[] values, int pc, int[] fvi, BitSet nulls, MvOrdering mvOrder, long preAdjustedBytes) {
+        var b = new BooleanArrayBlock(values, pc, fvi, nulls, mvOrder, this);
+        adjustBreaker(b.ramBytesUsed() - preAdjustedBytes);
         return b;
     }
 
@@ -150,29 +141,44 @@ public class BlockFactory {
         return new BooleanVectorBuilder(estimatedSize, this);
     }
 
-    public BooleanVector newBooleanArrayVector(boolean[] values, int positionCount) {
+    public final BooleanVector newBooleanArrayVector(boolean[] values, int positionCount) {
         return newBooleanArrayVector(values, positionCount, 0L);
     }
 
     public BooleanVector newBooleanArrayVector(boolean[] values, int positionCount, long preAdjustedBytes) {
         var b = new BooleanArrayVector(values, positionCount, this);
-        adjustBreaker(b.ramBytesUsed() - preAdjustedBytes, true);
+        adjustBreaker(b.ramBytesUsed() - preAdjustedBytes);
         return b;
     }
 
-    public BooleanBlock newConstantBooleanBlockWith(boolean value, int positions) {
+    public final BooleanBlock newConstantBooleanBlockWith(boolean value, int positions) {
+        return newConstantBooleanBlockWith(value, positions, 0L);
+    }
+
+    public BooleanBlock newConstantBooleanBlockWith(boolean value, int positions, long preAdjustedBytes) {
         var b = new ConstantBooleanVector(value, positions, this).asBlock();
-        adjustBreaker(b.ramBytesUsed(), true);
+        adjustBreaker(b.ramBytesUsed() - preAdjustedBytes);
         return b;
+    }
+
+    public BooleanVector newConstantBooleanVector(boolean value, int positions) {
+        adjustBreaker(ConstantBooleanVector.RAM_BYTES_USED);
+        var v = new ConstantBooleanVector(value, positions, this);
+        assert v.ramBytesUsed() == ConstantBooleanVector.RAM_BYTES_USED;
+        return v;
     }
 
     public IntBlock.Builder newIntBlockBuilder(int estimatedSize) {
         return new IntBlockBuilder(estimatedSize, this);
     }
 
-    public IntBlock newIntArrayBlock(int[] values, int positionCount, int[] firstValueIndexes, BitSet nulls, MvOrdering mvOrdering) {
-        var b = new IntArrayBlock(values, positionCount, firstValueIndexes, nulls, mvOrdering, this);
-        adjustBreaker(b.ramBytesUsed(), true);
+    public final IntBlock newIntArrayBlock(int[] values, int positionCount, int[] firstValueIndexes, BitSet nulls, MvOrdering mvOrdering) {
+        return newIntArrayBlock(values, positionCount, firstValueIndexes, nulls, mvOrdering, 0L);
+    }
+
+    public IntBlock newIntArrayBlock(int[] values, int pc, int[] fvi, BitSet nulls, MvOrdering mvOrdering, long preAdjustedBytes) {
+        var b = new IntArrayBlock(values, pc, fvi, nulls, mvOrdering, this);
+        adjustBreaker(b.ramBytesUsed() - preAdjustedBytes);
         return b;
     }
 
@@ -181,10 +187,17 @@ public class BlockFactory {
     }
 
     /**
+     * Build a {@link IntVector.FixedBuilder} that never grows.
+     */
+    public IntVector.FixedBuilder newIntVectorFixedBuilder(int size) {
+        return new IntVectorFixedBuilder(size, this);
+    }
+
+    /**
      * Creates a new Vector with the given values and positionCount. Equivalent to:
      *   newIntArrayVector(values, positionCount, 0L); // with zero pre-adjusted bytes
      */
-    public IntVector newIntArrayVector(int[] values, int positionCount) {
+    public final IntVector newIntArrayVector(int[] values, int positionCount) {
         return newIntArrayVector(values, positionCount, 0L);
     }
 
@@ -201,23 +214,38 @@ public class BlockFactory {
      */
     public IntVector newIntArrayVector(int[] values, int positionCount, long preAdjustedBytes) {
         var b = new IntArrayVector(values, positionCount, this);
-        adjustBreaker(b.ramBytesUsed() - preAdjustedBytes, true);
+        adjustBreaker(b.ramBytesUsed() - preAdjustedBytes);
         return b;
     }
 
-    public IntBlock newConstantIntBlockWith(int value, int positions) {
+    public final IntBlock newConstantIntBlockWith(int value, int positions) {
+        return newConstantIntBlockWith(value, positions, 0L);
+    }
+
+    public IntBlock newConstantIntBlockWith(int value, int positions, long preAdjustedBytes) {
         var b = new ConstantIntVector(value, positions, this).asBlock();
-        adjustBreaker(b.ramBytesUsed(), true);
+        adjustBreaker(b.ramBytesUsed() - preAdjustedBytes);
         return b;
+    }
+
+    public IntVector newConstantIntVector(int value, int positions) {
+        adjustBreaker(ConstantIntVector.RAM_BYTES_USED);
+        var v = new ConstantIntVector(value, positions, this);
+        assert v.ramBytesUsed() == ConstantIntVector.RAM_BYTES_USED;
+        return v;
     }
 
     public LongBlock.Builder newLongBlockBuilder(int estimatedSize) {
         return new LongBlockBuilder(estimatedSize, this);
     }
 
-    public LongBlock newLongArrayBlock(long[] values, int positionCount, int[] firstValueIndexes, BitSet nulls, MvOrdering mvOrdering) {
-        var b = new LongArrayBlock(values, positionCount, firstValueIndexes, nulls, mvOrdering, this);
-        adjustBreaker(b.ramBytesUsed(), true);
+    public final LongBlock newLongArrayBlock(long[] values, int pc, int[] firstValueIndexes, BitSet nulls, MvOrdering mvOrdering) {
+        return newLongArrayBlock(values, pc, firstValueIndexes, nulls, mvOrdering, 0L);
+    }
+
+    public LongBlock newLongArrayBlock(long[] values, int pc, int[] fvi, BitSet nulls, MvOrdering mvOrdering, long preAdjustedBytes) {
+        var b = new LongArrayBlock(values, pc, fvi, nulls, mvOrdering, this);
+        adjustBreaker(b.ramBytesUsed() - preAdjustedBytes);
         return b;
     }
 
@@ -225,35 +253,52 @@ public class BlockFactory {
         return new LongVectorBuilder(estimatedSize, this);
     }
 
-    public LongVector newLongArrayVector(long[] values, int positionCount) {
+    /**
+     * Build a {@link LongVector.FixedBuilder} that never grows.
+     */
+    public LongVector.FixedBuilder newLongVectorFixedBuilder(int size) {
+        return new LongVectorFixedBuilder(size, this);
+    }
+
+    public final LongVector newLongArrayVector(long[] values, int positionCount) {
         return newLongArrayVector(values, positionCount, 0L);
     }
 
     public LongVector newLongArrayVector(long[] values, int positionCount, long preAdjustedBytes) {
         var b = new LongArrayVector(values, positionCount, this);
-        adjustBreaker(b.ramBytesUsed() - preAdjustedBytes, true);
+        adjustBreaker(b.ramBytesUsed() - preAdjustedBytes);
         return b;
     }
 
-    public LongBlock newConstantLongBlockWith(long value, int positions) {
+    public final LongBlock newConstantLongBlockWith(long value, int positions) {
+        return newConstantLongBlockWith(value, positions, 0L);
+    }
+
+    public LongBlock newConstantLongBlockWith(long value, int positions, long preAdjustedBytes) {
         var b = new ConstantLongVector(value, positions, this).asBlock();
-        adjustBreaker(b.ramBytesUsed(), true);
+        adjustBreaker(b.ramBytesUsed() - preAdjustedBytes);
         return b;
+    }
+
+    public LongVector newConstantLongVector(long value, int positions) {
+        adjustBreaker(ConstantLongVector.RAM_BYTES_USED);
+        var v = new ConstantLongVector(value, positions, this);
+        assert v.ramBytesUsed() == ConstantLongVector.RAM_BYTES_USED;
+        return v;
     }
 
     public DoubleBlock.Builder newDoubleBlockBuilder(int estimatedSize) {
         return new DoubleBlockBuilder(estimatedSize, this);
     }
 
-    public DoubleBlock newDoubleArrayBlock(
-        double[] values,
-        int positionCount,
-        int[] firstValueIndexes,
-        BitSet nulls,
-        MvOrdering mvOrdering
-    ) {
-        var b = new DoubleArrayBlock(values, positionCount, firstValueIndexes, nulls, mvOrdering, this);
-        adjustBreaker(b.ramBytesUsed(), true);
+    public final DoubleBlock newDoubleArrayBlock(double[] values, int pc, int[] firstValueIndexes, BitSet nulls, MvOrdering mvOrdering) {
+        return newDoubleArrayBlock(values, pc, firstValueIndexes, nulls, mvOrdering, 0L);
+
+    }
+
+    public DoubleBlock newDoubleArrayBlock(double[] values, int pc, int[] fvi, BitSet nulls, MvOrdering mvOrdering, long preAdjustedBytes) {
+        var b = new DoubleArrayBlock(values, pc, fvi, nulls, mvOrdering, this);
+        adjustBreaker(b.ramBytesUsed() - preAdjustedBytes);
         return b;
     }
 
@@ -261,35 +306,47 @@ public class BlockFactory {
         return new DoubleVectorBuilder(estimatedSize, this);
     }
 
-    public DoubleVector newDoubleArrayVector(double[] values, int positionCount) {
+    /**
+     * Build a {@link DoubleVector.FixedBuilder} that never grows.
+     */
+    public DoubleVector.FixedBuilder newDoubleVectorFixedBuilder(int size) {
+        return new DoubleVectorFixedBuilder(size, this);
+    }
+
+    public final DoubleVector newDoubleArrayVector(double[] values, int positionCount) {
         return newDoubleArrayVector(values, positionCount, 0L);
     }
 
     public DoubleVector newDoubleArrayVector(double[] values, int positionCount, long preAdjustedBytes) {
         var b = new DoubleArrayVector(values, positionCount, this);
-        adjustBreaker(b.ramBytesUsed() - preAdjustedBytes, true);
+        adjustBreaker(b.ramBytesUsed() - preAdjustedBytes);
         return b;
     }
 
-    public DoubleBlock newConstantDoubleBlockWith(double value, int positions) {
+    public final DoubleBlock newConstantDoubleBlockWith(double value, int positions) {
+        return newConstantDoubleBlockWith(value, positions, 0L);
+    }
+
+    public DoubleBlock newConstantDoubleBlockWith(double value, int positions, long preAdjustedBytes) {
         var b = new ConstantDoubleVector(value, positions, this).asBlock();
-        adjustBreaker(b.ramBytesUsed(), true);
+        adjustBreaker(b.ramBytesUsed() - preAdjustedBytes);
         return b;
+    }
+
+    public DoubleVector newConstantDoubleVector(double value, int positions) {
+        adjustBreaker(ConstantDoubleVector.RAM_BYTES_USED);
+        var v = new ConstantDoubleVector(value, positions, this);
+        assert v.ramBytesUsed() == ConstantDoubleVector.RAM_BYTES_USED;
+        return v;
     }
 
     public BytesRefBlock.Builder newBytesRefBlockBuilder(int estimatedSize) {
         return new BytesRefBlockBuilder(estimatedSize, bigArrays, this);
     }
 
-    public BytesRefBlock newBytesRefArrayBlock(
-        BytesRefArray values,
-        int positionCount,
-        int[] firstValueIndexes,
-        BitSet nulls,
-        MvOrdering mvOrdering
-    ) {
-        var b = new BytesRefArrayBlock(values, positionCount, firstValueIndexes, nulls, mvOrdering, this);
-        adjustBreaker(b.ramBytesUsed() - values.ramBytesUsed(), true);
+    public BytesRefBlock newBytesRefArrayBlock(BytesRefArray values, int pc, int[] firstValueIndexes, BitSet nulls, MvOrdering mvOrdering) {
+        var b = new BytesRefArrayBlock(values, pc, firstValueIndexes, nulls, mvOrdering, this);
+        adjustBreaker(b.ramBytesUsed() - values.bigArraysRamBytesUsed());
         return b;
     }
 
@@ -299,19 +356,34 @@ public class BlockFactory {
 
     public BytesRefVector newBytesRefArrayVector(BytesRefArray values, int positionCount) {
         var b = new BytesRefArrayVector(values, positionCount, this);
-        adjustBreaker(b.ramBytesUsed() - values.ramBytesUsed(), true);
+        adjustBreaker(b.ramBytesUsed() - values.bigArraysRamBytesUsed());
         return b;
     }
 
     public BytesRefBlock newConstantBytesRefBlockWith(BytesRef value, int positions) {
         var b = new ConstantBytesRefVector(value, positions, this).asBlock();
-        adjustBreaker(b.ramBytesUsed(), true);
+        adjustBreaker(b.ramBytesUsed());
         return b;
+    }
+
+    public BytesRefVector newConstantBytesRefVector(BytesRef value, int positions) {
+        long preadjusted = ConstantBytesRefVector.ramBytesUsed(value);
+        adjustBreaker(preadjusted);
+        var v = new ConstantBytesRefVector(value, positions, this);
+        assert v.ramBytesUsed() == preadjusted;
+        return v;
     }
 
     public Block newConstantNullBlock(int positions) {
         var b = new ConstantNullBlock(positions, this);
-        adjustBreaker(b.ramBytesUsed(), true);
+        adjustBreaker(b.ramBytesUsed());
         return b;
+    }
+
+    /**
+     * Returns the maximum number of bytes that a Block should be backed by a primitive array before switching to using BigArrays.
+     */
+    public long maxPrimitiveArrayBytes() {
+        return maxPrimitiveArrayBytes;
     }
 }

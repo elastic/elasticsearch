@@ -1,0 +1,27 @@
+[role="xpack"]
+[[inference-apis]]
+== {infer-cap} APIs
+
+experimental[]
+
+IMPORTANT: The {infer} APIs enable you to use certain services, such as built-in
+{ml} models (ELSER, E5), models uploaded through Eland, Cohere, OpenAI, Azure or
+Hugging Face. For built-in models and models uploaded though Eland, the {infer}
+APIs offer an alternative way to use and manage trained models. However, if you
+do not plan to use the {infer} APIs to use these models or if you want to use
+non-NLP models, use the <<ml-df-trained-models-apis>>.
+
+The {infer} APIs enable you to create {infer} endpoints and use {ml} models of
+different providers - such as Cohere, OpenAI, or HuggingFace - as a service. Use
+the following APIs to manage {infer} models and perform {infer}:
+
+* <<delete-inference-api>>
+* <<get-inference-api>>
+* <<post-inference-api>>
+* <<put-inference-api>>
+
+
+include::delete-inference.asciidoc[]
+include::get-inference.asciidoc[]
+include::post-inference.asciidoc[]
+include::put-inference.asciidoc[]

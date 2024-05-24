@@ -10,11 +10,18 @@ package org.elasticsearch.test.cluster.local;
 
 import org.elasticsearch.test.cluster.ClusterHandle;
 import org.elasticsearch.test.cluster.LogType;
+import org.elasticsearch.test.cluster.MutableSettingsProvider;
 import org.elasticsearch.test.cluster.util.Version;
 
 import java.io.InputStream;
 
 public interface LocalClusterHandle extends ClusterHandle {
+
+    /**
+     * Returns the number of nodes that are part of this cluster.
+     */
+    int getNumNodes();
+
     /**
      * Stops the node at a given index.
      * @param index of the node to stop
@@ -93,4 +100,13 @@ public interface LocalClusterHandle extends ClusterHandle {
      * Returns an {@link InputStream} for the given node log.
      */
     InputStream getNodeLog(int index, LogType logType);
+
+    /**
+     * Writes secure settings to the relevant secure config file on each node. Use this method if you are dynamically updating secure
+     * settings via a {@link MutableSettingsProvider} and need the update to be written to file, without a cluster restart.
+     *
+     * @throws UnsupportedOperationException if secure settings are stored in a secrets file, i.e., in serverless. Only keystore-based
+     * storage is currently supported
+     */
+    void updateStoredSecureSettings();
 }

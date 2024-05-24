@@ -1,0 +1,5 @@
+pr: 106836
+summary: Make int8_hnsw our default index for new dense-vector fields
+area: Mapping
+type: enhancement
+issues: []

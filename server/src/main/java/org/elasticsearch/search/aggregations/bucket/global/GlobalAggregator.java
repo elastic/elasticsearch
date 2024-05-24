@@ -24,10 +24,9 @@ import org.elasticsearch.search.aggregations.support.AggregationContext;
 import java.io.IOException;
 import java.util.Map;
 
-public class GlobalAggregator extends BucketsAggregator implements SingleBucketAggregator {
+public final class GlobalAggregator extends BucketsAggregator implements SingleBucketAggregator {
     private final Weight weight;
 
-    @SuppressWarnings("this-escape")
     public GlobalAggregator(String name, AggregatorFactories subFactories, AggregationContext context, Map<String, Object> metadata)
         throws IOException {
 
@@ -44,10 +43,11 @@ public class GlobalAggregator extends BucketsAggregator implements SingleBucketA
         if (scorer == null) {
             return LeafBucketCollector.NO_OP_COLLECTOR;
         }
+        grow(1);
         scorer.score(new LeafCollector() {
             @Override
             public void collect(int doc) throws IOException {
-                collectBucket(sub, doc, 0);
+                collectExistingBucket(sub, doc, 0);
             }
 
             @Override

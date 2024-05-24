@@ -65,7 +65,8 @@ public final class Profilers {
         QueryProfileShardResult result = new QueryProfileShardResult(
             queryProfiler.getTree(),
             queryProfiler.getRewriteTime(),
-            queryProfiler.getCollectorResult()
+            queryProfiler.getCollectorResult(),
+            null
         );
         AggregationProfileShardResult aggResults = new AggregationProfileShardResult(aggProfiler.getTree());
         return new SearchProfileQueryPhaseResult(Collections.singletonList(result), aggResults);

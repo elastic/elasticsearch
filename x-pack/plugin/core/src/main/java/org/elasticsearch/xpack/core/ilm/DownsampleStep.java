@@ -85,7 +85,7 @@ public class DownsampleStep extends AsyncActionStep {
                 return;
             }
         }
-        performDownsampleIndex(indexName, downsampleIndexName, ActionListener.wrap(listener::onResponse, listener::onFailure));
+        performDownsampleIndex(indexName, downsampleIndexName, listener.delegateFailureAndWrap((l, r) -> l.onResponse(r)));
     }
 
     void performDownsampleIndex(String indexName, String downsampleIndexName, ActionListener<Void> listener) {

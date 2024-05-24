@@ -55,7 +55,8 @@ class LegacyYamlRestCompatTestPluginFuncTest extends AbstractRestResourcesFuncTe
         def result = gradleRunner("yamlRestTestV${compatibleVersion}CompatTest", '--stacktrace').build()
 
         then:
-        result.task(":yamlRestTestV${compatibleVersion}CompatTest").outcome == TaskOutcome.NO_SOURCE
+        // we set the task to be skipped if there are no matching tests in the compatibility test sourceSet
+        result.task(":yamlRestTestV${compatibleVersion}CompatTest").outcome == TaskOutcome.SKIPPED
         result.task(':copyRestCompatApiTask').outcome == TaskOutcome.NO_SOURCE
         result.task(':copyRestCompatTestTask').outcome == TaskOutcome.NO_SOURCE
         result.task(transformTask).outcome == TaskOutcome.NO_SOURCE
@@ -164,7 +165,7 @@ class LegacyYamlRestCompatTestPluginFuncTest extends AbstractRestResourcesFuncTe
         then:
         result.task(':check').outcome == TaskOutcome.UP_TO_DATE
         result.task(':checkRestCompat').outcome == TaskOutcome.UP_TO_DATE
-        result.task(":yamlRestTestV${compatibleVersion}CompatTest").outcome == TaskOutcome.NO_SOURCE
+        result.task(":yamlRestTestV${compatibleVersion}CompatTest").outcome == TaskOutcome.SKIPPED
         result.task(':copyRestCompatApiTask').outcome == TaskOutcome.NO_SOURCE
         result.task(':copyRestCompatTestTask').outcome == TaskOutcome.NO_SOURCE
         result.task(transformTask).outcome == TaskOutcome.NO_SOURCE
@@ -344,8 +345,7 @@ class LegacyYamlRestCompatTestPluginFuncTest extends AbstractRestResourcesFuncTe
         ---
         two:
         - skip:
-            version: "all"
-            reason: "This is a test to skip test two"
+            awaits_fix: "This is a test to skip test two"
         - do:
             get:
               index: "test2"

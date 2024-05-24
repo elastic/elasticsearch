@@ -14,6 +14,7 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsRequest;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsRequest;
+import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.coordination.NoMasterBlockService;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -149,18 +150,7 @@ public class InternalClusterInfoServiceSchedulingTests extends ESTestCase {
     }
 
     private static ActionListener<Void> setFlagOnSuccess(AtomicBoolean flag) {
-        return new ActionListener<>() {
-
-            @Override
-            public void onResponse(Void ignored) {
-                assertTrue(flag.compareAndSet(false, true));
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                throw new AssertionError("unexpected", e);
-            }
-        };
+        return ActionTestUtils.assertNoFailureListener(ignored -> assertTrue(flag.compareAndSet(false, true)));
     }
 
     private static class FakeClusterInfoServiceClient extends NoOpClient {

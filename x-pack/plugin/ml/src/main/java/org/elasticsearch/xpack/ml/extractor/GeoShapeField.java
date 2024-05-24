@@ -54,7 +54,7 @@ public class GeoShapeField extends SourceField {
         return value;
     }
 
-    private String handleString(String geoString) {
+    private static String handleString(String geoString) {
         try {
             if (geoString.startsWith("POINT")) { // Entry is of the form "POINT (-77.03653 38.897676)"
                 Geometry geometry = WellKnownText.fromWKT(StandardValidator.instance(true), true, geoString);
@@ -71,7 +71,7 @@ public class GeoShapeField extends SourceField {
         }
     }
 
-    private String handleObject(Map<String, Object> geoObject) {
+    private static String handleObject(Map<String, Object> geoObject) {
         String geoType = (String) geoObject.get("type");
         if (geoType != null && "point".equals(geoType.toLowerCase(Locale.ROOT))) {
             @SuppressWarnings("unchecked")

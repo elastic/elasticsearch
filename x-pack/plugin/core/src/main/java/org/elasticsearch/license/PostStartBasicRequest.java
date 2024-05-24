@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.license;
 
-import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -17,16 +16,13 @@ public class PostStartBasicRequest extends AcknowledgedRequest<PostStartBasicReq
 
     private boolean acknowledge = false;
 
-    public PostStartBasicRequest() {}
+    public PostStartBasicRequest() {
+        super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT, DEFAULT_ACK_TIMEOUT);
+    }
 
     public PostStartBasicRequest(StreamInput in) throws IOException {
         super(in);
         acknowledge = in.readBoolean();
-    }
-
-    @Override
-    public ActionRequestValidationException validate() {
-        return null;
     }
 
     public PostStartBasicRequest acknowledge(boolean acknowledge) {

@@ -34,6 +34,7 @@ import java.util.Map;
 import java.util.Set;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
+import static org.elasticsearch.rest.RestUtils.getMasterNodeTimeout;
 
 /**
  * cat API class for handling get componentTemplate.
@@ -76,7 +77,7 @@ public class RestCatComponentTemplateAction extends AbstractCatAction {
         final ClusterStateRequest clusterStateRequest = new ClusterStateRequest();
         clusterStateRequest.clear().metadata(true);
         clusterStateRequest.local(request.paramAsBoolean("local", clusterStateRequest.local()));
-        clusterStateRequest.masterNodeTimeout(request.paramAsTime("master_timeout", clusterStateRequest.masterNodeTimeout()));
+        clusterStateRequest.masterNodeTimeout(getMasterNodeTimeout(request));
         return channel -> client.admin().cluster().state(clusterStateRequest, new RestResponseListener<>(channel) {
             @Override
             public RestResponse buildResponse(ClusterStateResponse clusterStateResponse) throws Exception {
@@ -127,24 +128,27 @@ public class RestCatComponentTemplateAction extends AbstractCatAction {
         }
         int count = 0;
         XContentType xContentType = XContentType.JSON;
-        XContentParser parser = xContentType.xContent()
-            .createParser(XContentParserConfiguration.EMPTY, template.mappings().uncompressed().array());
-        XContentParser.Token token = parser.nextToken();
-        String currentFieldName = null;
-        while (token != XContentParser.Token.END_OBJECT) {
-            if (token == XContentParser.Token.FIELD_NAME) {
-                currentFieldName = parser.currentName();
-            } else if (token == XContentParser.Token.START_OBJECT) {
-                if ("_doc".equals(currentFieldName)) {
-                    List<Object> list = parser.mapOrdered().values().stream().toList();
-                    for (Object mapping : list) {
-                        count = count + countSubAttributes(mapping);
+        try (
+            XContentParser parser = xContentType.xContent()
+                .createParser(XContentParserConfiguration.EMPTY, template.mappings().uncompressed().array())
+        ) {
+            XContentParser.Token token = parser.nextToken();
+            String currentFieldName = null;
+            while (token != XContentParser.Token.END_OBJECT) {
+                if (token == XContentParser.Token.FIELD_NAME) {
+                    currentFieldName = parser.currentName();
+                } else if (token == XContentParser.Token.START_OBJECT) {
+                    if ("_doc".equals(currentFieldName)) {
+                        List<Object> list = parser.mapOrdered().values().stream().toList();
+                        for (Object mapping : list) {
+                            count = count + countSubAttributes(mapping);
+                        }
                     }
+                } else {
+                    parser.skipChildren();
                 }
-            } else {
-                parser.skipChildren();
+                token = parser.nextToken();
             }
-            token = parser.nextToken();
         }
         return count;
     }

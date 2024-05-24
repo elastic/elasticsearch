@@ -1,6 +1,6 @@
 invalid:
-  - skip:
-      version: " - 8.2.99"
+  - requires:
+      cluster_features: ["gte_v8.3.0"]
       reason: introduced in 8.3.0
 
   - do:
@@ -16,14 +16,199 @@ invalid:
                 type: keyword
                 doc_values: false
 
+
 ---
-nested is disabled:
-  - skip:
-      version: " - 8.2.99"
-      reason: introduced in 8.3.0
+object with unmapped fields:
+  - requires:
+      cluster_features: ["mapper.track_ignored_source"]
+      reason: requires tracking ignored source
 
   - do:
-      catch: bad_request
+      indices.create:
+        index: test
+        body:
+          settings:
+            index:
+              mapping:
+                total_fields:
+                  ignore_dynamic_beyond_limit: true
+                  limit: 1
+
+          mappings:
+            _source:
+              mode: synthetic
+            properties:
+              name:
+                type: keyword
+
+  - do:
+      bulk:
+        index: test
+        refresh: true
+        body:
+          - '{ "create": { } }'
+          - '{ "name": "aaaa", "some_string": "AaAa", "some_int": 1000, "some_double": 123.456789, "some_bool": true, "a.very.deeply.nested.field": "AAAA" }'
+          - '{ "create": { } }'
+          - '{ "name": "bbbb", "some_string": "BbBb", "some_int": 2000, "some_double": 321.987654, "some_bool": false, "a.very.deeply.nested.field": "BBBB" }'
+
+  - do:
+      search:
+        index: test
+        sort: name
+
+  - match: { hits.total.value: 2 }
+  - match: { hits.hits.0._source.name: aaaa }
+  - match: { hits.hits.0._source.some_string: AaAa }
+  - match: { hits.hits.0._source.some_int: 1000 }
+  - match: { hits.hits.0._source.some_double: 123.456789 }
+  - match: { hits.hits.0._source.a.very.deeply.nested.field: AAAA }
+  - match: { hits.hits.0._source.some_bool: true }
+  - match: { hits.hits.1._source.name: bbbb }
+  - match: { hits.hits.1._source.some_string: BbBb }
+  - match: { hits.hits.1._source.some_int: 2000 }
+  - match: { hits.hits.1._source.some_double: 321.987654 }
+  - match: { hits.hits.1._source.a.very.deeply.nested.field: BBBB }
+
+
+---
+nested object with unmapped fields:
+  - requires:
+      cluster_features: ["mapper.track_ignored_source"]
+      reason: requires tracking ignored source
+
+  - do:
+      indices.create:
+        index: test
+        body:
+          settings:
+            index:
+              mapping:
+                total_fields:
+                  ignore_dynamic_beyond_limit: true
+                  limit: 3
+
+          mappings:
+            _source:
+              mode: synthetic
+            properties:
+              path:
+                properties:
+                  to:
+                    properties:
+                      name:
+                        type: keyword
+
+  - do:
+      bulk:
+        index: test
+        refresh: true
+        body:
+          - '{ "create": { } }'
+          - '{ "path.to.name": "aaaa", "path.to.surname": "AaAa", "path.some.other.name": "AaAaAa"  }'
+          - '{ "create": { } }'
+          - '{ "path.to.name": "bbbb", "path.to.surname": "BbBb", "path.some.other.name": "BbBbBb"  }'
+
+  - do:
+      search:
+        index: test
+        sort: path.to.name
+
+  - match: { hits.total.value: 2 }
+  - match: { hits.hits.0._source.path.to.name: aaaa }
+  - match: { hits.hits.0._source.path.to.surname: AaAa }
+  - match: { hits.hits.0._source.path.some.other.name: AaAaAa }
+  - match: { hits.hits.1._source.path.to.name: bbbb }
+  - match: { hits.hits.1._source.path.to.surname: BbBb }
+  - match: { hits.hits.1._source.path.some.other.name: BbBbBb }
+
+
+---
+empty object with unmapped fields:
+  - requires:
+      cluster_features: ["mapper.track_ignored_source"]
+      reason: requires tracking ignored source
+
+  - do:
+      indices.create:
+        index: test
+        body:
+          settings:
+            index:
+              mapping:
+                total_fields:
+                  ignore_dynamic_beyond_limit: true
+                  limit: 3
+
+          mappings:
+            _source:
+              mode: synthetic
+            properties:
+              path:
+                properties:
+                  to:
+                    properties:
+                      name:
+                        type: keyword
+
+  - do:
+      bulk:
+        index: test
+        refresh: true
+        body:
+          - '{ "create": { } }'
+          - '{ "path.to.surname": "AaAa", "path.some.other.name": "AaAaAa"  }'
+
+  - do:
+      search:
+        index: test
+
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0._source.path.to.surname: AaAa }
+  - match: { hits.hits.0._source.path.some.other.name: AaAaAa }
+
+
+---
+disabled root object:
+  - requires:
+      cluster_features: ["mapper.track_ignored_source"]
+      reason: requires tracking ignored source
+
+  - do:
+      indices.create:
+        index: test
+        body:
+          mappings:
+            _source:
+              mode: synthetic
+            enabled: false
+
+  - do:
+      bulk:
+        index: test
+        refresh: true
+        body:
+          - '{ "create": { } }'
+          - '{ "name": "aaaa", "some_string": "AaAa", "some_int": 1000, "some_double": 123.456789, "some_bool": true, "a.very.deeply.nested.field": "AAAA" }'
+
+  - do:
+      search:
+        index: test
+
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0._source.name: aaaa }
+  - match: { hits.hits.0._source.some_string: AaAa }
+  - match: { hits.hits.0._source.some_int: 1000 }
+  - match: { hits.hits.0._source.some_double: 123.456789 }
+  - match: { hits.hits.0._source.a.very.deeply.nested.field: AAAA }
+
+
+---
+disabled object:
+  - requires:
+      cluster_features: ["mapper.track_ignored_source"]
+      reason: requires tracking ignored source
+
+  - do:
       indices.create:
         index: test
         body:
@@ -31,8 +216,522 @@ nested is disabled:
             _source:
               mode: synthetic
             properties:
-              n:
-                type: nested
+              path:
+                enabled: false
+
+
+  - do:
+      bulk:
+        index: test
+        refresh: true
+        body:
+          - '{ "create": { } }'
+          - '{ "name": "aaaa", "path": { "some_int": 1000, "to.a.very.deeply.nested.field": "AAAA" } }'
+
+  - do:
+      search:
+        index: test
+
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0._source.name: aaaa }
+  - match: { hits.hits.0._source.path.some_int: 1000 }
+  - match: { hits.hits.0._source.path.to.a.very.deeply.nested.field: AAAA }
+
+
+---
+disabled object contains array:
+  - requires:
+      cluster_features: ["mapper.track_ignored_source"]
+      reason: requires tracking ignored source
+
+  - do:
+      indices.create:
+        index: test
+        body:
+          mappings:
+            _source:
+              mode: synthetic
+            properties:
+              path:
+                enabled: false
+
+
+  - do:
+      bulk:
+        index: test
+        refresh: true
+        body:
+          - '{ "create": { } }'
+          - '{ "name": "aaaa", "path": [{ "some_int": 1000, "to.a.very.deeply.nested.field": "AAAA" }, { "some_double": 10.0, "some_bool": true } ] }'
+
+  - do:
+      search:
+        index: test
+
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0._source.name: aaaa }
+  - match: { hits.hits.0._source.path.0.some_int: 1000 }
+  - match: { hits.hits.0._source.path.0.to.a.very.deeply.nested.field: AAAA }
+  - match: { hits.hits.0._source.path.1.some_double: 10.0 }
+  - match: { hits.hits.0._source.path.1.some_bool: true }
+
+
+---
+disabled subobject:
+  - requires:
+      cluster_features: ["mapper.track_ignored_source"]
+      reason: requires tracking ignored source
+
+  - do:
+      indices.create:
+        index: test
+        body:
+          mappings:
+            _source:
+              mode: synthetic
+            properties:
+              path:
                 properties:
-                  foo:
+                  to:
+                    enabled: false
+
+
+  - do:
+      bulk:
+        index: test
+        refresh: true
+        body:
+          - '{ "create": { } }'
+          - '{ "name": "aaaa", "path": { "some_int": 1000, "to": { "some_text": "AAAA" } } }'
+
+  - do:
+      search:
+        index: test
+
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0._source.name: aaaa }
+  - match: { hits.hits.0._source.path.some_int: 1000 }
+  - match: { hits.hits.0._source.path.to.some_text: AAAA }
+
+
+---
+disabled subobject with array:
+  - requires:
+      cluster_features: ["mapper.track_ignored_source"]
+      reason: requires tracking ignored source
+
+  - do:
+      indices.create:
+        index: test
+        body:
+          mappings:
+            _source:
+              mode: synthetic
+            properties:
+              path:
+                properties:
+                  to:
+                    enabled: false
+
+
+  - do:
+      bulk:
+        index: test
+        refresh: true
+        body:
+          - '{ "create": { } }'
+          - '{ "name": "aaaa", "path": { "some_int": 1000, "to": [{ "some_text": "AAAA" }, { "some_text": "BBBB" } ] } }'
+
+  - do:
+      search:
+        index: test
+
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0._source.name: aaaa }
+  - match: { hits.hits.0._source.path.some_int: 1000 }
+  - match: { hits.hits.0._source.path.to.0.some_text: AAAA }
+  - match: { hits.hits.0._source.path.to.1.some_text: BBBB }
+
+
+---
+mixed disabled and enabled objects:
+  - requires:
+      cluster_features: ["mapper.track_ignored_source"]
+      reason: requires tracking ignored source
+
+  - do:
+      indices.create:
+        index: test
+        body:
+          mappings:
+            _source:
+              mode: synthetic
+            properties:
+              path:
+                properties:
+                  to:
+                    properties:
+                      foo:
+                        enabled: false
+                      bar:
+                        enabled: true
+                      baz:
+                        enabled: false
+                      bad:
+                        enabled: true
+
+  - do:
+      bulk:
+        index: test
+        refresh: true
+        body:
+          - '{ "create": { } }'
+          - '{ "path": { "to": { "foo": { "value": "foo" }, "bar": { "value": "bar" }, "baz": { "value": 1000 }, "bad": { "value": false } } } }'
+
+  - do:
+      search:
+        index: test
+
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0._source.path.to.foo.value: foo }
+  - match: { hits.hits.0._source.path.to.bar.value: bar }
+  - match: { hits.hits.0._source.path.to.baz.value: 1000 }
+  - match: { hits.hits.0._source.path.to.bad.value: false }
+
+
+---
+object array:
+  - requires:
+      cluster_features: ["mapper.track_ignored_source"]
+      reason: requires tracking ignored source
+
+  - do:
+      indices.create:
+        index: test
+        body:
+          mappings:
+            _source:
+              mode: synthetic
+            properties:
+              id:
+                type: integer
+              regular:
+                properties:
+                  span:
+                    properties:
+                      id:
+                        type: keyword
+                  trace:
+                    properties:
+                      id:
+                        type: keyword
+              stored:
+                store_array_source: true
+                properties:
+                  span:
+                    properties:
+                      id:
+                        type: keyword
+                  trace:
+                    properties:
+                      id:
+                        type: keyword
+
+  - do:
+      bulk:
+        index: test
+        refresh: true
+        body:
+          - '{ "create": { } }'
+          - '{  "id": 1, "regular": [ { "trace": { "id": "a" }, "span": { "id": "1" } }, { "trace": { "id": "b" }, "span": { "id": "1" } } ] }'
+          - '{ "create": { } }'
+          - '{  "id": 2, "stored": [ { "trace": { "id": "a" }, "span": { "id": "1" } }, { "trace": { "id": "b" }, "span": { "id": "1" } } ] }'
+
+  - do:
+      search:
+        index: test
+        sort: id
+
+  - length: { hits.hits.0._source.regular: 2 }
+  - match: { hits.hits.0._source.regular.span.id: "1" }
+  - match: { hits.hits.0._source.regular.trace.id: [ "a", "b" ] }
+
+  - length: { hits.hits.1._source.stored: 2 }
+  - match: { hits.hits.1._source.stored.0.trace.id: a  }
+  - match: { hits.hits.1._source.stored.0.span.id: "1"  }
+  - match: { hits.hits.1._source.stored.1.trace.id: b }
+  - match: { hits.hits.1._source.stored.1.span.id: "1" }
+
+
+---
+object array within array:
+  - requires:
+      cluster_features: ["mapper.track_ignored_source"]
+      reason: requires tracking ignored source
+
+  - do:
+      indices.create:
+        index: test
+        body:
+          mappings:
+            _source:
+              mode: synthetic
+            properties:
+              stored:
+                store_array_source: true
+                properties:
+                  path:
+                    store_array_source: true
+                    properties:
+                      to:
+                        properties:
+                          trace:
+                            type: keyword
+
+  - do:
+      bulk:
+        index: test
+        refresh: true
+        body:
+          - '{ "create": { } }'
+          - '{ "stored": [ { "path": [{ "to": { "trace": "A" } }, { "to": { "trace": "B" } } ] }, { "path": { "to": { "trace": "C" } } } ] }'
+
+  - do:
+      search:
+        index: test
+
+  - length: { hits.hits.0._source.stored: 2 }
+  - match: { hits.hits.0._source.stored.0.path.0.to.trace: A }
+  - match: { hits.hits.0._source.stored.0.path.1.to.trace: B }
+  - match: { hits.hits.0._source.stored.1.path.to.trace: C }
+
+
+---
+no object array:
+  - requires:
+      cluster_features: ["mapper.track_ignored_source"]
+      reason: requires tracking ignored source
+
+  - do:
+      indices.create:
+        index: test
+        body:
+          mappings:
+            _source:
+              mode: synthetic
+            properties:
+              stored:
+                store_array_source: true
+                properties:
+                  span:
+                    properties:
+                      id:
+                        type: keyword
+                  trace:
+                    properties:
+                      id:
+                        type: keyword
+
+  - do:
+      bulk:
+        index: test
+        refresh: true
+        body:
+          - '{ "create": { } }'
+          - '{ "stored": { "trace": { "id": "a" }, "span": { "id": "b" } } }'
+
+  - do:
+      search:
+        index: test
+
+  - match: { hits.hits.0._source.stored.trace.id: a  }
+  - match: { hits.hits.0._source.stored.span.id: b  }
+
+
+---
+field ordering in object array:
+  - requires:
+      cluster_features: ["mapper.track_ignored_source"]
+      reason: requires tracking ignored source
+
+  - do:
+      indices.create:
+        index: test
+        body:
+          mappings:
+            _source:
+              mode: synthetic
+            properties:
+              a:
+                type: keyword
+              b:
+                store_array_source: true
+                properties:
+                  aa:
                     type: keyword
+                  bb:
+                    type: keyword
+              c:
+                type: keyword
+              d:
+                store_array_source: true
+                properties:
+                  aa:
+                    type: keyword
+                  bb:
+                    type: keyword
+
+  - do:
+      bulk:
+        index: test
+        refresh: true
+        body:
+          - '{ "create": { } }'
+          - '{ "c": 1, "d": [ { "bb": 10, "aa": 20 }, { "aa": 30, "bb": 40 } ], "a": 2, "b": [ { "bb": 100, "aa": 200 }, { "aa": 300, "bb": 400 } ] }'
+
+  - do:
+      search:
+        index: test
+
+  - length: { hits.hits.0._source: 4 }
+  - match: { hits.hits.0._source: { "a": "2", "b": [ { "bb": 100, "aa": 200 }, { "aa": 300, "bb": 400 } ], "c": "1", "d": [ { "bb": 10, "aa": 20 }, { "aa": 30, "bb": 40 } ] } }
+
+
+---
+nested object array next to other fields:
+  - requires:
+      cluster_features: ["mapper.track_ignored_source"]
+      reason: requires tracking ignored source
+
+  - do:
+      indices.create:
+        index: test
+        body:
+          mappings:
+            _source:
+              mode: synthetic
+            properties:
+              a:
+                type: keyword
+              b:
+                properties:
+                  c:
+                    store_array_source: true
+                    properties:
+                      aa:
+                        type: keyword
+                      bb:
+                        type: keyword
+                  d:
+                    properties:
+                      aa:
+                        type: keyword
+                      bb:
+                        type: keyword
+                  e:
+                    type: keyword
+              f:
+                type: keyword
+
+  - do:
+      bulk:
+        index: test
+        refresh: true
+        body:
+          - '{ "create": { } }'
+          - '{ "a": 1, "b": { "c": [ { "bb": 10, "aa": 20 }, { "aa": 30, "bb": 40 } ], "d": [ { "bb": 100, "aa": 200 }, { "aa": 300, "bb": 400 } ], "e": 1000 }, "f": 2000 }'
+
+  - do:
+      search:
+        index: test
+
+  - match: { hits.hits.0._source.a: "1" }
+  - match: { hits.hits.0._source.b.c:  [{ "bb": 10, "aa": 20 }, { "aa": 30, "bb": 40 }] }
+  - match: { hits.hits.0._source.b.d.aa: [ "200", "300" ] }
+  - match: { hits.hits.0._source.b.d.bb: [ "100", "400" ] }
+  - match: { hits.hits.0._source.b.e: "1000" }
+  - match: { hits.hits.0._source.f: "2000" }
+
+
+---
+nested object:
+  - requires:
+      cluster_features: ["mapper.track_ignored_source"]
+      reason: requires tracking ignored source
+
+  - do:
+      indices.create:
+        index: test
+        body:
+          mappings:
+            _source:
+              mode: synthetic
+            properties:
+              nested_field:
+                type: nested
+              nested_array:
+                type: nested
+
+  - do:
+      bulk:
+        index: test
+        refresh: true
+        body:
+          - '{ "create": { } }'
+          - '{ "name": "aaaa", "nested_field": {"a": 1, "b": 2}, "nested_array": [{ "a": 10, "b": 20 }, { "a": 100, "b": 200 }] }'
+
+  - do:
+      search:
+        index: test
+
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0._source.name: aaaa }
+  - match: { hits.hits.0._source.nested_field.a: 1 }
+  - match: { hits.hits.0._source.nested_field.b: 2 }
+  - match: { hits.hits.0._source.nested_array.0.a: 10 }
+  - match: { hits.hits.0._source.nested_array.0.b: 20 }
+  - match: { hits.hits.0._source.nested_array.1.a: 100 }
+  - match: { hits.hits.0._source.nested_array.1.b: 200 }
+
+
+---
+nested object next to regular:
+  - requires:
+      cluster_features: ["mapper.track_ignored_source"]
+      reason: requires tracking ignored source
+
+  - do:
+      indices.create:
+        index: test
+        body:
+          mappings:
+            _source:
+              mode: synthetic
+            properties:
+              path:
+                properties:
+                  to:
+                    properties:
+                      nested:
+                        type: nested
+
+  - do:
+      bulk:
+        index: test
+        refresh: true
+        body:
+          - '{ "create": { } }'
+          - '{ "name": "aaaa", "path": { "to": { "nested": [{ "a": 10, "b": 20 }, { "a": 100, "b": 200 } ], "regular": [{ "a": 10, "b": 20 }, { "a": 100, "b": 200 } ] } } }'
+
+  - do:
+      search:
+        index: test
+
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0._source.name: aaaa }
+  - match: { hits.hits.0._source.path.to.nested.0.a: 10 }
+  - match: { hits.hits.0._source.path.to.nested.0.b: 20 }
+  - match: { hits.hits.0._source.path.to.nested.1.a: 100 }
+  - match: { hits.hits.0._source.path.to.nested.1.b: 200 }
+  - match: { hits.hits.0._source.path.to.regular.a: [ 10, 100 ] }
+  - match: { hits.hits.0._source.path.to.regular.b: [ 20, 200 ] }

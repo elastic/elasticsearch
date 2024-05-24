@@ -7,9 +7,9 @@
 
 package org.elasticsearch.xpack.esql.planner;
 
-import org.elasticsearch.xpack.ql.expression.NameId;
-import org.elasticsearch.xpack.ql.expression.NamedExpression;
-import org.elasticsearch.xpack.ql.type.DataType;
+import org.elasticsearch.xpack.esql.core.expression.NameId;
+import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -111,12 +111,22 @@ public interface Layout {
                 for (NameId id : set.nameIds) {
                     ChannelAndType next = new ChannelAndType(channel, set.type);
                     ChannelAndType prev = layout.put(id, next);
-                    if (prev != null) {
-                        throw new IllegalArgumentException("Name [" + id + "] is on two channels [" + prev + "] and [" + next + "]");
-                    }
+                    // Do allow multiple name to point to the same channel - see https://github.com/elastic/elasticsearch/pull/100238
+                    // if (prev != null) {
+                    // throw new IllegalArgumentException("Name [" + id + "] is on two channels [" + prev + "] and [" + next + "]");
+                    // }
                 }
             }
             return new DefaultLayout(Collections.unmodifiableMap(layout), numberOfChannels);
+        }
+
+        public void replace(NameId id, NameId id1) {
+            for (ChannelSet channel : this.channels) {
+                if (channel != null && channel.nameIds.contains(id)) {
+                    channel.nameIds.remove(id);
+                    channel.nameIds.add(id1);
+                }
+            }
         }
     }
 }

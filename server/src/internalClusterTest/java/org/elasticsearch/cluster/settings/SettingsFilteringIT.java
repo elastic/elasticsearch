@@ -80,7 +80,6 @@ public class SettingsFilteringIT extends ESIntegTestCase {
                         .put("filter_test.notfoo", "test")
                         .build()
                 )
-                .get()
         );
         GetSettingsResponse response = indicesAdmin().prepareGetSettings("test-idx").get();
         Settings settings = response.getIndexToSettings().get("test-idx");

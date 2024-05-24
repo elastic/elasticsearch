@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.inference;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.indices.SystemIndexDescriptor;
@@ -62,7 +61,6 @@ public class InferenceIndex {
             return jsonBuilder().startObject()
                 .startObject(SINGLE_MAPPING_NAME)
                 .startObject("_meta")
-                .field("version", Version.CURRENT)
                 .field(SystemIndexDescriptor.VERSION_META_KEY, INDEX_MAPPING_VERSION)
                 .endObject()
                 .field("dynamic", "strict")

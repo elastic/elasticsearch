@@ -38,7 +38,7 @@ class StoredFieldSourceProvider implements SourceProvider {
         return leaves[ctx.ord].getSource(doc);
     }
 
-    private IndexReaderContext findParentContext(LeafReaderContext ctx) {
+    private static IndexReaderContext findParentContext(LeafReaderContext ctx) {
         if (ctx.parent != null) {
             return ctx.parent;
         }

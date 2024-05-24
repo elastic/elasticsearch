@@ -7,7 +7,6 @@
  */
 package org.elasticsearch.test.rest.yaml.section;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.xcontent.yaml.YamlXContent;
 
 import java.io.IOException;
@@ -38,7 +37,7 @@ public class SetupSectionTests extends AbstractClientYamlTestFragmentParserTestC
         SetupSection setupSection = SetupSection.parse(parser);
 
         assertThat(setupSection, notNullValue());
-        assertThat(setupSection.getSkipSection().isEmpty(), equalTo(true));
+        assertThat(setupSection.getPrerequisiteSection().isEmpty(), equalTo(true));
         assertThat(setupSection.getExecutableSections().size(), equalTo(2));
         assertThat(setupSection.getExecutableSections().get(0), instanceOf(DoSection.class));
         assertThat(((DoSection) setupSection.getExecutableSections().get(0)).getApiCallSection().getApi(), equalTo("index1"));
@@ -61,7 +60,7 @@ public class SetupSectionTests extends AbstractClientYamlTestFragmentParserTestC
         final SetupSection setupSection = SetupSection.parse(parser);
 
         assertNotNull(setupSection);
-        assertTrue(setupSection.getSkipSection().isEmpty());
+        assertTrue(setupSection.getPrerequisiteSection().isEmpty());
         assertThat(setupSection.getExecutableSections().size(), equalTo(5));
         assertThat(setupSection.getExecutableSections().get(0), instanceOf(DoSection.class));
         assertThat(((DoSection) setupSection.getExecutableSections().get(0)).getApiCallSection().getApi(), equalTo("cluster.state"));
@@ -84,10 +83,10 @@ public class SetupSectionTests extends AbstractClientYamlTestFragmentParserTestC
         assertThat(thirdSetSection.getStash().get("nodes.$master.transport.publish_address"), equalTo("transport_host"));
     }
 
-    public void testParseSetupAndSkipSectionNoSkip() throws Exception {
+    public void testParseSetupAndSkipSection() throws Exception {
         parser = createParser(YamlXContent.yamlXContent, """
               - skip:
-                  version:  "6.0.0 - 6.3.0"
+                  cluster_features:  "some_feature"
                   reason:   "Update doesn't return metadata fields, waiting for #3259"
               - do:
                   index1:
@@ -106,11 +105,44 @@ public class SetupSectionTests extends AbstractClientYamlTestFragmentParserTestC
         SetupSection setupSection = SetupSection.parse(parser);
 
         assertThat(setupSection, notNullValue());
-        assertThat(setupSection.getSkipSection().isEmpty(), equalTo(false));
-        assertThat(setupSection.getSkipSection(), notNullValue());
-        assertThat(setupSection.getSkipSection().getLowerVersion(), equalTo(Version.fromString("6.0.0")));
-        assertThat(setupSection.getSkipSection().getUpperVersion(), equalTo(Version.fromString("6.3.0")));
-        assertThat(setupSection.getSkipSection().getReason(), equalTo("Update doesn't return metadata fields, waiting for #3259"));
+        assertThat(setupSection.getPrerequisiteSection().isEmpty(), equalTo(false));
+        assertThat(setupSection.getPrerequisiteSection(), notNullValue());
+        assertThat(setupSection.getPrerequisiteSection().skipReason, equalTo("Update doesn't return metadata fields, waiting for #3259"));
+        assertThat(setupSection.getExecutableSections().size(), equalTo(2));
+        assertThat(setupSection.getExecutableSections().get(0), instanceOf(DoSection.class));
+        assertThat(((DoSection) setupSection.getExecutableSections().get(0)).getApiCallSection().getApi(), equalTo("index1"));
+        assertThat(setupSection.getExecutableSections().get(1), instanceOf(DoSection.class));
+        assertThat(((DoSection) setupSection.getExecutableSections().get(1)).getApiCallSection().getApi(), equalTo("index2"));
+    }
+
+    public void testParseSetupAndRequiresSection() throws Exception {
+        parser = createParser(YamlXContent.yamlXContent, """
+              - requires:
+                  cluster_features:  "some_feature"
+                  reason:   "Update doesn't return metadata fields, waiting for #3259"
+              - do:
+                  index1:
+                    index:  test_1
+                    type:   test
+                    id:     1
+                    body:   { "include": { "field1": "v1", "field2": "v2" }, "count": 1 }
+              - do:
+                  index2:
+                    index:  test_1
+                    type:   test
+                    id:     2
+                    body:   { "include": { "field1": "v1", "field2": "v2" }, "count": 1 }
+            """);
+
+        SetupSection setupSection = SetupSection.parse(parser);
+
+        assertThat(setupSection, notNullValue());
+        assertThat(setupSection.getPrerequisiteSection().isEmpty(), equalTo(false));
+        assertThat(setupSection.getPrerequisiteSection(), notNullValue());
+        assertThat(
+            setupSection.getPrerequisiteSection().requireReason,
+            equalTo("Update doesn't return metadata fields, waiting for #3259")
+        );
         assertThat(setupSection.getExecutableSections().size(), equalTo(2));
         assertThat(setupSection.getExecutableSections().get(0), instanceOf(DoSection.class));
         assertThat(((DoSection) setupSection.getExecutableSections().get(0)).getApiCallSection().getApi(), equalTo("index1"));

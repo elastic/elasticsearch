@@ -10,7 +10,10 @@ package org.elasticsearch.datastreams.action;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.datastreams.DataStreamsActionUtil;
 import org.elasticsearch.action.datastreams.GetDataStreamAction;
+import org.elasticsearch.action.datastreams.GetDataStreamAction.Response.IndexProperties;
+import org.elasticsearch.action.datastreams.GetDataStreamAction.Response.ManagedBy;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.TransportMasterNodeReadAction;
 import org.elasticsearch.cluster.ClusterState;
@@ -18,14 +21,17 @@ import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.health.ClusterStateHealth;
 import org.elasticsearch.cluster.metadata.DataStream;
+import org.elasticsearch.cluster.metadata.DataStreamGlobalRetentionResolver;
 import org.elasticsearch.cluster.metadata.DataStreamLifecycle;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.MetadataIndexTemplateService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexMode;
@@ -38,8 +44,11 @@ import org.elasticsearch.transport.TransportService;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+
+import static org.elasticsearch.index.IndexSettings.PREFER_ILM_SETTING;
 
 public class GetDataStreamsTransportAction extends TransportMasterNodeReadAction<
     GetDataStreamAction.Request,
@@ -48,6 +57,7 @@ public class GetDataStreamsTransportAction extends TransportMasterNodeReadAction
     private static final Logger LOGGER = LogManager.getLogger(GetDataStreamsTransportAction.class);
     private final SystemIndices systemIndices;
     private final ClusterSettings clusterSettings;
+    private final DataStreamGlobalRetentionResolver dataStreamGlobalRetentionResolver;
 
     @Inject
     public GetDataStreamsTransportAction(
@@ -56,7 +66,8 @@ public class GetDataStreamsTransportAction extends TransportMasterNodeReadAction
         ThreadPool threadPool,
         ActionFilters actionFilters,
         IndexNameExpressionResolver indexNameExpressionResolver,
-        SystemIndices systemIndices
+        SystemIndices systemIndices,
+        DataStreamGlobalRetentionResolver dataStreamGlobalRetentionResolver
     ) {
         super(
             GetDataStreamAction.NAME,
@@ -67,9 +78,10 @@ public class GetDataStreamsTransportAction extends TransportMasterNodeReadAction
             GetDataStreamAction.Request::new,
             indexNameExpressionResolver,
             GetDataStreamAction.Response::new,
-            ThreadPool.Names.SAME
+            EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
         this.systemIndices = systemIndices;
+        this.dataStreamGlobalRetentionResolver = dataStreamGlobalRetentionResolver;
         clusterSettings = clusterService.getClusterSettings();
     }
 
@@ -80,7 +92,9 @@ public class GetDataStreamsTransportAction extends TransportMasterNodeReadAction
         ClusterState state,
         ActionListener<GetDataStreamAction.Response> listener
     ) throws Exception {
-        listener.onResponse(innerOperation(state, request, indexNameExpressionResolver, systemIndices, clusterSettings));
+        listener.onResponse(
+            innerOperation(state, request, indexNameExpressionResolver, systemIndices, clusterSettings, dataStreamGlobalRetentionResolver)
+        );
     }
 
     static GetDataStreamAction.Response innerOperation(
@@ -88,12 +102,14 @@ public class GetDataStreamsTransportAction extends TransportMasterNodeReadAction
         GetDataStreamAction.Request request,
         IndexNameExpressionResolver indexNameExpressionResolver,
         SystemIndices systemIndices,
-        ClusterSettings clusterSettings
+        ClusterSettings clusterSettings,
+        DataStreamGlobalRetentionResolver dataStreamGlobalRetentionResolver
     ) {
         List<DataStream> dataStreams = getDataStreams(state, indexNameExpressionResolver, request);
         List<GetDataStreamAction.Response.DataStreamInfo> dataStreamInfos = new ArrayList<>(dataStreams.size());
         for (DataStream dataStream : dataStreams) {
             final String indexTemplate;
+            boolean indexTemplatePreferIlmValue = true;
             String ilmPolicyName = null;
             if (dataStream.isSystem()) {
                 SystemDataStreamDescriptor dataStreamDescriptor = systemIndices.findMatchingDataStreamDescriptor(dataStream.getName());
@@ -103,13 +119,15 @@ public class GetDataStreamsTransportAction extends TransportMasterNodeReadAction
                         dataStreamDescriptor.getComposableIndexTemplate(),
                         dataStreamDescriptor.getComponentTemplates()
                     );
-                    ilmPolicyName = settings.get("index.lifecycle.name");
+                    ilmPolicyName = settings.get(IndexMetadata.LIFECYCLE_NAME);
+                    indexTemplatePreferIlmValue = PREFER_ILM_SETTING.get(settings);
                 }
             } else {
                 indexTemplate = MetadataIndexTemplateService.findV2Template(state.metadata(), dataStream.getName(), false);
                 if (indexTemplate != null) {
                     Settings settings = MetadataIndexTemplateService.resolveSettings(state.metadata(), indexTemplate);
-                    ilmPolicyName = settings.get("index.lifecycle.name");
+                    ilmPolicyName = settings.get(IndexMetadata.LIFECYCLE_NAME);
+                    indexTemplatePreferIlmValue = PREFER_ILM_SETTING.get(settings);
                 } else {
                     LOGGER.warn(
                         "couldn't find any matching template for data stream [{}]. has it been restored (and possibly renamed)"
@@ -124,48 +142,70 @@ public class GetDataStreamsTransportAction extends TransportMasterNodeReadAction
                 dataStream.getIndices().stream().map(Index::getName).toArray(String[]::new)
             );
 
+            Map<Index, IndexProperties> backingIndicesSettingsValues = new HashMap<>();
+            Metadata metadata = state.getMetadata();
+            collectIndexSettingsValues(dataStream, backingIndicesSettingsValues, metadata, dataStream.getIndices());
+            if (DataStream.isFailureStoreFeatureFlagEnabled() && dataStream.getFailureIndices().getIndices().isEmpty() == false) {
+                collectIndexSettingsValues(dataStream, backingIndicesSettingsValues, metadata, dataStream.getFailureIndices().getIndices());
+            }
+
             GetDataStreamAction.Response.TimeSeries timeSeries = null;
             if (dataStream.getIndexMode() == IndexMode.TIME_SERIES) {
-                List<Tuple<Instant, Instant>> ranges = new ArrayList<>();
-                Tuple<Instant, Instant> current = null;
-                String previousIndexName = null;
-                for (Index index : dataStream.getIndices()) {
-                    IndexMetadata metadata = state.getMetadata().index(index);
-                    if (metadata.getIndexMode() != IndexMode.TIME_SERIES) {
-                        continue;
+                record IndexInfo(String name, Instant timeSeriesStart, Instant timeSeriesEnd) implements Comparable<IndexInfo> {
+                    @Override
+                    public int compareTo(IndexInfo o) {
+                        return Comparator.comparing(IndexInfo::timeSeriesStart).thenComparing(IndexInfo::timeSeriesEnd).compare(this, o);
                     }
-                    Instant start = metadata.getTimeSeriesStart();
-                    Instant end = metadata.getTimeSeriesEnd();
-                    if (current == null) {
-                        current = new Tuple<>(start, end);
-                    } else if (current.v2().compareTo(start) == 0) {
-                        current = new Tuple<>(current.v1(), end);
-                    } else if (current.v2().compareTo(start) < 0) {
-                        ranges.add(current);
-                        current = new Tuple<>(start, end);
+                }
+
+                List<Tuple<Instant, Instant>> mergedRanges = new ArrayList<>();
+                Tuple<Instant, Instant> currentMergedRange = null;
+                IndexInfo previous = null;
+
+                // We need indices to be sorted by time series range
+                // to produce temporal ranges.
+                // But it is not enforced in API, so we explicitly sort here.
+                var sortedRanges = dataStream.getIndices()
+                    .stream()
+                    .map(metadata::index)
+                    .filter(m -> m.getIndexMode() == IndexMode.TIME_SERIES)
+                    .map(m -> new IndexInfo(m.getIndex().getName(), m.getTimeSeriesStart(), m.getTimeSeriesEnd()))
+                    .sorted()
+                    .toList();
+
+                for (var info : sortedRanges) {
+                    Instant start = info.timeSeriesStart();
+                    Instant end = info.timeSeriesEnd();
+
+                    if (currentMergedRange == null) {
+                        currentMergedRange = new Tuple<>(start, end);
+                    } else if (currentMergedRange.v2().compareTo(start) == 0) {
+                        currentMergedRange = new Tuple<>(currentMergedRange.v1(), end);
+                    } else if (currentMergedRange.v2().compareTo(start) < 0) {
+                        mergedRanges.add(currentMergedRange);
+                        currentMergedRange = new Tuple<>(start, end);
                     } else {
                         String message = "previous backing index ["
-                            + previousIndexName
+                            + previous.name()
                             + "] range ["
-                            + current.v1()
+                            + previous.timeSeriesStart()
                             + "/"
-                            + current.v2()
+                            + previous.timeSeriesEnd()
                             + "] range is colliding with current backing ["
-                            + index.getName()
+                            + info.name()
                             + "] index range ["
                             + start
                             + "/"
                             + end
                             + "]";
-                        assert current.v2().compareTo(start) < 0 : message;
-                        LOGGER.warn(message);
+                        assert currentMergedRange.v2().compareTo(start) < 0 : message;
                     }
-                    previousIndexName = index.getName();
+                    previous = info;
                 }
-                if (current != null) {
-                    ranges.add(current);
+                if (currentMergedRange != null) {
+                    mergedRanges.add(currentMergedRange);
                 }
-                timeSeries = new GetDataStreamAction.Response.TimeSeries(ranges);
+                timeSeries = new GetDataStreamAction.Response.TimeSeries(mergedRanges);
             }
 
             dataStreamInfos.add(
@@ -174,14 +214,39 @@ public class GetDataStreamsTransportAction extends TransportMasterNodeReadAction
                     streamHealth.getStatus(),
                     indexTemplate,
                     ilmPolicyName,
-                    timeSeries
+                    timeSeries,
+                    backingIndicesSettingsValues,
+                    indexTemplatePreferIlmValue
                 )
             );
         }
         return new GetDataStreamAction.Response(
             dataStreamInfos,
-            request.includeDefaults() ? clusterSettings.get(DataStreamLifecycle.CLUSTER_LIFECYCLE_DEFAULT_ROLLOVER_SETTING) : null
+            request.includeDefaults() ? clusterSettings.get(DataStreamLifecycle.CLUSTER_LIFECYCLE_DEFAULT_ROLLOVER_SETTING) : null,
+            dataStreamGlobalRetentionResolver.resolve(state)
         );
+    }
+
+    private static void collectIndexSettingsValues(
+        DataStream dataStream,
+        Map<Index, IndexProperties> backingIndicesSettingsValues,
+        Metadata metadata,
+        List<Index> backingIndices
+    ) {
+        for (Index index : backingIndices) {
+            IndexMetadata indexMetadata = metadata.index(index);
+            Boolean preferIlm = PREFER_ILM_SETTING.get(indexMetadata.getSettings());
+            assert preferIlm != null : "must use the default prefer ilm setting value, if nothing else";
+            ManagedBy managedBy;
+            if (metadata.isIndexManagedByILM(indexMetadata)) {
+                managedBy = ManagedBy.ILM;
+            } else if (dataStream.isIndexManagedByDataStreamLifecycle(index, metadata::index)) {
+                managedBy = ManagedBy.LIFECYCLE;
+            } else {
+                managedBy = ManagedBy.UNMANAGED;
+            }
+            backingIndicesSettingsValues.put(index, new IndexProperties(preferIlm, indexMetadata.getLifecyclePolicyName(), managedBy));
+        }
     }
 
     static List<DataStream> getDataStreams(

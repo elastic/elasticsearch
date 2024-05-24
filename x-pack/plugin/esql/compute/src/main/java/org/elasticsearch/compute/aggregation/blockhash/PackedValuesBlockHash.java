@@ -16,21 +16,23 @@ import org.elasticsearch.common.util.BytesRefHash;
 import org.elasticsearch.compute.aggregation.GroupingAggregatorFunction;
 import org.elasticsearch.compute.aggregation.SeenGroupIds;
 import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.ElementType;
+import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Page;
-import org.elasticsearch.compute.operator.BatchEncoder;
-import org.elasticsearch.compute.operator.HashAggregationOperator;
-import org.elasticsearch.compute.operator.MultivalueDedupe;
-import org.elasticsearch.logging.LogManager;
-import org.elasticsearch.logging.Logger;
+import org.elasticsearch.compute.operator.mvdedupe.BatchEncoder;
+import org.elasticsearch.compute.operator.mvdedupe.MultivalueDedupe;
+import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.ReleasableIterator;
+import org.elasticsearch.core.Releasables;
 
 import java.util.Arrays;
 import java.util.List;
 
 /**
  * Maps any number of columns to a group ids with every unique combination resulting
- * in a unique group id. Works by uniqing the values of each column and concatenating
+ * in a unique group id. Works by unique-ing the values of each column and concatenating
  * the combinatorial explosion of all values into a byte array and then hashing each
  * byte array. If the values are
  * <pre>{@code
@@ -49,21 +51,28 @@ import java.util.List;
  *     3, 2, 4
  *     3, 3, 5
  * }</pre>
+ * <p>
+ *     The iteration order in the above is how we do it - it's as though it's
+ *     nested {@code for} loops with the first column being the outer-most loop
+ *     and the last column being the inner-most loop. See {@link Group} for more.
+ * </p>
  */
 final class PackedValuesBlockHash extends BlockHash {
-    private static final Logger logger = LogManager.getLogger(PackedValuesBlockHash.class);
     static final int DEFAULT_BATCH_SIZE = Math.toIntExact(ByteSizeValue.ofKb(10).getBytes());
 
-    private final List<HashAggregationOperator.GroupSpec> groups;
     private final int emitBatchSize;
     private final BytesRefHash bytesRefHash;
     private final int nullTrackingBytes;
+    private final BytesRefBuilder bytes = new BytesRefBuilder();
+    private final List<GroupSpec> specs;
 
-    PackedValuesBlockHash(List<HashAggregationOperator.GroupSpec> groups, BigArrays bigArrays, int emitBatchSize) {
-        this.groups = groups;
+    PackedValuesBlockHash(List<GroupSpec> specs, BlockFactory blockFactory, int emitBatchSize) {
+        super(blockFactory);
+        this.specs = specs;
         this.emitBatchSize = emitBatchSize;
-        this.bytesRefHash = new BytesRefHash(1, bigArrays);
-        this.nullTrackingBytes = groups.size() / 8 + 1;
+        this.bytesRefHash = new BytesRefHash(1, blockFactory.bigArrays());
+        this.nullTrackingBytes = (specs.size() + 7) / 8;
+        bytes.grow(nullTrackingBytes);
     }
 
     @Override
@@ -72,170 +81,317 @@ final class PackedValuesBlockHash extends BlockHash {
     }
 
     void add(Page page, GroupingAggregatorFunction.AddInput addInput, int batchSize) {
-        new AddWork(page, addInput, batchSize).add();
+        try (AddWork work = new AddWork(page, addInput, batchSize)) {
+            work.add();
+        }
     }
 
-    class AddWork extends LongLongBlockHash.AbstractAddBlock {
-        final BatchEncoder[] encoders = new BatchEncoder[groups.size()];
-        final int[] positionOffsets = new int[groups.size()];
-        final int[] valueOffsets = new int[groups.size()];
-        final BytesRef[] scratches = new BytesRef[groups.size()];
-        final BytesRefBuilder bytes = new BytesRefBuilder();
-        final int positionCount;
+    /**
+     * The on-heap representation of a {@code for} loop for each group key.
+     */
+    private static class Group implements Releasable {
+        final GroupSpec spec;
+        final BatchEncoder encoder;
+        int positionOffset;
+        int valueOffset;
+        /**
+         * The number of values we've written for this group. Think of it as
+         * the loop variable in a {@code for} loop.
+         */
+        int writtenValues;
+        /**
+         * The number of values of this group at this position. Think of it as
+         * the maximum value in a {@code for} loop.
+         */
+        int valueCount;
+        int bytesStart;
 
+        Group(GroupSpec spec, Page page, int batchSize) {
+            this.spec = spec;
+            this.encoder = MultivalueDedupe.batchEncoder(page.getBlock(spec.channel()), batchSize, true);
+        }
+
+        @Override
+        public void close() {
+            encoder.close();
+        }
+    }
+
+    class AddWork extends AbstractAddBlock {
+        final Group[] groups;
+        final int positionCount;
         int position;
-        int count;
-        int bufferedGroup;
 
         AddWork(Page page, GroupingAggregatorFunction.AddInput addInput, int batchSize) {
-            super(emitBatchSize, addInput);
-            for (int g = 0; g < groups.size(); g++) {
-                encoders[g] = MultivalueDedupe.batchEncoder(page.getBlock(groups.get(g).channel()), batchSize);
-                scratches[g] = new BytesRef();
-            }
-            bytes.grow(nullTrackingBytes);
+            super(blockFactory, emitBatchSize, addInput);
+            this.groups = specs.stream().map(s -> new Group(s, page, batchSize)).toArray(Group[]::new);
             this.positionCount = page.getPositionCount();
         }
 
         /**
-         * Encodes one permutation of the keys at time into {@link #bytes}. The encoding is
-         * mostly provided by {@link BatchEncoder} with nulls living in a bit mask at the
-         * front of the bytes.
+         * Encodes one permutation of the keys at time into {@link #bytes} and adds it
+         * to the {@link #bytesRefHash}. The encoding is mostly provided by
+         * {@link BatchEncoder} with nulls living in a bit mask at the front of the bytes.
          */
         void add() {
             for (position = 0; position < positionCount; position++) {
-                if (logger.isTraceEnabled()) {
-                    logger.trace("position {}", position);
-                }
-                // Make sure all encoders have encoded the current position and the offsets are queued to it's start
-                for (int g = 0; g < encoders.length; g++) {
-                    positionOffsets[g]++;
-                    while (positionOffsets[g] >= encoders[g].positionCount()) {
-                        encoders[g].encodeNextBatch();
-                        positionOffsets[g] = 0;
-                        valueOffsets[g] = 0;
-                    }
-                }
-
-                count = 0;
-                Arrays.fill(bytes.bytes(), 0, nullTrackingBytes, (byte) 0);
-                bytes.setLength(nullTrackingBytes);
-                addPosition(0);
-                switch (count) {
-                    case 0 -> throw new IllegalStateException("didn't find any values");
-                    case 1 -> {
-                        ords.appendInt(bufferedGroup);
-                        addedValue(position);
-                    }
-                    default -> ords.endPositionEntry();
-                }
-                for (int g = 0; g < encoders.length; g++) {
-                    valueOffsets[g] += encoders[g].valueCount(positionOffsets[g]);
+                boolean singleEntry = startPosition(groups);
+                if (singleEntry) {
+                    addSingleEntry();
+                } else {
+                    addMultipleEntries();
                 }
             }
             emitOrds();
         }
 
-        private void addPosition(int g) {
-            if (g == groups.size()) {
-                addBytes();
-                return;
+        private void addSingleEntry() {
+            fillBytesSv(groups);
+            ords.appendInt(Math.toIntExact(hashOrdToGroup(bytesRefHash.add(bytes.get()))));
+            addedValue(position);
+        }
+
+        private void addMultipleEntries() {
+            ords.beginPositionEntry();
+            int g = 0;
+            do {
+                fillBytesMv(groups, g);
+
+                // emit ords
+                ords.appendInt(Math.toIntExact(hashOrdToGroup(bytesRefHash.add(bytes.get()))));
+                addedValueInMultivaluePosition(position);
+
+                g = rewindKeys(groups);
+            } while (g >= 0);
+            ords.endPositionEntry();
+            for (Group group : groups) {
+                group.valueOffset += group.valueCount;
             }
-            int start = bytes.length();
-            int count = encoders[g].valueCount(positionOffsets[g]);
-            assert count > 0;
-            int valueOffset = valueOffsets[g];
-            BytesRef v = encoders[g].read(valueOffset++, scratches[g]);
-            if (logger.isTraceEnabled()) {
-                logger.trace("\t".repeat(g + 1) + v);
+        }
+
+        @Override
+        public void close() {
+            Releasables.closeExpectNoException(super::close, Releasables.wrap(groups));
+        }
+    }
+
+    @Override
+    public ReleasableIterator<IntBlock> lookup(Page page, ByteSizeValue targetBlockSize) {
+        return new LookupWork(page, targetBlockSize.getBytes(), DEFAULT_BATCH_SIZE);
+    }
+
+    class LookupWork implements ReleasableIterator<IntBlock> {
+        private final Group[] groups;
+        private final long targetByteSize;
+        private final int positionCount;
+        private int position;
+
+        LookupWork(Page page, long targetByteSize, int batchSize) {
+            this.groups = specs.stream().map(s -> new Group(s, page, batchSize)).toArray(Group[]::new);
+            this.positionCount = page.getPositionCount();
+            this.targetByteSize = targetByteSize;
+        }
+
+        @Override
+        public boolean hasNext() {
+            return position < positionCount;
+        }
+
+        @Override
+        public IntBlock next() {
+            int size = Math.toIntExact(Math.min(positionCount - position, targetByteSize / Integer.BYTES / 2));
+            try (IntBlock.Builder ords = blockFactory.newIntBlockBuilder(size)) {
+                if (ords.estimatedBytes() > targetByteSize) {
+                    throw new IllegalStateException(
+                        "initial builder overshot target [" + ords.estimatedBytes() + "] vs [" + targetByteSize + "]"
+                    );
+                }
+                while (position < positionCount && ords.estimatedBytes() < targetByteSize) {
+                    // TODO a test where targetByteSize is very small should still make a few rows.
+                    boolean singleEntry = startPosition(groups);
+                    if (singleEntry) {
+                        lookupSingleEntry(ords);
+                    } else {
+                        lookupMultipleEntries(ords);
+                    }
+                    position++;
+                }
+                return ords.build();
             }
-            if (v.length == 0) {
-                assert count == 1 : "null value in non-singleton list";
+        }
+
+        private void lookupSingleEntry(IntBlock.Builder ords) {
+            fillBytesSv(groups);
+            long found = bytesRefHash.find(bytes.get());
+            if (found < 0) {
+                ords.appendNull();
+            } else {
+                ords.appendInt(Math.toIntExact(found));
+            }
+        }
+
+        private void lookupMultipleEntries(IntBlock.Builder ords) {
+            long firstFound = -1;
+            boolean began = false;
+            int g = 0;
+            int count = 0;
+            do {
+                fillBytesMv(groups, g);
+
+                // emit ords
+                long found = bytesRefHash.find(bytes.get());
+                if (found >= 0) {
+                    if (firstFound < 0) {
+                        firstFound = found;
+                    } else {
+                        if (began == false) {
+                            began = true;
+                            ords.beginPositionEntry();
+                            ords.appendInt(Math.toIntExact(firstFound));
+                            count++;
+                        }
+                        ords.appendInt(Math.toIntExact(found));
+                        count++;
+                        if (count > Block.MAX_LOOKUP) {
+                            // TODO replace this with a warning and break
+                            throw new IllegalArgumentException("Found a single entry with " + count + " entries");
+                        }
+                    }
+                }
+                g = rewindKeys(groups);
+            } while (g >= 0);
+            if (firstFound < 0) {
+                ords.appendNull();
+            } else if (began) {
+                ords.endPositionEntry();
+            } else {
+                // Only found one value
+                ords.appendInt(Math.toIntExact(hashOrdToGroup(firstFound)));
+            }
+            for (Group group : groups) {
+                group.valueOffset += group.valueCount;
+            }
+        }
+
+        @Override
+        public void close() {
+            Releasables.closeExpectNoException(groups);
+        }
+    }
+
+    /**
+     * Correctly position all {@code groups}, clear the {@link #bytes},
+     * and position it past the null tracking bytes. Call this before
+     * encoding a new position.
+     * @return true if this position has only a single ordinal
+     */
+    private boolean startPosition(Group[] groups) {
+        boolean singleEntry = true;
+        for (Group g : groups) {
+            /*
+             * Make sure all encoders have encoded the current position and the
+             * offsets are queued to its start.
+             */
+            var encoder = g.encoder;
+            g.positionOffset++;
+            while (g.positionOffset >= encoder.positionCount()) {
+                encoder.encodeNextBatch();
+                g.positionOffset = 0;
+                g.valueOffset = 0;
+            }
+            g.valueCount = encoder.valueCount(g.positionOffset);
+            singleEntry &= (g.valueCount == 1);
+        }
+        Arrays.fill(bytes.bytes(), 0, nullTrackingBytes, (byte) 0);
+        bytes.setLength(nullTrackingBytes);
+        return singleEntry;
+    }
+
+    private void fillBytesSv(Group[] groups) {
+        for (int g = 0; g < groups.length; g++) {
+            Group group = groups[g];
+            assert group.writtenValues == 0;
+            assert group.valueCount == 1;
+            if (group.encoder.read(group.valueOffset++, bytes) == 0) {
                 int nullByte = g / 8;
                 int nullShift = g % 8;
                 bytes.bytes()[nullByte] |= (byte) (1 << nullShift);
             }
-            bytes.setLength(start);
-            bytes.append(v);
-            addPosition(g + 1);  // TODO stack overflow protection
-            for (int i = 1; i < count; i++) {
-                v = encoders[g].read(valueOffset++, scratches[g]);
-                if (logger.isTraceEnabled()) {
-                    logger.trace("\t".repeat(g + 1) + v);
-                }
-                assert v.length > 0 : "null value after the first position";
-                bytes.setLength(start);
-                bytes.append(v);
-                addPosition(g + 1);
-            }
         }
+    }
 
-        private void addBytes() {
-            int group = Math.toIntExact(hashOrdToGroup(bytesRefHash.add(bytes.get())));
-            switch (count) {
-                case 0 -> bufferedGroup = group;
-                case 1 -> {
-                    ords.beginPositionEntry();
-                    ords.appendInt(bufferedGroup);
-                    addedValueInMultivaluePosition(position);
-                    ords.appendInt(group);
-                    addedValueInMultivaluePosition(position);
-                }
-                default -> {
-                    ords.appendInt(group);
-                    addedValueInMultivaluePosition(position);
-                }
+    private void fillBytesMv(Group[] groups, int startingGroup) {
+        for (int g = startingGroup; g < groups.length; g++) {
+            Group group = groups[g];
+            group.bytesStart = bytes.length();
+            if (group.encoder.read(group.valueOffset + group.writtenValues, bytes) == 0) {
+                assert group.valueCount == 1 : "null value in non-singleton list";
+                int nullByte = g / 8;
+                int nullShift = g % 8;
+                bytes.bytes()[nullByte] |= (byte) (1 << nullShift);
             }
-            count++;
-            if (logger.isTraceEnabled()) {
-                logger.trace("{} = {}", bytes.get(), group);
+            ++group.writtenValues;
+        }
+    }
+
+    private int rewindKeys(Group[] groups) {
+        int g = groups.length - 1;
+        Group group = groups[g];
+        bytes.setLength(group.bytesStart);
+        while (group.writtenValues == group.valueCount) {
+            group.writtenValues = 0;
+            if (g == 0) {
+                return -1;
+            } else {
+                group = groups[--g];
+                bytes.setLength(group.bytesStart);
             }
         }
+        return g;
     }
 
     @Override
     public Block[] getKeys() {
         int size = Math.toIntExact(bytesRefHash.size());
-        BatchEncoder.Decoder[] decoders = new BatchEncoder.Decoder[groups.size()];
-        Block.Builder[] builders = new Block.Builder[groups.size()];
-        for (int g = 0; g < builders.length; g++) {
-            ElementType elementType = groups.get(g).elementType();
-            decoders[g] = BatchEncoder.decoder(elementType);
-            builders[g] = elementType.newBlockBuilder(size);
-        }
-
-        BytesRef values[] = new BytesRef[(int) Math.min(100, bytesRefHash.size())];
-        BytesRef nulls[] = new BytesRef[values.length];
-        for (int offset = 0; offset < values.length; offset++) {
-            values[offset] = new BytesRef();
-            nulls[offset] = new BytesRef();
-            nulls[offset].length = nullTrackingBytes;
-        }
-        int offset = 0;
-        for (int i = 0; i < bytesRefHash.size(); i++) {
-            values[offset] = bytesRefHash.get(i, values[offset]);
-
-            // Reference the null bytes in the nulls array and values in the values
-            nulls[offset].bytes = values[offset].bytes;
-            nulls[offset].offset = values[offset].offset;
-            values[offset].offset += nullTrackingBytes;
-            values[offset].length -= nullTrackingBytes;
-
-            offset++;
-            if (offset == values.length) {
-                readKeys(decoders, builders, nulls, values, offset);
-                offset = 0;
+        BatchEncoder.Decoder[] decoders = new BatchEncoder.Decoder[specs.size()];
+        Block.Builder[] builders = new Block.Builder[specs.size()];
+        try {
+            for (int g = 0; g < builders.length; g++) {
+                ElementType elementType = specs.get(g).elementType();
+                decoders[g] = BatchEncoder.decoder(elementType);
+                builders[g] = elementType.newBlockBuilder(size, blockFactory);
             }
-        }
-        if (offset > 0) {
-            readKeys(decoders, builders, nulls, values, offset);
-        }
 
-        Block[] keyBlocks = new Block[groups.size()];
-        for (int g = 0; g < keyBlocks.length; g++) {
-            keyBlocks[g] = builders[g].build();
+            BytesRef[] values = new BytesRef[(int) Math.min(100, bytesRefHash.size())];
+            BytesRef[] nulls = new BytesRef[values.length];
+            for (int offset = 0; offset < values.length; offset++) {
+                values[offset] = new BytesRef();
+                nulls[offset] = new BytesRef();
+                nulls[offset].length = nullTrackingBytes;
+            }
+            int offset = 0;
+            for (int i = 0; i < bytesRefHash.size(); i++) {
+                values[offset] = bytesRefHash.get(i, values[offset]);
+
+                // Reference the null bytes in the nulls array and values in the values
+                nulls[offset].bytes = values[offset].bytes;
+                nulls[offset].offset = values[offset].offset;
+                values[offset].offset += nullTrackingBytes;
+                values[offset].length -= nullTrackingBytes;
+
+                offset++;
+                if (offset == values.length) {
+                    readKeys(decoders, builders, nulls, values, offset);
+                    offset = 0;
+                }
+            }
+            if (offset > 0) {
+                readKeys(decoders, builders, nulls, values, offset);
+            }
+            return Block.Builder.buildAll(builders);
+        } finally {
+            Releasables.closeExpectNoException(builders);
         }
-        return keyBlocks;
     }
 
     private void readKeys(BatchEncoder.Decoder[] decoders, Block.Builder[] builders, BytesRef[] nulls, BytesRef[] values, int count) {
@@ -253,7 +409,7 @@ final class PackedValuesBlockHash extends BlockHash {
 
     @Override
     public IntVector nonEmpty() {
-        return IntVector.range(0, Math.toIntExact(bytesRefHash.size()));
+        return IntVector.range(0, Math.toIntExact(bytesRefHash.size()), blockFactory);
     }
 
     @Override
@@ -271,12 +427,11 @@ final class PackedValuesBlockHash extends BlockHash {
         StringBuilder b = new StringBuilder();
         b.append("PackedValuesBlockHash{groups=[");
         boolean first = true;
-        for (HashAggregationOperator.GroupSpec spec : groups) {
-            if (first) {
-                first = false;
-            } else {
+        for (int i = 0; i < specs.size(); i++) {
+            if (i > 0) {
                 b.append(", ");
             }
+            GroupSpec spec = specs.get(i);
             b.append(spec.channel()).append(':').append(spec.elementType());
         }
         b.append("], entries=").append(bytesRefHash.size());

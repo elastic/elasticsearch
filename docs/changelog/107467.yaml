@@ -1,0 +1,5 @@
+pr: 107467
+summary: "[Connector API] Fix bug with filtering validation toXContent"
+area: Application
+type: bug
+issues: []

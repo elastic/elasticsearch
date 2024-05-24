@@ -16,6 +16,7 @@ import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.operator.DriverContext;
 
 /**
  * {@link AggregatorFunction} implementation for {@link MinIntAggregator}.
@@ -26,17 +27,22 @@ public final class MinIntAggregatorFunction implements AggregatorFunction {
       new IntermediateStateDesc("min", ElementType.INT),
       new IntermediateStateDesc("seen", ElementType.BOOLEAN)  );
 
+  private final DriverContext driverContext;
+
   private final IntState state;
 
   private final List<Integer> channels;
 
-  public MinIntAggregatorFunction(List<Integer> channels, IntState state) {
+  public MinIntAggregatorFunction(DriverContext driverContext, List<Integer> channels,
+      IntState state) {
+    this.driverContext = driverContext;
     this.channels = channels;
     this.state = state;
   }
 
-  public static MinIntAggregatorFunction create(List<Integer> channels) {
-    return new MinIntAggregatorFunction(channels, new IntState(MinIntAggregator.init()));
+  public static MinIntAggregatorFunction create(DriverContext driverContext,
+      List<Integer> channels) {
+    return new MinIntAggregatorFunction(driverContext, channels, new IntState(MinIntAggregator.init()));
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {
@@ -50,11 +56,7 @@ public final class MinIntAggregatorFunction implements AggregatorFunction {
 
   @Override
   public void addRawInput(Page page) {
-    Block uncastBlock = page.getBlock(channels.get(0));
-    if (uncastBlock.areAllValuesNull()) {
-      return;
-    }
-    IntBlock block = (IntBlock) uncastBlock;
+    IntBlock block = page.getBlock(channels.get(0));
     IntVector vector = block.asVector();
     if (vector != null) {
       addRawVector(vector);
@@ -88,10 +90,18 @@ public final class MinIntAggregatorFunction implements AggregatorFunction {
   public void addIntermediateInput(Page page) {
     assert channels.size() == intermediateBlockCount();
     assert page.getBlockCount() >= channels.get(0) + intermediateStateDesc().size();
-    IntVector min = page.<IntBlock>getBlock(channels.get(0)).asVector();
-    BooleanVector seen = page.<BooleanBlock>getBlock(channels.get(1)).asVector();
+    Block minUncast = page.getBlock(channels.get(0));
+    if (minUncast.areAllValuesNull()) {
+      return;
+    }
+    IntVector min = ((IntBlock) minUncast).asVector();
     assert min.getPositionCount() == 1;
-    assert min.getPositionCount() == seen.getPositionCount();
+    Block seenUncast = page.getBlock(channels.get(1));
+    if (seenUncast.areAllValuesNull()) {
+      return;
+    }
+    BooleanVector seen = ((BooleanBlock) seenUncast).asVector();
+    assert seen.getPositionCount() == 1;
     if (seen.getBoolean(0)) {
       state.intValue(MinIntAggregator.combine(state.intValue(), min.getInt(0)));
       state.seen(true);
@@ -99,17 +109,17 @@ public final class MinIntAggregatorFunction implements AggregatorFunction {
   }
 
   @Override
-  public void evaluateIntermediate(Block[] blocks, int offset) {
-    state.toIntermediate(blocks, offset);
+  public void evaluateIntermediate(Block[] blocks, int offset, DriverContext driverContext) {
+    state.toIntermediate(blocks, offset, driverContext);
   }
 
   @Override
-  public void evaluateFinal(Block[] blocks, int offset) {
+  public void evaluateFinal(Block[] blocks, int offset, DriverContext driverContext) {
     if (state.seen() == false) {
-      blocks[offset] = Block.constantNullBlock(1);
+      blocks[offset] = driverContext.blockFactory().newConstantNullBlock(1);
       return;
     }
-    blocks[offset] = IntBlock.newConstantBlockWith(state.intValue(), 1);
+    blocks[offset] = driverContext.blockFactory().newConstantIntBlockWith(state.intValue(), 1);
   }
 
   @Override

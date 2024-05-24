@@ -8,7 +8,6 @@
 
 package org.elasticsearch.index.engine;
 
-import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.index.BaseTermsEnum;
 import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.index.ByteVectorValues;
@@ -39,7 +38,7 @@ import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.index.VectorEncoding;
 import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.search.DocIdSetIterator;
-import org.apache.lucene.search.TopDocs;
+import org.apache.lucene.search.KnnCollector;
 import org.apache.lucene.store.ByteBuffersDirectory;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.Bits;
@@ -63,7 +62,6 @@ import org.elasticsearch.index.translog.Translog;
 
 import java.io.IOException;
 import java.util.Collections;
-import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -83,10 +81,10 @@ final class TranslogDirectoryReader extends DirectoryReader {
         Translog.Index operation,
         MappingLookup mappingLookup,
         DocumentParser documentParser,
-        Analyzer analyzer,
+        EngineConfig engineConfig,
         Runnable onSegmentCreated
     ) throws IOException {
-        this(new TranslogLeafReader(shardId, operation, mappingLookup, documentParser, analyzer, onSegmentCreated));
+        this(new TranslogLeafReader(shardId, operation, mappingLookup, documentParser, engineConfig, onSegmentCreated));
     }
 
     private TranslogDirectoryReader(TranslogLeafReader leafReader) throws IOException {
@@ -161,6 +159,7 @@ final class TranslogDirectoryReader extends DirectoryReader {
             0,
             VectorEncoding.FLOAT32,
             VectorSimilarityFunction.EUCLIDEAN,
+            false,
             false
         );
         private static final FieldInfo FAKE_ROUTING_FIELD = new FieldInfo(
@@ -179,6 +178,7 @@ final class TranslogDirectoryReader extends DirectoryReader {
             0,
             VectorEncoding.FLOAT32,
             VectorSimilarityFunction.EUCLIDEAN,
+            false,
             false
         );
         private static final FieldInfo FAKE_ID_FIELD = new FieldInfo(
@@ -197,6 +197,7 @@ final class TranslogDirectoryReader extends DirectoryReader {
             0,
             VectorEncoding.FLOAT32,
             VectorSimilarityFunction.EUCLIDEAN,
+            false,
             false
         );
         private static final Set<String> TRANSLOG_FIELD_NAMES = Set.of(SourceFieldMapper.NAME, RoutingFieldMapper.NAME, IdFieldMapper.NAME);
@@ -205,7 +206,7 @@ final class TranslogDirectoryReader extends DirectoryReader {
         private final Translog.Index operation;
         private final MappingLookup mappingLookup;
         private final DocumentParser documentParser;
-        private final Analyzer analyzer;
+        private final EngineConfig engineConfig;
         private final Directory directory;
         private final Runnable onSegmentCreated;
 
@@ -217,14 +218,14 @@ final class TranslogDirectoryReader extends DirectoryReader {
             Translog.Index operation,
             MappingLookup mappingLookup,
             DocumentParser documentParser,
-            Analyzer analyzer,
+            EngineConfig engineConfig,
             Runnable onSegmentCreated
         ) {
             this.shardId = shardId;
             this.operation = operation;
             this.mappingLookup = mappingLookup;
             this.documentParser = documentParser;
-            this.analyzer = analyzer;
+            this.engineConfig = engineConfig;
             this.onSegmentCreated = onSegmentCreated;
             this.directory = new ByteBuffersDirectory();
             this.uid = Uid.encodeId(operation.id());
@@ -251,20 +252,16 @@ final class TranslogDirectoryReader extends DirectoryReader {
         private LeafReader createInMemoryLeafReader() {
             assert Thread.holdsLock(this);
             final ParsedDocument parsedDocs = documentParser.parseDocument(
-                new SourceToParse(
-                    operation.id(),
-                    operation.source(),
-                    XContentHelper.xContentType(operation.source()),
-                    operation.routing(),
-                    Map.of(),
-                    false
-                ),
+                new SourceToParse(operation.id(), operation.source(), XContentHelper.xContentType(operation.source()), operation.routing()),
                 mappingLookup
             );
 
             parsedDocs.updateSeqID(operation.seqNo(), operation.primaryTerm());
             parsedDocs.version().setLongValue(operation.version());
-            final IndexWriterConfig writeConfig = new IndexWriterConfig(analyzer).setOpenMode(IndexWriterConfig.OpenMode.CREATE);
+            // To guarantee indexability, we configure the analyzer and codec using the main engine configuration
+            final IndexWriterConfig writeConfig = new IndexWriterConfig(engineConfig.getAnalyzer()).setOpenMode(
+                IndexWriterConfig.OpenMode.CREATE
+            ).setCodec(engineConfig.getCodec());
             try (IndexWriter writer = new IndexWriter(directory, writeConfig)) {
                 writer.addDocument(parsedDocs.rootDoc());
                 final DirectoryReader reader = open(writer);
@@ -359,13 +356,13 @@ final class TranslogDirectoryReader extends DirectoryReader {
         }
 
         @Override
-        public TopDocs searchNearestVectors(String field, float[] target, int k, Bits acceptDocs, int visitedLimit) throws IOException {
-            return getDelegate().searchNearestVectors(field, target, k, acceptDocs, visitedLimit);
+        public void searchNearestVectors(String field, float[] target, KnnCollector collector, Bits acceptDocs) throws IOException {
+            getDelegate().searchNearestVectors(field, target, collector, acceptDocs);
         }
 
         @Override
-        public TopDocs searchNearestVectors(String field, byte[] target, int k, Bits acceptDocs, int visitedLimit) throws IOException {
-            return getDelegate().searchNearestVectors(field, target, k, acceptDocs, visitedLimit);
+        public void searchNearestVectors(String field, byte[] target, KnnCollector collector, Bits acceptDocs) throws IOException {
+            getDelegate().searchNearestVectors(field, target, collector, acceptDocs);
         }
 
         @Override

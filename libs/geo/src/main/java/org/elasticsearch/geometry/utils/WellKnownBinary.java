@@ -24,6 +24,7 @@ import org.elasticsearch.geometry.ShapeType;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.util.ArrayList;
@@ -40,10 +41,13 @@ public class WellKnownBinary {
     /**
      * Converts the given {@link Geometry} to WKB with the provided {@link ByteOrder}
      */
-    public static byte[] toWKB(Geometry geometry, ByteOrder byteOrder) throws IOException {
+    public static byte[] toWKB(Geometry geometry, ByteOrder byteOrder) {
         try (ByteArrayOutputStream outputStream = new ByteArrayOutputStream()) {
             toWKB(geometry, outputStream, ByteBuffer.allocate(8).order(byteOrder));
             return outputStream.toByteArray();
+        } catch (IOException ioe) {
+            // Should never happen as the only method throwing IOException is ByteArrayOutputStream#close and it is a NOOP
+            throw new UncheckedIOException(ioe);
         }
     }
 

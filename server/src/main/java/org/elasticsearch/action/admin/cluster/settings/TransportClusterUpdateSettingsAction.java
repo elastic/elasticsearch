@@ -22,6 +22,7 @@ import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.routing.RerouteService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.MasterService;
 import org.elasticsearch.common.Priority;
@@ -29,6 +30,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsUpdater;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.reservedstate.action.ReservedClusterSettingsAction;
 import org.elasticsearch.tasks.Task;
@@ -47,12 +49,14 @@ public class TransportClusterUpdateSettingsAction extends TransportMasterNodeAct
 
     private static final Logger logger = LogManager.getLogger(TransportClusterUpdateSettingsAction.class);
 
+    private final RerouteService rerouteService;
     private final ClusterSettings clusterSettings;
 
     @Inject
     public TransportClusterUpdateSettingsAction(
         TransportService transportService,
         ClusterService clusterService,
+        RerouteService rerouteService,
         ThreadPool threadPool,
         ActionFilters actionFilters,
         IndexNameExpressionResolver indexNameExpressionResolver,
@@ -68,8 +72,9 @@ public class TransportClusterUpdateSettingsAction extends TransportMasterNodeAct
             ClusterUpdateSettingsRequest::new,
             indexNameExpressionResolver,
             ClusterUpdateSettingsResponse::new,
-            ThreadPool.Names.SAME
+            EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
+        this.rerouteService = rerouteService;
         this.clusterSettings = clusterSettings;
     }
 
@@ -190,7 +195,7 @@ public class TransportClusterUpdateSettingsAction extends TransportMasterNodeAct
                 // the components (e.g. FilterAllocationDecider), so the changes made by the first call aren't visible to the components
                 // until the ClusterStateListener instances have been invoked, but are visible after the first update task has been
                 // completed.
-                clusterService.getRerouteService().reroute(REROUTE_TASK_SOURCE, Priority.URGENT, new ActionListener<>() {
+                rerouteService.reroute(REROUTE_TASK_SOURCE, Priority.URGENT, new ActionListener<>() {
                     @Override
                     public void onResponse(Void ignored) {
                         listener.onResponse(

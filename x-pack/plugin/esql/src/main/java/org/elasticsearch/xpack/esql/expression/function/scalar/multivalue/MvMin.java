@@ -12,38 +12,61 @@ import org.elasticsearch.compute.ann.MvEvaluator;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
-import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner;
-import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
-import org.elasticsearch.xpack.ql.expression.Expression;
-import org.elasticsearch.xpack.ql.tree.NodeInfo;
-import org.elasticsearch.xpack.ql.tree.Source;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
+import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.expression.function.Example;
+import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
+import org.elasticsearch.xpack.esql.expression.function.Param;
+import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 
 import java.util.List;
 
-import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isType;
+import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
+import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.isRepresentable;
+import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.isSpatial;
 
 /**
  * Reduce a multivalued field to a single valued field containing the minimum value.
  */
 public class MvMin extends AbstractMultivalueFunction {
-    public MvMin(Source source, Expression field) {
+    @FunctionInfo(
+        returnType = { "boolean", "date", "double", "integer", "ip", "keyword", "long", "text", "unsigned_long", "version" },
+        description = "Converts a multivalued expression into a single valued column containing the minimum value.",
+        examples = {
+            @Example(file = "math", tag = "mv_min"),
+            @Example(
+                description = "It can be used by any column type, including `keyword` columns. "
+                    + "In that case, it picks the first string, comparing their utf-8 representation byte by byte:",
+                file = "string",
+                tag = "mv_min"
+            ) }
+    )
+    public MvMin(
+        Source source,
+        @Param(
+            name = "field",
+            type = { "boolean", "date", "double", "integer", "ip", "keyword", "long", "text", "unsigned_long", "version" },
+            description = "Multivalue expression."
+        ) Expression field
+    ) {
         super(source, field);
     }
 
     @Override
     protected TypeResolution resolveFieldType() {
-        return isType(field(), EsqlDataTypes::isRepresentable, sourceText(), null, "representable");
+        return isType(field(), t -> isSpatial(t) == false && isRepresentable(t), sourceText(), null, "representableNonSpatial");
     }
 
     @Override
     protected ExpressionEvaluator.Factory evaluator(ExpressionEvaluator.Factory fieldEval) {
-        return switch (LocalExecutionPlanner.toElementType(field().dataType())) {
-            case BOOLEAN -> dvrCtx -> new MvMinBooleanEvaluator(fieldEval.get(dvrCtx), dvrCtx);
-            case BYTES_REF -> dvrCtx -> new MvMinBytesRefEvaluator(fieldEval.get(dvrCtx), dvrCtx);
-            case DOUBLE -> dvrCtx -> new MvMinDoubleEvaluator(fieldEval.get(dvrCtx), dvrCtx);
-            case INT -> dvrCtx -> new MvMinIntEvaluator(fieldEval.get(dvrCtx), dvrCtx);
-            case LONG -> dvrCtx -> new MvMinLongEvaluator(fieldEval.get(dvrCtx), dvrCtx);
-            case NULL -> dvrCtx -> EvalOperator.CONSTANT_NULL;
+        return switch (PlannerUtils.toSortableElementType(field().dataType())) {
+            case BOOLEAN -> new MvMinBooleanEvaluator.Factory(fieldEval);
+            case BYTES_REF -> new MvMinBytesRefEvaluator.Factory(fieldEval);
+            case DOUBLE -> new MvMinDoubleEvaluator.Factory(fieldEval);
+            case INT -> new MvMinIntEvaluator.Factory(fieldEval);
+            case LONG -> new MvMinLongEvaluator.Factory(fieldEval);
+            case NULL -> EvalOperator.CONSTANT_NULL_FACTORY;
             default -> throw EsqlIllegalArgumentException.illegalDataType(field.dataType());
         };
     }

@@ -48,7 +48,7 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
  */
 public class PutMappingRequest extends AcknowledgedRequest<PutMappingRequest> implements IndicesRequest.Replaceable {
 
-    private static Set<String> RESERVED_FIELDS = Set.of(
+    private static final Set<String> RESERVED_FIELDS = Set.of(
         "_uid",
         "_id",
         "_type",
@@ -66,7 +66,24 @@ public class PutMappingRequest extends AcknowledgedRequest<PutMappingRequest> im
 
     private String[] indices;
 
-    private IndicesOptions indicesOptions = IndicesOptions.fromOptions(false, false, true, true);
+    private IndicesOptions indicesOptions = IndicesOptions.builder()
+        .concreteTargetOptions(IndicesOptions.ConcreteTargetOptions.ERROR_WHEN_UNAVAILABLE_TARGETS)
+        .wildcardOptions(
+            IndicesOptions.WildcardOptions.builder()
+                .matchOpen(true)
+                .matchClosed(true)
+                .includeHidden(false)
+                .allowEmptyExpressions(false)
+                .resolveAliases(true)
+        )
+        .gatekeeperOptions(
+            IndicesOptions.GatekeeperOptions.builder()
+                .allowClosedIndices(true)
+                .allowAliasToMultipleIndices(true)
+                .ignoreThrottled(false)
+                .allowFailureIndices(false)
+        )
+        .build();
 
     private String source;
     private String origin = "";
@@ -88,18 +105,19 @@ public class PutMappingRequest extends AcknowledgedRequest<PutMappingRequest> im
         source = in.readString();
         concreteIndex = in.readOptionalWriteable(Index::new);
         origin = in.readOptionalString();
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_7_9_0)) {
-            writeIndexOnly = in.readBoolean();
-        }
+        writeIndexOnly = in.readBoolean();
     }
 
-    public PutMappingRequest() {}
+    public PutMappingRequest() {
+        super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT, DEFAULT_ACK_TIMEOUT);
+    }
 
     /**
      * Constructs a new put mapping request against one or more indices. If nothing is set then
      * it will be executed against all indices.
      */
     public PutMappingRequest(String... indices) {
+        super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT, DEFAULT_ACK_TIMEOUT);
         this.indices = indices;
     }
 
@@ -317,8 +335,6 @@ public class PutMappingRequest extends AcknowledgedRequest<PutMappingRequest> im
         out.writeString(source);
         out.writeOptionalWriteable(concreteIndex);
         out.writeOptionalString(origin);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_7_9_0)) {
-            out.writeBoolean(writeIndexOnly);
-        }
+        out.writeBoolean(writeIndexOnly);
     }
 }

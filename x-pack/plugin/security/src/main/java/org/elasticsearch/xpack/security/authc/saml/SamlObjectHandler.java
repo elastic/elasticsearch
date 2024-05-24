@@ -135,7 +135,7 @@ public class SamlObjectHandler {
         return new ChainingKeyInfoCredentialResolver(Arrays.asList(localKeyInfoCredentialResolver, collectionKeyInfoCredentialResolver));
     }
 
-    private EncryptedKeyResolver createResolverForEncryptedKeyElements() {
+    private static EncryptedKeyResolver createResolverForEncryptedKeyElements() {
         return new ChainingEncryptedKeyResolver(
             Arrays.asList(
                 new InlineEncryptedKeyResolver(),
@@ -149,7 +149,7 @@ public class SamlObjectHandler {
         return sp;
     }
 
-    protected String describe(X509Certificate certificate) {
+    protected static String describe(X509Certificate certificate) {
         return "X509Certificate{Subject="
             + certificate.getSubjectX500Principal()
             + "; SerialNo="
@@ -157,7 +157,7 @@ public class SamlObjectHandler {
             + "}";
     }
 
-    protected String describe(Collection<X509Credential> credentials) {
+    protected static String describe(Collection<X509Credential> credentials) {
         return credentials.stream().map(credential -> describe(credential.getEntityCertificate())).collect(Collectors.joining(","));
     }
 
@@ -262,7 +262,7 @@ public class SamlObjectHandler {
         return samlException(msg, signature, describeCredentials(credentials));
     }
 
-    private String describeCredentials(List<Credential> credentials) {
+    private static String describeCredentials(List<Credential> credentials) {
         return credentials.stream().map(c -> {
             if (c == null) {
                 return "<null>";
@@ -325,7 +325,7 @@ public class SamlObjectHandler {
         }
     }
 
-    protected String text(XMLObject xml, int length) {
+    protected static String text(XMLObject xml, int length) {
         return text(xml, length, 0);
     }
 
@@ -435,7 +435,7 @@ public class SamlObjectHandler {
         }
     }
 
-    protected byte[] inflate(byte[] bytes) {
+    protected static byte[] inflate(byte[] bytes) {
         Inflater inflater = new Inflater(true);
         try (
             ByteArrayInputStream in = new ByteArrayInputStream(bytes);

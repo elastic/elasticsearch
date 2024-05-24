@@ -83,7 +83,7 @@ public interface SimplificationErrorCalculator {
             }
         }
 
-        private double distance(PointLike a, PointLike b) {
+        private static double distance(PointLike a, PointLike b) {
             return SloppyMath.haversinMeters(a.y(), a.x(), b.y(), b.x());
         }
     }
@@ -115,7 +115,7 @@ public interface SimplificationErrorCalculator {
             }
         }
 
-        private double distance(PointLike a, PointLike b) {
+        private static double distance(PointLike a, PointLike b) {
             return SloppyMath.haversinMeters(a.y(), a.x(), b.y(), b.x());
         }
     }

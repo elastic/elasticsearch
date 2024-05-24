@@ -14,6 +14,7 @@ import org.elasticsearch.action.admin.indices.rollover.RolloverRequest;
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsRequest;
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsResponse;
 import org.elasticsearch.action.downsample.DownsampleConfig;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.metadata.DataStreamLifecycle;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
@@ -30,11 +31,10 @@ import org.elasticsearch.xpack.core.LocalStateCompositeXPackPlugin;
 
 import java.util.Collection;
 import java.util.List;
-import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
-import java.util.function.Consumer;
 
 import static org.elasticsearch.xpack.downsample.DataStreamLifecycleDriver.getBackingIndices;
+import static org.elasticsearch.xpack.downsample.DataStreamLifecycleDriver.putTSDBIndexTemplate;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 
@@ -55,136 +55,71 @@ public class DataStreamLifecycleDownsampleDisruptionIT extends ESIntegTestCase {
         return settings.build();
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/99520")
     @TestLogging(value = "org.elasticsearch.datastreams.lifecycle:TRACE", reason = "debugging")
     public void testDataStreamLifecycleDownsampleRollingRestart() throws Exception {
-        try (InternalTestCluster cluster = internalCluster()) {
-            final List<String> masterNodes = cluster.startMasterOnlyNodes(1);
-            cluster.startDataOnlyNodes(3);
-            ensureStableCluster(cluster.size());
-            ensureGreen();
+        final InternalTestCluster cluster = internalCluster();
+        cluster.startMasterOnlyNodes(1);
+        cluster.startDataOnlyNodes(3);
+        ensureStableCluster(cluster.size());
+        ensureGreen();
 
-            final String dataStreamName = "metrics-foo";
-            DataStreamLifecycle lifecycle = DataStreamLifecycle.newBuilder()
-                .downsampling(
-                    new DataStreamLifecycle.Downsampling(
-                        List.of(
-                            new DataStreamLifecycle.Downsampling.Round(
-                                TimeValue.timeValueMillis(0),
-                                new DownsampleConfig(new DateHistogramInterval("5m"))
-                            )
+        final String dataStreamName = "metrics-foo";
+        DataStreamLifecycle lifecycle = DataStreamLifecycle.newBuilder()
+            .downsampling(
+                new DataStreamLifecycle.Downsampling(
+                    List.of(
+                        new DataStreamLifecycle.Downsampling.Round(
+                            TimeValue.timeValueMillis(0),
+                            new DownsampleConfig(new DateHistogramInterval("5m"))
                         )
                     )
                 )
-                .build();
-            int indexedDocs = DataStreamLifecycleDriver.setupDataStreamAndIngestDocs(client(), dataStreamName, lifecycle, DOC_COUNT);
+            )
+            .build();
+        DataStreamLifecycleDriver.setupTSDBDataStreamAndIngestDocs(
+            client(),
+            dataStreamName,
+            "1986-01-08T23:40:53.384Z",
+            "2022-01-08T23:40:53.384Z",
+            lifecycle,
+            DOC_COUNT,
+            "1990-09-09T18:00:00"
+        );
 
-            client().execute(RolloverAction.INSTANCE, new RolloverRequest(dataStreamName, null)).actionGet();
+        // before we rollover we update the index template to remove the start/end time boundaries (they're there just to ease with
+        // testing so DSL doesn't have to wait for the end_time to lapse)
+        putTSDBIndexTemplate(client(), dataStreamName, null, null, lifecycle);
+        client().execute(RolloverAction.INSTANCE, new RolloverRequest(dataStreamName, null)).actionGet();
 
-            // DSL runs every second and it has to tail forcemerge the index (2 seconds) and mark it as read-only (2s) before it starts
-            // downsampling. This sleep here tries to get as close as possible to having disruption during the downsample execution.
-            long sleepTime = randomLongBetween(3000, 4500);
-            logger.info("-> giving data stream lifecycle [{}] millis to make some progress before starting the disruption", sleepTime);
-            Thread.sleep(sleepTime);
-            final CountDownLatch disruptionStart = new CountDownLatch(1);
-            final CountDownLatch disruptionEnd = new CountDownLatch(1);
-            List<String> backingIndices = getBackingIndices(client(), dataStreamName);
-            // first generation index
-            String sourceIndex = backingIndices.get(0);
-            new Thread(new Disruptor(cluster, sourceIndex, new DisruptionListener() {
-                @Override
-                public void disruptionStart() {
-                    disruptionStart.countDown();
-                }
+        // DSL runs every second and it has to tail forcemerge the index (2 seconds) and mark it as read-only (2s) before it starts
+        // downsampling. This sleep here tries to get as close as possible to having disruption during the downsample execution.
+        long sleepTime = randomLongBetween(3000, 4500);
+        logger.info("-> giving data stream lifecycle [{}] millis to make some progress before starting the disruption", sleepTime);
+        Thread.sleep(sleepTime);
+        List<String> backingIndices = getBackingIndices(client(), dataStreamName);
+        // first generation index
+        String sourceIndex = backingIndices.get(0);
 
-                @Override
-                public void disruptionEnd() {
-                    disruptionEnd.countDown();
-                }
-            }, masterNodes.get(0), (ignored) -> {
-                try {
-                    cluster.rollingRestart(new InternalTestCluster.RestartCallback() {
-                        @Override
-                        public boolean validateClusterForming() {
-                            return true;
-                        }
-                    });
-                } catch (Exception e) {
-                    throw new RuntimeException(e);
-                }
-            })).start();
+        internalCluster().rollingRestart(new InternalTestCluster.RestartCallback() {
+        });
 
-            waitUntil(
-                () -> cluster.client().admin().cluster().preparePendingClusterTasks().get().pendingTasks().isEmpty(),
-                60,
-                TimeUnit.SECONDS
-            );
-            ensureStableCluster(cluster.numDataAndMasterNodes());
-
-            final String targetIndex = "downsample-5m-" + sourceIndex;
-            assertBusy(() -> {
-                try {
-                    GetSettingsResponse getSettingsResponse = client().admin()
-                        .indices()
-                        .getSettings(new GetSettingsRequest().indices(targetIndex))
-                        .actionGet();
-                    Settings indexSettings = getSettingsResponse.getIndexToSettings().get(targetIndex);
-                    assertThat(indexSettings, is(notNullValue()));
-                    assertThat(IndexMetadata.INDEX_DOWNSAMPLE_STATUS.get(indexSettings), is(IndexMetadata.DownsampleTaskStatus.SUCCESS));
-                } catch (Exception e) {
-                    throw new AssertionError(e);
-                }
-            }, 60, TimeUnit.SECONDS);
-        }
-    }
-
-    interface DisruptionListener {
-        void disruptionStart();
-
-        void disruptionEnd();
-    }
-
-    private class Disruptor implements Runnable {
-        final InternalTestCluster cluster;
-        private final String sourceIndex;
-        private final DisruptionListener listener;
-        private final String clientNode;
-        private final Consumer<String> disruption;
-
-        private Disruptor(
-            final InternalTestCluster cluster,
-            final String sourceIndex,
-            final DisruptionListener listener,
-            final String clientNode,
-            final Consumer<String> disruption
-        ) {
-            this.cluster = cluster;
-            this.sourceIndex = sourceIndex;
-            this.listener = listener;
-            this.clientNode = clientNode;
-            this.disruption = disruption;
-        }
-
-        @Override
-        public void run() {
-            listener.disruptionStart();
+        // if the source index has already been downsampled and moved into the data stream just use its name directly
+        final String targetIndex = sourceIndex.startsWith("downsample-5m-") ? sourceIndex : "downsample-5m-" + sourceIndex;
+        assertBusy(() -> {
             try {
-                final String candidateNode = cluster.client(clientNode)
+                GetSettingsResponse getSettingsResponse = cluster.client()
                     .admin()
-                    .cluster()
-                    .prepareSearchShards(sourceIndex)
-                    .get()
-                    .getNodes()[0].getName();
-                logger.info("Candidate node [" + candidateNode + "]");
-                disruption.accept(candidateNode);
-                ensureGreen(sourceIndex);
-                ensureStableCluster(cluster.numDataAndMasterNodes(), clientNode);
-
+                    .indices()
+                    .getSettings(new GetSettingsRequest().indices(targetIndex).indicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN))
+                    .actionGet();
+                Settings indexSettings = getSettingsResponse.getIndexToSettings().get(targetIndex);
+                assertThat(indexSettings, is(notNullValue()));
+                assertThat(IndexMetadata.INDEX_DOWNSAMPLE_STATUS.get(indexSettings), is(IndexMetadata.DownsampleTaskStatus.SUCCESS));
+                assertEquals("5m", IndexMetadata.INDEX_DOWNSAMPLE_INTERVAL.get(indexSettings));
             } catch (Exception e) {
-                logger.error("Ignoring Error while injecting disruption [" + e.getMessage() + "]");
-            } finally {
-                listener.disruptionEnd();
+                throw new AssertionError(e);
             }
-        }
+        }, 60, TimeUnit.SECONDS);
+        ensureGreen(targetIndex);
     }
 }

@@ -28,6 +28,7 @@ import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot;
 import org.elasticsearch.index.store.Store;
@@ -219,7 +220,7 @@ public class SnapshotsRecoveryPlannerServiceTests extends ESTestCase {
                 if (snapshotVersion == null) {
                     luceneVersion = randomVersionBetween(
                         random(),
-                        IndexVersion.V_7_0_0,
+                        IndexVersions.V_7_0_0,
                         RecoverySettings.SNAPSHOT_RECOVERIES_SUPPORTED_INDEX_VERSION
                     ).luceneVersion();
                 } else {
@@ -410,7 +411,7 @@ public class SnapshotsRecoveryPlannerServiceTests extends ESTestCase {
                     }
                 },
                 true,
-                IndexVersion.V_7_14_0, // Unsupported version,
+                IndexVersions.V_7_14_0, // Unsupported version,
                 randomBoolean()
             );
 
@@ -461,7 +462,7 @@ public class SnapshotsRecoveryPlannerServiceTests extends ESTestCase {
     ) throws Exception {
         SnapshotsRecoveryPlannerService recoveryPlannerService = new SnapshotsRecoveryPlannerService(shardSnapshotsService, () -> true);
 
-        PlainActionFuture<ShardRecoveryPlan> planFuture = PlainActionFuture.newFuture();
+        PlainActionFuture<ShardRecoveryPlan> planFuture = new PlainActionFuture<>();
         recoveryPlannerService.computeRecoveryPlan(
             shardId,
             shardIdentifier,

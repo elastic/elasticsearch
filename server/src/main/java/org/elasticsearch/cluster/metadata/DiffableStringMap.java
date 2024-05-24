@@ -34,7 +34,7 @@ public class DiffableStringMap extends AbstractMap<String, String> implements Di
 
     @SuppressWarnings("unchecked")
     public static DiffableStringMap readFrom(StreamInput in) throws IOException {
-        final Map<String, String> map = (Map) in.readMap();
+        final Map<String, String> map = (Map) in.readGenericMap();
         return map.isEmpty() ? EMPTY : new DiffableStringMap(map);
     }
 

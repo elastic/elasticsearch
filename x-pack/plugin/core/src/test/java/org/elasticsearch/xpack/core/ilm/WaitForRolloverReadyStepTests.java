@@ -64,9 +64,7 @@ public class WaitForRolloverReadyStepTests extends AbstractStepTestCase<WaitForR
             ? null
             : new ByteSizeValue(randomNonNegativeLong() / maxPrimaryShardSizeUnit.toBytes(1), maxPrimaryShardSizeUnit);
         Long maxDocs = randomBoolean() ? null : randomNonNegativeLong();
-        TimeValue maxAge = (maxDocs == null && maxSize == null || randomBoolean())
-            ? TimeValue.parseTimeValue(randomPositiveTimeValue(), "rollover_action_test")
-            : null;
+        TimeValue maxAge = (maxDocs == null && maxSize == null || randomBoolean()) ? randomPositiveTimeValue() : null;
         Long maxPrimaryShardDocs = randomBoolean() ? null : randomNonNegativeLong();
         ByteSizeUnit minSizeUnit = randomFrom(ByteSizeUnit.values());
         ByteSizeValue minSize = randomBoolean() ? null : new ByteSizeValue(randomNonNegativeLong() / minSizeUnit.toBytes(1), minSizeUnit);
@@ -75,9 +73,7 @@ public class WaitForRolloverReadyStepTests extends AbstractStepTestCase<WaitForR
             ? null
             : new ByteSizeValue(randomNonNegativeLong() / minPrimaryShardSizeUnit.toBytes(1), minPrimaryShardSizeUnit);
         Long minDocs = randomBoolean() ? null : randomNonNegativeLong();
-        TimeValue minAge = (minDocs == null || randomBoolean())
-            ? TimeValue.parseTimeValue(randomPositiveTimeValue(), "rollover_action_test")
-            : null;
+        TimeValue minAge = (minDocs == null || randomBoolean()) ? randomPositiveTimeValue() : null;
         Long minPrimaryShardDocs = randomBoolean() ? null : randomNonNegativeLong();
         return new WaitForRolloverReadyStep(
             stepKey,
@@ -123,10 +119,7 @@ public class WaitForRolloverReadyStepTests extends AbstractStepTestCase<WaitForR
                 ByteSizeUnit maxPrimaryShardSizeUnit = randomFrom(ByteSizeUnit.values());
                 return new ByteSizeValue(randomNonNegativeLong() / maxPrimaryShardSizeUnit.toBytes(1), maxPrimaryShardSizeUnit);
             });
-            case 4 -> maxAge = randomValueOtherThan(
-                maxAge,
-                () -> TimeValue.parseTimeValue(randomPositiveTimeValue(), "rollover_action_test")
-            );
+            case 4 -> maxAge = randomValueOtherThan(maxAge, () -> randomPositiveTimeValue());
             case 5 -> maxDocs = randomValueOtherThan(maxDocs, ESTestCase::randomNonNegativeLong);
             case 6 -> maxPrimaryShardDocs = randomValueOtherThan(maxPrimaryShardDocs, ESTestCase::randomNonNegativeLong);
             case 7 -> minSize = randomValueOtherThan(minSize, () -> {
@@ -137,10 +130,7 @@ public class WaitForRolloverReadyStepTests extends AbstractStepTestCase<WaitForR
                 ByteSizeUnit minPrimaryShardSizeUnit = randomFrom(ByteSizeUnit.values());
                 return new ByteSizeValue(randomNonNegativeLong() / minPrimaryShardSizeUnit.toBytes(1), minPrimaryShardSizeUnit);
             });
-            case 9 -> minAge = randomValueOtherThan(
-                minAge,
-                () -> TimeValue.parseTimeValue(randomPositiveTimeValue(), "rollover_action_test")
-            );
+            case 9 -> minAge = randomValueOtherThan(minAge, () -> randomPositiveTimeValue());
             case 10 -> minDocs = randomValueOtherThan(minDocs, ESTestCase::randomNonNegativeLong);
             case 11 -> minPrimaryShardDocs = randomValueOtherThan(minPrimaryShardDocs, ESTestCase::randomNonNegativeLong);
             default -> throw new AssertionError("Illegal randomisation branch");
@@ -349,7 +339,7 @@ public class WaitForRolloverReadyStepTests extends AbstractStepTestCase<WaitForR
             assertRolloverIndexRequest(request, rolloverTarget, expectedConditions);
             Map<String, Boolean> conditionResults = expectedConditions.stream()
                 .collect(Collectors.toMap(Condition::toString, condition -> conditionResult));
-            listener.onResponse(new RolloverResponse(null, null, conditionResults, request.isDryRun(), false, false, false));
+            listener.onResponse(new RolloverResponse(null, null, conditionResults, request.isDryRun(), false, false, false, false));
             return null;
         }).when(indicesClient).rolloverIndex(Mockito.any(), Mockito.any());
     }
@@ -673,7 +663,7 @@ public class WaitForRolloverReadyStepTests extends AbstractStepTestCase<WaitForR
 
         WaitForRolloverReadyStep step = createRandomInstance();
         String rolloverTarget = randomAlphaOfLength(5);
-        TimeValue masterTimeout = TimeValue.parseTimeValue(randomPositiveTimeValue(), "rollover_action_test");
+        TimeValue masterTimeout = randomPositiveTimeValue();
 
         RolloverRequest request = step.createRolloverRequest(rolloverTarget, masterTimeout, rolloverOnlyIfHasDocuments);
 
@@ -696,7 +686,7 @@ public class WaitForRolloverReadyStepTests extends AbstractStepTestCase<WaitForR
     public void testCreateRolloverRequestRolloverBeyondMaximumPrimaryShardDocCount() {
         WaitForRolloverReadyStep step = createRandomInstance();
         String rolloverTarget = randomAlphaOfLength(5);
-        TimeValue masterTimeout = TimeValue.parseTimeValue(randomPositiveTimeValue(), "rollover_action_test");
+        TimeValue masterTimeout = randomPositiveTimeValue();
         var c = step.getConditions();
         // If beyond MAX_PRIMARY_SHARD_DOCS_FOR_TSDB then expected is always MAX_PRIMARY_SHARD_DOCS_FOR_TSDB
         step = new WaitForRolloverReadyStep(

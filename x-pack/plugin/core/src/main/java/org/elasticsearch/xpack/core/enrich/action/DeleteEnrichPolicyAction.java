@@ -22,7 +22,7 @@ public class DeleteEnrichPolicyAction extends ActionType<AcknowledgedResponse> {
     public static final String NAME = "cluster:admin/xpack/enrich/delete";
 
     private DeleteEnrichPolicyAction() {
-        super(NAME, AcknowledgedResponse::readFrom);
+        super(NAME);
     }
 
     public static class Request extends MasterNodeRequest<DeleteEnrichPolicyAction.Request> {
@@ -30,6 +30,7 @@ public class DeleteEnrichPolicyAction extends ActionType<AcknowledgedResponse> {
         private final String name;
 
         public Request(String name) {
+            super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT);
             this.name = Objects.requireNonNull(name, "name cannot be null");
         }
 

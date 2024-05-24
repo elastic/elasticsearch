@@ -8,22 +8,20 @@
 package org.elasticsearch.compute.data;
 
 import org.apache.lucene.util.RamUsageEstimator;
+import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.core.ReleasableIterator;
 
 /**
  * Vector implementation that stores a constant int value.
  * This class is generated. Do not edit it.
  */
-public final class ConstantIntVector extends AbstractVector implements IntVector {
+final class ConstantIntVector extends AbstractVector implements IntVector {
 
-    private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(ConstantIntVector.class);
+    static final long RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(ConstantIntVector.class);
 
     private final int value;
 
-    public ConstantIntVector(int value, int positionCount) {
-        this(value, positionCount, BlockFactory.getNonBreakingInstance());
-    }
-
-    public ConstantIntVector(int value, int positionCount, BlockFactory blockFactory) {
+    ConstantIntVector(int value, int positionCount, BlockFactory blockFactory) {
         super(positionCount, blockFactory);
         this.value = value;
     }
@@ -40,7 +38,45 @@ public final class ConstantIntVector extends AbstractVector implements IntVector
 
     @Override
     public IntVector filter(int... positions) {
-        return new ConstantIntVector(value, positions.length);
+        return blockFactory().newConstantIntVector(value, positions.length);
+    }
+
+    @Override
+    public ReleasableIterator<IntBlock> lookup(IntBlock positions, ByteSizeValue targetBlockSize) {
+        if (positions.getPositionCount() == 0) {
+            return ReleasableIterator.empty();
+        }
+        IntVector positionsVector = positions.asVector();
+        if (positionsVector == null) {
+            return new IntLookup(asBlock(), positions, targetBlockSize);
+        }
+        int min = positionsVector.min();
+        if (min < 0) {
+            throw new IllegalArgumentException("invalid position [" + min + "]");
+        }
+        if (min > getPositionCount()) {
+            return ReleasableIterator.single((IntBlock) positions.blockFactory().newConstantNullBlock(positions.getPositionCount()));
+        }
+        if (positionsVector.max() < getPositionCount()) {
+            return ReleasableIterator.single(positions.blockFactory().newConstantIntBlockWith(value, positions.getPositionCount()));
+        }
+        return new IntLookup(asBlock(), positions, targetBlockSize);
+    }
+
+    /**
+     * The minimum value in the block.
+     */
+    @Override
+    public int min() {
+        return value;
+    }
+
+    /**
+     * The maximum value in the block.
+     */
+    @Override
+    public int max() {
+        return value;
     }
 
     @Override
@@ -55,7 +91,7 @@ public final class ConstantIntVector extends AbstractVector implements IntVector
 
     @Override
     public long ramBytesUsed() {
-        return BASE_RAM_BYTES_USED + RamUsageEstimator.shallowSizeOfInstance(int.class);
+        return RAM_BYTES_USED;
     }
 
     @Override
@@ -73,10 +109,5 @@ public final class ConstantIntVector extends AbstractVector implements IntVector
 
     public String toString() {
         return getClass().getSimpleName() + "[positions=" + getPositionCount() + ", value=" + value + ']';
-    }
-
-    @Override
-    public void close() {
-        blockFactory.adjustBreaker(-ramBytesUsed(), true);
     }
 }

@@ -12,49 +12,77 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.DataTypes;
+import org.elasticsearch.xpack.esql.expression.function.AbstractFunctionTestCase;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
-import org.elasticsearch.xpack.esql.expression.function.scalar.AbstractScalarFunctionTestCase;
-import org.elasticsearch.xpack.ql.expression.Expression;
-import org.elasticsearch.xpack.ql.expression.Literal;
-import org.elasticsearch.xpack.ql.tree.Source;
-import org.elasticsearch.xpack.ql.type.DataType;
-import org.elasticsearch.xpack.ql.type.DataTypes;
 import org.hamcrest.Matcher;
 
 import java.util.List;
 import java.util.function.Supplier;
 
+import static java.nio.charset.StandardCharsets.UTF_8;
 import static org.elasticsearch.compute.data.BlockUtils.toJavaObject;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
-public class SubstringTests extends AbstractScalarFunctionTestCase {
+public class SubstringTests extends AbstractFunctionTestCase {
     public SubstringTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
         this.testCase = testCaseSupplier.get();
     }
 
     @ParametersFactory
     public static Iterable<Object[]> parameters() {
-        return parameterSuppliersFromTypedData(List.of(new TestCaseSupplier("Substring basic test", () -> {
-            int start = between(1, 8);
-            int length = between(1, 10 - start);
-            String text = randomAlphaOfLength(10);
-            return new TestCaseSupplier.TestCase(
-                List.of(
-                    new TestCaseSupplier.TypedData(new BytesRef(text), DataTypes.KEYWORD, "str"),
-                    new TestCaseSupplier.TypedData(start, DataTypes.INTEGER, "start"),
-                    new TestCaseSupplier.TypedData(length, DataTypes.INTEGER, "end")
-                ),
-                "SubstringEvaluator[str=Attribute[channel=0], start=Attribute[channel=1], length=Attribute[channel=2]]",
-                DataTypes.KEYWORD,
-                equalTo(new BytesRef(text.substring(start - 1, start + length - 1)))
-            );
-        })));
-    }
-
-    @Override
-    protected DataType expectedType(List<DataType> argTypes) {
-        return DataTypes.KEYWORD;
+        return parameterSuppliersFromTypedData(
+            errorsForCasesWithoutExamples(
+                anyNullIsNull(
+                    true,
+                    List.of(
+                        new TestCaseSupplier(
+                            "Substring basic test",
+                            List.of(DataTypes.KEYWORD, DataTypes.INTEGER, DataTypes.INTEGER),
+                            () -> {
+                                int start = between(1, 8);
+                                int length = between(1, 10 - start);
+                                String text = randomAlphaOfLength(10);
+                                return new TestCaseSupplier.TestCase(
+                                    List.of(
+                                        new TestCaseSupplier.TypedData(new BytesRef(text), DataTypes.KEYWORD, "str"),
+                                        new TestCaseSupplier.TypedData(start, DataTypes.INTEGER, "start"),
+                                        new TestCaseSupplier.TypedData(length, DataTypes.INTEGER, "end")
+                                    ),
+                                    "SubstringEvaluator[str=Attribute[channel=0], start=Attribute[channel=1], length=Attribute[channel=2]]",
+                                    DataTypes.KEYWORD,
+                                    equalTo(new BytesRef(text.substring(start - 1, start + length - 1)))
+                                );
+                            }
+                        ),
+                        new TestCaseSupplier(
+                            "Substring basic test with text input",
+                            List.of(DataTypes.TEXT, DataTypes.INTEGER, DataTypes.INTEGER),
+                            () -> {
+                                int start = between(1, 8);
+                                int length = between(1, 10 - start);
+                                String text = randomAlphaOfLength(10);
+                                return new TestCaseSupplier.TestCase(
+                                    List.of(
+                                        new TestCaseSupplier.TypedData(new BytesRef(text), DataTypes.TEXT, "str"),
+                                        new TestCaseSupplier.TypedData(start, DataTypes.INTEGER, "start"),
+                                        new TestCaseSupplier.TypedData(length, DataTypes.INTEGER, "end")
+                                    ),
+                                    "SubstringEvaluator[str=Attribute[channel=0], start=Attribute[channel=1], length=Attribute[channel=2]]",
+                                    DataTypes.KEYWORD,
+                                    equalTo(new BytesRef(text.substring(start - 1, start + length - 1)))
+                                );
+                            }
+                        )
+                    )
+                )
+            )
+        );
     }
 
     public Matcher<Object> resultsMatcher(List<TestCaseSupplier.TypedData> typedData) {
@@ -71,11 +99,6 @@ public class SubstringTests extends AbstractScalarFunctionTestCase {
             ).toString(),
             equalTo("SubstringNoLengthEvaluator[str=Attribute[channel=0], start=Attribute[channel=1]]")
         );
-    }
-
-    @Override
-    protected List<AbstractScalarFunctionTestCase.ArgumentSpec> argSpec() {
-        return List.of(required(strings()), required(integers()), optional(integers()));
     }
 
     @Override
@@ -121,6 +144,19 @@ public class SubstringTests extends AbstractScalarFunctionTestCase {
         assert s.length() == 8 && s.codePointCount(0, s.length()) == 7;
         assertThat(process(s, 3, 1000), equalTo("tiger"));
         assertThat(process(s, -6, 1000), equalTo("\ud83c\udf09tiger"));
+        assert "🐱".length() == 2 && "🐶".length() == 2;
+        assert "🐱".codePointCount(0, 2) == 1 && "🐶".codePointCount(0, 2) == 1;
+        assert "🐱".getBytes(UTF_8).length == 4 && "🐶".getBytes(UTF_8).length == 4;
+
+        for (Integer len : new Integer[] { null, 100, 100000 }) {
+            assertThat(process(s, 3, len), equalTo("tiger"));
+            assertThat(process(s, -6, len), equalTo("\ud83c\udf09tiger"));
+
+            assertThat(process("🐱Meow!🐶Woof!", 0, len), equalTo("🐱Meow!🐶Woof!"));
+            assertThat(process("🐱Meow!🐶Woof!", 1, len), equalTo("🐱Meow!🐶Woof!"));
+            assertThat(process("🐱Meow!🐶Woof!", 2, len), equalTo("Meow!🐶Woof!"));
+            assertThat(process("🐱Meow!🐶Woof!", 3, len), equalTo("eow!🐶Woof!"));
+        }
     }
 
     public void testNegativeLength() {
@@ -129,15 +165,19 @@ public class SubstringTests extends AbstractScalarFunctionTestCase {
     }
 
     private String process(String str, int start, Integer length) {
-        Block result = evaluator(
-            new Substring(
-                Source.EMPTY,
-                field("str", DataTypes.KEYWORD),
-                new Literal(Source.EMPTY, start, DataTypes.INTEGER),
-                length == null ? null : new Literal(Source.EMPTY, length, DataTypes.INTEGER)
-            )
-        ).get(driverContext()).eval(row(List.of(new BytesRef(str))));
-        return result == null ? null : ((BytesRef) toJavaObject(result, 0)).utf8ToString();
+        try (
+            EvalOperator.ExpressionEvaluator eval = evaluator(
+                new Substring(
+                    Source.EMPTY,
+                    field("str", DataTypes.KEYWORD),
+                    new Literal(Source.EMPTY, start, DataTypes.INTEGER),
+                    length == null ? null : new Literal(Source.EMPTY, length, DataTypes.INTEGER)
+                )
+            ).get(driverContext());
+            Block block = eval.eval(row(List.of(new BytesRef(str))))
+        ) {
+            return block.isNull(0) ? null : ((BytesRef) toJavaObject(block, 0)).utf8ToString();
+        }
     }
 
 }

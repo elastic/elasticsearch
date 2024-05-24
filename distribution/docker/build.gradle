@@ -38,30 +38,36 @@ repositories {
   }
 }
 
-if(useDra == false) {
+if (useDra == false) {
   repositories {
-    // Cloud builds bundle some beats
-    ivy {
-      name = 'beats'
-      if (useLocalArtifacts) {
-        url "file://${buildDir}/artifacts/"
-        patternLayout {
-          artifact '/[organisation]/[module]-[revision]-[classifier].[ext]'
-        }
-      } else {
-        url "https://artifacts-snapshot.elastic.co/"
-        patternLayout {
-          if (VersionProperties.isElasticsearchSnapshot()) {
-            artifact '/[organization]/[revision]/downloads/[organization]/[module]/[module]-[revision]-[classifier].[ext]'
+    exclusiveContent {
+      // Cloud builds bundle some beats
+      forRepository {
+        ivy {
+          name = 'beats'
+          if (useLocalArtifacts) {
+            url getLayout().getBuildDirectory().dir("artifacts").get().asFile
+            patternLayout {
+              artifact '/[organisation]/[module]-[revision]-[classifier].[ext]'
+            }
           } else {
-            // When building locally we always use snapshot artifacts even if passing `-Dbuild.snapshot=false`.
-            // Release builds are always done with a local repo.
-            artifact '/[organization]/[revision]-SNAPSHOT/downloads/[organization]/[module]/[module]-[revision]-SNAPSHOT-[classifier].[ext]'
+            url "https://artifacts-snapshot.elastic.co/"
+            patternLayout {
+              if (VersionProperties.isElasticsearchSnapshot()) {
+                artifact '/[organization]/[revision]/downloads/[organization]/[module]/[module]-[revision]-[classifier].[ext]'
+              } else {
+                // When building locally we always use snapshot artifacts even if passing `-Dbuild.snapshot=false`.
+                // Release builds are always done with a local repo.
+                artifact '/[organization]/[revision]-SNAPSHOT/downloads/[organization]/[module]/[module]-[revision]-SNAPSHOT-[classifier].[ext]'
+              }
+            }
           }
+          metadataSources { artifact() }
         }
       }
-      metadataSources { artifact() }
-      content { includeGroup 'beats' }
+      filter {
+        includeGroup("beats")
+      }
     }
   }
 }
@@ -390,9 +396,9 @@ void addBuildDockerImageTask(Architecture architecture, DockerBase base) {
 
       dockerContext.fileProvider(transformTask.map { Sync task -> task.getDestinationDir() })
 
-      noCache = BuildParams.isCi
+      noCache = BuildParams.isCi()
       tags = generateTags(base, architecture)
-      platform = architecture.dockerPlatform
+      platforms.add(architecture.dockerPlatform)
 
       // We don't build the Iron Bank image when we release Elasticsearch, as there's
       // separate process for submitting new releases. However, for testing we do a
@@ -401,7 +407,7 @@ void addBuildDockerImageTask(Architecture architecture, DockerBase base) {
       if (base == DockerBase.IRON_BANK) {
         Map<String, String> buildArgsMap = [
           'BASE_REGISTRY': 'docker.elastic.co',
-          'BASE_IMAGE'   : 'ubi8/ubi',
+          'BASE_IMAGE'   : 'ubi9/ubi',
           'BASE_TAG'     : 'latest'
         ]
 
@@ -459,10 +465,10 @@ void addBuildEssDockerImageTask(Architecture architecture) {
 
       dockerContext.fileProvider(buildContextTask.map { it.getDestinationDir() })
 
-      noCache = BuildParams.isCi
+      noCache = BuildParams.isCi()
       baseImages = []
       tags = generateTags(base, architecture)
-      platform = architecture.dockerPlatform
+      platforms.add(architecture.dockerPlatform)
 
       onlyIf("$architecture supported") { isArchitectureSupported(architecture) }
     }

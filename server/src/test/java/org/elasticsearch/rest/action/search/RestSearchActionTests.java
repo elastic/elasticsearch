@@ -21,25 +21,25 @@ import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.test.rest.RestActionTestCase;
 import org.elasticsearch.usage.UsageService;
 import org.junit.Before;
-import org.mockito.Mockito;
 
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-public class RestSearchActionTests extends RestActionTestCase {
-    @SuppressWarnings("this-escape")
+import static org.mockito.Mockito.mock;
+
+public final class RestSearchActionTests extends RestActionTestCase {
     final List<String> contentTypeHeader = Collections.singletonList(randomCompatibleMediaType(RestApiVersion.V_7));
 
     private RestSearchAction action;
 
     @Before
     public void setUpAction() {
-        action = new RestSearchAction(new UsageService().getSearchUsageHolder());
+        action = new RestSearchAction(new UsageService().getSearchUsageHolder(), nf -> false);
         controller().registerHandler(action);
-        verifyingClient.setExecuteVerifier((actionType, request) -> Mockito.mock(SearchResponse.class));
-        verifyingClient.setExecuteLocallyVerifier((actionType, request) -> Mockito.mock(SearchResponse.class));
+        verifyingClient.setExecuteVerifier((actionType, request) -> mock(SearchResponse.class));
+        verifyingClient.setExecuteLocallyVerifier((actionType, request) -> mock(SearchResponse.class));
     }
 
     public void testTypeInPath() {

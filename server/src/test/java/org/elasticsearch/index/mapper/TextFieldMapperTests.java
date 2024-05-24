@@ -44,8 +44,11 @@ import org.apache.lucene.tests.analysis.CannedTokenStream;
 import org.apache.lucene.tests.analysis.MockSynonymAnalyzer;
 import org.apache.lucene.tests.analysis.Token;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.lucene.search.MultiPhrasePrefixQuery;
+import org.elasticsearch.core.CheckedConsumer;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.analysis.AnalyzerScope;
@@ -72,7 +75,6 @@ import org.elasticsearch.search.lookup.SourceProvider;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
-import org.hamcrest.Matcher;
 import org.junit.AssumptionViolatedException;
 
 import java.io.IOException;
@@ -82,6 +84,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Function;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -245,6 +248,64 @@ public class TextFieldMapperTests extends MapperTestCase {
         assertThat(fieldType.storeTermVectorPositions(), equalTo(false));
         assertThat(fieldType.storeTermVectorPayloads(), equalTo(false));
         assertEquals(DocValuesType.NONE, fieldType.docValuesType());
+    }
+
+    public void testStoreParameterDefaults() throws IOException {
+        var timeSeriesIndexMode = randomBoolean();
+        var isStored = randomBoolean();
+        var hasKeywordFieldForSyntheticSource = randomBoolean();
+
+        var indexSettingsBuilder = getIndexSettingsBuilder();
+        if (timeSeriesIndexMode) {
+            indexSettingsBuilder.put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES)
+                .putList(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "dimension")
+                .put(IndexSettings.TIME_SERIES_START_TIME.getKey(), "2000-01-08T23:40:53.384Z")
+                .put(IndexSettings.TIME_SERIES_END_TIME.getKey(), "2106-01-08T23:40:53.384Z");
+        }
+        var indexSettings = indexSettingsBuilder.build();
+
+        var mapping = mapping(b -> {
+            b.startObject("field");
+            b.field("type", "text");
+            if (isStored) {
+                b.field("store", isStored);
+            }
+            if (hasKeywordFieldForSyntheticSource) {
+                b.startObject("fields");
+                b.startObject("keyword");
+                b.field("type", "keyword");
+                b.endObject();
+                b.endObject();
+            }
+            b.endObject();
+
+            if (timeSeriesIndexMode) {
+                b.startObject("@timestamp");
+                b.field("type", "date");
+                b.endObject();
+                b.startObject("dimension");
+                b.field("type", "keyword");
+                b.field("time_series_dimension", "true");
+                b.endObject();
+            }
+        });
+        DocumentMapper mapper = createMapperService(getVersion(), indexSettings, () -> true, mapping).documentMapper();
+
+        var source = source(TimeSeriesRoutingHashFieldMapper.DUMMY_ENCODED_VALUE, b -> {
+            b.field("field", "1234");
+            if (timeSeriesIndexMode) {
+                b.field("@timestamp", randomMillisUpToYear9999());
+                b.field("dimension", "dimension1");
+            }
+        }, null);
+        ParsedDocument doc = mapper.parse(source);
+        List<IndexableField> fields = doc.rootDoc().getFields("field");
+        IndexableFieldType fieldType = fields.get(0).fieldType();
+        if (isStored || (timeSeriesIndexMode && hasKeywordFieldForSyntheticSource == false)) {
+            assertTrue(fieldType.stored());
+        } else {
+            assertFalse(fieldType.stored());
+        }
     }
 
     public void testBWCSerialization() throws IOException {
@@ -1116,69 +1177,12 @@ public class TextFieldMapperTests extends MapperTestCase {
     @Override
     protected SyntheticSourceSupport syntheticSourceSupport(boolean ignoreMalformed) {
         assumeFalse("ignore_malformed not supported", ignoreMalformed);
-        boolean storeTextField = randomBoolean();
-        boolean storedKeywordField = storeTextField || randomBoolean();
-        String nullValue = storeTextField || usually() ? null : randomAlphaOfLength(2);
-        KeywordFieldMapperTests.KeywordSyntheticSourceSupport keywordSupport = new KeywordFieldMapperTests.KeywordSyntheticSourceSupport(
-            storedKeywordField,
-            nullValue,
-            false == storeTextField
-        );
-        return new SyntheticSourceSupport() {
-            @Override
-            public SyntheticSourceExample example(int maxValues) {
-                SyntheticSourceExample delegate = keywordSupport.example(maxValues);
-                if (storeTextField) {
-                    return new SyntheticSourceExample(
-                        delegate.inputValue(),
-                        delegate.result(),
-                        b -> b.field("type", "text").field("store", true)
-                    );
-                }
-                return new SyntheticSourceExample(delegate.inputValue(), delegate.result(), b -> {
-                    b.field("type", "text");
-                    b.startObject("fields");
-                    {
-                        b.startObject(randomAlphaOfLength(4));
-                        delegate.mapping().accept(b);
-                        b.endObject();
-                    }
-                    b.endObject();
-                });
-            }
+        return TextFieldFamilySyntheticSourceTestSetup.syntheticSourceSupport("text", true);
+    }
 
-            @Override
-            public List<SyntheticSourceInvalidExample> invalidExample() throws IOException {
-                Matcher<String> err = equalTo(
-                    "field [field] of type [text] doesn't support synthetic source unless it is stored or"
-                        + " has a sub-field of type [keyword] with doc values or stored and without a normalizer"
-                );
-                return List.of(
-                    new SyntheticSourceInvalidExample(err, TextFieldMapperTests.this::minimalMapping),
-                    new SyntheticSourceInvalidExample(err, b -> {
-                        b.field("type", "text");
-                        b.startObject("fields");
-                        {
-                            b.startObject("l");
-                            b.field("type", "long");
-                            b.endObject();
-                        }
-                        b.endObject();
-                    }),
-                    new SyntheticSourceInvalidExample(err, b -> {
-                        b.field("type", "text");
-                        b.startObject("fields");
-                        {
-                            b.startObject("kwd");
-                            b.field("type", "keyword");
-                            b.field("normalizer", "lowercase");
-                            b.endObject();
-                        }
-                        b.endObject();
-                    })
-                );
-            }
-        };
+    @Override
+    protected Function<Object, Object> loadBlockExpected(BlockReaderSupport blockReaderSupport, boolean columnReader) {
+        return TextFieldFamilySyntheticSourceTestSetup.loadBlockExpected(blockReaderSupport, columnReader);
     }
 
     @Override
@@ -1187,9 +1191,8 @@ public class TextFieldMapperTests extends MapperTestCase {
     }
 
     @Override
-    protected void validateRoundTripReader(String syntheticSource, DirectoryReader reader, DirectoryReader roundTripReader)
-        throws IOException {
-        // Disabled because it currently fails
+    protected void validateRoundTripReader(String syntheticSource, DirectoryReader reader, DirectoryReader roundTripReader) {
+        TextFieldFamilySyntheticSourceTestSetup.validateRoundTripReader(syntheticSource, reader, roundTripReader);
     }
 
     public void testUnknownAnalyzerOnLegacyIndex() throws IOException {
@@ -1316,5 +1319,44 @@ public class TextFieldMapperTests extends MapperTestCase {
             assertTrue(dv.advanceExact(2));
             assertFalse(dv.advanceExact(3));
         });
+    }
+
+    @Override
+    protected BlockReaderSupport getSupportedReaders(MapperService mapper, String loaderFieldName) {
+        return TextFieldFamilySyntheticSourceTestSetup.getSupportedReaders(mapper, loaderFieldName);
+    }
+
+    public void testBlockLoaderFromParentColumnReader() throws IOException {
+        testBlockLoaderFromParent(true, randomBoolean());
+    }
+
+    public void testBlockLoaderParentFromRowStrideReader() throws IOException {
+        testBlockLoaderFromParent(false, randomBoolean());
+    }
+
+    private void testBlockLoaderFromParent(boolean columnReader, boolean syntheticSource) throws IOException {
+        boolean storeParent = randomBoolean();
+        KeywordFieldSyntheticSourceSupport kwdSupport = new KeywordFieldSyntheticSourceSupport(
+            null,
+            storeParent,
+            null,
+            false == storeParent
+        );
+        SyntheticSourceExample example = kwdSupport.example(5);
+        CheckedConsumer<XContentBuilder, IOException> buildFields = b -> {
+            b.startObject("field");
+            {
+                example.mapping().accept(b);
+                b.startObject("fields").startObject("sub");
+                {
+                    b.field("type", "text");
+                }
+                b.endObject().endObject();
+            }
+            b.endObject();
+        };
+        MapperService mapper = createMapperService(syntheticSource ? syntheticSourceMapping(buildFields) : mapping(buildFields));
+        BlockReaderSupport blockReaderSupport = getSupportedReaders(mapper, "field.sub");
+        testBlockLoader(columnReader, example, blockReaderSupport);
     }
 }

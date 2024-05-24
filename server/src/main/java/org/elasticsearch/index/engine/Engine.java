@@ -9,9 +9,11 @@
 package org.elasticsearch.index.engine;
 
 import org.apache.logging.log4j.Logger;
+import org.apache.lucene.codecs.perfield.PerFieldKnnVectorsFormat;
 import org.apache.lucene.index.ByteVectorValues;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.FieldInfo;
+import org.apache.lucene.index.FieldInfos;
 import org.apache.lucene.index.FloatVectorValues;
 import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.IndexFileNames;
@@ -33,6 +35,8 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.action.support.SubscribableListener;
+import org.elasticsearch.cluster.service.ClusterApplierService;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.lucene.Lucene;
@@ -43,11 +47,14 @@ import org.elasticsearch.common.lucene.uid.VersionsAndSeqNoResolver.DocIdAndVers
 import org.elasticsearch.common.metrics.CounterMetric;
 import org.elasticsearch.common.util.concurrent.ReleasableLock;
 import org.elasticsearch.common.util.concurrent.UncategorizedExecutionException;
+import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.core.UpdateForV9;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.mapper.DocumentParser;
@@ -73,6 +80,7 @@ import org.elasticsearch.transport.Transports;
 import java.io.Closeable;
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
@@ -90,7 +98,6 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.locks.Condition;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
-import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.function.Consumer;
 import java.util.function.Function;
 
@@ -100,7 +107,8 @@ import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
 
 public abstract class Engine implements Closeable {
 
-    public static final String SYNC_COMMIT_ID = "sync_id"; // TODO: Remove sync_id in 9.0
+    @UpdateForV9 // TODO: Remove sync_id in 9.0
+    public static final String SYNC_COMMIT_ID = "sync_id";
     public static final String HISTORY_UUID_KEY = "history_uuid";
     public static final String FORCE_MERGE_UUID_KEY = "force_merge_uuid";
     public static final String MIN_RETAINED_SEQNO = "min_retained_seq_no";
@@ -111,6 +119,7 @@ public abstract class Engine implements Closeable {
     public static final String SEARCH_SOURCE = "search"; // TODO: Make source of search enum?
     public static final String CAN_MATCH_SEARCH_SOURCE = "can_match";
     protected static final String DOC_STATS_SOURCE = "doc_stats";
+    public static final long UNKNOWN_PRIMARY_TERM = -1L;
 
     protected final ShardId shardId;
     protected final Logger logger;
@@ -120,10 +129,13 @@ public abstract class Engine implements Closeable {
     private final CountDownLatch closedLatch = new CountDownLatch(1);
     protected final EventListener eventListener;
     protected final ReentrantLock failEngineLock = new ReentrantLock();
-    protected final ReentrantReadWriteLock rwl = new ReentrantReadWriteLock();
-    protected final ReleasableLock readLock = new ReleasableLock(rwl.readLock());
-    protected final ReleasableLock writeLock = new ReleasableLock(rwl.writeLock());
     protected final SetOnce<Exception> failedEngine = new SetOnce<>();
+
+    private final AtomicBoolean isClosing = new AtomicBoolean();
+    private final SubscribableListener<Void> drainOnCloseListener = new SubscribableListener<>();
+    private final RefCounted ensureOpenRefs = AbstractRefCounted.of(() -> drainOnCloseListener.onResponse(null));
+    private final Releasable releaseEnsureOpenRef = ensureOpenRefs::decRef; // reuse this to avoid allocation for each op
+
     /*
      * on {@code lastWriteNanos} we use System.nanoTime() to initialize this since:
      *  - we use the value for figuring out if the shard / engine is active so if we startup and no write has happened yet we still
@@ -386,6 +398,13 @@ public abstract class Engine implements Closeable {
      */
     public abstract void trimOperationsFromTranslog(long belowTerm, long aboveSeqNo) throws EngineException;
 
+    /**
+     * Returns the total time flushes have been executed excluding waiting on locks.
+     */
+    public long getTotalFlushTimeExcludingWaitingOnLockInMillis() {
+        return 0;
+    }
+
     /** A Lock implementation that always allows the lock to be acquired */
     protected static final class NoOpLock implements Lock {
 
@@ -618,11 +637,6 @@ public abstract class Engine implements Closeable {
         public DeleteResult(Exception failure, long version, long term, long seqNo, boolean found, String id) {
             super(Operation.TYPE.DELETE, failure, version, term, seqNo, id);
             this.found = found;
-        }
-
-        public DeleteResult(Mapping requiredMappingUpdate, String id) {
-            super(Operation.TYPE.DELETE, requiredMappingUpdate, id);
-            this.found = false;
         }
 
         public boolean isFound() {
@@ -998,16 +1012,21 @@ public abstract class Engine implements Closeable {
         stats.addIndexWriterMemoryInBytes(0);
     }
 
-    /** How much heap is used that would be freed by a refresh.  Note that this may throw {@link AlreadyClosedException}. */
+    /** How much heap is used that would be freed by a refresh. This includes both the current memory being freed and any remaining
+     * memory usage that could be freed, e.g., by refreshing. Note that this may throw {@link AlreadyClosedException}. */
     public abstract long getIndexBufferRAMBytesUsed();
 
     final Segment[] getSegmentInfo(SegmentInfos lastCommittedSegmentInfos) {
+        return getSegmentInfo(lastCommittedSegmentInfos, false);
+    }
+
+    final Segment[] getSegmentInfo(SegmentInfos lastCommittedSegmentInfos, boolean includeVectorFormatsInfo) {
         ensureOpen();
         Map<String, Segment> segments = new HashMap<>();
         // first, go over and compute the search ones...
         try (Searcher searcher = acquireSearcher("segments", SearcherScope.EXTERNAL)) {
             for (LeafReaderContext ctx : searcher.getIndexReader().getContext().leaves()) {
-                fillSegmentInfo(Lucene.segmentReader(ctx.reader()), true, segments);
+                fillSegmentInfo(Lucene.segmentReader(ctx.reader()), true, segments, includeVectorFormatsInfo);
             }
         }
 
@@ -1015,7 +1034,7 @@ public abstract class Engine implements Closeable {
             for (LeafReaderContext ctx : searcher.getIndexReader().getContext().leaves()) {
                 SegmentReader segmentReader = Lucene.segmentReader(ctx.reader());
                 if (segments.containsKey(segmentReader.getSegmentName()) == false) {
-                    fillSegmentInfo(segmentReader, false, segments);
+                    fillSegmentInfo(segmentReader, false, segments, includeVectorFormatsInfo);
                 }
             }
         }
@@ -1051,7 +1070,12 @@ public abstract class Engine implements Closeable {
         return segmentsArr;
     }
 
-    private void fillSegmentInfo(SegmentReader segmentReader, boolean search, Map<String, Segment> segments) {
+    private void fillSegmentInfo(
+        SegmentReader segmentReader,
+        boolean search,
+        Map<String, Segment> segments,
+        boolean includeVectorFormatsInfo
+    ) {
         SegmentCommitInfo info = segmentReader.getSegmentInfo();
         assert segments.containsKey(info.info.name) == false;
         Segment segment = new Segment(info.info.name);
@@ -1066,7 +1090,39 @@ public abstract class Engine implements Closeable {
             logger.trace(() -> "failed to get size for [" + info.info.name + "]", e);
         }
         segment.segmentSort = info.info.getIndexSort();
-        segment.attributes = info.info.getAttributes();
+        segment.attributes = new HashMap<>();
+        segment.attributes.putAll(info.info.getAttributes());
+        Map<String, List<String>> knnFormats = null;
+        if (includeVectorFormatsInfo) {
+            try {
+                FieldInfos fieldInfos = segmentReader.getFieldInfos();
+                if (fieldInfos.hasVectorValues()) {
+                    for (FieldInfo fieldInfo : fieldInfos) {
+                        String name = fieldInfo.getName();
+                        if (fieldInfo.hasVectorValues()) {
+                            if (knnFormats == null) {
+                                knnFormats = new HashMap<>();
+                            }
+                            String key = fieldInfo.getAttribute(PerFieldKnnVectorsFormat.PER_FIELD_FORMAT_KEY);
+                            knnFormats.compute(key, (s, a) -> {
+                                if (a == null) {
+                                    a = new ArrayList<>();
+                                }
+                                a.add(name);
+                                return a;
+                            });
+                        }
+                    }
+                }
+            } catch (AlreadyClosedException ace) {
+                // silently ignore
+            }
+        }
+        if (knnFormats != null) {
+            for (Map.Entry<String, List<String>> entry : knnFormats.entrySet()) {
+                segment.attributes.put(entry.getKey(), entry.getValue().toString());
+            }
+        }
         // TODO: add more fine grained mem stats values to per segment info here
         segments.put(info.info.name, segment);
     }
@@ -1075,6 +1131,8 @@ public abstract class Engine implements Closeable {
      * The list of segments in the engine.
      */
     public abstract List<Segment> segments();
+
+    public abstract List<Segment> segments(boolean includeVectorFormatsInfo);
 
     public boolean refreshNeeded() {
         if (store.tryIncRef()) {
@@ -1139,7 +1197,7 @@ public abstract class Engine implements Closeable {
      */
     // TODO: Remove or rename for increased clarity
     public void flush(boolean force, boolean waitIfOngoing) throws EngineException {
-        PlainActionFuture<FlushResult> future = PlainActionFuture.newFuture();
+        PlainActionFuture<FlushResult> future = new PlainActionFuture<>();
         flush(force, waitIfOngoing, future);
         future.actionGet();
     }
@@ -1157,7 +1215,19 @@ public abstract class Engine implements Closeable {
      *                      request is detected, no flush will have occurred and the listener will be completed with a marker
      *                      indicating no flush and unknown generation.
      */
-    public abstract void flush(boolean force, boolean waitIfOngoing, ActionListener<FlushResult> listener) throws EngineException;
+    public final void flush(boolean force, boolean waitIfOngoing, ActionListener<FlushResult> listener) throws EngineException {
+        try (var ignored = acquireEnsureOpenRef()) {
+            flushHoldingLock(force, waitIfOngoing, listener);
+        }
+    }
+
+    /**
+     * The actual implementation of {@link #flush(boolean, boolean, ActionListener)}, to be called either when holding a ref that ensures
+     * the engine remains open, or holding {@code IndexShard#engineMutex} while closing the engine.
+     *
+     */
+    protected abstract void flushHoldingLock(boolean force, boolean waitIfOngoing, ActionListener<FlushResult> listener)
+        throws EngineException;
 
     /**
      * Flushes the state of the engine including the transaction log, clearing memory and persisting
@@ -1166,7 +1236,7 @@ public abstract class Engine implements Closeable {
      * a lucene commit if nothing needs to be committed.
      */
     public final void flush() throws EngineException {
-        PlainActionFuture<FlushResult> future = PlainActionFuture.newFuture();
+        PlainActionFuture<FlushResult> future = new PlainActionFuture<>();
         flush(false, false, future);
         future.actionGet();
     }
@@ -1850,34 +1920,82 @@ public abstract class Engine implements Closeable {
     }
 
     /**
-     * Method to close the engine while the write lock is held.
-     * Must decrement the supplied when closing work is done and resources are
-     * freed.
+     * Closes the engine without acquiring any refs or locks. The caller should either have changed {@link #isClosing} from {@code false} to
+     * {@code true} or else must hold the {@link #failEngineLock}. The implementation must decrement the supplied latch when done.
      */
     protected abstract void closeNoLock(String reason, CountDownLatch closedLatch);
 
+    protected final boolean isDrainedForClose() {
+        return ensureOpenRefs.hasReferences() == false;
+    }
+
+    protected final boolean isClosing() {
+        return isClosing.get();
+    }
+
+    protected final Releasable acquireEnsureOpenRef() {
+        if (isClosing() || ensureOpenRefs.tryIncRef() == false) {
+            ensureOpen(); // throws "engine is closed" exception if we're actually closed, otherwise ...
+            throw new AlreadyClosedException(shardId + " engine is closing", failedEngine.get());
+        }
+        return Releasables.assertOnce(releaseEnsureOpenRef);
+    }
+
     /**
-     * Flush the engine (committing segments to disk and truncating the
-     * translog) and close it.
+     * When called for the first time, puts the engine into a closing state in which further calls to {@link #acquireEnsureOpenRef()} will
+     * fail with an {@link AlreadyClosedException} and waits for all outstanding ensure-open refs to be released, before returning {@code
+     * true}. If called again, returns {@code false} without waiting.
+     *
+     * @return a flag indicating whether this was the first call or not.
+     */
+    private boolean drainForClose() {
+        if (isClosing.compareAndSet(false, true) == false) {
+            logger.trace("drainForClose(): already closing");
+            return false;
+        }
+
+        logger.debug("drainForClose(): draining ops");
+        releaseEnsureOpenRef.close();
+        final var future = new PlainActionFuture<Void>() {
+            @Override
+            protected boolean blockingAllowed() {
+                // TODO remove this blocking, or at least do it elsewhere, see https://github.com/elastic/elasticsearch/issues/89821
+                return Thread.currentThread().getName().contains(ClusterApplierService.CLUSTER_UPDATE_THREAD_NAME)
+                    || super.blockingAllowed();
+            }
+        };
+        drainOnCloseListener.addListener(future);
+        try {
+            future.get();
+            return true;
+        } catch (ExecutionException e) {
+            logger.error("failure while draining operations on close", e);
+            assert false : e;
+            throw new IllegalStateException(e);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            logger.error("interrupted while draining operations on close");
+            throw new IllegalStateException(e);
+        }
+    }
+
+    /**
+     * Flush the engine (committing segments to disk and truncating the translog) and close it.
      */
     public void flushAndClose() throws IOException {
-        if (isClosed.get() == false) {
-            logger.trace("flushAndClose now acquire writeLock");
-            try (ReleasableLock lock = writeLock.acquire()) {
-                logger.trace("flushAndClose now acquired writeLock");
+        logger.trace("flushAndClose() maybe draining ops");
+        if (isClosed.get() == false && drainForClose()) {
+            logger.trace("flushAndClose drained ops");
+            try {
+                logger.debug("flushing shard on close - this might take some time to sync files to disk");
                 try {
-                    logger.debug("flushing shard on close - this might take some time to sync files to disk");
-                    try {
-                        // TODO we might force a flush in the future since we have the write lock already even though recoveries
-                        // are running.
-                        // TODO: We are not waiting for full durability here atm because we are on the cluster state update thread
-                        flush(false, false, ActionListener.noop());
-                    } catch (AlreadyClosedException ex) {
-                        logger.debug("engine already closed - skipping flushAndClose");
-                    }
-                } finally {
-                    close(); // double close is not a problem
+                    // TODO: We are not waiting for full durability here atm because we are on the cluster state update thread
+                    flushHoldingLock(false, false, ActionListener.noop());
+                } catch (AlreadyClosedException ex) {
+                    logger.debug("engine already closed - skipping flushAndClose");
                 }
+            } finally {
+                closeNoLock("flushAndClose", closedLatch);
             }
         }
         awaitPendingClose();
@@ -1885,12 +2003,10 @@ public abstract class Engine implements Closeable {
 
     @Override
     public void close() throws IOException {
-        if (isClosed.get() == false) { // don't acquire the write lock if we are already closed
-            logger.debug("close now acquiring writeLock");
-            try (ReleasableLock lock = writeLock.acquire()) {
-                logger.debug("close acquired writeLock");
-                closeNoLock("api", closedLatch);
-            }
+        logger.debug("close() maybe draining ops");
+        if (isClosed.get() == false && drainForClose()) {
+            logger.debug("close drained ops");
+            closeNoLock("api", closedLatch);
         }
         awaitPendingClose();
     }
@@ -2114,8 +2230,19 @@ public abstract class Engine implements Closeable {
 
     /**
      * Allows registering a listener for when the index shard is on a segment generation >= minGeneration.
+     *
+     * @deprecated use {@link #addPrimaryTermAndGenerationListener(long, long, ActionListener)} instead.
      */
+    @Deprecated
     public void addSegmentGenerationListener(long minGeneration, ActionListener<Long> listener) {
+        addPrimaryTermAndGenerationListener(UNKNOWN_PRIMARY_TERM, minGeneration, listener);
+    }
+
+    /**
+     * Allows registering a listener for when the index shard is on a primary term >= minPrimaryTerm
+     * and a segment generation >= minGeneration.
+     */
+    public void addPrimaryTermAndGenerationListener(long minPrimaryTerm, long minGeneration, ActionListener<Long> listener) {
         throw new UnsupportedOperationException();
     }
 
@@ -2129,13 +2256,13 @@ public abstract class Engine implements Closeable {
      * <code>refreshed</code> is true if a refresh happened. If refreshed, <code>generation</code>
      * contains the generation of the index commit that the reader has opened upon refresh.
      */
-    public record RefreshResult(boolean refreshed, long generation) {
+    public record RefreshResult(boolean refreshed, long primaryTerm, long generation) {
 
         public static final long UNKNOWN_GENERATION = -1L;
         public static final RefreshResult NO_REFRESH = new RefreshResult(false);
 
         public RefreshResult(boolean refreshed) {
-            this(refreshed, UNKNOWN_GENERATION);
+            this(refreshed, UNKNOWN_PRIMARY_TERM, UNKNOWN_GENERATION);
         }
     }
 

@@ -6,7 +6,9 @@
  */
 package org.elasticsearch.xpack.sql.action;
 
+import org.elasticsearch.Build;
 import org.elasticsearch.TransportVersions;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.CompositeIndicesRequest;
 import org.elasticsearch.common.Strings;
@@ -40,7 +42,6 @@ import java.util.function.Supplier;
 
 import static java.util.Collections.emptyList;
 import static java.util.Collections.emptyMap;
-import static org.elasticsearch.Version.CURRENT;
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 import static org.elasticsearch.common.xcontent.XContentParserUtils.parseFieldsValue;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
@@ -287,7 +288,7 @@ public abstract class AbstractSqlQueryRequest extends AbstractSqlRequest impleme
                         validationException
                     );
                 }
-            } else if (SqlVersion.isClientCompatible(SqlVersion.fromId(CURRENT.id), requestInfo().version()) == false) {
+            } else if (SqlVersion.isClientCompatible(SqlVersion.fromId(Version.CURRENT.id), requestInfo().version()) == false) {
                 validationException = addValidationError(
                     "The ["
                         + requestInfo().version()
@@ -295,7 +296,7 @@ public abstract class AbstractSqlQueryRequest extends AbstractSqlRequest impleme
                         + mode.toString()
                         + "] "
                         + "client is not compatible with Elasticsearch version ["
-                        + CURRENT
+                        + Build.current().version()
                         + "]",
                     validationException
                 );
@@ -437,7 +438,7 @@ public abstract class AbstractSqlQueryRequest extends AbstractSqlRequest impleme
         pageTimeout = in.readTimeValue();
         filter = in.readOptionalNamedWriteable(QueryBuilder.class);
         if (in.getTransportVersion().onOrAfter(TransportVersions.V_7_13_0)) {
-            runtimeMappings = in.readMap();
+            runtimeMappings = in.readGenericMap();
         }
     }
 

@@ -9,7 +9,6 @@ package org.elasticsearch.license;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
@@ -29,8 +28,10 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.license.internal.MutableLicenseService;
+import org.elasticsearch.license.internal.TrialLicenseVersion;
 import org.elasticsearch.license.internal.XPackLicenseStatus;
 import org.elasticsearch.protocol.xpack.license.LicensesStatus;
 import org.elasticsearch.protocol.xpack.license.PutLicenseResponse;
@@ -64,6 +65,7 @@ public class ClusterStateLicenseService extends AbstractLifecycleComponent
     private final Settings settings;
 
     private final ClusterService clusterService;
+    private final FeatureService featureService;
 
     /**
      * The xpack feature state to update when license changes are made.
@@ -102,10 +104,12 @@ public class ClusterStateLicenseService extends AbstractLifecycleComponent
         ThreadPool threadPool,
         ClusterService clusterService,
         Clock clock,
-        XPackLicenseState xPacklicenseState
+        XPackLicenseState xPacklicenseState,
+        FeatureService featureService
     ) {
         this.settings = settings;
         this.clusterService = clusterService;
+        this.featureService = featureService;
         this.startTrialTaskQueue = clusterService.createTaskQueue(
             "license-service-start-trial",
             Priority.NORMAL,
@@ -241,15 +245,20 @@ public class ClusterStateLicenseService extends AbstractLifecycleComponent
                 @Override
                 public ClusterState execute(ClusterState currentState) throws Exception {
                     XPackPlugin.checkReadyForXPackCustomMetadata(currentState);
-                    final Version oldestNodeVersion = currentState.nodes().getSmallestNonClientNodeVersion();
-                    if (licenseIsCompatible(newLicense, oldestNodeVersion) == false) {
+                    int maxCompatibleLicenseVersion = LicenseUtils.getMaxCompatibleLicenseVersion();
+                    if (maxCompatibleLicenseVersion < newLicense.version()) {
                         throw new IllegalStateException(
-                            "The provided license is not compatible with node version [" + oldestNodeVersion + "]"
+                            LoggerMessageFormat.format(
+                                "The provided license is of version [{}] but this node is only compatible with version [{}] "
+                                    + "licences or older",
+                                newLicense.version(),
+                                maxCompatibleLicenseVersion
+                            )
                         );
                     }
                     Metadata currentMetadata = currentState.metadata();
                     LicensesMetadata licensesMetadata = currentMetadata.custom(LicensesMetadata.TYPE);
-                    Version trialVersion = null;
+                    TrialLicenseVersion trialVersion = null;
                     if (licensesMetadata != null) {
                         trialVersion = licensesMetadata.getMostRecentTrialVersion();
                     }
@@ -266,17 +275,12 @@ public class ClusterStateLicenseService extends AbstractLifecycleComponent
         clusterService.submitUnbatchedStateUpdateTask(source, task);
     }
 
-    private boolean licenseIsCompatible(License license, Version version) {
-        final int maxVersion = LicenseUtils.getMaxLicenseVersion(version);
-        return license.version() <= maxVersion;
-    }
-
     private boolean isAllowedLicenseType(License.LicenseType type) {
         logger.debug("Checking license [{}] against allowed license types: {}", type, allowedLicenseTypes);
         return allowedLicenseTypes.contains(type);
     }
 
-    private TimeValue days(int days) {
+    private static TimeValue days(int days) {
         return TimeValue.timeValueHours(days * 24);
     }
 
@@ -340,7 +344,7 @@ public class ClusterStateLicenseService extends AbstractLifecycleComponent
         }
         startTrialTaskQueue.submitTask(
             StartTrialClusterTask.TASK_SOURCE,
-            new StartTrialClusterTask(logger, clusterService.getClusterName().value(), clock, request, listener),
+            new StartTrialClusterTask(logger, clusterService.getClusterName().value(), clock, featureService, request, listener),
             null             // TODO should pass in request.masterNodeTimeout() here
         );
     }
@@ -412,14 +416,6 @@ public class ClusterStateLicenseService extends AbstractLifecycleComponent
         final ClusterState previousClusterState = event.previousState();
         final ClusterState currentClusterState = event.state();
         if (currentClusterState.blocks().hasGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK) == false) {
-            if (XPackPlugin.isReadyForXPackCustomMetadata(currentClusterState) == false) {
-                logger.debug(
-                    "cannot add license to cluster as the following nodes might not understand the license metadata: {}",
-                    () -> XPackPlugin.nodesNotReadyForXPackCustomMetadata(currentClusterState)
-                );
-                return;
-            }
-
             final LicensesMetadata prevLicensesMetadata = previousClusterState.getMetadata().custom(LicensesMetadata.TYPE);
             final LicensesMetadata currentLicensesMetadata = currentClusterState.getMetadata().custom(LicensesMetadata.TYPE);
             // notify all interested plugins
@@ -438,26 +434,7 @@ public class ClusterStateLicenseService extends AbstractLifecycleComponent
             } else {
                 logger.trace("license unchanged [{}]", currentLicensesMetadata);
             }
-
-            License currentLicense = null;
-            boolean noLicenseInPrevMetadata = prevLicensesMetadata == null || prevLicensesMetadata.getLicense() == null;
-            if (noLicenseInPrevMetadata == false) {
-                currentLicense = prevLicensesMetadata.getLicense();
-            }
-            boolean noLicenseInCurrentMetadata = (currentLicensesMetadata == null || currentLicensesMetadata.getLicense() == null);
-            if (noLicenseInCurrentMetadata == false) {
-                currentLicense = currentLicensesMetadata.getLicense();
-            }
-
-            boolean noLicense = noLicenseInPrevMetadata && noLicenseInCurrentMetadata;
-            // auto-generate license if no licenses ever existed or if the current license is basic and
-            // needs extended or if the license signature needs to be updated. this will trigger a subsequent cluster changed event
-            if (currentClusterState.getNodes().isLocalNodeElectedMaster()
-                && (noLicense
-                    || LicenseUtils.licenseNeedsExtended(currentLicense)
-                    || LicenseUtils.signatureNeedsUpdate(currentLicense, currentClusterState.nodes()))) {
-                registerOrUpdateSelfGeneratedLicense();
-            }
+            maybeRegisterOrUpdateLicense(previousClusterState, currentClusterState);
         } else if (logger.isDebugEnabled()) {
             logger.debug("skipped license notifications reason: [{}]", GatewayService.STATE_NOT_RECOVERED_BLOCK);
         }
@@ -467,24 +444,36 @@ public class ClusterStateLicenseService extends AbstractLifecycleComponent
         if (license == LicensesMetadata.LICENSE_TOMBSTONE) {
             // implies license has been explicitly deleted
             xPacklicenseState.update(LicenseUtils.getXPackLicenseStatus(license, clock));
-            return;
-        }
-        checkForExpiredLicense(license);
-    }
-
-    private boolean checkForExpiredLicense(License license) {
-        if (license != null) {
+        } else if (license != null) {
             XPackLicenseStatus xPackLicenseStatus = LicenseUtils.getXPackLicenseStatus(license, clock);
             xPacklicenseState.update(xPackLicenseStatus);
             if (xPackLicenseStatus.active()) {
                 logger.debug("license [{}] - valid", license.uid());
-                return false;
             } else {
                 logger.warn("license [{}] - expired", license.uid());
-                return true;
             }
         }
-        return false;
+    }
+
+    private void maybeRegisterOrUpdateLicense(ClusterState previousClusterState, ClusterState currentClusterState) {
+        final LicensesMetadata prevLicensesMetadata = previousClusterState.getMetadata().custom(LicensesMetadata.TYPE);
+        final LicensesMetadata currentLicensesMetadata = currentClusterState.getMetadata().custom(LicensesMetadata.TYPE);
+        License currentLicense = null;
+        boolean noLicenseInPrevMetadata = prevLicensesMetadata == null || prevLicensesMetadata.getLicense() == null;
+        if (noLicenseInPrevMetadata == false) {
+            currentLicense = prevLicensesMetadata.getLicense();
+        }
+        boolean noLicenseInCurrentMetadata = (currentLicensesMetadata == null || currentLicensesMetadata.getLicense() == null);
+        if (noLicenseInCurrentMetadata == false) {
+            currentLicense = currentLicensesMetadata.getLicense();
+        }
+        boolean noLicense = noLicenseInPrevMetadata && noLicenseInCurrentMetadata;
+        // auto-generate license if no licenses ever existed or if the current license is basic and
+        // needs extended or if the license signature needs to be updated. this will trigger a subsequent cluster changed event
+        if (currentClusterState.getNodes().isLocalNodeElectedMaster()
+            && (noLicense || LicenseUtils.licenseNeedsExtended(currentLicense) || LicenseUtils.signatureNeedsUpdate(currentLicense))) {
+            registerOrUpdateSelfGeneratedLicense();
+        }
     }
 
     /**
@@ -495,12 +484,14 @@ public class ClusterStateLicenseService extends AbstractLifecycleComponent
      */
     private void onUpdate(final LicensesMetadata currentLicensesMetadata) {
         final License license = getLicenseFromLicensesMetadata(currentLicensesMetadata);
+        // first update the XPackLicenseState
+        updateXPackLicenseState(license);
         // license can be null if the trial license is yet to be auto-generated
         // in this case, it is a no-op
         if (license != null) {
-            final License previousLicense = currentLicenseHolder.get();
+            final License previousLicense = currentLicenseHolder.getAndSet(license);
             if (license.equals(previousLicense) == false) {
-                currentLicenseHolder.set(license);
+                // then register periodic job to update the XPackLicenseState with the latest expiration message
                 scheduler.add(new SchedulerEngine.Job(LICENSE_JOB, nextLicenseCheck(license)));
                 for (ExpirationCallback expirationCallback : expirationCallbacks) {
                     scheduler.add(
@@ -516,24 +507,25 @@ public class ClusterStateLicenseService extends AbstractLifecycleComponent
                 }
                 logger.info("license [{}] mode [{}] - valid", license.uid(), license.operationMode().name().toLowerCase(Locale.ROOT));
             }
-            updateXPackLicenseState(license);
         }
     }
 
     // pkg private for tests
     SchedulerEngine.Schedule nextLicenseCheck(License license) {
+        final long licenseIssueDate = license.issueDate();
+        final long licenseExpiryDate = LicenseUtils.getExpiryDate(license);
         return (startTime, time) -> {
-            if (time < license.issueDate()) {
+            if (time < licenseIssueDate) {
                 // when we encounter a license with a future issue date
                 // which can happen with autogenerated license,
                 // we want to schedule a notification on the license issue date
                 // so the license is notified once it is valid
                 // see https://github.com/elastic/x-plugins/issues/983
-                return license.issueDate();
-            } else if (time < LicenseUtils.getExpiryDate(license)) {
+                return licenseIssueDate;
+            } else if (time < licenseExpiryDate) {
                 // Re-check the license every day during the warning period up to the license expiration.
                 // This will cause the warning message to be updated that is emitted on soon-expiring license use.
-                long nextTime = LicenseUtils.getExpiryDate(license) - LicenseSettings.LICENSE_EXPIRATION_WARNING_PERIOD.getMillis();
+                long nextTime = licenseExpiryDate - LicenseSettings.LICENSE_EXPIRATION_WARNING_PERIOD.getMillis();
                 while (nextTime <= time) {
                     nextTime += TimeValue.timeValueDays(1).getMillis();
                 }
@@ -549,6 +541,7 @@ public class ClusterStateLicenseService extends AbstractLifecycleComponent
     }
 
     // visible for tests
+    @Nullable
     License getLicenseFromLicensesMetadata(@Nullable final LicensesMetadata metadata) {
         if (metadata != null) {
             License license = metadata.getLicense();
@@ -557,6 +550,13 @@ public class ClusterStateLicenseService extends AbstractLifecycleComponent
             } else if (license != null) {
                 if (license.verified()) {
                     return license;
+                } else {
+                    // this is an "error" level because an unverified license should not be present in the cluster state in the first place
+                    logger.error(
+                        "{} with uid [{}] failed verification on the local node.",
+                        License.isAutoGeneratedLicense(license.signature()) ? "Autogenerated license" : "License",
+                        license.uid()
+                    );
                 }
             }
         }

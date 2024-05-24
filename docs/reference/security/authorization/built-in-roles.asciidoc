@@ -69,6 +69,14 @@ Grants full access to all features in {kib} (including Solutions) and read-only 
 Grants access to manage *all* enrich indices (`.enrich-*`) and *all* operations on
 ingest pipelines.
 
+[[built-in-roles-inference-admin]] `inference_admin`::
+Provides all of the privileges of the `inference_user` role and the full
+use of the {inference} APIs. Grants the `manage_inference` cluster privilege.
+
+[[built-in-roles-inference-user]] `inference_user`::
+Provides the minimum privileges required to view {inference} configurations
+and perform inference. Grants the `monintor_inference` cluster privilege.
+
 [[built-in-roles-ingest-user]] `ingest_admin` ::
 Grants access to manage *all* index templates and *all* ingest pipeline configurations.
 +
@@ -141,11 +149,6 @@ read access to the `.ml-notifications` and `.ml-anomalies*` indices
 {ml-cap} users also need index privileges for source and destination
 indices and roles that grant access to {kib}. See {ml-docs-setup-privileges}.
 
-[[built-in-roles-manage-enrich]] `manage_enrich`::
-Grants privileges to access and use all of the {ref}/enrich-apis.html[enrich APIs].
-Users with this role can manage enrich policies that add data from your existing 
-indices to incoming documents during ingest.
-
 [[built-in-roles-monitoring-user]] `monitoring_user`::
 Grants the minimum privileges required for any user of {monitoring} other than those
 required to use {kib}. This role grants access to the monitoring indices and grants
@@ -171,10 +174,10 @@ Reporting users should also be assigned additional roles that grant
 access to the <<roles-indices-priv,indices>> that will be used to generate reports.
 
 [[built-in-roles-rollup-admin]] `rollup_admin`::
-Grants `manage_rollup` cluster privileges, which enable you to manage and execute all rollup actions. 
+Grants `manage_rollup` cluster privileges, which enable you to manage and execute all rollup actions.
 
 [[built-in-roles-rollup-user]] `rollup_user`::
-Grants `monitor_rollup` cluster privileges, which enable you to perform read-only operations related to rollups. 
+Grants `monitor_rollup` cluster privileges, which enable you to perform read-only operations related to rollups.
 
 [[built-in-roles-snapshot-user]] `snapshot_user`::
 Grants the necessary privileges to create snapshots of **all** the indices and

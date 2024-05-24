@@ -8,22 +8,20 @@
 package org.elasticsearch.compute.data;
 
 import org.apache.lucene.util.RamUsageEstimator;
+import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.core.ReleasableIterator;
 
 /**
  * Vector implementation that stores a constant long value.
  * This class is generated. Do not edit it.
  */
-public final class ConstantLongVector extends AbstractVector implements LongVector {
+final class ConstantLongVector extends AbstractVector implements LongVector {
 
-    private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(ConstantLongVector.class);
+    static final long RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(ConstantLongVector.class);
 
     private final long value;
 
-    public ConstantLongVector(long value, int positionCount) {
-        this(value, positionCount, BlockFactory.getNonBreakingInstance());
-    }
-
-    public ConstantLongVector(long value, int positionCount, BlockFactory blockFactory) {
+    ConstantLongVector(long value, int positionCount, BlockFactory blockFactory) {
         super(positionCount, blockFactory);
         this.value = value;
     }
@@ -40,7 +38,29 @@ public final class ConstantLongVector extends AbstractVector implements LongVect
 
     @Override
     public LongVector filter(int... positions) {
-        return new ConstantLongVector(value, positions.length);
+        return blockFactory().newConstantLongVector(value, positions.length);
+    }
+
+    @Override
+    public ReleasableIterator<LongBlock> lookup(IntBlock positions, ByteSizeValue targetBlockSize) {
+        if (positions.getPositionCount() == 0) {
+            return ReleasableIterator.empty();
+        }
+        IntVector positionsVector = positions.asVector();
+        if (positionsVector == null) {
+            return new LongLookup(asBlock(), positions, targetBlockSize);
+        }
+        int min = positionsVector.min();
+        if (min < 0) {
+            throw new IllegalArgumentException("invalid position [" + min + "]");
+        }
+        if (min > getPositionCount()) {
+            return ReleasableIterator.single((LongBlock) positions.blockFactory().newConstantNullBlock(positions.getPositionCount()));
+        }
+        if (positionsVector.max() < getPositionCount()) {
+            return ReleasableIterator.single(positions.blockFactory().newConstantLongBlockWith(value, positions.getPositionCount()));
+        }
+        return new LongLookup(asBlock(), positions, targetBlockSize);
     }
 
     @Override
@@ -55,7 +75,7 @@ public final class ConstantLongVector extends AbstractVector implements LongVect
 
     @Override
     public long ramBytesUsed() {
-        return BASE_RAM_BYTES_USED + RamUsageEstimator.shallowSizeOfInstance(long.class);
+        return RAM_BYTES_USED;
     }
 
     @Override
@@ -73,10 +93,5 @@ public final class ConstantLongVector extends AbstractVector implements LongVect
 
     public String toString() {
         return getClass().getSimpleName() + "[positions=" + getPositionCount() + ", value=" + value + ']';
-    }
-
-    @Override
-    public void close() {
-        blockFactory.adjustBreaker(-ramBytesUsed(), true);
     }
 }

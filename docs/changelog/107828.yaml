@@ -1,0 +1,6 @@
+pr: 107828
+summary: Update several references to `IndexVersion.toString` to use `toReleaseVersion`
+area: Infra/Core
+type: bug
+issues:
+ - 107821

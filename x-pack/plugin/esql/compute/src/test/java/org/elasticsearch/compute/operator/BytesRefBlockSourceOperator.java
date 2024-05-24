@@ -8,6 +8,7 @@
 package org.elasticsearch.compute.operator;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BytesRefVector;
 import org.elasticsearch.compute.data.Page;
 
@@ -23,18 +24,18 @@ public class BytesRefBlockSourceOperator extends AbstractBlockSourceOperator {
 
     private final BytesRef[] values;
 
-    public BytesRefBlockSourceOperator(List<BytesRef> values) {
-        this(values, DEFAULT_MAX_PAGE_POSITIONS);
+    public BytesRefBlockSourceOperator(BlockFactory blockFactory, List<BytesRef> values) {
+        this(blockFactory, values, DEFAULT_MAX_PAGE_POSITIONS);
     }
 
-    public BytesRefBlockSourceOperator(List<BytesRef> values, int maxPagePositions) {
-        super(maxPagePositions);
+    public BytesRefBlockSourceOperator(BlockFactory blockFactory, List<BytesRef> values, int maxPagePositions) {
+        super(blockFactory, maxPagePositions);
         this.values = values.toArray(new BytesRef[0]);
     }
 
     @Override
     protected Page createPage(int positionOffset, int length) {
-        BytesRefVector.Builder builder = BytesRefVector.newVectorBuilder(length);
+        BytesRefVector.Builder builder = blockFactory.newBytesRefVectorBuilder(length);
         for (int i = 0; i < length; i++) {
             builder.appendBytesRef(values[positionOffset + i]);
         }

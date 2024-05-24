@@ -27,6 +27,7 @@ import org.elasticsearch.xpack.core.security.authc.RealmSettings;
 import org.elasticsearch.xpack.core.security.authc.ldap.support.SessionFactorySettings;
 import org.elasticsearch.xpack.core.ssl.SSLConfigurationSettings;
 import org.elasticsearch.xpack.core.ssl.SSLService;
+import org.elasticsearch.xpack.security.support.ReloadableSecurityComponent;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -49,7 +50,7 @@ import javax.net.SocketFactory;
  * }
  * </pre>
  */
-public abstract class SessionFactory implements Closeable {
+public abstract class SessionFactory implements Closeable, ReloadableSecurityComponent {
 
     private static final Pattern STARTS_WITH_LDAPS = Pattern.compile("^ldaps:.*", Pattern.CASE_INSENSITIVE);
     private static final Pattern STARTS_WITH_LDAP = Pattern.compile("^ldap:.*", Pattern.CASE_INSENSITIVE);
@@ -276,7 +277,7 @@ public abstract class SessionFactory implements Closeable {
         /**
          * @param ldapUrls URLS in the form of "ldap://..." or "ldaps://..."
          */
-        private boolean secureUrls(String[] ldapUrls) {
+        private static boolean secureUrls(String[] ldapUrls) {
             if (ldapUrls.length == 0) {
                 return true;
             }

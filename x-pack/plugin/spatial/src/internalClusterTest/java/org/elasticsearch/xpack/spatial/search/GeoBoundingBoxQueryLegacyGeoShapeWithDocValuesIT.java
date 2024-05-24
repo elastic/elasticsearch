@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.spatial.search;
 
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.geo.GeoBoundingBoxQueryIntegTestCase;
 import org.elasticsearch.test.index.IndexVersionUtils;
@@ -43,6 +44,6 @@ public class GeoBoundingBoxQueryLegacyGeoShapeWithDocValuesIT extends GeoBoundin
 
     @Override
     public IndexVersion randomSupportedVersion() {
-        return IndexVersionUtils.randomPreviousCompatibleVersion(random(), IndexVersion.V_8_0_0);
+        return IndexVersionUtils.randomPreviousCompatibleVersion(random(), IndexVersions.V_8_0_0);
     }
 }

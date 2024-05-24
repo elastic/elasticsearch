@@ -10,7 +10,6 @@ package org.elasticsearch.test.rest.yaml;
 
 import org.apache.http.HttpEntity;
 import org.apache.http.HttpHost;
-import org.elasticsearch.Version;
 import org.elasticsearch.client.NodeSelector;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
@@ -39,12 +38,9 @@ public final class ClientYamlDocsTestClient extends ClientYamlTestClient {
         final ClientYamlSuiteRestSpec restSpec,
         final RestClient restClient,
         final List<HttpHost> hosts,
-        final Version esVersion,
-        final Version masterVersion,
-        final String os,
         final CheckedSupplier<RestClientBuilder, IOException> clientBuilderWithSniffedNodes
     ) {
-        super(restSpec, restClient, hosts, esVersion, masterVersion, os, clientBuilderWithSniffedNodes);
+        super(restSpec, restClient, hosts, clientBuilderWithSniffedNodes);
     }
 
     @Override

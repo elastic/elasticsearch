@@ -246,10 +246,10 @@ public final class InvalidateApiKeyRequest extends ActionRequest {
 
     @Override
     public int hashCode() {
-        return Objects.hash(realmName, userName, ids, name, ownedByAuthenticatedUser);
+        return Objects.hash(realmName, userName, Arrays.hashCode(ids), name, ownedByAuthenticatedUser);
     }
 
-    private void validateIds(@Nullable String[] idsToValidate) {
+    private static void validateIds(@Nullable String[] idsToValidate) {
         if (idsToValidate != null) {
             if (idsToValidate.length == 0) {
                 final ActionRequestValidationException validationException = new ActionRequestValidationException();

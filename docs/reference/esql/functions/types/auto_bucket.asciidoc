@@ -1,5 +1,0 @@
-[%header.monospaced.styled,format=dsv,separator=|]
-|===
-arg1 | arg2 | arg3 | arg4 | result
-
-|===

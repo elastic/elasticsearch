@@ -11,7 +11,7 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksResponse;
+import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.AcknowledgedTransportMasterNodeAction;
@@ -26,12 +26,11 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.ingest.IngestMetadata;
 import org.elasticsearch.ingest.IngestService;
-import org.elasticsearch.ingest.Pipeline;
-import org.elasticsearch.ingest.PipelineConfiguration;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskInfo;
@@ -40,16 +39,15 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.ml.action.DeleteTrainedModelAction;
 import org.elasticsearch.xpack.core.ml.action.StopTrainedModelDeploymentAction;
+import org.elasticsearch.xpack.core.ml.inference.ModelAliasMetadata;
+import org.elasticsearch.xpack.core.ml.inference.assignment.TrainedModelAssignmentMetadata;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
-import org.elasticsearch.xpack.ml.inference.ModelAliasMetadata;
-import org.elasticsearch.xpack.ml.inference.assignment.TrainedModelAssignmentMetadata;
-import org.elasticsearch.xpack.ml.inference.ingest.InferenceProcessor;
 import org.elasticsearch.xpack.ml.inference.persistence.TrainedModelProvider;
 import org.elasticsearch.xpack.ml.notifications.InferenceAuditor;
+import org.elasticsearch.xpack.ml.utils.InferenceProcessorInfoExtractor;
 
 import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -92,7 +90,7 @@ public class TransportDeleteTrainedModelAction extends AcknowledgedTransportMast
             actionFilters,
             DeleteTrainedModelAction.Request::new,
             indexNameExpressionResolver,
-            ThreadPool.Names.SAME
+            EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
         this.client = client;
         this.trainedModelProvider = configProvider;
@@ -109,18 +107,17 @@ public class TransportDeleteTrainedModelAction extends AcknowledgedTransportMast
     ) {
         logger.debug(() -> format("[%s] Request to delete trained model%s", request.getId(), request.isForce() ? " (force)" : ""));
 
-        ActionListener<CancelTasksResponse> performDeletion = ActionListener.wrap(
-            ignored -> deleteModel(request, state, listener),
-            listener::onFailure
-        );
-
         String id = request.getId();
-
-        cancelDownloadTask(client, id, performDeletion, request.timeout());
+        cancelDownloadTask(
+            client,
+            id,
+            listener.delegateFailureAndWrap((l, ignored) -> deleteModel(request, state, l)),
+            request.ackTimeout()
+        );
     }
 
     // package-private for testing
-    static void cancelDownloadTask(Client client, String modelId, ActionListener<CancelTasksResponse> listener, TimeValue timeout) {
+    static void cancelDownloadTask(Client client, String modelId, ActionListener<ListTasksResponse> listener, TimeValue timeout) {
         logger.debug(() -> format("[%s] Checking if download task exists and cancelling it", modelId));
 
         OriginSettingClient mlClient = new OriginSettingClient(client, ML_ORIGIN);
@@ -138,35 +135,7 @@ public class TransportDeleteTrainedModelAction extends AcknowledgedTransportMast
         );
 
         // setting waitForCompletion to false here so that we don't block waiting for an existing task to complete before returning it
-        getDownloadTaskInfo(mlClient, modelId, false, taskListener, timeout);
-    }
-
-    static Set<String> getReferencedModelKeys(IngestMetadata ingestMetadata, IngestService ingestService) {
-        Set<String> allReferencedModelKeys = new HashSet<>();
-        if (ingestMetadata == null) {
-            return allReferencedModelKeys;
-        }
-        for (Map.Entry<String, PipelineConfiguration> entry : ingestMetadata.getPipelines().entrySet()) {
-            String pipelineId = entry.getKey();
-            Map<String, Object> config = entry.getValue().getConfigAsMap();
-            try {
-                Pipeline pipeline = Pipeline.create(
-                    pipelineId,
-                    config,
-                    ingestService.getProcessorFactories(),
-                    ingestService.getScriptService()
-                );
-                pipeline.getProcessors()
-                    .stream()
-                    .filter(p -> p instanceof InferenceProcessor)
-                    .map(p -> (InferenceProcessor) p)
-                    .map(InferenceProcessor::getModelId)
-                    .forEach(allReferencedModelKeys::add);
-            } catch (Exception ex) {
-                logger.warn(() -> "failed to load pipeline [" + pipelineId + "]", ex);
-            }
-        }
-        return allReferencedModelKeys;
+        getDownloadTaskInfo(mlClient, modelId, false, timeout, () -> null, taskListener);
     }
 
     static List<String> getModelAliases(ClusterState clusterState, String modelId) {
@@ -183,7 +152,7 @@ public class TransportDeleteTrainedModelAction extends AcknowledgedTransportMast
     private void deleteModel(DeleteTrainedModelAction.Request request, ClusterState state, ActionListener<AcknowledgedResponse> listener) {
         String id = request.getId();
         IngestMetadata currentIngestMetadata = state.metadata().custom(IngestMetadata.TYPE);
-        Set<String> referencedModels = getReferencedModelKeys(currentIngestMetadata, ingestService);
+        Set<String> referencedModels = InferenceProcessorInfoExtractor.getModelIdsFromInferenceProcessors(currentIngestMetadata);
 
         if (request.isForce() == false && referencedModels.contains(id)) {
             listener.onFailure(
@@ -217,10 +186,7 @@ public class TransportDeleteTrainedModelAction extends AcknowledgedTransportMast
             if (request.isForce()) {
                 forceStopDeployment(
                     request.getId(),
-                    ActionListener.wrap(
-                        stopDeploymentResponse -> deleteAliasesAndModel(request, modelAliases, listener),
-                        listener::onFailure
-                    )
+                    listener.delegateFailureAndWrap((l, stopDeploymentResponse) -> deleteAliasesAndModel(request, modelAliases, l))
                 );
             } else {
                 listener.onFailure(
@@ -230,7 +196,6 @@ public class TransportDeleteTrainedModelAction extends AcknowledgedTransportMast
                         id
                     )
                 );
-                return;
             }
         } else {
             deleteAliasesAndModel(request, modelAliases, listener);
@@ -250,13 +215,11 @@ public class TransportDeleteTrainedModelAction extends AcknowledgedTransportMast
     ) {
         logger.debug(() -> "[" + request.getId() + "] Deleting model");
 
-        ActionListener<AcknowledgedResponse> nameDeletionListener = ActionListener.wrap(
-            ack -> trainedModelProvider.deleteTrainedModel(request.getId(), ActionListener.wrap(r -> {
+        ActionListener<AcknowledgedResponse> nameDeletionListener = listener.delegateFailureAndWrap(
+            (delegate, ack) -> trainedModelProvider.deleteTrainedModel(request.getId(), delegate.delegateFailureAndWrap((l, r) -> {
                 auditor.info(request.getId(), "trained model deleted");
-                listener.onResponse(AcknowledgedResponse.TRUE);
-            }, listener::onFailure)),
-
-            listener::onFailure
+                l.onResponse(AcknowledgedResponse.TRUE);
+            }))
         );
 
         // No reason to update cluster state, simply delete the model
@@ -294,11 +257,11 @@ public class TransportDeleteTrainedModelAction extends AcknowledgedTransportMast
         Client client,
         String modelId,
         TaskInfo taskInfo,
-        ActionListener<CancelTasksResponse> listener,
+        ActionListener<ListTasksResponse> listener,
         TimeValue timeout
     ) {
         if (taskInfo != null) {
-            ActionListener<CancelTasksResponse> cancelListener = ActionListener.wrap(listener::onResponse, e -> {
+            ActionListener<ListTasksResponse> cancelListener = ActionListener.wrap(listener::onResponse, e -> {
                 Throwable cause = ExceptionsHelper.unwrapCause(e);
                 if (cause instanceof ResourceNotFoundException) {
                     logger.debug(() -> format("[%s] Task no longer exists when attempting to cancel it", modelId));

@@ -8,7 +8,6 @@
 package org.elasticsearch.compute.aggregation;
 
 import org.elasticsearch.common.collect.Iterators;
-import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.LongBlock;
@@ -27,14 +26,14 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class SumLongAggregatorFunctionTests extends AggregatorFunctionTestCase {
     @Override
-    protected SourceOperator simpleInput(int size) {
+    protected SourceOperator simpleInput(BlockFactory blockFactory, int size) {
         long max = randomLongBetween(1, Long.MAX_VALUE / size);
-        return new SequenceLongBlockSourceOperator(LongStream.range(0, size).map(l -> randomLongBetween(-max, max)));
+        return new SequenceLongBlockSourceOperator(blockFactory, LongStream.range(0, size).map(l -> randomLongBetween(-max, max)));
     }
 
     @Override
-    protected AggregatorFunctionSupplier aggregatorFunction(BigArrays bigArrays, List<Integer> inputChannels) {
-        return new SumLongAggregatorFunctionSupplier(bigArrays, inputChannels);
+    protected AggregatorFunctionSupplier aggregatorFunction(List<Integer> inputChannels) {
+        return new SumLongAggregatorFunctionSupplier(inputChannels);
     }
 
     @Override
@@ -53,8 +52,8 @@ public class SumLongAggregatorFunctionTests extends AggregatorFunctionTestCase {
         try (
             Driver d = new Driver(
                 driverContext,
-                new SequenceLongBlockSourceOperator(LongStream.of(Long.MAX_VALUE - 1, 2)),
-                List.of(simple(nonBreakingBigArrays()).get(driverContext)),
+                new SequenceLongBlockSourceOperator(driverContext.blockFactory(), LongStream.of(Long.MAX_VALUE - 1, 2)),
+                List.of(simple().get(driverContext)),
                 new PageConsumerOperator(page -> fail("shouldn't have made it this far")),
                 () -> {}
             )
@@ -71,7 +70,7 @@ public class SumLongAggregatorFunctionTests extends AggregatorFunctionTestCase {
             Driver d = new Driver(
                 driverContext,
                 new CannedSourceOperator(Iterators.single(new Page(blockFactory.newDoubleArrayVector(new double[] { 1.0 }, 1).asBlock()))),
-                List.of(simple(nonBreakingBigArrays()).get(driverContext)),
+                List.of(simple().get(driverContext)),
                 new PageConsumerOperator(page -> fail("shouldn't have made it this far")),
                 () -> {}
             )

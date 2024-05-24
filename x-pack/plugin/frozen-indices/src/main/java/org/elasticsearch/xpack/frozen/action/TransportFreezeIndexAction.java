@@ -32,6 +32,7 @@ import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
@@ -74,7 +75,7 @@ public final class TransportFreezeIndexAction extends TransportMasterNodeAction<
             FreezeRequest::new,
             indexNameExpressionResolver,
             FreezeResponse::new,
-            ThreadPool.Names.SAME
+            EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
         this.destructiveOperations = destructiveOperations;
         this.indexStateService = indexStateService;
@@ -114,7 +115,7 @@ public final class TransportFreezeIndexAction extends TransportMasterNodeAction<
         }
 
         final CloseIndexClusterStateUpdateRequest closeRequest = new CloseIndexClusterStateUpdateRequest(task.getId()).ackTimeout(
-            request.timeout()
+            request.ackTimeout()
         ).masterNodeTimeout(request.masterNodeTimeout()).indices(concreteIndices);
 
         indexStateService.closeIndices(closeRequest, new ActionListener<>() {
@@ -144,7 +145,7 @@ public final class TransportFreezeIndexAction extends TransportMasterNodeAction<
         submitUnbatchedTask(
             "toggle-frozen-settings",
             new AckedClusterStateUpdateTask(Priority.URGENT, request, listener.delegateFailure((delegate, acknowledgedResponse) -> {
-                OpenIndexClusterStateUpdateRequest updateRequest = new OpenIndexClusterStateUpdateRequest().ackTimeout(request.timeout())
+                OpenIndexClusterStateUpdateRequest updateRequest = new OpenIndexClusterStateUpdateRequest().ackTimeout(request.ackTimeout())
                     .masterNodeTimeout(request.masterNodeTimeout())
                     .indices(concreteIndices)
                     .waitForActiveShards(request.waitForActiveShards());

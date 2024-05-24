@@ -17,6 +17,7 @@ import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.UpdateForV9;
 import org.elasticsearch.node.ReportingService;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -30,6 +31,7 @@ public class TransportInfo implements ReportingService.Info {
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(TransportInfo.class);
 
     /** Whether to add hostname to publish host field when serializing. */
+    @UpdateForV9 // Remove es.transport.cname_in_publish_address property from TransportInfo in 9.0.0
     private static final boolean CNAME_IN_PUBLISH_ADDRESS = parseBoolean(
         System.getProperty("es.transport.cname_in_publish_address"),
         false

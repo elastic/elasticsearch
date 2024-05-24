@@ -25,7 +25,6 @@ import org.elasticsearch.xpack.sql.session.Cursors;
 import java.time.ZoneId;
 import java.util.List;
 
-import static org.elasticsearch.action.support.PlainActionFuture.newFuture;
 import static org.elasticsearch.xpack.sql.execution.search.SearchHitCursorTests.randomSearchHitCursor;
 import static org.elasticsearch.xpack.sql.session.Cursors.attachFormatter;
 import static org.elasticsearch.xpack.sql.session.Cursors.decodeFromStringWithZone;
@@ -38,7 +37,7 @@ public class CursorTests extends ESTestCase {
     public void testEmptyCursorClearCursor() {
         Client clientMock = mock(Client.class);
         Cursor cursor = Cursor.EMPTY;
-        PlainActionFuture<Boolean> future = newFuture();
+        PlainActionFuture<Boolean> future = new PlainActionFuture<>();
         cursor.clear(clientMock, future);
         assertFalse(future.actionGet());
         verifyNoMoreInteractions(clientMock);

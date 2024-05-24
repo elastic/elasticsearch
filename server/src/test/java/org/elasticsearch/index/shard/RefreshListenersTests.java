@@ -18,6 +18,7 @@ import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.store.Directory;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.lucene.uid.Versions;
@@ -51,6 +52,7 @@ import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.index.translog.TranslogConfig;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
+import org.elasticsearch.plugins.internal.DocumentSizeObserver;
 import org.elasticsearch.test.DummyShardLock;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
@@ -217,18 +219,10 @@ public class RefreshListenersTests extends ESTestCase {
                 assertEquals("foobar", threadPool.getThreadContext().getHeader("test"));
                 latch.countDown();
             }));
-            assertFalse(listeners.addOrNotify(index.getSeqNo(), randomBoolean(), new ActionListener<>() {
-                @Override
-                public void onResponse(Void unused) {
-                    assertEquals("foobar", threadPool.getThreadContext().getHeader("test"));
-                    latch.countDown();
-                }
-
-                @Override
-                public void onFailure(Exception e) {
-                    throw new AssertionError(e);
-                }
-            }));
+            assertFalse(listeners.addOrNotify(index.getSeqNo(), randomBoolean(), ActionTestUtils.assertNoFailureListener(ignored -> {
+                assertEquals("foobar", threadPool.getThreadContext().getHeader("test"));
+                latch.countDown();
+            })));
         }
         assertNull(threadPool.getThreadContext().getHeader("test"));
         assertEquals(2, latch.getCount());
@@ -563,7 +557,17 @@ public class RefreshListenersTests extends ESTestCase {
         document.add(versionField);
         seqID.addFields(document);
         BytesReference source = new BytesArray(new byte[] { 1 });
-        ParsedDocument doc = new ParsedDocument(versionField, seqID, id, null, Arrays.asList(document), source, XContentType.JSON, null);
+        ParsedDocument doc = new ParsedDocument(
+            versionField,
+            seqID,
+            id,
+            null,
+            Arrays.asList(document),
+            source,
+            XContentType.JSON,
+            null,
+            DocumentSizeObserver.EMPTY_INSTANCE
+        );
         Engine.Index index = new Engine.Index(uid, engine.config().getPrimaryTermSupplier().getAsLong(), doc);
         return engine.index(index);
     }

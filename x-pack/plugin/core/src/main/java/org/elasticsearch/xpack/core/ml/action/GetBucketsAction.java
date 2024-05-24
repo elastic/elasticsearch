@@ -33,7 +33,7 @@ public class GetBucketsAction extends ActionType<GetBucketsAction.Response> {
     public static final String NAME = "cluster:monitor/xpack/ml/job/results/buckets/get";
 
     private GetBucketsAction() {
-        super(NAME, Response::new);
+        super(NAME);
     }
 
     public static class Request extends ActionRequest implements ToXContentObject {

@@ -8,13 +8,12 @@
 
 package org.elasticsearch.common.hashing;
 
+import org.elasticsearch.common.Numbers;
 import org.elasticsearch.common.hash.Murmur3Hasher;
 import org.elasticsearch.common.hash.MurmurHash3;
 import org.elasticsearch.test.ESTestCase;
 
 import java.nio.charset.StandardCharsets;
-
-import static org.hamcrest.Matchers.equalTo;
 
 public class Murmur3HasherTests extends ESTestCase {
 
@@ -37,13 +36,21 @@ public class Murmur3HasherTests extends ESTestCase {
         byte[] bytes = inputString.getBytes(StandardCharsets.UTF_8);
         Murmur3Hasher mh = new Murmur3Hasher(seed);
         mh.update(bytes);
-        MurmurHash3.Hash128 actual = Murmur3Hasher.toHash128(mh.digest());
+        MurmurHash3.Hash128 actual = mh.digestHash();
         assertHash(expected, actual);
     }
 
     private static void assertHash(MurmurHash3.Hash128 expected, MurmurHash3.Hash128 actual) {
         assertEquals(expected.h1, actual.h1);
         assertEquals(expected.h2, actual.h2);
+        assertEquals(expected, toHash128(expected.getBytes()));
+    }
+
+    public static MurmurHash3.Hash128 toHash128(byte[] doubleLongBytes) {
+        MurmurHash3.Hash128 hash128 = new MurmurHash3.Hash128();
+        hash128.h1 = Numbers.bytesToLong(doubleLongBytes, 0);
+        hash128.h2 = Numbers.bytesToLong(doubleLongBytes, 8);
+        return hash128;
     }
 
     public void testSingleVsSequentialMurmur3() {
@@ -85,7 +92,7 @@ public class Murmur3HasherTests extends ESTestCase {
                 mh.update(splitBytes[k]);
             }
         }
-        MurmurHash3.Hash128 sequentialHash = Murmur3Hasher.toHash128(mh.digest());
-        assertThat(singleHash, equalTo(sequentialHash));
+        MurmurHash3.Hash128 sequentialHash = mh.digestHash();
+        assertHash(singleHash, sequentialHash);
     }
 }

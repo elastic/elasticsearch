@@ -24,7 +24,6 @@ public class RegressionConfig implements LenientlyParsedInferenceConfig, Strictl
     public static final ParseField NAME = new ParseField("regression");
     private static final MlConfigVersion MIN_SUPPORTED_VERSION = MlConfigVersion.V_7_6_0;
     private static final TransportVersion MIN_SUPPORTED_TRANSPORT_VERSION = TransportVersions.V_7_6_0;
-    public static final ParseField RESULTS_FIELD = new ParseField("results_field");
     public static final ParseField NUM_TOP_FEATURE_IMPORTANCE_VALUES = new ParseField("num_top_feature_importance_values");
 
     public static RegressionConfig EMPTY_PARAMS = new RegressionConfig(DEFAULT_RESULTS_FIELD, null);
@@ -134,6 +133,24 @@ public class RegressionConfig implements LenientlyParsedInferenceConfig, Strictl
     @Override
     public boolean isTargetTypeSupported(TargetType targetType) {
         return TargetType.REGRESSION.equals(targetType);
+    }
+
+    @Override
+    public InferenceConfig apply(InferenceConfigUpdate update) {
+        if (update instanceof RegressionConfigUpdate configUpdate) {
+            RegressionConfig.Builder builder = new RegressionConfig.Builder(this);
+            if (configUpdate.getResultsField() != null) {
+                builder.setResultsField(configUpdate.getResultsField());
+            }
+            if (configUpdate.getNumTopFeatureImportanceValues() != null) {
+                builder.setNumTopFeatureImportanceValues(configUpdate.getNumTopFeatureImportanceValues());
+            }
+            return builder.build();
+        } else if (update instanceof ResultsFieldUpdate resultsFieldUpdate) {
+            return new RegressionConfig.Builder(this).setResultsField(resultsFieldUpdate.getResultsField()).build();
+        } else {
+            throw incompatibleUpdateException(update.getName());
+        }
     }
 
     @Override

@@ -11,23 +11,37 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.UnicodeUtil;
 import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
-import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
+import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.type.DataTypes;
+import org.elasticsearch.xpack.esql.expression.function.Example;
+import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
+import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.function.scalar.UnaryScalarFunction;
-import org.elasticsearch.xpack.ql.expression.Expression;
-import org.elasticsearch.xpack.ql.tree.NodeInfo;
-import org.elasticsearch.xpack.ql.tree.Source;
-import org.elasticsearch.xpack.ql.type.DataType;
-import org.elasticsearch.xpack.ql.type.DataTypes;
 
 import java.util.List;
 import java.util.function.Function;
 
-import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.DEFAULT;
-import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isString;
+import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.DEFAULT;
+import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isString;
 
-public class Length extends UnaryScalarFunction implements EvaluatorMapper {
+public class Length extends UnaryScalarFunction {
 
-    public Length(Source source, Expression field) {
+    @FunctionInfo(
+        returnType = "integer",
+        description = "Returns the character length of a string.",
+        examples = @Example(file = "eval", tag = "length")
+    )
+    public Length(
+        Source source,
+        @Param(
+            name = "string",
+            type = { "keyword", "text" },
+            description = "String expression. If `null`, the function returns `null`."
+        ) Expression field
+    ) {
         super(source, field);
     }
 
@@ -43,16 +57,6 @@ public class Length extends UnaryScalarFunction implements EvaluatorMapper {
         }
 
         return isString(field(), sourceText(), DEFAULT);
-    }
-
-    @Override
-    public boolean foldable() {
-        return field().foldable();
-    }
-
-    @Override
-    public Object fold() {
-        return EvaluatorMapper.super.fold();
     }
 
     @Evaluator
@@ -72,7 +76,6 @@ public class Length extends UnaryScalarFunction implements EvaluatorMapper {
 
     @Override
     public ExpressionEvaluator.Factory toEvaluator(Function<Expression, ExpressionEvaluator.Factory> toEvaluator) {
-        var field = toEvaluator.apply(field());
-        return dvrCtx -> new LengthEvaluator(field.get(dvrCtx), dvrCtx);
+        return new LengthEvaluator.Factory(source(), toEvaluator.apply(field()));
     }
 }

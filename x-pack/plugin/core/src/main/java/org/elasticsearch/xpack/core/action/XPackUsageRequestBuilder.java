@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.core.action;
 
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.master.MasterNodeOperationRequestBuilder;
 import org.elasticsearch.client.internal.ElasticsearchClient;
 import org.elasticsearch.protocol.xpack.XPackUsageRequest;
@@ -19,7 +20,7 @@ public class XPackUsageRequestBuilder extends MasterNodeOperationRequestBuilder<
         this(client, XPackUsageAction.INSTANCE);
     }
 
-    public XPackUsageRequestBuilder(ElasticsearchClient client, XPackUsageAction action) {
+    public XPackUsageRequestBuilder(ElasticsearchClient client, ActionType<XPackUsageResponse> action) {
         super(client, action, new XPackUsageRequest());
     }
 }

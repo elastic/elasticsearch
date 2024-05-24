@@ -6,11 +6,11 @@ teardown:
         ignore: 404
   - do:
       ingest.delete_pipeline:
-        id: "logs-router-default"
+        id: "logs-router"
         ignore: 404
   - do:
       ingest.delete_pipeline:
-        id: "logs-nginx-default"
+        id: "logs-nginx"
         ignore: 404
   - do:
       indices.delete_index_template:
@@ -20,13 +20,31 @@ teardown:
       indices.delete_index_template:
         name: logs-nginx
         ignore: 404
+  - do:
+      indices.delete:
+        index: "index-1"
+        ignore_unavailable: true
+  - do:
+      indices.delete:
+        index: "index-2"
+        ignore_unavailable: true
+  - do:
+      ingest.delete_pipeline:
+        id: "pipeline-1"
+        ignore: 404
+  - do:
+      ingest.delete_pipeline:
+        id: "pipeline-2"
+        ignore: 404
 
 ---
 "Test first matching router terminates pipeline":
+  - skip:
+      awaits_fix: "https://github.com/elastic/elasticsearch/issues/102144"
   - do:
       ingest.put_pipeline:
         id: "pipeline-with-two-data-stream-processors"
-        body:  >
+        body: >
           {
             "processors": [
               {
@@ -46,6 +64,8 @@ teardown:
   - do:
       index:
         index: logs-generic-default
+        refresh: true
+        op_type: create
         id: "1"
         pipeline: "pipeline-with-two-data-stream-processors"
         body: {
@@ -53,10 +73,13 @@ teardown:
         }
 
   - do:
-      get:
+      search:
         index: logs-first-default
-        id: "1"
-  - match: { _source.foo: "bar" }
+        body:
+          query:
+            match: {"_id": "1"}
+  - match: { hits.hits.0._source.foo: "bar" }
+
 ---
 "Test two stage routing":
   - skip:
@@ -64,9 +87,15 @@ teardown:
   - do:
       ingest.put_pipeline:
         id: "logs-router"
-        body:  >
+        body: >
           {
             "processors": [
+              {
+                 "set" : {
+                   "field": "added-in-pipeline-before-first-reroute",
+                   "value": true
+                 }
+              },
               {
                 "reroute" : {
                   "tag": "nginx",
@@ -84,15 +113,23 @@ teardown:
         name: logs-router
         body:
           index_patterns: [ "logs-router-*" ]
+          priority: 500
+          data_stream: { }
           template:
             settings:
               index.default_pipeline: "logs-router"
   - do:
       ingest.put_pipeline:
         id: "logs-nginx"
-        body:  >
+        body: >
           {
             "processors": [
+              {
+                 "set" : {
+                   "field": "added-in-pipeline-before-second-reroute",
+                   "value": true
+                 }
+              },
               {
                 "reroute": {
                   "tag": "nginx.access",
@@ -117,13 +154,16 @@ teardown:
         name: logs-nginx
         body:
           index_patterns: [ "logs-nginx-*" ]
+          priority: 500
+          data_stream: { }
           template:
             settings:
               index.default_pipeline: "logs-nginx"
 
   - do:
       index:
-        index: logs-nginx-default
+        refresh: true
+        index: logs-router-default
         id: "example-log"
         op_type: create
         body:
@@ -134,7 +174,81 @@ teardown:
               path: "nginx-error.log"
 
   - do:
-      get:
+      search:
         index: logs-nginx.error-default
-        id: "example-log"
-  - match: { _source.message: "this is an error log" }
+        body:
+          query:
+            match: {"_id": "example-log"}
+  - match: { hits.hits.0._source.message: "this is an error log" }
+  - match: { hits.hits.0._source.added-in-pipeline-before-first-reroute: true }
+  - match: { hits.hits.0._source.added-in-pipeline-before-second-reroute: true }
+
+---
+"Test pipeline run after reroute":
+  - do:
+      ingest.put_pipeline:
+        id: "pipeline-1"
+        body: >
+          {
+            "processors": [
+              {
+                "set" : {
+                  "field": "added-in-pipeline-before-reroute",
+                  "value": true
+                }
+              },
+              {
+                "reroute" : {
+                  "destination": "index-2"
+                }
+              }
+            ]
+          }
+  - match: { acknowledged: true }
+  - do:
+      ingest.put_pipeline:
+        id: "pipeline-2"
+        body: >
+          {
+            "processors": [
+              {
+                "set" : {
+                  "field": "added-in-pipeline-after-reroute",
+                  "value": true
+                }
+              }
+            ]
+          }
+  - match: { acknowledged: true }
+  - do:
+      indices.create:
+        index: index-1
+        body:
+          settings:
+            index:
+              default_pipeline: "pipeline-1"
+  - match: { acknowledged: true }
+  - do:
+      indices.create:
+        index: index-2
+        body:
+          settings:
+            index:
+              default_pipeline: "pipeline-2"
+  - match: { acknowledged: true }
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - '{"index": {"_index": "index-1", "_id": "1" }}'
+          - '{"existing-field": true}'
+  - do:
+      indices.refresh:
+        index: [index-2]
+  - do:
+      get:
+        index: index-2
+        id: "1"
+  - match: { _source.existing-field : true }
+  - match: { _source.added-in-pipeline-before-reroute : true }
+  - match: { _source.added-in-pipeline-after-reroute : true }

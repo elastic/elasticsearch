@@ -33,7 +33,7 @@ public class FlushListenersTests extends ESTestCase {
                 lastWriteLocation.generation - randomLongBetween(10, 90),
                 2
             );
-            PlainActionFuture<Long> future = PlainActionFuture.newFuture();
+            PlainActionFuture<Long> future = new PlainActionFuture<>();
             flushListeners.addOrNotify(waitLocation, future);
             assertThat(future.actionGet(), equalTo(generation));
         }
@@ -52,7 +52,7 @@ public class FlushListenersTests extends ESTestCase {
                 lastWriteLocation.generation - randomLongBetween(10, 90),
                 2
             );
-            PlainActionFuture<Long> future = PlainActionFuture.newFuture();
+            PlainActionFuture<Long> future = new PlainActionFuture<>();
             flushListeners.addOrNotify(waitLocation, future);
             assertFalse(future.isDone());
 
@@ -71,7 +71,7 @@ public class FlushListenersTests extends ESTestCase {
                 2
             );
 
-            PlainActionFuture<Long> future2 = PlainActionFuture.newFuture();
+            PlainActionFuture<Long> future2 = new PlainActionFuture<>();
             flushListeners.addOrNotify(waitLocation2, future2);
             assertFalse(future2.isDone());
 
@@ -81,7 +81,7 @@ public class FlushListenersTests extends ESTestCase {
     }
 
     public void testFlushListenerClose() {
-        PlainActionFuture<Long> future = PlainActionFuture.newFuture();
+        PlainActionFuture<Long> future = new PlainActionFuture<>();
         try (FlushListeners flushListeners = new FlushListeners(logger, new ThreadContext(Settings.EMPTY))) {
             Translog.Location waitLocation = new Translog.Location(randomLongBetween(0, 2), randomLongBetween(10, 90), 2);
             flushListeners.addOrNotify(waitLocation, future);
@@ -91,7 +91,7 @@ public class FlushListenersTests extends ESTestCase {
 
             expectThrows(AlreadyClosedException.class, future::actionGet);
 
-            expectThrows(IllegalStateException.class, () -> flushListeners.addOrNotify(waitLocation, PlainActionFuture.newFuture()));
+            expectThrows(IllegalStateException.class, () -> flushListeners.addOrNotify(waitLocation, new PlainActionFuture<>()));
         }
     }
 }

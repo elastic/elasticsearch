@@ -234,12 +234,13 @@ public class KnnDenseVectorScriptDocValuesTests extends ESTestCase {
     }
 
     public static FloatVectorValues wrap(float[][] vectors) {
+        int dim = vectors.length > 0 ? vectors[0].length : 0;
         return new FloatVectorValues() {
-            int index = 0;
+            int index = -1;
 
             @Override
             public int dimension() {
-                return 0;
+                return dim;
             }
 
             @Override
@@ -259,7 +260,7 @@ public class KnnDenseVectorScriptDocValuesTests extends ESTestCase {
 
             @Override
             public int nextDoc() {
-                throw new UnsupportedOperationException();
+                return advance(index + 1);
             }
 
             @Override

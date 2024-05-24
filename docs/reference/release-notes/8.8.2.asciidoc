@@ -3,6 +3,11 @@
 
 Also see <<breaking-changes-8.8,Breaking changes in 8.8>>.
 
+[[known-issues-8.8.2]]
+[float]
+=== Known issues
+include::8.7.1.asciidoc[tag=no-preventive-gc-issue]
+
 [[bug-8.8.2]]
 [float]
 === Bug fixes

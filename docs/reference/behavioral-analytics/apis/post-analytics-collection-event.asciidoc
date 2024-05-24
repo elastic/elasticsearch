@@ -40,8 +40,8 @@ Post an event to an Analytics Collection.
 
 [[post-analytics-collection-event-request-body]]
 ==== {api-request-body-title}
-Full request body parameters can be found in {enterprise-search-ref}/analytics-events-reference.html[Enterprise Analytics Events^].
 
+Full request body parameters can be found in: <<behavioral-analytics-event-reference>>.
 
 [[post-analytics-collection-event-prereqs]]
 ==== {api-prereq-title}

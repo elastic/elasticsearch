@@ -1,0 +1,60 @@
+---
+tsdb_execute_painless_api:
+  - requires:
+      cluster_features: ["gte_v8.12.0"]
+      reason: fixed in 8.12.0 and later
+
+  - do:
+      indices.create:
+        index: test_index
+        body:
+          settings:
+            index:
+              mode: time_series
+              routing_path: [metricset, k8s.pod.uid]
+          mappings:
+            properties:
+              "@timestamp":
+                type: date
+              metricset:
+                type: keyword
+                time_series_dimension: true
+              k8s:
+                properties:
+                  pod:
+                    properties:
+                      uid:
+                        type: keyword
+                        time_series_dimension: true
+                      name:
+                        type: keyword
+                      ip:
+                        type: ip
+                      network:
+                        properties:
+                          tx:
+                            type: long
+                          rx:
+                            type: long
+
+  - do:
+      scripts_painless_execute:
+        body:
+          script:
+            source: "emit(doc['k8s.pod.network.tx'].value < 1000);"
+          context: "boolean_field"
+          context_setup:
+            index: test_index
+            document:
+              "@timestamp": "2021-04-28T18:51:03.142Z"
+              metricset: pod
+              k8s:
+                pod:
+                  name: dog
+                  uid: df3145b3-0563-4d3b-a0f7-897eb2876ea9
+                  ip: 10.10.55.3
+                  network:
+                    tx: 111434595272
+                    rx: 430605511
+
+  - match: { result: [false] }

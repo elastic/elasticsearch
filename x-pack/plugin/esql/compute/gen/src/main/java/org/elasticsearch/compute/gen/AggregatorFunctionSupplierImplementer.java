@@ -29,7 +29,7 @@ import javax.lang.model.element.TypeElement;
 import javax.lang.model.util.Elements;
 
 import static org.elasticsearch.compute.gen.Types.AGGREGATOR_FUNCTION_SUPPLIER;
-import static org.elasticsearch.compute.gen.Types.BIG_ARRAYS;
+import static org.elasticsearch.compute.gen.Types.DRIVER_CONTEXT;
 import static org.elasticsearch.compute.gen.Types.LIST_INTEGER;
 
 /**
@@ -54,26 +54,14 @@ public class AggregatorFunctionSupplierImplementer {
         this.groupingAggregatorImplementer = groupingAggregatorImplementer;
 
         Set<Parameter> createParameters = new LinkedHashSet<>();
-        createParameters.addAll(aggregatorImplementer.createParameters());
-        createParameters.addAll(groupingAggregatorImplementer.createParameters());
-        List<Parameter> sortedParameters = new ArrayList<>(createParameters);
-        for (Parameter p : sortedParameters) {
-            if (p.type().equals(BIG_ARRAYS) && false == p.name().equals("bigArrays")) {
-                throw new IllegalArgumentException("BigArrays should always be named bigArrays but was " + p);
-            }
+        if (aggregatorImplementer != null) {
+            createParameters.addAll(aggregatorImplementer.createParameters());
         }
-
-        /*
-         * We like putting BigArrays first and then channels second
-         * regardless of the order that the aggs actually want them.
-         * Just a little bit of standardization here.
-         */
-        Parameter bigArraysParam = new Parameter(BIG_ARRAYS, "bigArrays");
-        sortedParameters.remove(bigArraysParam);
-        sortedParameters.add(0, bigArraysParam);
-        sortedParameters.add(1, new Parameter(LIST_INTEGER, "channels"));
-
-        this.createParameters = sortedParameters;
+        if (groupingAggregatorImplementer != null) {
+            createParameters.addAll(groupingAggregatorImplementer.createParameters());
+        }
+        this.createParameters = new ArrayList<>(createParameters);
+        this.createParameters.add(0, new Parameter(LIST_INTEGER, "channels"));
 
         this.implementation = ClassName.get(
             elements.getPackageOf(declarationType).toString(),
@@ -100,7 +88,11 @@ public class AggregatorFunctionSupplierImplementer {
 
         createParameters.stream().forEach(p -> p.declareField(builder));
         builder.addMethod(ctor());
-        builder.addMethod(aggregator());
+        if (aggregatorImplementer != null) {
+            builder.addMethod(aggregator());
+        } else {
+            builder.addMethod(unsupportedNonGroupingAggregator());
+        }
         builder.addMethod(groupingAggregator());
         builder.addMethod(describe());
         return builder.build();
@@ -112,13 +104,24 @@ public class AggregatorFunctionSupplierImplementer {
         return builder.build();
     }
 
+    private MethodSpec unsupportedNonGroupingAggregator() {
+        MethodSpec.Builder builder = MethodSpec.methodBuilder("aggregator")
+            .addParameter(DRIVER_CONTEXT, "driverContext")
+            .returns(Types.AGGREGATOR_FUNCTION);
+        builder.addAnnotation(Override.class).addModifiers(Modifier.PUBLIC);
+        builder.addStatement("throw new UnsupportedOperationException($S)", "non-grouping aggregator is not supported");
+        return builder.build();
+    }
+
     private MethodSpec aggregator() {
-        MethodSpec.Builder builder = MethodSpec.methodBuilder("aggregator").returns(aggregatorImplementer.implementation());
+        MethodSpec.Builder builder = MethodSpec.methodBuilder("aggregator")
+            .addParameter(DRIVER_CONTEXT, "driverContext")
+            .returns(aggregatorImplementer.implementation());
         builder.addAnnotation(Override.class).addModifiers(Modifier.PUBLIC);
         builder.addStatement(
             "return $T.create($L)",
             aggregatorImplementer.implementation(),
-            Stream.concat(Stream.of("channels"), aggregatorImplementer.createParameters().stream().map(Parameter::name))
+            Stream.concat(Stream.of("driverContext, channels"), aggregatorImplementer.createParameters().stream().map(Parameter::name))
                 .collect(Collectors.joining(", "))
         );
 
@@ -126,13 +129,17 @@ public class AggregatorFunctionSupplierImplementer {
     }
 
     private MethodSpec groupingAggregator() {
-        MethodSpec.Builder builder = MethodSpec.methodBuilder("groupingAggregator").returns(groupingAggregatorImplementer.implementation());
+        MethodSpec.Builder builder = MethodSpec.methodBuilder("groupingAggregator")
+            .addParameter(DRIVER_CONTEXT, "driverContext")
+            .returns(groupingAggregatorImplementer.implementation());
         builder.addAnnotation(Override.class).addModifiers(Modifier.PUBLIC);
         builder.addStatement(
             "return $T.create($L)",
             groupingAggregatorImplementer.implementation(),
-            Stream.concat(Stream.of("channels"), groupingAggregatorImplementer.createParameters().stream().map(Parameter::name))
-                .collect(Collectors.joining(", "))
+            Stream.concat(
+                Stream.of("channels, driverContext"),
+                groupingAggregatorImplementer.createParameters().stream().map(Parameter::name)
+            ).collect(Collectors.joining(", "))
         );
         return builder.build();
     }

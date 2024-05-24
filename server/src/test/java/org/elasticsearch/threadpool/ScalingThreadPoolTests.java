@@ -17,6 +17,7 @@ import org.elasticsearch.common.util.concurrent.EsRejectedExecutionHandler;
 import org.elasticsearch.common.util.concurrent.EsThreadPoolExecutor;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.CheckedRunnable;
+import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.hamcrest.Matcher;
 
 import java.util.HashMap;
@@ -338,7 +339,7 @@ public class ScalingThreadPoolTests extends ESThreadPoolTestCase {
                 if (t == 0) {
                     threads[t] = new Thread(() -> {
                         try {
-                            barrier.await();
+                            safeAwait(barrier);
                             scalingExecutor.shutdown();
                         } catch (Exception e) {
                             throw new AssertionError(e);
@@ -347,7 +348,7 @@ public class ScalingThreadPoolTests extends ESThreadPoolTestCase {
                 } else {
                     threads[t] = new Thread(() -> {
                         try {
-                            barrier.await();
+                            safeAwait(barrier);
                             execute(scalingExecutor, () -> {}, executed, rejected, failed);
                         } catch (Exception e) {
                             throw new AssertionError(e);
@@ -424,7 +425,7 @@ public class ScalingThreadPoolTests extends ESThreadPoolTestCase {
         try {
             final String test = Thread.currentThread().getStackTrace()[2].getMethodName();
             final Settings nodeSettings = Settings.builder().put(settings).put("node.name", test).build();
-            threadPool = new ThreadPool(nodeSettings);
+            threadPool = new ThreadPool(nodeSettings, MeterRegistry.NOOP);
             final ClusterSettings clusterSettings = new ClusterSettings(nodeSettings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
             consumer.accept(clusterSettings, threadPool);
         } finally {

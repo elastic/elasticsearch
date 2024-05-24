@@ -18,12 +18,14 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.CheckedBiFunction;
 import org.elasticsearch.common.Numbers;
 import org.elasticsearch.common.blobstore.BlobContainer;
+import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressorFactory;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.lucene.store.IndexOutputOutputStream;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParserUtils;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.gateway.CorruptStateException;
@@ -32,6 +34,7 @@ import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.FilterInputStream;
@@ -117,7 +120,7 @@ public final class ChecksumBlobStoreFormat<T> {
     public T read(String repoName, BlobContainer blobContainer, String name, NamedXContentRegistry namedXContentRegistry)
         throws IOException {
         String blobName = blobName(name);
-        try (InputStream in = blobContainer.readBlob(blobName)) {
+        try (InputStream in = blobContainer.readBlob(OperationPurpose.SNAPSHOT_METADATA, blobName)) {
             return deserialize(repoName, namedXContentRegistry, in);
         }
     }
@@ -143,15 +146,23 @@ public final class ChecksumBlobStoreFormat<T> {
                 BytesReference bytesReference = Streams.readFully(wrappedStream);
                 deserializeMetaBlobInputStream.verifyFooter();
                 try (
-                    XContentParser parser = XContentType.SMILE.xContent()
-                        .createParser(namedXContentRegistry, LoggingDeprecationHandler.INSTANCE, bytesReference.streamInput())
+                    XContentParser parser = XContentHelper.createParserNotCompressed(
+                        XContentParserConfiguration.EMPTY.withRegistry(namedXContentRegistry)
+                            .withDeprecationHandler(LoggingDeprecationHandler.INSTANCE),
+                        bytesReference,
+                        XContentType.SMILE
+                    )
                 ) {
                     result = reader.apply(repoName, parser);
                     XContentParserUtils.ensureExpectedToken(null, parser.nextToken(), parser);
                 } catch (Exception e) {
                     try (
-                        XContentParser parser = XContentType.SMILE.xContent()
-                            .createParser(namedXContentRegistry, LoggingDeprecationHandler.INSTANCE, bytesReference.streamInput())
+                        XContentParser parser = XContentHelper.createParserNotCompressed(
+                            XContentParserConfiguration.EMPTY.withRegistry(namedXContentRegistry)
+                                .withDeprecationHandler(LoggingDeprecationHandler.INSTANCE),
+                            bytesReference,
+                            XContentType.SMILE
+                        )
                     ) {
                         result = fallbackReader.apply(repoName, parser);
                         XContentParserUtils.ensureExpectedToken(null, parser.nextToken(), parser);
@@ -343,7 +354,13 @@ public final class ChecksumBlobStoreFormat<T> {
     public void write(T obj, BlobContainer blobContainer, String name, boolean compress, Map<String, String> serializationParams)
         throws IOException {
         final String blobName = blobName(name);
-        blobContainer.writeMetadataBlob(blobName, false, false, out -> serialize(obj, blobName, compress, serializationParams, out));
+        blobContainer.writeMetadataBlob(
+            OperationPurpose.SNAPSHOT_METADATA,
+            blobName,
+            false,
+            false,
+            out -> serialize(obj, blobName, compress, serializationParams, out)
+        );
     }
 
     public void serialize(final T obj, final String blobName, final boolean compress, final OutputStream outputStream) throws IOException {

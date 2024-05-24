@@ -29,7 +29,7 @@ public abstract class TestBlockBuilder implements Block.Builder {
     public abstract TestBlockBuilder endPositionEntry();
 
     public static Block blockFromValues(List<List<Object>> blockValues, ElementType elementType) {
-        TestBlockBuilder builder = builderOf(elementType);
+        TestBlockBuilder builder = builderOf(TestBlockFactory.getNonBreakingInstance(), elementType);
         for (List<Object> rowValues : blockValues) {
             if (rowValues.isEmpty()) {
                 builder.appendNull();
@@ -47,7 +47,7 @@ public abstract class TestBlockBuilder implements Block.Builder {
     // Builds a block of single values. Each value can be null or non-null.
     // Differs from blockFromValues, as it does not use begin/endPositionEntry
     public static Block blockFromSingleValues(List<Object> blockValues, ElementType elementType) {
-        TestBlockBuilder builder = builderOf(elementType);
+        TestBlockBuilder builder = builderOf(TestBlockFactory.getNonBreakingInstance(), elementType);
         for (Object rowValue : blockValues) {
             if (rowValue == null) {
                 builder.appendNull();
@@ -58,39 +58,23 @@ public abstract class TestBlockBuilder implements Block.Builder {
         return builder.build();
     }
 
-    static TestBlockBuilder builderOf(ElementType type) {
+    static TestBlockBuilder builderOf(BlockFactory blockFactory, ElementType type) {
         return switch (type) {
-            case INT -> new TestIntBlockBuilder(0);
-            case LONG -> new TestLongBlockBuilder(0);
-            case DOUBLE -> new TestDoubleBlockBuilder(0);
-            case BYTES_REF -> new TestBytesRefBlockBuilder(0);
-            case BOOLEAN -> new TestBooleanBlockBuilder(0);
+            case INT -> new TestIntBlockBuilder(blockFactory, 0);
+            case LONG -> new TestLongBlockBuilder(blockFactory, 0);
+            case DOUBLE -> new TestDoubleBlockBuilder(blockFactory, 0);
+            case BYTES_REF -> new TestBytesRefBlockBuilder(blockFactory, 0);
+            case BOOLEAN -> new TestBooleanBlockBuilder(blockFactory, 0);
             default -> throw new AssertionError(type);
         };
-    }
-
-    static TestBlockBuilder ofInt(int estimatedSize) {
-        return new TestIntBlockBuilder(estimatedSize);
-    }
-
-    static TestBlockBuilder ofLong(int estimatedSize) {
-        return new TestLongBlockBuilder(estimatedSize);
-    }
-
-    static TestBlockBuilder ofDouble(int estimatedSize) {
-        return new TestDoubleBlockBuilder(estimatedSize);
-    }
-
-    static TestBlockBuilder ofBytesRef(int estimatedSize) {
-        return new TestBytesRefBlockBuilder(estimatedSize);
     }
 
     private static class TestIntBlockBuilder extends TestBlockBuilder {
 
         private final IntBlock.Builder builder;
 
-        TestIntBlockBuilder(int estimatedSize) {
-            builder = IntBlock.newBlockBuilder(estimatedSize);
+        TestIntBlockBuilder(BlockFactory blockFactory, int estimatedSize) {
+            builder = blockFactory.newIntBlockBuilder(estimatedSize);
         }
 
         @Override
@@ -130,14 +114,18 @@ public abstract class TestBlockBuilder implements Block.Builder {
         }
 
         @Override
-        public Block.Builder appendAllValuesToCurrentPosition(Block block) {
-            builder.appendAllValuesToCurrentPosition(block);
-            return this;
+        public long estimatedBytes() {
+            return builder.estimatedBytes();
         }
 
         @Override
         public IntBlock build() {
             return builder.build();
+        }
+
+        @Override
+        public void close() {
+            builder.close();
         }
     }
 
@@ -145,8 +133,8 @@ public abstract class TestBlockBuilder implements Block.Builder {
 
         private final LongBlock.Builder builder;
 
-        TestLongBlockBuilder(int estimatedSize) {
-            builder = LongBlock.newBlockBuilder(estimatedSize);
+        TestLongBlockBuilder(BlockFactory blockFactory, int estimatedSize) {
+            builder = blockFactory.newLongBlockBuilder(estimatedSize);
         }
 
         @Override
@@ -186,14 +174,18 @@ public abstract class TestBlockBuilder implements Block.Builder {
         }
 
         @Override
-        public Block.Builder appendAllValuesToCurrentPosition(Block block) {
-            builder.appendAllValuesToCurrentPosition(block);
-            return this;
+        public long estimatedBytes() {
+            return builder.estimatedBytes();
         }
 
         @Override
         public LongBlock build() {
             return builder.build();
+        }
+
+        @Override
+        public void close() {
+            builder.close();
         }
     }
 
@@ -201,8 +193,8 @@ public abstract class TestBlockBuilder implements Block.Builder {
 
         private final DoubleBlock.Builder builder;
 
-        TestDoubleBlockBuilder(int estimatedSize) {
-            builder = DoubleBlock.newBlockBuilder(estimatedSize);
+        TestDoubleBlockBuilder(BlockFactory blockFactory, int estimatedSize) {
+            builder = blockFactory.newDoubleBlockBuilder(estimatedSize);
         }
 
         @Override
@@ -242,14 +234,18 @@ public abstract class TestBlockBuilder implements Block.Builder {
         }
 
         @Override
-        public Block.Builder appendAllValuesToCurrentPosition(Block block) {
-            builder.appendAllValuesToCurrentPosition(block);
-            return this;
+        public long estimatedBytes() {
+            return builder.estimatedBytes();
         }
 
         @Override
         public DoubleBlock build() {
             return builder.build();
+        }
+
+        @Override
+        public void close() {
+            builder.close();
         }
     }
 
@@ -257,8 +253,8 @@ public abstract class TestBlockBuilder implements Block.Builder {
 
         private final BytesRefBlock.Builder builder;
 
-        TestBytesRefBlockBuilder(int estimatedSize) {
-            builder = BytesRefBlock.newBlockBuilder(estimatedSize);
+        TestBytesRefBlockBuilder(BlockFactory blockFactory, int estimatedSize) {
+            builder = blockFactory.newBytesRefBlockBuilder(estimatedSize);
         }
 
         @Override
@@ -298,14 +294,18 @@ public abstract class TestBlockBuilder implements Block.Builder {
         }
 
         @Override
-        public Block.Builder appendAllValuesToCurrentPosition(Block block) {
-            builder.appendAllValuesToCurrentPosition(block);
-            return this;
+        public long estimatedBytes() {
+            return builder.estimatedBytes();
         }
 
         @Override
         public BytesRefBlock build() {
             return builder.build();
+        }
+
+        @Override
+        public void close() {
+            builder.close();
         }
     }
 
@@ -313,8 +313,8 @@ public abstract class TestBlockBuilder implements Block.Builder {
 
         private final BooleanBlock.Builder builder;
 
-        TestBooleanBlockBuilder(int estimatedSize) {
-            builder = BooleanBlock.newBlockBuilder(estimatedSize);
+        TestBooleanBlockBuilder(BlockFactory blockFactory, int estimatedSize) {
+            builder = blockFactory.newBooleanBlockBuilder(estimatedSize);
         }
 
         @Override
@@ -357,14 +357,18 @@ public abstract class TestBlockBuilder implements Block.Builder {
         }
 
         @Override
-        public Block.Builder appendAllValuesToCurrentPosition(Block block) {
-            builder.appendAllValuesToCurrentPosition(block);
-            return this;
+        public long estimatedBytes() {
+            return builder.estimatedBytes();
         }
 
         @Override
         public BooleanBlock build() {
             return builder.build();
+        }
+
+        @Override
+        public void close() {
+            builder.close();
         }
     }
 }

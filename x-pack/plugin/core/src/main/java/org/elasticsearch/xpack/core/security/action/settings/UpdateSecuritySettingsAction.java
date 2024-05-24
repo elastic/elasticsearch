@@ -45,7 +45,7 @@ public class UpdateSecuritySettingsAction extends ActionType<AcknowledgedRespons
     );
 
     public UpdateSecuritySettingsAction() {
-        super(NAME, AcknowledgedResponse::readFrom);
+        super(NAME);
     }
 
     public static class Request extends AcknowledgedRequest<Request> {
@@ -72,15 +72,17 @@ public class UpdateSecuritySettingsAction extends ActionType<AcknowledgedRespons
             Map<String, Object> tokensIndexSettings,
             Map<String, Object> profilesIndexSettings
         ) {
+            super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT, DEFAULT_ACK_TIMEOUT);
             this.mainIndexSettings = Objects.requireNonNullElse(mainIndexSettings, Collections.emptyMap());
             this.tokensIndexSettings = Objects.requireNonNullElse(tokensIndexSettings, Collections.emptyMap());
             this.profilesIndexSettings = Objects.requireNonNullElse(profilesIndexSettings, Collections.emptyMap());
         }
 
         public Request(StreamInput in) throws IOException {
-            this.mainIndexSettings = in.readMap();
-            this.tokensIndexSettings = in.readMap();
-            this.profilesIndexSettings = in.readMap();
+            super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT, DEFAULT_ACK_TIMEOUT);
+            this.mainIndexSettings = in.readGenericMap();
+            this.tokensIndexSettings = in.readGenericMap();
+            this.profilesIndexSettings = in.readGenericMap();
         }
 
         @Override

@@ -77,7 +77,6 @@ public class HDRPercentilesAggregatorTests extends AggregatorTestCase {
     /**
      * Attempting to use HDRPercentileAggregation on a range field throws IllegalArgumentException
      */
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/42949")
     public void testRangeField() throws IOException {
         // Currently fails (throws ClassCast exception), but should be fixed once HDRPercentileAggregation uses the ValuesSource registry
         final String fieldName = "range";

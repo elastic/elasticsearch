@@ -11,22 +11,25 @@ $if(BytesRef)$
 import org.apache.lucene.util.BytesRef;
 $endif$
 import org.apache.lucene.util.RamUsageEstimator;
+import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.core.ReleasableIterator;
 
 /**
  * Vector implementation that stores a constant $type$ value.
  * This class is generated. Do not edit it.
  */
-public final class Constant$Type$Vector extends AbstractVector implements $Type$Vector {
+final class Constant$Type$Vector extends AbstractVector implements $Type$Vector {
 
-    private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(Constant$Type$Vector.class);
+$if(BytesRef)$
+    static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(ConstantBytesRefVector.class) + RamUsageEstimator
+        .shallowSizeOfInstance(BytesRef.class);
+$else$
+    static final long RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(Constant$Type$Vector.class);
+$endif$
 
     private final $type$ value;
 
-    public Constant$Type$Vector($type$ value, int positionCount) {
-        this(value, positionCount, BlockFactory.getNonBreakingInstance());
-    }
-
-    public Constant$Type$Vector($type$ value, int positionCount, BlockFactory blockFactory) {
+    Constant$Type$Vector($type$ value, int positionCount, BlockFactory blockFactory) {
         super(positionCount, blockFactory);
         this.value = value;
     }
@@ -45,10 +48,57 @@ $endif$
         return new $Type$VectorBlock(this);
     }
 
+$if(BytesRef)$
+    @Override
+    public OrdinalBytesRefVector asOrdinals() {
+        return null;
+    }
+$endif$
+
     @Override
     public $Type$Vector filter(int... positions) {
-        return new Constant$Type$Vector(value, positions.length);
+        return blockFactory().newConstant$Type$Vector(value, positions.length);
     }
+
+    @Override
+    public ReleasableIterator<$Type$Block> lookup(IntBlock positions, ByteSizeValue targetBlockSize) {
+        if (positions.getPositionCount() == 0) {
+            return ReleasableIterator.empty();
+        }
+        IntVector positionsVector = positions.asVector();
+        if (positionsVector == null) {
+            return new $Type$Lookup(asBlock(), positions, targetBlockSize);
+        }
+        int min = positionsVector.min();
+        if (min < 0) {
+            throw new IllegalArgumentException("invalid position [" + min + "]");
+        }
+        if (min > getPositionCount()) {
+            return ReleasableIterator.single(($Type$Block) positions.blockFactory().newConstantNullBlock(positions.getPositionCount()));
+        }
+        if (positionsVector.max() < getPositionCount()) {
+            return ReleasableIterator.single(positions.blockFactory().newConstant$Type$BlockWith(value, positions.getPositionCount()));
+        }
+        return new $Type$Lookup(asBlock(), positions, targetBlockSize);
+    }
+
+$if(int)$
+    /**
+     * The minimum value in the block.
+     */
+    @Override
+    public int min() {
+        return value;
+    }
+
+    /**
+     * The maximum value in the block.
+     */
+    @Override
+    public int max() {
+        return value;
+    }
+$endif$
 
     @Override
     public ElementType elementType() {
@@ -60,11 +110,23 @@ $endif$
         return true;
     }
 
-    @Override
-    public long ramBytesUsed() {
-        return BASE_RAM_BYTES_USED + RamUsageEstimator.shallowSizeOfInstance($type$.class);
+$if(BytesRef)$
+    public static long ramBytesUsed(BytesRef value) {
+        return BASE_RAM_BYTES_USED + RamUsageEstimator.sizeOf(value.bytes);
     }
 
+    @Override
+    public long ramBytesUsed() {
+        return ramBytesUsed(value);
+    }
+
+$else$
+    @Override
+    public long ramBytesUsed() {
+        return RAM_BYTES_USED;
+    }
+
+$endif$
     @Override
     public boolean equals(Object obj) {
         if (obj instanceof $Type$Vector that) {
@@ -80,10 +142,5 @@ $endif$
 
     public String toString() {
         return getClass().getSimpleName() + "[positions=" + getPositionCount() + ", value=" + value + ']';
-    }
-
-    @Override
-    public void close() {
-        blockFactory.adjustBreaker(-ramBytesUsed(), true);
     }
 }

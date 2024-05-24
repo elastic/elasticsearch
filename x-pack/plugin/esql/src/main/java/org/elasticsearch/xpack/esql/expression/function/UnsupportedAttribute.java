@@ -7,15 +7,15 @@
 
 package org.elasticsearch.xpack.esql.expression.function;
 
-import org.elasticsearch.xpack.ql.capabilities.Unresolvable;
-import org.elasticsearch.xpack.ql.expression.Attribute;
-import org.elasticsearch.xpack.ql.expression.FieldAttribute;
-import org.elasticsearch.xpack.ql.expression.NameId;
-import org.elasticsearch.xpack.ql.expression.Nullability;
-import org.elasticsearch.xpack.ql.tree.NodeInfo;
-import org.elasticsearch.xpack.ql.tree.Source;
-import org.elasticsearch.xpack.ql.type.DataType;
-import org.elasticsearch.xpack.ql.type.UnsupportedEsField;
+import org.elasticsearch.xpack.esql.core.capabilities.Unresolvable;
+import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
+import org.elasticsearch.xpack.esql.core.expression.NameId;
+import org.elasticsearch.xpack.esql.core.expression.Nullability;
+import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
+import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.type.UnsupportedEsField;
 
 import java.util.Objects;
 
@@ -25,7 +25,7 @@ import java.util.Objects;
  * the engine).
  * As such the field is marked as unresolved (so the verifier can pick up its usage outside project).
  */
-public class UnsupportedAttribute extends FieldAttribute implements Unresolvable {
+public final class UnsupportedAttribute extends FieldAttribute implements Unresolvable {
 
     private final String message;
     private final boolean hasCustomMessage;
@@ -42,7 +42,6 @@ public class UnsupportedAttribute extends FieldAttribute implements Unresolvable
         this(source, name, field, customMessage, null);
     }
 
-    @SuppressWarnings("this-escape")
     public UnsupportedAttribute(Source source, String name, UnsupportedEsField field, String customMessage, NameId id) {
         super(source, null, name, field, null, Nullability.TRUE, id, false);
         this.hasCustomMessage = customMessage != null;

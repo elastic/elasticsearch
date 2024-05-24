@@ -13,6 +13,7 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
+import org.elasticsearch.cluster.metadata.ReservedStateMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
@@ -21,7 +22,7 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.env.Environment;
-import org.elasticsearch.reservedstate.service.FileChangedListener;
+import org.elasticsearch.reservedstate.service.FileSettingsService;
 import org.elasticsearch.shutdown.PluginShutdownService;
 import org.elasticsearch.transport.BindTransportException;
 
@@ -37,8 +38,9 @@ import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Function;
 
-public class ReadinessService extends AbstractLifecycleComponent implements ClusterStateListener, FileChangedListener {
+public class ReadinessService extends AbstractLifecycleComponent implements ClusterStateListener {
     private static final Logger logger = LogManager.getLogger(ReadinessService.class);
 
     private final Environment environment;
@@ -50,9 +52,6 @@ public class ReadinessService extends AbstractLifecycleComponent implements Clus
     volatile CountDownLatch listenerThreadLatch = new CountDownLatch(0);
     final AtomicReference<InetSocketAddress> boundSocket = new AtomicReference<>();
     private final Collection<BoundAddressListener> boundAddressListeners = new CopyOnWriteArrayList<>();
-    private volatile boolean fileSettingsApplied = false;
-    private volatile boolean masterElected = false;
-    private volatile boolean shuttingDown = false;
 
     public static final Setting<Integer> PORT = Setting.intSetting("readiness.port", -1, Setting.Property.NodeScope);
 
@@ -237,20 +236,48 @@ public class ReadinessService extends AbstractLifecycleComponent implements Clus
     public void clusterChanged(ClusterChangedEvent event) {
         ClusterState clusterState = event.state();
         Set<String> shutdownNodeIds = PluginShutdownService.shutdownNodes(clusterState);
-
-        this.masterElected = clusterState.nodes().getMasterNodeId() != null;
-        this.shuttingDown = shutdownNodeIds.contains(clusterState.nodes().getLocalNodeId());
+        boolean shuttingDown = shutdownNodeIds.contains(clusterState.nodes().getLocalNodeId());
 
         if (shuttingDown) {
-            setReady(false);
-            logger.info("marking node as not ready because it's shutting down");
-        } else {
-            if (clusterState.nodes().getLocalNodeId().equals(clusterState.nodes().getMasterNodeId())) {
-                setReady(fileSettingsApplied);
-            } else {
-                setReady(masterElected);
+            // only disable the probe and log if the probe is running
+            if (ready()) {
+                setReady(false);
+                logger.info("marking node as not ready because it's shutting down");
             }
+        } else {
+            boolean masterElected = getReadinessState(clusterState, event.previousState(), this::isMasterElected, "masterElected");
+            boolean fileSettingsApplied = getReadinessState(
+                clusterState,
+                event.previousState(),
+                this::areFileSettingsApplied,
+                "fileSettingsApplied"
+            );
+            setReady(masterElected && fileSettingsApplied);
         }
+    }
+
+    private boolean getReadinessState(
+        ClusterState clusterState,
+        ClusterState previousState,
+        Function<ClusterState, Boolean> accessor,
+        String description
+    ) {
+        boolean newStateValue = accessor.apply(clusterState);
+        boolean oldStateValue = accessor.apply(previousState);
+        if (oldStateValue != newStateValue) {
+            logger.info("readiness change: {}={}", description, newStateValue);
+        }
+        return newStateValue;
+    }
+
+    private boolean isMasterElected(ClusterState clusterState) {
+        return clusterState.nodes().getMasterNodeId() != null;
+    }
+
+    // protected to allow mock service to override
+    protected boolean areFileSettingsApplied(ClusterState clusterState) {
+        ReservedStateMetadata fileSettingsMetadata = clusterState.metadata().reservedStateMetadata().get(FileSettingsService.NAMESPACE);
+        return fileSettingsMetadata != null && fileSettingsMetadata.version().equals(ReservedStateMetadata.NO_VERSION) == false;
     }
 
     private void setReady(boolean ready) {
@@ -272,12 +299,6 @@ public class ReadinessService extends AbstractLifecycleComponent implements Clus
             listener.addressBound(b);
         }
         boundAddressListeners.add(listener);
-    }
-
-    @Override
-    public void watchedFileChanged() {
-        fileSettingsApplied = true;
-        setReady(masterElected && (shuttingDown == false));
     }
 
     /**

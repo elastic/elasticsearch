@@ -10,13 +10,14 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.math;
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
+import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.type.DataTypes;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 import org.elasticsearch.xpack.esql.expression.function.scalar.AbstractScalarFunctionTestCase;
-import org.elasticsearch.xpack.ql.expression.Expression;
-import org.elasticsearch.xpack.ql.tree.Source;
-import org.elasticsearch.xpack.ql.type.DataType;
-import org.elasticsearch.xpack.ql.type.DataTypes;
 
+import java.math.BigInteger;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Supplier;
@@ -36,15 +37,15 @@ public class AbsTests extends AbstractScalarFunctionTestCase {
                 equalTo(Math.abs(arg))
             );
         }));
-        suppliers.add(new TestCaseSupplier(List.of(DataTypes.UNSIGNED_LONG), () -> {
-            long arg = randomLong();
-            return new TestCaseSupplier.TestCase(
-                List.of(new TestCaseSupplier.TypedData(arg, DataTypes.UNSIGNED_LONG, "arg")),
-                "Attribute[channel=0]",
-                DataTypes.UNSIGNED_LONG,
-                equalTo(arg)
-            );
-        }));
+        TestCaseSupplier.forUnaryUnsignedLong(
+            suppliers,
+            "Attribute[channel=0]",
+            DataTypes.UNSIGNED_LONG,
+            (n) -> n,
+            BigInteger.ZERO,
+            UNSIGNED_LONG_MAX,
+            List.of()
+        );
         suppliers.add(new TestCaseSupplier(List.of(DataTypes.LONG), () -> {
             long arg = randomLong();
             return new TestCaseSupplier.TestCase(

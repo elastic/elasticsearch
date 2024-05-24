@@ -9,49 +9,61 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.convert;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.ann.ConvertEvaluator;
-import org.elasticsearch.compute.operator.EvalOperator;
-import org.elasticsearch.xpack.ql.expression.Expression;
-import org.elasticsearch.xpack.ql.tree.NodeInfo;
-import org.elasticsearch.xpack.ql.tree.Source;
-import org.elasticsearch.xpack.ql.type.DataType;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
+import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.expression.function.Example;
+import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
+import org.elasticsearch.xpack.esql.expression.function.Param;
 
-import java.math.BigInteger;
 import java.util.List;
 import java.util.Map;
-import java.util.function.BiFunction;
 
-import static org.elasticsearch.xpack.ql.type.DataTypes.BOOLEAN;
-import static org.elasticsearch.xpack.ql.type.DataTypes.DOUBLE;
-import static org.elasticsearch.xpack.ql.type.DataTypes.INTEGER;
-import static org.elasticsearch.xpack.ql.type.DataTypes.KEYWORD;
-import static org.elasticsearch.xpack.ql.type.DataTypes.LONG;
-import static org.elasticsearch.xpack.ql.type.DataTypes.UNSIGNED_LONG;
-import static org.elasticsearch.xpack.ql.util.NumericUtils.unsignedLongAsNumber;
+import static org.elasticsearch.xpack.esql.core.type.DataTypes.BOOLEAN;
+import static org.elasticsearch.xpack.esql.core.type.DataTypes.DOUBLE;
+import static org.elasticsearch.xpack.esql.core.type.DataTypes.INTEGER;
+import static org.elasticsearch.xpack.esql.core.type.DataTypes.KEYWORD;
+import static org.elasticsearch.xpack.esql.core.type.DataTypes.LONG;
+import static org.elasticsearch.xpack.esql.core.type.DataTypes.TEXT;
+import static org.elasticsearch.xpack.esql.core.type.DataTypes.UNSIGNED_LONG;
+import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.stringToBoolean;
+import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.unsignedLongToBoolean;
 
 public class ToBoolean extends AbstractConvertFunction {
 
-    private static final Map<DataType, BiFunction<EvalOperator.ExpressionEvaluator, Source, EvalOperator.ExpressionEvaluator>> EVALUATORS =
-        Map.of(
-            BOOLEAN,
-            (fieldEval, source) -> fieldEval,
-            KEYWORD,
-            ToBooleanFromStringEvaluator::new,
-            DOUBLE,
-            ToBooleanFromDoubleEvaluator::new,
-            LONG,
-            ToBooleanFromLongEvaluator::new,
-            UNSIGNED_LONG,
-            ToBooleanFromUnsignedLongEvaluator::new,
-            INTEGER,
-            ToBooleanFromIntEvaluator::new
-        );
+    private static final Map<DataType, BuildFactory> EVALUATORS = Map.ofEntries(
+        Map.entry(BOOLEAN, (field, source) -> field),
+        Map.entry(KEYWORD, ToBooleanFromStringEvaluator.Factory::new),
+        Map.entry(TEXT, ToBooleanFromStringEvaluator.Factory::new),
+        Map.entry(DOUBLE, ToBooleanFromDoubleEvaluator.Factory::new),
+        Map.entry(LONG, ToBooleanFromLongEvaluator.Factory::new),
+        Map.entry(UNSIGNED_LONG, ToBooleanFromUnsignedLongEvaluator.Factory::new),
+        Map.entry(INTEGER, ToBooleanFromIntEvaluator.Factory::new)
+    );
 
-    public ToBoolean(Source source, Expression field) {
+    @FunctionInfo(
+        returnType = "boolean",
+        description = """
+            Converts an input value to a boolean value.
+            A string value of *true* will be case-insensitive converted to the Boolean *true*.
+            For anything else, including the empty string, the function will return *false*.
+            The numerical value of *0* will be converted to *false*, anything else will be converted to *true*.""",
+        examples = @Example(file = "boolean", tag = "to_boolean")
+    )
+    public ToBoolean(
+        Source source,
+        @Param(
+            name = "field",
+            type = { "boolean", "keyword", "text", "double", "long", "unsigned_long", "integer" },
+            description = "Input value. The input can be a single- or multi-valued column or an expression."
+        ) Expression field
+    ) {
         super(source, field);
     }
 
     @Override
-    protected Map<DataType, BiFunction<EvalOperator.ExpressionEvaluator, Source, EvalOperator.ExpressionEvaluator>> evaluators() {
+    protected Map<DataType, BuildFactory> factories() {
         return EVALUATORS;
     }
 
@@ -72,7 +84,7 @@ public class ToBoolean extends AbstractConvertFunction {
 
     @ConvertEvaluator(extraName = "FromString")
     static boolean fromKeyword(BytesRef keyword) {
-        return Boolean.parseBoolean(keyword.utf8ToString());
+        return stringToBoolean(keyword.utf8ToString());
     }
 
     @ConvertEvaluator(extraName = "FromDouble")
@@ -87,8 +99,7 @@ public class ToBoolean extends AbstractConvertFunction {
 
     @ConvertEvaluator(extraName = "FromUnsignedLong")
     static boolean fromUnsignedLong(long ul) {
-        Number n = unsignedLongAsNumber(ul);
-        return n instanceof BigInteger || n.longValue() != 0;
+        return unsignedLongToBoolean(ul);
     }
 
     @ConvertEvaluator(extraName = "FromInt")

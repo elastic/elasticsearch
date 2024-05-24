@@ -62,7 +62,7 @@ public class RepositoryBlocksIT extends ESIntegTestCase {
         // This test checks that the Get Repository operation is never blocked, even if the cluster is read only.
         try {
             setClusterReadOnly(true);
-            VerifyRepositoryResponse response = clusterAdmin().prepareVerifyRepository("test-repo-blocks").execute().actionGet();
+            VerifyRepositoryResponse response = clusterAdmin().prepareVerifyRepository("test-repo-blocks").get();
             assertThat(response.getNodes().size(), equalTo(cluster().numDataAndMasterNodes()));
         } finally {
             setClusterReadOnly(false);
@@ -100,7 +100,7 @@ public class RepositoryBlocksIT extends ESIntegTestCase {
         // This test checks that the Get Repository operation is never blocked, even if the cluster is read only.
         try {
             setClusterReadOnly(true);
-            GetRepositoriesResponse response = clusterAdmin().prepareGetRepositories("test-repo-blocks").execute().actionGet();
+            GetRepositoriesResponse response = clusterAdmin().prepareGetRepositories("test-repo-blocks").get();
             assertThat(response.repositories(), hasSize(1));
         } finally {
             setClusterReadOnly(false);

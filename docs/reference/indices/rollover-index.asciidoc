@@ -46,7 +46,7 @@ rollover also increments the data stream's generation. See
 
 [TIP]
 ====
-include::{es-repo-dir}/data-streams/set-up-a-data-stream.asciidoc[tag=time-series-alias-tip]
+include::{es-ref-dir}/data-streams/set-up-a-data-stream.asciidoc[tag=time-series-alias-tip]
 See <<convert-index-alias-to-data-stream>>.
 ====
 
@@ -104,7 +104,7 @@ streams do not support this parameter.
 If the name of the alias's current write index does not end with `-` and a
 number, such as `my-index-000001` or `my-index-3`, this parameter is required.
 +
-include::{es-repo-dir}/indices/create-index.asciidoc[tag=index-name-reqs]
+include::{es-ref-dir}/indices/create-index.asciidoc[tag=index-name-reqs]
 
 [[rollover-index-api-query-params]]
 ==== {api-query-parms-title}
@@ -114,9 +114,14 @@ include::{es-repo-dir}/indices/create-index.asciidoc[tag=index-name-reqs]
 If `true`, checks whether the current index satisfies the specified
 `conditions` but does not perform a rollover. Defaults to `false`.
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=wait_for_active_shards]
+`lazy`::
+(Optional, Boolean)
+If `true`, signals that the data stream will be rolled over when the next
+indexing operation occurs. Applies only to data streams. Defaults to `false`.
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=wait_for_active_shards]
+
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
 
 [role="child_attributes"]
 [[rollover-index-api-request-body]]
@@ -126,7 +131,7 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
 (Optional, object of objects) Aliases for the target index. Data streams do not
 support this parameter.
 +
-include::{es-repo-dir}/indices/create-index.asciidoc[tag=aliases-props]
+include::{es-ref-dir}/indices/create-index.asciidoc[tag=aliases-props]
 
 [[rollover-conditions]]
 `conditions`::
@@ -147,14 +152,14 @@ instead.
 .Properties of `conditions`
 [%collapsible%open]
 ====
-include::{es-repo-dir}/ilm/actions/ilm-rollover.asciidoc[tag=rollover-conditions]
+include::{es-ref-dir}/ilm/actions/ilm-rollover.asciidoc[tag=rollover-conditions]
 ====
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=mappings]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=mappings]
 +
 Data streams do not support this parameter.
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=settings]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=settings]
 +
 Data streams do not support this parameter.
 
@@ -204,6 +209,11 @@ conditions were specified, this is an empty object.
 index met the condition.
 ====
 
+`lazy`::
+(Boolean)
+If `true`, {es} did not perform the rollover, but successfully marked the data stream to be rolled
+over at the next indexing event.
+
 [[rollover-index-api-example]]
 ==== {api-examples-title}
 
@@ -217,6 +227,17 @@ The following request rolls over a data stream unconditionally.
 POST my-data-stream/_rollover
 ----
 // TEST[setup:my_data_stream]
+
+The following request rolls over a data stream lazily, meaning that the data stream
+will roll over at the next indexing event. This ensures that mapping and setting changes
+will be applied to the coming data, but it will avoid creating extra backing indices for
+data streams with slow ingestion.
+
+[source,console]
+----
+POST my-data-stream/_rollover?lazy
+----
+// TEST[continued]
 
 :target: data stream
 :index: write index
@@ -257,6 +278,7 @@ The API returns:
   "new_index": ".ds-my-data-stream-2099.05.07-000002",
   "rolled_over": true,
   "dry_run": false,
+  "lazy": false,
   "conditions": {
     "[max_age: 7d]": false,
     "[max_docs: 1000]": true,
@@ -328,6 +350,7 @@ The API returns:
   "new_index": "my-index-2099.05.07-000002",
   "rolled_over": true,
   "dry_run": false,
+  "lazy": false,
   "conditions": {
     "[max_age: 7d]": false,
     "[max_docs: 1000]": true,
@@ -399,6 +422,7 @@ The API returns:
   "new_index": "my-index-2099.05.07-000002",
   "rolled_over": true,
   "dry_run": false,
+  "lazy": false,
   "conditions": {
     "[max_age: 7d]": false,
     "[max_docs: 1000]": true,

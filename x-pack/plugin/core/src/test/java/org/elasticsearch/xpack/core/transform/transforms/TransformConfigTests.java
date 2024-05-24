@@ -7,14 +7,13 @@
 
 package org.elasticsearch.xpack.core.transform.transforms;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
-import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
@@ -123,6 +122,20 @@ public class TransformConfigTests extends AbstractSerializingTransformTestCase<T
         return randomTransformConfig(id, version, pivotConfig, latestConfig);
     }
 
+    public static TransformConfig randomTransformConfig(String id, TimeValue frequency, TransformConfigVersion version) {
+        PivotConfig pivotConfig;
+        LatestConfig latestConfig;
+        if (randomBoolean()) {
+            pivotConfig = PivotConfigTests.randomPivotConfig();
+            latestConfig = null;
+        } else {
+            pivotConfig = null;
+            latestConfig = LatestConfigTests.randomLatestConfig();
+        }
+
+        return randomTransformConfig(id, frequency, version, pivotConfig, latestConfig);
+    }
+
     public static TransformConfig randomTransformConfigWithSettings(SettingsConfig settingsConfig) {
         PivotConfig pivotConfig;
         LatestConfig latestConfig;
@@ -158,11 +171,27 @@ public class TransformConfigTests extends AbstractSerializingTransformTestCase<T
         PivotConfig pivotConfig,
         LatestConfig latestConfig
     ) {
+        return randomTransformConfig(
+            id,
+            randomBoolean() ? null : TimeValue.timeValueMillis(randomIntBetween(1_000, 3_600_000)),
+            version,
+            pivotConfig,
+            latestConfig
+        );
+    }
+
+    public static TransformConfig randomTransformConfig(
+        String id,
+        TimeValue frequency,
+        TransformConfigVersion version,
+        PivotConfig pivotConfig,
+        LatestConfig latestConfig
+    ) {
         return new TransformConfig(
             id,
             randomSourceConfig(),
             randomDestConfig(),
-            randomBoolean() ? null : TimeValue.timeValueMillis(randomIntBetween(1_000, 3_600_000)),
+            frequency,
             randomBoolean() ? null : randomSyncConfig(),
             randomHeaders(),
             pivotConfig,
@@ -281,10 +310,7 @@ public class TransformConfigTests extends AbstractSerializingTransformTestCase<T
     }
 
     private static Map<String, String> randomHeaders() {
-        Map<String, String> headers = Maps.newMapWithExpectedSize(1);
-        headers.put("key", "value");
-
-        return headers;
+        return Map.of("key", "value");
     }
 
     public void testDefaultMatchAll() throws IOException {
@@ -603,7 +629,7 @@ public class TransformConfigTests extends AbstractSerializingTransformTestCase<T
                 "max_page_search_size": 111
               },
               "version": "%s"
-            }""", Version.V_7_6_0.toString());
+            }""", TransformConfigVersion.V_7_6_0.toString());
 
         TransformConfig transformConfig = createTransformConfigFromString(pivotTransform, "body_id", true);
         TransformConfig transformConfigRewritten = TransformConfig.rewriteForUpdate(transformConfig);
@@ -645,7 +671,7 @@ public class TransformConfigTests extends AbstractSerializingTransformTestCase<T
                 }
               },
               "version": "%s"
-            }""", Version.V_7_12_0.toString());
+            }""", TransformConfigVersion.V_7_12_0.toString());
 
         TransformConfig transformConfig = createTransformConfigFromString(pivotTransform, "body_id", true);
         TransformConfig transformConfigRewritten = TransformConfig.rewriteForUpdate(transformConfig);
@@ -693,7 +719,7 @@ public class TransformConfigTests extends AbstractSerializingTransformTestCase<T
                 "max_page_search_size": 555
               },
               "version": "%s"
-            }""", Version.V_7_5_0.toString());
+            }""", TransformConfigVersion.V_7_5_0.toString());
 
         TransformConfig transformConfig = createTransformConfigFromString(pivotTransform, "body_id", true);
         TransformConfig transformConfigRewritten = TransformConfig.rewriteForUpdate(transformConfig);
@@ -828,7 +854,7 @@ public class TransformConfigTests extends AbstractSerializingTransformTestCase<T
         assertThat(additiionalValidations.get(0), is(instanceOf(RemoteClusterMinimumVersionValidation.class)));
         RemoteClusterMinimumVersionValidation remoteClusterMinimumVersionValidation =
             (RemoteClusterMinimumVersionValidation) additiionalValidations.get(0);
-        assertThat(remoteClusterMinimumVersionValidation.getMinExpectedVersion(), is(equalTo(Version.V_7_12_0)));
+        assertThat(remoteClusterMinimumVersionValidation.getMinExpectedTransportVersion(), is(equalTo(TransportVersions.V_7_12_0)));
         assertThat(remoteClusterMinimumVersionValidation.getReason(), is(equalTo("source.runtime_mappings field was set")));
     }
 

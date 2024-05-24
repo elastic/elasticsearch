@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.core.spatial.action;
 
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.FailedNodeException;
+import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.action.support.nodes.BaseNodeResponse;
 import org.elasticsearch.action.support.nodes.BaseNodesRequest;
 import org.elasticsearch.action.support.nodes.BaseNodesResponse;
@@ -32,7 +33,7 @@ public class SpatialStatsAction extends ActionType<SpatialStatsAction.Response> 
     public static final String NAME = "cluster:monitor/xpack/spatial/stats";
 
     private SpatialStatsAction() {
-        super(NAME, Response::new);
+        super(NAME);
     }
 
     /**
@@ -49,10 +50,6 @@ public class SpatialStatsAction extends ActionType<SpatialStatsAction.Response> 
 
         public Request() {
             super((String[]) null);
-        }
-
-        public Request(StreamInput in) throws IOException {
-            super(in);
         }
 
         @Override
@@ -78,6 +75,11 @@ public class SpatialStatsAction extends ActionType<SpatialStatsAction.Response> 
             }
             return true;
         }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            TransportAction.localOnly();
+        }
     }
 
     public static class NodeRequest extends TransportRequest {
@@ -85,9 +87,7 @@ public class SpatialStatsAction extends ActionType<SpatialStatsAction.Response> 
             super(in);
         }
 
-        public NodeRequest(Request request) {
-
-        }
+        public NodeRequest() {}
     }
 
     public static class Response extends BaseNodesResponse<NodeResponse> implements Writeable, ToXContentObject {

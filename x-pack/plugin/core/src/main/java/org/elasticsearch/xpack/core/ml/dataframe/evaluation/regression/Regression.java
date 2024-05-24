@@ -30,7 +30,7 @@ import static org.elasticsearch.xpack.core.ml.dataframe.evaluation.MlEvaluationN
 /**
  * Evaluation of regression results.
  */
-public class Regression implements Evaluation {
+public final class Regression implements Evaluation {
 
     public static final ParseField NAME = new ParseField("regression");
 
@@ -69,7 +69,6 @@ public class Regression implements Evaluation {
      */
     private final List<EvaluationMetric> metrics;
 
-    @SuppressWarnings("this-escape")
     public Regression(String actualField, String predictedField, @Nullable List<EvaluationMetric> metrics) {
         this.fields = new EvaluationFields(
             ExceptionsHelper.requireNonNull(actualField, ACTUAL_FIELD),

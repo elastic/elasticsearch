@@ -257,15 +257,20 @@ public final class ExceptionsHelper {
                 final String formatted = ExceptionsHelper.formatStackTrace(Thread.currentThread().getStackTrace());
                 logger.error("fatal error {}: {}\n{}", error.getClass().getCanonicalName(), error.getMessage(), formatted);
             } finally {
-                new Thread(() -> { throw error; }).start();
+                new Thread(() -> { throw error; }, "elasticsearch-error-rethrower").start();
             }
         });
     }
 
     /**
      * Deduplicate the failures by exception message and index.
+     * @param failures array to deduplicate
+     * @return deduplicated array; if failures is null or empty, it will be returned without modification
      */
     public static ShardOperationFailedException[] groupBy(ShardOperationFailedException[] failures) {
+        if (failures == null || failures.length == 0) {
+            return failures;
+        }
         List<ShardOperationFailedException> uniqueFailures = new ArrayList<>();
         Set<GroupBy> reasons = new HashSet<>();
         for (ShardOperationFailedException failure : failures) {
@@ -276,6 +281,25 @@ public final class ExceptionsHelper {
             }
         }
         return uniqueFailures.toArray(new ShardOperationFailedException[0]);
+    }
+
+    /**
+     * Utility method useful for determine whether to log an Exception or perhaps
+     * avoid logging a stacktrace if the caller/logger is not interested in these
+     * types of node/shard issues.
+     *
+     * @param t Throwable to inspect
+     * @return true if the Throwable is an instance of an Exception that indicates
+     *         that either a Node or shard is unavailable/disconnected.
+     */
+    public static boolean isNodeOrShardUnavailableTypeException(Throwable t) {
+        return (t instanceof org.elasticsearch.action.NoShardAvailableActionException
+            || t instanceof org.elasticsearch.action.UnavailableShardsException
+            || t instanceof org.elasticsearch.node.NodeClosedException
+            || t instanceof org.elasticsearch.transport.NodeDisconnectedException
+            || t instanceof org.elasticsearch.discovery.MasterNotDiscoveredException
+            || t instanceof org.elasticsearch.transport.NodeNotConnectedException
+            || t instanceof org.elasticsearch.cluster.block.ClusterBlockException);
     }
 
     private static class GroupBy {

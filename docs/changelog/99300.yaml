@@ -1,5 +1,0 @@
-pr: 99300
-summary: Change `GetFromTranslog` to indices action
-area: CRUD
-type: bug
-issues: []

@@ -9,11 +9,10 @@ package org.elasticsearch.xpack.downsample;
 
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
-import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
 import org.elasticsearch.action.admin.indices.rollover.RolloverRequest;
 import org.elasticsearch.action.admin.indices.rollover.RolloverResponse;
 import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequest;
-import org.elasticsearch.action.admin.indices.template.put.PutComposableIndexTemplateAction;
+import org.elasticsearch.action.admin.indices.template.put.TransportPutComposableIndexTemplateAction;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
@@ -24,7 +23,7 @@ import org.elasticsearch.action.downsample.DownsampleAction;
 import org.elasticsearch.action.downsample.DownsampleConfig;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchRequest;
-import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.support.broadcast.BroadcastResponse;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.DataStream;
@@ -62,6 +61,7 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.cluster.metadata.MetadataIndexTemplateService.DEFAULT_TIMESTAMP_FIELD;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 import static org.hamcrest.Matchers.equalTo;
 
 public class DownsampleDataStreamTests extends ESSingleNodeTestCase {
@@ -145,39 +145,43 @@ public class DownsampleDataStreamTests extends ESSingleNodeTestCase {
                         new DateHistogramAggregationBuilder("dateHistogram").field("@timestamp").fixedInterval(DateHistogramInterval.MINUTE)
                     )
             );
-        final SearchResponse searchResponse = client().search(searchRequest).actionGet();
-        Arrays.stream(searchResponse.getHits().getHits())
-            .limit(10)
-            .forEach(hit -> assertThat(hit.getIndex(), equalTo(rolloverResponse.getNewIndex())));
-        assertThat(searchResponse.getHits().getHits()[10].getIndex(), equalTo(downsampleTargetIndex));
-        final InternalDateHistogram dateHistogram = searchResponse.getAggregations().get("dateHistogram");
-        // NOTE: due to unpredictable values for the @timestamp field we don't know how many buckets we have in the
-        // date histogram. We know, anyway, that we will have 10 documents in the first two buckets, 10 documents in the last two buckets.
-        // The actual number of documents on each of the first two and last two buckets depends on the timestamp value generated when
-        // indexing
-        // documents, which might cross the minute boundary of the fixed_interval date histogram aggregation.
-        // Then we check there is a variable number of intermediate buckets with exactly 0 documents. This is a result of the way
-        // downsampling
-        // deals with a fixed interval granularity that is larger than the date histogram fixed interval (1 minute (date histogram
-        // fixed_interval)
-        // < 1 hour (downsample fixed_interval)).
-        final int totalBuckets = dateHistogram.getBuckets().size();
-        assertThat(dateHistogram.getBuckets().get(0).getDocCount() + dateHistogram.getBuckets().get(1).getDocCount(), equalTo(10L));
-        dateHistogram.getBuckets()
-            .stream()
-            .skip(2)
-            .limit(totalBuckets - 3)
-            .map(InternalDateHistogram.Bucket::getDocCount)
-            .toList()
-            .forEach(docCount -> assertThat(docCount, equalTo(0L)));
-        assertThat(
-            dateHistogram.getBuckets().get(totalBuckets - 2).getDocCount() + dateHistogram.getBuckets().get(totalBuckets - 1).getDocCount(),
-            equalTo(10L)
-        );
+        assertResponse(client().search(searchRequest), searchResponse -> {
+            Arrays.stream(searchResponse.getHits().getHits())
+                .limit(10)
+                .forEach(hit -> assertThat(hit.getIndex(), equalTo(rolloverResponse.getNewIndex())));
+            assertThat(searchResponse.getHits().getHits()[10].getIndex(), equalTo(downsampleTargetIndex));
+            final InternalDateHistogram dateHistogram = searchResponse.getAggregations().get("dateHistogram");
+            // NOTE: due to unpredictable values for the @timestamp field we don't know how many buckets we have in the
+            // date histogram. We know, anyway, that we will have 10 documents in the first two buckets, 10 documents in the last two
+            // buckets.
+            // The actual number of documents on each of the first two and last two buckets depends on the timestamp value generated when
+            // indexing
+            // documents, which might cross the minute boundary of the fixed_interval date histogram aggregation.
+            // Then we check there is a variable number of intermediate buckets with exactly 0 documents. This is a result of the way
+            // downsampling
+            // deals with a fixed interval granularity that is larger than the date histogram fixed interval (1 minute (date histogram
+            // fixed_interval)
+            // < 1 hour (downsample fixed_interval)).
+            final int totalBuckets = dateHistogram.getBuckets().size();
+            assertThat(dateHistogram.getBuckets().get(0).getDocCount() + dateHistogram.getBuckets().get(1).getDocCount(), equalTo(10L));
+            dateHistogram.getBuckets()
+                .stream()
+                .skip(2)
+                .limit(totalBuckets - 3)
+                .map(InternalDateHistogram.Bucket::getDocCount)
+                .toList()
+                .forEach(docCount -> assertThat(docCount, equalTo(0L)));
+            assertThat(
+                dateHistogram.getBuckets().get(totalBuckets - 2).getDocCount() + dateHistogram.getBuckets()
+                    .get(totalBuckets - 1)
+                    .getDocCount(),
+                equalTo(10L)
+            );
+        });
     }
 
     private void putComposableIndexTemplate(final String id, final List<String> patterns) throws IOException {
-        final PutComposableIndexTemplateAction.Request request = new PutComposableIndexTemplateAction.Request(id);
+        final TransportPutComposableIndexTemplateAction.Request request = new TransportPutComposableIndexTemplateAction.Request(id);
         final Template template = new Template(
             indexSettings(1, 0).put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES)
                 .putList(IndexMetadata.INDEX_ROUTING_PATH.getKey(), List.of("routing_field"))
@@ -202,9 +206,13 @@ public class DownsampleDataStreamTests extends ESSingleNodeTestCase {
             null
         );
         request.indexTemplate(
-            new ComposableIndexTemplate(patterns, template, null, null, null, null, new ComposableIndexTemplate.DataStreamTemplate(), null)
+            ComposableIndexTemplate.builder()
+                .indexPatterns(patterns)
+                .template(template)
+                .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate())
+                .build()
         );
-        client().execute(PutComposableIndexTemplateAction.INSTANCE, request).actionGet();
+        client().execute(TransportPutComposableIndexTemplateAction.TYPE, request).actionGet();
     }
 
     private void indexDocs(final String dataStream, int numDocs, long startTime) {
@@ -232,7 +240,7 @@ public class DownsampleDataStreamTests extends ESSingleNodeTestCase {
         final BulkItemResponse[] items = bulkResponse.getItems();
         assertThat(items.length, equalTo(numDocs));
         assertThat(bulkResponse.hasFailures(), equalTo(false));
-        final RefreshResponse refreshResponse = indicesAdmin().refresh(new RefreshRequest(dataStream)).actionGet();
+        final BroadcastResponse refreshResponse = indicesAdmin().refresh(new RefreshRequest(dataStream)).actionGet();
         assertThat(refreshResponse.getStatus().getStatus(), equalTo(RestStatus.OK.getStatus()));
     }
 }

@@ -19,14 +19,11 @@ package org.elasticsearch.common.inject.internal;
 import org.apache.lucene.util.CollectionUtil;
 import org.elasticsearch.common.inject.ConfigurationException;
 import org.elasticsearch.common.inject.CreationException;
+import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.inject.Key;
-import org.elasticsearch.common.inject.MembersInjector;
-import org.elasticsearch.common.inject.Provider;
 import org.elasticsearch.common.inject.ProvisionException;
-import org.elasticsearch.common.inject.Scope;
 import org.elasticsearch.common.inject.TypeLiteral;
 import org.elasticsearch.common.inject.spi.Dependency;
-import org.elasticsearch.common.inject.spi.InjectionListener;
 import org.elasticsearch.common.inject.spi.InjectionPoint;
 import org.elasticsearch.common.inject.spi.Message;
 
@@ -198,49 +195,12 @@ public final class Errors {
         return addMessage("Binding to Provider is not allowed.");
     }
 
-    public Errors subtypeNotProvided(Class<? extends Provider<?>> providerType, Class<?> type) {
-        return addMessage("%s doesn't provide instances of %s.", providerType, type);
-    }
-
-    public Errors notASubtype(Class<?> implementationType, Class<?> type) {
-        return addMessage("%s doesn't extend %s.", implementationType, type);
-    }
-
-    public Errors recursiveImplementationType() {
-        return addMessage("@ImplementedBy points to the same class it annotates.");
-    }
-
-    public Errors recursiveProviderType() {
-        return addMessage("@ProvidedBy points to the same class it annotates.");
-    }
-
-    public Errors missingRuntimeRetention(Object source) {
-        return addMessage("Please annotate with @Retention(RUNTIME).%n" + " Bound at %s.", convert(source));
-    }
-
-    public Errors missingScopeAnnotation() {
-        return addMessage("Please annotate with @ScopeAnnotation.");
-    }
-
     public Errors optionalConstructor(Constructor constructor) {
         return addMessage("%s is annotated @Inject(optional=true), " + "but constructors cannot be optional.", constructor);
     }
 
     public Errors cannotBindToGuiceType(String simpleName) {
         return addMessage("Binding to core guice framework type is not allowed: %s.", simpleName);
-    }
-
-    public Errors scopeNotFound(Class<? extends Annotation> scopeAnnotation) {
-        return addMessage("No scope is bound to %s.", scopeAnnotation);
-    }
-
-    public Errors scopeAnnotationOnAbstractType(Class<? extends Annotation> scopeAnnotation, Class<?> type, Object source) {
-        return addMessage(
-            "%s is annotated with %s, but scope annotations are not supported " + "for abstract types.%n Bound at %s.",
-            type,
-            scopeAnnotation,
-            convert(source)
-        );
     }
 
     public Errors misplacedBindingAnnotation(Member member, Annotation bindingAnnotation) {
@@ -251,8 +211,9 @@ public final class Errors {
         );
     }
 
-    private static final String CONSTRUCTOR_RULES = "Classes must have either one (and only one) constructor "
-        + "annotated with @Inject or a zero-argument constructor that is not private.";
+    private static final String CONSTRUCTOR_RULES = "Classes must have either one (and only one) constructor annotated with @"
+        + Inject.class.getCanonicalName()
+        + " or a zero-argument constructor that is not private.";
 
     public Errors missingConstructor(Class<?> implementation) {
         return addMessage("Could not find a suitable constructor in %s. " + CONSTRUCTOR_RULES, implementation);
@@ -260,14 +221,6 @@ public final class Errors {
 
     public Errors tooManyConstructors(Class<?> implementation) {
         return addMessage("%s has more than one constructor annotated with @Inject. " + CONSTRUCTOR_RULES, implementation);
-    }
-
-    public Errors duplicateScopes(Scope existing, Class<? extends Annotation> annotationType, Scope scope) {
-        return addMessage("Scope %s is already bound to %s. Cannot bind %s.", existing, annotationType, scope);
-    }
-
-    public Errors voidProviderMethod() {
-        return addMessage("Provider methods must return a value. Do not return void.");
     }
 
     public Errors missingConstantValues() {
@@ -283,10 +236,6 @@ public final class Errors {
 
     public Errors duplicateBindingAnnotations(Member member, Class<? extends Annotation> a, Class<? extends Annotation> b) {
         return addMessage("%s has more than one annotation annotated with @BindingAnnotation: " + "%s and %s", member, a, b);
-    }
-
-    public Errors duplicateScopeAnnotations(Class<? extends Annotation> a, Class<? extends Annotation> b) {
-        return addMessage("More than one scope annotation was found: %s and %s.", a, b);
     }
 
     public Errors recursiveBinding() {
@@ -311,14 +260,6 @@ public final class Errors {
 
     public Errors errorInProvider(RuntimeException runtimeException) {
         return errorInUserCode(runtimeException, "Error in custom provider, %s", runtimeException);
-    }
-
-    public Errors errorInUserInjector(MembersInjector<?> listener, TypeLiteral<?> type, RuntimeException cause) {
-        return errorInUserCode(cause, "Error injecting %s using %s.%n" + " Reason: %s", type, listener, cause);
-    }
-
-    public Errors errorNotifyingInjectionListener(InjectionListener<?> listener, TypeLiteral<?> type, RuntimeException cause) {
-        return errorInUserCode(cause, "Error notifying InjectionListener %s of %s.%n" + " Reason: %s", listener, type, cause);
     }
 
     public static Collection<Message> getMessagesFromThrowable(Throwable throwable) {
@@ -377,14 +318,6 @@ public final class Errors {
         }
 
         throw new ConfigurationException(getMessages());
-    }
-
-    public void throwProvisionExceptionIfErrorsExist() {
-        if (hasErrors() == false) {
-            return;
-        }
-
-        throw new ProvisionException(getMessages());
     }
 
     private Message merge(Message message) {

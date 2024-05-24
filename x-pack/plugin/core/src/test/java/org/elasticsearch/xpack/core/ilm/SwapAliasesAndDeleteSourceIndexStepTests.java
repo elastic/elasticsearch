@@ -10,9 +10,9 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
-import org.elasticsearch.action.admin.indices.alias.IndicesAliasesAction;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest.AliasActions;
+import org.elasticsearch.action.admin.indices.alias.TransportIndicesAliasesAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -20,6 +20,7 @@ import org.elasticsearch.cluster.metadata.LifecycleExecutionState;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.test.client.NoOpClient;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.ilm.Step.StepKey;
 
 import java.util.Arrays;
@@ -103,7 +104,8 @@ public class SwapAliasesAndDeleteSourceIndexStepTests extends AbstractStepTestCa
                 .isHidden(isHidden)
         );
 
-        try (NoOpClient client = getIndicesAliasAssertingClient(expectedAliasActions)) {
+        try (var threadPool = createThreadPool()) {
+            final var client = getIndicesAliasAssertingClient(threadPool, expectedAliasActions);
             SwapAliasesAndDeleteSourceIndexStep step = new SwapAliasesAndDeleteSourceIndexStep(
                 randomStepKey(),
                 randomStepKey(),
@@ -124,15 +126,15 @@ public class SwapAliasesAndDeleteSourceIndexStepTests extends AbstractStepTestCa
         }
     }
 
-    private NoOpClient getIndicesAliasAssertingClient(List<AliasActions> expectedAliasActions) {
-        return new NoOpClient(getTestName()) {
+    private NoOpClient getIndicesAliasAssertingClient(ThreadPool threadPool, List<AliasActions> expectedAliasActions) {
+        return new NoOpClient(threadPool) {
             @Override
             protected <Request extends ActionRequest, Response extends ActionResponse> void doExecute(
                 ActionType<Response> action,
                 Request request,
                 ActionListener<Response> listener
             ) {
-                assertThat(action.name(), is(IndicesAliasesAction.NAME));
+                assertThat(action.name(), is(TransportIndicesAliasesAction.NAME));
                 assertTrue(request instanceof IndicesAliasesRequest);
                 assertThat(((IndicesAliasesRequest) request).getAliasActions(), equalTo(expectedAliasActions));
             }

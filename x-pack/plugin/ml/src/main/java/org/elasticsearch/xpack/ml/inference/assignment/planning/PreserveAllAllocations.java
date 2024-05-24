@@ -37,6 +37,6 @@ public class PreserveAllAllocations extends AbstractPreserveAllocations {
 
     @Override
     protected int addPreservedAllocations(Node n, Deployment m) {
-        return m.currentAllocationsByNodeId().get(n.id());
+        return m.currentAllocationsByNodeId().containsKey(n.id()) ? m.currentAllocationsByNodeId().get(n.id()) : 0;
     }
 }

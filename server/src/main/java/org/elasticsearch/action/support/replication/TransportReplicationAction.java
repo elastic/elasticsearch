@@ -605,9 +605,8 @@ public abstract class TransportReplicationAction<
         return () -> {};
     }
 
-    public static class RetryOnReplicaException extends ElasticsearchException {
+    public static final class RetryOnReplicaException extends ElasticsearchException {
 
-        @SuppressWarnings("this-escape")
         public RetryOnReplicaException(ShardId shardId, String msg) {
             super(msg);
             setShard(shardId);
@@ -849,7 +848,7 @@ public abstract class TransportReplicationAction<
                     : "request waitForActiveShards must be set in resolveRequest";
 
                 final ShardRouting primary = state.getRoutingTable().shardRoutingTable(request.shardId()).primaryShard();
-                if (primary == null || primary.active() == false) {
+                if (primary.active() == false) {
                     logger.trace(
                         "primary shard [{}] is not yet active, scheduling a retry: action [{}], request [{}], "
                             + "cluster state version [{}]",
@@ -962,7 +961,7 @@ public abstract class TransportReplicationAction<
                 }
 
                 @Override
-                public Executor executor(ThreadPool threadPool) {
+                public Executor executor() {
                     return TransportResponseHandler.TRANSPORT_WORKER;
                 }
 
@@ -1184,8 +1183,8 @@ public abstract class TransportReplicationAction<
     }
 
     public static class ReplicaResponse extends ActionResponse implements ReplicationOperation.ReplicaResponse {
-        private long localCheckpoint;
-        private long globalCheckpoint;
+        private final long localCheckpoint;
+        private final long globalCheckpoint;
 
         ReplicaResponse(StreamInput in) throws IOException {
             super(in);

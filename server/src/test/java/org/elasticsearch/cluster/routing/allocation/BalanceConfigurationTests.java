@@ -8,8 +8,6 @@
 
 package org.elasticsearch.cluster.routing.allocation;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
@@ -39,7 +37,6 @@ import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 public class BalanceConfigurationTests extends ESAllocationTestCase {
 
-    private final Logger logger = LogManager.getLogger(BalanceConfigurationTests.class);
     // TODO maybe we can randomize these numbers somehow
     final int numberOfNodes = 25;
     final int numberOfIndices = 12;

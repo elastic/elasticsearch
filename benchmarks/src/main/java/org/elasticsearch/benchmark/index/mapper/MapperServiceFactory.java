@@ -21,12 +21,12 @@ import org.elasticsearch.index.analysis.AnalyzerScope;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.analysis.LowercaseNormalizer;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
+import org.elasticsearch.index.mapper.MapperMetrics;
 import org.elasticsearch.index.mapper.MapperRegistry;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.ProvidedIdFieldMapper;
 import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.indices.IndicesModule;
-import org.elasticsearch.plugins.internal.DocumentParsingObserver;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptCompiler;
 import org.elasticsearch.script.ScriptContext;
@@ -45,7 +45,7 @@ public class MapperServiceFactory {
             .put("index.number_of_replicas", 0)
             .put("index.number_of_shards", 1)
             .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
-            .put("index.mapping.total_fields.limit", 10000)
+            .put("index.mapping.total_fields.limit", 100000)
             .build();
         IndexMetadata meta = IndexMetadata.builder("index").settings(settings).build();
         IndexSettings indexSettings = new IndexSettings(meta, settings);
@@ -73,7 +73,7 @@ public class MapperServiceFactory {
                     throw new UnsupportedOperationException();
                 }
             },
-            () -> DocumentParsingObserver.EMPTY_INSTANCE
+            MapperMetrics.NOOP
         );
 
         try {

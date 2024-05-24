@@ -46,19 +46,6 @@ public abstract class PercentilesConfig implements ToXContent, Writeable {
         return method.configFromStream(in);
     }
 
-    /**
-     * Deprecated: construct a {@link PercentilesConfig} directly instead
-     */
-    @Deprecated
-    public static PercentilesConfig fromLegacy(PercentilesMethod method, double compression, int numberOfSignificantDigits) {
-        if (method.equals(PercentilesMethod.TDIGEST)) {
-            return new TDigest(compression);
-        } else if (method.equals(PercentilesMethod.HDR)) {
-            return new Hdr(numberOfSignificantDigits);
-        }
-        throw new IllegalArgumentException("Unsupported percentiles algorithm [" + method + "]");
-    }
-
     public PercentilesMethod getMethod() {
         return method;
     }
@@ -120,7 +107,7 @@ public abstract class PercentilesConfig implements ToXContent, Writeable {
         return Objects.hash(method);
     }
 
-    public static class TDigest extends PercentilesConfig {
+    public static final class TDigest extends PercentilesConfig {
         static final double DEFAULT_COMPRESSION = 100.0;
         private double compression;
 
@@ -134,7 +121,6 @@ public abstract class PercentilesConfig implements ToXContent, Writeable {
             this(compression, null);
         }
 
-        @SuppressWarnings("this-escape")
         public TDigest(double compression, TDigestExecutionHint executionHint) {
             super(PercentilesMethod.TDIGEST);
             this.executionHint = executionHint;
@@ -144,7 +130,7 @@ public abstract class PercentilesConfig implements ToXContent, Writeable {
         TDigest(StreamInput in) throws IOException {
             this(
                 in.readDouble(),
-                in.getTransportVersion().onOrAfter(TransportVersions.V_8_500_020)
+                in.getTransportVersion().onOrAfter(TransportVersions.V_8_9_X)
                     ? in.readOptionalWriteable(TDigestExecutionHint::readFrom)
                     : TDigestExecutionHint.HIGH_ACCURACY
             );
@@ -249,7 +235,7 @@ public abstract class PercentilesConfig implements ToXContent, Writeable {
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             out.writeDouble(compression);
-            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_500_020)) {
+            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_9_X)) {
                 out.writeOptionalWriteable(executionHint);
             }
         }
@@ -281,7 +267,7 @@ public abstract class PercentilesConfig implements ToXContent, Writeable {
         }
     }
 
-    public static class Hdr extends PercentilesConfig {
+    public static final class Hdr extends PercentilesConfig {
         static final int DEFAULT_NUMBER_SIG_FIGS = 3;
         private int numberOfSignificantValueDigits;
 
@@ -289,7 +275,6 @@ public abstract class PercentilesConfig implements ToXContent, Writeable {
             this(DEFAULT_NUMBER_SIG_FIGS);
         }
 
-        @SuppressWarnings("this-escape")
         public Hdr(int numberOfSignificantValueDigits) {
             super(PercentilesMethod.HDR);
             setNumberOfSignificantValueDigits(numberOfSignificantValueDigits);

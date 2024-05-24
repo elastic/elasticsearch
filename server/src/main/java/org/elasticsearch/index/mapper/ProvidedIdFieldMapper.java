@@ -9,10 +9,7 @@
 package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.search.MatchAllDocsQuery;
-import org.apache.lucene.search.Query;
 import org.apache.lucene.search.SortField;
-import org.apache.lucene.search.TermInSetQuery;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
@@ -41,8 +38,6 @@ import org.elasticsearch.search.sort.SortOrder;
 
 import java.io.IOException;
 import java.util.Arrays;
-import java.util.Collection;
-import java.util.Collections;
 import java.util.function.BooleanSupplier;
 
 /**
@@ -59,24 +54,12 @@ public class ProvidedIdFieldMapper extends IdFieldMapper {
 
     public static final ProvidedIdFieldMapper NO_FIELD_DATA = new ProvidedIdFieldMapper(() -> false);
 
-    static final class IdFieldType extends TermBasedFieldType {
+    static final class IdFieldType extends AbstractIdFieldType {
 
         private final BooleanSupplier fieldDataEnabled;
 
         IdFieldType(BooleanSupplier fieldDataEnabled) {
-            super(NAME, true, true, false, TextSearchInfo.SIMPLE_MATCH_ONLY, Collections.emptyMap());
             this.fieldDataEnabled = fieldDataEnabled;
-        }
-
-        @Override
-        public String typeName() {
-            return CONTENT_TYPE;
-        }
-
-        @Override
-        public boolean isSearchable() {
-            // The _id field is always searchable.
-            return true;
         }
 
         @Override
@@ -85,36 +68,8 @@ public class ProvidedIdFieldMapper extends IdFieldMapper {
         }
 
         @Override
-        public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
-            return new StoredValueFetcher(context.lookup(), NAME);
-        }
-
-        @Override
         public boolean isAggregatable() {
             return fieldDataEnabled.getAsBoolean();
-        }
-
-        @Override
-        public Query termQuery(Object value, SearchExecutionContext context) {
-            return termsQuery(Arrays.asList(value), context);
-        }
-
-        @Override
-        public Query existsQuery(SearchExecutionContext context) {
-            return new MatchAllDocsQuery();
-        }
-
-        @Override
-        public Query termsQuery(Collection<?> values, SearchExecutionContext context) {
-            failIfNotIndexed();
-            BytesRef[] bytesRefs = values.stream().map(v -> {
-                Object idObject = v;
-                if (idObject instanceof BytesRef) {
-                    idObject = ((BytesRef) idObject).utf8ToString();
-                }
-                return Uid.encodeId(idObject.toString());
-            }).toArray(BytesRef[]::new);
-            return new TermInSetQuery(name(), bytesRefs);
         }
 
         @Override

@@ -15,7 +15,6 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.NodesShutdownMetadata;
 import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
-import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -422,7 +421,7 @@ public final class UnassignedInfo implements ToXContentFragment, Writeable {
      * This set will be discarded when a shard moves to started. And if a shard is failed while started (i.e., from started to unassigned),
      * the currently assigned node won't be added to this set.
      *
-     * @see org.elasticsearch.gateway.ReplicaShardAllocator#processExistingRecoveries(RoutingAllocation)
+     * @see org.elasticsearch.gateway.ReplicaShardAllocator#processExistingRecoveries
      * @see org.elasticsearch.cluster.routing.allocation.AllocationService#applyFailedShards(ClusterState, List, List)
      */
     public Set<String> getFailedNodeIds() {

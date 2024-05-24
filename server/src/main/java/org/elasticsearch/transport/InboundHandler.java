@@ -239,7 +239,7 @@ public class InboundHandler {
             header.getCompressionScheme(),
             reg == null ? ResponseStatsConsumer.NONE : reg,
             false,
-            message.takeBreakerReleaseControl()
+            Releasables.assertOnce(message.takeBreakerReleaseControl())
         );
 
         try {
@@ -268,7 +268,7 @@ public class InboundHandler {
                 assert requestId > 0;
                 request.setRequestId(requestId);
                 verifyRequestReadFully(stream, requestId, action);
-                if (ThreadPool.Names.SAME.equals(reg.getExecutor())) {
+                if (reg.getExecutor() == EsExecutors.DIRECT_EXECUTOR_SERVICE) {
                     try (var ignored = threadPool.getThreadContext().newTraceContext()) {
                         doHandleRequest(reg, request, transportChannel);
                     }
@@ -293,7 +293,7 @@ public class InboundHandler {
 
     private <T extends TransportRequest> void handleRequestForking(T request, RequestHandlerRegistry<T> reg, TransportChannel channel) {
         boolean success = false;
-        request.incRef();
+        request.mustIncRef();
         try {
             reg.getExecutor().execute(threadPool.getThreadContext().preserveContextWithTracing(new AbstractRunnable() {
                 @Override
@@ -348,7 +348,7 @@ public class InboundHandler {
             header.getCompressionScheme(),
             ResponseStatsConsumer.NONE,
             true,
-            message.takeBreakerReleaseControl()
+            Releasables.assertOnce(message.takeBreakerReleaseControl())
         );
         try {
             handshaker.handleHandshake(transportChannel, requestId, stream);
@@ -376,15 +376,15 @@ public class InboundHandler {
         final TransportResponseHandler<T> handler,
         final InboundMessage inboundMessage
     ) {
-        final var executor = handler.executor(threadPool);
+        final var executor = handler.executor();
         if (executor == EsExecutors.DIRECT_EXECUTOR_SERVICE) {
             // no need to provide a buffer release here, we never escape the buffer when handling directly
             doHandleResponse(handler, remoteAddress, stream, inboundMessage.getHeader(), () -> {});
         } else {
-            inboundMessage.incRef();
+            inboundMessage.mustIncRef();
             // release buffer once we deserialize the message, but have a fail-safe in #onAfter below in case that didn't work out
             final Releasable releaseBuffer = Releasables.releaseOnce(inboundMessage::decRef);
-            executor.execute(new ForkingResponseHandlerRunnable(handler, null, threadPool) {
+            executor.execute(new ForkingResponseHandlerRunnable(handler, null) {
                 @Override
                 protected void doRun() {
                     doHandleResponse(handler, remoteAddress, stream, inboundMessage.getHeader(), releaseBuffer);
@@ -457,11 +457,11 @@ public class InboundHandler {
     }
 
     private void handleException(final TransportResponseHandler<?> handler, TransportException transportException) {
-        final var executor = handler.executor(threadPool);
+        final var executor = handler.executor();
         if (executor == EsExecutors.DIRECT_EXECUTOR_SERVICE) {
             doHandleException(handler, transportException);
         } else {
-            executor.execute(new ForkingResponseHandlerRunnable(handler, transportException, threadPool) {
+            executor.execute(new ForkingResponseHandlerRunnable(handler, transportException) {
                 @Override
                 protected void doRun() {
                     doHandleException(handler, transportException);

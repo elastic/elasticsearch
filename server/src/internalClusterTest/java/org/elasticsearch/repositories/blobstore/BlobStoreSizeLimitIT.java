@@ -35,7 +35,7 @@ public class BlobStoreSizeLimitIT extends AbstractSnapshotIntegTestCase {
         );
         final List<String> snapshotNames = createNSnapshots(repoName, maxSnapshots);
         final ActionFuture<CreateSnapshotResponse> failingSnapshotFuture = startFullSnapshot(repoName, "failing-snapshot");
-        final SnapshotException snapshotException = expectThrows(SnapshotException.class, failingSnapshotFuture::actionGet);
+        final SnapshotException snapshotException = expectThrows(SnapshotException.class, failingSnapshotFuture);
         assertThat(snapshotException.getRepositoryName(), equalTo(repoName));
         assertThat(snapshotException.getSnapshotName(), equalTo("failing-snapshot"));
         assertThat(snapshotException.getCause(), instanceOf(RepositoryException.class));

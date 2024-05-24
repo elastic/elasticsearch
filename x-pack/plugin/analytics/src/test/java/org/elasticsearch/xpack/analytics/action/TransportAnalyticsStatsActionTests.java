@@ -98,7 +98,7 @@ public class TransportAnalyticsStatsActionTests extends ESTestCase {
     private ObjectPath run(AnalyticsUsage... nodeUsages) throws IOException {
         AnalyticsStatsAction.Request request = new AnalyticsStatsAction.Request();
         List<AnalyticsStatsAction.NodeResponse> nodeResponses = Arrays.stream(nodeUsages)
-            .map(usage -> action(usage).nodeOperation(new AnalyticsStatsAction.NodeRequest(request), null))
+            .map(usage -> action(usage).nodeOperation(new AnalyticsStatsAction.NodeRequest(), null))
             .collect(toList());
         AnalyticsStatsAction.Response response = new AnalyticsStatsAction.Response(
             new ClusterName("cluster_name"),

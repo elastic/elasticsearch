@@ -19,7 +19,7 @@ import static org.hamcrest.Matchers.lessThanOrEqualTo;
 public class RecoverySourceTests extends ESTestCase {
 
     public void testSerialization() throws IOException {
-        RecoverySource recoverySource = TestShardRouting.randomRecoverySource();
+        RecoverySource recoverySource = TestShardRouting.buildRecoverySource();
         BytesStreamOutput out = new BytesStreamOutput();
         recoverySource.writeTo(out);
         RecoverySource serializedRecoverySource = RecoverySource.readFrom(out.bytes().streamInput());

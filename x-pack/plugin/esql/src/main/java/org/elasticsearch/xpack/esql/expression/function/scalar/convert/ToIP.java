@@ -9,31 +9,57 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.convert;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.ann.ConvertEvaluator;
-import org.elasticsearch.compute.operator.EvalOperator;
-import org.elasticsearch.xpack.ql.expression.Expression;
-import org.elasticsearch.xpack.ql.tree.NodeInfo;
-import org.elasticsearch.xpack.ql.tree.Source;
-import org.elasticsearch.xpack.ql.type.DataType;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
+import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.expression.function.Example;
+import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
+import org.elasticsearch.xpack.esql.expression.function.Param;
 
 import java.util.List;
 import java.util.Map;
-import java.util.function.BiFunction;
 
-import static org.elasticsearch.xpack.ql.type.DataTypes.IP;
-import static org.elasticsearch.xpack.ql.type.DataTypes.KEYWORD;
-import static org.elasticsearch.xpack.ql.util.StringUtils.parseIP;
+import static org.elasticsearch.xpack.esql.core.type.DataTypes.IP;
+import static org.elasticsearch.xpack.esql.core.type.DataTypes.KEYWORD;
+import static org.elasticsearch.xpack.esql.core.type.DataTypes.TEXT;
+import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.stringToIP;
 
 public class ToIP extends AbstractConvertFunction {
 
-    private static final Map<DataType, BiFunction<EvalOperator.ExpressionEvaluator, Source, EvalOperator.ExpressionEvaluator>> EVALUATORS =
-        Map.of(IP, (fieldEval, source) -> fieldEval, KEYWORD, ToIPFromStringEvaluator::new);
+    private static final Map<DataType, BuildFactory> EVALUATORS = Map.ofEntries(
+        Map.entry(IP, (field, source) -> field),
+        Map.entry(KEYWORD, ToIPFromStringEvaluator.Factory::new),
+        Map.entry(TEXT, ToIPFromStringEvaluator.Factory::new)
+    );
 
-    public ToIP(Source source, Expression field) {
+    @FunctionInfo(
+        returnType = "ip",
+        description = "Converts an input string to an IP value.",
+        examples = @Example(file = "ip", tag = "to_ip", explanation = """
+            Note that in this example, the last conversion of the string isn't possible.
+            When this happens, the result is a *null* value. In this case a _Warning_ header is added to the response.
+            The header will provide information on the source of the failure:
+
+            `"Line 1:68: evaluation of [TO_IP(str2)] failed, treating result as null. Only first 20 failures recorded."`
+
+            A following header will contain the failure reason and the offending value:
+
+            `"java.lang.IllegalArgumentException: 'foo' is not an IP string literal."`""")
+    )
+    public ToIP(
+        Source source,
+        @Param(
+            name = "field",
+            type = { "ip", "keyword", "text" },
+            description = "Input value. The input can be a single- or multi-valued column or an expression."
+        ) Expression field
+    ) {
         super(source, field);
     }
 
     @Override
-    protected Map<DataType, BiFunction<EvalOperator.ExpressionEvaluator, Source, EvalOperator.ExpressionEvaluator>> evaluators() {
+    protected Map<DataType, BuildFactory> factories() {
         return EVALUATORS;
     }
 
@@ -52,8 +78,8 @@ public class ToIP extends AbstractConvertFunction {
         return NodeInfo.create(this, ToIP::new, field());
     }
 
-    @ConvertEvaluator(extraName = "FromString")
+    @ConvertEvaluator(extraName = "FromString", warnExceptions = { IllegalArgumentException.class })
     static BytesRef fromKeyword(BytesRef asString) {
-        return parseIP(asString.utf8ToString());
+        return stringToIP(asString);
     }
 }

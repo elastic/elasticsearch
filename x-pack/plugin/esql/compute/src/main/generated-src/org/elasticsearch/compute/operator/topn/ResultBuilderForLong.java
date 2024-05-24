@@ -8,8 +8,13 @@
 package org.elasticsearch.compute.operator.topn;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.LongBlock;
 
+/**
+ * Builds the resulting {@link LongBlock} for some column in a top-n.
+ * This class is generated. Edit {@code X-ResultBuilder.java.st} instead.
+ */
 class ResultBuilderForLong implements ResultBuilder {
     private final LongBlock.Builder builder;
 
@@ -20,10 +25,10 @@ class ResultBuilderForLong implements ResultBuilder {
      */
     private long key;
 
-    ResultBuilderForLong(TopNEncoder encoder, boolean inKey, int initialSize) {
+    ResultBuilderForLong(BlockFactory blockFactory, TopNEncoder encoder, boolean inKey, int initialSize) {
         assert encoder == TopNEncoder.DEFAULT_UNSORTABLE : encoder.toString();
         this.inKey = inKey;
-        this.builder = LongBlock.newBlockBuilder(initialSize);
+        this.builder = blockFactory.newLongBlockBuilder(initialSize);
     }
 
     @Override
@@ -62,5 +67,10 @@ class ResultBuilderForLong implements ResultBuilder {
     @Override
     public String toString() {
         return "ResultBuilderForLong[inKey=" + inKey + "]";
+    }
+
+    @Override
+    public void close() {
+        builder.close();
     }
 }

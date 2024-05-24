@@ -23,6 +23,7 @@ import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.analysis.AnalyzerScope;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.query.SearchExecutionContext;
@@ -204,14 +205,14 @@ public class CompletionFieldMapper extends FieldMapper {
                 new CompletionAnalyzer(this.searchAnalyzer.getValue(), preserveSeparators.getValue(), preservePosInc.getValue())
             );
 
-            CompletionFieldType ft = new CompletionFieldType(context.buildFullName(name), completionAnalyzer, meta.getValue());
+            CompletionFieldType ft = new CompletionFieldType(context.buildFullName(name()), completionAnalyzer, meta.getValue());
             ft.setContextMappings(contexts.getValue());
-            return new CompletionFieldMapper(name, ft, multiFieldsBuilder.build(this, context), copyTo, this);
+            return new CompletionFieldMapper(name(), ft, multiFieldsBuilder.build(this, context), copyTo, this);
         }
 
         private void checkCompletionContextsLimit() {
             if (this.contexts.getValue() != null && this.contexts.getValue().size() > COMPLETION_CONTEXTS_LIMIT) {
-                if (indexVersionCreated.onOrAfter(IndexVersion.V_8_0_0)) {
+                if (indexVersionCreated.onOrAfter(IndexVersions.V_8_0_0)) {
                     throw new IllegalArgumentException(
                         "Limit of completion field contexts [" + COMPLETION_CONTEXTS_LIMIT + "] has been exceeded"
                     );
@@ -369,7 +370,7 @@ public class CompletionFieldMapper extends FieldMapper {
     }
 
     static PostingsFormat postingsFormat() {
-        return PostingsFormat.forName("Completion90");
+        return PostingsFormat.forName("Completion99");
     }
 
     @Override

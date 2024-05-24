@@ -49,7 +49,7 @@ public class ClusterStateApplierOrderingTests extends BaseSearchableSnapshotsInt
 
         final List<IndexRequestBuilder> indexRequestBuilders = new ArrayList<>();
         for (int i = between(10, 10_000); i >= 0; i--) {
-            indexRequestBuilders.add(client().prepareIndex(indexName).setSource("foo", randomBoolean() ? "bar" : "baz"));
+            indexRequestBuilders.add(prepareIndex(indexName).setSource("foo", randomBoolean() ? "bar" : "baz"));
         }
         indexRandom(true, true, indexRequestBuilders);
         refresh(indexName);

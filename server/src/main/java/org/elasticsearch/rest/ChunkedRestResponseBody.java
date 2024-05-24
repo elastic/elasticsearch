@@ -18,6 +18,8 @@ import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.core.Streams;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -33,6 +35,8 @@ import java.util.Iterator;
  * instead serialize only as much of the response as can be flushed to the network right away.
  */
 public interface ChunkedRestResponseBody {
+
+    Logger logger = LogManager.getLogger(ChunkedRestResponseBody.class);
 
     /**
      * @return true once this response has been written fully.
@@ -119,6 +123,9 @@ public interface ChunkedRestResponseBody {
                     );
                     target = null;
                     return result;
+                } catch (Exception e) {
+                    logger.error("failure encoding chunk", e);
+                    throw e;
                 } finally {
                     if (target != null) {
                         assert false : "failure encoding chunk";
@@ -137,7 +144,7 @@ public interface ChunkedRestResponseBody {
 
     /**
      * Create a chunked response body to be written to a specific {@link RestChannel} from a stream of text chunks, each represented as a
-     * consumer of a {@link Writer}. The last chunk that the iterator yields must write at least one byte.
+     * consumer of a {@link Writer}.
      */
     static ChunkedRestResponseBody fromTextChunks(String contentType, Iterator<CheckedConsumer<Writer, IOException>> chunkIterator) {
         return new ChunkedRestResponseBody() {
@@ -196,6 +203,9 @@ public interface ChunkedRestResponseBody {
                     );
                     currentOutput = null;
                     return result;
+                } catch (Exception e) {
+                    logger.error("failure encoding text chunk", e);
+                    throw e;
                 } finally {
                     if (currentOutput != null) {
                         assert false : "failure encoding text chunk";

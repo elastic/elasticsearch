@@ -11,9 +11,11 @@ import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.rest.RestUtils;
 import org.elasticsearch.rest.Scope;
 import org.elasticsearch.rest.ServerlessScope;
-import org.elasticsearch.rest.action.RestStatusToXContentListener;
+import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xpack.application.EnterpriseSearch;
 import org.elasticsearch.xpack.application.EnterpriseSearchBaseRestHandler;
 import org.elasticsearch.xpack.application.utils.LicenseUtils;
@@ -40,12 +42,15 @@ public class RestPutAnalyticsCollectionAction extends EnterpriseSearchBaseRestHa
 
     @Override
     protected RestChannelConsumer innerPrepareRequest(RestRequest restRequest, NodeClient client) {
-        PutAnalyticsCollectionAction.Request request = new PutAnalyticsCollectionAction.Request(restRequest.param("collection_name"));
+        PutAnalyticsCollectionAction.Request request = new PutAnalyticsCollectionAction.Request(
+            RestUtils.getMasterNodeTimeout(restRequest),
+            restRequest.param("collection_name")
+        );
         String location = routes().get(0).getPath().replace("{collection_name}", request.getName());
         return channel -> client.execute(
             PutAnalyticsCollectionAction.INSTANCE,
             request,
-            new RestStatusToXContentListener<>(channel, _r -> location)
+            new RestToXContentListener<>(channel, r -> RestStatus.CREATED, _r -> location)
         );
     }
 }

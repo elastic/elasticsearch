@@ -26,6 +26,7 @@ import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.function.Function;
 
 import static org.elasticsearch.test.EqualsHashCodeTestUtils.checkEqualsAndHashCode;
 import static org.hamcrest.Matchers.equalTo;
@@ -51,20 +52,22 @@ public abstract class BaseAggregationTestCase<AB extends AbstractAggregationBuil
         }
         factoriesBuilder.toXContent(builder, ToXContent.EMPTY_PARAMS);
         XContentBuilder shuffled = shuffleXContent(builder);
-        XContentParser parser = createParser(shuffled);
-        AggregationBuilder newAgg = parse(parser);
-        assertNotSame(newAgg, testAgg);
-        assertEquals(testAgg, newAgg);
-        assertEquals(testAgg.hashCode(), newAgg.hashCode());
+        try (XContentParser parser = createParser(shuffled)) {
+            AggregationBuilder newAgg = parse(parser);
+            assertNotSame(newAgg, testAgg);
+            assertEquals(testAgg, newAgg);
+            assertEquals(testAgg.hashCode(), newAgg.hashCode());
+        }
     }
 
     public void testSupportsConcurrentExecution() {
+        int cardinality = randomIntBetween(-1, 100);
         AB builder = createTestAggregatorBuilder();
-        boolean supportsConcurrency = builder.supportsParallelCollection();
+        boolean supportsConcurrency = builder.supportsParallelCollection(field -> cardinality);
         AggregationBuilder bucketBuilder = new HistogramAggregationBuilder("test");
-        assertTrue(bucketBuilder.supportsParallelCollection());
+        assertTrue(bucketBuilder.supportsParallelCollection(field -> cardinality));
         bucketBuilder.subAggregation(builder);
-        assertThat(bucketBuilder.supportsParallelCollection(), equalTo(supportsConcurrency));
+        assertThat(bucketBuilder.supportsParallelCollection(field -> cardinality), equalTo(supportsConcurrency));
     }
 
     /**
@@ -84,10 +87,12 @@ public abstract class BaseAggregationTestCase<AB extends AbstractAggregationBuil
         }
         factoriesBuilder.toXContent(builder, ToXContent.EMPTY_PARAMS);
         XContentBuilder shuffled = shuffleXContent(builder);
-        XContentParser parser = createParser(shuffled);
 
-        assertSame(XContentParser.Token.START_OBJECT, parser.nextToken());
-        AggregatorFactories.Builder parsed = AggregatorFactories.parseAggregators(parser);
+        AggregatorFactories.Builder parsed;
+        try (XContentParser parser = createParser(shuffled)) {
+            assertSame(XContentParser.Token.START_OBJECT, parser.nextToken());
+            parsed = AggregatorFactories.parseAggregators(parser);
+        }
 
         assertThat(parsed.getAggregatorFactories(), hasSize(testAggs.size()));
         assertThat(parsed.getPipelineAggregatorFactories(), hasSize(0));
@@ -126,8 +131,10 @@ public abstract class BaseAggregationTestCase<AB extends AbstractAggregationBuil
     public void testToString() throws IOException {
         AB testAgg = createTestAggregatorBuilder();
         String toString = randomBoolean() ? Strings.toString(testAgg) : testAgg.toString();
-        XContentParser parser = createParser(XContentType.JSON.xContent(), toString);
-        AggregationBuilder newAgg = parse(parser);
+        AggregationBuilder newAgg;
+        try (XContentParser parser = createParser(XContentType.JSON.xContent(), toString)) {
+            newAgg = parse(parser);
+        }
         assertNotSame(newAgg, testAgg);
         assertEquals(testAgg, newAgg);
         assertEquals(testAgg.hashCode(), newAgg.hashCode());
@@ -181,6 +188,15 @@ public abstract class BaseAggregationTestCase<AB extends AbstractAggregationBuil
         AggregationBuilder clone = original.shallowCopy(original.factoriesBuilder, original.metadata);
         assertNotSame(original, clone);
         assertEquals(original, clone);
+    }
+
+    public void testPlainDeepCopyEquivalentToStreamCopy() throws IOException {
+        AB original = createTestAggregatorBuilder();
+        AggregationBuilder deepClone = AggregationBuilder.deepCopy(original, Function.identity());
+        assertNotSame(deepClone, original);
+        AggregationBuilder streamClone = copyAggregation(original);
+        assertNotSame(streamClone, original);
+        assertEquals(streamClone, deepClone);
     }
 
     // we use the streaming infra to create a copy of the query provided as

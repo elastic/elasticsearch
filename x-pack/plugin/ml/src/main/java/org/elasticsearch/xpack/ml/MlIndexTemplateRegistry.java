@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.ml;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -29,6 +28,23 @@ import java.util.Map;
 
 public class MlIndexTemplateRegistry extends IndexTemplateRegistry {
 
+    /**
+     * The template version starts from 10000000 because up until 8.11.0 we
+     * used version IDs for template versioning, so the first detached
+     * version number needs to be higher than the version ID of 8.11.0.
+     * We add on the mappings version of each of the templates that has
+     * mappings. This will cause _all_ templates to get installed when the
+     * mappings for any single template change. However, this is better
+     * than the risk of potentially updating mappings without updating the
+     * template versions and hence not reinstalling the templates. Note that
+     * the state index has no mappings - its template basically just says
+     * this - hence there's no mappings version for the state index. Please
+     * add a comment with a reason each time the base number is incremented.
+     * 10000001: TODO - reason
+     */
+    public static final int ML_INDEX_TEMPLATE_VERSION = 10000000 + AnomalyDetectorsIndex.RESULTS_INDEX_MAPPINGS_VERSION
+        + NotificationsIndex.NOTIFICATIONS_INDEX_MAPPINGS_VERSION + MlStatsIndex.STATS_INDEX_MAPPINGS_VERSION;
+
     private static final String ROOT_RESOURCE_PATH = "/ml/";
     private static final String ANOMALY_DETECTION_PATH = ROOT_RESOURCE_PATH + "anomalydetection/";
     private static final String VERSION_PATTERN = "xpack.ml.version";
@@ -42,7 +58,7 @@ public class MlIndexTemplateRegistry extends IndexTemplateRegistry {
 
     private IndexTemplateConfig stateTemplate() {
         Map<String, String> variables = new HashMap<>();
-        variables.put(VERSION_ID_PATTERN, String.valueOf(Version.CURRENT.id));
+        variables.put(VERSION_ID_PATTERN, String.valueOf(ML_INDEX_TEMPLATE_VERSION));
         // In serverless a different version of "state_index_template.json" is shipped that won't substitute the ILM policy variable
         variables.put(INDEX_LIFECYCLE_NAME, ML_SIZE_BASED_ILM_POLICY_NAME);
         variables.put(INDEX_LIFECYCLE_ROLLOVER_ALIAS, AnomalyDetectorsIndex.jobStateIndexWriteAlias());
@@ -50,7 +66,7 @@ public class MlIndexTemplateRegistry extends IndexTemplateRegistry {
         return new IndexTemplateConfig(
             AnomalyDetectorsIndexFields.STATE_INDEX_PREFIX,
             ANOMALY_DETECTION_PATH + "state_index_template.json",
-            Version.CURRENT.id,
+            ML_INDEX_TEMPLATE_VERSION,
             VERSION_PATTERN,
             variables
         );
@@ -58,13 +74,13 @@ public class MlIndexTemplateRegistry extends IndexTemplateRegistry {
 
     private static IndexTemplateConfig anomalyDetectionResultsTemplate() {
         Map<String, String> variables = new HashMap<>();
-        variables.put(VERSION_ID_PATTERN, String.valueOf(Version.CURRENT.id));
+        variables.put(VERSION_ID_PATTERN, String.valueOf(ML_INDEX_TEMPLATE_VERSION));
         variables.put("xpack.ml.anomalydetection.results.mappings", AnomalyDetectorsIndex.resultsMapping());
 
         return new IndexTemplateConfig(
             AnomalyDetectorsIndex.jobResultsIndexPrefix(),
             ANOMALY_DETECTION_PATH + "results_index_template.json",
-            Version.CURRENT.id,
+            ML_INDEX_TEMPLATE_VERSION,
             VERSION_PATTERN,
             variables
         );
@@ -72,13 +88,13 @@ public class MlIndexTemplateRegistry extends IndexTemplateRegistry {
 
     private static IndexTemplateConfig notificationsTemplate() {
         Map<String, String> variables = new HashMap<>();
-        variables.put(VERSION_ID_PATTERN, String.valueOf(Version.CURRENT.id));
+        variables.put(VERSION_ID_PATTERN, String.valueOf(ML_INDEX_TEMPLATE_VERSION));
         variables.put("xpack.ml.notifications.mappings", NotificationsIndex.mapping());
 
         return new IndexTemplateConfig(
             NotificationsIndex.NOTIFICATIONS_INDEX,
             ROOT_RESOURCE_PATH + "notifications_index_template.json",
-            Version.CURRENT.id,
+            ML_INDEX_TEMPLATE_VERSION,
             VERSION_PATTERN,
             variables
         );
@@ -86,7 +102,7 @@ public class MlIndexTemplateRegistry extends IndexTemplateRegistry {
 
     private IndexTemplateConfig statsTemplate() {
         Map<String, String> variables = new HashMap<>();
-        variables.put(VERSION_ID_PATTERN, String.valueOf(Version.CURRENT.id));
+        variables.put(VERSION_ID_PATTERN, String.valueOf(ML_INDEX_TEMPLATE_VERSION));
         variables.put("xpack.ml.stats.mappings", MlStatsIndex.mapping());
         // In serverless a different version of "stats_index_template.json" is shipped that won't substitute the ILM policy variable
         variables.put(INDEX_LIFECYCLE_NAME, ML_SIZE_BASED_ILM_POLICY_NAME);
@@ -95,7 +111,7 @@ public class MlIndexTemplateRegistry extends IndexTemplateRegistry {
         return new IndexTemplateConfig(
             MlStatsIndex.TEMPLATE_NAME,
             ROOT_RESOURCE_PATH + "stats_index_template.json",
-            Version.CURRENT.id,
+            ML_INDEX_TEMPLATE_VERSION,
             VERSION_PATTERN,
             variables
         );

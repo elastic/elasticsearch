@@ -13,10 +13,7 @@ import org.elasticsearch.test.ESTestCase;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.Set;
-import java.util.concurrent.BrokenBarrierException;
 import java.util.concurrent.CyclicBarrier;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 
@@ -37,11 +34,10 @@ public class CancellableTasksTrackerTests extends ESTestCase {
         private final boolean concurrentRemove = randomBoolean();
         private final long requestId = randomIntBetween(-1, 10);
 
-        TestTask(Task task, String item, CancellableTasksTracker<String> tracker, Runnable awaitStart) {
+        TestTask(Task task, String item, CancellableTasksTracker<String> tracker, CyclicBarrier startBarrier) {
             if (concurrentRemove) {
                 concurrentRemoveThread = new Thread(() -> {
-                    awaitStart.run();
-
+                    safeAwait(startBarrier);
                     for (int i = 0; i < 10; i++) {
                         if (3 <= state.get()) {
                             final String removed = tracker.remove(task);
@@ -52,11 +48,11 @@ public class CancellableTasksTrackerTests extends ESTestCase {
                     }
                 });
             } else {
-                concurrentRemoveThread = new Thread(awaitStart);
+                concurrentRemoveThread = new Thread(() -> safeAwait(startBarrier));
             }
 
             actionThread = new Thread(() -> {
-                awaitStart.run();
+                safeAwait(startBarrier);
 
                 state.incrementAndGet();
                 tracker.put(task, requestId, item);
@@ -75,7 +71,7 @@ public class CancellableTasksTrackerTests extends ESTestCase {
             }, "action-thread-" + item);
 
             watchThread = new Thread(() -> {
-                awaitStart.run();
+                safeAwait(startBarrier);
 
                 for (int i = 0; i < 10; i++) {
                     final int stateBefore = state.get();
@@ -148,19 +144,7 @@ public class CancellableTasksTrackerTests extends ESTestCase {
 
         final CancellableTasksTracker<String> tracker = new CancellableTasksTracker<>();
         final TestTask[] tasks = new TestTask[between(1, 100)];
-
-        final Runnable awaitStart = new Runnable() {
-            private final CyclicBarrier startBarrier = new CyclicBarrier(tasks.length * 3);
-
-            @Override
-            public void run() {
-                try {
-                    startBarrier.await(10, TimeUnit.SECONDS);
-                } catch (InterruptedException | BrokenBarrierException | TimeoutException e) {
-                    throw new AssertionError("unexpected", e);
-                }
-            }
-        };
+        final CyclicBarrier startBarrier = new CyclicBarrier(tasks.length * 3);
 
         for (int i = 0; i < tasks.length; i++) {
             tasks[i] = new TestTask(
@@ -174,7 +158,7 @@ public class CancellableTasksTrackerTests extends ESTestCase {
                 ),
                 "item-" + i,
                 tracker,
-                awaitStart
+                startBarrier
             );
         }
 

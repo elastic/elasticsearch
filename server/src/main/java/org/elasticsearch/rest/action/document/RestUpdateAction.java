@@ -13,6 +13,7 @@ import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.update.UpdateRequest;
+import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.index.VersionType;
@@ -21,7 +22,7 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.Scope;
 import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestActions;
-import org.elasticsearch.rest.action.RestStatusToXContentListener;
+import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 
 import java.io.IOException;
@@ -98,7 +99,7 @@ public class RestUpdateAction extends BaseRestHandler {
 
         return channel -> client.update(
             updateRequest,
-            new RestStatusToXContentListener<>(channel, r -> r.getLocation(updateRequest.routing()))
+            new RestToXContentListener<>(channel, UpdateResponse::status, r -> r.getLocation(updateRequest.routing()))
         );
     }
 

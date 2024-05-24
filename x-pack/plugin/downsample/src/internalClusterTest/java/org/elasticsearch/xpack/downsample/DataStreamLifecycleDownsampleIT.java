@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.downsample;
 
 import org.elasticsearch.action.admin.indices.rollover.RolloverAction;
 import org.elasticsearch.action.admin.indices.rollover.RolloverRequest;
+import org.elasticsearch.action.datastreams.lifecycle.PutDataStreamLifecycleAction;
 import org.elasticsearch.action.downsample.DownsampleConfig;
 import org.elasticsearch.cluster.metadata.DataStreamLifecycle;
 import org.elasticsearch.cluster.metadata.DataStreamLifecycle.Downsampling;
@@ -16,7 +17,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.datastreams.DataStreamsPlugin;
 import org.elasticsearch.datastreams.lifecycle.DataStreamLifecycleService;
-import org.elasticsearch.datastreams.lifecycle.action.PutDataStreamLifecycleAction;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -30,8 +30,10 @@ import java.util.List;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
+import static org.elasticsearch.cluster.metadata.ClusterChangedEventUtils.indicesCreated;
 import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.backingIndexEqualTo;
 import static org.elasticsearch.xpack.downsample.DataStreamLifecycleDriver.getBackingIndices;
+import static org.elasticsearch.xpack.downsample.DataStreamLifecycleDriver.putTSDBIndexTemplate;
 import static org.hamcrest.Matchers.is;
 
 public class DataStreamLifecycleDownsampleIT extends ESIntegTestCase {
@@ -40,10 +42,6 @@ public class DataStreamLifecycleDownsampleIT extends ESIntegTestCase {
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         return List.of(DataStreamsPlugin.class, LocalStateCompositeXPackPlugin.class, Downsample.class, AggregateMetricMapperPlugin.class);
-    }
-
-    protected boolean ignoreExternalCluster() {
-        return true;
     }
 
     @Override
@@ -68,7 +66,15 @@ public class DataStreamLifecycleDownsampleIT extends ESIntegTestCase {
             )
             .build();
 
-        DataStreamLifecycleDriver.setupDataStreamAndIngestDocs(client(), dataStreamName, lifecycle, DOC_COUNT);
+        DataStreamLifecycleDriver.setupTSDBDataStreamAndIngestDocs(
+            client(),
+            dataStreamName,
+            "1986-01-08T23:40:53.384Z",
+            "2022-01-08T23:40:53.384Z",
+            lifecycle,
+            DOC_COUNT,
+            "1990-09-09T18:00:00"
+        );
 
         List<String> backingIndices = getBackingIndices(client(), dataStreamName);
         String firstGenerationBackingIndex = backingIndices.get(0);
@@ -77,14 +83,17 @@ public class DataStreamLifecycleDownsampleIT extends ESIntegTestCase {
 
         Set<String> witnessedDownsamplingIndices = new HashSet<>();
         clusterService().addListener(event -> {
-            if (event.indicesCreated().contains(oneSecondDownsampleIndex)
+            if (indicesCreated(event).contains(oneSecondDownsampleIndex)
                 || event.indicesDeleted().stream().anyMatch(index -> index.getName().equals(oneSecondDownsampleIndex))) {
                 witnessedDownsamplingIndices.add(oneSecondDownsampleIndex);
             }
-            if (event.indicesCreated().contains(tenSecondsDownsampleIndex)) {
+            if (indicesCreated(event).contains(tenSecondsDownsampleIndex)) {
                 witnessedDownsamplingIndices.add(tenSecondsDownsampleIndex);
             }
         });
+        // before we rollover we update the index template to remove the start/end time boundaries (they're there just to ease with
+        // testing so DSL doesn't have to wait for the end_time to lapse)
+        putTSDBIndexTemplate(client(), dataStreamName, null, null, lifecycle);
 
         client().execute(RolloverAction.INSTANCE, new RolloverRequest(dataStreamName, null)).actionGet();
 
@@ -127,7 +136,15 @@ public class DataStreamLifecycleDownsampleIT extends ESIntegTestCase {
                 )
             )
             .build();
-        DataStreamLifecycleDriver.setupDataStreamAndIngestDocs(client(), dataStreamName, lifecycle, DOC_COUNT);
+        DataStreamLifecycleDriver.setupTSDBDataStreamAndIngestDocs(
+            client(),
+            dataStreamName,
+            "1986-01-08T23:40:53.384Z",
+            "2022-01-08T23:40:53.384Z",
+            lifecycle,
+            DOC_COUNT,
+            "1990-09-09T18:00:00"
+        );
 
         List<String> backingIndices = getBackingIndices(client(), dataStreamName);
         String firstGenerationBackingIndex = backingIndices.get(0);
@@ -136,15 +153,17 @@ public class DataStreamLifecycleDownsampleIT extends ESIntegTestCase {
 
         Set<String> witnessedDownsamplingIndices = new HashSet<>();
         clusterService().addListener(event -> {
-            if (event.indicesCreated().contains(oneSecondDownsampleIndex)
+            if (indicesCreated(event).contains(oneSecondDownsampleIndex)
                 || event.indicesDeleted().stream().anyMatch(index -> index.getName().equals(oneSecondDownsampleIndex))) {
                 witnessedDownsamplingIndices.add(oneSecondDownsampleIndex);
             }
-            if (event.indicesCreated().contains(tenSecondsDownsampleIndex)) {
+            if (indicesCreated(event).contains(tenSecondsDownsampleIndex)) {
                 witnessedDownsamplingIndices.add(tenSecondsDownsampleIndex);
             }
         });
-
+        // before we rollover we update the index template to remove the start/end time boundaries (they're there just to ease with
+        // testing so DSL doesn't have to wait for the end_time to lapse)
+        putTSDBIndexTemplate(client(), dataStreamName, null, null, lifecycle);
         client().execute(RolloverAction.INSTANCE, new RolloverRequest(dataStreamName, null)).actionGet();
 
         assertBusy(() -> {
@@ -182,7 +201,15 @@ public class DataStreamLifecycleDownsampleIT extends ESIntegTestCase {
             )
             .build();
 
-        DataStreamLifecycleDriver.setupDataStreamAndIngestDocs(client(), dataStreamName, lifecycle, DOC_COUNT);
+        DataStreamLifecycleDriver.setupTSDBDataStreamAndIngestDocs(
+            client(),
+            dataStreamName,
+            "1986-01-08T23:40:53.384Z",
+            "2022-01-08T23:40:53.384Z",
+            lifecycle,
+            DOC_COUNT,
+            "1990-09-09T18:00:00"
+        );
 
         List<String> backingIndices = getBackingIndices(client(), dataStreamName);
         String firstGenerationBackingIndex = backingIndices.get(0);
@@ -191,15 +218,17 @@ public class DataStreamLifecycleDownsampleIT extends ESIntegTestCase {
 
         Set<String> witnessedDownsamplingIndices = new HashSet<>();
         clusterService().addListener(event -> {
-            if (event.indicesCreated().contains(oneSecondDownsampleIndex)
+            if (indicesCreated(event).contains(oneSecondDownsampleIndex)
                 || event.indicesDeleted().stream().anyMatch(index -> index.getName().equals(oneSecondDownsampleIndex))) {
                 witnessedDownsamplingIndices.add(oneSecondDownsampleIndex);
             }
-            if (event.indicesCreated().contains(tenSecondsDownsampleIndex)) {
+            if (indicesCreated(event).contains(tenSecondsDownsampleIndex)) {
                 witnessedDownsamplingIndices.add(tenSecondsDownsampleIndex);
             }
         });
-
+        // before we rollover we update the index template to remove the start/end time boundaries (they're there just to ease with
+        // testing so DSL doesn't have to wait for the end_time to lapse)
+        putTSDBIndexTemplate(client(), dataStreamName, null, null, lifecycle);
         client().execute(RolloverAction.INSTANCE, new RolloverRequest(dataStreamName, null)).actionGet();
 
         assertBusy(() -> {

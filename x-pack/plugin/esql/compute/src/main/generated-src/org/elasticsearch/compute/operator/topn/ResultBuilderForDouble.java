@@ -8,8 +8,13 @@
 package org.elasticsearch.compute.operator.topn;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.DoubleBlock;
 
+/**
+ * Builds the resulting {@link DoubleBlock} for some column in a top-n.
+ * This class is generated. Edit {@code X-ResultBuilder.java.st} instead.
+ */
 class ResultBuilderForDouble implements ResultBuilder {
     private final DoubleBlock.Builder builder;
 
@@ -20,10 +25,10 @@ class ResultBuilderForDouble implements ResultBuilder {
      */
     private double key;
 
-    ResultBuilderForDouble(TopNEncoder encoder, boolean inKey, int initialSize) {
+    ResultBuilderForDouble(BlockFactory blockFactory, TopNEncoder encoder, boolean inKey, int initialSize) {
         assert encoder == TopNEncoder.DEFAULT_UNSORTABLE : encoder.toString();
         this.inKey = inKey;
-        this.builder = DoubleBlock.newBlockBuilder(initialSize);
+        this.builder = blockFactory.newDoubleBlockBuilder(initialSize);
     }
 
     @Override
@@ -62,5 +67,10 @@ class ResultBuilderForDouble implements ResultBuilder {
     @Override
     public String toString() {
         return "ResultBuilderForDouble[inKey=" + inKey + "]";
+    }
+
+    @Override
+    public void close() {
+        builder.close();
     }
 }

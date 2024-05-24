@@ -18,6 +18,8 @@ import java.util.function.Predicate;
 public enum RestApiVersion {
 
     V_8(8),
+
+    @UpdateForV9 // v9 will not need to support the v7 REST API
     V_7(7);
 
     public final byte major;
@@ -59,4 +61,15 @@ public enum RestApiVersion {
         };
     }
 
+    public static RestApiVersion forMajor(int major) {
+        switch (major) {
+            case 7 -> {
+                return V_7;
+            }
+            case 8 -> {
+                return V_8;
+            }
+            default -> throw new IllegalArgumentException("Unknown REST API version " + major);
+        }
+    }
 }

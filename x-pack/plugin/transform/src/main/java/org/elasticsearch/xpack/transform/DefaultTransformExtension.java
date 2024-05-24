@@ -9,8 +9,11 @@ package org.elasticsearch.xpack.transform;
 
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.TimeValue;
 
 public class DefaultTransformExtension implements TransformExtension {
+
+    private static final TimeValue MIN_FREQUENCY = TimeValue.timeValueSeconds(1);
 
     @Override
     public boolean includeNodeInfo() {
@@ -32,5 +35,10 @@ public class DefaultTransformExtension implements TransformExtension {
             .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
             .put(IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS, "0-1")
             .build();
+    }
+
+    @Override
+    public TimeValue getMinFrequency() {
+        return MIN_FREQUENCY;
     }
 }

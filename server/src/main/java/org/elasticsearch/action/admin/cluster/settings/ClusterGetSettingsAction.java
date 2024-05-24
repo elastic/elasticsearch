@@ -26,14 +26,16 @@ public class ClusterGetSettingsAction extends ActionType<ClusterGetSettingsActio
     public static final String NAME = "cluster:monitor/settings";
 
     public ClusterGetSettingsAction() {
-        super(NAME, Response::new);
+        super(NAME);
     }
 
     /**
      * Request to retrieve the cluster settings
      */
     public static class Request extends MasterNodeReadRequest<Request> {
-        public Request() {}
+        public Request() {
+            super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT);
+        }
 
         public Request(StreamInput in) throws IOException {
             super(in);

@@ -10,18 +10,22 @@ package org.elasticsearch.compute.data;
 $if(BytesRef)$
 import org.apache.lucene.util.BytesRef;
 $endif$
+import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.core.ReleasableIterator;
 import org.elasticsearch.core.Releasables;
 
 /**
- * Block view of a $Type$Vector.
+ * Block view of a {@link $Type$Vector}. Cannot represent multi-values or nulls.
  * This class is generated. Do not edit it.
  */
 public final class $Type$VectorBlock extends AbstractVectorBlock implements $Type$Block {
 
     private final $Type$Vector vector;
 
+    /**
+     * @param vector considered owned by the current block; must not be used in any other {@code Block}
+     */
     $Type$VectorBlock($Type$Vector vector) {
-        super(vector.getPositionCount(), vector.blockFactory());
         this.vector = vector;
     }
 
@@ -29,6 +33,18 @@ public final class $Type$VectorBlock extends AbstractVectorBlock implements $Typ
     public $Type$Vector asVector() {
         return vector;
     }
+
+$if(BytesRef)$
+    @Override
+    public OrdinalBytesRefBlock asOrdinals() {
+        var ordinals = vector.asOrdinals();
+        if (ordinals != null) {
+            return ordinals.asBlock();
+        } else {
+            return null;
+        }
+    }
+$endif$
 
     @Override
 $if(BytesRef)$
@@ -41,7 +57,7 @@ $endif$
     }
 
     @Override
-    public int getTotalValueCount() {
+    public int getPositionCount() {
         return vector.getPositionCount();
     }
 
@@ -52,7 +68,18 @@ $endif$
 
     @Override
     public $Type$Block filter(int... positions) {
-        return new Filter$Type$Vector(vector, positions).asBlock();
+        return vector.filter(positions).asBlock();
+    }
+
+    @Override
+    public ReleasableIterator<? extends $Type$Block> lookup(IntBlock positions, ByteSizeValue targetBlockSize) {
+        return vector.lookup(positions, targetBlockSize);
+    }
+
+    @Override
+    public $Type$Block expand() {
+        incRef();
+        return this;
     }
 
     @Override
@@ -79,7 +106,18 @@ $endif$
     }
 
     @Override
-    public void close() {
+    public void closeInternal() {
+        assert (vector.isReleased() == false) : "can't release block [" + this + "] containing already released vector";
         Releasables.closeExpectNoException(vector);
+    }
+
+    @Override
+    public void allowPassingToDifferentDriver() {
+        vector.allowPassingToDifferentDriver();
+    }
+
+    @Override
+    public BlockFactory blockFactory() {
+        return vector.blockFactory();
     }
 }

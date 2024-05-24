@@ -144,7 +144,7 @@ public class RetentionLeaseBackgroundSyncActionTests extends ESTestCase {
             retentionLeases
         );
 
-        final PlainActionFuture<TransportReplicationAction.ReplicaResult> listener = PlainActionFuture.newFuture();
+        final PlainActionFuture<TransportReplicationAction.ReplicaResult> listener = new PlainActionFuture<>();
         action.shardOperationOnReplica(request, indexShard, listener);
         final TransportReplicationAction.ReplicaResult result = listener.actionGet();
         // the retention leases on the shard should be updated

@@ -1136,7 +1136,7 @@ public class ExecutionServiceTests extends ESTestCase {
                 assertionsTriggered.set(true);
             }
 
-            PlainActionFuture<UpdateResponse> future = PlainActionFuture.newFuture();
+            PlainActionFuture<UpdateResponse> future = new PlainActionFuture<>();
             future.onResponse(new UpdateResponse(null, new ShardId("test", "test", 0), "test", 0, 0, 0, DocWriteResponse.Result.CREATED));
             return future;
         }).when(client).update(any());

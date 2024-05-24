@@ -11,6 +11,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.security.SecurityContext;
@@ -34,7 +35,13 @@ public class TransportCreateServiceAccountTokenAction extends HandledTransportAc
         ServiceAccountService serviceAccountService,
         SecurityContext securityContext
     ) {
-        super(CreateServiceAccountTokenAction.NAME, transportService, actionFilters, CreateServiceAccountTokenRequest::new);
+        super(
+            CreateServiceAccountTokenAction.NAME,
+            transportService,
+            actionFilters,
+            CreateServiceAccountTokenRequest::new,
+            EsExecutors.DIRECT_EXECUTOR_SERVICE
+        );
         this.serviceAccountService = serviceAccountService;
         this.securityContext = securityContext;
     }

@@ -6,12 +6,9 @@
 <titleabbrev>Stop {rollup-jobs}</titleabbrev>
 ++++
 
+deprecated::[8.11.0,"Rollups will be removed in a future version. Use <<downsampling,downsampling>> instead."]
+
 Stops an existing, started {rollup-job}.
-
-experimental[]
-
-NOTE: For version 8.5 and above we recommend <<downsampling,downsampling>> over
-rollups as a way to reduce your storage costs for time series data.
 
 [[rollup-stop-job-request]]
 ==== {api-request-title}
@@ -52,7 +49,7 @@ processing and eventually moves the job to `STOPPED`. The timeout simply means
 the API call itself timed out while waiting for the status change.
 
 --
-  
+
 `wait_for_completion`::
   (Optional, Boolean) If set to `true`, causes the API to block until the
   indexer state completely stops. If set to `false`, the API returns immediately

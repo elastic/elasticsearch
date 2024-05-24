@@ -123,6 +123,8 @@ public final class Messages {
         "Unable to delete model [{0}] as it is required by machine learning";
     public static final String MODEL_DEFINITION_TRUNCATED =
         "Model definition truncated. Unable to deserialize trained model definition [{0}]";
+    public static final String MODEL_DOWNLOAD_IN_PROGRESS =
+        "Model download task is currently running. Wait for trained model [{0}] download task to complete then try again";
     public static final String UNABLE_TO_DEPLOY_MODEL_BAD_PARTS = "Unable to deploy model, please delete and recreate the model definition";
     public static final String INFERENCE_FAILED_TO_DESERIALIZE = "Could not deserialize trained model [{0}]";
     public static final String INFERENCE_TOO_MANY_DEFINITIONS_REQUESTED =
@@ -220,8 +222,6 @@ public final class Messages {
     public static final String JOB_CONFIG_FUNCTION_REQUIRES_OVERFIELD = "over_field_name must be set when the ''{0}'' function is used";
     public static final String JOB_CONFIG_ID_ALREADY_TAKEN = "The job cannot be created with the Id ''{0}''. The Id is already used.";
     public static final String JOB_CONFIG_ID_TOO_LONG = "The job id cannot contain more than {0,number,integer} characters.";
-    public static final String JOB_CONFIG_INVALID_CREATE_SETTINGS =
-        "The job is configured with fields [{0}] that are illegal to set at job creation";
     public static final String JOB_CONFIG_INVALID_FIELDNAME_CHARS =
         "Invalid field name ''{0}''. Field names including over, by and partition " + "fields cannot contain any of these characters: {1}";
     public static final String JOB_CONFIG_INVALID_FIELDNAME =
@@ -275,6 +275,8 @@ public final class Messages {
     public static final String REST_CANNOT_DELETE_FORECAST_IN_CURRENT_STATE =
         "Forecast(s) [{0}] for job [{1}] needs to be either FAILED or FINISHED to be deleted";
     public static final String FIELD_CANNOT_BE_NULL = "Field [{0}] cannot be null";
+    public static final String MODEL_ID_MATCHES_EXISTING_MODEL_IDS_BUT_MUST_NOT =
+        "Model IDs must be unique. Requested model ID [{}] matches existing model IDs but must not.";
 
     private Messages() {}
 

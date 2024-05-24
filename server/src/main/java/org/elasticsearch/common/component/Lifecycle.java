@@ -8,6 +8,8 @@
 
 package org.elasticsearch.common.component;
 
+import org.elasticsearch.bootstrap.ElasticsearchProcess;
+
 /**
  * Lifecycle state. Allows the following transitions:
  * <ul>
@@ -103,7 +105,11 @@ public final class Lifecycle {
             case STARTED -> false;
             case STOPPED -> {
                 assert false : "STOPPED -> STARTED";
-                throw new IllegalStateException("Can't move to started state when stopped");
+                throw new IllegalStateException(
+                    ElasticsearchProcess.isStopping()
+                        ? "Can't start lifecycle object when the Elasticsearch process is shutting down"
+                        : "Can't move to started state when stopped"
+                );
             }
             case CLOSED -> {
                 assert false : "CLOSED -> STARTED";

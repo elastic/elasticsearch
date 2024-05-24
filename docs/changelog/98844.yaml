@@ -1,5 +1,0 @@
-pr: 98844
-summary: Add accessors required to recreate `TransformStats` object from the fields
-area: Transform
-type: enhancement
-issues: []

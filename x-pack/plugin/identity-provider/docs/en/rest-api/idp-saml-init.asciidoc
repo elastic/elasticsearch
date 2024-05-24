@@ -98,8 +98,9 @@ Provider that should receive this SAML Response.
 --------------------------------------------------------------------
 // TESTRESPONSE[skip:Do not enable identity provider for the docs cluster, at least not yet]
 
-A failed call, in the case of an SP initiated SSO returns a SAML Response as an XML String with its status set to the appropriate error
-code indicating that the authentication request failed and the reason for that failure. A `saml_status` of
+A failed call, in the case of an SP initiated SSO returns a standard Elasticsearch error response with the appropriate HTTP Status code,
+with the error containing a `saml_initiate_single_sign_on_response` field holding a SAML Response as an XML String with its status
+set to the appropriate error code indicating that the authentication request failed and the reason for that failure. A `saml_status` of
 `urn:oasis:names:tc:SAML:2.0:status:Requester` indicates that the error is on the side of the SP or the user, while a `saml_status` of
 `urn:oasis:names:tc:SAML:2.0:status:Responder` indicates that something went wrong in the IDP side. The `error` field contains a short
 human friendly interpretation of the error that is outside the SAML standard and is meant to be communicated to the user, especially
@@ -108,13 +109,35 @@ if the user is not redirected back the SP with the `saml_response`
 [source, console-result]
 --------------------------------------------------------------------
 {
-  "post_url" : "https://sp1.kibana.org/saml/acs",
-  "saml_response" : "?xml version="1.0" encoding="UTF-8"?><saml2p:Response xmlns:saml2p="urn:oasis:names:tc:SAML:2.0:protocol" xmlns:xsd="http://www.w3.org/2001/XMLSchema" Destination="https://sp1.kibana.org/api/saml/acs" ID="_845fbfc9f3254162ce1e161c91b07d85311d65cd" IssueInstant="2020-03-19T15:45:00.158Z" Version="2.0"><saml2:Issuer xmlns:saml2="urn:oasis:names:tc:SAML:2.0:assertion">https://idp.cloud.elastic.co</saml2:Issuer><ds:Signature xmlns:ds="http://www.w3.org/2000/09/xmldsig#">...removed for brevity...</ds:Signature><saml2p:Status><saml2p:StatusCode Value="urn:oasis:names:tc:SAML:2.0:status:Requester"><samlp:StatusCode xmlns:saml2p="urn:oasis:names:tc:SAML:2.0:protocol" Value="urn:oasis:names:tc:SAML:2.0:status:InvalidNameIDPolicy"/></saml2p:StatusCode></saml2p:Status></saml2p:Response>",
-  "saml_status" : "urn:oasis:names:tc:SAML:2.0:status:Requester",
-  "error" : "User [user1] is not permitted to access service [https://sp1.kibana.org]",
-  "service_provider" : {
-    "entity_id" : "https://sp1.kibana.org"
-  }
+  "error":{
+    "root_cause":[
+      {
+        "type":"saml_initiate_single_sign_on_exception",
+        "reason":"User [es_user] is not permitted to access service [ec:abcdef:123456]",
+        "saml_initiate_single_sign_on_response":{
+          "post_url":"https://AVoMOJLJfbru.elastic-cloud.com/saml/acs",
+          "saml_response":"<?xml version=\"1.0\" encoding=\"UTF-8\"?><saml2p:Response xmlns:saml2p=\"urn:oasis:names:tc:SAML:2.0:protocol\" Destination=\"https://AVoMOJLJfbru.elastic-cloud.com/saml/acs\" ID=\"_d73186163618586bd9a671c7ad3d9e399f18b775\" InResponseTo=\"_d7dfe67845acbd717c8f07e7018d99b576d57967\" IssueInstant=\"2023-11-07T08:03:52.193Z\" Version=\"2.0\"><saml2:Issuer xmlns:saml2=\"urn:oasis:names:tc:SAML:2.0:assertion\">urn:elastic:cloud:idp</saml2:Issuer><saml2p:Status><saml2p:StatusCode Value=\"urn:oasis:names:tc:SAML:2.0:status:Requester\"/></saml2p:Status></saml2p:Response>",
+          "saml_status":"urn:oasis:names:tc:SAML:2.0:status:Requester",
+          "error":"User [es_user] is not permitted to access service [ec:abcdef:123456]",
+          "service_provider":{
+            "entity_id":"ec:abcdef:123456"
+          }
+        }
+      }
+    ],
+    "type":"saml_initiate_single_sign_on_exception",
+    "reason":"User [es_user] is not permitted to access service [ec:abcdef:123456]",
+    "saml_initiate_single_sign_on_response":{
+      "post_url":"https://AVoMOJLJfbru.elastic-cloud.com/saml/acs",
+      "saml_response":"<?xml version=\"1.0\" encoding=\"UTF-8\"?><saml2p:Response xmlns:saml2p=\"urn:oasis:names:tc:SAML:2.0:protocol\" Destination=\"https://AVoMOJLJfbru.elastic-cloud.com/saml/acs\" ID=\"_d73186163618586bd9a671c7ad3d9e399f18b775\" InResponseTo=\"_d7dfe67845acbd717c8f07e7018d99b576d57967\" IssueInstant=\"2023-11-07T08:03:52.193Z\" Version=\"2.0\"><saml2:Issuer xmlns:saml2=\"urn:oasis:names:tc:SAML:2.0:assertion\">urn:elastic:cloud:idp</saml2:Issuer><saml2p:Status><saml2p:StatusCode Value=\"urn:oasis:names:tc:SAML:2.0:status:Requester\"/></saml2p:Status></saml2p:Response>",
+      "saml_status":"urn:oasis:names:tc:SAML:2.0:status:Requester",
+      "error":"User [es_user] is not permitted to access service [ec:abcdef:123456]",
+      "service_provider":{
+        "entity_id":"ec:abcdef:123456"
+      }
+    }
+  },
+  "status":403
 }
 --------------------------------------------------------------------
 // TESTRESPONSE[skip:Do not enable identity provider for the docs cluster, at least not yet]

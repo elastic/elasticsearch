@@ -29,6 +29,7 @@ import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.inference.InferenceResults;
 import org.elasticsearch.ingest.IngestMetadata;
 import org.elasticsearch.license.License;
 import org.elasticsearch.license.XPackLicenseState;
@@ -36,9 +37,10 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.ml.action.GetTrainedModelsAction;
+import org.elasticsearch.xpack.core.ml.inference.ModelAliasMetadata;
+import org.elasticsearch.xpack.core.ml.inference.TrainedModelCacheMetadata;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfig;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelType;
-import org.elasticsearch.xpack.core.ml.inference.results.InferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ClassificationConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.RegressionConfig;
@@ -46,7 +48,6 @@ import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TargetType;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.inference.InferenceDefinition;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.ml.MachineLearning;
-import org.elasticsearch.xpack.ml.inference.ModelAliasMetadata;
 import org.elasticsearch.xpack.ml.inference.TrainedModelStatsService;
 import org.elasticsearch.xpack.ml.inference.ingest.InferenceProcessor;
 import org.elasticsearch.xpack.ml.inference.persistence.TrainedModelProvider;
@@ -298,7 +299,7 @@ public class ModelLoadingService implements ClusterStateListener {
      * @param modelId  the model to get
      * @param modelActionListener the listener to alert when the model has been retrieved
      */
-    public void getModelForLearnToRank(String modelId, ActionListener<LocalModel> modelActionListener) {
+    public void getModelForLearningToRank(String modelId, ActionListener<LocalModel> modelActionListener) {
         getModel(modelId, Consumer.SEARCH_RESCORER, null, modelActionListener);
     }
 
@@ -491,7 +492,12 @@ public class ModelLoadingService implements ClusterStateListener {
                 handleLoadFailure(modelId, failure);
             }));
         }, failure -> {
-            logger.warn(() -> "[" + modelId + "] failed to load model configuration", failure);
+            if (consumer != Consumer.PIPELINE) {
+                // The model loading was triggered by an ingest pipeline change
+                // referencing a model that cannot be found. This is not an error
+                // as the model may be put later
+                logger.warn(() -> "[" + modelId + "] failed to load model configuration ", failure);
+            }
             handleLoadFailure(modelId, failure);
         }));
     }
@@ -642,7 +648,7 @@ public class ModelLoadingService implements ClusterStateListener {
             // Also, if the consumer is a search consumer, we should always cache it
             if (referencedModels.contains(modelId)
                 || Sets.haveNonEmptyIntersection(modelIdToModelAliases.getOrDefault(modelId, new HashSet<>()), referencedModels)
-                || consumer.equals(Consumer.SEARCH_AGGS)) {
+                || consumer.isAnyOf(Consumer.SEARCH_AGGS, Consumer.SEARCH_RESCORER)) {
                 try {
                     // The local model may already be in cache. If it is, we don't bother adding it to cache.
                     // If it isn't, we flip an `isLoaded` flag, and increment the model counter to make sure if it is evicted
@@ -745,6 +751,12 @@ public class ModelLoadingService implements ClusterStateListener {
 
     @Override
     public void clusterChanged(ClusterChangedEvent event) {
+        if (event.changedCustomMetadataSet().contains(TrainedModelCacheMetadata.NAME)) {
+            // Flush all models cache since we are detecting some changes.
+            logger.trace("Trained model cache invalidated on node [{}]", () -> event.state().nodes().getLocalNodeId());
+            localModelCache.invalidateAll();
+        }
+
         final boolean prefetchModels = event.state().nodes().getLocalNode().isIngestNode();
         // If we are not prefetching models and there were no model alias changes, don't bother handling the changes
         if ((prefetchModels == false)
@@ -756,7 +768,7 @@ public class ModelLoadingService implements ClusterStateListener {
         ClusterState state = event.state();
         IngestMetadata currentIngestMetadata = state.metadata().custom(IngestMetadata.TYPE);
         Set<String> allReferencedModelKeys = event.changedCustomMetadataSet().contains(IngestMetadata.TYPE)
-            ? getReferencedModelKeys(currentIngestMetadata)
+            ? countInferenceProcessors(currentIngestMetadata)
             : new HashSet<>(referencedModels);
         Set<String> referencedModelsBeforeClusterState;
         Set<String> loadingModelBeforeClusterState = null;
@@ -805,7 +817,8 @@ public class ModelLoadingService implements ClusterStateListener {
                 );
                 if (oldModelAliasesNotReferenced && newModelAliasesNotReferenced && modelIsNotReferenced) {
                     ModelAndConsumer modelAndConsumer = localModelCache.get(modelId);
-                    if (modelAndConsumer != null && modelAndConsumer.consumers.contains(Consumer.SEARCH_AGGS) == false) {
+                    if (modelAndConsumer != null
+                        && modelAndConsumer.consumers.stream().noneMatch(c -> c.isAnyOf(Consumer.SEARCH_AGGS, Consumer.SEARCH_RESCORER))) {
                         logger.trace("[{} ({})] invalidated from cache", modelId, modelAliasOrId);
                         localModelCache.invalidate(modelId);
                     }
@@ -903,13 +916,13 @@ public class ModelLoadingService implements ClusterStateListener {
     ) {
         Map<String, String> changedAliases = new HashMap<>();
         if (event.changedCustomMetadataSet().contains(ModelAliasMetadata.NAME)) {
-            final Map<java.lang.String, ModelAliasMetadata.ModelAliasEntry> modelAliasesToIds = new HashMap<>(
+            final Map<String, ModelAliasMetadata.ModelAliasEntry> modelAliasesToIds = new HashMap<>(
                 ModelAliasMetadata.fromState(event.state()).modelAliases()
             );
             modelIdToModelAliases.clear();
-            for (Map.Entry<java.lang.String, ModelAliasMetadata.ModelAliasEntry> aliasToId : modelAliasesToIds.entrySet()) {
+            for (Map.Entry<String, ModelAliasMetadata.ModelAliasEntry> aliasToId : modelAliasesToIds.entrySet()) {
                 modelIdToModelAliases.computeIfAbsent(aliasToId.getValue().getModelId(), k -> new HashSet<>()).add(aliasToId.getKey());
-                java.lang.String modelId = modelAliasToId.get(aliasToId.getKey());
+                String modelId = modelAliasToId.get(aliasToId.getKey());
                 if (modelId != null && modelId.equals(aliasToId.getValue().getModelId()) == false) {
                     if (prefetchModels && allReferencedModelKeys.contains(aliasToId.getKey())) {
                         changedAliases.put(aliasToId.getKey(), aliasToId.getValue().getModelId());
@@ -921,7 +934,7 @@ public class ModelLoadingService implements ClusterStateListener {
                     modelAliasToId.put(aliasToId.getKey(), aliasToId.getValue().getModelId());
                 }
             }
-            Set<java.lang.String> removedAliases = Sets.difference(modelAliasToId.keySet(), modelAliasesToIds.keySet());
+            Set<String> removedAliases = Sets.difference(modelAliasToId.keySet(), modelAliasesToIds.keySet());
             modelAliasToId.keySet().removeAll(removedAliases);
         }
         return changedAliases;
@@ -962,7 +975,7 @@ public class ModelLoadingService implements ClusterStateListener {
         return queue;
     }
 
-    private static Set<String> getReferencedModelKeys(IngestMetadata ingestMetadata) {
+    private static Set<String> countInferenceProcessors(IngestMetadata ingestMetadata) {
         Set<String> allReferencedModelKeys = new HashSet<>();
         if (ingestMetadata == null) {
             return allReferencedModelKeys;

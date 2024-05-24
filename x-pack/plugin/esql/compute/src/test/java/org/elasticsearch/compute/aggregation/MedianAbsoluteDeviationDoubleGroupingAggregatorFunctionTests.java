@@ -8,8 +8,8 @@
 package org.elasticsearch.compute.aggregation;
 
 import org.elasticsearch.common.Randomness;
-import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.LongDoubleTupleBlockSourceOperator;
@@ -22,12 +22,12 @@ import java.util.List;
 import java.util.stream.Collectors;
 import java.util.stream.DoubleStream;
 
-import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.closeTo;
 
 public class MedianAbsoluteDeviationDoubleGroupingAggregatorFunctionTests extends GroupingAggregatorFunctionTestCase {
 
     @Override
-    protected SourceOperator simpleInput(int end) {
+    protected SourceOperator simpleInput(BlockFactory blockFactory, int end) {
         double[][] samples = new double[][] {
             { 1.2, 1.25, 2.0, 2.0, 4.3, 6.0, 9.0 },
             { 0.1, 1.5, 2.0, 3.0, 4.0, 7.5, 100.0 },
@@ -42,12 +42,12 @@ public class MedianAbsoluteDeviationDoubleGroupingAggregatorFunctionTests extend
                 values.add(Tuple.tuple((long) i, v));
             }
         }
-        return new LongDoubleTupleBlockSourceOperator(values);
+        return new LongDoubleTupleBlockSourceOperator(blockFactory, values.subList(0, Math.min(values.size(), end)));
     }
 
     @Override
-    protected AggregatorFunctionSupplier aggregatorFunction(BigArrays bigArrays, List<Integer> inputChannels) {
-        return new MedianAbsoluteDeviationDoubleAggregatorFunctionSupplier(bigArrays, inputChannels);
+    protected AggregatorFunctionSupplier aggregatorFunction(List<Integer> inputChannels) {
+        return new MedianAbsoluteDeviationDoubleAggregatorFunctionSupplier(inputChannels);
     }
 
     @Override
@@ -57,10 +57,8 @@ public class MedianAbsoluteDeviationDoubleGroupingAggregatorFunctionTests extend
 
     @Override
     protected void assertSimpleGroup(List<Page> input, Block result, int position, Long group) {
-        assertThat(
-            ((DoubleBlock) result).getDouble(position),
-            equalTo(medianAbsoluteDeviation(input.stream().flatMapToDouble(p -> allDoubles(p, group))))
-        );
+        double medianAbsoluteDeviation = medianAbsoluteDeviation(input.stream().flatMapToDouble(p -> allDoubles(p, group)));
+        assertThat(((DoubleBlock) result).getDouble(position), closeTo(medianAbsoluteDeviation, medianAbsoluteDeviation * .000001));
     }
 
     static double medianAbsoluteDeviation(DoubleStream s) {
@@ -77,5 +75,10 @@ public class MedianAbsoluteDeviationDoubleGroupingAggregatorFunctionTests extend
         }
         int c = data.length / 2;
         return data.length % 2 == 0 ? (data[c - 1] + data[c]) / 2 : data[c];
+    }
+
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/101569")
+    public void testMulitvaluedNullGroup() {
+        // only here for muting it
     }
 }

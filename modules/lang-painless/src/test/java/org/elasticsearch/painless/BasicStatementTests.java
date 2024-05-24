@@ -24,7 +24,7 @@ public class BasicStatementTests extends ScriptTestCase {
 
     protected Map<ScriptContext<?>, List<Whitelist>> scriptContexts() {
         Map<ScriptContext<?>, List<Whitelist>> contexts = super.scriptContexts();
-        contexts.put(OneArg.CONTEXT, PainlessPlugin.BASE_WHITELISTS);
+        contexts.put(OneArg.CONTEXT, PAINLESS_BASE_WHITELIST);
         return contexts;
     }
 
@@ -668,8 +668,8 @@ public class BasicStatementTests extends ScriptTestCase {
         int total = (int) exec("int total = 0; for (int value : params['values']) total += value; return total", params, false);
         assertEquals(total, 20000000);
 
-        PainlessError pe = expectScriptThrows(
-            PainlessError.class,
+        var pe = expectScriptThrows(
+            ErrorCauseWrapper.class,
             () -> exec(
                 "int total = 0; for (int value = 0; value < params['values'].length; ++value) total += value; return total",
                 params,

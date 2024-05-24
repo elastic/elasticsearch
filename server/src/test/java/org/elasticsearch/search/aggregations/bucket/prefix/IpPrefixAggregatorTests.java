@@ -65,24 +65,12 @@ public class IpPrefixAggregatorTests extends AggregatorTestCase {
             this.time = time;
         }
 
-        public String getIpAddressAsString() {
-            return ipAddressAsString;
-        }
-
         public InetAddress getIpAddress() {
             return ipAddress;
         }
 
-        public InetAddress getSubnet() {
-            return subnet;
-        }
-
         public String getSubnetAsString() {
             return subnetAsString;
-        }
-
-        public int getPrefixLength() {
-            return prefixLength;
         }
 
         public long getTime() {

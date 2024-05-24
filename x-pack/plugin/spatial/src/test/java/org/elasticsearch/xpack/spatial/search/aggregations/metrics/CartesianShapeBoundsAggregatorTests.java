@@ -16,6 +16,7 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.geo.Orientation;
+import org.elasticsearch.geo.ShapeTestUtils;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.geometry.MultiPoint;
 import org.elasticsearch.geometry.Point;
@@ -30,7 +31,6 @@ import org.elasticsearch.xpack.spatial.index.mapper.ShapeFieldMapper;
 import org.elasticsearch.xpack.spatial.search.aggregations.support.CartesianPointValuesSourceType;
 import org.elasticsearch.xpack.spatial.search.aggregations.support.CartesianShapeValuesSourceType;
 import org.elasticsearch.xpack.spatial.util.GeoTestUtils;
-import org.elasticsearch.xpack.spatial.util.ShapeTestUtils;
 
 import java.io.IOException;
 import java.util.ArrayList;

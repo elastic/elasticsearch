@@ -28,13 +28,8 @@ public class SearchableSnapshotFeatureSetUsage extends XPackFeatureSet.Usage {
     public SearchableSnapshotFeatureSetUsage(StreamInput input) throws IOException {
         super(input);
         numberOfSearchableSnapshotIndices = input.readVInt();
-        if (input.getTransportVersion().onOrAfter(TransportVersions.V_7_13_0)) {
-            numberOfFullCopySearchableSnapshotIndices = input.readVInt();
-            numberOfSharedCacheSearchableSnapshotIndices = input.readVInt();
-        } else {
-            numberOfFullCopySearchableSnapshotIndices = 0;
-            numberOfSharedCacheSearchableSnapshotIndices = 0;
-        }
+        numberOfFullCopySearchableSnapshotIndices = input.readVInt();
+        numberOfSharedCacheSearchableSnapshotIndices = input.readVInt();
     }
 
     @Override
@@ -46,10 +41,8 @@ public class SearchableSnapshotFeatureSetUsage extends XPackFeatureSet.Usage {
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeVInt(numberOfSearchableSnapshotIndices);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_7_13_0)) {
-            out.writeVInt(numberOfFullCopySearchableSnapshotIndices);
-            out.writeVInt(numberOfSharedCacheSearchableSnapshotIndices);
-        }
+        out.writeVInt(numberOfFullCopySearchableSnapshotIndices);
+        out.writeVInt(numberOfSharedCacheSearchableSnapshotIndices);
     }
 
     public SearchableSnapshotFeatureSetUsage(

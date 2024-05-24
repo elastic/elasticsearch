@@ -22,12 +22,11 @@ import java.util.Map;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-public class WatchExecutionContextMockBuilder {
+public final class WatchExecutionContextMockBuilder {
 
     private final WatchExecutionContext ctx;
     private final Watch watch;
 
-    @SuppressWarnings("this-escape")
     public WatchExecutionContextMockBuilder(String watchId) {
         ctx = mock(WatchExecutionContext.class);
         watch = mock(Watch.class);

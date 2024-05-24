@@ -18,7 +18,7 @@ import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.fielddata.MultiGeoPointValues;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.elasticsearch.search.DocValueFormat;
-import org.elasticsearch.search.aggregations.AggregationExecutionException;
+import org.elasticsearch.search.aggregations.AggregationErrors;
 import org.elasticsearch.search.sort.BucketedSort;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.xpack.core.common.search.aggregations.MissingHelper;
@@ -148,10 +148,7 @@ class GeoLineBucketedSort extends BucketedSort.ForDoubles {
             protected boolean advanceExact(int doc) throws IOException {
                 if (docSortValues.advanceExact(doc)) {
                     if (docSortValues.docValueCount() > 1) {
-                        throw new AggregationExecutionException(
-                            "Encountered more than one sort value for a "
-                                + "single document. Use a script to combine multiple sort-values-per-doc into a single value."
-                        );
+                        throw AggregationErrors.unsupportedMultivalue();
                     }
 
                     // There should always be one weight if advanceExact lands us here, either
@@ -211,10 +208,7 @@ class GeoLineBucketedSort extends BucketedSort.ForDoubles {
                 }
 
                 if (docGeoPointValues.docValueCount() > 1) {
-                    throw new AggregationExecutionException(
-                        "Encountered more than one geo_point value for a "
-                            + "single document. Use a script to combine multiple geo_point-values-per-doc into a single value."
-                    );
+                    throw AggregationErrors.unsupportedMultivalue();
                 }
 
                 if (index >= values.size()) {

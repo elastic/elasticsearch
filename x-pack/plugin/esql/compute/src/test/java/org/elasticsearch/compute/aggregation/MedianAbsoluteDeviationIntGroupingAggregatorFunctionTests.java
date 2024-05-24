@@ -8,8 +8,8 @@
 package org.elasticsearch.compute.aggregation;
 
 import org.elasticsearch.common.Randomness;
-import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.LongIntBlockSourceOperator;
@@ -27,7 +27,7 @@ import static org.hamcrest.Matchers.equalTo;
 public class MedianAbsoluteDeviationIntGroupingAggregatorFunctionTests extends GroupingAggregatorFunctionTestCase {
 
     @Override
-    protected SourceOperator simpleInput(int end) {
+    protected SourceOperator simpleInput(BlockFactory blockFactory, int end) {
         int[][] samples = new int[][] {
             { 12, 125, 20, 20, 43, 60, 90 },
             { 1, 15, 20, 30, 40, 75, 1000 },
@@ -42,12 +42,12 @@ public class MedianAbsoluteDeviationIntGroupingAggregatorFunctionTests extends G
                 values.add(Tuple.tuple((long) i, v));
             }
         }
-        return new LongIntBlockSourceOperator(values);
+        return new LongIntBlockSourceOperator(blockFactory, values.subList(0, Math.min(values.size(), end)));
     }
 
     @Override
-    protected AggregatorFunctionSupplier aggregatorFunction(BigArrays bigArrays, List<Integer> inputChannels) {
-        return new MedianAbsoluteDeviationIntAggregatorFunctionSupplier(bigArrays, inputChannels);
+    protected AggregatorFunctionSupplier aggregatorFunction(List<Integer> inputChannels) {
+        return new MedianAbsoluteDeviationIntAggregatorFunctionSupplier(inputChannels);
     }
 
     @Override

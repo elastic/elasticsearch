@@ -15,6 +15,6 @@ public class EsqlQueryAction extends ActionType<EsqlQueryResponse> {
     public static final String NAME = "indices:data/read/esql";
 
     private EsqlQueryAction() {
-        super(NAME, EsqlQueryResponse::new);
+        super(NAME);
     }
 }

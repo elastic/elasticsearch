@@ -32,18 +32,20 @@ public class UpdateWatcherSettingsAction extends ActionType<AcknowledgedResponse
     );
 
     public UpdateWatcherSettingsAction() {
-        super(NAME, AcknowledgedResponse::readFrom);
+        super(NAME);
     }
 
     public static class Request extends AcknowledgedRequest<Request> {
         private final Map<String, Object> settings;
 
         public Request(Map<String, Object> settings) {
+            super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT, DEFAULT_ACK_TIMEOUT);
             this.settings = settings;
         }
 
         public Request(StreamInput in) throws IOException {
-            this.settings = in.readMap();
+            super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT, DEFAULT_ACK_TIMEOUT);
+            this.settings = in.readGenericMap();
         }
 
         @Override

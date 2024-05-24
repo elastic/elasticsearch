@@ -483,21 +483,21 @@ timeout before failing. The actual wait time could be longer, particularly when
 multiple waits occur.
 --
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=wait_for_active_shards]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=wait_for_active_shards]
 
 `wait_for_completion`::
 (Optional, Boolean) If `true`, the request blocks until the operation is complete.
 Defaults to `true`.
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=requests_per_second]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=requests_per_second]
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=require-alias]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=require-alias]
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=scroll]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=scroll]
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=slices]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=slices]
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=max_docs]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=max_docs]
 
 [[docs-reindex-api-request-body]]
 ==== {api-request-body-title}

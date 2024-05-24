@@ -1,0 +1,141 @@
+---
+setup:
+  - skip:
+      features: headers
+
+  - do:
+      cluster.health:
+        wait_for_status: yellow
+
+  - do:
+      security.put_role:
+        name: "admin_role"
+        body:  >
+          {
+            "cluster": ["manage_api_key"]
+          }
+
+  - do:
+      security.put_role:
+        name: "user_role"
+        body:  >
+          {
+            "cluster": ["manage_own_api_key"]
+          }
+
+  - do:
+      security.put_user:
+        username: "api_key_manager"
+        body:  >
+          {
+            "password" : "x-pack-test-password",
+            "roles" : [ "admin_role" ],
+            "full_name" : "API Key Manager"
+          }
+
+  - do:
+      security.put_user:
+        username: "api_key_user"
+        body:  >
+          {
+            "password" : "x-pack-test-password",
+            "roles" : [ "user_role" ],
+            "full_name" : "API Key User"
+          }
+
+---
+teardown:
+  - do:
+      security.delete_role:
+        name: "admin_role"
+        ignore: 404
+
+  - do:
+      security.delete_role:
+        name: "user_role"
+        ignore: 404
+
+  - do:
+      security.delete_user:
+        username: "api_key_user"
+        ignore: 404
+
+  - do:
+      security.delete_user:
+        username: "api_key_manager"
+        ignore: 404
+
+---
+"Test composite aggs api key":
+
+  - do:
+      headers:
+        Authorization: "Basic YXBpX2tleV9tYW5hZ2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" # api_key_manager
+      security.create_api_key:
+        body: >
+          {
+            "name": "manager-api-key",
+            "expiration": "10d",
+            "metadata": {
+               "letter": "a",
+               "number": 42
+            }
+          }
+  - match: { name: "manager-api-key" }
+  - is_true: id
+  - is_true: api_key
+  - is_true: expiration
+  - set: { id: api_key_id }
+  - transform_and_set: { login_creds: "#base64EncodeCredentials(id,api_key)" }
+  - match: { encoded: $login_creds }
+
+  - do:
+      headers:
+        Authorization: "Basic YXBpX2tleV91c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" # api_key_user
+      security.create_api_key:
+        body: >
+          {
+            "name": "user-api-key",
+            "metadata": {
+               "letter": "b"
+            }
+          }
+  - match: { name: "user-api-key" }
+  - is_true: id
+  - is_true: api_key
+  - set: { id: api_key_id }
+  - transform_and_set: { login_creds: "#base64EncodeCredentials(id,api_key)" }
+  - match: { encoded: $login_creds }
+
+  # match_all with composite aggregation
+  - do:
+      headers:
+        Authorization: "Basic YXBpX2tleV9tYW5hZ2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" # api_key_user
+      security.query_api_keys:
+        body: >
+          {
+            "size": 0,
+            "aggs": {
+              "my_buckets": {
+                "composite": {
+                  "sources": [{
+                    "key_name": {
+                      "terms": {
+                        "field": "name"
+                      }
+                    }
+                  }]
+                }
+              }
+            }
+          }
+  - match: { total: 2 }
+  - match: { count: 0 }
+  - length: { api_keys: 0}
+  - length: { aggregations.my_buckets.buckets: 2}
+
+  - match: { aggregations.my_buckets.buckets.0.key.key_name: "manager-api-key" }
+  - match: { aggregations.my_buckets.buckets.0.doc_count: 1 }
+
+  - match: { aggregations.my_buckets.buckets.1.key.key_name: "user-api-key" }
+  - match: { aggregations.my_buckets.buckets.1.doc_count: 1 }

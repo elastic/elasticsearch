@@ -16,12 +16,14 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
+import org.elasticsearch.cluster.metadata.DataStreamGlobalRetentionResolver;
 import org.elasticsearch.cluster.metadata.DataStreamLifecycle;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.ClusterSettings;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -34,6 +36,7 @@ public class TransportGetComposableIndexTemplateAction extends TransportMasterNo
     GetComposableIndexTemplateAction.Response> {
 
     private final ClusterSettings clusterSettings;
+    private final DataStreamGlobalRetentionResolver globalRetentionResolver;
 
     @Inject
     public TransportGetComposableIndexTemplateAction(
@@ -41,7 +44,8 @@ public class TransportGetComposableIndexTemplateAction extends TransportMasterNo
         ClusterService clusterService,
         ThreadPool threadPool,
         ActionFilters actionFilters,
-        IndexNameExpressionResolver indexNameExpressionResolver
+        IndexNameExpressionResolver indexNameExpressionResolver,
+        DataStreamGlobalRetentionResolver globalRetentionResolver
     ) {
         super(
             GetComposableIndexTemplateAction.NAME,
@@ -52,9 +56,10 @@ public class TransportGetComposableIndexTemplateAction extends TransportMasterNo
             GetComposableIndexTemplateAction.Request::new,
             indexNameExpressionResolver,
             GetComposableIndexTemplateAction.Response::new,
-            ThreadPool.Names.SAME
+            EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
         clusterSettings = clusterService.getClusterSettings();
+        this.globalRetentionResolver = globalRetentionResolver;
     }
 
     @Override
@@ -93,11 +98,12 @@ public class TransportGetComposableIndexTemplateAction extends TransportMasterNo
             listener.onResponse(
                 new GetComposableIndexTemplateAction.Response(
                     results,
-                    clusterSettings.get(DataStreamLifecycle.CLUSTER_LIFECYCLE_DEFAULT_ROLLOVER_SETTING)
+                    clusterSettings.get(DataStreamLifecycle.CLUSTER_LIFECYCLE_DEFAULT_ROLLOVER_SETTING),
+                    globalRetentionResolver.resolve(state)
                 )
             );
         } else {
-            listener.onResponse(new GetComposableIndexTemplateAction.Response(results));
+            listener.onResponse(new GetComposableIndexTemplateAction.Response(results, globalRetentionResolver.resolve(state)));
         }
     }
 }

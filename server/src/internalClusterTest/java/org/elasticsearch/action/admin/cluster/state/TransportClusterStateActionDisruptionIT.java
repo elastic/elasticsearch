@@ -48,7 +48,7 @@ public class TransportClusterStateActionDisruptionIT extends ESIntegTestCase {
             final ClusterStateRequestBuilder clusterStateRequestBuilder = clusterAdmin().prepareState()
                 .clear()
                 .setNodes(true)
-                .setMasterNodeTimeout("100ms");
+                .setMasterNodeTimeout(TimeValue.timeValueMillis(100));
             final ClusterStateResponse clusterStateResponse;
             try {
                 clusterStateResponse = clusterStateRequestBuilder.get();
@@ -68,7 +68,7 @@ public class TransportClusterStateActionDisruptionIT extends ESIntegTestCase {
                 .clear()
                 .setLocal(true)
                 .setNodes(true)
-                .setMasterNodeTimeout("100ms")
+                .setMasterNodeTimeout(TimeValue.timeValueMillis(100))
                 .get()
                 .getState()
                 .nodes();
@@ -193,12 +193,9 @@ public class TransportClusterStateActionDisruptionIT extends ESIntegTestCase {
         assertingThread.start();
         updatingThread.start();
 
-        final MockTransportService masterTransportService = (MockTransportService) internalCluster().getInstance(
-            TransportService.class,
-            masterName
-        );
+        final var masterTransportService = MockTransportService.getInstance(masterName);
 
-        for (MockTransportService mockTransportService : mockTransportServices) {
+        for (final var mockTransportService : mockTransportServices) {
             if (masterTransportService != mockTransportService) {
                 masterTransportService.addFailToSendNoConnectRule(mockTransportService);
                 mockTransportService.addFailToSendNoConnectRule(masterTransportService);

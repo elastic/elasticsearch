@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.analytics.movingPercentiles;
 
 import org.HdrHistogram.DoubleHistogram;
 import org.elasticsearch.search.DocValueFormat;
-import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.AggregationReduceContext;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
@@ -27,6 +26,7 @@ import org.elasticsearch.search.aggregations.support.AggregationPath;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.stream.Collectors;
 
 public class MovingPercentilesPipelineAggregator extends PipelineAggregator {
@@ -42,7 +42,6 @@ public class MovingPercentilesPipelineAggregator extends PipelineAggregator {
 
     @Override
     public InternalAggregation reduce(InternalAggregation aggregation, AggregationReduceContext reduceContext) {
-        @SuppressWarnings("unchecked")
         InternalMultiBucketAggregation<?, ?> histo = (InternalMultiBucketAggregation<?, ?>) aggregation;
         List<? extends InternalMultiBucketAggregation.InternalBucket> buckets = histo.getBuckets();
         HistogramFactory factory = (HistogramFactory) histo;
@@ -55,7 +54,7 @@ public class MovingPercentilesPipelineAggregator extends PipelineAggregator {
         switch (config.method) {
             case TDIGEST -> reduceTDigest(buckets, histo, newBuckets, factory, config);
             case HDR -> reduceHDR(buckets, histo, newBuckets, factory, config);
-            default -> throw new AggregationExecutionException(
+            default -> throw new IllegalArgumentException(
                 AbstractPipelineAggregationBuilder.BUCKETS_PATH_FIELD.getPreferredName()
                     + " references an unknown percentile aggregation method: ["
                     + config.method
@@ -75,7 +74,7 @@ public class MovingPercentilesPipelineAggregator extends PipelineAggregator {
 
         List<TDigestState> values = buckets.stream()
             .map(b -> resolveTDigestBucketValue(histo, b, bucketsPaths()[0]))
-            .filter(v -> v != null)
+            .filter(Objects::nonNull)
             .toList();
 
         int index = 0;
@@ -102,11 +101,7 @@ public class MovingPercentilesPipelineAggregator extends PipelineAggregator {
             }
 
             if (state != null) {
-                List<InternalAggregation> aggs = bucket.getAggregations()
-                    .asList()
-                    .stream()
-                    .map((p) -> (InternalAggregation) p)
-                    .collect(Collectors.toList());
+                List<InternalAggregation> aggs = bucket.getAggregations().asList().stream().collect(Collectors.toList());
                 aggs.add(new InternalTDigestPercentiles(name(), config.keys, state, config.keyed, config.formatter, metadata()));
                 newBucket = factory.createBucket(factory.getKey(bucket), bucket.getDocCount(), InternalAggregations.from(aggs));
             }
@@ -125,7 +120,7 @@ public class MovingPercentilesPipelineAggregator extends PipelineAggregator {
 
         List<DoubleHistogram> values = buckets.stream()
             .map(b -> resolveHDRBucketValue(histo, b, bucketsPaths()[0]))
-            .filter(v -> v != null)
+            .filter(Objects::nonNull)
             .toList();
 
         int index = 0;
@@ -152,11 +147,7 @@ public class MovingPercentilesPipelineAggregator extends PipelineAggregator {
             }
 
             if (state != null) {
-                List<InternalAggregation> aggs = bucket.getAggregations()
-                    .asList()
-                    .stream()
-                    .map((p) -> (InternalAggregation) p)
-                    .collect(Collectors.toList());
+                List<InternalAggregation> aggs = new ArrayList<>(bucket.getAggregations().asList());
                 aggs.add(new InternalHDRPercentiles(name(), config.keys, state, config.keyed, config.formatter, metadata()));
                 newBucket = factory.createBucket(factory.getKey(bucket), bucket.getDocCount(), InternalAggregations.from(aggs));
             }
@@ -165,7 +156,7 @@ public class MovingPercentilesPipelineAggregator extends PipelineAggregator {
         }
     }
 
-    private PercentileConfig resolvePercentileConfig(
+    private static PercentileConfig resolvePercentileConfig(
         MultiBucketsAggregation agg,
         InternalMultiBucketAggregation.InternalBucket bucket,
         String aggPath
@@ -195,7 +186,7 @@ public class MovingPercentilesPipelineAggregator extends PipelineAggregator {
         throw buildResolveError(agg, aggPathsList, propertyValue, "percentiles");
     }
 
-    private TDigestState resolveTDigestBucketValue(
+    private static TDigestState resolveTDigestBucketValue(
         MultiBucketsAggregation agg,
         InternalMultiBucketAggregation.InternalBucket bucket,
         String aggPath
@@ -208,7 +199,7 @@ public class MovingPercentilesPipelineAggregator extends PipelineAggregator {
         return ((InternalTDigestPercentiles) propertyValue).getState();
     }
 
-    private DoubleHistogram resolveHDRBucketValue(
+    private static DoubleHistogram resolveHDRBucketValue(
         MultiBucketsAggregation agg,
         InternalMultiBucketAggregation.InternalBucket bucket,
         String aggPath
@@ -221,7 +212,7 @@ public class MovingPercentilesPipelineAggregator extends PipelineAggregator {
         return ((InternalHDRPercentiles) propertyValue).getState();
     }
 
-    private IllegalArgumentException buildResolveError(
+    private static IllegalArgumentException buildResolveError(
         MultiBucketsAggregation agg,
         List<String> aggPathsList,
         Object propertyValue,
@@ -254,14 +245,11 @@ public class MovingPercentilesPipelineAggregator extends PipelineAggregator {
         }
     }
 
-    private int clamp(int index, int length) {
+    private static int clamp(int index, int length) {
         if (index < 0) {
             return 0;
         }
-        if (index > length) {
-            return length;
-        }
-        return index;
+        return Math.min(index, length);
     }
 
     // TODO: replace this with the PercentilesConfig that's used by the percentiles builder.

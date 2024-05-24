@@ -9,6 +9,7 @@
 package org.elasticsearch.action.admin.indices.analyze;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.support.broadcast.BroadcastRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -17,8 +18,6 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Objects;
 
-import static org.elasticsearch.TransportVersions.V_8_500_034;
-
 /**
  * Request for reloading index search analyzers
  */
@@ -26,7 +25,7 @@ public class ReloadAnalyzersRequest extends BroadcastRequest<ReloadAnalyzersRequ
     private final String resource;
     private final boolean preview;
 
-    private static final TransportVersion PREVIEW_OPTION_TRANSPORT_VERSION = V_8_500_034;
+    private static final TransportVersion PREVIEW_OPTION_TRANSPORT_VERSION = TransportVersions.V_8_10_X;
 
     /**
      * Constructs a request for reloading index search analyzers

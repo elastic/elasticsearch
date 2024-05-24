@@ -39,7 +39,7 @@ public class IndicesSegmentsRequestTests extends ESSingleNodeTestCase {
         int numDocs = scaledRandomIntBetween(100, 1000);
         for (int j = 0; j < numDocs; ++j) {
             String id = Integer.toString(j);
-            client().prepareIndex("test").setId(id).setSource("text", "sometext").get();
+            prepareIndex("test").setId(id).setSource("text", "sometext").get();
         }
         client().admin().indices().prepareFlush("test").get();
         client().admin().indices().prepareRefresh().get();
@@ -75,6 +75,35 @@ public class IndicesSegmentsRequestTests extends ESSingleNodeTestCase {
     public void testAllowNoIndex() {
         client().admin().indices().prepareDelete("test").get();
         IndicesSegmentResponse rsp = client().admin().indices().prepareSegments().get();
+        assertEquals(0, rsp.getIndices().size());
+    }
+
+    public void testRequestOnClosedIndexWithVectorFormats() {
+        client().admin().indices().prepareClose("test").get();
+        try {
+            client().admin().indices().prepareSegments("test").includeVectorFormatInfo(true).get();
+            fail("Expected IndexClosedException");
+        } catch (IndexClosedException e) {
+            assertThat(e.getMessage(), is("closed"));
+        }
+    }
+
+    public void testAllowNoIndexWithVectorFormats() {
+        client().admin().indices().prepareDelete("test").get();
+        IndicesSegmentResponse rsp = client().admin().indices().prepareSegments().includeVectorFormatInfo(true).get();
+        assertEquals(0, rsp.getIndices().size());
+    }
+
+    public void testRequestOnClosedIndexIgnoreUnavailableWithVectorFormats() {
+        client().admin().indices().prepareClose("test").get();
+        IndicesOptions defaultOptions = new IndicesSegmentsRequest().indicesOptions();
+        IndicesOptions testOptions = IndicesOptions.fromOptions(true, true, true, false, defaultOptions);
+        IndicesSegmentResponse rsp = client().admin()
+            .indices()
+            .prepareSegments("test")
+            .includeVectorFormatInfo(true)
+            .setIndicesOptions(testOptions)
+            .get();
         assertEquals(0, rsp.getIndices().size());
     }
 }

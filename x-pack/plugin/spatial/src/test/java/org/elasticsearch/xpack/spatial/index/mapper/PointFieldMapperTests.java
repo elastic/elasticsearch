@@ -426,4 +426,12 @@ public class PointFieldMapperTests extends CartesianFieldMapperTests {
     protected IngestScriptSupport ingestScriptSupport() {
         throw new AssumptionViolatedException("not supported");
     }
+
+    @Override
+    protected BlockReaderSupport getSupportedReaders(MapperService mapper, String loaderFieldName) {
+        // TODO: Support testing both reading from source as well as reading from doc-values
+        MappedFieldType ft = mapper.fieldType(loaderFieldName);
+        PointFieldMapper.PointFieldType point = (PointFieldMapper.PointFieldType) ft;
+        return new BlockReaderSupport(point.isIndexed() == false && ft.hasDocValues(), false, mapper, loaderFieldName);
+    }
 }

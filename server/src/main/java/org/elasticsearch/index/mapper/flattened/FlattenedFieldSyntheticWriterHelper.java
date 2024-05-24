@@ -188,10 +188,6 @@ class FlattenedFieldSyntheticWriterHelper {
             this(value, new Prefix(key), new Suffix(key));
         }
 
-        public Prefix prefix() {
-            return this.prefix;
-        }
-
         public Suffix suffix() {
             return this.suffix;
         }
@@ -252,7 +248,7 @@ class FlattenedFieldSyntheticWriterHelper {
         }
     }
 
-    private void writeObject(
+    private static void writeObject(
         final XContentBuilder b,
         final KeyValue currKeyValue,
         final KeyValue nextKeyValue,

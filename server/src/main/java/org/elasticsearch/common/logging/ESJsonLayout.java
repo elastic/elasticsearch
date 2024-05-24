@@ -147,7 +147,7 @@ public class ESJsonLayout extends AbstractStringLayout {
         return patternLayout;
     }
 
-    public static class Builder<B extends ESJsonLayout.Builder<B>> extends AbstractStringLayout.Builder<B>
+    public static final class Builder<B extends ESJsonLayout.Builder<B>> extends AbstractStringLayout.Builder<B>
         implements
             org.apache.logging.log4j.core.util.Builder<ESJsonLayout> {
 
@@ -163,7 +163,6 @@ public class ESJsonLayout extends AbstractStringLayout {
         @PluginConfiguration
         private Configuration config;
 
-        @SuppressWarnings("this-escape")
         public Builder() {
             setCharset(StandardCharsets.UTF_8);
         }

@@ -1,0 +1,5 @@
+pr: 105860
+summary: "ESQL: Re-enable logical dependency check"
+area: ES|QL
+type: bug
+issues: []

@@ -42,7 +42,7 @@ public class PrivateSettingsIT extends ESIntegTestCase {
         // we can not update the setting via the update settings API
         final IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
-            () -> indicesAdmin().prepareUpdateSettings("test").setSettings(Settings.builder().put("index.private", "private-update")).get()
+            indicesAdmin().prepareUpdateSettings("test").setSettings(Settings.builder().put("index.private", "private-update"))
         );
         final String message = "can not update private setting [index.private]; this setting is managed by Elasticsearch";
         assertThat(e, hasToString(containsString(message)));

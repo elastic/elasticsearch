@@ -41,39 +41,49 @@ public class FilterOperator extends AbstractPageMappingOperator {
         int rowCount = 0;
         int[] positions = new int[page.getPositionCount()];
 
-        Block uncastTest = evaluator.eval(page);
-        if (uncastTest.areAllValuesNull()) {
-            // All results are null which is like false. No values selected.
-            return null;
-        }
-        BooleanBlock test = (BooleanBlock) uncastTest;
-        // TODO we can detect constant true or false from the type
-        // TODO or we could make a new method in bool-valued evaluators that returns a list of numbers
-        for (int p = 0; p < page.getPositionCount(); p++) {
-            if (test.isNull(p) || test.getValueCount(p) != 1) {
-                // Null is like false
-                // And, for now, multivalued results are like false too
-                continue;
+        try (BooleanBlock test = (BooleanBlock) evaluator.eval(page)) {
+            if (test.areAllValuesNull()) {
+                // All results are null which is like false. No values selected.
+                page.releaseBlocks();
+                return null;
             }
-            if (test.getBoolean(test.getFirstValueIndex(p))) {
-                positions[rowCount++] = p;
+            // TODO we can detect constant true or false from the type
+            // TODO or we could make a new method in bool-valued evaluators that returns a list of numbers
+            for (int p = 0; p < page.getPositionCount(); p++) {
+                if (test.isNull(p) || test.getValueCount(p) != 1) {
+                    // Null is like false
+                    // And, for now, multivalued results are like false too
+                    continue;
+                }
+                if (test.getBoolean(test.getFirstValueIndex(p))) {
+                    positions[rowCount++] = p;
+                }
             }
-        }
 
-        if (rowCount == 0) {
-            return null;
-        }
-        if (rowCount == page.getPositionCount()) {
-            return page;
-        }
-        positions = Arrays.copyOf(positions, rowCount);
+            if (rowCount == 0) {
+                page.releaseBlocks();
+                return null;
+            }
+            if (rowCount == page.getPositionCount()) {
+                return page;
+            }
+            positions = Arrays.copyOf(positions, rowCount);
 
-        Block[] filteredBlocks = new Block[page.getBlockCount()];
-        for (int i = 0; i < page.getBlockCount(); i++) {
-            filteredBlocks[i] = page.getBlock(i).filter(positions);
+            Block[] filteredBlocks = new Block[page.getBlockCount()];
+            boolean success = false;
+            try {
+                for (int i = 0; i < page.getBlockCount(); i++) {
+                    filteredBlocks[i] = page.getBlock(i).filter(positions);
+                }
+                success = true;
+            } finally {
+                page.releaseBlocks();
+                if (success == false) {
+                    Releasables.closeExpectNoException(filteredBlocks);
+                }
+            }
+            return new Page(filteredBlocks);
         }
-
-        return new Page(filteredBlocks);
     }
 
     @Override
@@ -83,6 +93,6 @@ public class FilterOperator extends AbstractPageMappingOperator {
 
     @Override
     public void close() {
-        Releasables.closeExpectNoException(evaluator);
+        Releasables.closeExpectNoException(evaluator, super::close);
     }
 }

@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-module org.elasticsearch.xpack.inference {
+module org.elasticsearch.inference {
     requires org.elasticsearch.base;
     requires org.elasticsearch.server;
     requires org.elasticsearch.xcontent;
@@ -13,10 +13,16 @@ module org.elasticsearch.xpack.inference {
 
     requires org.apache.httpcomponents.httpclient;
     requires org.apache.logging.log4j;
+    requires org.apache.httpcomponents.httpcore;
+    requires org.apache.httpcomponents.httpasyncclient;
+    requires org.apache.httpcomponents.httpcore.nio;
+    requires org.apache.lucene.core;
+    requires org.apache.lucene.join;
+    requires com.ibm.icu;
 
-    exports org.elasticsearch.xpack.inference.rest;
     exports org.elasticsearch.xpack.inference.action;
     exports org.elasticsearch.xpack.inference.registry;
-    exports org.elasticsearch.xpack.inference.results;
+    exports org.elasticsearch.xpack.inference.rest;
+    exports org.elasticsearch.xpack.inference.services;
     exports org.elasticsearch.xpack.inference;
 }

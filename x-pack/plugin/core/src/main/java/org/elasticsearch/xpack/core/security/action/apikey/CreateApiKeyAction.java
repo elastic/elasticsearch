@@ -18,7 +18,7 @@ public final class CreateApiKeyAction extends ActionType<CreateApiKeyResponse> {
     public static final CreateApiKeyAction INSTANCE = new CreateApiKeyAction();
 
     private CreateApiKeyAction() {
-        super(NAME, CreateApiKeyResponse::new);
+        super(NAME);
     }
 
 }

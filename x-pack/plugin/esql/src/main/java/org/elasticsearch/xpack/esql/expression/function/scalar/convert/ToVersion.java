@@ -9,37 +9,48 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.convert;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.ann.ConvertEvaluator;
-import org.elasticsearch.compute.operator.EvalOperator;
-import org.elasticsearch.xpack.esql.expression.function.Named;
-import org.elasticsearch.xpack.ql.expression.Expression;
-import org.elasticsearch.xpack.ql.tree.NodeInfo;
-import org.elasticsearch.xpack.ql.tree.Source;
-import org.elasticsearch.xpack.ql.type.DataType;
-import org.elasticsearch.xpack.versionfield.Version;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
+import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.expression.function.Example;
+import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
+import org.elasticsearch.xpack.esql.expression.function.Param;
 
 import java.util.List;
 import java.util.Map;
-import java.util.function.BiFunction;
 
-import static org.elasticsearch.xpack.ql.type.DataTypes.KEYWORD;
-import static org.elasticsearch.xpack.ql.type.DataTypes.TEXT;
-import static org.elasticsearch.xpack.ql.type.DataTypes.VERSION;
+import static org.elasticsearch.xpack.esql.core.type.DataTypes.KEYWORD;
+import static org.elasticsearch.xpack.esql.core.type.DataTypes.TEXT;
+import static org.elasticsearch.xpack.esql.core.type.DataTypes.VERSION;
+import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.stringToVersion;
 
 public class ToVersion extends AbstractConvertFunction {
 
-    private static final Map<DataType, BiFunction<EvalOperator.ExpressionEvaluator, Source, EvalOperator.ExpressionEvaluator>> EVALUATORS =
-        Map.ofEntries(
-            Map.entry(VERSION, (fieldEval, source) -> fieldEval),
-            Map.entry(KEYWORD, ToVersionFromStringEvaluator::new),
-            Map.entry(TEXT, ToVersionFromStringEvaluator::new)
-        );
+    private static final Map<DataType, BuildFactory> EVALUATORS = Map.ofEntries(
+        Map.entry(VERSION, (fieldEval, source) -> fieldEval),
+        Map.entry(KEYWORD, ToVersionFromStringEvaluator.Factory::new),
+        Map.entry(TEXT, ToVersionFromStringEvaluator.Factory::new)
+    );
 
-    public ToVersion(Source source, @Named("v") Expression v) {
+    @FunctionInfo(
+        returnType = "version",
+        description = "Converts an input string to a version value.",
+        examples = @Example(file = "version", tag = "to_version")
+    )
+    public ToVersion(
+        Source source,
+        @Param(
+            name = "field",
+            type = { "keyword", "text", "version" },
+            description = "Input value. The input can be a single- or multi-valued column or an expression."
+        ) Expression v
+    ) {
         super(source, v);
     }
 
     @Override
-    protected Map<DataType, BiFunction<EvalOperator.ExpressionEvaluator, Source, EvalOperator.ExpressionEvaluator>> evaluators() {
+    protected Map<DataType, BuildFactory> factories() {
         return EVALUATORS;
     }
 
@@ -60,6 +71,6 @@ public class ToVersion extends AbstractConvertFunction {
 
     @ConvertEvaluator(extraName = "FromString")
     static BytesRef fromKeyword(BytesRef asString) {
-        return new Version(asString.utf8ToString()).toBytesRef();
+        return stringToVersion(asString);
     }
 }

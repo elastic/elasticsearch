@@ -12,19 +12,21 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 
 public class DeleteComposableIndexTemplateRequestTests extends AbstractWireSerializingTestCase<
-    DeleteComposableIndexTemplateAction.Request> {
+    TransportDeleteComposableIndexTemplateAction.Request> {
     @Override
-    protected Writeable.Reader<DeleteComposableIndexTemplateAction.Request> instanceReader() {
-        return DeleteComposableIndexTemplateAction.Request::new;
+    protected Writeable.Reader<TransportDeleteComposableIndexTemplateAction.Request> instanceReader() {
+        return TransportDeleteComposableIndexTemplateAction.Request::new;
     }
 
     @Override
-    protected DeleteComposableIndexTemplateAction.Request createTestInstance() {
-        return new DeleteComposableIndexTemplateAction.Request(randomAlphaOfLength(5));
+    protected TransportDeleteComposableIndexTemplateAction.Request createTestInstance() {
+        return new TransportDeleteComposableIndexTemplateAction.Request(randomAlphaOfLength(5));
     }
 
     @Override
-    protected DeleteComposableIndexTemplateAction.Request mutateInstance(DeleteComposableIndexTemplateAction.Request instance) {
+    protected TransportDeleteComposableIndexTemplateAction.Request mutateInstance(
+        TransportDeleteComposableIndexTemplateAction.Request instance
+    ) {
         return randomValueOtherThan(instance, this::createTestInstance);
     }
 }

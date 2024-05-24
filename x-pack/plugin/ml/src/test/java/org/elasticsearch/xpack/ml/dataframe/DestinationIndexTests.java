@@ -7,23 +7,22 @@
 package org.elasticsearch.xpack.ml.dataframe;
 
 import org.elasticsearch.ElasticsearchStatusException;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.admin.indices.create.CreateIndexAction;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
+import org.elasticsearch.action.admin.indices.create.TransportCreateIndexAction;
 import org.elasticsearch.action.admin.indices.get.GetIndexResponse;
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsAction;
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsRequest;
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
-import org.elasticsearch.action.admin.indices.mapping.put.PutMappingAction;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
+import org.elasticsearch.action.admin.indices.mapping.put.TransportPutMappingAction;
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsAction;
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsRequest;
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsResponse;
 import org.elasticsearch.action.fieldcaps.FieldCapabilities;
-import org.elasticsearch.action.fieldcaps.FieldCapabilitiesAction;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesRequest;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
+import org.elasticsearch.action.fieldcaps.TransportFieldCapabilitiesAction;
 import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
@@ -37,6 +36,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.json.JsonXContent;
+import org.elasticsearch.xpack.core.ml.MlConfigVersion;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfig;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsDest;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsSource;
@@ -61,6 +61,7 @@ import java.util.List;
 import java.util.Map;
 
 import static java.util.Collections.singletonMap;
+import static org.elasticsearch.action.support.ActionTestUtils.assertNoSuccessListener;
 import static org.elasticsearch.common.xcontent.support.XContentMapValues.extractValue;
 import static org.elasticsearch.xpack.ml.DefaultMachineLearningExtension.ANALYTICS_DEST_INDEX_ALLOWED_SETTINGS;
 import static org.hamcrest.Matchers.arrayContaining;
@@ -113,7 +114,7 @@ public class DestinationIndexTests extends ESTestCase {
 
         ArgumentCaptor<CreateIndexRequest> createIndexRequestCaptor = ArgumentCaptor.forClass(CreateIndexRequest.class);
         doAnswer(callListenerOnResponse(null)).when(client)
-            .execute(eq(CreateIndexAction.INSTANCE), createIndexRequestCaptor.capture(), any());
+            .execute(eq(TransportCreateIndexAction.TYPE), createIndexRequestCaptor.capture(), any());
 
         Map<String, Object> analysisSettings1 = Map.ofEntries(
             Map.entry("index.analysis.filter.bigram_joiner.max_shingle_size", "2"),
@@ -293,7 +294,7 @@ public class DestinationIndexTests extends ESTestCase {
         });
 
         doAnswer(callListenerOnResponse(fieldCapabilitiesResponse)).when(client)
-            .execute(eq(FieldCapabilitiesAction.INSTANCE), fieldCapabilitiesRequestCaptor.capture(), any());
+            .execute(eq(TransportFieldCapabilitiesAction.TYPE), fieldCapabilitiesRequestCaptor.capture(), any());
 
         String errorMessage = "";
         switch (expectedError) {
@@ -334,10 +335,7 @@ public class DestinationIndexTests extends ESTestCase {
                 clock,
                 config,
                 ANALYTICS_DEST_INDEX_ALLOWED_SETTINGS,
-                ActionListener.wrap(
-                    response -> fail("should not succeed"),
-                    e -> assertThat(e.getMessage(), Matchers.matchesRegex(finalErrorMessage))
-                )
+                assertNoSuccessListener(e -> assertThat(e.getMessage(), Matchers.matchesRegex(finalErrorMessage)))
             );
 
             return null;
@@ -578,8 +576,7 @@ public class DestinationIndexTests extends ESTestCase {
             clock,
             config,
             ANALYTICS_DEST_INDEX_ALLOWED_SETTINGS,
-            ActionListener.wrap(
-                response -> fail("should not succeed"),
+            assertNoSuccessListener(
                 e -> assertThat(
                     e.getMessage(),
                     equalTo("A field that matches the dest.results_field [ml] already exists; please set a different results_field")
@@ -615,7 +612,7 @@ public class DestinationIndexTests extends ESTestCase {
         ArgumentCaptor<FieldCapabilitiesRequest> fieldCapabilitiesRequestCaptor = ArgumentCaptor.forClass(FieldCapabilitiesRequest.class);
 
         doAnswer(callListenerOnResponse(AcknowledgedResponse.TRUE)).when(client)
-            .execute(eq(PutMappingAction.INSTANCE), putMappingRequestCaptor.capture(), any());
+            .execute(eq(TransportPutMappingAction.TYPE), putMappingRequestCaptor.capture(), any());
 
         FieldCapabilitiesResponse fieldCapabilitiesResponse = new FieldCapabilitiesResponse(new String[0], new HashMap<>() {
             {
@@ -627,7 +624,7 @@ public class DestinationIndexTests extends ESTestCase {
         });
 
         doAnswer(callListenerOnResponse(fieldCapabilitiesResponse)).when(client)
-            .execute(eq(FieldCapabilitiesAction.INSTANCE), fieldCapabilitiesRequestCaptor.capture(), any());
+            .execute(eq(TransportFieldCapabilitiesAction.TYPE), fieldCapabilitiesRequestCaptor.capture(), any());
 
         DestinationIndex.updateMappingsToDestIndex(
             client,
@@ -637,8 +634,8 @@ public class DestinationIndexTests extends ESTestCase {
         );
 
         verify(client, atLeastOnce()).threadPool();
-        verify(client, atMost(1)).execute(eq(FieldCapabilitiesAction.INSTANCE), any(), any());
-        verify(client).execute(eq(PutMappingAction.INSTANCE), any(), any());
+        verify(client, atMost(1)).execute(eq(TransportFieldCapabilitiesAction.TYPE), any(), any());
+        verify(client).execute(eq(TransportPutMappingAction.TYPE), any(), any());
         verifyNoMoreInteractions(client);
 
         PutMappingRequest putMappingRequest = putMappingRequestCaptor.getValue();
@@ -748,7 +745,7 @@ public class DestinationIndexTests extends ESTestCase {
 
     public void testReadMetadata_GivenCurrentVersion() {
         Map<String, Object> mappings = new HashMap<>();
-        mappings.put("_meta", DestinationIndex.createMetadata("test_id", Clock.systemUTC(), Version.CURRENT));
+        mappings.put("_meta", DestinationIndex.createMetadata("test_id", Clock.systemUTC(), MlConfigVersion.CURRENT));
         MappingMetadata mappingMetadata = mock(MappingMetadata.class);
         when(mappingMetadata.getSourceAsMap()).thenReturn(mappings);
 
@@ -756,7 +753,7 @@ public class DestinationIndexTests extends ESTestCase {
 
         assertThat(metadata.hasMetadata(), is(true));
         assertThat(metadata.isCompatible(), is(true));
-        assertThat(metadata.getVersion(), equalTo(Version.CURRENT.toString()));
+        assertThat(metadata.getVersion(), equalTo(MlConfigVersion.CURRENT.toString()));
     }
 
     public void testReadMetadata_GivenMinCompatibleVersion() {
@@ -774,7 +771,7 @@ public class DestinationIndexTests extends ESTestCase {
 
     public void testReadMetadata_GivenIncompatibleVersion() {
         Map<String, Object> mappings = new HashMap<>();
-        mappings.put("_meta", DestinationIndex.createMetadata("test_id", Clock.systemUTC(), Version.V_7_9_3));
+        mappings.put("_meta", DestinationIndex.createMetadata("test_id", Clock.systemUTC(), MlConfigVersion.V_7_9_3));
         MappingMetadata mappingMetadata = mock(MappingMetadata.class);
         when(mappingMetadata.getSourceAsMap()).thenReturn(mappings);
 
@@ -782,7 +779,7 @@ public class DestinationIndexTests extends ESTestCase {
 
         assertThat(metadata.hasMetadata(), is(true));
         assertThat(metadata.isCompatible(), is(false));
-        assertThat(metadata.getVersion(), equalTo(Version.V_7_9_3.toString()));
+        assertThat(metadata.getVersion(), equalTo(MlConfigVersion.V_7_9_3.toString()));
     }
 
     private static <Response> Answer<Response> callListenerOnResponse(Response response) {

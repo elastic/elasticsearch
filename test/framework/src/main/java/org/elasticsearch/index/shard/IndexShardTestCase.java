@@ -9,6 +9,7 @@ package org.elasticsearch.index.shard;
 
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.store.Directory;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.flush.FlushRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.PlainActionFuture;
@@ -30,11 +31,13 @@ import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.env.NodeEnvironment;
+import org.elasticsearch.index.CloseUtils;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettings;
@@ -48,6 +51,7 @@ import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineFactory;
 import org.elasticsearch.index.engine.EngineTestCase;
 import org.elasticsearch.index.engine.InternalEngineFactory;
+import org.elasticsearch.index.mapper.MapperMetrics;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.index.seqno.ReplicationTracker;
@@ -57,6 +61,7 @@ import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.index.snapshots.IndexShardSnapshotStatus;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.translog.Translog;
+import org.elasticsearch.indices.breaker.CircuitBreakerMetrics;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
 import org.elasticsearch.indices.recovery.AsyncRecoveryTarget;
@@ -89,7 +94,6 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
@@ -100,10 +104,13 @@ import java.util.function.Consumer;
 import java.util.function.LongSupplier;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.cluster.routing.TestShardRouting.newShardRouting;
+import static org.elasticsearch.cluster.routing.TestShardRouting.shardRoutingBuilder;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyBoolean;
+import static org.mockito.Mockito.doAnswer;
 
 /**
  * A base class for unit tests that need to create and shutdown {@link IndexShard} instances easily,
@@ -140,6 +147,14 @@ public abstract class IndexShardTestCase extends ESTestCase {
     protected ThreadPool threadPool;
     protected Executor writeExecutor;
     protected long primaryTerm;
+
+    public static void addMockCloseImplementation(IndexShard shard) throws IOException {
+        doAnswer(invocation -> {
+            final ActionListener<Void> listener = invocation.getArgument(3);
+            listener.onResponse(null);
+            return null;
+        }).when(shard).close(any(), anyBoolean(), any(), any());
+    }
 
     @Override
     public void setUp() throws Exception {
@@ -250,13 +265,9 @@ public abstract class IndexShardTestCase extends ESTestCase {
         final RecoverySource recoverySource = primary
             ? RecoverySource.EmptyStoreRecoverySource.INSTANCE
             : RecoverySource.PeerRecoverySource.INSTANCE;
-        final ShardRouting shardRouting = TestShardRouting.newShardRouting(
-            shardId,
-            randomAlphaOfLength(10),
-            primary,
-            ShardRoutingState.INITIALIZING,
-            recoverySource
-        );
+        final ShardRouting shardRouting = shardRoutingBuilder(shardId, randomAlphaOfLength(10), primary, ShardRoutingState.INITIALIZING)
+            .withRecoverySource(recoverySource)
+            .build();
         return newShard(shardRouting, settings, engineFactory, listeners);
     }
 
@@ -310,13 +321,9 @@ public abstract class IndexShardTestCase extends ESTestCase {
      * @param listeners an optional set of listeners to add to the shard
      */
     protected IndexShard newShard(ShardId shardId, boolean primary, IndexingOperationListener... listeners) throws IOException {
-        ShardRouting shardRouting = TestShardRouting.newShardRouting(
-            shardId,
-            randomAlphaOfLength(5),
-            primary,
-            ShardRoutingState.INITIALIZING,
-            primary ? RecoverySource.EmptyStoreRecoverySource.INSTANCE : RecoverySource.PeerRecoverySource.INSTANCE
-        );
+        ShardRouting shardRouting = shardRoutingBuilder(shardId, randomAlphaOfLength(5), primary, ShardRoutingState.INITIALIZING)
+            .withRecoverySource(primary ? RecoverySource.EmptyStoreRecoverySource.INSTANCE : RecoverySource.PeerRecoverySource.INSTANCE)
+            .build();
         return newShard(shardRouting, Settings.EMPTY, new InternalEngineFactory(), listeners);
     }
 
@@ -354,13 +361,9 @@ public abstract class IndexShardTestCase extends ESTestCase {
         @Nullable CheckedFunction<DirectoryReader, DirectoryReader, IOException> readerWrapper,
         GlobalCheckpointSyncer globalCheckpointSyncer
     ) throws IOException {
-        ShardRouting shardRouting = TestShardRouting.newShardRouting(
-            shardId,
-            nodeId,
-            primary,
-            ShardRoutingState.INITIALIZING,
+        ShardRouting shardRouting = shardRoutingBuilder(shardId, nodeId, primary, ShardRoutingState.INITIALIZING).withRecoverySource(
             primary ? RecoverySource.EmptyStoreRecoverySource.INSTANCE : RecoverySource.PeerRecoverySource.INSTANCE
-        );
+        ).build();
         return newShard(
             shardRouting,
             indexMetadata,
@@ -512,6 +515,7 @@ public abstract class IndexShardTestCase extends ESTestCase {
             final Engine.Warmer warmer = createTestWarmer(indexSettings);
             ClusterSettings clusterSettings = new ClusterSettings(nodeSettings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
             CircuitBreakerService breakerService = new HierarchyCircuitBreakerService(
+                CircuitBreakerMetrics.NOOP,
                 nodeSettings,
                 Collections.emptyList(),
                 clusterSettings
@@ -538,7 +542,8 @@ public abstract class IndexShardTestCase extends ESTestCase {
                 breakerService,
                 IndexModule.DEFAULT_SNAPSHOT_COMMIT_SUPPLIER,
                 relativeTimeSupplier,
-                null
+                null,
+                MapperMetrics.NOOP
             );
             indexShard.addShardFailureCallback(DEFAULT_SHARD_FAILURE_HANDLER);
             success = true;
@@ -692,7 +697,7 @@ public abstract class IndexShardTestCase extends ESTestCase {
                 EngineTestCase.assertAtMostOneLuceneDocumentPerSequenceNumber(engine);
             }
         } finally {
-            IOUtils.close(() -> shard.close("test", false), shard.store());
+            IOUtils.close(() -> closeShardNoCheck(shard), shard.store());
         }
     }
 
@@ -702,6 +707,29 @@ public abstract class IndexShardTestCase extends ESTestCase {
                 closeShard(shard, true);
             }
         }
+    }
+
+    /**
+     * Close an {@link IndexShard}, optionally flushing first, without performing the consistency checks that {@link #closeShard} performs.
+     */
+    public static void closeShardNoCheck(IndexShard indexShard, boolean flushEngine) throws IOException {
+        CloseUtils.executeDirectly(
+            l -> indexShard.close("IndexShardTestCase#closeShardNoCheck", flushEngine, EsExecutors.DIRECT_EXECUTOR_SERVICE, l)
+        );
+    }
+
+    /**
+     * Close an {@link IndexShard} without flushing or performing the consistency checks that {@link #closeShard} performs.
+     */
+    public static void closeShardNoCheck(IndexShard indexShard) throws IOException {
+        closeShardNoCheck(indexShard, false);
+    }
+
+    /**
+     * Flush and close an {@link IndexShard}, without performing the consistency checks that {@link #closeShard} performs.
+     */
+    public static void flushAndCloseShardNoCheck(IndexShard indexShard) throws IOException {
+        closeShardNoCheck(indexShard, true);
     }
 
     protected void recoverShardFromStore(IndexShard primary) throws IOException {
@@ -809,7 +837,7 @@ public abstract class IndexShardTestCase extends ESTestCase {
         }
         replica.prepareForIndexRecovery();
         final RecoveryTarget recoveryTarget = targetSupplier.apply(replica, pNode);
-        final long startingSeqNo = recoveryTarget.indexShard().recoverLocallyUpToGlobalCheckpoint();
+        final long startingSeqNo = recoverLocallyUpToGlobalCheckpoint(recoveryTarget.indexShard());
         final StartRecoveryRequest request = PeerRecoveryTargetService.getStartRecoveryRequest(
             logger,
             rNode,
@@ -889,14 +917,12 @@ public abstract class IndexShardTestCase extends ESTestCase {
      */
     protected void promoteReplica(IndexShard replica, Set<String> inSyncIds, IndexShardRoutingTable routingTable) throws IOException {
         assertThat(inSyncIds, contains(replica.routingEntry().allocationId().getId()));
-        final ShardRouting routingEntry = newShardRouting(
+        final ShardRouting routingEntry = shardRoutingBuilder(
             replica.routingEntry().shardId(),
             replica.routingEntry().currentNodeId(),
-            null,
             true,
-            ShardRoutingState.STARTED,
-            replica.routingEntry().allocationId()
-        );
+            ShardRoutingState.STARTED
+        ).withAllocationId(replica.routingEntry().allocationId()).build();
 
         final IndexShardRoutingTable newRoutingTable = new IndexShardRoutingTable.Builder(routingTable).removeShard(
             routingTable.primaryShard()
@@ -973,7 +999,7 @@ public abstract class IndexShardTestCase extends ESTestCase {
             id = UUIDs.base64UUID();
             autoGeneratedTimestamp = System.currentTimeMillis();
         }
-        SourceToParse sourceToParse = new SourceToParse(id, new BytesArray(source), xContentType, routing, Map.of(), false);
+        SourceToParse sourceToParse = new SourceToParse(id, new BytesArray(source), xContentType, routing);
         Engine.IndexResult result;
         if (shard.routingEntry().primary()) {
             result = shard.applyIndexOperationOnPrimary(
@@ -1064,7 +1090,7 @@ public abstract class IndexShardTestCase extends ESTestCase {
     }
 
     public static boolean recoverFromStore(IndexShard newShard) {
-        final PlainActionFuture<Boolean> future = PlainActionFuture.newFuture();
+        final PlainActionFuture<Boolean> future = new PlainActionFuture<>();
         newShard.recoverFromStore(future);
         return future.actionGet();
     }
@@ -1081,9 +1107,11 @@ public abstract class IndexShardTestCase extends ESTestCase {
             version,
             indexId
         );
-        final ShardRouting shardRouting = newShardRouting(shardId, node.getId(), true, ShardRoutingState.INITIALIZING, recoverySource);
+        final ShardRouting shardRouting = shardRoutingBuilder(shardId, node.getId(), true, ShardRoutingState.INITIALIZING)
+            .withRecoverySource(recoverySource)
+            .build();
         shard.markAsRecovering("from snapshot", new RecoveryState(shardRouting, node, null));
-        final PlainActionFuture<Void> future = PlainActionFuture.newFuture();
+        final PlainActionFuture<Void> future = new PlainActionFuture<>();
         repository.restoreShard(shard.store(), snapshot.getSnapshotId(), indexId, shard.shardId(), shard.recoveryState(), future);
         future.actionGet();
     }
@@ -1102,7 +1130,7 @@ public abstract class IndexShardTestCase extends ESTestCase {
                 .shardGenerations()
                 .getShardGen(indexId, shard.shardId().getId())
         );
-        final PlainActionFuture<ShardSnapshotResult> future = PlainActionFuture.newFuture();
+        final PlainActionFuture<ShardSnapshotResult> future = new PlainActionFuture<>();
         final ShardGeneration shardGen;
         try (Engine.IndexCommitRef indexCommitRef = shard.acquireLastIndexCommit(true)) {
             repository.snapshotShard(
@@ -1155,5 +1183,9 @@ public abstract class IndexShardTestCase extends ESTestCase {
                 }
             }
         };
+    }
+
+    public static long recoverLocallyUpToGlobalCheckpoint(IndexShard indexShard) {
+        return PlainActionFuture.get(indexShard::recoverLocallyUpToGlobalCheckpoint, 10, TimeUnit.SECONDS);
     }
 }

@@ -1,8 +1,8 @@
 ---
 add dimensions with put_mapping:
-  - skip:
-      version: " - 8.1.99"
-      reason: tsdb indexing changed in 8.2.0
+  - requires:
+      cluster_features: ["gte_v8.13.0"]
+      reason: _tsid hashing introduced in 8.13
 
   - do:
       indices.create:
@@ -48,14 +48,14 @@ add dimensions with put_mapping:
             - field: "@timestamp"
 
   - match: {hits.total.value: 1}
-  - match: {hits.hits.0.fields._tsid: [ { metricset: cat } ] }
+  - match: {hits.hits.0.fields._tsid: [ "JNu4XCk2JFwjn2IrkVkU1soGlT_5e6_NYGOZWULpmMG9IAlZlA" ] }
   - match: {hits.hits.0.fields.@timestamp: ["2021-04-28T18:35:24.467Z"]}
 
 ---
 add dimensions to no dims with dynamic_template over index:
-  - skip:
-      version: " - 8.1.99"
-      reason: tsdb indexing changed in 8.2.0
+  - requires:
+      cluster_features: ["gte_v8.13.0"]
+      reason: _tsid hashing introduced in 8.13
 
   - do:
       indices.create:
@@ -96,14 +96,14 @@ add dimensions to no dims with dynamic_template over index:
             - field: _tsid
             - field: "@timestamp"
   - match: {hits.total.value: 1}
-  - match: {hits.hits.0.fields._tsid: [ { metricset: cat } ] }
+  - match: {hits.hits.0.fields._tsid: [ "JNu4XCk2JFwjn2IrkVkU1soGlT_5e6_NYGOZWULpmMG9IAlZlA" ] }
   - match: {hits.hits.0.fields.@timestamp: ["2021-04-28T18:35:24.467Z"]}
 
 ---
 add dimensions to no dims with dynamic_template over bulk:
-  - skip:
-      version: " - 8.1.99"
-      reason: tsdb indexing changed in 8.2.0
+  - requires:
+      cluster_features: ["gte_v8.13.0"]
+      reason: _tsid hashing introduced in 8.13
 
   - do:
       indices.create:
@@ -144,14 +144,14 @@ add dimensions to no dims with dynamic_template over bulk:
             - field: _tsid
             - field: "@timestamp"
   - match: {hits.total.value: 1}
-  - match: {hits.hits.0.fields._tsid: [ { metricset: cat } ] }
+  - match: {hits.hits.0.fields._tsid: [ "JNu4XCk2JFwjn2IrkVkU1soGlT_5e6_NYGOZWULpmMG9IAlZlA" ] }
   - match: {hits.hits.0.fields.@timestamp: ["2021-04-28T18:35:24.467Z"]}
 
 ---
 add dimensions to some dims with dynamic_template over index:
-  - skip:
-      version: " - 8.1.99"
-      reason: tsdb indexing changed in 8.2.0
+  - requires:
+      cluster_features: ["gte_v8.13.0"]
+      reason: _tsid hashing introduced in 8.13
 
   - do:
       indices.create:
@@ -196,14 +196,14 @@ add dimensions to some dims with dynamic_template over index:
            - field: _tsid
            - field: "@timestamp"
   - match: {hits.total.value: 1}
-  - match: {hits.hits.0.fields._tsid: [ { metricset: cat, other_dim: cat } ] }
+  - match: {hits.hits.0.fields._tsid: ["KPgl3zOd7TnU3SZ_BkidRdUGlT_5BpU_-VPV-yP-7hUv62i6wozuc6Y"] }
   - match: {hits.hits.0.fields.@timestamp: ["2021-04-28T18:35:24.467Z"]}
 
 ---
 add dimensions to some dims with dynamic_template over bulk:
-  - skip:
-      version: " - 8.1.99"
-      reason: tsdb indexing changed in 8.2.0
+  - requires:
+      cluster_features: ["gte_v8.13.0"]
+      reason: _tsid hashing introduced in 8.13
 
   - do:
       indices.create:
@@ -247,5 +247,5 @@ add dimensions to some dims with dynamic_template over bulk:
             - field: _tsid
             - field: "@timestamp"
   - match: {hits.total.value: 1}
-  - match: {hits.hits.0.fields._tsid: [ { metricset: cat, other_dim: cat } ] }
+  - match: {hits.hits.0.fields._tsid: ["KPgl3zOd7TnU3SZ_BkidRdUGlT_5BpU_-VPV-yP-7hUv62i6wozuc6Y"] }
   - match: {hits.hits.0.fields.@timestamp: ["2021-04-28T18:35:24.467Z"]}

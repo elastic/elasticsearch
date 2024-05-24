@@ -11,6 +11,7 @@ package org.elasticsearch.indices;
 import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.CharacterRunAutomaton;
 import org.apache.lucene.util.automaton.Operations;
+import org.apache.lucene.util.automaton.RegExp;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.create.AutoCreateAction;
 import org.elasticsearch.action.admin.indices.create.TransportCreateIndexAction;
@@ -21,7 +22,6 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.lucene.RegExp;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -225,7 +225,7 @@ public class SystemIndexDescriptor implements IndexPatternMatcher, Comparable<Sy
         int indexFormat,
         String mappingsNodeVersionMetaKey,
         String origin,
-        Version minimumNodeVersion,
+        @Deprecated Version minimumNodeVersion,
         Type type,
         List<String> allowedElasticProductOrigins,
         List<SystemIndexDescriptor> priorSystemIndexDescriptors,
@@ -281,7 +281,7 @@ public class SystemIndexDescriptor implements IndexPatternMatcher, Comparable<Sy
             if (settings.getAsInt(IndexMetadata.INDEX_FORMAT_SETTING.getKey(), 0) != indexFormat) {
                 throw new IllegalArgumentException("Descriptor index format does not match index format in managed settings");
             }
-            this.mappingsNodeVersion = extractNodeVersionFromMappings(mappings, mappingsNodeVersionMetaKey);
+            this.mappingsNodeVersion = bestEffortExtractNodeVersionFromMappings(mappings, mappingsNodeVersionMetaKey);
             this.mappingsVersion = extractVersionFromMappings(mappings);
             assert mappingsVersion.version >= 0 : "The mappings version must not be negative";
 
@@ -301,7 +301,6 @@ public class SystemIndexDescriptor implements IndexPatternMatcher, Comparable<Sy
             throw new IllegalArgumentException("External system indices without allowed products is not a valid combination");
         }
 
-        Objects.requireNonNull(minimumNodeVersion, "minimumNodeVersion must be provided!");
         Objects.requireNonNull(priorSystemIndexDescriptors, "priorSystemIndexDescriptors must not be null");
         if (priorSystemIndexDescriptors.isEmpty() == false) {
             // the rules for prior system index descriptors
@@ -310,15 +309,20 @@ public class SystemIndexDescriptor implements IndexPatternMatcher, Comparable<Sy
             // 3. Prior system index descriptors may not have other prior system index descriptors
             // to avoid multiple branches that need followed
             // 4. Must have same indexPattern, primaryIndex, and alias
-            Set<Version> versions = Sets.newHashSetWithExpectedSize(priorSystemIndexDescriptors.size() + 1);
-            versions.add(minimumNodeVersion);
+            Set<MappingsVersion> versions = Sets.newHashSetWithExpectedSize(priorSystemIndexDescriptors.size() + 1);
+            versions.add(mappingsVersion);
             for (SystemIndexDescriptor prior : priorSystemIndexDescriptors) {
-                if (versions.add(prior.minimumNodeVersion) == false) {
-                    throw new IllegalArgumentException(prior + " has the same minimum node version as another descriptor");
+                if (versions.add(prior.mappingsVersion) == false) {
+                    throw new IllegalArgumentException(prior + " has the same mappings version as another descriptor");
                 }
-                if (prior.minimumNodeVersion.after(minimumNodeVersion)) {
+                if (prior.mappingsVersion.version() > mappingsVersion.version()) {
                     throw new IllegalArgumentException(
-                        prior + " has minimum node version [" + prior.minimumNodeVersion + "] which is after [" + minimumNodeVersion + "]"
+                        prior
+                            + " has mappings version ["
+                            + prior.mappingsVersion.version()
+                            + "] which is after ["
+                            + mappingsVersion.version()
+                            + "]"
                     );
                 }
                 if (prior.priorSystemIndexDescriptors.isEmpty() == false) {
@@ -897,8 +901,8 @@ public class SystemIndexDescriptor implements IndexPatternMatcher, Comparable<Sy
      */
     private static String patternToRegex(String input) {
         String output = input;
-        output = output.replaceAll("\\.", "\\\\.");
-        output = output.replaceAll("\\*", ".*");
+        output = output.replace(".", "\\.");
+        output = output.replace("*", ".*");
         return output;
     }
 
@@ -953,6 +957,25 @@ public class SystemIndexDescriptor implements IndexPatternMatcher, Comparable<Sy
         return new MappingsVersion(value, Objects.hash(properties));
     }
 
+    /**
+     * An accurate node version is no longer required in system index mappings metadata.
+     * because the mappings version should be used to determine if an upgrade is required,
+     * not the node version. However, some parts of the code are still relying on
+     * <code>mappingsNodeVersion</code>. This method allows sections of the code to stop
+     * accurately setting node version in their mappings while other sections continue to
+     * use it. Once all uses of <code>mappingsNodeVersion</code> are removed this method
+     * can be removed too.
+     */
+    @Deprecated
+    private static Version bestEffortExtractNodeVersionFromMappings(String mappings, String versionMetaKey) {
+        try {
+            return extractNodeVersionFromMappings(mappings, versionMetaKey);
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
+    @Deprecated
     @SuppressWarnings("unchecked")
     private static Version extractNodeVersionFromMappings(String mappings, String versionMetaKey) {
         final Map<String, Object> mappingsMap = XContentHelper.convertToMap(XContentType.JSON.xContent(), mappings, false);

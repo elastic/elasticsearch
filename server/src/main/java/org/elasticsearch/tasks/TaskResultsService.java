@@ -12,9 +12,9 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.bulk.BackoffPolicy;
 import org.elasticsearch.action.index.IndexRequestBuilder;
-import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.client.internal.Requests;
@@ -35,7 +35,7 @@ import java.io.UncheckedIOException;
 import java.util.Iterator;
 import java.util.Map;
 
-import static org.elasticsearch.action.admin.cluster.node.tasks.get.GetTaskAction.TASKS_ORIGIN;
+import static org.elasticsearch.action.admin.cluster.node.tasks.get.TransportGetTaskAction.TASKS_ORIGIN;
 import static org.elasticsearch.core.TimeValue.timeValueMillis;
 import static org.elasticsearch.tasks.TaskInfo.INCLUDE_CANCELLED_PARAM;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
@@ -91,9 +91,9 @@ public class TaskResultsService {
     }
 
     private void doStoreResult(Iterator<TimeValue> backoff, IndexRequestBuilder index, ActionListener<Void> listener) {
-        index.execute(new ActionListener<IndexResponse>() {
+        index.execute(new ActionListener<DocWriteResponse>() {
             @Override
-            public void onResponse(IndexResponse indexResponse) {
+            public void onResponse(DocWriteResponse indexResponse) {
                 listener.onResponse(null);
             }
 

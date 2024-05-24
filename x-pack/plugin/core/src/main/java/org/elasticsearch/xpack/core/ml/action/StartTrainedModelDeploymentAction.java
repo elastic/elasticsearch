@@ -69,7 +69,7 @@ public class StartTrainedModelDeploymentAction extends ActionType<CreateTrainedM
     private static final ByteSizeValue ELSER_1_OR_2_MEMORY_USAGE = ByteSizeValue.ofMb(2004);
 
     public StartTrainedModelDeploymentAction() {
-        super(NAME, CreateTrainedModelAssignmentAction.Response::new);
+        super(NAME);
     }
 
     public static class Request extends MasterNodeRequest<Request> implements ToXContentObject {
@@ -140,9 +140,12 @@ public class StartTrainedModelDeploymentAction extends ActionType<CreateTrainedM
         private int queueCapacity = 1024;
         private Priority priority = Priority.NORMAL;
 
-        private Request() {}
+        private Request() {
+            super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT);
+        }
 
         public Request(String modelId, String deploymentId) {
+            super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT);
             setModelId(modelId);
             setDeploymentId(deploymentId);
         }
@@ -374,8 +377,10 @@ public class StartTrainedModelDeploymentAction extends ActionType<CreateTrainedM
         // TODO add support for other roles? If so, it may have to be an instance method...
         // NOTE, whatever determines assignment should not be dynamically set on the node
         // Otherwise assignment logic might fail
-        public static boolean mayAssignToNode(DiscoveryNode node) {
-            return node.getRoles().contains(DiscoveryNodeRole.ML_ROLE) && MlConfigVersion.fromNode(node).onOrAfter(VERSION_INTRODUCED);
+        public static boolean mayAssignToNode(@Nullable DiscoveryNode node) {
+            return node != null
+                && node.getRoles().contains(DiscoveryNodeRole.ML_ROLE)
+                && MlConfigVersion.fromNode(node).onOrAfter(VERSION_INTRODUCED);
         }
 
         public static final MlConfigVersion VERSION_INTRODUCED = MlConfigVersion.V_8_0_0;

@@ -85,6 +85,18 @@ public class RobertaTokenization extends Tokenization {
         this.addPrefixSpace = in.readBoolean();
     }
 
+    @Override
+    Tokenization buildWindowingTokenization(int updatedMaxSeqLength, int updatedSpan) {
+        return new RobertaTokenization(
+            this.doLowerCase,
+            this.withSpecialTokens,
+            updatedMaxSeqLength,
+            Truncate.NONE,
+            updatedSpan,
+            this.addPrefixSpace
+        );
+    }
+
     public boolean isAddPrefixSpace() {
         return addPrefixSpace;
     }

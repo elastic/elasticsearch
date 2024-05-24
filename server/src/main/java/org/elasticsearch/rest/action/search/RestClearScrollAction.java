@@ -9,13 +9,14 @@
 package org.elasticsearch.rest.action.search;
 
 import org.elasticsearch.action.search.ClearScrollRequest;
+import org.elasticsearch.action.search.ClearScrollResponse;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.Scope;
 import org.elasticsearch.rest.ServerlessScope;
-import org.elasticsearch.rest.action.RestStatusToXContentListener;
+import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xcontent.XContentParseException;
 
 import java.io.IOException;
@@ -53,7 +54,7 @@ public class RestClearScrollAction extends BaseRestHandler {
             }
         }));
 
-        return channel -> client.clearScroll(clearRequest, new RestStatusToXContentListener<>(channel));
+        return channel -> client.clearScroll(clearRequest, new RestToXContentListener<>(channel, ClearScrollResponse::status));
     }
 
 }

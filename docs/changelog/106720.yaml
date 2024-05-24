@@ -1,0 +1,5 @@
+pr: 106720
+summary: "ESQL: Fix treating all fields as MV in COUNT pushdown"
+area: ES|QL
+type: bug
+issues: []

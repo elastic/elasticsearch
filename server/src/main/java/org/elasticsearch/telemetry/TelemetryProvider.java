@@ -8,10 +8,14 @@
 
 package org.elasticsearch.telemetry;
 
+import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.telemetry.tracing.Tracer;
 
 public interface TelemetryProvider {
+
     Tracer getTracer();
+
+    MeterRegistry getMeterRegistry();
 
     TelemetryProvider NOOP = new TelemetryProvider() {
 
@@ -20,5 +24,9 @@ public interface TelemetryProvider {
             return Tracer.NOOP;
         }
 
+        @Override
+        public MeterRegistry getMeterRegistry() {
+            return MeterRegistry.NOOP;
+        }
     };
 }

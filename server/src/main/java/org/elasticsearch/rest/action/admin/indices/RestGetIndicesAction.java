@@ -20,7 +20,7 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.Scope;
 import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestCancellableNodeClient;
-import org.elasticsearch.rest.action.RestChunkedToXContentListener;
+import org.elasticsearch.rest.action.RestRefCountedChunkedToXContentListener;
 
 import java.io.IOException;
 import java.util.List;
@@ -29,6 +29,7 @@ import java.util.Set;
 import static org.elasticsearch.common.util.set.Sets.addToCopy;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.HEAD;
+import static org.elasticsearch.rest.RestUtils.getMasterNodeTimeout;
 
 /**
  * The REST handler for get index and head index APIs.
@@ -65,14 +66,14 @@ public class RestGetIndicesAction extends BaseRestHandler {
         getIndexRequest.indices(indices);
         getIndexRequest.indicesOptions(IndicesOptions.fromRequest(request, getIndexRequest.indicesOptions()));
         getIndexRequest.local(request.paramAsBoolean("local", getIndexRequest.local()));
-        getIndexRequest.masterNodeTimeout(request.paramAsTime("master_timeout", getIndexRequest.masterNodeTimeout()));
+        getIndexRequest.masterNodeTimeout(getMasterNodeTimeout(request));
         getIndexRequest.humanReadable(request.paramAsBoolean("human", false));
         getIndexRequest.includeDefaults(request.paramAsBoolean("include_defaults", false));
         getIndexRequest.features(GetIndexRequest.Feature.fromRequest(request));
         final var httpChannel = request.getHttpChannel();
         return channel -> new RestCancellableNodeClient(client, httpChannel).admin()
             .indices()
-            .getIndex(getIndexRequest, new RestChunkedToXContentListener<>(channel));
+            .getIndex(getIndexRequest, new RestRefCountedChunkedToXContentListener<>(channel));
     }
 
     /**

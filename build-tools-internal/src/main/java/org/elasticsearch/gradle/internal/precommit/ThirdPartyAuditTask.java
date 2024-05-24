@@ -59,6 +59,8 @@ import javax.inject.Inject;
 
 import static org.gradle.api.JavaVersion.VERSION_20;
 import static org.gradle.api.JavaVersion.VERSION_21;
+import static org.gradle.api.JavaVersion.VERSION_22;
+import static org.gradle.api.JavaVersion.VERSION_23;
 
 @CacheableTask
 public abstract class ThirdPartyAuditTask extends DefaultTask {
@@ -218,7 +220,8 @@ public abstract class ThirdPartyAuditTask extends DefaultTask {
             if (bogousExcludesCount != 0 && bogousExcludesCount == missingClassExcludes.size() + violationsExcludes.size()) {
                 logForbiddenAPIsOutput(forbiddenApisOutput);
                 throw new IllegalStateException(
-                    "All excluded classes seem to have no issues. This is sometimes an indication that the check silently failed"
+                    "All excluded classes seem to have no issues. This is sometimes an indication that the check silently failed "
+                        + "or that exclusions are configured unnecessarily"
                 );
             }
             assertNoPointlessExclusions("are not missing", missingClassExcludes, missingClasses);
@@ -259,10 +262,6 @@ public abstract class ThirdPartyAuditTask extends DefaultTask {
 
     private void logForbiddenAPIsOutput(String forbiddenApisOutput) {
         getLogger().error("Forbidden APIs output:\n{}==end of forbidden APIs==", forbiddenApisOutput);
-    }
-
-    private void throwNotConfiguredCorrectlyException() {
-        throw new IllegalArgumentException("Audit of third party dependencies is not configured correctly");
     }
 
     /**
@@ -338,8 +337,8 @@ public abstract class ThirdPartyAuditTask extends DefaultTask {
                 spec.setExecutable(javaHome.get() + "/bin/java");
             }
             spec.classpath(getForbiddenAPIsClasspath(), classpath);
-            // Enable explicitly for each release as appropriate. Just JDK 20/21 for now, and just the vector module.
-            if (isJavaVersion(VERSION_20) || isJavaVersion(VERSION_21)) {
+            // Enable explicitly for each release as appropriate. Just JDK 20/21/22/23 for now, and just the vector module.
+            if (isJavaVersion(VERSION_20) || isJavaVersion(VERSION_21) || isJavaVersion(VERSION_22) || isJavaVersion(VERSION_23)) {
                 spec.jvmArgs("--add-modules", "jdk.incubator.vector");
             }
             spec.jvmArgs("-Xmx1g");

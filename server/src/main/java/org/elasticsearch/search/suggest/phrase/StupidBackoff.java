@@ -43,7 +43,7 @@ public final class StupidBackoff extends SmoothingModel {
     private static final ParseField DISCOUNT_FIELD = new ParseField("discount");
     static final ParseField PARSE_FIELD = new ParseField(NAME);
 
-    private double discount = DEFAULT_BACKOFF_DISCOUNT;
+    private final double discount;
 
     /**
      * Creates a Stupid-Backoff smoothing model.

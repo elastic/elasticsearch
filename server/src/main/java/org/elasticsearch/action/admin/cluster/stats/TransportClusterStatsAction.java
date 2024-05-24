@@ -10,6 +10,7 @@ package org.elasticsearch.action.admin.cluster.stats;
 
 import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
@@ -61,6 +62,7 @@ public class TransportClusterStatsAction extends TransportNodesAction<
     TransportClusterStatsAction.ClusterStatsNodeRequest,
     ClusterStatsNodeResponse> {
 
+    public static final ActionType<ClusterStatsResponse> TYPE = new ActionType<>("cluster:monitor/stats");
     private static final CommonStatsFlags SHARD_STATS_FLAGS = new CommonStatsFlags(
         CommonStatsFlags.Flag.Docs,
         CommonStatsFlags.Flag.Store,
@@ -89,12 +91,10 @@ public class TransportClusterStatsAction extends TransportNodesAction<
         ActionFilters actionFilters
     ) {
         super(
-            ClusterStatsAction.NAME,
-            threadPool,
+            TYPE.name(),
             clusterService,
             transportService,
             actionFilters,
-            ClusterStatsRequest::new,
             ClusterStatsNodeRequest::new,
             threadPool.executor(ThreadPool.Names.MANAGEMENT)
         );
@@ -182,6 +182,7 @@ public class TransportClusterStatsAction extends TransportNodesAction<
         NodeInfo nodeInfo = nodeService.info(true, true, false, true, false, true, false, false, true, false, false, false);
         NodeStats nodeStats = nodeService.stats(
             CommonStatsFlags.NONE,
+            false,
             true,
             true,
             true,
@@ -252,6 +253,7 @@ public class TransportClusterStatsAction extends TransportNodesAction<
 
     public static class ClusterStatsNodeRequest extends TransportRequest {
 
+        // TODO don't wrap the whole top-level request, it contains heavy and irrelevant DiscoveryNode things; see #100878
         ClusterStatsRequest request;
 
         public ClusterStatsNodeRequest(StreamInput in) throws IOException {

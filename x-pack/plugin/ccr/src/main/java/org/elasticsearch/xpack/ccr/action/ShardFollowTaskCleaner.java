@@ -33,7 +33,7 @@ import java.util.Set;
 /**
  * A {@link ClusterStateListener} that completes any {@link ShardFollowTask} which concerns a deleted index.
  */
-public class ShardFollowTaskCleaner implements ClusterStateListener {
+public final class ShardFollowTaskCleaner implements ClusterStateListener {
 
     private static final Logger logger = LogManager.getLogger(ShardFollowTaskCleaner.class);
 
@@ -45,7 +45,6 @@ public class ShardFollowTaskCleaner implements ClusterStateListener {
      */
     private final Set<ShardFollowTask> completing = Collections.synchronizedSet(new HashSet<>());
 
-    @SuppressWarnings("this-escape")
     public ShardFollowTaskCleaner(final ClusterService clusterService, final ThreadPool threadPool, final Client client) {
         this.threadPool = threadPool;
         this.client = client;

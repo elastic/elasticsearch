@@ -11,6 +11,8 @@ package org.elasticsearch.action.explain;
 import org.apache.lucene.search.Explanation;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionType;
+import org.elasticsearch.action.ResolvedIndices;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.single.shard.TransportSingleShardAction;
 import org.elasticsearch.cluster.ClusterState;
@@ -35,6 +37,7 @@ import org.elasticsearch.search.rescore.RescoreContext;
 import org.elasticsearch.search.rescore.Rescorer;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.RemoteClusterService;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
@@ -48,7 +51,9 @@ import java.util.function.LongSupplier;
 // TODO: AggregatedDfs. Currently the idf can be different then when executing a normal search with explain.
 public class TransportExplainAction extends TransportSingleShardAction<ExplainRequest, ExplainResponse> {
 
+    public static final ActionType<ExplainResponse> TYPE = new ActionType<>("indices:data/read/explain");
     private final SearchService searchService;
+    private final RemoteClusterService remoteClusterService;
 
     @Inject
     public TransportExplainAction(
@@ -60,7 +65,7 @@ public class TransportExplainAction extends TransportSingleShardAction<ExplainRe
         IndexNameExpressionResolver indexNameExpressionResolver
     ) {
         super(
-            ExplainAction.NAME,
+            TYPE.name(),
             threadPool,
             clusterService,
             transportService,
@@ -70,11 +75,22 @@ public class TransportExplainAction extends TransportSingleShardAction<ExplainRe
             threadPool.executor(ThreadPool.Names.GET)
         );
         this.searchService = searchService;
+        this.remoteClusterService = transportService.getRemoteClusterService();
     }
 
     @Override
     protected void doExecute(Task task, ExplainRequest request, ActionListener<ExplainResponse> listener) {
         request.nowInMillis = System.currentTimeMillis();
+
+        // Indices are resolved twice (they are resolved again later by the base class), but that's ok for this action type
+        ResolvedIndices resolvedIndices = ResolvedIndices.resolveWithIndicesRequest(
+            request,
+            clusterService.state(),
+            indexNameExpressionResolver,
+            remoteClusterService,
+            request.nowInMillis
+        );
+
         ActionListener<QueryBuilder> rewriteListener = listener.delegateFailureAndWrap((l, rewrittenQuery) -> {
             request.query(rewrittenQuery);
             super.doExecute(task, request, l);
@@ -82,7 +98,7 @@ public class TransportExplainAction extends TransportSingleShardAction<ExplainRe
 
         assert request.query() != null;
         LongSupplier timeProvider = () -> request.nowInMillis;
-        Rewriteable.rewriteAndFetch(request.query(), searchService.getRewriteContext(timeProvider), rewriteListener);
+        Rewriteable.rewriteAndFetch(request.query(), searchService.getRewriteContext(timeProvider, resolvedIndices), rewriteListener);
     }
 
     @Override

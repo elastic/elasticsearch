@@ -11,24 +11,33 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.search.DocValueFormat;
+import org.elasticsearch.test.ListMatcher;
 import org.elasticsearch.xpack.esql.CsvTestUtils.ActualResults;
 import org.elasticsearch.xpack.versionfield.Version;
+import org.hamcrest.Description;
 import org.hamcrest.Matchers;
+import org.hamcrest.StringDescription;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Comparator;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
+import java.util.function.BiFunction;
 import java.util.function.Function;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
 import static org.elasticsearch.xpack.esql.CsvTestUtils.ExpectedResults;
 import static org.elasticsearch.xpack.esql.CsvTestUtils.Type;
 import static org.elasticsearch.xpack.esql.CsvTestUtils.Type.UNSIGNED_LONG;
 import static org.elasticsearch.xpack.esql.CsvTestUtils.logMetaData;
-import static org.elasticsearch.xpack.ql.util.DateUtils.UTC_DATE_TIME_FORMATTER;
-import static org.elasticsearch.xpack.ql.util.NumericUtils.unsignedLongAsNumber;
+import static org.elasticsearch.xpack.esql.core.util.DateUtils.UTC_DATE_TIME_FORMATTER;
+import static org.elasticsearch.xpack.esql.core.util.NumericUtils.unsignedLongAsNumber;
+import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.CARTESIAN;
+import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.GEO;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertThat;
@@ -71,12 +80,7 @@ public final class CsvAssert {
         var expectedTypes = expected.columnTypes();
 
         assertThat(
-            format(
-                null,
-                "Different number of columns returned; expected [{}] but actual was [{}]",
-                expectedNames.size(),
-                actualNames.size()
-            ),
+            format(null, "Different number of columns returned; expected {} but actual was {}", expectedNames, actualNames),
             actualNames,
             Matchers.hasSize(expectedNames.size())
         );
@@ -117,9 +121,13 @@ public final class CsvAssert {
             for (int pageIndex = 0; pageIndex < pages.size(); pageIndex++) {
                 var page = pages.get(pageIndex);
                 var block = page.getBlock(column);
-                var blockType = Type.asType(block.elementType());
+                var blockType = Type.asType(block.elementType(), actualType);
 
-                if (blockType == Type.LONG && (expectedType == Type.DATETIME || expectedType == UNSIGNED_LONG)) {
+                if (blockType == Type.LONG
+                    && (expectedType == Type.DATETIME
+                        || expectedType == Type.GEO_POINT
+                        || expectedType == Type.CARTESIAN_POINT
+                        || expectedType == UNSIGNED_LONG)) {
                     continue;
                 }
                 if (blockType == Type.KEYWORD && (expectedType == Type.IP || expectedType == Type.VERSION || expectedType == Type.TEXT)) {
@@ -149,7 +157,7 @@ public final class CsvAssert {
     }
 
     static void assertData(ExpectedResults expected, ActualResults actual, boolean ignoreOrder, Logger logger) {
-        assertData(expected, actual.values(), ignoreOrder, logger, Function.identity());
+        assertData(expected, actual.values(), ignoreOrder, logger, (t, v) -> v);
     }
 
     public static void assertData(
@@ -157,23 +165,26 @@ public final class CsvAssert {
         Iterator<Iterator<Object>> actualValuesIterator,
         boolean ignoreOrder,
         Logger logger,
-        Function<Object, Object> valueTransformer
+        BiFunction<Type, Object, Object> valueTransformer
     ) {
         assertData(expected, EsqlTestUtils.getValuesList(actualValuesIterator), ignoreOrder, logger, valueTransformer);
     }
+
+    private record DataFailure(int row, int column, Object expected, Object actual) {}
 
     public static void assertData(
         ExpectedResults expected,
         List<List<Object>> actualValues,
         boolean ignoreOrder,
         Logger logger,
-        Function<Object, Object> valueTransformer
+        BiFunction<Type, Object, Object> valueTransformer
     ) {
         if (ignoreOrder) {
             expected.values().sort(resultRowComparator(expected.columnTypes()));
             actualValues.sort(resultRowComparator(expected.columnTypes()));
         }
         var expectedValues = expected.values();
+        List<DataFailure> dataFailures = new ArrayList<>();
 
         for (int row = 0; row < expectedValues.size(); row++) {
             try {
@@ -189,12 +200,20 @@ public final class CsvAssert {
                 for (int column = 0; column < expectedRow.size(); column++) {
                     var expectedValue = expectedRow.get(column);
                     var actualValue = actualRow.get(column);
+                    var expectedType = expected.columnTypes().get(column);
 
                     if (expectedValue != null) {
-                        var expectedType = expected.columnTypes().get(column);
                         // convert the long from CSV back to its STRING form
                         if (expectedType == Type.DATETIME) {
                             expectedValue = rebuildExpected(expectedValue, Long.class, x -> UTC_DATE_TIME_FORMATTER.formatMillis((long) x));
+                        } else if (expectedType == Type.GEO_POINT) {
+                            expectedValue = rebuildExpected(expectedValue, BytesRef.class, x -> GEO.wkbToWkt((BytesRef) x));
+                        } else if (expectedType == Type.CARTESIAN_POINT) {
+                            expectedValue = rebuildExpected(expectedValue, BytesRef.class, x -> CARTESIAN.wkbToWkt((BytesRef) x));
+                        } else if (expectedType == Type.GEO_SHAPE) {
+                            expectedValue = rebuildExpected(expectedValue, BytesRef.class, x -> GEO.wkbToWkt((BytesRef) x));
+                        } else if (expectedType == Type.CARTESIAN_SHAPE) {
+                            expectedValue = rebuildExpected(expectedValue, BytesRef.class, x -> CARTESIAN.wkbToWkt((BytesRef) x));
                         } else if (expectedType == Type.IP) {
                             // convert BytesRef-packed IP to String, allowing subsequent comparison with what's expected
                             expectedValue = rebuildExpected(expectedValue, BytesRef.class, x -> DocValueFormat.IP.format((BytesRef) x));
@@ -205,7 +224,14 @@ public final class CsvAssert {
                             expectedValue = rebuildExpected(expectedValue, Long.class, x -> unsignedLongAsNumber((long) x));
                         }
                     }
-                    assertEquals(valueTransformer.apply(expectedValue), valueTransformer.apply(actualValue));
+                    var transformedExpected = valueTransformer.apply(expectedType, expectedValue);
+                    var transformedActual = valueTransformer.apply(expectedType, actualValue);
+                    if (Objects.equals(transformedExpected, transformedActual) == false) {
+                        dataFailures.add(new DataFailure(row, column, transformedExpected, transformedActual));
+                    }
+                    if (dataFailures.size() > 10) {
+                        dataFailure(dataFailures);
+                    }
                 }
 
                 var delta = actualRow.size() - expectedRow.size();
@@ -220,11 +246,36 @@ public final class CsvAssert {
                 throw ae;
             }
         }
+        if (dataFailures.isEmpty() == false) {
+            dataFailure(dataFailures);
+        }
         if (expectedValues.size() < actualValues.size()) {
             fail(
                 "Elasticsearch still has data after [" + expectedValues.size() + "] entries:\n" + row(actualValues, expectedValues.size())
             );
         }
+    }
+
+    private static void dataFailure(List<DataFailure> dataFailures) {
+        fail("Data mismatch:\n" + dataFailures.stream().map(f -> {
+            Description description = new StringDescription();
+            ListMatcher expected;
+            if (f.expected instanceof List<?> e) {
+                expected = ListMatcher.matchesList(e);
+            } else {
+                expected = ListMatcher.matchesList().item(f.expected);
+            }
+            List<?> actualList;
+            if (f.actual instanceof List<?> a) {
+                actualList = a;
+            } else {
+                // Do not use List::of - actual can be null.
+                actualList = Collections.singletonList(f.actual);
+            }
+            expected.describeMismatch(actualList, description);
+            String prefix = "row " + f.row + " column " + f.column + ":";
+            return prefix + description.toString().replace("\n", "\n" + prefix);
+        }).collect(Collectors.joining("\n")));
     }
 
     private static Comparator<List<Object>> resultRowComparator(List<Type> types) {

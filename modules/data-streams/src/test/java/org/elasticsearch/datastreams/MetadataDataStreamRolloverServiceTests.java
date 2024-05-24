@@ -29,7 +29,9 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.MapperTestUtils;
+import org.elasticsearch.telemetry.TestTelemetryPlugin;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -59,18 +61,12 @@ public class MetadataDataStreamRolloverServiceTests extends ESTestCase {
     public void testRolloverClusterStateForDataStream() throws Exception {
         Instant now = Instant.now();
         String dataStreamName = "logs-my-app";
-        final DataStream dataStream = new DataStream(
+        final DataStream dataStream = DataStream.builder(
             dataStreamName,
-            List.of(new Index(DataStream.getDefaultBackingIndexName(dataStreamName, 1, now.toEpochMilli()), "uuid")),
-            1,
-            null,
-            false,
-            false,
-            false,
-            false,
-            IndexMode.TIME_SERIES
-        );
-        ComposableIndexTemplate template = new ComposableIndexTemplate.Builder().indexPatterns(List.of(dataStream.getName() + "*"))
+            List.of(new Index(DataStream.getDefaultBackingIndexName(dataStreamName, 1, now.toEpochMilli()), "uuid"))
+        ).setIndexMode(IndexMode.TIME_SERIES).build();
+        ComposableIndexTemplate template = ComposableIndexTemplate.builder()
+            .indexPatterns(List.of(dataStream.getName() + "*"))
             .template(
                 new Template(Settings.builder().put("index.mode", "time_series").put("index.routing_path", "uid").build(), null, null)
             )
@@ -93,6 +89,7 @@ public class MetadataDataStreamRolloverServiceTests extends ESTestCase {
         );
         builder.put(dataStream);
         final ClusterState clusterState = ClusterState.builder(new ClusterName("test")).metadata(builder).build();
+        final TestTelemetryPlugin telemetryPlugin = new TestTelemetryPlugin();
 
         ThreadPool testThreadPool = new TestThreadPool(getTestName());
         try {
@@ -100,7 +97,8 @@ public class MetadataDataStreamRolloverServiceTests extends ESTestCase {
                 dataStream,
                 testThreadPool,
                 Set.of(createSettingsProvider(xContentRegistry())),
-                xContentRegistry()
+                xContentRegistry(),
+                telemetryPlugin.getTelemetryProvider(Settings.EMPTY)
             );
             MaxDocsCondition condition = new MaxDocsCondition(randomNonNegativeLong());
             List<Condition<?>> metConditions = Collections.singletonList(condition);
@@ -117,7 +115,9 @@ public class MetadataDataStreamRolloverServiceTests extends ESTestCase {
                 now,
                 randomBoolean(),
                 false,
-                indexStats
+                indexStats,
+                null,
+                false
             );
             long after = testThreadPool.absoluteTimeInMillis();
 
@@ -164,18 +164,12 @@ public class MetadataDataStreamRolloverServiceTests extends ESTestCase {
         Instant now = Instant.now().truncatedTo(ChronoUnit.SECONDS);
         String dataStreamName = "logs-my-app";
         IndexMode dsIndexMode = randomBoolean() ? null : IndexMode.STANDARD;
-        final DataStream dataStream = new DataStream(
+        final DataStream dataStream = DataStream.builder(
             dataStreamName,
-            List.of(new Index(DataStream.getDefaultBackingIndexName(dataStreamName, 1, now.toEpochMilli()), "uuid")),
-            1,
-            null,
-            false,
-            false,
-            false,
-            false,
-            dsIndexMode
-        );
-        ComposableIndexTemplate template = new ComposableIndexTemplate.Builder().indexPatterns(List.of(dataStream.getName() + "*"))
+            List.of(new Index(DataStream.getDefaultBackingIndexName(dataStreamName, 1, now.toEpochMilli()), "uuid"))
+        ).setIndexMode(dsIndexMode).build();
+        ComposableIndexTemplate template = ComposableIndexTemplate.builder()
+            .indexPatterns(List.of(dataStream.getName() + "*"))
             .template(
                 new Template(Settings.builder().put("index.mode", "time_series").put("index.routing_path", "uid").build(), null, null)
             )
@@ -193,6 +187,7 @@ public class MetadataDataStreamRolloverServiceTests extends ESTestCase {
         );
         builder.put(dataStream);
         final ClusterState clusterState = ClusterState.builder(new ClusterName("test")).metadata(builder).build();
+        final TestTelemetryPlugin telemetryPlugin = new TestTelemetryPlugin();
 
         ThreadPool testThreadPool = new TestThreadPool(getTestName());
         try {
@@ -200,7 +195,8 @@ public class MetadataDataStreamRolloverServiceTests extends ESTestCase {
                 dataStream,
                 testThreadPool,
                 Set.of(createSettingsProvider(xContentRegistry())),
-                xContentRegistry()
+                xContentRegistry(),
+                telemetryPlugin.getTelemetryProvider(Settings.EMPTY)
             );
             MaxDocsCondition condition = new MaxDocsCondition(randomNonNegativeLong());
             List<Condition<?>> metConditions = Collections.singletonList(condition);
@@ -215,7 +211,9 @@ public class MetadataDataStreamRolloverServiceTests extends ESTestCase {
                 now,
                 randomBoolean(),
                 false,
-                null
+                null,
+                null,
+                false
             );
 
             String sourceIndexName = DataStream.getDefaultBackingIndexName(dataStream.getName(), dataStream.getGeneration());
@@ -241,7 +239,7 @@ public class MetadataDataStreamRolloverServiceTests extends ESTestCase {
             Instant endTime = IndexSettings.TIME_SERIES_END_TIME.get(im.getSettings());
             assertThat(startTime.isBefore(endTime), is(true));
             assertThat(startTime, equalTo(now.minus(2, ChronoUnit.HOURS)));
-            assertThat(endTime, equalTo(now.plus(2, ChronoUnit.HOURS)));
+            assertThat(endTime, equalTo(now.plus(30, ChronoUnit.MINUTES)));
         } finally {
             testThreadPool.shutdown();
         }
@@ -250,18 +248,12 @@ public class MetadataDataStreamRolloverServiceTests extends ESTestCase {
     public void testChangingIndexModeFromTimeSeriesToSomethingElseNoEffectOnExistingDataStreams() throws Exception {
         Instant now = Instant.now().truncatedTo(ChronoUnit.SECONDS);
         String dataStreamName = "logs-my-app";
-        final DataStream dataStream = new DataStream(
+        final DataStream dataStream = DataStream.builder(
             dataStreamName,
-            List.of(new Index(DataStream.getDefaultBackingIndexName(dataStreamName, 1, now.toEpochMilli()), "uuid")),
-            1,
-            null,
-            false,
-            false,
-            false,
-            false,
-            IndexMode.TIME_SERIES
-        );
-        ComposableIndexTemplate template = new ComposableIndexTemplate.Builder().indexPatterns(List.of(dataStream.getName() + "*"))
+            List.of(new Index(DataStream.getDefaultBackingIndexName(dataStreamName, 1, now.toEpochMilli()), "uuid"))
+        ).setIndexMode(IndexMode.TIME_SERIES).build();
+        ComposableIndexTemplate template = ComposableIndexTemplate.builder()
+            .indexPatterns(List.of(dataStream.getName() + "*"))
             .template(
                 new Template(Settings.builder().put("index.mode", "time_series").put("index.routing_path", "uid").build(), null, null)
             )
@@ -284,14 +276,15 @@ public class MetadataDataStreamRolloverServiceTests extends ESTestCase {
         );
         builder.put(dataStream);
         final ClusterState clusterState = ClusterState.builder(new ClusterName("test")).metadata(builder).build();
-
+        final TestTelemetryPlugin telemetryPlugin = new TestTelemetryPlugin();
         ThreadPool testThreadPool = new TestThreadPool(getTestName());
         try {
             MetadataRolloverService rolloverService = DataStreamTestHelper.getMetadataRolloverService(
                 dataStream,
                 testThreadPool,
                 Set.of(createSettingsProvider(xContentRegistry())),
-                xContentRegistry()
+                xContentRegistry(),
+                telemetryPlugin.getTelemetryProvider(Settings.EMPTY)
             );
             MaxDocsCondition condition = new MaxDocsCondition(randomNonNegativeLong());
             List<Condition<?>> metConditions = Collections.singletonList(condition);
@@ -306,7 +299,9 @@ public class MetadataDataStreamRolloverServiceTests extends ESTestCase {
                 now,
                 randomBoolean(),
                 false,
-                null
+                null,
+                null,
+                false
             );
 
             String sourceIndexName = DataStream.getDefaultBackingIndexName(dataStream.getName(), dataStream.getGeneration());
@@ -335,7 +330,7 @@ public class MetadataDataStreamRolloverServiceTests extends ESTestCase {
             endTime = IndexSettings.TIME_SERIES_END_TIME.get(im.getSettings());
             assertThat(startTime.isBefore(endTime), is(true));
             assertThat(startTime, equalTo(now.minus(2, ChronoUnit.HOURS)));
-            assertThat(endTime, equalTo(now.plus(2, ChronoUnit.HOURS)));
+            assertThat(endTime, equalTo(now.plus(30, ChronoUnit.MINUTES)));
         } finally {
             testThreadPool.shutdown();
         }
@@ -347,14 +342,16 @@ public class MetadataDataStreamRolloverServiceTests extends ESTestCase {
         int numberOfBackingIndices = randomIntBetween(1, 3);
         ClusterState clusterState = createClusterState(dataStreamName, numberOfBackingIndices, now, true);
         DataStream dataStream = clusterState.metadata().dataStreams().get(dataStreamName);
-
         ThreadPool testThreadPool = new TestThreadPool(getTestName());
+        final TestTelemetryPlugin telemetryPlugin = new TestTelemetryPlugin();
+
         try {
             MetadataRolloverService rolloverService = DataStreamTestHelper.getMetadataRolloverService(
                 dataStream,
                 testThreadPool,
                 Set.of(createSettingsProvider(xContentRegistry())),
-                xContentRegistry()
+                xContentRegistry(),
+                telemetryPlugin.getTelemetryProvider(Settings.EMPTY)
             );
             MaxDocsCondition condition = new MaxDocsCondition(randomNonNegativeLong());
             List<Condition<?>> metConditions = Collections.singletonList(condition);
@@ -371,7 +368,9 @@ public class MetadataDataStreamRolloverServiceTests extends ESTestCase {
                 now,
                 randomBoolean(),
                 false,
-                indexStats
+                indexStats,
+                null,
+                false
             );
             long after = testThreadPool.absoluteTimeInMillis();
 
@@ -412,7 +411,7 @@ public class MetadataDataStreamRolloverServiceTests extends ESTestCase {
                 var lastStartTime = IndexSettings.TIME_SERIES_START_TIME.get(im.getSettings());
                 var kastEndTime = IndexSettings.TIME_SERIES_END_TIME.get(im.getSettings());
                 assertThat(lastStartTime, equalTo(now.minus(2, ChronoUnit.HOURS).truncatedTo(ChronoUnit.SECONDS)));
-                assertThat(kastEndTime, equalTo(now.plus(2, ChronoUnit.HOURS).truncatedTo(ChronoUnit.SECONDS)));
+                assertThat(kastEndTime, equalTo(now.plus(30, ChronoUnit.MINUTES).truncatedTo(ChronoUnit.SECONDS)));
                 assertThat(im.getIndexMode(), equalTo(IndexMode.TIME_SERIES));
             }
         } finally {
@@ -426,14 +425,15 @@ public class MetadataDataStreamRolloverServiceTests extends ESTestCase {
         int numberOfBackingIndices = randomIntBetween(1, 3);
         ClusterState clusterState = createClusterState(dataStreamName, numberOfBackingIndices, now, false);
         DataStream dataStream = clusterState.metadata().dataStreams().get(dataStreamName);
-
+        final TestTelemetryPlugin telemetryPlugin = new TestTelemetryPlugin();
         ThreadPool testThreadPool = new TestThreadPool(getTestName());
         try {
             MetadataRolloverService rolloverService = DataStreamTestHelper.getMetadataRolloverService(
                 dataStream,
                 testThreadPool,
                 Set.of(createSettingsProvider(xContentRegistry())),
-                xContentRegistry()
+                xContentRegistry(),
+                telemetryPlugin.getTelemetryProvider(Settings.EMPTY)
             );
             MaxDocsCondition condition = new MaxDocsCondition(randomNonNegativeLong());
             List<Condition<?>> metConditions = Collections.singletonList(condition);
@@ -451,7 +451,9 @@ public class MetadataDataStreamRolloverServiceTests extends ESTestCase {
                     now,
                     randomBoolean(),
                     false,
-                    indexStats
+                    indexStats,
+                    null,
+                    false
                 )
             );
             assertThat(e.getMessage(), containsString("is overlapping with backing index"));
@@ -465,18 +467,9 @@ public class MetadataDataStreamRolloverServiceTests extends ESTestCase {
         for (int i = 1; i <= numberOfBackingIndices; i++) {
             backingIndices.add(new Index(DataStream.getDefaultBackingIndexName(dataStreamName, i, now.toEpochMilli()), "uuid" + i));
         }
-        final DataStream dataStream = new DataStream(
-            dataStreamName,
-            backingIndices,
-            numberOfBackingIndices,
-            null,
-            false,
-            false,
-            false,
-            false,
-            null
-        );
-        ComposableIndexTemplate template = new ComposableIndexTemplate.Builder().indexPatterns(List.of(dataStream.getName() + "*"))
+        final DataStream dataStream = DataStream.builder(dataStreamName, backingIndices).setGeneration(numberOfBackingIndices).build();
+        ComposableIndexTemplate template = ComposableIndexTemplate.builder()
+            .indexPatterns(List.of(dataStream.getName() + "*"))
             .template(
                 new Template(Settings.builder().put("index.mode", "time_series").put("index.routing_path", "uid").build(), null, null)
             )
@@ -491,7 +484,7 @@ public class MetadataDataStreamRolloverServiceTests extends ESTestCase {
                 .put("index.mode", "time_series")
                 .put("index.routing_path", "uid");
             if (includeVersion) {
-                settings.put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.V_8_9_0);
+                settings.put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersions.V_8_9_0);
             }
             builder.put(IndexMetadata.builder(backingIndex.getName()).settings(settings).numberOfShards(1).numberOfReplicas(0));
         }

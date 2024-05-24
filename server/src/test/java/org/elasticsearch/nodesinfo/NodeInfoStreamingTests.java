@@ -22,7 +22,7 @@ import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.Processors;
 import org.elasticsearch.http.HttpInfo;
-import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.ingest.IngestInfo;
 import org.elasticsearch.ingest.ProcessorInfo;
 import org.elasticsearch.monitor.jvm.JvmInfo;
@@ -115,7 +115,7 @@ public class NodeInfoStreamingTests extends ESTestCase {
         Build build = Build.current();
         DiscoveryNode node = DiscoveryNodeUtils.builder("test_node")
             .roles(emptySet())
-            .version(VersionUtils.randomVersion(random()), IndexVersion.ZERO, IndexVersionUtils.randomVersion())
+            .version(VersionUtils.randomVersion(random()), IndexVersions.ZERO, IndexVersionUtils.randomVersion())
             .build();
         Settings settings = randomBoolean() ? null : Settings.builder().put("test", "setting").build();
         OsInfo osInfo = null;
@@ -156,40 +156,44 @@ public class NodeInfoStreamingTests extends ESTestCase {
             int numPlugins = randomIntBetween(0, 5);
             List<PluginDescriptor> plugins = new ArrayList<>();
             for (int i = 0; i < numPlugins; i++) {
+                var isStable = randomBoolean();
+                var hasModuleName = randomBoolean();
                 plugins.add(
                     new PluginDescriptor(
                         randomAlphaOfLengthBetween(3, 10),
                         randomAlphaOfLengthBetween(3, 10),
                         randomAlphaOfLengthBetween(3, 10),
-                        VersionUtils.randomVersion(random()),
+                        randomAlphaOfLengthBetween(6, 32),
                         "1.8",
-                        randomAlphaOfLengthBetween(3, 10),
-                        randomBoolean() ? null : randomAlphaOfLengthBetween(3, 10),
+                        isStable ? null : randomAlphaOfLengthBetween(3, 10),
+                        isStable || hasModuleName == false ? null : randomAlphaOfLengthBetween(3, 10),
                         Collections.emptyList(),
                         randomBoolean(),
                         randomBoolean(),
                         randomBoolean(),
-                        randomBoolean()
+                        isStable
                     )
                 );
             }
             int numModules = randomIntBetween(0, 5);
             List<PluginDescriptor> modules = new ArrayList<>();
             for (int i = 0; i < numModules; i++) {
+                var isStable = randomBoolean();
+                var hasModuleName = randomBoolean();
                 modules.add(
                     new PluginDescriptor(
                         randomAlphaOfLengthBetween(3, 10),
                         randomAlphaOfLengthBetween(3, 10),
                         randomAlphaOfLengthBetween(3, 10),
-                        VersionUtils.randomVersion(random()),
+                        randomAlphaOfLengthBetween(6, 32),
                         "1.8",
-                        randomAlphaOfLengthBetween(3, 10),
-                        randomBoolean() ? null : randomAlphaOfLengthBetween(3, 10),
+                        isStable ? null : randomAlphaOfLengthBetween(3, 10),
+                        isStable || hasModuleName == false ? null : randomAlphaOfLengthBetween(3, 10),
                         Collections.emptyList(),
                         randomBoolean(),
                         randomBoolean(),
                         randomBoolean(),
-                        randomBoolean()
+                        isStable
                     )
                 );
             }
@@ -235,7 +239,7 @@ public class NodeInfoStreamingTests extends ESTestCase {
             indexingBuffer = ByteSizeValue.ofBytes(random().nextLong() & ((1L << 40) - 1));
         }
         return new NodeInfo(
-            VersionUtils.randomVersion(random()),
+            randomAlphaOfLengthBetween(6, 32),
             TransportVersionUtils.randomVersion(random()),
             IndexVersionUtils.randomVersion(random()),
             componentVersions,

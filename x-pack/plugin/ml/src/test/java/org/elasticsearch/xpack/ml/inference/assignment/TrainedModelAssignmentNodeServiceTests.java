@@ -38,6 +38,7 @@ import org.elasticsearch.xpack.core.ml.inference.assignment.Priority;
 import org.elasticsearch.xpack.core.ml.inference.assignment.RoutingInfo;
 import org.elasticsearch.xpack.core.ml.inference.assignment.RoutingState;
 import org.elasticsearch.xpack.core.ml.inference.assignment.TrainedModelAssignment;
+import org.elasticsearch.xpack.core.ml.inference.assignment.TrainedModelAssignmentMetadata;
 import org.elasticsearch.xpack.ml.inference.deployment.DeploymentManager;
 import org.elasticsearch.xpack.ml.inference.deployment.TrainedModelDeploymentTask;
 import org.junit.After;
@@ -419,6 +420,54 @@ public class TrainedModelAssignmentNodeServiceTests extends ESTestCase {
         assertThat(stopParamsCapture.getValue().getModelId(), equalTo(modelOne));
         assertThat(stopParamsCapture.getValue().getDeploymentId(), equalTo(deploymentOne));
         verify(trainedModelAssignmentService, times(1)).updateModelAssignmentState(
+            any(UpdateTrainedModelAssignmentRoutingInfoAction.Request.class),
+            any()
+        );
+        verifyNoMoreInteractions(deploymentManager, trainedModelAssignmentService);
+    }
+
+    public void testClusterChanged_WhenAssigmentIsRoutedToShuttingDownNode_ButOtherAllocationIsNotReady_DoesNotCallStop() {
+        final TrainedModelAssignmentNodeService trainedModelAssignmentNodeService = createService();
+        String node2 = "test-node-2";
+        final DiscoveryNodes nodes = DiscoveryNodes.builder()
+            .localNodeId(NODE_ID)
+            .add(DiscoveryNodeUtils.create(NODE_ID, NODE_ID))
+            .add(DiscoveryNodeUtils.create(node2, node2))
+            .build();
+        String modelOne = "model-1";
+        String deploymentOne = "deployment-1";
+
+        var taskParams = newParams(deploymentOne, modelOne);
+
+        ClusterChangedEvent event = new ClusterChangedEvent(
+            "testClusterChanged",
+            ClusterState.builder(new ClusterName("testClusterChanged"))
+                .nodes(nodes)
+                .metadata(
+                    Metadata.builder()
+                        .putCustom(
+                            TrainedModelAssignmentMetadata.NAME,
+                            TrainedModelAssignmentMetadata.Builder.empty()
+                                .addNewAssignment(
+                                    deploymentOne,
+                                    TrainedModelAssignment.Builder.empty(taskParams)
+                                        .addRoutingEntry(NODE_ID, new RoutingInfo(1, 1, RoutingState.STOPPING, ""))
+                                        .addRoutingEntry(node2, new RoutingInfo(1, 1, RoutingState.STARTING, ""))
+                                )
+                                .build()
+                        )
+                        .putCustom(NodesShutdownMetadata.TYPE, shutdownMetadata(NODE_ID))
+                        .build()
+                )
+                .build(),
+            ClusterState.EMPTY_STATE
+        );
+
+        trainedModelAssignmentNodeService.prepareModelToLoad(taskParams);
+        trainedModelAssignmentNodeService.clusterChanged(event);
+
+        verify(deploymentManager, never()).stopAfterCompletingPendingWork(any());
+        verify(trainedModelAssignmentService, never()).updateModelAssignmentState(
             any(UpdateTrainedModelAssignmentRoutingInfoAction.Request.class),
             any()
         );

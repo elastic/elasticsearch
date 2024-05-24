@@ -8,15 +8,17 @@ tasks.named(sourceSets.unsupportedJdkVersionEntrypoint.compileJavaTaskName).conf
   targetCompatibility = JavaVersion.VERSION_1_8
 }
 
+
 tasks.named("jar") {
   manifest {
     attributes("Multi-Release": "true")
   }
 
+  FileCollection mainOutput = sourceSets.main.output;
   from(sourceSets.unsupportedJdkVersionEntrypoint.output)
   eachFile { details ->
     if (details.path.equals("org/elasticsearch/tools/java_version_checker/JavaVersionChecker.class") &&
-      sourceSets.main.output.asFileTree.contains(details.file)) {
+      mainOutput.asFileTree.contains(details.file)) {
       details.relativePath = details.relativePath.prepend("META-INF/versions/17")
     }
   }

@@ -6,18 +6,21 @@
  */
 package org.elasticsearch.xpack.ml.packageloader;
 
-import org.elasticsearch.Version;
+import org.elasticsearch.Build;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.bootstrap.BootstrapCheck;
 import org.elasticsearch.bootstrap.BootstrapContext;
 import org.elasticsearch.common.ReferenceDocs;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.xpack.core.ml.packageloader.action.GetTrainedModelPackageConfigAction;
 import org.elasticsearch.xpack.core.ml.packageloader.action.LoadTrainedModelPackageAction;
+import org.elasticsearch.xpack.ml.packageloader.action.ModelDownloadTask;
 import org.elasticsearch.xpack.ml.packageloader.action.TransportGetTrainedModelPackageConfigAction;
 import org.elasticsearch.xpack.ml.packageloader.action.TransportLoadTrainedModelPackage;
 
@@ -44,10 +47,11 @@ public class MachineLearningPackageLoader extends Plugin implements ActionPlugin
     // re-using thread pool setup by the ml plugin
     public static final String UTILITY_THREAD_POOL_NAME = "ml_utility";
 
+    // This link will be invalid for serverless, but serverless will never be
+    // air-gapped, so this message should never be needed.
     private static final String MODEL_REPOSITORY_DOCUMENTATION_LINK = format(
-        "https://www.elastic.co/guide/en/machine-learning/%d.%d/ml-nlp-elser.html#air-gapped-install",
-        Version.CURRENT.major,
-        Version.CURRENT.minor
+        "https://www.elastic.co/guide/en/machine-learning/%s/ml-nlp-elser.html#air-gapped-install",
+        Build.current().version().replaceFirst("^(\\d+\\.\\d+).*", "$1")
     );
 
     public MachineLearningPackageLoader() {}
@@ -63,6 +67,17 @@ public class MachineLearningPackageLoader extends Plugin implements ActionPlugin
         return Arrays.asList(
             new ActionHandler<>(GetTrainedModelPackageConfigAction.INSTANCE, TransportGetTrainedModelPackageConfigAction.class),
             new ActionHandler<>(LoadTrainedModelPackageAction.INSTANCE, TransportLoadTrainedModelPackage.class)
+        );
+    }
+
+    @Override
+    public List<NamedWriteableRegistry.Entry> getNamedWriteables() {
+        return List.of(
+            new NamedWriteableRegistry.Entry(
+                Task.Status.class,
+                ModelDownloadTask.DownloadStatus.NAME,
+                ModelDownloadTask.DownloadStatus::new
+            )
         );
     }
 

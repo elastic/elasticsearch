@@ -12,6 +12,7 @@ import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.CheckedRunnable;
+import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.Releasable;
 
 /**
@@ -35,6 +36,11 @@ public abstract class ActionRunnable<Response> extends AbstractRunnable {
                 runnable.run();
                 listener.onResponse(null);
             }
+
+            @Override
+            public String toString() {
+                return runnable.toString();
+            }
         };
     }
 
@@ -49,6 +55,27 @@ public abstract class ActionRunnable<Response> extends AbstractRunnable {
             @Override
             public void accept(ActionListener<T> l) throws Exception {
                 l.onResponse(supplier.get());
+            }
+
+            @Override
+            public String toString() {
+                return supplier.toString();
+            }
+        });
+    }
+
+    /**
+     * Same as {@link #supply(ActionListener, CheckedSupplier)} but the supplier always returns an object of reference counted result type
+     * which will have its reference count decremented after invoking the listener.
+     */
+    public static <T extends RefCounted> ActionRunnable<T> supplyAndDecRef(
+        ActionListener<T> listener,
+        CheckedSupplier<T, Exception> supplier
+    ) {
+        return wrap(listener, new CheckedConsumer<>() {
+            @Override
+            public void accept(ActionListener<T> l) throws Exception {
+                ActionListener.respondAndRelease(l, supplier.get());
             }
 
             @Override

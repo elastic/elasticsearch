@@ -10,9 +10,11 @@ package org.elasticsearch.xpack.esql.qa.single_node;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.elasticsearch.test.rest.yaml.ClientYamlTestCandidate;
-import org.elasticsearch.test.rest.yaml.ESClientYamlSuiteTestCase;
 
-public class EsqlClientYamlIT extends ESClientYamlSuiteTestCase {
+/**
+ * Run the ESQL yaml tests against the synchronous API.
+ */
+public class EsqlClientYamlIT extends AbstractEsqlClientYamlIT {
 
     public EsqlClientYamlIT(final ClientYamlTestCandidate testCandidate) {
         super(testCandidate);

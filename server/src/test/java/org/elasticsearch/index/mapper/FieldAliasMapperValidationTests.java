@@ -159,12 +159,20 @@ public class FieldAliasMapperValidationTests extends ESTestCase {
 
     private static FieldMapper createFieldMapper(String parent, String name) {
         return new BooleanFieldMapper.Builder(name, ScriptCompiler.NONE, false, IndexVersion.current()).build(
-            new MapperBuilderContext(parent, false, false)
+            new MapperBuilderContext(parent)
         );
     }
 
     private static ObjectMapper createObjectMapper(String name) {
-        return new ObjectMapper(name, name, Explicit.IMPLICIT_TRUE, Explicit.IMPLICIT_TRUE, ObjectMapper.Dynamic.FALSE, emptyMap());
+        return new ObjectMapper(
+            name,
+            name,
+            Explicit.IMPLICIT_TRUE,
+            Explicit.IMPLICIT_TRUE,
+            Explicit.IMPLICIT_FALSE,
+            ObjectMapper.Dynamic.FALSE,
+            emptyMap()
+        );
     }
 
     private static NestedObjectMapper createNestedObjectMapper(String name) {
@@ -185,6 +193,6 @@ public class FieldAliasMapperValidationTests extends ESTestCase {
             new MetadataFieldMapper[0],
             Collections.emptyMap()
         );
-        return MappingLookup.fromMappers(mapping, fieldMappers, objectMappers, fieldAliasMappers);
+        return MappingLookup.fromMappers(mapping, fieldMappers, objectMappers, fieldAliasMappers, emptyList());
     }
 }

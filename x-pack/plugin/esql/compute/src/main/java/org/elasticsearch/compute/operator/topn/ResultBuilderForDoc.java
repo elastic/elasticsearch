@@ -11,14 +11,19 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.DocVector;
+import org.elasticsearch.compute.data.IntVector;
+import org.elasticsearch.core.Releasables;
 
 class ResultBuilderForDoc implements ResultBuilder {
+    private final BlockFactory blockFactory;
     private final int[] shards;
     private final int[] segments;
     private final int[] docs;
     private int position;
 
-    ResultBuilderForDoc(int positions) {
+    ResultBuilderForDoc(BlockFactory blockFactory, int positions) {
+        // TODO use fixed length builders
+        this.blockFactory = blockFactory;
         this.shards = new int[positions];
         this.segments = new int[positions];
         this.docs = new int[positions];
@@ -39,16 +44,30 @@ class ResultBuilderForDoc implements ResultBuilder {
 
     @Override
     public Block build() {
-        return new DocVector(
-            BlockFactory.getNonBreakingInstance().newIntArrayVector(shards, position),
-            BlockFactory.getNonBreakingInstance().newIntArrayVector(segments, position),
-            BlockFactory.getNonBreakingInstance().newIntArrayVector(docs, position),
-            null
-        ).asBlock();
+        boolean success = false;
+        IntVector shardsVector = null;
+        IntVector segmentsVector = null;
+        try {
+            shardsVector = blockFactory.newIntArrayVector(shards, position);
+            segmentsVector = blockFactory.newIntArrayVector(segments, position);
+            var docsVector = blockFactory.newIntArrayVector(docs, position);
+            var docsBlock = new DocVector(shardsVector, segmentsVector, docsVector, null).asBlock();
+            success = true;
+            return docsBlock;
+        } finally {
+            if (success == false) {
+                Releasables.closeExpectNoException(shardsVector, segmentsVector);
+            }
+        }
     }
 
     @Override
     public String toString() {
         return "ValueExtractorForDoc";
+    }
+
+    @Override
+    public void close() {
+        // TODO memory accounting
     }
 }

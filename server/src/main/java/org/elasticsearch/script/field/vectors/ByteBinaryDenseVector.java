@@ -73,7 +73,7 @@ public class ByteBinaryDenseVector implements DenseVector {
     }
 
     @SuppressForbidden(reason = "used only for bytes so it cannot overflow")
-    private int abs(int value) {
+    private static int abs(int value) {
         return Math.abs(value);
     }
 

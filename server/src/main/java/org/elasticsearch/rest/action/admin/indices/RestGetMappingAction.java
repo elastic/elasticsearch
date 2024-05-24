@@ -21,13 +21,14 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.Scope;
 import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestCancellableNodeClient;
-import org.elasticsearch.rest.action.RestChunkedToXContentListener;
+import org.elasticsearch.rest.action.RestRefCountedChunkedToXContentListener;
 
 import java.io.IOException;
 import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.HEAD;
+import static org.elasticsearch.rest.RestUtils.getMasterNodeTimeout;
 
 @ServerlessScope(Scope.PUBLIC)
 public class RestGetMappingAction extends BaseRestHandler {
@@ -84,12 +85,12 @@ public class RestGetMappingAction extends BaseRestHandler {
         final GetMappingsRequest getMappingsRequest = new GetMappingsRequest();
         getMappingsRequest.indices(indices);
         getMappingsRequest.indicesOptions(IndicesOptions.fromRequest(request, getMappingsRequest.indicesOptions()));
-        final TimeValue timeout = request.paramAsTime("master_timeout", getMappingsRequest.masterNodeTimeout());
+        final TimeValue timeout = getMasterNodeTimeout(request);
         getMappingsRequest.masterNodeTimeout(timeout);
         getMappingsRequest.local(request.paramAsBoolean("local", getMappingsRequest.local()));
         final HttpChannel httpChannel = request.getHttpChannel();
         return channel -> new RestCancellableNodeClient(client, httpChannel).admin()
             .indices()
-            .getMappings(getMappingsRequest, new RestChunkedToXContentListener<>(channel));
+            .getMappings(getMappingsRequest, new RestRefCountedChunkedToXContentListener<>(channel));
     }
 }

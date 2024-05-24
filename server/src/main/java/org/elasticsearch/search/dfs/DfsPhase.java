@@ -17,7 +17,7 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.TermStatistics;
 import org.apache.lucene.search.TopDocs;
-import org.apache.lucene.search.TopScoreDocCollector;
+import org.apache.lucene.search.TopScoreDocCollectorManager;
 import org.elasticsearch.index.query.ParsedQuery;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
@@ -33,6 +33,7 @@ import org.elasticsearch.search.profile.query.QueryProfiler;
 import org.elasticsearch.search.rescore.RescoreContext;
 import org.elasticsearch.search.vectors.KnnSearchBuilder;
 import org.elasticsearch.search.vectors.KnnVectorQueryBuilder;
+import org.elasticsearch.search.vectors.ProfilingQuery;
 import org.elasticsearch.tasks.TaskCancelledException;
 
 import java.io.IOException;
@@ -40,6 +41,8 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+
+import static org.elasticsearch.index.query.AbstractQueryBuilder.DEFAULT_BOOST;
 
 /**
  * DFS phase of a search request, used to make scoring 100% accurate by collecting additional info from each shard before the query phase.
@@ -171,15 +174,17 @@ public class DfsPhase {
         return null;
     };
 
-    private void executeKnnVectorQuery(SearchContext context) throws IOException {
+    private static void executeKnnVectorQuery(SearchContext context) throws IOException {
         SearchSourceBuilder source = context.request().source();
         if (source == null || source.knnSearch().isEmpty()) {
             return;
         }
 
         SearchExecutionContext searchExecutionContext = context.getSearchExecutionContext();
-        List<KnnSearchBuilder> knnSearch = context.request().source().knnSearch();
+        List<KnnSearchBuilder> knnSearch = source.knnSearch();
         List<KnnVectorQueryBuilder> knnVectorQueryBuilders = knnSearch.stream().map(KnnSearchBuilder::toQueryBuilder).toList();
+        // Since we apply boost during the DfsQueryPhase, we should not apply boost here:
+        knnVectorQueryBuilders.forEach(knnVectorQueryBuilder -> knnVectorQueryBuilder.boost(DEFAULT_BOOST));
 
         if (context.request().getAliasFilter().getQueryBuilder() != null) {
             for (KnnVectorQueryBuilder knnVectorQueryBuilder : knnVectorQueryBuilders) {
@@ -188,14 +193,17 @@ public class DfsPhase {
         }
         List<DfsKnnResults> knnResults = new ArrayList<>(knnVectorQueryBuilders.size());
         for (int i = 0; i < knnSearch.size(); i++) {
+            String knnField = knnVectorQueryBuilders.get(i).getFieldName();
+            String knnNestedPath = searchExecutionContext.nestedLookup().getNestedParent(knnField);
             Query knnQuery = searchExecutionContext.toQuery(knnVectorQueryBuilders.get(i)).query();
-            knnResults.add(singleKnnSearch(knnQuery, knnSearch.get(i).k(), context.getProfilers(), context.searcher()));
+            knnResults.add(singleKnnSearch(knnQuery, knnSearch.get(i).k(), context.getProfilers(), context.searcher(), knnNestedPath));
         }
         context.dfsResult().knnResults(knnResults);
     }
 
-    static DfsKnnResults singleKnnSearch(Query knnQuery, int k, Profilers profilers, ContextIndexSearcher searcher) throws IOException {
-        CollectorManager<? extends Collector, TopDocs> topDocsCollectorManager = TopScoreDocCollector.createSharedManager(
+    static DfsKnnResults singleKnnSearch(Query knnQuery, int k, Profilers profilers, ContextIndexSearcher searcher, String nestedPath)
+        throws IOException {
+        CollectorManager<? extends Collector, TopDocs> topDocsCollectorManager = new TopScoreDocCollectorManager(
             k,
             null,
             Integer.MAX_VALUE
@@ -212,12 +220,17 @@ public class DfsPhase {
                 CollectorResult.REASON_SEARCH_TOP_HITS
             );
             topDocs = searcher.search(knnQuery, ipcm);
+
+            if (knnQuery instanceof ProfilingQuery profilingQuery) {
+                profilingQuery.profile(knnProfiler);
+            }
+
             knnProfiler.setCollectorResult(ipcm.getCollectorTree());
         }
         // Set profiler back after running KNN searches
         if (profilers != null) {
             searcher.setProfiler(profilers.getCurrentQueryProfiler());
         }
-        return new DfsKnnResults(topDocs.scoreDocs);
+        return new DfsKnnResults(nestedPath, topDocs.scoreDocs);
     }
 }

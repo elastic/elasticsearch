@@ -9,7 +9,7 @@ package org.elasticsearch.integration;
 
 import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotsStatusResponse;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
-import org.elasticsearch.action.index.IndexAction;
+import org.elasticsearch.action.index.TransportIndexAction;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
@@ -125,7 +125,7 @@ public class SecurityFeatureStateIntegTests extends AbstractPrivilegeTestCase {
         assertThat(exception.getResponse().getStatusLine().getStatusCode(), equalTo(403));
         assertThat(
             exception.getMessage(),
-            containsString("action [" + IndexAction.NAME + "] is unauthorized for user [" + LOCAL_TEST_USER_NAME + "]")
+            containsString("action [" + TransportIndexAction.NAME + "] is unauthorized for user [" + LOCAL_TEST_USER_NAME + "]")
         );
 
         client().admin().indices().prepareClose("test_index").get();

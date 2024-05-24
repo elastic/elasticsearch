@@ -11,7 +11,7 @@ import org.apache.lucene.index.Term;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.search.rank.RankShardContext;
+import org.elasticsearch.search.rank.context.QueryPhaseRankShardContext;
 import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.xcontent.XContentParser;
 import org.junit.Assert;
@@ -29,9 +29,9 @@ public class RRFRankBuilderTests extends AbstractXContentSerializingTestCase<RRF
     @Override
     protected RRFRankBuilder mutateInstance(RRFRankBuilder instance) throws IOException {
         if (randomBoolean()) {
-            return new RRFRankBuilder(instance.windowSize(), instance.rankConstant() == 1 ? 2 : instance.rankConstant() - 1);
+            return new RRFRankBuilder(instance.rankWindowSize(), instance.rankConstant() == 1 ? 2 : instance.rankConstant() - 1);
         } else {
-            return new RRFRankBuilder(instance.windowSize() == 0 ? 1 : instance.windowSize() - 1, instance.rankConstant());
+            return new RRFRankBuilder(instance.rankWindowSize() == 0 ? 1 : instance.rankWindowSize() - 1, instance.rankConstant());
         }
     }
 
@@ -59,10 +59,10 @@ public class RRFRankBuilderTests extends AbstractXContentSerializingTestCase<RRF
         RRFRankBuilder rrfRankBuilder = createTestInstance();
 
         List<Query> queries = List.of(new TermQuery(new Term("field0", "test0")), new TermQuery(new Term("field1", "test1")));
-        RankShardContext rsc = rrfRankBuilder.buildRankShardContext(queries, randomInt());
-        assertEquals(queries, rsc.queries());
-        assertEquals(rrfRankBuilder.windowSize(), rsc.windowSize());
+        QueryPhaseRankShardContext queryPhaseRankShardContext = rrfRankBuilder.buildQueryPhaseShardContext(queries, randomInt());
+        assertEquals(queries, queryPhaseRankShardContext.queries());
+        assertEquals(rrfRankBuilder.rankWindowSize(), queryPhaseRankShardContext.rankWindowSize());
 
-        assertNotNull(rrfRankBuilder.buildRankCoordinatorContext(randomInt(), randomInt()));
+        assertNotNull(rrfRankBuilder.buildQueryPhaseCoordinatorContext(randomInt(), randomInt()));
     }
 }

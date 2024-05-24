@@ -8,6 +8,11 @@
 
 package org.elasticsearch.rest;
 
+import org.apache.logging.log4j.Level;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.core.LogEvent;
+import org.apache.logging.log4j.core.config.Configurator;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.ElasticsearchStatusException;
@@ -18,6 +23,8 @@ import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.logging.Loggers;
+import org.elasticsearch.common.logging.MockAppender;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.RestApiVersion;
@@ -31,6 +38,8 @@ import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
+import org.junit.AfterClass;
+import org.junit.BeforeClass;
 
 import java.io.FileNotFoundException;
 import java.io.IOException;
@@ -38,7 +47,9 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.ElasticsearchException.REST_EXCEPTION_SKIP_STACK_TRACE;
 import static org.elasticsearch.ElasticsearchExceptionTests.assertDeepEquals;
+import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -47,6 +58,23 @@ import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 
 public class RestResponseTests extends ESTestCase {
+
+    private static MockAppender appender;
+    static Logger restSuppressedLogger = LogManager.getLogger("rest.suppressed");
+
+    @BeforeClass
+    public static void init() throws IllegalAccessException {
+        appender = new MockAppender("testAppender");
+        appender.start();
+        Configurator.setLevel(restSuppressedLogger, Level.DEBUG);
+        Loggers.addAppender(restSuppressedLogger, appender);
+    }
+
+    @AfterClass
+    public static void cleanup() {
+        appender.stop();
+        Loggers.removeAppender(restSuppressedLogger, appender);
+    }
 
     class UnknownException extends Exception {
         UnknownException(final String message, final Throwable cause) {
@@ -69,7 +97,8 @@ public class RestResponseTests extends ESTestCase {
     public void testEmptyChunkedBody() {
         RestResponse response = RestResponse.chunked(
             RestStatus.OK,
-            ChunkedRestResponseBody.fromTextChunks(RestResponse.TEXT_CONTENT_TYPE, Collections.emptyIterator())
+            ChunkedRestResponseBody.fromTextChunks(RestResponse.TEXT_CONTENT_TYPE, Collections.emptyIterator()),
+            null
         );
         assertFalse(response.isChunked());
         assertNotNull(response.content());
@@ -393,7 +422,7 @@ public class RestResponseTests extends ESTestCase {
 
         ElasticsearchException parsedError;
         try (XContentParser parser = createParser(xContentType.xContent(), response.content())) {
-            parsedError = RestResponse.errorFromXContent(parser);
+            parsedError = errorFromXContent(parser);
             assertNull(parser.nextToken());
         }
 
@@ -409,11 +438,47 @@ public class RestResponseTests extends ESTestCase {
                 builder.endObject();
 
                 try (XContentParser parser = createParser(builder.contentType().xContent(), BytesReference.bytes(builder))) {
-                    RestResponse.errorFromXContent(parser);
+                    errorFromXContent(parser);
                 }
             }
         });
         assertEquals("Failed to parse elasticsearch status exception: no exception was found", e.getMessage());
+    }
+
+    private static ElasticsearchStatusException errorFromXContent(XContentParser parser) throws IOException {
+        XContentParser.Token token = parser.nextToken();
+        ensureExpectedToken(XContentParser.Token.START_OBJECT, token, parser);
+
+        ElasticsearchException exception = null;
+        RestStatus status = null;
+
+        String currentFieldName = null;
+        while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+            if (token == XContentParser.Token.FIELD_NAME) {
+                currentFieldName = parser.currentName();
+            }
+            if (RestResponse.STATUS.equals(currentFieldName)) {
+                if (token != XContentParser.Token.FIELD_NAME) {
+                    ensureExpectedToken(XContentParser.Token.VALUE_NUMBER, token, parser);
+                    status = RestStatus.fromCode(parser.intValue());
+                }
+            } else {
+                exception = ElasticsearchException.failureFromXContent(parser);
+            }
+        }
+
+        if (exception == null) {
+            throw new IllegalStateException("Failed to parse elasticsearch status exception: no exception was found");
+        }
+
+        ElasticsearchStatusException result = new ElasticsearchStatusException(exception.getMessage(), status, exception.getCause());
+        for (String header : exception.getHeaderKeys()) {
+            result.addHeader(header, exception.getHeader(header));
+        }
+        for (String metadata : exception.getMetadataKeys()) {
+            result.addMetadata(metadata, exception.getMetadata(metadata));
+        }
+        return result;
     }
 
     public void testResponseContentTypeUponException() throws Exception {
@@ -429,6 +494,60 @@ public class RestResponseTests extends ESTestCase {
         Exception t = new ElasticsearchException("an error occurred reading data", new FileNotFoundException("/foo/bar"));
         RestResponse response = new RestResponse(channel, t);
         assertThat(response.contentType(), equalTo(mediaType));
+    }
+
+    public void testSupressedLogging() throws IOException {
+        final RestRequest request = new FakeRestRequest();
+        final RestChannel channel = new DetailedExceptionRestChannel(request);
+        // setting "rest.exception.stacktrace.skip" to true shouldn't change the default behaviour
+        if (randomBoolean()) {
+            request.params().put(REST_EXCEPTION_SKIP_STACK_TRACE, "true");
+        }
+        assertLogging(channel, new ElasticsearchException("simulated"), Level.WARN, "500", "simulated");
+        assertLogging(channel, new IllegalArgumentException("simulated_iae"), Level.DEBUG, "400", "simulated_iae");
+        assertLogging(channel, null, null, null, null);
+        assertLogging(
+            channel,
+            new ElasticsearchSecurityException("unauthorized", RestStatus.UNAUTHORIZED),
+            Level.DEBUG,
+            "401",
+            "unauthorized"
+        );
+
+        // setting "error_trace" to true should not affect logging
+        request.params().clear();
+        request.params().put("error_trace", "true");
+        assertLogging(channel, new ElasticsearchException("simulated"), Level.WARN, "500", "simulated");
+        assertLogging(
+            channel,
+            new ElasticsearchSecurityException("unauthorized", RestStatus.UNAUTHORIZED),
+            Level.DEBUG,
+            "401",
+            "unauthorized"
+        );
+    }
+
+    private void assertLogging(
+        RestChannel channel,
+        Exception exception,
+        Level expectedLogLevel,
+        String expectedStatus,
+        String expectedExceptionMessage
+    ) throws IOException {
+        RestResponse response = new RestResponse(channel, exception);
+        assertNotNull(response.content());
+        LogEvent logEvent = appender.getLastEventAndReset();
+        if (expectedLogLevel != null) {
+            assertThat(logEvent.getLevel(), is(expectedLogLevel));
+            assertThat(
+                logEvent.getMessage().getFormattedMessage(),
+                is("path: , params: " + channel.request().params() + ", status: " + expectedStatus)
+            );
+            assertThat(logEvent.getThrown().getMessage(), is(expectedExceptionMessage));
+            assertThat(logEvent.getLoggerName(), is("rest.suppressed"));
+        } else {
+            assertNull(logEvent);
+        }
     }
 
     public static class WithHeadersException extends ElasticsearchException {

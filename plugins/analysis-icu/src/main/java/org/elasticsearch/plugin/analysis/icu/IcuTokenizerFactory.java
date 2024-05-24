@@ -51,14 +51,14 @@ public class IcuTokenizerFactory extends AbstractTokenizerFactory {
         }
     }
 
-    private ICUTokenizerConfig getIcuConfig(Environment env, Settings settings) {
+    private static ICUTokenizerConfig getIcuConfig(Environment env, Settings settings) {
         Map<Integer, String> tailored = new HashMap<>();
 
         try {
             List<String> ruleFiles = settings.getAsList(RULE_FILES);
 
             for (String scriptAndResourcePath : ruleFiles) {
-                int colonPos = scriptAndResourcePath.indexOf(":");
+                int colonPos = scriptAndResourcePath.indexOf(':');
                 if (colonPos == -1 || colonPos == scriptAndResourcePath.length() - 1) {
                     throw new IllegalArgumentException(RULE_FILES + " should contain comma-separated \"code:rulefile\" pairs");
                 }
@@ -96,7 +96,7 @@ public class IcuTokenizerFactory extends AbstractTokenizerFactory {
     }
 
     // parse a single RBBi rule file
-    private BreakIterator parseRules(String filename, Environment env) throws IOException {
+    private static BreakIterator parseRules(String filename, Environment env) throws IOException {
 
         final Path path = env.configFile().resolve(filename);
         String rules = Files.readAllLines(path).stream().filter((v) -> v.startsWith("#") == false).collect(Collectors.joining("\n"));

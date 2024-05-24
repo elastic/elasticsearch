@@ -11,6 +11,7 @@ package org.elasticsearch.index.mapper;
 import org.apache.lucene.document.StoredField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.Explanation;
@@ -42,6 +43,7 @@ import org.elasticsearch.script.DateFieldScript;
 import org.elasticsearch.script.DocReader;
 import org.elasticsearch.script.ScoreScript;
 import org.elasticsearch.script.Script;
+import org.elasticsearch.script.ScriptFactory;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.MultiValueMode;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -58,11 +60,22 @@ import java.util.Map;
 import static java.util.Collections.emptyMap;
 import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.closeTo;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 
 public class DateScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeTestCase {
+
+    @Override
+    protected ScriptFactory parseFromSource() {
+        return DateFieldScript.PARSE_FROM_SOURCE;
+    }
+
+    @Override
+    protected ScriptFactory dummyScript() {
+        return DateFieldScriptTests.DUMMY;
+    }
 
     public void testFromSource() throws IOException {
         MapperService mapperService = createMapperService(runtimeFieldMapping(b -> b.field("type", "date")));
@@ -148,8 +161,8 @@ public class DateScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeTest
     @Override
     public void testDocValues() throws IOException {
         try (Directory directory = newDirectory(); RandomIndexWriter iw = new RandomIndexWriter(random(), directory)) {
-            iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"timestamp\": [1595432181354]}"))));
-            iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"timestamp\": [1595432181356, 1595432181351]}"))));
+            addDocument(iw, List.of(new StoredField("_source", new BytesRef("{\"timestamp\": [1595432181354]}"))));
+            addDocument(iw, List.of(new StoredField("_source", new BytesRef("{\"timestamp\": [1595432181356, 1595432181351]}"))));
             List<Long> results = new ArrayList<>();
             try (DirectoryReader reader = iw.getReader()) {
                 IndexSearcher searcher = newSearcher(reader);
@@ -179,7 +192,7 @@ public class DateScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeTest
                         };
                     }
                 });
-                assertThat(results, equalTo(List.of(1595518581354L, 1595518581351L, 1595518581356L)));
+                assertThat(results, containsInAnyOrder(1595518581354L, 1595518581351L, 1595518581356L));
             }
         }
     }
@@ -187,9 +200,9 @@ public class DateScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeTest
     @Override
     public void testSort() throws IOException {
         try (Directory directory = newDirectory(); RandomIndexWriter iw = new RandomIndexWriter(random(), directory)) {
-            iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"timestamp\": [1595432181354]}"))));
-            iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"timestamp\": [1595432181351]}"))));
-            iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"timestamp\": [1595432181356]}"))));
+            addDocument(iw, List.of(new StoredField("_source", new BytesRef("{\"timestamp\": [1595432181354]}"))));
+            addDocument(iw, List.of(new StoredField("_source", new BytesRef("{\"timestamp\": [1595432181351]}"))));
+            addDocument(iw, List.of(new StoredField("_source", new BytesRef("{\"timestamp\": [1595432181356]}"))));
             try (DirectoryReader reader = iw.getReader()) {
                 IndexSearcher searcher = newSearcher(reader);
                 DateScriptFieldData ifd = simpleMappedFieldType().fielddataBuilder(mockFielddataContext()).build(null, null);
@@ -208,9 +221,9 @@ public class DateScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeTest
     @Override
     public void testUsedInScript() throws IOException {
         try (Directory directory = newDirectory(); RandomIndexWriter iw = new RandomIndexWriter(random(), directory)) {
-            iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"timestamp\": [1595432181354]}"))));
-            iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"timestamp\": [1595432181351]}"))));
-            iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"timestamp\": [1595432181356]}"))));
+            addDocument(iw, List.of(new StoredField("_source", new BytesRef("{\"timestamp\": [1595432181354]}"))));
+            addDocument(iw, List.of(new StoredField("_source", new BytesRef("{\"timestamp\": [1595432181351]}"))));
+            addDocument(iw, List.of(new StoredField("_source", new BytesRef("{\"timestamp\": [1595432181356]}"))));
             try (DirectoryReader reader = iw.getReader()) {
                 IndexSearcher searcher = newSearcher(reader);
                 SearchExecutionContext searchContext = mockContext(true, simpleMappedFieldType());
@@ -247,22 +260,28 @@ public class DateScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeTest
             );
             try (DirectoryReader reader = iw.getReader()) {
                 IndexSearcher searcher = newSearcher(reader);
-                Query query = simpleMappedFieldType().distanceFeatureQuery(1595432181354L, "1ms", mockContext());
-                TopDocs docs = searcher.search(query, 4);
-                assertThat(docs.scoreDocs, arrayWithSize(3));
-                assertThat(readSource(reader, docs.scoreDocs[0].doc), equalTo("{\"timestamp\": [1595432181354]}"));
-                assertThat(docs.scoreDocs[0].score, equalTo(1.0F));
-                assertThat(readSource(reader, docs.scoreDocs[1].doc), equalTo("{\"timestamp\": [1595432181356, 1]}"));
-                assertThat((double) docs.scoreDocs[1].score, closeTo(.333, .001));
-                assertThat(readSource(reader, docs.scoreDocs[2].doc), equalTo("{\"timestamp\": [1595432181351]}"));
-                assertThat((double) docs.scoreDocs[2].score, closeTo(.250, .001));
-                Explanation explanation = query.createWeight(searcher, ScoreMode.TOP_SCORES, 1.0F)
-                    .explain(reader.leaves().get(0), docs.scoreDocs[0].doc);
-                assertThat(explanation.toString(), containsString("1.0 = Distance score, computed as weight * pivot / (pivot"));
-                assertThat(explanation.toString(), containsString("1.0 = weight"));
-                assertThat(explanation.toString(), containsString("1 = pivot"));
-                assertThat(explanation.toString(), containsString("1595432181354 = origin"));
-                assertThat(explanation.toString(), containsString("1595432181354 = current value"));
+                TopDocs docs;
+                {
+                    Query query = simpleMappedFieldType().distanceFeatureQuery(1595432181354L, "1ms", mockContext());
+                    docs = searcher.search(query, 4);
+                    assertThat(docs.scoreDocs, arrayWithSize(3));
+                    assertThat(readSource(reader, docs.scoreDocs[0].doc), equalTo("{\"timestamp\": [1595432181354]}"));
+                    assertThat(docs.scoreDocs[0].score, equalTo(1.0F));
+                    assertThat(readSource(reader, docs.scoreDocs[1].doc), equalTo("{\"timestamp\": [1595432181356, 1]}"));
+                    assertThat((double) docs.scoreDocs[1].score, closeTo(.333, .001));
+                    assertThat(readSource(reader, docs.scoreDocs[2].doc), equalTo("{\"timestamp\": [1595432181351]}"));
+                    assertThat((double) docs.scoreDocs[2].score, closeTo(.250, .001));
+                }
+                {
+                    Query query = simpleMappedFieldType().distanceFeatureQuery(1595432181354L, "1ms", mockContext());
+                    Explanation explanation = query.createWeight(searcher, ScoreMode.TOP_SCORES, 1.0F)
+                        .explain(reader.leaves().get(0), docs.scoreDocs[0].doc);
+                    assertThat(explanation.toString(), containsString("1.0 = Distance score, computed as weight * pivot / (pivot"));
+                    assertThat(explanation.toString(), containsString("1.0 = weight"));
+                    assertThat(explanation.toString(), containsString("1 = pivot"));
+                    assertThat(explanation.toString(), containsString("1595432181354 = origin"));
+                    assertThat(explanation.toString(), containsString("1595432181354 = current value"));
+                }
             }
         }
     }
@@ -276,14 +295,14 @@ public class DateScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeTest
     }
 
     private Query randomDistanceFeatureQuery(MappedFieldType ft, SearchExecutionContext ctx) {
-        return ft.distanceFeatureQuery(randomDate(), randomTimeValue(), ctx);
+        return ft.distanceFeatureQuery(randomDate(), randomTimeValue().getStringRep(), ctx);
     }
 
     @Override
     public void testExistsQuery() throws IOException {
         try (Directory directory = newDirectory(); RandomIndexWriter iw = new RandomIndexWriter(random(), directory)) {
-            iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"timestamp\": [1595432181356]}"))));
-            iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"timestamp\": []}"))));
+            addDocument(iw, List.of(new StoredField("_source", new BytesRef("{\"timestamp\": [1595432181356]}"))));
+            addDocument(iw, List.of(new StoredField("_source", new BytesRef("{\"timestamp\": []}"))));
             try (DirectoryReader reader = iw.getReader()) {
                 IndexSearcher searcher = newSearcher(reader);
                 assertThat(searcher.count(simpleMappedFieldType().existsQuery(mockContext())), equalTo(1));
@@ -294,9 +313,9 @@ public class DateScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeTest
     @Override
     public void testRangeQuery() throws IOException {
         try (Directory directory = newDirectory(); RandomIndexWriter iw = new RandomIndexWriter(random(), directory)) {
-            iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"timestamp\": [1595432181354]}"))));
-            iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"timestamp\": [1595432181351]}"))));
-            iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"timestamp\": [1595432181356]}"))));
+            addDocument(iw, List.of(new StoredField("_source", new BytesRef("{\"timestamp\": [1595432181354]}"))));
+            addDocument(iw, List.of(new StoredField("_source", new BytesRef("{\"timestamp\": [1595432181351]}"))));
+            addDocument(iw, List.of(new StoredField("_source", new BytesRef("{\"timestamp\": [1595432181356]}"))));
             try (DirectoryReader reader = iw.getReader()) {
                 IndexSearcher searcher = newSearcher(reader);
                 MappedFieldType ft = simpleMappedFieldType();
@@ -376,8 +395,8 @@ public class DateScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeTest
     @Override
     public void testTermQuery() throws IOException {
         try (Directory directory = newDirectory(); RandomIndexWriter iw = new RandomIndexWriter(random(), directory)) {
-            iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"timestamp\": [1595432181354]}"))));
-            iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"timestamp\": [1595432181355]}"))));
+            addDocument(iw, List.of(new StoredField("_source", new BytesRef("{\"timestamp\": [1595432181354]}"))));
+            addDocument(iw, List.of(new StoredField("_source", new BytesRef("{\"timestamp\": [1595432181355]}"))));
             try (DirectoryReader reader = iw.getReader()) {
                 IndexSearcher searcher = newSearcher(reader);
                 assertThat(searcher.count(simpleMappedFieldType().termQuery("2020-07-22T15:36:21.354Z", mockContext())), equalTo(1));
@@ -404,8 +423,8 @@ public class DateScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeTest
     @Override
     public void testTermsQuery() throws IOException {
         try (Directory directory = newDirectory(); RandomIndexWriter iw = new RandomIndexWriter(random(), directory)) {
-            iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"timestamp\": [1595432181354]}"))));
-            iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"timestamp\": [1595432181355]}"))));
+            addDocument(iw, List.of(new StoredField("_source", new BytesRef("{\"timestamp\": [1595432181354]}"))));
+            addDocument(iw, List.of(new StoredField("_source", new BytesRef("{\"timestamp\": [1595432181355]}"))));
             try (DirectoryReader reader = iw.getReader()) {
                 MappedFieldType ft = simpleMappedFieldType();
                 IndexSearcher searcher = newSearcher(reader);
@@ -452,6 +471,28 @@ public class DateScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeTest
                 createMapperService(mapping.get());
             }).getMessage()
         );
+    }
+
+    public void testBlockLoader() throws IOException {
+        try (
+            Directory directory = newDirectory();
+            RandomIndexWriter iw = new RandomIndexWriter(random(), directory, newIndexWriterConfig().setMergePolicy(NoMergePolicy.INSTANCE))
+        ) {
+            iw.addDocuments(
+                List.of(
+                    List.of(new StoredField("_source", new BytesRef("{\"timestamp\": [1595432181354]}"))),
+                    List.of(new StoredField("_source", new BytesRef("{\"timestamp\": [1595432181355]}")))
+                )
+            );
+            try (DirectoryReader reader = iw.getReader()) {
+                DateScriptFieldType fieldType = build("add_days", Map.of("days", 1), OnScriptError.FAIL);
+                assertThat(
+                    blockLoaderReadValuesFromColumnAtATimeReader(reader, fieldType),
+                    equalTo(List.of(1595518581354L, 1595518581355L))
+                );
+                assertThat(blockLoaderReadValuesFromRowStrideReader(reader, fieldType), equalTo(List.of(1595518581354L, 1595518581355L)));
+            }
+        }
     }
 
     @Override

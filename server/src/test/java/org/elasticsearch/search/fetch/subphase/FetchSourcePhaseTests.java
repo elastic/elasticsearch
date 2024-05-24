@@ -52,6 +52,27 @@ public class FetchSourcePhaseTests extends ESTestCase {
         assertEquals(Collections.singletonMap("field1", "value"), hitContext.hit().getSourceAsMap());
     }
 
+    public void testExcludesAll() throws IOException {
+        XContentBuilder source = XContentFactory.jsonBuilder().startObject().field("field1", "value").field("field2", "value2").endObject();
+        HitContext hitContext = hitExecute(source, false, null, null);
+        assertNull(hitContext.hit().getSourceAsMap());
+
+        hitContext = hitExecute(source, true, "field1", "*");
+        assertEquals(Collections.emptyMap(), hitContext.hit().getSourceAsMap());
+
+        hitContext = hitExecute(source, true, null, "*");
+        assertEquals(Collections.emptyMap(), hitContext.hit().getSourceAsMap());
+
+        hitContext = hitExecute(source, true, "*", "*");
+        assertEquals(Collections.emptyMap(), hitContext.hit().getSourceAsMap());
+
+        hitContext = hitExecuteMultiple(source, true, new String[] { "field1", "field2" }, new String[] { "*", "field1" });
+        assertEquals(Collections.emptyMap(), hitContext.hit().getSourceAsMap());
+
+        hitContext = hitExecuteMultiple(source, true, null, new String[] { "field2", "*", "field1" });
+        assertEquals(Collections.emptyMap(), hitContext.hit().getSourceAsMap());
+    }
+
     public void testMultipleFiltering() throws IOException {
         XContentBuilder source = XContentFactory.jsonBuilder().startObject().field("field", "value").field("field2", "value2").endObject();
         HitContext hitContext = hitExecuteMultiple(source, true, new String[] { "*.notexisting", "field" }, null);
@@ -170,7 +191,7 @@ public class FetchSourcePhaseTests extends ESTestCase {
         when(sec.isSourceEnabled()).thenReturn(sourceBuilder != null);
         when(fetchContext.getSearchExecutionContext()).thenReturn(sec);
 
-        final SearchHit searchHit = new SearchHit(1, null, nestedIdentity);
+        final SearchHit searchHit = SearchHit.unpooled(1, null, nestedIdentity);
 
         // We don't need a real index, just a LeafReaderContext which cannot be mocked.
         MemoryIndex index = new MemoryIndex();

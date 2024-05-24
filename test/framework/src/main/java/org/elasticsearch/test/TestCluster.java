@@ -12,8 +12,8 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
-import org.elasticsearch.action.admin.indices.template.delete.DeleteComponentTemplateAction;
-import org.elasticsearch.action.admin.indices.template.delete.DeleteComposableIndexTemplateAction;
+import org.elasticsearch.action.admin.indices.template.delete.TransportDeleteComponentTemplateAction;
+import org.elasticsearch.action.admin.indices.template.delete.TransportDeleteComposableIndexTemplateAction;
 import org.elasticsearch.action.admin.indices.template.get.GetComponentTemplateAction;
 import org.elasticsearch.action.admin.indices.template.get.GetComposableIndexTemplateAction;
 import org.elasticsearch.action.admin.indices.template.get.GetIndexTemplatesResponse;
@@ -30,7 +30,6 @@ import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.indices.IndexTemplateMissingException;
 import org.elasticsearch.repositories.RepositoryMissingException;
 
-import java.io.Closeable;
 import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.util.ArrayList;
@@ -44,7 +43,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
  * Base test cluster that exposes the basis to run tests against any elasticsearch cluster, whose layout
  * (e.g. number of nodes) is predefined and cannot be changed during the tests execution
  */
-public abstract class TestCluster implements Closeable {
+public abstract class TestCluster {
 
     protected final Logger logger = LogManager.getLogger(getClass());
     private final long seed;
@@ -126,7 +125,10 @@ public abstract class TestCluster implements Closeable {
     /**
      * Closes the current cluster
      */
-    @Override
+    // NB this is deliberately not implementing AutoCloseable or Closeable, because if we do that then IDEs tell us that we should be using
+    // a try-with-resources block and that is almost never correct. The lifecycle of these clusters is managed by the test framework itself
+    // and should not be touched by most test code. CloseableTestClusterWrapper provides adapters for the few cases where you do want to
+    // auto-close these things.
     public abstract void close() throws IOException;
 
     /**
@@ -150,7 +152,7 @@ public abstract class TestCluster implements Closeable {
                 // Happens if `action.destructive_requires_name` is set to true
                 // which is the case in the CloseIndexDisableCloseAllTests
                 if ("_all".equals(indices[0])) {
-                    ClusterStateResponse clusterStateResponse = client().admin().cluster().prepareState().execute().actionGet();
+                    ClusterStateResponse clusterStateResponse = client().admin().cluster().prepareState().get();
                     ArrayList<String> concreteIndices = new ArrayList<>();
                     for (IndexMetadata indexMetadata : clusterStateResponse.getState().metadata()) {
                         concreteIndices.add(indexMetadata.getIndex().getName());
@@ -174,7 +176,7 @@ public abstract class TestCluster implements Closeable {
                     continue;
                 }
                 try {
-                    client().admin().indices().prepareDeleteTemplate(indexTemplate.getName()).execute().actionGet();
+                    client().admin().indices().prepareDeleteTemplate(indexTemplate.getName()).get();
                 } catch (IndexTemplateMissingException e) {
                     // ignore
                 }
@@ -194,7 +196,7 @@ public abstract class TestCluster implements Closeable {
             }
             for (String template : templates) {
                 try {
-                    client().admin().indices().prepareDeleteTemplate(template).execute().actionGet();
+                    client().admin().indices().prepareDeleteTemplate(template).get();
                 } catch (IndexTemplateMissingException e) {
                     // ignore
                 }
@@ -266,8 +268,8 @@ public abstract class TestCluster implements Closeable {
                 .toArray(String[]::new);
 
             if (templates.length != 0) {
-                var request = new DeleteComposableIndexTemplateAction.Request(templates);
-                assertAcked(client().execute(DeleteComposableIndexTemplateAction.INSTANCE, request).actionGet());
+                var request = new TransportDeleteComposableIndexTemplateAction.Request(templates);
+                assertAcked(client().execute(TransportDeleteComposableIndexTemplateAction.TYPE, request).actionGet());
             }
         }
     }
@@ -283,8 +285,8 @@ public abstract class TestCluster implements Closeable {
                 .toArray(String[]::new);
 
             if (templates.length != 0) {
-                var request = new DeleteComponentTemplateAction.Request(templates);
-                assertAcked(client().execute(DeleteComponentTemplateAction.INSTANCE, request).actionGet());
+                var request = new TransportDeleteComponentTemplateAction.Request(templates);
+                assertAcked(client().execute(TransportDeleteComponentTemplateAction.TYPE, request).actionGet());
             }
         }
     }

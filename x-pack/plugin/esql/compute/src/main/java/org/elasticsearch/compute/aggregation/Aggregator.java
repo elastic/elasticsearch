@@ -10,9 +10,10 @@ package org.elasticsearch.compute.aggregation;
 import org.elasticsearch.compute.Describable;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.core.Releasable;
 
-import java.util.function.Supplier;
+import java.util.function.Function;
 
 public class Aggregator implements Releasable {
 
@@ -22,7 +23,7 @@ public class Aggregator implements Releasable {
 
     private final AggregatorMode mode;
 
-    public interface Factory extends Supplier<Aggregator>, Describable {}
+    public interface Factory extends Function<DriverContext, Aggregator>, Describable {}
 
     public Aggregator(AggregatorFunction aggregatorFunction, AggregatorMode mode) {
         this.aggregatorFunction = aggregatorFunction;
@@ -42,11 +43,11 @@ public class Aggregator implements Releasable {
         }
     }
 
-    public void evaluate(Block[] blocks, int offset) {
+    public void evaluate(Block[] blocks, int offset, DriverContext driverContext) {
         if (mode.isOutputPartial()) {
-            aggregatorFunction.evaluateIntermediate(blocks, offset);
+            aggregatorFunction.evaluateIntermediate(blocks, offset, driverContext);
         } else {
-            aggregatorFunction.evaluateFinal(blocks, offset);
+            aggregatorFunction.evaluateFinal(blocks, offset, driverContext);
         }
     }
 

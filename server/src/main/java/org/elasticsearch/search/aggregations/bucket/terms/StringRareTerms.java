@@ -50,20 +50,6 @@ public class StringRareTerms extends InternalMappedRareTerms<StringRareTerms, St
             return getKeyAsString();
         }
 
-        // this method is needed for scripted numeric aggs
-        @Override
-        public Number getKeyAsNumber() {
-            /*
-             * If the term is a long greater than 2^52 then parsing as a double would lose accuracy. Therefore, we first parse as a long and
-             * if this fails then we attempt to parse the term as a double.
-             */
-            try {
-                return Long.parseLong(termBytes.utf8ToString());
-            } catch (final NumberFormatException ignored) {
-                return Double.parseDouble(termBytes.utf8ToString());
-            }
-        }
-
         @Override
         public String getKeyAsString() {
             return format.format(termBytes).toString();
@@ -131,11 +117,6 @@ public class StringRareTerms extends InternalMappedRareTerms<StringRareTerms, St
         SetBackedScalingCuckooFilter filterFilter
     ) {
         return new StringRareTerms(name, order, metadata, format, buckets, maxDocCount, filterFilter);
-    }
-
-    @Override
-    protected StringRareTerms.Bucket[] createBucketsArray(int size) {
-        return new StringRareTerms.Bucket[size];
     }
 
     @Override

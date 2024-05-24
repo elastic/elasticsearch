@@ -8,18 +8,21 @@
 package org.elasticsearch.datastreams.lifecycle.action;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.datastreams.DataStreamsActionUtil;
+import org.elasticsearch.action.datastreams.lifecycle.GetDataStreamLifecycleAction;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.TransportMasterNodeReadAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.DataStream;
+import org.elasticsearch.cluster.metadata.DataStreamGlobalRetentionResolver;
 import org.elasticsearch.cluster.metadata.DataStreamLifecycle;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.ClusterSettings;
-import org.elasticsearch.datastreams.action.DataStreamsActionUtil;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -37,6 +40,7 @@ public class TransportGetDataStreamLifecycleAction extends TransportMasterNodeRe
     GetDataStreamLifecycleAction.Request,
     GetDataStreamLifecycleAction.Response> {
     private final ClusterSettings clusterSettings;
+    private final DataStreamGlobalRetentionResolver globalRetentionResolver;
 
     @Inject
     public TransportGetDataStreamLifecycleAction(
@@ -44,10 +48,11 @@ public class TransportGetDataStreamLifecycleAction extends TransportMasterNodeRe
         ClusterService clusterService,
         ThreadPool threadPool,
         ActionFilters actionFilters,
-        IndexNameExpressionResolver indexNameExpressionResolver
+        IndexNameExpressionResolver indexNameExpressionResolver,
+        DataStreamGlobalRetentionResolver globalRetentionResolver
     ) {
         super(
-            GetDataStreamLifecycleAction.NAME,
+            GetDataStreamLifecycleAction.INSTANCE.name(),
             transportService,
             clusterService,
             threadPool,
@@ -55,9 +60,10 @@ public class TransportGetDataStreamLifecycleAction extends TransportMasterNodeRe
             GetDataStreamLifecycleAction.Request::new,
             indexNameExpressionResolver,
             GetDataStreamLifecycleAction.Response::new,
-            ThreadPool.Names.SAME
+            EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
         clusterSettings = clusterService.getClusterSettings();
+        this.globalRetentionResolver = globalRetentionResolver;
     }
 
     @Override
@@ -83,12 +89,14 @@ public class TransportGetDataStreamLifecycleAction extends TransportMasterNodeRe
                     .map(
                         dataStream -> new GetDataStreamLifecycleAction.Response.DataStreamLifecycle(
                             dataStream.getName(),
-                            dataStream.getLifecycle()
+                            dataStream.getLifecycle(),
+                            dataStream.isSystem()
                         )
                     )
                     .sorted(Comparator.comparing(GetDataStreamLifecycleAction.Response.DataStreamLifecycle::dataStreamName))
                     .toList(),
-                request.includeDefaults() ? clusterSettings.get(DataStreamLifecycle.CLUSTER_LIFECYCLE_DEFAULT_ROLLOVER_SETTING) : null
+                request.includeDefaults() ? clusterSettings.get(DataStreamLifecycle.CLUSTER_LIFECYCLE_DEFAULT_ROLLOVER_SETTING) : null,
+                globalRetentionResolver.resolve(state)
             )
         );
     }

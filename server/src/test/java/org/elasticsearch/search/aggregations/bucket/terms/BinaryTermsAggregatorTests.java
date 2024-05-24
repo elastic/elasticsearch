@@ -19,7 +19,6 @@ import org.elasticsearch.common.Numbers;
 import org.elasticsearch.index.mapper.BinaryFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.search.DocValueFormat;
-import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
 import org.elasticsearch.search.aggregations.support.ValueType;
 
@@ -73,8 +72,8 @@ public class BinaryTermsAggregatorTests extends AggregatorTestCase {
         IncludeExclude includeExclude = new IncludeExclude("foo", null, null, null);
 
         // Make sure the include/exclude fails regardless of how the user tries to type hint the agg
-        AggregationExecutionException e = expectThrows(
-            AggregationExecutionException.class,
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
             () -> testSearchCase(
                 new MatchNoDocsQuery(),
                 dataset,
@@ -92,7 +91,7 @@ public class BinaryTermsAggregatorTests extends AggregatorTestCase {
         );
 
         e = expectThrows(
-            AggregationExecutionException.class,
+            IllegalArgumentException.class,
             () -> testSearchCase(
                 new MatchNoDocsQuery(),
                 dataset,

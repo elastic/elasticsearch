@@ -63,7 +63,7 @@ public class RequestHandlerRegistry<Request extends TransportRequest> implements
     }
 
     public void processMessageReceived(Request request, TransportChannel channel) throws Exception {
-        final Task task = taskManager.register(channel.getChannelType(), action, request);
+        final Task task = taskManager.register("transport", action, request);
         Releasable unregisterTask = () -> taskManager.unregister(task);
         try {
             if (channel instanceof TcpTransportChannel tcpTransportChannel && task instanceof CancellableTask cancellableTask) {

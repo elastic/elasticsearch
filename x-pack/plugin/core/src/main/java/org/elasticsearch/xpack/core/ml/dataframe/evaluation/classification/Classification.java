@@ -31,7 +31,7 @@ import static org.elasticsearch.xpack.core.ml.dataframe.evaluation.MlEvaluationN
 /**
  * Evaluation of classification results.
  */
-public class Classification implements Evaluation {
+public final class Classification implements Evaluation {
 
     public static final ParseField NAME = new ParseField("classification");
 
@@ -75,7 +75,6 @@ public class Classification implements Evaluation {
      */
     private final List<EvaluationMetric> metrics;
 
-    @SuppressWarnings("this-escape")
     public Classification(
         String actualField,
         @Nullable String predictedField,

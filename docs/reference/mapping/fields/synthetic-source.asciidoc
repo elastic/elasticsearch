@@ -4,7 +4,7 @@
 IMPORTANT: Synthetic `_source` is Generally Available only for TSDB indices
 (indices that have `index.mode` set to `time_series`). For other indices
 synthetic `_source` is in technical preview. Features in technical preview may
-be changed or removed in a future release. Elastic will apply best effort to fix
+be changed or removed in a future release. Elastic will work to fix
 any issues, but features in technical preview are not subject to the support SLA
 of official GA features.
 
@@ -28,7 +28,7 @@ PUT idx
 
 While this on the fly reconstruction is *generally* slower than saving the source
 documents verbatim and loading them at query time, it saves a lot of storage
-space. 
+space.
 
 [[synthetic-source-restrictions]]
 ===== Synthetic `_source` restrictions
@@ -37,16 +37,12 @@ There are a couple of restrictions to be aware of:
 
 * When you retrieve synthetic `_source` content it undergoes minor
 <<synthetic-source-modifications,modifications>> compared to the original JSON.
-* The `params._source` is unavailable in scripts. Instead use the
-{painless}/painless-field-context.html[`doc`] API or the <<script-fields-api,`field` API>>.
-* Runtime fields <<runtime-fields-scriptless,without a script>>, and runtime 
-fields that access `_source` are currently not supported for indices that use 
-synthetic `_source`. Use a scripted runtime field that accesses fields <<modules-scripting-doc-vals,using doc values>> or the 
-<<script-fields-api,`field` API>> instead.
 * Synthetic `_source` can be used with indices that contain only these field
 types:
 
 ** <<aggregate-metric-double-synthetic-source, `aggregate_metric_double`>>
+** {plugins}/mapper-annotated-text-usage.html#annotated-text-synthetic-source[`annotated-text`]
+** <<binary-synthetic-source,`binary`>>
 ** <<boolean-synthetic-source,`boolean`>>
 ** <<numeric-synthetic-source,`byte`>>
 ** <<date-synthetic-source,`date`>>
@@ -62,7 +58,9 @@ types:
 ** <<ip-synthetic-source,`ip`>>
 ** <<keyword-synthetic-source,`keyword`>>
 ** <<numeric-synthetic-source,`long`>>
+** <<range-synthetic-source,`range` types>>
 ** <<numeric-synthetic-source,`scaled_float`>>
+** <<search-as-you-type-synthetic-source,`search_as_you_type`>>
 ** <<numeric-synthetic-source,`short`>>
 ** <<text-synthetic-source,`text`>>
 ** <<version-synthetic-source,`version`>>
@@ -175,3 +173,7 @@ https://www.rfc-editor.org/rfc/rfc7159.html[JSON RFC] defines objects as
 shouldn't care but without synthetic `_source` the original ordering is
 preserved and some applications may, counter to the spec, do something with
 that ordering.
+
+[[synthetic-source-modifications-ranges]]
+====== Representation of ranges
+Range field vales (e.g. `long_range`) are always represented as inclusive on both sides with bounds adjusted accordingly.  See <<range-synthetic-source-inclusive, examples>>.

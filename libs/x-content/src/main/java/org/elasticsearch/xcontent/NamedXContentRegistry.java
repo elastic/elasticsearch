@@ -12,6 +12,7 @@ import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.core.RestApiVersion;
 
 import java.io.IOException;
+import java.util.EnumMap;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -95,7 +96,7 @@ public class NamedXContentRegistry {
             return emptyMap();
         }
 
-        Map<RestApiVersion, Map<Class<?>, Map<String, Entry>>> newRegistry = new HashMap<>();
+        Map<RestApiVersion, Map<Class<?>, Map<String, Entry>>> newRegistry = new EnumMap<>(RestApiVersion.class);
         for (Entry entry : entries) {
             for (String name : entry.name.getAllNamesIncludedDeprecated()) {
                 if (RestApiVersion.minimumSupported().matches(entry.restApiCompatibility)) {

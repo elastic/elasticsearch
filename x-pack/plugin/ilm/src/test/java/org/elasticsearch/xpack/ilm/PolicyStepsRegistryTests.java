@@ -13,6 +13,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.LifecycleExecutionState;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
@@ -219,11 +220,10 @@ public class PolicyStepsRegistryTests extends ESTestCase {
             logger.info("--> metadata: {}", Strings.toString(builder));
         }
         String nodeId = randomAlphaOfLength(10);
-        DiscoveryNode masterNode = DiscoveryNode.createLocal(
-            NodeRoles.masterNode(settings(IndexVersion.current()).build()),
-            new TransportAddress(TransportAddress.META_ADDRESS, 9300),
-            nodeId
-        );
+        DiscoveryNode masterNode = DiscoveryNodeUtils.builder(nodeId)
+            .applySettings(NodeRoles.masterNode(settings(IndexVersion.current()).build()))
+            .address(new TransportAddress(TransportAddress.META_ADDRESS, 9300))
+            .build();
         ClusterState currentState = ClusterState.builder(ClusterName.DEFAULT)
             .metadata(metadata)
             .nodes(DiscoveryNodes.builder().localNodeId(nodeId).masterNodeId(nodeId).add(masterNode).build())
@@ -301,11 +301,10 @@ public class PolicyStepsRegistryTests extends ESTestCase {
             .putCustom(IndexLifecycleMetadata.TYPE, lifecycleMetadata)
             .build();
         String nodeId = randomAlphaOfLength(10);
-        DiscoveryNode masterNode = DiscoveryNode.createLocal(
-            NodeRoles.masterNode(settings(IndexVersion.current()).build()),
-            new TransportAddress(TransportAddress.META_ADDRESS, 9300),
-            nodeId
-        );
+        DiscoveryNode masterNode = DiscoveryNodeUtils.builder(nodeId)
+            .applySettings(NodeRoles.masterNode(settings(IndexVersion.current()).build()))
+            .address(new TransportAddress(TransportAddress.META_ADDRESS, 9300))
+            .build();
         ClusterState currentState = ClusterState.builder(ClusterName.DEFAULT)
             .metadata(metadata)
             .nodes(DiscoveryNodes.builder().localNodeId(nodeId).masterNodeId(nodeId).add(masterNode).build())
@@ -336,7 +335,7 @@ public class PolicyStepsRegistryTests extends ESTestCase {
         Mockito.when(client.settings()).thenReturn(Settings.EMPTY);
         String policyName = randomAlphaOfLength(5);
         Map<String, LifecycleAction> actions = new HashMap<>();
-        actions.put("shrink", new ShrinkAction(1, null));
+        actions.put("shrink", new ShrinkAction(1, null, false));
         Map<String, Phase> phases = new HashMap<>();
         Phase warmPhase = new Phase("warm", TimeValue.ZERO, actions);
         PhaseExecutionInfo pei = new PhaseExecutionInfo(policyName, warmPhase, 1, randomNonNegativeLong());
@@ -345,7 +344,7 @@ public class PolicyStepsRegistryTests extends ESTestCase {
         LifecyclePolicy newPolicy = new LifecyclePolicy(policyName, phases);
         // Modify the policy
         actions = new HashMap<>();
-        actions.put("shrink", new ShrinkAction(2, null));
+        actions.put("shrink", new ShrinkAction(2, null, false));
         phases = new HashMap<>();
         phases.put("warm", new Phase("warm", TimeValue.ZERO, actions));
         LifecyclePolicy updatedPolicy = new LifecyclePolicy(policyName, phases);
@@ -385,11 +384,10 @@ public class PolicyStepsRegistryTests extends ESTestCase {
             logger.info("--> metadata: {}", Strings.toString(builder));
         }
         String nodeId = randomAlphaOfLength(10);
-        DiscoveryNode masterNode = DiscoveryNode.createLocal(
-            NodeRoles.masterNode(settings(IndexVersion.current()).build()),
-            new TransportAddress(TransportAddress.META_ADDRESS, 9300),
-            nodeId
-        );
+        DiscoveryNode masterNode = DiscoveryNodeUtils.builder(nodeId)
+            .applySettings(NodeRoles.masterNode(settings(IndexVersion.current()).build()))
+            .address(new TransportAddress(TransportAddress.META_ADDRESS, 9300))
+            .build();
         ClusterState currentState = ClusterState.builder(ClusterName.DEFAULT)
             .metadata(metadata)
             .nodes(DiscoveryNodes.builder().localNodeId(nodeId).masterNodeId(nodeId).add(masterNode).build())

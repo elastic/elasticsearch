@@ -8,15 +8,20 @@
 
 package org.elasticsearch.action.admin.cluster.remote;
 
+import org.elasticsearch.Build;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.Version;
-import org.elasticsearch.action.ActionListenerResponseHandler;
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionRequest;
+import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
-import org.elasticsearch.action.admin.cluster.node.info.NodesInfoAction;
+import org.elasticsearch.action.admin.cluster.node.info.NodesInfoMetrics;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoRequest;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
+import org.elasticsearch.action.admin.cluster.node.info.TransportNodesInfoAction;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.client.internal.support.AbstractClient;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
@@ -41,9 +46,7 @@ import java.util.stream.Collectors;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.doAnswer;
+import static org.hamcrest.Matchers.is;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -53,11 +56,6 @@ public class RemoteClusterNodesActionTests extends ESTestCase {
         final ThreadPool threadPool = mock(ThreadPool.class);
         final ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
         when(threadPool.getThreadContext()).thenReturn(threadContext);
-
-        final TransportService transportService = mock(TransportService.class);
-        final DiscoveryNode localNode = mock(DiscoveryNode.class);
-        when(transportService.getLocalNode()).thenReturn(localNode);
-        when(transportService.getThreadPool()).thenReturn(threadPool);
 
         // Prepare nodesInfo response
         final int numberOfNodes = randomIntBetween(1, 6);
@@ -78,7 +76,7 @@ public class RemoteClusterNodesActionTests extends ESTestCase {
             }
             nodeInfos.add(
                 new NodeInfo(
-                    Version.CURRENT,
+                    Build.current().version(),
                     TransportVersion.current(),
                     IndexVersion.current(),
                     Map.of(),
@@ -106,21 +104,33 @@ public class RemoteClusterNodesActionTests extends ESTestCase {
             List.of()
         );
 
-        doAnswer(invocation -> {
-            final NodesInfoRequest nodesInfoRequest = invocation.getArgument(2);
-            assertThat(nodesInfoRequest.requestedMetrics(), containsInAnyOrder(NodesInfoRequest.Metric.REMOTE_CLUSTER_SERVER.metricName()));
-            final ActionListenerResponseHandler<NodesInfoResponse> handler = invocation.getArgument(3);
-            handler.handleResponse(nodesInfoResponse);
-            return null;
-        }).when(transportService).sendRequest(eq(localNode), eq(NodesInfoAction.NAME), any(NodesInfoRequest.class), any());
-
         final RemoteClusterNodesAction.TransportAction action = new RemoteClusterNodesAction.TransportAction(
-            transportService,
-            mock(ActionFilters.class)
+            mock(TransportService.class),
+            new ActionFilters(Set.of()),
+            new AbstractClient(Settings.EMPTY, threadPool) {
+                @SuppressWarnings("unchecked")
+                @Override
+                protected <Request extends ActionRequest, Response extends ActionResponse> void doExecute(
+                    ActionType<Response> action,
+                    Request request,
+                    ActionListener<Response> listener
+                ) {
+                    assertThat(threadContext.isSystemContext(), is(true));
+                    assertSame(TransportNodesInfoAction.TYPE, action);
+                    assertThat(
+                        asInstanceOf(NodesInfoRequest.class, request).requestedMetrics(),
+                        containsInAnyOrder(NodesInfoMetrics.Metric.REMOTE_CLUSTER_SERVER.metricName())
+                    );
+                    listener.onResponse((Response) nodesInfoResponse);
+                }
+            }
         );
 
         final PlainActionFuture<RemoteClusterNodesAction.Response> future = new PlainActionFuture<>();
-        action.doExecute(mock(Task.class), RemoteClusterNodesAction.Request.REMOTE_CLUSTER_SERVER_NODES, future);
+        action.doExecute(mock(Task.class), RemoteClusterNodesAction.Request.REMOTE_CLUSTER_SERVER_NODES, ActionListener.wrap(response -> {
+            assertThat(threadContext.isSystemContext(), is(false));
+            future.onResponse(response);
+        }, future::onFailure));
 
         final List<DiscoveryNode> actualNodes = future.actionGet().getNodes();
         assertThat(Set.copyOf(actualNodes), equalTo(expectedRemoteServerNodes));
@@ -135,11 +145,6 @@ public class RemoteClusterNodesActionTests extends ESTestCase {
         final ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
         when(threadPool.getThreadContext()).thenReturn(threadContext);
 
-        final TransportService transportService = mock(TransportService.class);
-        final DiscoveryNode localNode = mock(DiscoveryNode.class);
-        when(transportService.getLocalNode()).thenReturn(localNode);
-        when(transportService.getThreadPool()).thenReturn(threadPool);
-
         // Prepare nodesInfo response
         final int numberOfNodes = randomIntBetween(1, 6);
         final List<NodeInfo> nodeInfos = new ArrayList<>();
@@ -149,7 +154,7 @@ public class RemoteClusterNodesActionTests extends ESTestCase {
             expectedRemoteNodes.add(node);
             nodeInfos.add(
                 new NodeInfo(
-                    Version.CURRENT,
+                    Build.current().version(),
                     TransportVersion.current(),
                     IndexVersion.current(),
                     Map.of(),
@@ -177,21 +182,30 @@ public class RemoteClusterNodesActionTests extends ESTestCase {
             List.of()
         );
 
-        doAnswer(invocation -> {
-            final NodesInfoRequest nodesInfoRequest = invocation.getArgument(2);
-            assertThat(nodesInfoRequest.requestedMetrics(), empty());
-            final ActionListenerResponseHandler<NodesInfoResponse> handler = invocation.getArgument(3);
-            handler.handleResponse(nodesInfoResponse);
-            return null;
-        }).when(transportService).sendRequest(eq(localNode), eq(NodesInfoAction.NAME), any(NodesInfoRequest.class), any());
-
         final RemoteClusterNodesAction.TransportAction action = new RemoteClusterNodesAction.TransportAction(
-            transportService,
-            mock(ActionFilters.class)
+            mock(TransportService.class),
+            new ActionFilters(Set.of()),
+            new AbstractClient(Settings.EMPTY, threadPool) {
+                @SuppressWarnings("unchecked")
+                @Override
+                protected <Request extends ActionRequest, Response extends ActionResponse> void doExecute(
+                    ActionType<Response> action,
+                    Request request,
+                    ActionListener<Response> listener
+                ) {
+                    assertThat(threadContext.isSystemContext(), is(true));
+                    assertSame(TransportNodesInfoAction.TYPE, action);
+                    assertThat(asInstanceOf(NodesInfoRequest.class, request).requestedMetrics(), empty());
+                    listener.onResponse((Response) nodesInfoResponse);
+                }
+            }
         );
 
         final PlainActionFuture<RemoteClusterNodesAction.Response> future = new PlainActionFuture<>();
-        action.doExecute(mock(Task.class), RemoteClusterNodesAction.Request.ALL_NODES, future);
+        action.doExecute(mock(Task.class), RemoteClusterNodesAction.Request.ALL_NODES, ActionListener.wrap(response -> {
+            assertThat(threadContext.isSystemContext(), is(false));
+            future.onResponse(response);
+        }, future::onFailure));
 
         final List<DiscoveryNode> actualNodes = future.actionGet().getNodes();
         assertThat(Set.copyOf(actualNodes), equalTo(expectedRemoteNodes));

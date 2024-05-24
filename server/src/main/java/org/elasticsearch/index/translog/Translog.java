@@ -25,7 +25,6 @@ import org.elasticsearch.common.util.concurrent.ReleasableLock;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
-import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.mapper.IdFieldMapper;
@@ -161,11 +160,11 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
         this.operationListener = config.getOperationListener();
         this.deletionPolicy = deletionPolicy;
         this.translogUUID = translogUUID;
-        bigArrays = config.getBigArrays();
-        diskIoBufferPool = config.getDiskIoBufferPool();
+        this.bigArrays = config.getBigArrays();
+        this.diskIoBufferPool = config.getDiskIoBufferPool();
         ReadWriteLock rwl = new ReentrantReadWriteLock();
-        readLock = new ReleasableLock(rwl.readLock());
-        writeLock = new ReleasableLock(rwl.writeLock());
+        this.readLock = new ReleasableLock(rwl.readLock());
+        this.writeLock = new ReleasableLock(rwl.writeLock());
         this.location = config.getTranslogPath();
         Files.createDirectories(this.location);
 
@@ -557,7 +556,8 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
                 persistedSequenceNumberConsumer,
                 bigArrays,
                 diskIoBufferPool,
-                operationListener
+                operationListener,
+                config.fsync()
             );
         } catch (final IOException e) {
             throw new TranslogException(shardId, "failed to create new translog file", e);
@@ -573,8 +573,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
      * @throws IOException if adding the operation to the translog resulted in an I/O exception
      */
     public Location add(final Operation operation) throws IOException {
-        final ReleasableBytesStreamOutput out = new ReleasableBytesStreamOutput(bigArrays);
-        try {
+        try (ReleasableBytesStreamOutput out = new ReleasableBytesStreamOutput(bigArrays)) {
             writeOperationWithSize(out, operation);
             final BytesReference bytes = out.bytes();
             try (ReleasableLock ignored = readLock.acquire()) {
@@ -604,8 +603,6 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
         } catch (final Exception ex) {
             closeOnTragicEvent(ex);
             throw new TranslogException(shardId, "Failed to write operation [" + operation + "]", ex);
-        } finally {
-            Releasables.close(out);
         }
     }
 
@@ -1319,7 +1316,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
             if (format < FORMAT_NO_DOC_TYPE) {
                 final String docType = in.readString();
                 assert docType.equals(IdFieldMapper.NAME) : docType + " != " + IdFieldMapper.NAME;
-                in.readBytesRef(); // uid
+                in.readSlicedBytesReference(); // uid
             }
             long version = in.readLong();
             if (format < FORMAT_NO_VERSION_TYPE) {
@@ -1933,7 +1930,8 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
             },
             BigArrays.NON_RECYCLING_INSTANCE,
             DiskIoBufferPool.INSTANCE,
-            (d, s, l) -> {}
+            TranslogConfig.NOOP_OPERATION_LISTENER,
+            true
         );
         writer.close();
         return uuid;

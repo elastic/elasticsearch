@@ -16,7 +16,12 @@ public class DataFrameAnalyticsTaskStateTests extends AbstractXContentSerializin
 
     @Override
     protected DataFrameAnalyticsTaskState createTestInstance() {
-        return new DataFrameAnalyticsTaskState(randomFrom(DataFrameAnalyticsState.values()), randomLong(), randomAlphaOfLength(10));
+        return new DataFrameAnalyticsTaskState(
+            randomFrom(DataFrameAnalyticsState.values()),
+            randomLong(),
+            randomAlphaOfLength(10),
+            randomInstant()
+        );
     }
 
     @Override

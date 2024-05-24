@@ -53,16 +53,21 @@ public class CrossClusterAccessAuthenticationService {
     }
 
     public void authenticate(final String action, final TransportRequest request, final ActionListener<Authentication> listener) {
-        final Authenticator.Context authcContext = authenticationService.newContext(action, request, false);
-        final ThreadContext threadContext = authcContext.getThreadContext();
-
+        final ThreadContext threadContext = clusterService.threadPool().getThreadContext();
         final CrossClusterAccessHeaders crossClusterAccessHeaders;
+        final Authenticator.Context authcContext;
         try {
             // parse and add as authentication token as early as possible so that failure events in audit log include API key ID
             crossClusterAccessHeaders = CrossClusterAccessHeaders.readFromContext(threadContext);
             final ApiKeyService.ApiKeyCredentials apiKeyCredentials = crossClusterAccessHeaders.credentials();
             assert ApiKey.Type.CROSS_CLUSTER == apiKeyCredentials.getExpectedType();
-            authcContext.addAuthenticationToken(apiKeyCredentials);
+            // authn must verify only the provided api key and not try to extract any other credential from the thread context
+            authcContext = authenticationService.newContext(action, request, apiKeyCredentials);
+        } catch (Exception ex) {
+            withRequestProcessingFailure(authenticationService.newContext(action, request, null), ex, listener);
+            return;
+        }
+        try {
             apiKeyService.ensureEnabled();
         } catch (Exception ex) {
             withRequestProcessingFailure(authcContext, ex, listener);
@@ -74,8 +79,8 @@ public class CrossClusterAccessAuthenticationService {
             withRequestProcessingFailure(
                 authcContext,
                 new IllegalArgumentException(
-                    "all nodes must have transport version ["
-                        + TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY
+                    "all nodes must have version ["
+                        + TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY.toReleaseVersion()
                         + "] or higher to support cross cluster requests through the dedicated remote cluster port"
                 ),
                 listener
@@ -196,7 +201,7 @@ public class CrossClusterAccessAuthenticationService {
         listener.onFailure(ese);
     }
 
-    private void writeAuthToContext(
+    private static void writeAuthToContext(
         final Authenticator.Context context,
         final Authentication authentication,
         final ActionListener<Authentication> listener

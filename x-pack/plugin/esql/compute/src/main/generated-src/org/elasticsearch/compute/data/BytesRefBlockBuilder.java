@@ -8,6 +8,7 @@
 package org.elasticsearch.compute.data;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.BytesRefArray;
 import org.elasticsearch.core.Releasables;
@@ -19,10 +20,6 @@ import org.elasticsearch.core.Releasables;
 final class BytesRefBlockBuilder extends AbstractBlockBuilder implements BytesRefBlock.Builder {
 
     private BytesRefArray values;
-
-    BytesRefBlockBuilder(int estimatedSize, BlockFactory blockFactory) {
-        this(estimatedSize, BigArrays.NON_RECYCLING_INSTANCE, blockFactory);
-    }
 
     BytesRefBlockBuilder(int estimatedSize, BigArrays bigArrays, BlockFactory blockFactory) {
         super(blockFactory);
@@ -75,56 +72,6 @@ final class BytesRefBlockBuilder extends AbstractBlockBuilder implements BytesRe
     @Override
     protected void writeNullValue() {
         values.append(BytesRefBlock.NULL_VALUE);
-    }
-
-    /**
-     * Appends the all values of the given block into a the current position
-     * in this builder.
-     */
-    @Override
-    public BytesRefBlockBuilder appendAllValuesToCurrentPosition(Block block) {
-        if (block.areAllValuesNull()) {
-            return appendNull();
-        }
-        return appendAllValuesToCurrentPosition((BytesRefBlock) block);
-    }
-
-    /**
-     * Appends the all values of the given block into a the current position
-     * in this builder.
-     */
-    @Override
-    public BytesRefBlockBuilder appendAllValuesToCurrentPosition(BytesRefBlock block) {
-        final int positionCount = block.getPositionCount();
-        if (positionCount == 0) {
-            return appendNull();
-        }
-        final int totalValueCount = block.getTotalValueCount();
-        if (totalValueCount == 0) {
-            return appendNull();
-        }
-        if (totalValueCount > 1) {
-            beginPositionEntry();
-        }
-        BytesRef scratch = new BytesRef();
-        final BytesRefVector vector = block.asVector();
-        if (vector != null) {
-            for (int p = 0; p < positionCount; p++) {
-                appendBytesRef(vector.getBytesRef(p, scratch));
-            }
-        } else {
-            for (int p = 0; p < positionCount; p++) {
-                int count = block.getValueCount(p);
-                int i = block.getFirstValueIndex(p);
-                for (int v = 0; v < count; v++) {
-                    appendBytesRef(block.getBytesRef(i++, scratch));
-                }
-            }
-        }
-        if (totalValueCount > 1) {
-            endPositionEntry();
-        }
-        return this;
     }
 
     @Override
@@ -190,22 +137,61 @@ final class BytesRefBlockBuilder extends AbstractBlockBuilder implements BytesRe
     }
 
     @Override
-    public BytesRefBlock build() {
-        finish();
-        BytesRefBlock block;
+    public long estimatedBytes() {
+        return super.estimatedBytes() + BytesRefArrayBlock.BASE_RAM_BYTES_USED + values.ramBytesUsed();
+    }
+
+    private BytesRefBlock buildFromBytesArray() {
+        assert estimatedBytes == 0 || firstValueIndexes != null;
+        final BytesRefBlock theBlock;
         if (hasNonNullValue && positionCount == 1 && valueCount == 1) {
-            block = new ConstantBytesRefVector(BytesRef.deepCopyOf(values.get(0, new BytesRef())), 1, blockFactory).asBlock();
+            theBlock = new ConstantBytesRefVector(BytesRef.deepCopyOf(values.get(0, new BytesRef())), 1, blockFactory).asBlock();
+            /*
+             * Update the breaker with the actual bytes used.
+             * We pass false below even though we've used the bytes. That's weird,
+             * but if we break here we will throw away the used memory, letting
+             * it be deallocated. The exception will bubble up and the builder will
+             * still technically be open, meaning the calling code should close it
+             * which will return all used memory to the breaker.
+             */
+            blockFactory.adjustBreaker(theBlock.ramBytesUsed() - estimatedBytes);
             Releasables.closeExpectNoException(values);
         } else {
-            estimatedBytes += values.ramBytesUsed();
             if (isDense() && singleValued()) {
-                block = new BytesRefArrayVector(values, positionCount, blockFactory).asBlock();
+                theBlock = new BytesRefArrayVector(values, positionCount, blockFactory).asBlock();
             } else {
-                block = new BytesRefArrayBlock(values, positionCount, firstValueIndexes, nullsMask, mvOrdering, blockFactory);
+                theBlock = new BytesRefArrayBlock(values, positionCount, firstValueIndexes, nullsMask, mvOrdering, blockFactory);
             }
+            /*
+             * Update the breaker with the actual bytes used.
+             * We pass false below even though we've used the bytes. That's weird,
+             * but if we break here we will throw away the used memory, letting
+             * it be deallocated. The exception will bubble up and the builder will
+             * still technically be open, meaning the calling code should close it
+             * which will return all used memory to the breaker.
+             */
+            blockFactory.adjustBreaker(theBlock.ramBytesUsed() - estimatedBytes - values.bigArraysRamBytesUsed());
         }
-        // update the breaker with the actual bytes used.
-        blockFactory.adjustBreaker(block.ramBytesUsed() - estimatedBytes, true);
-        return block;
+        return theBlock;
+    }
+
+    @Override
+    public BytesRefBlock build() {
+        try {
+            finish();
+            BytesRefBlock theBlock;
+            theBlock = buildFromBytesArray();
+            values = null;
+            built();
+            return theBlock;
+        } catch (CircuitBreakingException e) {
+            close();
+            throw e;
+        }
+    }
+
+    @Override
+    public void extraClose() {
+        Releasables.closeExpectNoException(values);
     }
 }

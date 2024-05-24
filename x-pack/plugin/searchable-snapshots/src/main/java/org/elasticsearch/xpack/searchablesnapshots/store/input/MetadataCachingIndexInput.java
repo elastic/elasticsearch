@@ -20,6 +20,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.blobcache.BlobCacheUtils;
 import org.elasticsearch.blobcache.common.BlobCacheBufferedIndexInput;
 import org.elasticsearch.blobcache.common.ByteRange;
+import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.Channels;
 import org.elasticsearch.core.Releasable;
@@ -99,7 +100,6 @@ public abstract class MetadataCachingIndexInput extends BlobCacheBufferedIndexIn
     protected final IOContext context;
     protected final IndexInputStats stats;
     private final long offset;
-    private final long length;
 
     // the following are only mutable so they can be adjusted after cloning/slicing
     private volatile boolean isClone;
@@ -121,7 +121,7 @@ public abstract class MetadataCachingIndexInput extends BlobCacheBufferedIndexIn
         ByteRange headerBlobCacheByteRange,
         ByteRange footerBlobCacheByteRange
     ) {
-        super(name, context);
+        super(name, context, length);
         this.isCfs = IndexFileNames.matchesExtension(name, "cfs");
         this.logger = Objects.requireNonNull(logger);
         this.fileInfo = Objects.requireNonNull(fileInfo);
@@ -130,7 +130,6 @@ public abstract class MetadataCachingIndexInput extends BlobCacheBufferedIndexIn
             : "this method should only be used with blobs that are NOT stored in metadata's hash field " + "(fileInfo: " + fileInfo + ')';
         this.stats = Objects.requireNonNull(stats);
         this.offset = offset;
-        this.length = length;
         this.closed = new AtomicBoolean(false);
         this.isClone = false;
         this.directory = Objects.requireNonNull(directory);
@@ -159,7 +158,7 @@ public abstract class MetadataCachingIndexInput extends BlobCacheBufferedIndexIn
             input.stats,
             input.offset,
             input.compoundFileOffset,
-            input.length,
+            input.length(),
             input.cacheFileReference,
             input.defaultRangeSize,
             input.recoveryRangeSize,
@@ -527,7 +526,7 @@ public abstract class MetadataCachingIndexInput extends BlobCacheBufferedIndexIn
             assert position + readLength <= fileInfo.length()
                 : "cannot read [" + position + "-" + (position + readLength) + "] from [" + fileInfo + "]";
             stats.addBlobStoreBytesRequested(readLength);
-            return directory.blobContainer().readBlob(fileInfo.name(), position, readLength);
+            return directory.blobContainer().readBlob(OperationPurpose.SNAPSHOT_DATA, fileInfo.name(), position, readLength);
         }
         return openInputStreamMultipleParts(position, readLength);
     }
@@ -556,7 +555,8 @@ public abstract class MetadataCachingIndexInput extends BlobCacheBufferedIndexIn
                 endInPart = currentPart == endPart
                     ? getRelativePositionInPart(position + readLength - 1) + 1
                     : fileInfo.partBytes(currentPart);
-                return directory.blobContainer().readBlob(fileInfo.partName(currentPart), startInPart, endInPart - startInPart);
+                return directory.blobContainer()
+                    .readBlob(OperationPurpose.SNAPSHOT_DATA, fileInfo.partName(currentPart), startInPart, endInPart - startInPart);
             }
         };
     }
@@ -644,12 +644,11 @@ public abstract class MetadataCachingIndexInput extends BlobCacheBufferedIndexIn
     }
 
     @Override
-    public final long length() {
-        return length;
-    }
-
-    @Override
-    public MetadataCachingIndexInput clone() {
+    public IndexInput clone() {
+        var bufferClone = tryCloneBuffer();
+        if (bufferClone != null) {
+            return bufferClone;
+        }
         final MetadataCachingIndexInput clone = (MetadataCachingIndexInput) super.clone();
         clone.closed = new AtomicBoolean(false);
         clone.isClone = true;
@@ -672,6 +671,10 @@ public abstract class MetadataCachingIndexInput extends BlobCacheBufferedIndexIn
 
     @Override
     public IndexInput slice(String sliceName, long sliceOffset, long sliceLength) {
+        var bufferSlice = trySliceBuffer(sliceName, sliceOffset, sliceLength);
+        if (bufferSlice != null) {
+            return bufferSlice;
+        }
         BlobCacheUtils.ensureSlice(sliceName, sliceOffset, sliceLength, this);
 
         // Are we creating a slice from a CFS file?

@@ -34,14 +34,16 @@ public class FollowInfoAction extends ActionType<FollowInfoAction.Response> {
     public static final FollowInfoAction INSTANCE = new FollowInfoAction();
 
     private FollowInfoAction() {
-        super(NAME, FollowInfoAction.Response::new);
+        super(NAME);
     }
 
     public static class Request extends MasterNodeReadRequest<Request> {
 
         private String[] followerIndices;
 
-        public Request() {}
+        public Request() {
+            super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT);
+        }
 
         public String[] getFollowerIndices() {
             return followerIndices;

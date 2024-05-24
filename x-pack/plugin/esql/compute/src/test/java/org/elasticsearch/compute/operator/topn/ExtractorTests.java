@@ -14,11 +14,12 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BlockTestUtils;
 import org.elasticsearch.compute.data.BlockUtils;
 import org.elasticsearch.compute.data.DocVector;
 import org.elasticsearch.compute.data.ElementType;
-import org.elasticsearch.compute.data.IntBlock;
+import org.elasticsearch.compute.data.TestBlockFactory;
 import org.elasticsearch.compute.operator.BreakingBytesRefBuilder;
 import org.elasticsearch.test.ESTestCase;
 
@@ -33,6 +34,7 @@ import static org.hamcrest.Matchers.greaterThan;
 public class ExtractorTests extends ESTestCase {
     @ParametersFactory
     public static Iterable<Object[]> parameters() {
+        BlockFactory blockFactory = TestBlockFactory.getNonBreakingInstance();
         List<Object[]> cases = new ArrayList<>();
         for (ElementType e : ElementType.values()) {
             switch (e) {
@@ -70,6 +72,15 @@ public class ExtractorTests extends ESTestCase {
                             () -> randomList(2, 10, () -> new BytesRef(InetAddressPoint.encode(randomIp(randomBoolean()))))
                         )
                     );
+                    cases.add(valueTestCase("single point", e, TopNEncoder.DEFAULT_UNSORTABLE, TopNEncoderTests::randomPointAsWKB));
+                    cases.add(
+                        valueTestCase(
+                            "many points",
+                            e,
+                            TopNEncoder.DEFAULT_UNSORTABLE,
+                            () -> randomList(2, 10, TopNEncoderTests::randomPointAsWKB)
+                        )
+                    );
                 }
                 case DOC -> cases.add(
                     new Object[] {
@@ -78,9 +89,9 @@ public class ExtractorTests extends ESTestCase {
                             e,
                             TopNEncoder.DEFAULT_UNSORTABLE,
                             () -> new DocVector(
-                                IntBlock.newConstantBlockWith(randomInt(), 1).asVector(),
-                                IntBlock.newConstantBlockWith(randomInt(), 1).asVector(),
-                                IntBlock.newConstantBlockWith(randomInt(), 1).asVector(),
+                                blockFactory.newConstantIntBlockWith(randomInt(), 1).asVector(),
+                                blockFactory.newConstantIntBlockWith(randomInt(), 1).asVector(),
+                                blockFactory.newConstantIntBlockWith(randomInt(), 1).asVector(),
                                 randomBoolean() ? null : randomBoolean()
                             ).asBlock()
                         ) }
@@ -103,7 +114,13 @@ public class ExtractorTests extends ESTestCase {
     }
 
     static Object[] valueTestCase(String name, ElementType type, TopNEncoder encoder, Supplier<Object> value) {
-        return new Object[] { new TestCase(name, type, encoder, () -> BlockUtils.fromListRow(Arrays.asList(value.get()))[0]) };
+        return new Object[] {
+            new TestCase(
+                name,
+                type,
+                encoder,
+                () -> BlockUtils.fromListRow(TestBlockFactory.getNonBreakingInstance(), Arrays.asList(value.get()))[0]
+            ) };
     }
 
     static class TestCase {
@@ -142,7 +159,13 @@ public class ExtractorTests extends ESTestCase {
         ValueExtractor.extractorFor(testCase.type, testCase.encoder.toUnsortable(), false, value).writeValue(valuesBuilder, 0);
         assertThat(valuesBuilder.length(), greaterThan(0));
 
-        ResultBuilder result = ResultBuilder.resultBuilderFor(testCase.type, testCase.encoder.toUnsortable(), false, 1);
+        ResultBuilder result = ResultBuilder.resultBuilderFor(
+            TestBlockFactory.getNonBreakingInstance(),
+            testCase.type,
+            testCase.encoder.toUnsortable(),
+            false,
+            1
+        );
         BytesRef values = valuesBuilder.bytesRefView();
         result.decodeValue(values);
         assertThat(values.length, equalTo(0));
@@ -151,7 +174,7 @@ public class ExtractorTests extends ESTestCase {
     }
 
     public void testInKey() {
-        assumeFalse("can't sort on _doc", testCase.type == ElementType.DOC);
+        assumeFalse("can't sort with un-sortable encoder", testCase.encoder == TopNEncoder.DEFAULT_UNSORTABLE);
         Block value = testCase.value.get();
 
         BreakingBytesRefBuilder keysBuilder = nonBreakingBytesRefBuilder();
@@ -163,7 +186,13 @@ public class ExtractorTests extends ESTestCase {
         ValueExtractor.extractorFor(testCase.type, testCase.encoder.toUnsortable(), true, value).writeValue(valuesBuilder, 0);
         assertThat(valuesBuilder.length(), greaterThan(0));
 
-        ResultBuilder result = ResultBuilder.resultBuilderFor(testCase.type, testCase.encoder.toUnsortable(), true, 1);
+        ResultBuilder result = ResultBuilder.resultBuilderFor(
+            TestBlockFactory.getNonBreakingInstance(),
+            testCase.type,
+            testCase.encoder.toUnsortable(),
+            true,
+            1
+        );
         BytesRef keys = keysBuilder.bytesRefView();
         if (testCase.type == ElementType.NULL) {
             assertThat(keys.length, equalTo(1));

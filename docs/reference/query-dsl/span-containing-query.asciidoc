@@ -4,8 +4,7 @@
 <titleabbrev>Span containing</titleabbrev>
 ++++
 
-Returns matches which enclose another span query. The span containing
-query maps to Lucene `SpanContainingQuery`. Here is an example:
+Returns matches which enclose another span query. Here is an example:
 
 [source,console]
 --------------------------------------------------

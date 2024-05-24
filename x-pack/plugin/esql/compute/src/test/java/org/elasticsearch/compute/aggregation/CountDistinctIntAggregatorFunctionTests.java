@@ -8,7 +8,6 @@
 package org.elasticsearch.compute.aggregation;
 
 import org.elasticsearch.common.collect.Iterators;
-import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.BasicBlockTests;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
@@ -29,14 +28,14 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class CountDistinctIntAggregatorFunctionTests extends AggregatorFunctionTestCase {
     @Override
-    protected SourceOperator simpleInput(int size) {
+    protected SourceOperator simpleInput(BlockFactory blockFactory, int size) {
         int max = between(1, Math.min(Integer.MAX_VALUE, Integer.MAX_VALUE / size));
-        return new SequenceIntBlockSourceOperator(LongStream.range(0, size).mapToInt(l -> between(-max, max)));
+        return new SequenceIntBlockSourceOperator(blockFactory, LongStream.range(0, size).mapToInt(l -> between(-max, max)));
     }
 
     @Override
-    protected AggregatorFunctionSupplier aggregatorFunction(BigArrays bigArrays, List<Integer> inputChannels) {
-        return new CountDistinctIntAggregatorFunctionSupplier(bigArrays, inputChannels, 40000);
+    protected AggregatorFunctionSupplier aggregatorFunction(List<Integer> inputChannels) {
+        return new CountDistinctIntAggregatorFunctionSupplier(inputChannels, 40000);
     }
 
     @Override
@@ -68,7 +67,7 @@ public class CountDistinctIntAggregatorFunctionTests extends AggregatorFunctionT
             Driver d = new Driver(
                 driverContext,
                 new CannedSourceOperator(Iterators.single(new Page(blockFactory.newDoubleArrayVector(new double[] { 1.0 }, 1).asBlock()))),
-                List.of(simple(nonBreakingBigArrays()).get(driverContext)),
+                List.of(simple().get(driverContext)),
                 new PageConsumerOperator(page -> fail("shouldn't have made it this far")),
                 () -> {}
             )

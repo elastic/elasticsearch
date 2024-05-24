@@ -58,8 +58,9 @@ enrich index for the policy.
 
 [source,console]
 ----
-POST /_enrich/policy/users-policy/_execute
+POST /_enrich/policy/users-policy/_execute?wait_for_completion=false
 ----
+// TEST[s/\?wait_for_completion=false//]
 // TEST[continued]
 
 

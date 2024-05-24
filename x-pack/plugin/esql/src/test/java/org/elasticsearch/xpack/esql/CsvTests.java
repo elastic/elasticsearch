@@ -9,10 +9,13 @@ package org.elasticsearch.xpack.esql;
 
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
+import org.elasticsearch.Build;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -20,6 +23,7 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.common.util.iterable.Iterables;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.Driver;
@@ -37,27 +41,38 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.FixedExecutorBuilder;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.RemoteClusterService;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
 import org.elasticsearch.xpack.esql.CsvTestUtils.ActualResults;
 import org.elasticsearch.xpack.esql.CsvTestUtils.Type;
+import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.analysis.Analyzer;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerContext;
 import org.elasticsearch.xpack.esql.analysis.EnrichResolution;
-import org.elasticsearch.xpack.esql.analysis.Verifier;
+import org.elasticsearch.xpack.esql.analysis.PreAnalyzer;
+import org.elasticsearch.xpack.esql.core.CsvSpecReader;
+import org.elasticsearch.xpack.esql.core.SpecReader;
+import org.elasticsearch.xpack.esql.core.expression.Expressions;
+import org.elasticsearch.xpack.esql.core.expression.function.FunctionRegistry;
+import org.elasticsearch.xpack.esql.core.index.EsIndex;
+import org.elasticsearch.xpack.esql.core.index.IndexResolution;
+import org.elasticsearch.xpack.esql.core.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.enrich.EnrichLookupService;
-import org.elasticsearch.xpack.esql.enrich.EnrichPolicyResolution;
+import org.elasticsearch.xpack.esql.enrich.ResolvedEnrichPolicy;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.optimizer.LocalLogicalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.LocalLogicalPlanOptimizer;
 import org.elasticsearch.xpack.esql.optimizer.LocalPhysicalOptimizerContext;
+import org.elasticsearch.xpack.esql.optimizer.LogicalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.LogicalPlanOptimizer;
 import org.elasticsearch.xpack.esql.optimizer.PhysicalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.PhysicalPlanOptimizer;
 import org.elasticsearch.xpack.esql.optimizer.TestLocalPhysicalPlanOptimizer;
 import org.elasticsearch.xpack.esql.optimizer.TestPhysicalPlanOptimizer;
 import org.elasticsearch.xpack.esql.parser.EsqlParser;
+import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.physical.EstimatesRowSize;
 import org.elasticsearch.xpack.esql.plan.physical.LocalSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.OutputExec;
@@ -67,49 +82,41 @@ import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner.LocalExecution
 import org.elasticsearch.xpack.esql.planner.Mapper;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 import org.elasticsearch.xpack.esql.planner.TestPhysicalOperationProviders;
-import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
+import org.elasticsearch.xpack.esql.plugin.EsqlFeatures;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.esql.session.EsqlConfiguration;
 import org.elasticsearch.xpack.esql.stats.DisabledSearchStats;
-import org.elasticsearch.xpack.esql.stats.Metrics;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
-import org.elasticsearch.xpack.ql.CsvSpecReader;
-import org.elasticsearch.xpack.ql.SpecReader;
-import org.elasticsearch.xpack.ql.analyzer.PreAnalyzer;
-import org.elasticsearch.xpack.ql.expression.Expressions;
-import org.elasticsearch.xpack.ql.expression.function.FunctionRegistry;
-import org.elasticsearch.xpack.ql.index.EsIndex;
-import org.elasticsearch.xpack.ql.index.IndexResolution;
-import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
 import org.junit.After;
 import org.junit.Before;
 import org.mockito.Mockito;
 
 import java.io.IOException;
 import java.net.URL;
-import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.HashSet;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeMap;
+import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
 
-import static org.elasticsearch.test.ListMatcher.matchesList;
-import static org.elasticsearch.test.MapMatcher.assertMap;
 import static org.elasticsearch.xpack.esql.CsvTestUtils.ExpectedResults;
 import static org.elasticsearch.xpack.esql.CsvTestUtils.isEnabled;
 import static org.elasticsearch.xpack.esql.CsvTestUtils.loadCsvSpecValues;
 import static org.elasticsearch.xpack.esql.CsvTestUtils.loadPageFromCsv;
 import static org.elasticsearch.xpack.esql.CsvTestsDataLoader.CSV_DATASET_MAP;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_VERIFIER;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.loadMapping;
-import static org.elasticsearch.xpack.esql.plugin.EsqlPlugin.ESQL_THREAD_POOL_NAME;
-import static org.elasticsearch.xpack.ql.CsvSpecReader.specParser;
-import static org.elasticsearch.xpack.ql.TestUtils.classpathResources;
+import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.cap;
+import static org.elasticsearch.xpack.esql.core.CsvSpecReader.specParser;
+import static org.elasticsearch.xpack.esql.core.TestUtils.classpathResources;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.everyItem;
+import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.in;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 
@@ -151,43 +158,37 @@ public class CsvTests extends ESTestCase {
     private final Integer lineNumber;
     private final CsvSpecReader.CsvTestCase testCase;
 
-    private final EsqlConfiguration configuration = new EsqlConfiguration(
-        ZoneOffset.UTC,
-        Locale.US,
-        null,
-        null,
-        new QueryPragmas(Settings.builder().put("page_size", randomPageSize()).build()),
-        EsqlPlugin.QUERY_RESULT_TRUNCATION_MAX_SIZE.getDefault(Settings.EMPTY)
+    private final EsqlConfiguration configuration = EsqlTestUtils.configuration(
+        new QueryPragmas(Settings.builder().put("page_size", randomPageSize()).build())
     );
     private final FunctionRegistry functionRegistry = new EsqlFunctionRegistry();
     private final EsqlParser parser = new EsqlParser();
-    private final LogicalPlanOptimizer logicalPlanOptimizer = new LogicalPlanOptimizer();
     private final Mapper mapper = new Mapper(functionRegistry);
     private final PhysicalPlanOptimizer physicalPlanOptimizer = new TestPhysicalPlanOptimizer(new PhysicalOptimizerContext(configuration));
     private ThreadPool threadPool;
+    private Executor executor;
 
     @ParametersFactory(argumentFormatting = "%2$s.%3$s")
     public static List<Object[]> readScriptSpec() throws Exception {
-        List<URL> urls = classpathResources("/*.csv-spec").stream().filter(x -> x.toString().contains("-ignoreCsvTests") == false).toList();
-        assertTrue("Not enough specs found " + urls, urls.size() > 0);
+        List<URL> urls = classpathResources("/*.csv-spec");
+        assertThat("Not enough specs found " + urls, urls, hasSize(greaterThan(0)));
         return SpecReader.readScriptSpec(urls, specParser());
     }
 
     @Before
     public void setUp() throws Exception {
         super.setUp();
-        int numThreads = randomBoolean() ? 1 : between(2, 16);
-        threadPool = new TestThreadPool(
-            "CsvTests",
-            new FixedExecutorBuilder(
-                Settings.EMPTY,
-                ESQL_THREAD_POOL_NAME,
-                numThreads,
-                1024,
-                "esql",
-                EsExecutors.TaskTrackingConfig.DEFAULT
-            )
-        );
+        if (randomBoolean()) {
+            int numThreads = randomBoolean() ? 1 : between(2, 16);
+            threadPool = new TestThreadPool(
+                "CsvTests",
+                new FixedExecutorBuilder(Settings.EMPTY, "esql_test", numThreads, 1024, "esql", EsExecutors.TaskTrackingConfig.DEFAULT)
+            );
+            executor = threadPool.executor("esql_test");
+        } else {
+            threadPool = new TestThreadPool(getTestName());
+            executor = threadPool.executor(ThreadPool.Names.SEARCH);
+        }
         HeaderWarning.setThreadContext(threadPool.getThreadContext());
     }
 
@@ -220,7 +221,24 @@ public class CsvTests extends ESTestCase {
 
     public final void test() throws Throwable {
         try {
-            assumeTrue("Test " + testName + " is not enabled", isEnabled(testName));
+            assumeTrue("Test " + testName + " is not enabled", isEnabled(testName, Version.CURRENT));
+
+            if (Build.current().isSnapshot()) {
+                assertThat(
+                    "nonexistent capabilities declared as required",
+                    testCase.requiredCapabilities,
+                    everyItem(in(EsqlCapabilities.CAPABILITIES))
+                );
+            }
+
+            /*
+             * The csv tests support all but a few features. The unsupported features
+             * are tested in integration tests.
+             */
+            assumeFalse("metadata fields aren't supported", testCase.requiredCapabilities.contains(cap(EsqlFeatures.METADATA_FIELDS)));
+            assumeFalse("enrich can't load fields in csv tests", testCase.requiredCapabilities.contains(cap(EsqlFeatures.ENRICH_LOAD)));
+            assumeFalse("can't load metrics in csv tests", testCase.requiredCapabilities.contains(cap(EsqlFeatures.METRICS_SYNTAX)));
+
             doTest();
         } catch (Throwable th) {
             throw reworkException(th);
@@ -237,12 +255,18 @@ public class CsvTests extends ESTestCase {
     }
 
     private void doTest() throws Exception {
-        var actualResults = executePlan();
-        var expected = loadCsvSpecValues(testCase.expectedResults);
+        BigArrays bigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, ByteSizeValue.ofGb(1)).withCircuitBreaking();
+        var actualResults = executePlan(bigArrays);
+        try {
+            var expected = loadCsvSpecValues(testCase.expectedResults);
 
-        var log = logResults() ? LOGGER : null;
-        assertResults(expected, actualResults, testCase.ignoreOrder, log);
-        assertWarnings(actualResults.responseHeaders().getOrDefault("Warning", List.of()));
+            var log = logResults() ? LOGGER : null;
+            assertResults(expected, actualResults, testCase.ignoreOrder, log);
+            assertWarnings(actualResults.responseHeaders().getOrDefault("Warning", List.of()));
+        } finally {
+            Releasables.close(() -> Iterators.map(actualResults.pages().iterator(), p -> p::releaseBlocks));
+            assertThat(bigArrays.breakerService().getBreaker(CircuitBreaker.REQUEST).getUsed(), equalTo(0L));
+        }
     }
 
     protected void assertResults(ExpectedResults expected, ActualResults actual, boolean ignoreOrder, Logger logger) {
@@ -261,18 +285,27 @@ public class CsvTests extends ESTestCase {
     }
 
     private static EnrichResolution loadEnrichPolicies() {
-        Set<String> names = new HashSet<>();
-        Set<EnrichPolicyResolution> resolutions = new HashSet<>();
+        EnrichResolution enrichResolution = new EnrichResolution();
         for (CsvTestsDataLoader.EnrichConfig policyConfig : CsvTestsDataLoader.ENRICH_POLICIES) {
             EnrichPolicy policy = loadEnrichPolicyMapping(policyConfig.policyFileName());
             CsvTestsDataLoader.TestsDataset sourceIndex = CSV_DATASET_MAP.get(policy.getIndices().get(0));
             // this could practically work, but it's wrong:
             // EnrichPolicyResolution should contain the policy (system) index, not the source index
-            IndexResolution idxRes = loadIndexResolution(sourceIndex.mappingFileName(), sourceIndex.indexName());
-            names.add(policyConfig.policyName());
-            resolutions.add(new EnrichPolicyResolution(policyConfig.policyName(), policy, idxRes));
+            EsIndex esIndex = loadIndexResolution(sourceIndex.mappingFileName(), sourceIndex.indexName()).get();
+            var concreteIndices = Map.of(RemoteClusterService.LOCAL_CLUSTER_GROUP_KEY, Iterables.get(esIndex.concreteIndices(), 0));
+            enrichResolution.addResolvedPolicy(
+                policyConfig.policyName(),
+                Enrich.Mode.ANY,
+                new ResolvedEnrichPolicy(
+                    policy.getMatchField(),
+                    policy.getType(),
+                    policy.getEnrichFields(),
+                    concreteIndices,
+                    esIndex.mapping()
+                )
+            );
         }
-        return new EnrichResolution(resolutions, names);
+        return enrichResolution;
     }
 
     private static EnrichPolicy loadEnrichPolicyMapping(String policyFileName) {
@@ -289,12 +322,9 @@ public class CsvTests extends ESTestCase {
     private PhysicalPlan physicalPlan(LogicalPlan parsed, CsvTestsDataLoader.TestsDataset dataset) {
         var indexResolution = loadIndexResolution(dataset.mappingFileName(), dataset.indexName());
         var enrichPolicies = loadEnrichPolicies();
-        var analyzer = new Analyzer(
-            new AnalyzerContext(configuration, functionRegistry, indexResolution, enrichPolicies),
-            new Verifier(new Metrics())
-        );
+        var analyzer = new Analyzer(new AnalyzerContext(configuration, functionRegistry, indexResolution, enrichPolicies), TEST_VERIFIER);
         var analyzed = analyzer.analyze(parsed);
-        var logicalOptimized = logicalPlanOptimizer.optimize(analyzed);
+        var logicalOptimized = new LogicalPlanOptimizer(new LogicalOptimizerContext(configuration)).optimize(analyzed);
         var physicalPlan = mapper.map(logicalOptimized);
         var optimizedPlan = EstimatesRowSize.estimateRowSize(0, physicalPlanOptimizer.optimize(physicalPlan));
         opportunisticallyAssertPlanSerialization(physicalPlan, optimizedPlan); // comment out to disable serialization
@@ -305,7 +335,11 @@ public class CsvTests extends ESTestCase {
         var preAnalysis = new PreAnalyzer().preAnalyze(parsed);
         var indices = preAnalysis.indices;
         if (indices.size() == 0) {
-            return CSV_DATASET_MAP.values().iterator().next(); // default dataset for `row` source command
+            /*
+             * If the data set doesn't matter we'll just grab one we know works.
+             * Employees is fine.
+             */
+            return CSV_DATASET_MAP.get("employees");
         } else if (preAnalysis.indices.size() > 1) {
             throw new IllegalArgumentException("unexpected index resolution to multiple entries [" + preAnalysis.indices.size() + "]");
         }
@@ -323,19 +357,25 @@ public class CsvTests extends ESTestCase {
         return new TestPhysicalOperationProviders(testData.v1(), testData.v2());
     }
 
-    private ActualResults executePlan() throws Exception {
+    private ActualResults executePlan(BigArrays bigArrays) throws Exception {
         var parsed = parser.createStatement(testCase.query);
         var testDataset = testsDataset(parsed);
 
         String sessionId = "csv-test";
-        ExchangeSourceHandler exchangeSource = new ExchangeSourceHandler(between(1, 64), threadPool.executor(ESQL_THREAD_POOL_NAME));
-        ExchangeSinkHandler exchangeSink = new ExchangeSinkHandler(between(1, 64), threadPool::relativeTimeInMillis);
-        BigArrays bigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, ByteSizeValue.ofGb(1)).withCircuitBreaking();
+        BlockFactory blockFactory = new BlockFactory(
+            bigArrays.breakerService().getBreaker(CircuitBreaker.REQUEST),
+            bigArrays,
+            ByteSizeValue.ofBytes(randomLongBetween(1, BlockFactory.DEFAULT_MAX_BLOCK_PRIMITIVE_ARRAY_SIZE.getBytes() * 2))
+        );
+        ExchangeSourceHandler exchangeSource = new ExchangeSourceHandler(between(1, 64), executor);
+        ExchangeSinkHandler exchangeSink = new ExchangeSinkHandler(blockFactory, between(1, 64), threadPool::relativeTimeInMillis);
         LocalExecutionPlanner executionPlanner = new LocalExecutionPlanner(
             sessionId,
+            "",
             new CancellableTask(1, "transport", "esql", null, TaskId.EMPTY_TASK_ID, Map.of()),
             bigArrays,
-            BlockFactory.getGlobalInstance(),
+            blockFactory,
+            randomNodeSettings(),
             configuration,
             exchangeSource,
             exchangeSink,
@@ -374,10 +414,11 @@ public class CsvTests extends ESTestCase {
             LocalExecutionPlan coordinatorNodeExecutionPlan = executionPlanner.plan(new OutputExec(coordinatorPlan, collectedPages::add));
             drivers.addAll(coordinatorNodeExecutionPlan.createDrivers(sessionId));
             if (dataNodePlan != null) {
-                var logicalTestOptimizer = new LocalLogicalPlanOptimizer(
-                    new LocalLogicalOptimizerContext(configuration, new DisabledSearchStats())
+                var searchStats = new DisabledSearchStats();
+                var logicalTestOptimizer = new LocalLogicalPlanOptimizer(new LocalLogicalOptimizerContext(configuration, searchStats));
+                var physicalTestOptimizer = new TestLocalPhysicalPlanOptimizer(
+                    new LocalPhysicalOptimizerContext(configuration, searchStats)
                 );
-                var physicalTestOptimizer = new TestLocalPhysicalPlanOptimizer(new LocalPhysicalOptimizerContext(configuration));
 
                 var csvDataNodePhysicalPlan = PlannerUtils.localPlan(dataNodePlan, logicalTestOptimizer, physicalTestOptimizer);
                 exchangeSource.addRemoteSink(exchangeSink::fetchPageAsync, randomIntBetween(1, 3));
@@ -386,21 +427,30 @@ public class CsvTests extends ESTestCase {
                 Randomness.shuffle(drivers);
             }
             // Execute the driver
-            DriverRunner runner = new DriverRunner() {
+            DriverRunner runner = new DriverRunner(threadPool.getThreadContext()) {
                 @Override
                 protected void start(Driver driver, ActionListener<Void> driverListener) {
-                    Driver.start(threadPool.executor(ESQL_THREAD_POOL_NAME), driver, between(1, 1000), driverListener);
+                    Driver.start(threadPool.getThreadContext(), executor, driver, between(1, 1000), driverListener);
                 }
             };
-            PlainActionFuture<Void> future = new PlainActionFuture<>();
-            runner.runToCompletion(drivers, ActionListener.releaseAfter(future, () -> Releasables.close(drivers)));
-            future.actionGet(TimeValue.timeValueSeconds(30));
-            var responseHeaders = threadPool.getThreadContext().getResponseHeaders();
-            return new ActualResults(columnNames, columnTypes, dataTypes, collectedPages, responseHeaders);
+            PlainActionFuture<ActualResults> future = new PlainActionFuture<>();
+            runner.runToCompletion(drivers, ActionListener.releaseAfter(future, () -> Releasables.close(drivers)).map(ignore -> {
+                var responseHeaders = threadPool.getThreadContext().getResponseHeaders();
+                return new ActualResults(columnNames, columnTypes, dataTypes, collectedPages, responseHeaders);
+            }));
+            return future.actionGet(TimeValue.timeValueSeconds(30));
         } finally {
-            Releasables.close(() -> Releasables.close(drivers), exchangeSource::decRef);
-            assertThat(bigArrays.breakerService().getBreaker(CircuitBreaker.REQUEST).getUsed(), equalTo(0L));
+            Releasables.close(() -> Releasables.close(drivers));
         }
+    }
+
+    private Settings randomNodeSettings() {
+        Settings.Builder builder = Settings.builder();
+        if (randomBoolean()) {
+            builder.put(BlockFactory.LOCAL_BREAKER_OVER_RESERVED_SIZE_SETTING, ByteSizeValue.ofBytes(randomIntBetween(0, 4096)));
+            builder.put(BlockFactory.LOCAL_BREAKER_OVER_RESERVED_MAX_SIZE_SETTING, ByteSizeValue.ofBytes(randomIntBetween(0, 16 * 1024)));
+        }
+        return builder.build();
     }
 
     private Throwable reworkException(Throwable th) {
@@ -414,7 +464,7 @@ public class CsvTests extends ESTestCase {
     }
 
     // Asserts that the serialization and deserialization of the plan creates an equivalent plan.
-    private static void opportunisticallyAssertPlanSerialization(PhysicalPlan... plans) {
+    private void opportunisticallyAssertPlanSerialization(PhysicalPlan... plans) {
         for (var plan : plans) {
             var tmp = plan;
             do {
@@ -423,15 +473,19 @@ public class CsvTests extends ESTestCase {
                 }
             } while (tmp.children().isEmpty() == false && (tmp = tmp.children().get(0)) != null);
 
-            SerializationTestUtils.assertSerialization(plan);
+            SerializationTestUtils.assertSerialization(plan, configuration);
         }
     }
 
     private void assertWarnings(List<String> warnings) {
         List<String> normalized = new ArrayList<>(warnings.size());
         for (String w : warnings) {
-            normalized.add(HeaderWarning.extractWarningValueFromWarningHeader(w, false));
+            String normW = HeaderWarning.extractWarningValueFromWarningHeader(w, false);
+            if (normW.startsWith("No limit defined, adding default limit of [") == false) {
+                // too many tests do not have a LIMIT, we'll test this warning separately
+                normalized.add(normW);
+            }
         }
-        assertMap(normalized, matchesList(testCase.expectedWarnings));
+        EsqlTestUtils.assertWarnings(normalized, testCase.expectedWarnings(true), testCase.expectedWarningsRegex());
     }
 }

@@ -16,7 +16,6 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.StatusToXContentObject;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
@@ -34,14 +33,12 @@ import java.util.Objects;
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 
-public class PutQueryRulesetAction extends ActionType<PutQueryRulesetAction.Response> {
+public class PutQueryRulesetAction {
 
-    public static final PutQueryRulesetAction INSTANCE = new PutQueryRulesetAction();
     public static final String NAME = "cluster:admin/xpack/query_rules/put";
+    public static final ActionType<PutQueryRulesetAction.Response> INSTANCE = new ActionType<>(NAME);
 
-    public PutQueryRulesetAction() {
-        super(NAME, PutQueryRulesetAction.Response::new);
-    }
+    private PutQueryRulesetAction() {/* no instances */}
 
     public static class Request extends ActionRequest implements ToXContentObject {
 
@@ -125,7 +122,7 @@ public class PutQueryRulesetAction extends ActionType<PutQueryRulesetAction.Resp
 
     }
 
-    public static class Response extends ActionResponse implements StatusToXContentObject {
+    public static class Response extends ActionResponse implements ToXContentObject {
 
         final DocWriteResponse.Result result;
 
@@ -151,7 +148,6 @@ public class PutQueryRulesetAction extends ActionType<PutQueryRulesetAction.Resp
             return builder;
         }
 
-        @Override
         public RestStatus status() {
             return switch (result) {
                 case CREATED -> RestStatus.CREATED;

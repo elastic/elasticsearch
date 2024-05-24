@@ -7,19 +7,12 @@
 
 package org.elasticsearch.xpack.repositories.metering.action;
 
+import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.action.support.nodes.BaseNodesRequest;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-
-import java.io.IOException;
 
 public final class ClearRepositoriesMeteringArchiveRequest extends BaseNodesRequest<ClearRepositoriesMeteringArchiveRequest> {
     private final long maxVersionToClear;
-
-    public ClearRepositoriesMeteringArchiveRequest(StreamInput in) throws IOException {
-        super(in);
-        this.maxVersionToClear = in.readLong();
-    }
 
     public ClearRepositoriesMeteringArchiveRequest(long maxVersionToClear, String... nodesIds) {
         super(nodesIds);
@@ -27,9 +20,8 @@ public final class ClearRepositoriesMeteringArchiveRequest extends BaseNodesRequ
     }
 
     @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
-        out.writeLong(maxVersionToClear);
+    public void writeTo(StreamOutput out) {
+        TransportAction.localOnly();
     }
 
     public long getMaxVersionToClear() {

@@ -80,24 +80,25 @@ public class MultiGetRequestTests extends ESTestCase {
     }
 
     public void testAddWithValidSourceValueIsAccepted() throws Exception {
-        XContentParser parser = createParser(
-            XContentFactory.jsonBuilder()
-                .startObject()
-                .startArray("docs")
-                .startObject()
-                .field("_source", randomFrom("false", "true"))
-                .endObject()
-                .startObject()
-                .field("_source", randomBoolean())
-                .endObject()
-                .endArray()
-                .endObject()
-        );
-
-        MultiGetRequest multiGetRequest = new MultiGetRequest();
-        multiGetRequest.add(randomAlphaOfLength(5), null, FetchSourceContext.FETCH_SOURCE, null, parser, true);
-
-        assertEquals(2, multiGetRequest.getItems().size());
+        try (
+            XContentParser parser = createParser(
+                XContentFactory.jsonBuilder()
+                    .startObject()
+                    .startArray("docs")
+                    .startObject()
+                    .field("_source", randomFrom("false", "true"))
+                    .endObject()
+                    .startObject()
+                    .field("_source", randomBoolean())
+                    .endObject()
+                    .endArray()
+                    .endObject()
+            )
+        ) {
+            MultiGetRequest multiGetRequest = new MultiGetRequest();
+            multiGetRequest.add(randomAlphaOfLength(5), null, FetchSourceContext.FETCH_SOURCE, null, parser, true);
+            assertEquals(2, multiGetRequest.getItems().size());
+        }
     }
 
     public void testXContentSerialization() throws IOException {

@@ -44,11 +44,9 @@ public class TransportDeprecationCacheResetAction extends TransportNodesAction<
     ) {
         super(
             DeprecationCacheResetAction.NAME,
-            threadPool,
             clusterService,
             transportService,
             actionFilters,
-            DeprecationCacheResetAction.Request::new,
             DeprecationCacheResetAction.NodeRequest::new,
             threadPool.executor(ThreadPool.Names.MANAGEMENT)
         );
@@ -66,7 +64,7 @@ public class TransportDeprecationCacheResetAction extends TransportNodesAction<
 
     @Override
     protected DeprecationCacheResetAction.NodeRequest newNodeRequest(DeprecationCacheResetAction.Request request) {
-        return new DeprecationCacheResetAction.NodeRequest(request);
+        return new DeprecationCacheResetAction.NodeRequest();
     }
 
     @Override

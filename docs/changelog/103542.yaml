@@ -1,0 +1,7 @@
+pr: 103542
+summary: Flatten object mappings when subobjects is false
+area: Mapping
+type: feature
+issues:
+ - 99860
+ - 103497

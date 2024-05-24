@@ -1,5 +1,0 @@
-pr: 98888
-summary: Revert "Kibana system index does not allow user templates to affect it"
-area: Infra/Core
-type: bug
-issues: []

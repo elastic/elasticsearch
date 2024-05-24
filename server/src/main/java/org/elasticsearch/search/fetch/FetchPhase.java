@@ -46,18 +46,17 @@ import java.util.function.Supplier;
  * Fetch phase of a search request, used to fetch the actual top matching documents to be returned to the client, identified
  * after reducing all of the matches returned by the query phase
  */
-public class FetchPhase {
+public final class FetchPhase {
     private static final Logger LOGGER = LogManager.getLogger(FetchPhase.class);
 
     private final FetchSubPhase[] fetchSubPhases;
 
-    @SuppressWarnings("this-escape")
     public FetchPhase(List<FetchSubPhase> fetchSubPhases) {
         this.fetchSubPhases = fetchSubPhases.toArray(new FetchSubPhase[fetchSubPhases.size() + 1]);
         this.fetchSubPhases[fetchSubPhases.size()] = new InnerHitsPhase(this);
     }
 
-    public void execute(SearchContext context) {
+    public void execute(SearchContext context, int[] docIdsToLoad) {
         if (LOGGER.isTraceEnabled()) {
             LOGGER.trace("{}", new SearchContextSourcePrinter(context));
         }
@@ -66,23 +65,24 @@ public class FetchPhase {
             throw new TaskCancelledException("cancelled");
         }
 
-        if (context.docIdsToLoad() == null || context.docIdsToLoad().length == 0) {
+        if (docIdsToLoad == null || docIdsToLoad.length == 0) {
             // no individual hits to process, so we shortcut
-            SearchHits hits = new SearchHits(new SearchHit[0], context.queryResult().getTotalHits(), context.queryResult().getMaxScore());
-            context.fetchResult().shardResult(hits, null);
+            context.fetchResult()
+                .shardResult(SearchHits.empty(context.queryResult().getTotalHits(), context.queryResult().getMaxScore()), null);
             return;
         }
 
         Profiler profiler = context.getProfilers() == null ? Profiler.NOOP : Profilers.startProfilingFetchPhase();
         SearchHits hits = null;
         try {
-            hits = buildSearchHits(context, profiler);
+            hits = buildSearchHits(context, docIdsToLoad, profiler);
         } finally {
             // Always finish profiling
             ProfileResult profileResult = profiler.finish();
             // Only set the shardResults if building search hits was successful
             if (hits != null) {
                 context.fetchResult().shardResult(hits, profileResult);
+                hits.decRef();
             }
         }
     }
@@ -92,24 +92,33 @@ public class FetchPhase {
         Source source;
 
         @Override
-        public Source getSource(LeafReaderContext ctx, int doc) throws IOException {
+        public Source getSource(LeafReaderContext ctx, int doc) {
             return source;
         }
     }
 
-    private SearchHits buildSearchHits(SearchContext context, Profiler profiler) {
+    private SearchHits buildSearchHits(SearchContext context, int[] docIdsToLoad, Profiler profiler) {
 
         FetchContext fetchContext = new FetchContext(context);
         SourceLoader sourceLoader = context.newSourceLoader();
 
         PreloadedSourceProvider sourceProvider = new PreloadedSourceProvider();
         PreloadedFieldLookupProvider fieldLookupProvider = new PreloadedFieldLookupProvider();
+        // The following relies on the fact that we fetch sequentially one segment after another, from a single thread
+        // This needs to be revised once we add concurrency to the fetch phase, and needs a work-around for situations
+        // where we run fetch as part of the query phase, where inter-segment concurrency is leveraged.
+        // One problem is the global setLookupProviders call against the shared execution context.
+        // Another problem is that the above provider implementations are not thread-safe
         context.getSearchExecutionContext().setLookupProviders(sourceProvider, ctx -> fieldLookupProvider);
 
         List<FetchSubPhaseProcessor> processors = getProcessors(context.shardTarget(), fetchContext, profiler);
-
         StoredFieldsSpec storedFieldsSpec = StoredFieldsSpec.build(processors, FetchSubPhaseProcessor::storedFieldsSpec);
         storedFieldsSpec = storedFieldsSpec.merge(new StoredFieldsSpec(false, false, sourceLoader.requiredStoredFields()));
+        // Ideally the required stored fields would be provided as constructor argument a few lines above, but that requires moving
+        // the getProcessors call to before the setLookupProviders call, which causes weird issues in InnerHitsPhase.
+        // setLookupProviders resets the SearchLookup used throughout the rest of the fetch phase, which StoredValueFetchers rely on
+        // to retrieve stored fields, and InnerHitsPhase is the last sub-fetch phase and re-runs the entire fetch phase.
+        fieldLookupProvider.setPreloadedStoredFieldNames(storedFieldsSpec.requiredStoredFields());
 
         StoredFieldLoader storedFieldLoader = profiler.storedFields(StoredFieldLoader.fromSpec(storedFieldsSpec));
         IdLoader idLoader = context.newIdLoader();
@@ -158,18 +167,30 @@ public class FetchPhase {
                     leafSourceLoader,
                     leafIdLoader
                 );
-                sourceProvider.source = hit.source();
-                fieldLookupProvider.storedFields = hit.loadedFields();
-                for (FetchSubPhaseProcessor processor : processors) {
-                    processor.process(hit);
+                boolean success = false;
+                try {
+                    sourceProvider.source = hit.source();
+                    fieldLookupProvider.setPreloadedStoredFieldValues(hit.hit().getId(), hit.loadedFields());
+                    for (FetchSubPhaseProcessor processor : processors) {
+                        processor.process(hit);
+                    }
+                    success = true;
+                    return hit.hit();
+                } finally {
+                    if (success == false) {
+                        hit.hit().decRef();
+                    }
                 }
-                return hit.hit();
             }
         };
 
-        SearchHit[] hits = docsIterator.iterate(context.shardTarget(), context.searcher().getIndexReader(), context.docIdsToLoad());
+        SearchHit[] hits = docsIterator.iterate(context.shardTarget(), context.searcher().getIndexReader(), docIdsToLoad);
 
         if (context.isCancelled()) {
+            for (SearchHit hit : hits) {
+                // release all hits that would otherwise become owned and eventually released by SearchHits below
+                hit.decRef();
+            }
             throw new TaskCancelledException("cancelled");
         }
 
@@ -248,7 +269,8 @@ public class FetchPhase {
 
         String id = idLoader.getId(subDocId);
         if (id == null) {
-            SearchHit hit = new SearchHit(docId, null);
+            SearchHit hit = new SearchHit(docId);
+            // TODO: can we use real pooled buffers here as well?
             Source source = Source.lazy(lazyStoredSourceLoader(profiler, subReaderContext, subDocId));
             return new HitContext(hit, subReaderContext, subDocId, Map.of(), source);
         } else {

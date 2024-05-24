@@ -7,7 +7,8 @@
 
 package org.elasticsearch.compute.data;
 
-import java.util.Arrays;
+import org.apache.lucene.util.ArrayUtil;
+
 import java.util.BitSet;
 import java.util.stream.IntStream;
 
@@ -32,6 +33,8 @@ abstract class AbstractBlockBuilder implements Block.Builder {
 
     /** The number of bytes currently estimated with the breaker. */
     protected long estimatedBytes;
+
+    boolean closed = false;
 
     protected AbstractBlockBuilder(BlockFactory blockFactory) {
         this.blockFactory = blockFactory;
@@ -101,13 +104,35 @@ abstract class AbstractBlockBuilder implements Block.Builder {
         }
     }
 
+    /**
+     * Called during implementations of {@link Block.Builder#build} as a first step
+     * to check if the block is still open and to finish the last position.
+     */
     protected final void finish() {
+        if (closed) {
+            throw new IllegalStateException("already closed");
+        }
         if (positionEntryIsOpen) {
             endPositionEntry();
         }
         if (firstValueIndexes != null) {
             setFirstValue(positionCount, valueCount);
         }
+    }
+
+    @Override
+    public long estimatedBytes() {
+        return estimatedBytes;
+    }
+
+    /**
+     * Called during implementations of {@link Block.Builder#build} as a last step
+     * to mark the Builder as closed and make sure that further closes don't double
+     * free memory.
+     */
+    protected final void built() {
+        closed = true;
+        estimatedBytes = 0;
     }
 
     protected abstract void growValuesArray(int newSize);
@@ -120,26 +145,40 @@ abstract class AbstractBlockBuilder implements Block.Builder {
         if (valueCount < valuesLength) {
             return;
         }
-        int newSize = calculateNewArraySize(valuesLength);
-        adjustBreaker((long) (newSize - valuesLength) * elementSize());
+        int newSize = ArrayUtil.oversize(valueCount, elementSize());
+        adjustBreaker(newSize * elementSize());
         growValuesArray(newSize);
+        adjustBreaker(-valuesLength * elementSize());
     }
 
-    static int calculateNewArraySize(int currentSize) {
-        // trivially, grows array by 50%
-        return currentSize + (currentSize >> 1);
+    @Override
+    public final void close() {
+        if (closed == false) {
+            closed = true;
+            adjustBreaker(-estimatedBytes);
+            extraClose();
+        }
     }
+
+    /**
+     * Called when first {@link #close() closed}.
+     */
+    protected void extraClose() {}
 
     protected void adjustBreaker(long deltaBytes) {
-        blockFactory.adjustBreaker(deltaBytes, false);
+        blockFactory.adjustBreaker(deltaBytes);
         estimatedBytes += deltaBytes;
+        assert estimatedBytes >= 0;
     }
 
     private void setFirstValue(int position, int value) {
         if (position >= firstValueIndexes.length) {
             final int currentSize = firstValueIndexes.length;
-            adjustBreaker((long) (position + 1 - currentSize) * Integer.BYTES);
-            firstValueIndexes = Arrays.copyOf(firstValueIndexes, position + 1);
+            // We grow the `firstValueIndexes` at the same rate as the `values` array, but independently.
+            final int newLength = ArrayUtil.oversize(position + 1, Integer.BYTES);
+            adjustBreaker((long) newLength * Integer.BYTES);
+            firstValueIndexes = ArrayUtil.growExact(firstValueIndexes, newLength);
+            adjustBreaker(-(long) currentSize * Integer.BYTES);
         }
         firstValueIndexes[position] = value;
     }

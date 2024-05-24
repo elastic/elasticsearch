@@ -7,11 +7,9 @@
 package org.elasticsearch.xpack.ml.integration;
 
 import org.elasticsearch.action.search.SearchRequest;
-import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
-import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.routing.OperationRouting;
@@ -99,6 +97,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static java.util.stream.Collectors.toList;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertCheckedResponse;
 import static org.elasticsearch.xcontent.json.JsonXContent.jsonXContent;
 import static org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex.createStateIndexAndAliasIfNecessary;
 import static org.hamcrest.Matchers.closeTo;
@@ -165,7 +164,8 @@ public class AutodetectResultProcessorIT extends MlSingleNodeTestCase {
                     OperationRouting.USE_ADAPTIVE_REPLICA_SELECTION_SETTING,
                     ClusterService.USER_DEFINED_METADATA,
                     ResultsPersisterService.PERSIST_RESULTS_MAX_RETRIES,
-                    ClusterApplierService.CLUSTER_SERVICE_SLOW_TASK_LOGGING_THRESHOLD_SETTING
+                    ClusterApplierService.CLUSTER_SERVICE_SLOW_TASK_LOGGING_THRESHOLD_SETTING,
+                    ClusterApplierService.CLUSTER_SERVICE_SLOW_TASK_THREAD_DUMP_TIMEOUT_SETTING
                 )
             )
         );
@@ -199,7 +199,7 @@ public class AutodetectResultProcessorIT extends MlSingleNodeTestCase {
             client(),
             ClusterState.EMPTY_STATE,
             TestIndexNameExpressionResolver.newInstance(),
-            MasterNodeRequest.DEFAULT_MASTER_NODE_TIMEOUT,
+            TEST_REQUEST_TIMEOUT,
             future
         );
         future.get();
@@ -777,15 +777,15 @@ public class AutodetectResultProcessorIT extends MlSingleNodeTestCase {
         // Refresh the annotations index so that recently indexed annotation docs are visible.
         indicesAdmin().prepareRefresh(AnnotationIndex.LATEST_INDEX_NAME)
             .setIndicesOptions(IndicesOptions.STRICT_EXPAND_OPEN_HIDDEN_FORBID_CLOSED)
-            .execute()
-            .actionGet();
+            .get();
 
         SearchRequest searchRequest = new SearchRequest(AnnotationIndex.READ_ALIAS_NAME);
-        SearchResponse searchResponse = client().search(searchRequest).actionGet();
         List<Annotation> annotations = new ArrayList<>();
-        for (SearchHit hit : searchResponse.getHits().getHits()) {
-            annotations.add(parseAnnotation(hit.getSourceRef()));
-        }
+        assertCheckedResponse(client().search(searchRequest), searchResponse -> {
+            for (SearchHit hit : searchResponse.getHits().getHits()) {
+                annotations.add(parseAnnotation(hit.getSourceRef()));
+            }
+        });
         return annotations;
     }
 

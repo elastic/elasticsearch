@@ -44,7 +44,7 @@ public class ResultsFieldUpdateTests extends AbstractWireSerializingTestCase<Res
             ClassificationConfig config = ClassificationConfigTests.randomClassificationConfig();
             String newResultsField = config.getResultsField() + "foobar";
             ResultsFieldUpdate update = new ResultsFieldUpdate(newResultsField);
-            InferenceConfig applied = update.apply(config);
+            InferenceConfig applied = config.apply(update);
 
             assertThat(applied, instanceOf(ClassificationConfig.class));
             ClassificationConfig appliedConfig = (ClassificationConfig) applied;
@@ -55,7 +55,7 @@ public class ResultsFieldUpdateTests extends AbstractWireSerializingTestCase<Res
             RegressionConfig config = RegressionConfigTests.randomRegressionConfig();
             String newResultsField = config.getResultsField() + "foobar";
             ResultsFieldUpdate update = new ResultsFieldUpdate(newResultsField);
-            InferenceConfig applied = update.apply(config);
+            InferenceConfig applied = config.apply(update);
 
             assertThat(applied, instanceOf(RegressionConfig.class));
             RegressionConfig appliedConfig = (RegressionConfig) applied;

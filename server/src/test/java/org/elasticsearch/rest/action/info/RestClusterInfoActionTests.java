@@ -13,6 +13,7 @@ import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.http.HttpRouteStats;
 import org.elasticsearch.http.HttpStats;
 import org.elasticsearch.http.HttpStatsTests;
 import org.elasticsearch.test.ESTestCase;
@@ -21,6 +22,7 @@ import org.junit.Before;
 
 import java.io.IOException;
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.IntStream;
@@ -79,6 +81,11 @@ public class RestClusterInfoActionTests extends ESTestCase {
 
         var httpStats = (HttpStats) RestClusterInfoAction.RESPONSE_MAPPER.get("http").apply(response);
 
+        final Map<String, HttpRouteStats> httpRouteStatsMap = new HashMap<>();
+        for (var ns : nodeStats) {
+            ns.getHttp().httpRouteStats().forEach((k, v) -> httpRouteStatsMap.merge(k, v, HttpRouteStats::merge));
+        }
+
         assertEquals(
             httpStats,
             new HttpStats(
@@ -89,7 +96,8 @@ public class RestClusterInfoActionTests extends ESTestCase {
                     .map(HttpStats::clientStats)
                     .map(Collection::stream)
                     .reduce(Stream.of(), Stream::concat)
-                    .toList()
+                    .toList(),
+                httpRouteStatsMap
             )
         );
     }
@@ -106,6 +114,7 @@ public class RestClusterInfoActionTests extends ESTestCase {
             null,
             null,
             HttpStatsTests.randomHttpStats(),
+            null,
             null,
             null,
             null,

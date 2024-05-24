@@ -8,7 +8,6 @@
 
 package org.elasticsearch.action;
 
-import org.elasticsearch.action.admin.cluster.node.info.NodesInfoAction;
 import org.elasticsearch.action.admin.cluster.node.info.TransportNodesInfoAction;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.TransportAction;
@@ -16,12 +15,14 @@ import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.plugins.ActionPlugin;
@@ -31,6 +32,7 @@ import org.elasticsearch.plugins.internal.RestExtension;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
+import org.elasticsearch.rest.RestInterceptor;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.admin.cluster.RestNodesInfoAction;
 import org.elasticsearch.tasks.Task;
@@ -45,8 +47,8 @@ import org.hamcrest.Matchers;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
+import java.util.function.Predicate;
 import java.util.function.Supplier;
-import java.util.function.UnaryOperator;
 
 import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonList;
@@ -59,7 +61,10 @@ public class ActionModuleTests extends ESTestCase {
     public void testSetupActionsContainsKnownBuiltin() {
         assertThat(
             ActionModule.setupActions(emptyList()),
-            hasEntry(NodesInfoAction.INSTANCE.name(), new ActionHandler<>(NodesInfoAction.INSTANCE, TransportNodesInfoAction.class))
+            hasEntry(
+                TransportNodesInfoAction.TYPE.name(),
+                new ActionHandler<>(TransportNodesInfoAction.TYPE, TransportNodesInfoAction.class)
+            )
         );
     }
 
@@ -67,11 +72,11 @@ public class ActionModuleTests extends ESTestCase {
         ActionPlugin dupsMainAction = new ActionPlugin() {
             @Override
             public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
-                return singletonList(new ActionHandler<>(NodesInfoAction.INSTANCE, TransportNodesInfoAction.class));
+                return singletonList(new ActionHandler<>(TransportNodesInfoAction.TYPE, TransportNodesInfoAction.class));
             }
         };
         Exception e = expectThrows(IllegalArgumentException.class, () -> ActionModule.setupActions(singletonList(dupsMainAction)));
-        assertEquals("action for name [" + NodesInfoAction.NAME + "] already registered", e.getMessage());
+        assertEquals("action for name [" + TransportNodesInfoAction.TYPE.name() + "] already registered", e.getMessage());
     }
 
     public void testPluginCanRegisterAction() {
@@ -89,12 +94,7 @@ public class ActionModuleTests extends ESTestCase {
             @Override
             protected void doExecute(Task task, FakeRequest request, ActionListener<ActionResponse> listener) {}
         }
-        class FakeAction extends ActionType<ActionResponse> {
-            protected FakeAction() {
-                super("fake", null);
-            }
-        }
-        FakeAction action = new FakeAction();
+        final var action = new ActionType<>("fake");
         ActionPlugin registersFakeAction = new ActionPlugin() {
             @Override
             public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
@@ -113,6 +113,7 @@ public class ActionModuleTests extends ESTestCase {
         ActionModule actionModule = new ActionModule(
             settings.getSettings(),
             TestIndexNameExpressionResolver.newInstance(),
+            null,
             settings.getIndexScopedSettings(),
             settings.getClusterSettings(),
             settings.getSettingsFilter(),
@@ -124,10 +125,11 @@ public class ActionModuleTests extends ESTestCase {
             null,
             null,
             mock(ClusterService.class),
+            null,
             List.of(),
             RestExtension.allowAll()
         );
-        actionModule.initRestHandlers(null);
+        actionModule.initRestHandlers(null, null);
         // At this point the easiest way to confirm that a handler is loaded is to try to register another one on top of it and to fail
         Exception e = expectThrows(
             IllegalArgumentException.class,
@@ -149,12 +151,14 @@ public class ActionModuleTests extends ESTestCase {
             @Override
             public List<RestHandler> getRestHandlers(
                 Settings settings,
+                NamedWriteableRegistry namedWriteableRegistry,
                 RestController restController,
                 ClusterSettings clusterSettings,
                 IndexScopedSettings indexScopedSettings,
                 SettingsFilter settingsFilter,
                 IndexNameExpressionResolver indexNameExpressionResolver,
-                Supplier<DiscoveryNodes> nodesInCluster
+                Supplier<DiscoveryNodes> nodesInCluster,
+                Predicate<NodeFeature> clusterSupportsFeature
             ) {
                 return singletonList(new RestNodesInfoAction(new SettingsFilter(emptyList())) {
 
@@ -173,6 +177,7 @@ public class ActionModuleTests extends ESTestCase {
             ActionModule actionModule = new ActionModule(
                 settings.getSettings(),
                 TestIndexNameExpressionResolver.newInstance(threadPool.getThreadContext()),
+                null,
                 settings.getIndexScopedSettings(),
                 settings.getClusterSettings(),
                 settings.getSettingsFilter(),
@@ -184,10 +189,11 @@ public class ActionModuleTests extends ESTestCase {
                 null,
                 null,
                 mock(ClusterService.class),
+                null,
                 List.of(),
                 RestExtension.allowAll()
             );
-            Exception e = expectThrows(IllegalArgumentException.class, () -> actionModule.initRestHandlers(null));
+            Exception e = expectThrows(IllegalArgumentException.class, () -> actionModule.initRestHandlers(null, null));
             assertThat(e.getMessage(), startsWith("Cannot replace existing handler for [/_nodes] for method: GET"));
         } finally {
             threadPool.shutdown();
@@ -208,12 +214,14 @@ public class ActionModuleTests extends ESTestCase {
             @Override
             public List<RestHandler> getRestHandlers(
                 Settings settings,
+                NamedWriteableRegistry namedWriteableRegistry,
                 RestController restController,
                 ClusterSettings clusterSettings,
                 IndexScopedSettings indexScopedSettings,
                 SettingsFilter settingsFilter,
                 IndexNameExpressionResolver indexNameExpressionResolver,
-                Supplier<DiscoveryNodes> nodesInCluster
+                Supplier<DiscoveryNodes> nodesInCluster,
+                Predicate<NodeFeature> clusterSupportsFeature
             ) {
                 return singletonList(new FakeHandler());
             }
@@ -226,6 +234,7 @@ public class ActionModuleTests extends ESTestCase {
             ActionModule actionModule = new ActionModule(
                 settings.getSettings(),
                 TestIndexNameExpressionResolver.newInstance(threadPool.getThreadContext()),
+                null,
                 settings.getIndexScopedSettings(),
                 settings.getClusterSettings(),
                 settings.getSettingsFilter(),
@@ -237,10 +246,11 @@ public class ActionModuleTests extends ESTestCase {
                 null,
                 null,
                 mock(ClusterService.class),
+                null,
                 List.of(),
                 RestExtension.allowAll()
             );
-            actionModule.initRestHandlers(null);
+            actionModule.initRestHandlers(null, null);
             // At this point the easiest way to confirm that a handler is loaded is to try to register another one on top of it and to fail
             Exception e = expectThrows(
                 IllegalArgumentException.class,
@@ -274,6 +284,7 @@ public class ActionModuleTests extends ESTestCase {
                 () -> new ActionModule(
                     settingsModule.getSettings(),
                     TestIndexNameExpressionResolver.newInstance(threadPool.getThreadContext()),
+                    null,
                     settingsModule.getIndexScopedSettings(),
                     settingsModule.getClusterSettings(),
                     settingsModule.getSettingsFilter(),
@@ -285,6 +296,7 @@ public class ActionModuleTests extends ESTestCase {
                     null,
                     null,
                     mock(ClusterService.class),
+                    null,
                     List.of(),
                     RestExtension.allowAll()
                 )
@@ -313,17 +325,19 @@ public class ActionModuleTests extends ESTestCase {
                 () -> new ActionModule(
                     settingsModule.getSettings(),
                     TestIndexNameExpressionResolver.newInstance(threadPool.getThreadContext()),
+                    null,
                     settingsModule.getIndexScopedSettings(),
                     settingsModule.getClusterSettings(),
                     settingsModule.getSettingsFilter(),
                     threadPool,
-                    Arrays.asList(secPlugin),
+                    List.of(secPlugin),
                     null,
                     null,
                     usageService,
                     null,
                     null,
                     mock(ClusterService.class),
+                    null,
                     List.of(),
                     RestExtension.allowAll()
                 )
@@ -360,9 +374,9 @@ public class ActionModuleTests extends ESTestCase {
         }
 
         @Override
-        public UnaryOperator<RestHandler> getRestHandlerInterceptor(ThreadContext threadContext) {
+        public RestInterceptor getRestHandlerInterceptor(ThreadContext threadContext) {
             if (installInterceptor) {
-                return UnaryOperator.identity();
+                return (request, channel, targetHandler, listener) -> listener.onResponse(true);
             } else {
                 return null;
             }
@@ -370,14 +384,14 @@ public class ActionModuleTests extends ESTestCase {
 
         @Override
         public RestController getRestController(
-            UnaryOperator<RestHandler> handlerWrapper,
+            RestInterceptor interceptor,
             NodeClient client,
             CircuitBreakerService circuitBreakerService,
             UsageService usageService,
             Tracer tracer
         ) {
             if (installController) {
-                return new RestController(handlerWrapper, client, circuitBreakerService, usageService, tracer);
+                return new RestController(interceptor, client, circuitBreakerService, usageService, tracer);
             } else {
                 return null;
             }

@@ -9,7 +9,6 @@
 package org.elasticsearch.transport;
 
 import org.elasticsearch.TransportVersions;
-import org.elasticsearch.Version;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -18,6 +17,7 @@ import org.elasticsearch.common.network.HandlingTimeTracker;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.core.UpdateForV9;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -165,11 +165,14 @@ public class TransportStats implements Writeable, ChunkedToXContent {
         return transportActionStats;
     }
 
+    @UpdateForV9 // Review and simplify the if-else blocks containing this symbol once v9 is released
+    private static final boolean IMPOSSIBLE_IN_V9 = true;
+
     private boolean assertHistogramsConsistent() {
         assert inboundHandlingTimeBucketFrequencies.length == outboundHandlingTimeBucketFrequencies.length;
         if (inboundHandlingTimeBucketFrequencies.length == 0) {
             // Stats came from before v8.1
-            assert Version.CURRENT.major == Version.V_8_0_0.major;
+            assert IMPOSSIBLE_IN_V9;
         } else {
             assert inboundHandlingTimeBucketFrequencies.length == HandlingTimeTracker.BUCKET_COUNT;
         }
@@ -177,6 +180,7 @@ public class TransportStats implements Writeable, ChunkedToXContent {
     }
 
     @Override
+    @UpdateForV9 // review the "if" blocks checking for non-empty once we have
     public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params outerParams) {
         return Iterators.concat(Iterators.single((builder, params) -> {
             builder.startObject(Fields.TRANSPORT);
@@ -191,13 +195,13 @@ public class TransportStats implements Writeable, ChunkedToXContent {
                 histogramToXContent(builder, outboundHandlingTimeBucketFrequencies, Fields.OUTBOUND_HANDLING_TIME_HISTOGRAM);
             } else {
                 // Stats came from before v8.1
-                assert Version.CURRENT.major == Version.V_7_0_0.major + 1;
+                assert IMPOSSIBLE_IN_V9;
             }
             if (transportActionStats.isEmpty() == false) {
                 builder.startObject(Fields.ACTIONS);
             } else {
                 // Stats came from before v8.8
-                assert Version.CURRENT.major == Version.V_7_0_0.major + 1;
+                assert IMPOSSIBLE_IN_V9;
             }
             return builder;
         }),

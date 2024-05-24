@@ -37,6 +37,7 @@ import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.core.ml.MachineLearningField;
 import org.elasticsearch.xpack.core.ml.MlConfigIndex;
 import org.elasticsearch.xpack.core.ml.MlMetaIndex;
 import org.elasticsearch.xpack.core.ml.MlMetadata;
@@ -63,6 +64,7 @@ import org.elasticsearch.xpack.ml.job.process.autodetect.AutodetectProcessManage
 import org.elasticsearch.xpack.ml.process.MlMemoryTracker;
 import org.junit.Before;
 
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -98,12 +100,13 @@ public class OpenJobPersistentTasksExecutorTests extends ESTestCase {
                     OperationRouting.USE_ADAPTIVE_REPLICA_SELECTION_SETTING,
                     ClusterService.USER_DEFINED_METADATA,
                     ClusterApplierService.CLUSTER_SERVICE_SLOW_TASK_LOGGING_THRESHOLD_SETTING,
+                    ClusterApplierService.CLUSTER_SERVICE_SLOW_TASK_THREAD_DUMP_TIMEOUT_SETTING,
                     MachineLearning.CONCURRENT_JOB_ALLOCATIONS,
                     MachineLearning.MAX_MACHINE_MEMORY_PERCENT,
                     MachineLearning.MAX_LAZY_ML_NODES,
                     MachineLearning.MAX_ML_NODE_SIZE,
                     MachineLearning.MAX_OPEN_JOBS_PER_NODE,
-                    MachineLearning.USE_AUTO_MACHINE_MEMORY_PERCENT
+                    MachineLearningField.USE_AUTO_MACHINE_MEMORY_PERCENT
                 )
             )
         );
@@ -237,7 +240,7 @@ public class OpenJobPersistentTasksExecutorTests extends ESTestCase {
         if (jobState != null) {
             builder.updateTaskState(
                 MlTasks.jobTaskId(jobId),
-                new JobTaskState(jobState, builder.getLastAllocationId() - (isStale ? 1 : 0), null)
+                new JobTaskState(jobState, builder.getLastAllocationId() - (isStale ? 1 : 0), null, Instant.now())
             );
         }
     }
@@ -256,6 +259,7 @@ public class OpenJobPersistentTasksExecutorTests extends ESTestCase {
                     .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
                     .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
                     .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                    .put(IndexMetadata.SETTING_INDEX_UUID, "_uuid")
             );
             if (indexName.equals(AnomalyDetectorsIndexFields.STATE_INDEX_PREFIX)) {
                 indexMetadata.putAlias(new AliasMetadata.Builder(AnomalyDetectorsIndex.jobStateIndexWriteAlias()));

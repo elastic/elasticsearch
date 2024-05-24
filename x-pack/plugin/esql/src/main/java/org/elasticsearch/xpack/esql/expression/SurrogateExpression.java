@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.esql.expression;
 
-import org.elasticsearch.xpack.ql.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
 
 /**
  * Interface signaling to the planner that the declaring expression
@@ -15,5 +15,8 @@ import org.elasticsearch.xpack.ql.expression.Expression;
  */
 public interface SurrogateExpression {
 
+    /**
+     * Returns the expression to be replaced by or {@code null} if this cannot be replaced.
+     */
     Expression surrogate();
 }

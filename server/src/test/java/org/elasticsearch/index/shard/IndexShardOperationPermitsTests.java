@@ -9,8 +9,10 @@ package org.elasticsearch.index.shard;
 
 import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.util.concurrent.EsThreadPoolExecutor;
@@ -28,11 +30,9 @@ import org.junit.Before;
 import org.junit.BeforeClass;
 
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.BrokenBarrierException;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.ExecutionException;
@@ -424,7 +424,7 @@ public class IndexShardOperationPermitsTests extends ESTestCase {
         final int operations = scaledRandomIntBetween(1, 64);
         final CyclicBarrier barrier = new CyclicBarrier(1 + 1 + operations);
         final CountDownLatch operationLatch = new CountDownLatch(1 + operations);
-        final Set<Integer> values = Collections.newSetFromMap(new ConcurrentHashMap<>());
+        final Set<Integer> values = ConcurrentCollections.newConcurrentSet();
         final List<Thread> threads = new ArrayList<>();
         for (int i = 0; i < operations; i++) {
             final int value = i;
@@ -692,20 +692,10 @@ public class IndexShardOperationPermitsTests extends ESTestCase {
     }
 
     private static ActionListener<Releasable> wrap(final CheckedRunnable<Exception> onResponse) {
-        return new ActionListener<Releasable>() {
-            @Override
-            public void onResponse(final Releasable releasable) {
-                try (Releasable ignored = releasable) {
-                    onResponse.run();
-                } catch (final Exception e) {
-                    onFailure(e);
-                }
+        return ActionTestUtils.assertNoFailureListener(releasable -> {
+            try (Releasable ignored = releasable) {
+                onResponse.run();
             }
-
-            @Override
-            public void onFailure(final Exception e) {
-                throw new AssertionError(e);
-            }
-        };
+        });
     }
 }

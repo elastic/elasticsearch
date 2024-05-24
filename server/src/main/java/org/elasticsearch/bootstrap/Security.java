@@ -125,7 +125,8 @@ final class Security {
                 createPermissions(environment, pidFile),
                 getPluginAndModulePermissions(environment),
                 filterBadDefaults,
-                createRecursiveDataPathPermission(environment)
+                createRecursiveDataPathPermission(environment),
+                createForbiddenFilePermissions(environment)
             )
         );
 
@@ -188,6 +189,18 @@ final class Security {
         return toFilePermissions(policy);
     }
 
+    private static List<FilePermission> createForbiddenFilePermissions(Environment environment) throws IOException {
+        Permissions policy = new Permissions();
+        addSingleFilePath(policy, environment.configFile().resolve("elasticsearch.yml"), "read,readlink,write,delete,execute");
+        addSingleFilePath(policy, environment.configFile().resolve("jvm.options"), "read,readlink,write,delete,execute");
+        Path jvmOptionsD = environment.configFile().resolve("jvm.options.d");
+        if (Files.isDirectory(jvmOptionsD)) {
+            // we don't want to create this if it doesn't exist
+            addDirectoryPath(policy, "forbidden_access", jvmOptionsD, "read,readlink,write,delete,execute", false);
+        }
+        return toFilePermissions(policy);
+    }
+
     /** Adds access to classpath jars/classes for jar hell scan, etc */
     @SuppressForbidden(reason = "accesses fully qualified URLs to configure security")
     static void addClasspathPermissions(Permissions policy) throws IOException {
@@ -219,6 +232,7 @@ final class Security {
         addDirectoryPath(policy, Environment.PATH_HOME_SETTING.getKey(), environment.modulesFile(), "read,readlink", false);
         addDirectoryPath(policy, Environment.PATH_HOME_SETTING.getKey(), environment.pluginsFile(), "read,readlink", false);
         addDirectoryPath(policy, "path.conf", environment.configFile(), "read,readlink", false);
+
         // read-write dirs
         addDirectoryPath(policy, "java.io.tmpdir", environment.tmpFile(), "read,readlink,write,delete", false);
         addDirectoryPath(policy, Environment.PATH_LOGS_SETTING.getKey(), environment.logsFile(), "read,readlink,write,delete", false);
@@ -251,6 +265,7 @@ final class Security {
         for (Path path : environment.repoFiles()) {
             addDirectoryPath(policy, Environment.PATH_REPO_SETTING.getKey(), path, "read,readlink,write,delete", false);
         }
+
         if (pidFile != null) {
             // we just need permission to remove the file if its elsewhere.
             addSingleFilePath(policy, pidFile, "delete");

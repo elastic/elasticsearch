@@ -114,7 +114,7 @@ class AggProvider implements Writeable, ToXContentObject {
 
     static AggProvider fromStream(StreamInput in) throws IOException {
         return new AggProvider(
-            in.readMap(),
+            in.readGenericMap(),
             in.readOptionalWriteable(AggregatorFactories.Builder::new),
             in.readException(),
             in.getTransportVersion().onOrAfter(TransportVersions.V_8_0_0) ? in.readBoolean() : false

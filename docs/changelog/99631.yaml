@@ -1,5 +1,0 @@
-pr: 99631
-summary: Add component info versions to node info in a pluggable way
-area: Infra/REST API
-type: enhancement
-issues: []

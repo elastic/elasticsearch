@@ -37,7 +37,7 @@ public final class TransportUpdateCrossClusterApiKeyAction extends TransportBase
         final ApiKeyService apiKeyService,
         final SecurityContext context
     ) {
-        super(UpdateCrossClusterApiKeyAction.NAME, transportService, actionFilters, UpdateCrossClusterApiKeyRequest::new, context);
+        super(UpdateCrossClusterApiKeyAction.NAME, transportService, actionFilters, context);
         this.apiKeyService = apiKeyService;
     }
 
@@ -50,7 +50,12 @@ public final class TransportUpdateCrossClusterApiKeyAction extends TransportBase
     ) {
         apiKeyService.updateApiKeys(
             authentication,
-            new BaseBulkUpdateApiKeyRequest(List.of(request.getId()), request.getRoleDescriptors(), request.getMetadata()) {
+            new BaseBulkUpdateApiKeyRequest(
+                List.of(request.getId()),
+                request.getRoleDescriptors(),
+                request.getMetadata(),
+                request.getExpiration()
+            ) {
                 @Override
                 public ApiKey.Type getType() {
                     return ApiKey.Type.CROSS_CLUSTER;

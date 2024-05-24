@@ -38,6 +38,10 @@ import static org.elasticsearch.core.Strings.format;
  * {@link Mustache} object can then be re-used for subsequent executions.
  */
 public final class MustacheScriptEngine implements ScriptEngine {
+    /**
+     * Compiler option to enable detection of missing parameters.
+     */
+    public static final String DETECT_MISSING_PARAMS_OPTION = "detect_missing_params";
     private static final Logger logger = LogManager.getLogger(MustacheScriptEngine.class);
 
     public static final String NAME = "mustache";
@@ -71,11 +75,21 @@ public final class MustacheScriptEngine implements ScriptEngine {
         return Set.of(TemplateScript.CONTEXT, TemplateScript.INGEST_CONTEXT);
     }
 
-    private CustomMustacheFactory createMustacheFactory(Map<String, String> options) {
-        if (options == null || options.isEmpty() || options.containsKey(Script.CONTENT_TYPE_OPTION) == false) {
-            return new CustomMustacheFactory();
+    private static CustomMustacheFactory createMustacheFactory(Map<String, String> options) {
+        CustomMustacheFactory.Builder builder = CustomMustacheFactory.builder();
+        if (options == null || options.isEmpty()) {
+            return builder.build();
         }
-        return new CustomMustacheFactory(options.get(Script.CONTENT_TYPE_OPTION));
+
+        if (options.containsKey(Script.CONTENT_TYPE_OPTION)) {
+            builder.mediaType(options.get(Script.CONTENT_TYPE_OPTION));
+        }
+
+        if (options.containsKey(DETECT_MISSING_PARAMS_OPTION)) {
+            builder.detectMissingParams(Boolean.valueOf(options.get(DETECT_MISSING_PARAMS_OPTION)));
+        }
+
+        return builder.build();
     }
 
     @Override
@@ -107,10 +121,17 @@ public final class MustacheScriptEngine implements ScriptEngine {
             try {
                 template.execute(writer, params);
             } catch (Exception e) {
-                logger.error(() -> format("Error running %s", template), e);
+                if (shouldLogException(e)) {
+                    logger.error(() -> format("Error running %s", template), e);
+                }
                 throw new GeneralScriptException("Error running " + template, e);
             }
             return writer.toString();
         }
+
+        public boolean shouldLogException(Throwable e) {
+            return e.getCause() != null && e.getCause() instanceof MustacheInvalidParameterException == false;
+        }
     }
+
 }

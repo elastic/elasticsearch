@@ -18,7 +18,6 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
-import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
 import org.elasticsearch.search.aggregations.support.ValueType;
 
@@ -93,8 +92,8 @@ public class NumericTermsAggregatorTests extends AggregatorTestCase {
 
         // Numerics don't support any regex include/exclude, so should fail no matter what we do
 
-        AggregationExecutionException e = expectThrows(
-            AggregationExecutionException.class,
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
             () -> testSearchCase(
                 new MatchNoDocsQuery(),
                 dataset,
@@ -113,7 +112,7 @@ public class NumericTermsAggregatorTests extends AggregatorTestCase {
         );
 
         e = expectThrows(
-            AggregationExecutionException.class,
+            IllegalArgumentException.class,
             () -> testSearchCase(
                 new MatchNoDocsQuery(),
                 dataset,

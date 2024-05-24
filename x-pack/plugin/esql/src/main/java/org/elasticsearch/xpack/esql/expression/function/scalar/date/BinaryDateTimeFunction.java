@@ -7,19 +7,15 @@
 
 package org.elasticsearch.xpack.esql.expression.function.scalar.date;
 
-import org.elasticsearch.xpack.ql.expression.Expression;
-import org.elasticsearch.xpack.ql.expression.function.scalar.BinaryScalarFunction;
-import org.elasticsearch.xpack.ql.expression.gen.script.ScriptTemplate;
-import org.elasticsearch.xpack.ql.tree.Source;
-import org.elasticsearch.xpack.ql.type.DataType;
-import org.elasticsearch.xpack.ql.type.DataTypes;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.function.scalar.BinaryScalarFunction;
+import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.type.DataTypes;
 
 import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.util.Objects;
-import java.util.function.Predicate;
-
-import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
 
 public abstract class BinaryDateTimeFunction extends BinaryScalarFunction {
 
@@ -46,11 +42,6 @@ public abstract class BinaryDateTimeFunction extends BinaryScalarFunction {
     }
 
     @Override
-    public ScriptTemplate asScript() {
-        throw new UnsupportedOperationException("functions do not support scripting");
-    }
-
-    @Override
     public int hashCode() {
         return Objects.hash(super.hashCode(), zoneId());
     }
@@ -68,13 +59,5 @@ public abstract class BinaryDateTimeFunction extends BinaryScalarFunction {
         }
         BinaryDateTimeFunction that = (BinaryDateTimeFunction) o;
         return zoneId().equals(that.zoneId());
-    }
-
-    // TODO: drop check once 8.11 is released
-    static TypeResolution argumentTypesAreSwapped(DataType left, DataType right, Predicate<DataType> rightTest, String source) {
-        if (DataTypes.isDateTime(left) && rightTest.test(right)) {
-            return new TypeResolution(format(null, "function definition has been updated, please swap arguments in [{}]", source));
-        }
-        return TypeResolution.TYPE_RESOLVED;
     }
 }

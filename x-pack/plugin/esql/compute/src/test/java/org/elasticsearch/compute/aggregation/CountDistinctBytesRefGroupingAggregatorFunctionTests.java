@@ -8,8 +8,8 @@
 package org.elasticsearch.compute.aggregation;
 
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.LongBytesRefTupleBlockSourceOperator;
@@ -25,8 +25,8 @@ import static org.hamcrest.Matchers.equalTo;
 public class CountDistinctBytesRefGroupingAggregatorFunctionTests extends GroupingAggregatorFunctionTestCase {
 
     @Override
-    protected AggregatorFunctionSupplier aggregatorFunction(BigArrays bigArrays, List<Integer> inputChannels) {
-        return new CountDistinctBytesRefAggregatorFunctionSupplier(bigArrays, inputChannels, 40000);
+    protected AggregatorFunctionSupplier aggregatorFunction(List<Integer> inputChannels) {
+        return new CountDistinctBytesRefAggregatorFunctionSupplier(inputChannels, 40000);
     }
 
     @Override
@@ -35,8 +35,9 @@ public class CountDistinctBytesRefGroupingAggregatorFunctionTests extends Groupi
     }
 
     @Override
-    protected SourceOperator simpleInput(int size) {
+    protected SourceOperator simpleInput(BlockFactory blockFactory, int size) {
         return new LongBytesRefTupleBlockSourceOperator(
+            blockFactory,
             LongStream.range(0, size).mapToObj(l -> Tuple.tuple(randomGroupId(size), new BytesRef(String.valueOf(between(1, 10000)))))
         );
     }

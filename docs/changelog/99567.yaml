@@ -1,6 +1,0 @@
-pr: 99567
-summary: Make tsdb settings public in Serverless
-area: TSDB
-type: bug
-issues:
- - 99563

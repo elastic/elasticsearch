@@ -11,6 +11,7 @@ import org.apache.lucene.analysis.Analyzer;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.indices.analysis.PreBuiltAnalyzers;
@@ -51,7 +52,7 @@ public class PreBuiltAnalyzerTests extends ESSingleNodeTestCase {
     public void testThatInstancesAreTheSameAlwaysForKeywordAnalyzer() {
         assertThat(
             PreBuiltAnalyzers.KEYWORD.getAnalyzer(IndexVersion.current()),
-            is(PreBuiltAnalyzers.KEYWORD.getAnalyzer(IndexVersion.MINIMUM_COMPATIBLE))
+            is(PreBuiltAnalyzers.KEYWORD.getAnalyzer(IndexVersions.MINIMUM_COMPATIBLE))
         );
     }
 

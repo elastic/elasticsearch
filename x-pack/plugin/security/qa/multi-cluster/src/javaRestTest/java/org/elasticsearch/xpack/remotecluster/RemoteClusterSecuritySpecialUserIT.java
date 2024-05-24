@@ -14,6 +14,7 @@ import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.search.SearchResponseUtils;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.util.resource.Resource;
 import org.elasticsearch.test.junit.RunnableTestRuleAdapter;
@@ -137,11 +138,15 @@ public class RemoteClusterSecuritySpecialUserIT extends AbstractRemoteClusterSec
                 new Request("GET", "/my_remote_cluster:" + randomFrom("*", "shared-*", "shared-logs") + "/_search")
             );
             assertOK(response1);
-            final SearchResponse searchResponse1 = SearchResponse.fromXContent(responseAsParser(response1));
-            assertThat(
-                Arrays.stream(searchResponse1.getHits().getHits()).map(SearchHit::getIndex).collect(Collectors.toList()),
-                containsInAnyOrder("shared-logs")
-            );
+            final SearchResponse searchResponse1 = SearchResponseUtils.parseSearchResponse(responseAsParser(response1));
+            try {
+                assertThat(
+                    Arrays.stream(searchResponse1.getHits().getHits()).map(SearchHit::getIndex).collect(Collectors.toList()),
+                    containsInAnyOrder("shared-logs")
+                );
+            } finally {
+                searchResponse1.decRef();
+            }
 
             // 2. QC anonymous user fails to search more than it is allowed by the QC anonymous role
             // even when FC anonymous role allows everything
@@ -177,11 +182,15 @@ public class RemoteClusterSecuritySpecialUserIT extends AbstractRemoteClusterSec
                 )
             );
             assertOK(response3);
-            final SearchResponse searchResponse3 = SearchResponse.fromXContent(responseAsParser(response3));
-            assertThat(
-                Arrays.stream(searchResponse3.getHits().getHits()).map(SearchHit::getIndex).collect(Collectors.toList()),
-                containsInAnyOrder("shared-logs", "shared-metrics")
-            );
+            final SearchResponse searchResponse3 = SearchResponseUtils.parseSearchResponse(responseAsParser(response3));
+            try {
+                assertThat(
+                    Arrays.stream(searchResponse3.getHits().getHits()).map(SearchHit::getIndex).collect(Collectors.toList()),
+                    containsInAnyOrder("shared-logs", "shared-metrics")
+                );
+            } finally {
+                searchResponse3.decRef();
+            }
 
             // 4. QC service account
             final Request createServiceTokenRequest = new Request("POST", "/_security/service/elastic/kibana/credential/token");
@@ -193,11 +202,15 @@ public class RemoteClusterSecuritySpecialUserIT extends AbstractRemoteClusterSec
             kibanaServiceSearchRequest.setOptions(RequestOptions.DEFAULT.toBuilder().addHeader("Authorization", "Bearer " + serviceToken));
             final Response kibanaServiceSearchResponse = client().performRequest(kibanaServiceSearchRequest);
             assertOK(kibanaServiceSearchResponse);
-            final SearchResponse searchResponse4 = SearchResponse.fromXContent(responseAsParser(kibanaServiceSearchResponse));
-            assertThat(
-                Arrays.stream(searchResponse4.getHits().getHits()).map(SearchHit::getIndex).collect(Collectors.toList()),
-                containsInAnyOrder("apm-1")
-            );
+            final SearchResponse searchResponse4 = SearchResponseUtils.parseSearchResponse(responseAsParser(kibanaServiceSearchResponse));
+            try {
+                assertThat(
+                    Arrays.stream(searchResponse4.getHits().getHits()).map(SearchHit::getIndex).collect(Collectors.toList()),
+                    containsInAnyOrder("apm-1")
+                );
+            } finally {
+                searchResponse4.decRef();
+            }
 
             // 5. QC elastic superuser access system indices
             final Request changePasswordRequest = new Request("PUT", "/_security/user/elastic/_password");
@@ -211,12 +224,16 @@ public class RemoteClusterSecuritySpecialUserIT extends AbstractRemoteClusterSec
             );
             final Response elasticUserSearchResponse = client().performRequest(elasticUserSearchRequest);
             assertOK(elasticUserSearchResponse);
-            final SearchResponse searchResponse5 = SearchResponse.fromXContent(responseAsParser(elasticUserSearchResponse));
-            assertThat(
-                Arrays.stream(searchResponse5.getHits().getHits()).map(SearchHit::getIndex).collect(Collectors.toList()),
-                containsInAnyOrder(".security-7")
-            );
-            assertThat(searchResponse5.getHits().getTotalHits().value, greaterThanOrEqualTo(1L));
+            final SearchResponse searchResponse5 = SearchResponseUtils.parseSearchResponse(responseAsParser(elasticUserSearchResponse));
+            try {
+                assertThat(
+                    Arrays.stream(searchResponse5.getHits().getHits()).map(SearchHit::getIndex).collect(Collectors.toList()),
+                    containsInAnyOrder(".security-7")
+                );
+                assertThat(searchResponse5.getHits().getTotalHits().value, greaterThanOrEqualTo(1L));
+            } finally {
+                searchResponse5.decRef();
+            }
         }
     }
 

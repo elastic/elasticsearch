@@ -9,7 +9,6 @@
 package org.elasticsearch.index.mapper;
 
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
-import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.unit.DistanceUnit;
@@ -26,6 +25,7 @@ import static org.elasticsearch.index.query.QueryBuilders.constantScoreQuery;
 import static org.elasticsearch.index.query.QueryBuilders.geoDistanceQuery;
 import static org.elasticsearch.index.query.QueryBuilders.matchQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
@@ -45,12 +45,10 @@ public class MultiFieldsIntegrationIT extends ESIntegTestCase {
         assertThat(titleFields.get("not_analyzed"), notNullValue());
         assertThat(((Map<String, Object>) titleFields.get("not_analyzed")).get("type").toString(), equalTo("keyword"));
 
-        client().prepareIndex("my-index").setId("1").setSource("title", "Multi fields").setRefreshPolicy(IMMEDIATE).get();
+        prepareIndex("my-index").setId("1").setSource("title", "Multi fields").setRefreshPolicy(IMMEDIATE).get();
 
-        SearchResponse searchResponse = client().prepareSearch("my-index").setQuery(matchQuery("title", "multi")).get();
-        assertThat(searchResponse.getHits().getTotalHits().value, equalTo(1L));
-        searchResponse = client().prepareSearch("my-index").setQuery(matchQuery("title.not_analyzed", "Multi fields")).get();
-        assertThat(searchResponse.getHits().getTotalHits().value, equalTo(1L));
+        assertHitCount(prepareSearch("my-index").setQuery(matchQuery("title", "multi")), 1);
+        assertHitCount(prepareSearch("my-index").setQuery(matchQuery("title.not_analyzed", "Multi fields")), 1);
 
         assertAcked(indicesAdmin().preparePutMapping("my-index").setSource(createPutMappingSource()));
 
@@ -66,10 +64,9 @@ public class MultiFieldsIntegrationIT extends ESIntegTestCase {
         assertThat(titleFields.get("uncased"), notNullValue());
         assertThat(((Map<String, Object>) titleFields.get("uncased")).get("analyzer").toString(), equalTo("whitespace"));
 
-        client().prepareIndex("my-index").setId("1").setSource("title", "Multi fields").setRefreshPolicy(IMMEDIATE).get();
+        prepareIndex("my-index").setId("1").setSource("title", "Multi fields").setRefreshPolicy(IMMEDIATE).get();
 
-        searchResponse = client().prepareSearch("my-index").setQuery(matchQuery("title.uncased", "Multi")).get();
-        assertThat(searchResponse.getHits().getTotalHits().value, equalTo(1L));
+        assertHitCount(prepareSearch("my-index").setQuery(matchQuery("title.uncased", "Multi")), 1);
     }
 
     @SuppressWarnings("unchecked")
@@ -91,14 +88,13 @@ public class MultiFieldsIntegrationIT extends ESIntegTestCase {
         assertThat(bField.get("type").toString(), equalTo("keyword"));
 
         GeoPoint point = new GeoPoint(51, 19);
-        client().prepareIndex("my-index").setId("1").setSource("a", point.toString()).setRefreshPolicy(IMMEDIATE).get();
-        SearchResponse countResponse = client().prepareSearch("my-index")
-            .setSize(0)
-            .setQuery(constantScoreQuery(geoDistanceQuery("a").point(51, 19).distance(50, DistanceUnit.KILOMETERS)))
-            .get();
-        assertThat(countResponse.getHits().getTotalHits().value, equalTo(1L));
-        countResponse = client().prepareSearch("my-index").setSize(0).setQuery(matchQuery("a.b", point.geohash())).get();
-        assertThat(countResponse.getHits().getTotalHits().value, equalTo(1L));
+        prepareIndex("my-index").setId("1").setSource("a", point.toString()).setRefreshPolicy(IMMEDIATE).get();
+        assertHitCount(
+            prepareSearch("my-index").setSize(0)
+                .setQuery(constantScoreQuery(geoDistanceQuery("a").point(51, 19).distance(50, DistanceUnit.KILOMETERS))),
+            1L
+        );
+        assertHitCount(prepareSearch("my-index").setSize(0).setQuery(matchQuery("a.b", point.geohash())), 1L);
     }
 
     @SuppressWarnings("unchecked")
@@ -118,9 +114,8 @@ public class MultiFieldsIntegrationIT extends ESIntegTestCase {
         assertThat(bField.size(), equalTo(1));
         assertThat(bField.get("type").toString(), equalTo("keyword"));
 
-        client().prepareIndex("my-index").setId("1").setSource("a", "complete me").setRefreshPolicy(IMMEDIATE).get();
-        SearchResponse countResponse = client().prepareSearch("my-index").setSize(0).setQuery(matchQuery("a.b", "complete me")).get();
-        assertThat(countResponse.getHits().getTotalHits().value, equalTo(1L));
+        prepareIndex("my-index").setId("1").setSource("a", "complete me").setRefreshPolicy(IMMEDIATE).get();
+        assertHitCount(prepareSearch("my-index").setSize(0).setQuery(matchQuery("a.b", "complete me")), 1L);
     }
 
     @SuppressWarnings("unchecked")
@@ -140,9 +135,8 @@ public class MultiFieldsIntegrationIT extends ESIntegTestCase {
         assertThat(bField.size(), equalTo(1));
         assertThat(bField.get("type").toString(), equalTo("keyword"));
 
-        client().prepareIndex("my-index").setId("1").setSource("a", "127.0.0.1").setRefreshPolicy(IMMEDIATE).get();
-        SearchResponse countResponse = client().prepareSearch("my-index").setSize(0).setQuery(matchQuery("a.b", "127.0.0.1")).get();
-        assertThat(countResponse.getHits().getTotalHits().value, equalTo(1L));
+        prepareIndex("my-index").setId("1").setSource("a", "127.0.0.1").setRefreshPolicy(IMMEDIATE).get();
+        assertHitCount(prepareSearch("my-index").setSize(0).setQuery(matchQuery("a.b", "127.0.0.1")), 1L);
     }
 
     private XContentBuilder createMappingSource(String fieldType) throws IOException {

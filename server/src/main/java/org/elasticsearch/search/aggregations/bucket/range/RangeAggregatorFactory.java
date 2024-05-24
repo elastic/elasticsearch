@@ -32,18 +32,6 @@ public class RangeAggregatorFactory extends AbstractRangeAggregatorFactory<Range
         Map<String, Object> metadata,
         RangeAggregatorSupplier aggregatorSupplier
     ) throws IOException {
-        super(
-            name,
-            RangeAggregationBuilder.REGISTRY_KEY,
-            config,
-            ranges,
-            keyed,
-            rangeFactory,
-            context,
-            parent,
-            subFactoriesBuilder,
-            metadata,
-            aggregatorSupplier
-        );
+        super(name, config, ranges, keyed, rangeFactory, context, parent, subFactoriesBuilder, metadata, aggregatorSupplier);
     }
 }

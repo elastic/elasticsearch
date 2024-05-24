@@ -28,6 +28,7 @@ import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.indices.SystemIndices;
@@ -43,7 +44,7 @@ import java.util.List;
 import java.util.Set;
 import java.util.function.Consumer;
 
-import static org.elasticsearch.datastreams.action.DataStreamsActionUtil.getDataStreamNames;
+import static org.elasticsearch.action.datastreams.DataStreamsActionUtil.getDataStreamNames;
 
 public class DeleteDataStreamTransportAction extends AcknowledgedTransportMasterNodeAction<DeleteDataStreamAction.Request> {
 
@@ -68,7 +69,7 @@ public class DeleteDataStreamTransportAction extends AcknowledgedTransportMaster
             actionFilters,
             DeleteDataStreamAction.Request::new,
             indexNameExpressionResolver,
-            ThreadPool.Names.SAME
+            EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
         this.systemIndices = systemIndices;
     }
@@ -154,6 +155,7 @@ public class DeleteDataStreamTransportAction extends AcknowledgedTransportMaster
             DataStream dataStream = currentState.metadata().dataStreams().get(dataStreamName);
             assert dataStream != null;
             backingIndicesToRemove.addAll(dataStream.getIndices());
+            backingIndicesToRemove.addAll(dataStream.getFailureIndices().getIndices());
         }
 
         // first delete the data streams and then the indices:

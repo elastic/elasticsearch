@@ -138,7 +138,7 @@ public class RestGetTrainedModelsAction extends BaseRestHandler {
             includes.forEach(include -> params.put(include, "true"));
             params.put(ToXContentParams.FOR_INTERNAL_STORAGE, "false");
             response.toXContent(builder, new ToXContent.MapParams(params));
-            return new RestResponse(getStatus(response), builder);
+            return new RestResponse(statusFunction.apply(response), builder);
         }
     }
 }

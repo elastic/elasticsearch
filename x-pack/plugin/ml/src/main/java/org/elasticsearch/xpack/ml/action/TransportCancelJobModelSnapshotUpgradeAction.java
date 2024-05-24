@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.ml.action;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
@@ -17,6 +17,7 @@ import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.persistent.PersistentTasksService;
 import org.elasticsearch.tasks.Task;
@@ -36,6 +37,8 @@ import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.xpack.ml.utils.ExceptionCollectionHandling.exceptionArrayToStatusException;
+
 public class TransportCancelJobModelSnapshotUpgradeAction extends HandledTransportAction<Request, Response> {
 
     private static final Logger logger = LogManager.getLogger(TransportCancelJobModelSnapshotUpgradeAction.class);
@@ -52,7 +55,7 @@ public class TransportCancelJobModelSnapshotUpgradeAction extends HandledTranspo
         ClusterService clusterService,
         PersistentTasksService persistentTasksService
     ) {
-        super(CancelJobModelSnapshotUpgradeAction.NAME, transportService, actionFilters, Request::new);
+        super(CancelJobModelSnapshotUpgradeAction.NAME, transportService, actionFilters, Request::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         this.jobConfigProvider = jobConfigProvider;
         this.clusterService = clusterService;
         this.persistentTasksService = persistentTasksService;
@@ -64,7 +67,7 @@ public class TransportCancelJobModelSnapshotUpgradeAction extends HandledTranspo
         logger.debug("[{}] cancel model snapshot [{}] upgrades", request.getJobId(), request.getSnapshotId());
 
         // 2. Now that we have the job IDs, find the relevant model snapshot upgrade tasks
-        ActionListener<List<Job.Builder>> expandIdsListener = ActionListener.wrap(jobs -> {
+        ActionListener<List<Job.Builder>> expandIdsListener = listener.delegateFailureAndWrap((delegate, jobs) -> {
             SimpleIdsMatcher matcher = new SimpleIdsMatcher(request.getSnapshotId());
             Set<String> jobIds = jobs.stream().map(Job.Builder::getId).collect(Collectors.toSet());
             PersistentTasksCustomMetadata tasksInProgress = clusterService.state().metadata().custom(PersistentTasksCustomMetadata.TYPE);
@@ -78,8 +81,8 @@ public class TransportCancelJobModelSnapshotUpgradeAction extends HandledTranspo
                 .filter(t -> jobIds.contains(((SnapshotUpgradeTaskParams) t.getParams()).getJobId()))
                 .filter(t -> matcher.idMatches(((SnapshotUpgradeTaskParams) t.getParams()).getSnapshotId()))
                 .collect(Collectors.toList());
-            removePersistentTasks(request, upgradeTasksToCancel, listener);
-        }, listener::onFailure);
+            removePersistentTasks(request, upgradeTasksToCancel, delegate);
+        });
 
         // 1. Expand jobs - this will throw if a required job ID match isn't made. Jobs being deleted are included here.
         jobConfigProvider.expandJobs(request.getJobId(), request.allowNoMatch(), false, null, expandIdsListener);
@@ -100,7 +103,7 @@ public class TransportCancelJobModelSnapshotUpgradeAction extends HandledTranspo
         final AtomicArray<Exception> failures = new AtomicArray<>(numberOfTasks);
 
         for (PersistentTasksCustomMetadata.PersistentTask<?> task : upgradeTasksToCancel) {
-            persistentTasksService.sendRemoveRequest(task.getId(), new ActionListener<>() {
+            persistentTasksService.sendRemoveRequest(task.getId(), null, new ActionListener<>() {
                 @Override
                 public void onResponse(PersistentTasksCustomMetadata.PersistentTask<?> task) {
                     if (counter.incrementAndGet() == numberOfTasks) {
@@ -133,11 +136,11 @@ public class TransportCancelJobModelSnapshotUpgradeAction extends HandledTranspo
                         + request.getJobId()
                         + "]. Total failures ["
                         + caughtExceptions.size()
-                        + "], rethrowing first, all Exceptions: ["
+                        + "], rethrowing first. All Exceptions: ["
                         + caughtExceptions.stream().map(Exception::getMessage).collect(Collectors.joining(", "))
                         + "]";
 
-                    ElasticsearchException e = new ElasticsearchException(msg, caughtExceptions.get(0));
+                    ElasticsearchStatusException e = exceptionArrayToStatusException(failures, msg);
                     listener.onFailure(e);
                 }
             });

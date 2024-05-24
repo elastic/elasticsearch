@@ -20,6 +20,7 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 
+import static org.elasticsearch.repositories.blobstore.BlobStoreTestUtil.randomPurpose;
 import static org.mockito.Mockito.mock;
 
 public class FileURLBlobStoreTests extends AbstractURLBlobStoreTests {
@@ -59,6 +60,6 @@ public class FileURLBlobStoreTests extends AbstractURLBlobStoreTests {
 
     @Override
     public void testURLBlobStoreCanReadBlobRange() throws IOException {
-        expectThrows(UnsupportedOperationException.class, () -> getBlobContainer().readBlob("test", 0, 12));
+        expectThrows(UnsupportedOperationException.class, () -> getBlobContainer().readBlob(randomPurpose(), "test", 0, 12));
     }
 }

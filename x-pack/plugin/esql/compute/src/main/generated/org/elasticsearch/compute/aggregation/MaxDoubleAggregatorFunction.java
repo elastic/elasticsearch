@@ -16,6 +16,7 @@ import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.DoubleVector;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.operator.DriverContext;
 
 /**
  * {@link AggregatorFunction} implementation for {@link MaxDoubleAggregator}.
@@ -26,17 +27,22 @@ public final class MaxDoubleAggregatorFunction implements AggregatorFunction {
       new IntermediateStateDesc("max", ElementType.DOUBLE),
       new IntermediateStateDesc("seen", ElementType.BOOLEAN)  );
 
+  private final DriverContext driverContext;
+
   private final DoubleState state;
 
   private final List<Integer> channels;
 
-  public MaxDoubleAggregatorFunction(List<Integer> channels, DoubleState state) {
+  public MaxDoubleAggregatorFunction(DriverContext driverContext, List<Integer> channels,
+      DoubleState state) {
+    this.driverContext = driverContext;
     this.channels = channels;
     this.state = state;
   }
 
-  public static MaxDoubleAggregatorFunction create(List<Integer> channels) {
-    return new MaxDoubleAggregatorFunction(channels, new DoubleState(MaxDoubleAggregator.init()));
+  public static MaxDoubleAggregatorFunction create(DriverContext driverContext,
+      List<Integer> channels) {
+    return new MaxDoubleAggregatorFunction(driverContext, channels, new DoubleState(MaxDoubleAggregator.init()));
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {
@@ -50,11 +56,7 @@ public final class MaxDoubleAggregatorFunction implements AggregatorFunction {
 
   @Override
   public void addRawInput(Page page) {
-    Block uncastBlock = page.getBlock(channels.get(0));
-    if (uncastBlock.areAllValuesNull()) {
-      return;
-    }
-    DoubleBlock block = (DoubleBlock) uncastBlock;
+    DoubleBlock block = page.getBlock(channels.get(0));
     DoubleVector vector = block.asVector();
     if (vector != null) {
       addRawVector(vector);
@@ -88,10 +90,18 @@ public final class MaxDoubleAggregatorFunction implements AggregatorFunction {
   public void addIntermediateInput(Page page) {
     assert channels.size() == intermediateBlockCount();
     assert page.getBlockCount() >= channels.get(0) + intermediateStateDesc().size();
-    DoubleVector max = page.<DoubleBlock>getBlock(channels.get(0)).asVector();
-    BooleanVector seen = page.<BooleanBlock>getBlock(channels.get(1)).asVector();
+    Block maxUncast = page.getBlock(channels.get(0));
+    if (maxUncast.areAllValuesNull()) {
+      return;
+    }
+    DoubleVector max = ((DoubleBlock) maxUncast).asVector();
     assert max.getPositionCount() == 1;
-    assert max.getPositionCount() == seen.getPositionCount();
+    Block seenUncast = page.getBlock(channels.get(1));
+    if (seenUncast.areAllValuesNull()) {
+      return;
+    }
+    BooleanVector seen = ((BooleanBlock) seenUncast).asVector();
+    assert seen.getPositionCount() == 1;
     if (seen.getBoolean(0)) {
       state.doubleValue(MaxDoubleAggregator.combine(state.doubleValue(), max.getDouble(0)));
       state.seen(true);
@@ -99,17 +109,17 @@ public final class MaxDoubleAggregatorFunction implements AggregatorFunction {
   }
 
   @Override
-  public void evaluateIntermediate(Block[] blocks, int offset) {
-    state.toIntermediate(blocks, offset);
+  public void evaluateIntermediate(Block[] blocks, int offset, DriverContext driverContext) {
+    state.toIntermediate(blocks, offset, driverContext);
   }
 
   @Override
-  public void evaluateFinal(Block[] blocks, int offset) {
+  public void evaluateFinal(Block[] blocks, int offset, DriverContext driverContext) {
     if (state.seen() == false) {
-      blocks[offset] = Block.constantNullBlock(1);
+      blocks[offset] = driverContext.blockFactory().newConstantNullBlock(1);
       return;
     }
-    blocks[offset] = DoubleBlock.newConstantBlockWith(state.doubleValue(), 1);
+    blocks[offset] = driverContext.blockFactory().newConstantDoubleBlockWith(state.doubleValue(), 1);
   }
 
   @Override

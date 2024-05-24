@@ -12,23 +12,38 @@ import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
 import org.elasticsearch.search.aggregations.metrics.CompensatedSum;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
-import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner;
-import org.elasticsearch.xpack.ql.expression.Expression;
-import org.elasticsearch.xpack.ql.tree.NodeInfo;
-import org.elasticsearch.xpack.ql.tree.Source;
-import org.elasticsearch.xpack.ql.type.DataTypes;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
+import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.DataTypes;
+import org.elasticsearch.xpack.esql.expression.function.Example;
+import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
+import org.elasticsearch.xpack.esql.expression.function.Param;
+import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 
 import java.util.List;
 
+import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
+import static org.elasticsearch.xpack.esql.core.util.NumericUtils.unsignedLongAddExact;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.isRepresentable;
-import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isType;
-import static org.elasticsearch.xpack.ql.util.NumericUtils.unsignedLongAddExact;
 
 /**
  * Reduce a multivalued field to a single valued field containing the sum of all values.
  */
 public class MvSum extends AbstractMultivalueFunction {
-    public MvSum(Source source, Expression field) {
+    @FunctionInfo(
+        returnType = { "double", "integer", "long", "unsigned_long" },
+        description = "Converts a multivalued field into a single valued field containing the sum of all of the values.",
+        examples = @Example(file = "math", tag = "mv_sum")
+    )
+    public MvSum(
+        Source source,
+        @Param(
+            name = "number",
+            type = { "double", "integer", "long", "unsigned_long" },
+            description = "Multivalue expression."
+        ) Expression field
+    ) {
         super(source, field);
     }
 
@@ -39,13 +54,13 @@ public class MvSum extends AbstractMultivalueFunction {
 
     @Override
     protected ExpressionEvaluator.Factory evaluator(ExpressionEvaluator.Factory fieldEval) {
-        return switch (LocalExecutionPlanner.toElementType(field().dataType())) {
-            case DOUBLE -> dvrCtx -> new MvSumDoubleEvaluator(fieldEval.get(dvrCtx), dvrCtx);
-            case INT -> dvrCtx -> new MvSumIntEvaluator(source(), fieldEval.get(dvrCtx), dvrCtx);
+        return switch (PlannerUtils.toElementType(field().dataType())) {
+            case DOUBLE -> new MvSumDoubleEvaluator.Factory(fieldEval);
+            case INT -> new MvSumIntEvaluator.Factory(source(), fieldEval);
             case LONG -> field().dataType() == DataTypes.UNSIGNED_LONG
-                ? dvrCtx -> new MvSumUnsignedLongEvaluator(source(), fieldEval.get(dvrCtx), dvrCtx)
-                : dvrCtx -> new MvSumLongEvaluator(source(), fieldEval.get(dvrCtx), dvrCtx);
-            case NULL -> dvrCtx -> EvalOperator.CONSTANT_NULL;
+                ? new MvSumUnsignedLongEvaluator.Factory(source(), fieldEval)
+                : new MvSumLongEvaluator.Factory(source(), fieldEval);
+            case NULL -> EvalOperator.CONSTANT_NULL_FACTORY;
 
             default -> throw EsqlIllegalArgumentException.illegalDataType(field.dataType());
         };

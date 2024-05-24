@@ -12,6 +12,7 @@ import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.IndicesOptions;
@@ -47,6 +48,8 @@ import java.util.function.Predicate;
 
 public class TransportClusterHealthAction extends TransportMasterNodeReadAction<ClusterHealthRequest, ClusterHealthResponse> {
 
+    public static final String NAME = "cluster:monitor/health";
+    public static final ActionType<ClusterHealthResponse> TYPE = new ActionType<ClusterHealthResponse>(NAME);
     private static final Logger logger = LogManager.getLogger(TransportClusterHealthAction.class);
 
     private final AllocationService allocationService;
@@ -61,7 +64,7 @@ public class TransportClusterHealthAction extends TransportMasterNodeReadAction<
         AllocationService allocationService
     ) {
         super(
-            ClusterHealthAction.NAME,
+            NAME,
             false,
             transportService,
             clusterService,
@@ -70,7 +73,8 @@ public class TransportClusterHealthAction extends TransportMasterNodeReadAction<
             ClusterHealthRequest::new,
             indexNameExpressionResolver,
             ClusterHealthResponse::new,
-            ThreadPool.Names.MANAGEMENT // fork to management since the health computation can become expensive for large cluster states
+            // fork to management since the health computation can become expensive for large cluster states.
+            threadPool.executor(ThreadPool.Names.MANAGEMENT)
         );
         this.allocationService = allocationService;
     }
@@ -156,6 +160,7 @@ public class TransportClusterHealthAction extends TransportMasterNodeReadAction<
         } else {
             final TimeValue taskTimeout = TimeValue.timeValueMillis(Math.max(0, endTimeRelativeMillis - threadPool.relativeTimeInMillis()));
             submitUnbatchedTask(source, new ClusterStateUpdateTask(request.waitForEvents(), taskTimeout) {
+
                 @Override
                 public ClusterState execute(ClusterState currentState) {
                     return currentState;
@@ -206,6 +211,7 @@ public class TransportClusterHealthAction extends TransportMasterNodeReadAction<
                             && e.getCause() instanceof EsRejectedExecutionException esre
                             && esre.isExecutorShutdown();
                 }
+
             });
         }
     }

@@ -8,6 +8,7 @@
 package org.elasticsearch.cluster.metadata;
 
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.routing.allocation.ExistingShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.common.settings.Setting;
@@ -18,6 +19,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.cluster.metadata.MetadataIndexStateService.isIndexVerifiedBeforeClosed;
@@ -98,6 +100,13 @@ public record AutoExpandReplicas(int minReplicas, int maxReplicas, boolean enabl
 
     public int getDesiredNumberOfReplicas(IndexMetadata indexMetadata, RoutingAllocation allocation) {
         assert enabled : "should only be called when enabled";
+        // Make sure in stateless auto-expand indices always have 1 replica to ensure all shard roles are always present
+        if (Objects.equals(
+            indexMetadata.getSettings().get(ExistingShardsAllocator.EXISTING_SHARDS_ALLOCATOR_SETTING.getKey()),
+            "stateless"
+        )) {
+            return 1;
+        }
         int numMatchingDataNodes = 0;
         for (DiscoveryNode discoveryNode : allocation.nodes().getDataNodes().values()) {
             Decision decision = allocation.deciders().shouldAutoExpandToNode(indexMetadata, discoveryNode, allocation);

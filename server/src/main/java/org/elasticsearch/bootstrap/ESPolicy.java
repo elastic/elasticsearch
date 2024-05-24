@@ -8,6 +8,7 @@
 
 package org.elasticsearch.bootstrap;
 
+import org.elasticsearch.core.Predicates;
 import org.elasticsearch.core.SuppressForbidden;
 
 import java.io.FilePermission;
@@ -38,6 +39,7 @@ final class ESPolicy extends Policy {
     final Policy system;
     final PermissionCollection dynamic;
     final PermissionCollection dataPathPermission;
+    final PermissionCollection forbiddenFilePermission;
     final Map<String, Policy> plugins;
 
     ESPolicy(
@@ -45,18 +47,12 @@ final class ESPolicy extends Policy {
         PermissionCollection dynamic,
         Map<String, Policy> plugins,
         boolean filterBadDefaults,
-        List<FilePermission> dataPathPermissions
+        List<FilePermission> dataPathPermissions,
+        List<FilePermission> forbiddenFilePermissions
     ) {
         this.template = PolicyUtil.readPolicy(getClass().getResource(POLICY_RESOURCE), codebases);
-        PermissionCollection dpPermissions = null;
-        for (FilePermission permission : dataPathPermissions) {
-            if (dpPermissions == null) {
-                dpPermissions = permission.newPermissionCollection();
-            }
-            dpPermissions.add(permission);
-        }
-        this.dataPathPermission = dpPermissions == null ? new Permissions() : dpPermissions;
-        this.dataPathPermission.setReadOnly();
+        this.dataPathPermission = createPermission(dataPathPermissions);
+        this.forbiddenFilePermission = createPermission(forbiddenFilePermissions);
         this.untrusted = PolicyUtil.readPolicy(getClass().getResource(UNTRUSTED_RESOURCE), Collections.emptyMap());
         if (filterBadDefaults) {
             this.system = new SystemPolicy(Policy.getPolicy());
@@ -65,6 +61,21 @@ final class ESPolicy extends Policy {
         }
         this.dynamic = dynamic;
         this.plugins = plugins;
+    }
+
+    private static PermissionCollection createPermission(List<FilePermission> permissions) {
+        PermissionCollection coll = null;
+        for (FilePermission permission : permissions) {
+            if (coll == null) {
+                coll = permission.newPermissionCollection();
+            }
+            coll.add(permission);
+        }
+        if (coll == null) {
+            coll = new Permissions();
+        }
+        coll.setReadOnly();
+        return coll;
     }
 
     @Override
@@ -76,9 +87,12 @@ final class ESPolicy extends Policy {
             return false;
         }
 
+        // completely deny access to specific files that are forbidden
+        if (forbiddenFilePermission.implies(permission)) {
+            return false;
+        }
+
         URL location = codeSource.getLocation();
-        // location can be null... ??? nobody knows
-        // https://bugs.openjdk.java.net/browse/JDK-8129972
         if (location != null) {
             // run scripts with limited permissions
             if (BootstrapInfo.UNTRUSTED_CODEBASE.equals(location.getFile())) {
@@ -92,17 +106,16 @@ final class ESPolicy extends Policy {
             }
         }
 
-        if (permission instanceof FilePermission) {
-            // The FilePermission to check access to the path.data is the hottest permission check in
-            // Elasticsearch, so we check it first.
-            if (dataPathPermission.implies(permission)) {
-                return true;
-            }
-            // Special handling for broken Hadoop code: "let me execute or my classes will not load"
-            // yeah right, REMOVE THIS when hadoop is fixed
-            if ("<<ALL FILES>>".equals(permission.getName())) {
-                hadoopHack();
-            }
+        // The FilePermission to check access to the path.data is the hottest permission check in
+        // Elasticsearch, so we explicitly check it here.
+        if (dataPathPermission.implies(permission)) {
+            return true;
+        }
+
+        // Special handling for broken Hadoop code: "let me execute or my classes will not load"
+        // yeah right, REMOVE THIS when hadoop is fixed
+        if (permission instanceof FilePermission && "<<ALL FILES>>".equals(permission.getName())) {
+            hadoopHack();
         }
 
         // otherwise defer to template + dynamic file permissions
@@ -201,7 +214,10 @@ final class ESPolicy extends Policy {
     // from this policy file or further restrict it to code sources
     // that you specify, because Thread.stop() is potentially unsafe."
     // not even sure this method still works...
-    private static final Permission BAD_DEFAULT_NUMBER_ONE = new BadDefaultPermission(new RuntimePermission("stopThread"), p -> true);
+    private static final Permission BAD_DEFAULT_NUMBER_ONE = new BadDefaultPermission(
+        new RuntimePermission("stopThread"),
+        Predicates.always()
+    );
 
     // default policy file states:
     // "allows anyone to listen on dynamic ports"

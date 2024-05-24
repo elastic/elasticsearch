@@ -23,7 +23,7 @@ import static org.hamcrest.Matchers.aMapWithSize;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
-public class FeatureUpgradeIT extends ParameterizedRollingUpgradeTestCase {
+public class FeatureUpgradeIT extends AbstractRollingUpgradeTestCase {
 
     public FeatureUpgradeIT(@Name("upgradedNodes") int upgradedNodes) {
         super(upgradedNodes);
@@ -99,8 +99,15 @@ public class FeatureUpgradeIT extends ParameterizedRollingUpgradeTestCase {
                     .orElse(Collections.emptyMap());
 
                 assertThat(feature, aMapWithSize(4));
-                assertThat(feature.get("minimum_index_version"), equalTo(getOldClusterIndexVersion().toString()));
-                if (getOldClusterVersion().before(TransportGetFeatureUpgradeStatusAction.NO_UPGRADE_REQUIRED_VERSION)) {
+                assertThat(feature.get("minimum_index_version"), equalTo(getOldClusterIndexVersion().toReleaseVersion()));
+
+                // Feature migration happens only across major versions; also, we usually begin to require migrations once we start testing
+                // for the next major version upgrade (see e.g. #93666). Trying to express this with features may be problematic, so we
+                // want to keep using versions here. We also assume that for non-semantic version migrations are not required.
+                boolean migrationNeeded = parseLegacyVersion(getOldClusterVersion()).map(
+                    v -> v.before(TransportGetFeatureUpgradeStatusAction.NO_UPGRADE_REQUIRED_VERSION)
+                ).orElse(false);
+                if (migrationNeeded) {
                     assertThat(feature.get("migration_status"), equalTo("MIGRATION_NEEDED"));
                 } else {
                     assertThat(feature.get("migration_status"), equalTo("NO_MIGRATION_NEEDED"));

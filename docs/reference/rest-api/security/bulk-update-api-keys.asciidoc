@@ -30,7 +30,7 @@ This operation can greatly improve performance over making individual updates.
 
 It's not possible to update expired or <<security-api-invalidate-api-key,invalidated>> API keys.
 
-This API supports updates to API key access scope and metadata.
+This API supports updates to API key access scope, metadata and expiration.
 The access scope of each API key is derived from the <<security-api-bulk-update-api-keys-api-key-role-descriptors,`role_descriptors`>> you specify in the request, and a snapshot of the owner user's permissions at the time of the request.
 The snapshot of the owner's permissions is updated automatically on every call.
 
@@ -62,6 +62,9 @@ The structure of a role descriptor is the same as the request for the <<api-key-
 
 Within the `metadata` object, top-level keys beginning with an underscore (`_`) are reserved for system usage.
 Any information specified with this parameter fully replaces metadata previously associated with the API key.
+
+`expiration`::
+(Optional, string) Expiration time for the API keys. By default, API keys never expire. Can be omitted to leave unchanged.
 
 [[security-api-bulk-update-api-keys-response-body]]
 ==== {api-response-body-title}
@@ -166,7 +169,8 @@ Further, assume that the owner user's permissions are:
 --------------------------------------------------
 // NOTCONSOLE
 
-The following example updates the API keys created above, assigning them new role descriptors and metadata.
+The following example updates the API keys created above, assigning them new role descriptors, metadata and updates
+their expiration time.
 
 [source,console]
 ----
@@ -192,7 +196,8 @@ POST /_security/api_key/_bulk_update
        "trusted": true,
        "tags": ["production"]
     }
-  }
+  },
+  "expiration": "30d"
 }
 ----
 // TEST[skip:api key ids not available]

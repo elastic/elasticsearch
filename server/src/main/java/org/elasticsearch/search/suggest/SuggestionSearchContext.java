@@ -35,8 +35,8 @@ public class SuggestionSearchContext {
         private Analyzer analyzer;
         private int size = 5;
         private int shardSize = -1;
-        private SearchExecutionContext searchExecutionContext;
-        private Suggester<?> suggester;
+        private final SearchExecutionContext searchExecutionContext;
+        private final Suggester<?> suggester;
 
         protected SuggestionContext(Suggester<?> suggester, SearchExecutionContext searchExecutionContext) {
             this.suggester = suggester;

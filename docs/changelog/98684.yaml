@@ -1,6 +1,0 @@
-pr: 98684
-summary: Explicit parsing object capabilities of `FieldMappers`
-area: Mapping
-type: enhancement
-issues:
- - 98537

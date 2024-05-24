@@ -8,7 +8,6 @@
 
 package org.elasticsearch.search.fetch.subphase.highlight;
 
-import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.highlight.QueryScorer;
 import org.apache.lucene.search.highlight.WeightedSpanTerm;
@@ -22,28 +21,12 @@ import java.util.Map;
 
 public final class CustomQueryScorer extends QueryScorer {
 
-    public CustomQueryScorer(Query query, IndexReader reader, String field, String defaultField) {
-        super(query, reader, field, defaultField);
-    }
-
-    public CustomQueryScorer(Query query, IndexReader reader, String field) {
-        super(query, reader, field);
-    }
-
-    public CustomQueryScorer(Query query, String field, String defaultField) {
-        super(query, field, defaultField);
-    }
-
     public CustomQueryScorer(Query query, String field) {
         super(query, field);
     }
 
     public CustomQueryScorer(Query query) {
         super(query);
-    }
-
-    public CustomQueryScorer(WeightedSpanTerm[] weightedTerms) {
-        super(weightedTerms);
     }
 
     @Override
@@ -69,7 +52,6 @@ public final class CustomQueryScorer extends QueryScorer {
         protected void extract(Query query, float boost, Map<String, WeightedSpanTerm> terms) throws IOException {
             if (isChildOrParentQuery(query.getClass())) {
                 // skip has_child or has_parent queries, see: https://github.com/elastic/elasticsearch/issues/14999
-                return;
             } else if (query instanceof FunctionScoreQuery) {
                 super.extract(((FunctionScoreQuery) query).getSubQuery(), boost, terms);
             } else if (query instanceof ESToParentBlockJoinQuery) {

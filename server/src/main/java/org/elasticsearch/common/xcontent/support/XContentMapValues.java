@@ -195,7 +195,18 @@ public class XContentMapValues {
             for (Object o : valueList) {
                 Object listValue = extractValue(pathElements, index, o, nullValue);
                 if (listValue != null) {
-                    newList.add(listValue);
+                    // we add arrays as list elements only if we are already at leaf,
+                    // otherwise append individual elements to the new list so we don't
+                    // accumulate intermediate array structures
+                    if (listValue instanceof List<?> list) {
+                        if (index == pathElements.length) {
+                            newList.add(list);
+                        } else {
+                            newList.addAll(list);
+                        }
+                    } else {
+                        newList.add(listValue);
+                    }
                 }
             }
             return newList;
@@ -544,7 +555,7 @@ public class XContentMapValues {
         if (node instanceof Map) {
             return (Map<String, Object>) node;
         } else {
-            throw new ElasticsearchParseException(desc + " should be a hash but was of type: " + node.getClass());
+            throw new ElasticsearchParseException(desc + " should be a map but was of type: " + node.getClass());
         }
     }
 

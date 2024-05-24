@@ -9,15 +9,18 @@
 package org.elasticsearch.common.collect;
 
 import org.elasticsearch.common.Randomness;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Iterator;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.NoSuchElementException;
 import java.util.Objects;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiPredicate;
 import java.util.function.ToIntFunction;
@@ -37,12 +40,12 @@ public class IteratorsTests extends ESTestCase {
     }
 
     public void testEmptyConcatenation() {
-        Iterator<Integer> iterator = Iterators.<Integer>concat(empty());
+        Iterator<Integer> iterator = Iterators.<Integer>concat(Collections.emptyIterator());
         assertEmptyIterator(iterator);
     }
 
     public void testMultipleEmptyConcatenation() {
-        Iterator<Integer> iterator = Iterators.concat(empty(), empty());
+        Iterator<Integer> iterator = Iterators.concat(Collections.emptyIterator(), Collections.emptyIterator());
         assertEmptyIterator(iterator);
     }
 
@@ -53,12 +56,12 @@ public class IteratorsTests extends ESTestCase {
 
     public void testEmptyBeforeSingleton() {
         int value = randomInt();
-        assertSingleton(value, empty(), singletonIterator(value));
+        assertSingleton(value, Collections.emptyIterator(), singletonIterator(value));
     }
 
     public void testEmptyAfterSingleton() {
         int value = randomInt();
-        assertSingleton(value, singletonIterator(value), empty());
+        assertSingleton(value, singletonIterator(value), Collections.emptyIterator());
     }
 
     public void testRandomSingleton() {
@@ -68,7 +71,7 @@ public class IteratorsTests extends ESTestCase {
         @SuppressWarnings({ "rawtypes", "unchecked" })
         Iterator<Integer>[] iterators = new Iterator[numberOfIterators];
         for (int i = 0; i < numberOfIterators; i++) {
-            iterators[i] = i != singletonIndex ? empty() : singletonIterator(value);
+            iterators[i] = i != singletonIndex ? Collections.emptyIterator() : singletonIterator(value);
         }
         assertSingleton(value, iterators);
     }
@@ -94,7 +97,12 @@ public class IteratorsTests extends ESTestCase {
     public void testTwoEntries() {
         int first = randomInt();
         int second = randomInt();
-        Iterator<Integer> concat = Iterators.concat(singletonIterator(first), empty(), empty(), singletonIterator(second));
+        Iterator<Integer> concat = Iterators.concat(
+            singletonIterator(first),
+            Collections.emptyIterator(),
+            Collections.emptyIterator(),
+            singletonIterator(second)
+        );
         assertContainsInOrder(concat, first, second);
     }
 
@@ -109,7 +117,7 @@ public class IteratorsTests extends ESTestCase {
 
     public void testNullIterator() {
         try {
-            Iterators.concat(singletonIterator(1), empty(), null, empty(), singletonIterator(2));
+            Iterators.concat(singletonIterator(1), Collections.emptyIterator(), null, Collections.emptyIterator(), singletonIterator(2));
             fail("expected " + NullPointerException.class.getSimpleName());
         } catch (NullPointerException e) {
 
@@ -211,6 +219,54 @@ public class IteratorsTests extends ESTestCase {
         assertEquals(array.length, index.get());
     }
 
+    public void testFailFast() {
+        final var array = randomIntegerArray();
+        assertEmptyIterator(Iterators.failFast(Iterators.forArray(array), () -> true));
+
+        final var index = new AtomicInteger();
+        Iterators.failFast(Iterators.forArray(array), () -> false).forEachRemaining(i -> assertEquals(array[index.getAndIncrement()], i));
+        assertEquals(array.length, index.get());
+
+        final var isFailing = new AtomicBoolean();
+        index.set(0);
+        Iterators.failFast(Iterators.concat(Iterators.forArray(array), new Iterator<>() {
+            @Override
+            public boolean hasNext() {
+                isFailing.set(true);
+                return true;
+            }
+
+            @Override
+            public Integer next() {
+                return 0;
+            }
+        }), isFailing::get).forEachRemaining(i -> assertEquals(array[index.getAndIncrement()], i));
+        assertEquals(array.length, index.get());
+    }
+
+    public void testEnumerate() {
+        assertEmptyIterator(Iterators.enumerate(Iterators.concat(), Tuple::new));
+
+        final var array = randomIntegerArray();
+        final var index = new AtomicInteger();
+        Iterators.enumerate(Iterators.forArray(array), Tuple::new).forEachRemaining(t -> {
+            int idx = index.getAndIncrement();
+            assertEquals(idx, t.v1().intValue());
+            assertEquals(array[idx], t.v2());
+        });
+        assertEquals(array.length, index.get());
+    }
+
+    public void testSupplier() {
+        assertEmptyIterator(Iterators.fromSupplier(() -> null));
+
+        final var array = randomIntegerArray();
+        final var index = new AtomicInteger();
+        final var queue = new LinkedList<>(Arrays.asList(array));
+        Iterators.fromSupplier(queue::pollFirst).forEachRemaining(i -> assertEquals(array[index.getAndIncrement()], i));
+        assertEquals(array.length, index.get());
+    }
+
     public void testEquals() {
         final BiPredicate<Object, Object> notCalled = (a, b) -> { throw new AssertionError("not called"); };
 
@@ -266,20 +322,6 @@ public class IteratorsTests extends ESTestCase {
     private <T> void assertSingleton(T value, Iterator<T>... iterators) {
         Iterator<T> concat = Iterators.concat(iterators);
         assertContainsInOrder(concat, value);
-    }
-
-    private <T> Iterator<T> empty() {
-        return new Iterator<T>() {
-            @Override
-            public boolean hasNext() {
-                return false;
-            }
-
-            @Override
-            public T next() {
-                throw new NoSuchElementException();
-            }
-        };
     }
 
     @SafeVarargs

@@ -52,9 +52,9 @@ PUT _query_rules/my-ruleset
             "type": "pinned",
             "criteria": [
                 {
-                    "type": "exact",
+                    "type": "contains",
                     "metadata": "query_string",
-                    "values": [ "marvel" ]
+                    "values": [ "pugs", "puggles" ]
                 }
             ],
             "actions": {
@@ -69,9 +69,9 @@ PUT _query_rules/my-ruleset
             "type": "pinned",
             "criteria": [
                 {
-                    "type": "exact",
+                    "type": "fuzzy",
                     "metadata": "query_string",
-                    "values": [ "dc" ]
+                    "values": [ "rescue dogs" ]
                 }
             ],
             "actions": {
@@ -117,9 +117,9 @@ A sample response:
             "type": "pinned",
             "criteria": [
                 {
-                    "type": "exact",
+                    "type": "contains",
                     "metadata": "query_string",
-                    "values": [ "marvel" ]
+                    "values": [ "pugs", "puggles" ]
                 }
             ],
             "actions": {
@@ -134,9 +134,9 @@ A sample response:
             "type": "pinned",
             "criteria": [
                 {
-                    "type": "exact",
+                    "type": "fuzzy",
                     "metadata": "query_string",
-                    "values": [ "dc" ]
+                    "values": [ "rescue dogs" ]
                 }
             ],
             "actions": {

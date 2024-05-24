@@ -58,6 +58,9 @@
             }
           }
         },
+        "unhealthy_reason": {
+          "type": "keyword"
+        },
         "components": {
           "type": "object",
           "enabled": false
@@ -94,6 +97,9 @@
                       "type": "boolean"
                     },
                     "upgradeable": {
+                      "type": "boolean"
+                    },
+                    "unprivileged": {
                       "type": "boolean"
                     },
                     "version": {
@@ -270,6 +276,9 @@
                 "download_percent": {
                   "type": "double"
                 },
+                "download_rate": {
+                  "type": "double"
+                },
                 "failed_state": {
                   "type": "keyword"
                 },
@@ -281,6 +290,18 @@
                       "ignore_above": 1024
                     }
                   }
+                },
+                "retry_error_msg": {
+                  "type": "text",
+                  "fields": {
+                    "keyword": {
+                      "type": "keyword",
+                      "ignore_above": 1024
+                    }
+                  }
+                },
+                "retry_until": {
+                  "type": "date"
                 }
               }
             }
@@ -294,6 +315,9 @@
           "enabled": false
         },
         "tags": {
+          "type": "keyword"
+        },
+        "namespaces": {
           "type": "keyword"
         }
       }

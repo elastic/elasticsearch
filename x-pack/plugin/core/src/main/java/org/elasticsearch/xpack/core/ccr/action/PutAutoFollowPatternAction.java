@@ -37,7 +37,7 @@ public class PutAutoFollowPatternAction extends ActionType<AcknowledgedResponse>
     private static final int MAX_NAME_BYTES = 255;
 
     private PutAutoFollowPatternAction() {
-        super(NAME, AcknowledgedResponse::readFrom);
+        super(NAME);
     }
 
     public static class Request extends AcknowledgedRequest<Request> implements ToXContentObject {
@@ -85,7 +85,9 @@ public class PutAutoFollowPatternAction extends ActionType<AcknowledgedResponse>
         private FollowParameters parameters = new FollowParameters();
         private List<String> leaderIndexExclusionPatterns = Collections.emptyList();
 
-        public Request() {}
+        public Request() {
+            super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT, DEFAULT_ACK_TIMEOUT);
+        }
 
         @Override
         public ActionRequestValidationException validate() {

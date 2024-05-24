@@ -13,7 +13,10 @@ address, a hostname, or a <<network-interface-values,special value>>.
 Use this setting only if you require different configurations for the
 transport and HTTP interfaces.
 +
-Defaults to the address given by `network.host`.
+Defaults to the address given by `network.host`. However, note that
+<<configuring-stack-security,security auto-configuration>> will add
+`http.host: 0.0.0.0` to your `elasticsearch.yml` configuration file, which
+overrides this default.
 
 `http.bind_host`::
 (<<static-cluster-setting,Static>>, string)

@@ -9,8 +9,8 @@
 package org.elasticsearch.search.aggregations.bucket;
 
 import org.elasticsearch.search.aggregations.Aggregation;
-import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.HasAggregations;
+import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.xcontent.ToXContent;
 
 import java.util.List;
@@ -43,7 +43,7 @@ public interface MultiBucketsAggregation extends Aggregation {
          * @return  The sub-aggregations of this bucket
          */
         @Override
-        Aggregations getAggregations();
+        InternalAggregations getAggregations();
 
     }
 

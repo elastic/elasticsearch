@@ -7,8 +7,8 @@
 
 package org.elasticsearch.compute.aggregation;
 
-import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.operator.SequenceIntBlockSourceOperator;
 import org.elasticsearch.compute.operator.SourceOperator;
@@ -30,8 +30,8 @@ public class PercentileIntAggregatorFunctionTests extends AggregatorFunctionTest
     }
 
     @Override
-    protected AggregatorFunctionSupplier aggregatorFunction(BigArrays bigArrays, List<Integer> inputChannels) {
-        return new PercentileIntAggregatorFunctionSupplier(bigArrays, inputChannels, percentile);
+    protected AggregatorFunctionSupplier aggregatorFunction(List<Integer> inputChannels) {
+        return new PercentileIntAggregatorFunctionSupplier(inputChannels, percentile);
     }
 
     @Override
@@ -40,9 +40,9 @@ public class PercentileIntAggregatorFunctionTests extends AggregatorFunctionTest
     }
 
     @Override
-    protected SourceOperator simpleInput(int size) {
+    protected SourceOperator simpleInput(BlockFactory blockFactory, int size) {
         int max = between(1, (int) Math.min(Integer.MAX_VALUE, Long.MAX_VALUE / size));
-        return new SequenceIntBlockSourceOperator(LongStream.range(0, size).mapToInt(l -> between(0, max)));
+        return new SequenceIntBlockSourceOperator(blockFactory, LongStream.range(0, size).mapToInt(l -> between(0, max)));
     }
 
     @Override

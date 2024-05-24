@@ -18,6 +18,7 @@ import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.persistent.PersistentTasksService;
 import org.elasticsearch.tasks.Task;
@@ -57,7 +58,7 @@ public class TransportDeleteDatafeedAction extends AcknowledgedTransportMasterNo
             actionFilters,
             DeleteDatafeedAction.Request::new,
             indexNameExpressionResolver,
-            ThreadPool.Names.SAME
+            EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
         this.client = client;
         this.persistentTasksService = persistentTasksService;
@@ -83,19 +84,17 @@ public class TransportDeleteDatafeedAction extends AcknowledgedTransportMasterNo
         ClusterState state,
         ActionListener<AcknowledgedResponse> listener
     ) {
-        ActionListener<Boolean> finalListener = ActionListener.wrap(
-            // use clusterService.state() here so that the updated state without the task is available
-            response -> datafeedManager.deleteDatafeed(request, clusterService.state(), listener),
-            listener::onFailure
-        );
-
-        ActionListener<IsolateDatafeedAction.Response> isolateDatafeedHandler = ActionListener.wrap(
-            response -> removeDatafeedTask(request, state, finalListener),
-            listener::onFailure
-        );
-
         IsolateDatafeedAction.Request isolateDatafeedRequest = new IsolateDatafeedAction.Request(request.getDatafeedId());
-        executeAsyncWithOrigin(client, ML_ORIGIN, IsolateDatafeedAction.INSTANCE, isolateDatafeedRequest, isolateDatafeedHandler);
+        executeAsyncWithOrigin(
+            client,
+            ML_ORIGIN,
+            IsolateDatafeedAction.INSTANCE,
+            isolateDatafeedRequest,
+            listener.<Boolean>delegateFailureAndWrap(
+                // use clusterService.state() here so that the updated state without the task is available
+                (l, response) -> datafeedManager.deleteDatafeed(request, clusterService.state(), l)
+            ).delegateFailureAndWrap((l, response) -> removeDatafeedTask(request, state, l))
+        );
     }
 
     private void removeDatafeedTask(DeleteDatafeedAction.Request request, ClusterState state, ActionListener<Boolean> listener) {
@@ -104,7 +103,7 @@ public class TransportDeleteDatafeedAction extends AcknowledgedTransportMasterNo
         if (datafeedTask == null) {
             listener.onResponse(true);
         } else {
-            persistentTasksService.sendRemoveRequest(datafeedTask.getId(), new ActionListener<>() {
+            persistentTasksService.sendRemoveRequest(datafeedTask.getId(), null, new ActionListener<>() {
                 @Override
                 public void onResponse(PersistentTasksCustomMetadata.PersistentTask<?> persistentTask) {
                     listener.onResponse(Boolean.TRUE);

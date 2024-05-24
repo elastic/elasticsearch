@@ -17,21 +17,35 @@ import java.util.function.Supplier;
  */
 public final class CachedSupplier<T> implements Supplier<T> {
 
-    private Supplier<T> supplier;
-    private T result;
-    private boolean resultSet;
+    private volatile Supplier<T> supplier;
+    private volatile T result;
 
-    public CachedSupplier(Supplier<T> supplier) {
+    public static <R> CachedSupplier<R> wrap(Supplier<R> supplier) {
+        if (supplier instanceof CachedSupplier<R> c) {
+            // no need to wrap a cached supplier again
+            return c;
+        }
+        return new CachedSupplier<>(supplier);
+    }
+
+    private CachedSupplier(Supplier<T> supplier) {
         this.supplier = supplier;
     }
 
     @Override
-    public synchronized T get() {
-        if (resultSet == false) {
-            result = supplier.get();
-            resultSet = true;
+    public T get() {
+        if (supplier == null) {
+            return result;
         }
+        initResult();
         return result;
+    }
+
+    private synchronized void initResult() {
+        if (supplier != null) {
+            result = supplier.get();
+            supplier = null;
+        }
     }
 
 }

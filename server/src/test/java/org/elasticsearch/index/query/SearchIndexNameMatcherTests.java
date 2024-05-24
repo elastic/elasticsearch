@@ -19,6 +19,8 @@ import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
 
+import static org.elasticsearch.test.LambdaMatchers.falseWith;
+import static org.elasticsearch.test.LambdaMatchers.trueWith;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -46,31 +48,31 @@ public class SearchIndexNameMatcherTests extends ESTestCase {
     }
 
     public void testLocalIndex() {
-        assertTrue(matcher.test("index1"));
-        assertTrue(matcher.test("ind*x1"));
-        assertFalse(matcher.test("index2"));
+        assertThat(matcher, trueWith("index1"));
+        assertThat(matcher, trueWith("ind*x1"));
+        assertThat(matcher, falseWith("index2"));
 
-        assertTrue(matcher.test("alias"));
-        assertTrue(matcher.test("*lias"));
+        assertThat(matcher, trueWith("alias"));
+        assertThat(matcher, trueWith("*lias"));
 
-        assertFalse(matcher.test("cluster:index1"));
+        assertThat(matcher, falseWith("cluster:index1"));
     }
 
     public void testRemoteIndex() {
-        assertTrue(remoteMatcher.test("cluster:index1"));
-        assertTrue(remoteMatcher.test("cluster:ind*x1"));
-        assertTrue(remoteMatcher.test("*luster:ind*x1"));
-        assertFalse(remoteMatcher.test("cluster:index2"));
+        assertThat(remoteMatcher, trueWith("cluster:index1"));
+        assertThat(remoteMatcher, trueWith("cluster:ind*x1"));
+        assertThat(remoteMatcher, trueWith("*luster:ind*x1"));
+        assertThat(remoteMatcher, falseWith("cluster:index2"));
 
-        assertTrue(remoteMatcher.test("cluster:alias"));
-        assertTrue(remoteMatcher.test("cluster:*lias"));
+        assertThat(remoteMatcher, trueWith("cluster:alias"));
+        assertThat(remoteMatcher, trueWith("cluster:*lias"));
 
-        assertFalse(remoteMatcher.test("index1"));
-        assertFalse(remoteMatcher.test("alias"));
+        assertThat(remoteMatcher, falseWith("index1"));
+        assertThat(remoteMatcher, falseWith("alias"));
 
-        assertFalse(remoteMatcher.test("*index1"));
-        assertFalse(remoteMatcher.test("*alias"));
-        assertFalse(remoteMatcher.test("cluster*"));
-        assertFalse(remoteMatcher.test("cluster*index1"));
+        assertThat(remoteMatcher, falseWith("*index1"));
+        assertThat(remoteMatcher, falseWith("*alias"));
+        assertThat(remoteMatcher, falseWith("cluster*"));
+        assertThat(remoteMatcher, falseWith("cluster*index1"));
     }
 }

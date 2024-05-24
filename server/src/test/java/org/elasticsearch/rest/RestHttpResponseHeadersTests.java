@@ -11,6 +11,7 @@ package org.elasticsearch.rest;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.indices.breaker.CircuitBreakerMetrics;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
 import org.elasticsearch.rest.RestHandler.Route;
@@ -72,6 +73,7 @@ public class RestHttpResponseHeadersTests extends ESTestCase {
 
         // Initialize test candidate RestController
         CircuitBreakerService circuitBreakerService = new HierarchyCircuitBreakerService(
+            CircuitBreakerMetrics.NOOP,
             Settings.EMPTY,
             Collections.emptyList(),
             new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)

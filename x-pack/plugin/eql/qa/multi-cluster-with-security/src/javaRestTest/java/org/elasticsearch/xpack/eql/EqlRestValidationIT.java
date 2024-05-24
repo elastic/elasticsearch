@@ -7,13 +7,34 @@
 
 package org.elasticsearch.xpack.eql;
 
+import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
+
+import org.elasticsearch.test.TestClustersThreadFilter;
 import org.elasticsearch.test.eql.EqlRestValidationTestCase;
+import org.junit.ClassRule;
+import org.junit.rules.RuleChain;
+import org.junit.rules.TestRule;
 
 import java.io.IOException;
 
+import static org.elasticsearch.xpack.eql.RemoteClusterTestUtils.LOCAL_CLUSTER;
+import static org.elasticsearch.xpack.eql.RemoteClusterTestUtils.REMOTE_CLUSTER;
 import static org.elasticsearch.xpack.eql.RemoteClusterTestUtils.remoteClusterPattern;
 
+@ThreadLeakFilters(filters = TestClustersThreadFilter.class)
 public class EqlRestValidationIT extends EqlRestValidationTestCase {
+    @ClassRule
+    public static TestRule clusterRule = RuleChain.outerRule(REMOTE_CLUSTER).around(LOCAL_CLUSTER);
+
+    @Override
+    protected String getTestRestCluster() {
+        return LOCAL_CLUSTER.getHttpAddresses();
+    }
+
+    @Override
+    protected String getRemoteCluster() {
+        return REMOTE_CLUSTER.getHttpAddresses();
+    }
 
     @Override
     protected String getInexistentIndexErrorMessage() {

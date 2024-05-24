@@ -16,6 +16,7 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.NodesShutdownMetadata;
 import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
+import org.elasticsearch.cluster.routing.RerouteService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.MasterServiceTaskQueue;
 import org.elasticsearch.test.ESTestCase;
@@ -57,6 +58,7 @@ public class TransportDeleteShutdownNodeActionTests extends ESTestCase {
         var threadPool = mock(ThreadPool.class);
         var transportService = MockUtils.setupTransportServiceWithThreadpoolExecutor(threadPool);
         clusterService = mock(ClusterService.class);
+        var rerouteService = mock(RerouteService.class);
         var actionFilters = mock(ActionFilters.class);
         var indexNameExpressionResolver = mock(IndexNameExpressionResolver.class);
         when(clusterService.createTaskQueue(any(), any(), Mockito.<ClusterStateTaskExecutor<DeleteShutdownNodeTask>>any())).thenReturn(
@@ -65,6 +67,7 @@ public class TransportDeleteShutdownNodeActionTests extends ESTestCase {
         action = new TransportDeleteShutdownNodeAction(
             transportService,
             clusterService,
+            rerouteService,
             threadPool,
             actionFilters,
             indexNameExpressionResolver
@@ -77,7 +80,7 @@ public class TransportDeleteShutdownNodeActionTests extends ESTestCase {
         var metadata = Metadata.builder().putCustom(TYPE, nodesShutdownMetadata).build();
         var clusterStateWithShutdown = ClusterState.builder(ClusterState.EMPTY_STATE).metadata(metadata).build();
 
-        var request = new DeleteShutdownNodeAction.Request("node1");
+        var request = new DeleteShutdownNodeAction.Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, "node1");
         action.masterOperation(null, request, clusterStateWithShutdown, ActionListener.noop());
         var updateTask = ArgumentCaptor.forClass(DeleteShutdownNodeTask.class);
         var taskExecutor = ArgumentCaptor.forClass(DeleteShutdownNodeExecutor.class);

@@ -31,8 +31,8 @@ public class FrozenStorageDeciderIT extends AbstractFrozenAutoscalingIntegTestCa
             capacity().results().get("frozen").requiredCapacity().total().storage(),
             equalTo(
                 ByteSizeValue.ofBytes(
-                    (long) (statsResponse.getPrimaries().store.totalDataSetSize().getBytes()
-                        * FrozenStorageDeciderService.DEFAULT_PERCENTAGE) / 100
+                    (long) (statsResponse.getPrimaries().store.totalDataSetSizeInBytes() * FrozenStorageDeciderService.DEFAULT_PERCENTAGE)
+                        / 100
                 )
             )
         );

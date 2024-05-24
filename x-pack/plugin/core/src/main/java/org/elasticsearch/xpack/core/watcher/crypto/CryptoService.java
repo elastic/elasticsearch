@@ -156,7 +156,7 @@ public class CryptoService {
      * @param chars the chars to check if they are encrypted
      * @return true is data is encrypted
      */
-    protected boolean isEncrypted(char[] chars) {
+    protected static boolean isEncrypted(char[] chars) {
         return CharArrays.charsBeginsWith(ENCRYPTED_TEXT_PREFIX, chars);
     }
 

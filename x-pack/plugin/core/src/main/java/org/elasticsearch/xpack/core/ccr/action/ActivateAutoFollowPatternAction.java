@@ -25,7 +25,7 @@ public class ActivateAutoFollowPatternAction extends ActionType<AcknowledgedResp
     public static final ActivateAutoFollowPatternAction INSTANCE = new ActivateAutoFollowPatternAction();
 
     private ActivateAutoFollowPatternAction() {
-        super(NAME, AcknowledgedResponse::readFrom);
+        super(NAME);
     }
 
     public static class Request extends AcknowledgedRequest<Request> {
@@ -34,6 +34,7 @@ public class ActivateAutoFollowPatternAction extends ActionType<AcknowledgedResp
         private final boolean active;
 
         public Request(final String name, final boolean active) {
+            super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT, DEFAULT_ACK_TIMEOUT);
             this.name = name;
             this.active = active;
         }

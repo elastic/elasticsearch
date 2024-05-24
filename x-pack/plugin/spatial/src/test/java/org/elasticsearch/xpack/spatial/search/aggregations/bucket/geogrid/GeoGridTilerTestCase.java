@@ -27,6 +27,7 @@ import org.elasticsearch.geometry.Polygon;
 import org.elasticsearch.geometry.Rectangle;
 import org.elasticsearch.index.mapper.GeoShapeIndexer;
 import org.elasticsearch.indices.breaker.BreakerSettings;
+import org.elasticsearch.indices.breaker.CircuitBreakerMetrics;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
@@ -248,6 +249,7 @@ public abstract class GeoGridTilerTestCase<T extends GeoGridTiler> extends ESTes
         }
 
         CircuitBreakerService service = new HierarchyCircuitBreakerService(
+            CircuitBreakerMetrics.NOOP,
             Settings.EMPTY,
             Collections.singletonList(new BreakerSettings("limited", maxNumBytes - 1, 1.0)),
             new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)

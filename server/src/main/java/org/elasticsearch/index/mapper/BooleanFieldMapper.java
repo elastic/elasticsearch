@@ -48,6 +48,7 @@ import java.io.IOException;
 import java.time.ZoneId;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
@@ -68,7 +69,7 @@ public class BooleanFieldMapper extends FieldMapper {
         return (BooleanFieldMapper) in;
     }
 
-    public static class Builder extends FieldMapper.Builder {
+    public static final class Builder extends FieldMapper.Builder {
 
         private final Parameter<Boolean> docValues = Parameter.docValuesParam(m -> toType(m).hasDocValues, true);
         private final Parameter<Boolean> indexed = Parameter.indexParam(m -> toType(m).indexed, true);
@@ -93,7 +94,6 @@ public class BooleanFieldMapper extends FieldMapper {
 
         private final IndexVersion indexCreatedVersion;
 
-        @SuppressWarnings("this-escape")
         public Builder(String name, ScriptCompiler scriptCompiler, boolean ignoreMalformedByDefault, IndexVersion indexCreatedVersion) {
             super(name);
             this.scriptCompiler = Objects.requireNonNull(scriptCompiler);
@@ -116,7 +116,7 @@ public class BooleanFieldMapper extends FieldMapper {
         @Override
         public BooleanFieldMapper build(MapperBuilderContext context) {
             MappedFieldType ft = new BooleanFieldType(
-                context.buildFullName(name),
+                context.buildFullName(name()),
                 indexed.getValue() && indexCreatedVersion.isLegacyIndexVersion() == false,
                 stored.getValue(),
                 docValues.getValue(),
@@ -124,7 +124,7 @@ public class BooleanFieldMapper extends FieldMapper {
                 scriptValues(),
                 meta.getValue()
             );
-            return new BooleanFieldMapper(name, ft, multiFieldsBuilder.build(this, context), copyTo, context.isSourceSynthetic(), this);
+            return new BooleanFieldMapper(name(), ft, multiFieldsBuilder.build(this, context), copyTo, context.isSourceSynthetic(), this);
         }
 
         private FieldValues<Boolean> scriptValues() {
@@ -134,7 +134,7 @@ public class BooleanFieldMapper extends FieldMapper {
             BooleanFieldScript.Factory scriptFactory = scriptCompiler.compile(script.get(), BooleanFieldScript.CONTEXT);
             return scriptFactory == null
                 ? null
-                : (lookup, ctx, doc, consumer) -> scriptFactory.newFactory(name, script.get().getParams(), lookup, OnScriptError.FAIL)
+                : (lookup, ctx, doc, consumer) -> scriptFactory.newFactory(name(), script.get().getParams(), lookup, OnScriptError.FAIL)
                     .newInstance(ctx)
                     .runForDoc(doc, consumer);
         }
@@ -256,6 +256,18 @@ public class BooleanFieldMapper extends FieldMapper {
         }
 
         @Override
+        public BlockLoader blockLoader(BlockLoaderContext blContext) {
+            if (hasDocValues()) {
+                return new BlockDocValuesReader.BooleansBlockLoader(name());
+            }
+            ValueFetcher fetcher = sourceValueFetcher(blContext.sourcePaths(name()));
+            BlockSourceReader.LeafIteratorLookup lookup = isIndexed() || isStored()
+                ? BlockSourceReader.lookupFromFieldNames(blContext.fieldNames(), name())
+                : BlockSourceReader.lookupMatchingAll();
+            return new BlockSourceReader.BooleansBlockLoader(fetcher, lookup);
+        }
+
+        @Override
         public IndexFieldData.Builder fielddataBuilder(FieldDataContext fieldDataContext) {
             FielddataOperation operation = fieldDataContext.fielddataOperation();
 
@@ -264,7 +276,9 @@ public class BooleanFieldMapper extends FieldMapper {
             }
 
             if ((operation == FielddataOperation.SEARCH || operation == FielddataOperation.SCRIPT) && hasDocValues()) {
-                return new SortedNumericIndexFieldData.Builder(name(), NumericType.BOOLEAN, BooleanDocValuesField::new);
+                // boolean fields are indexed, but not with points
+                boolean indexed = false;
+                return new SortedNumericIndexFieldData.Builder(name(), NumericType.BOOLEAN, BooleanDocValuesField::new, indexed);
             }
 
             if (operation == FielddataOperation.SCRIPT) {
@@ -306,8 +320,9 @@ public class BooleanFieldMapper extends FieldMapper {
             if (isIndexed()) {
                 return super.termsQuery(values, context);
             } else {
+                Set<?> dedupe = new HashSet<>(values);
                 BooleanQuery.Builder builder = new BooleanQuery.Builder();
-                for (Object value : values) {
+                for (Object value : dedupe) {
                     builder.add(termQuery(value, context), BooleanClause.Occur.SHOULD);
                 }
                 return new ConstantScoreQuery(builder.build());
@@ -469,6 +484,11 @@ public class BooleanFieldMapper extends FieldMapper {
     @Override
     protected String contentType() {
         return CONTENT_TYPE;
+    }
+
+    @Override
+    protected SyntheticSourceMode syntheticSourceMode() {
+        return SyntheticSourceMode.NATIVE;
     }
 
     @Override

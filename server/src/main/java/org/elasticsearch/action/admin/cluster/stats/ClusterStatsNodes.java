@@ -8,7 +8,6 @@
 
 package org.elasticsearch.action.admin.cluster.stats;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
 import org.elasticsearch.action.admin.cluster.node.info.PluginsAndModules;
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
@@ -48,7 +47,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 public class ClusterStatsNodes implements ToXContentFragment {
 
     private final Counts counts;
-    private final Set<Version> versions;
+    private final Set<String> versions;
     private final OsStats os;
     private final ProcessStats process;
     private final JvmStats jvm;
@@ -95,7 +94,7 @@ public class ClusterStatsNodes implements ToXContentFragment {
         return this.counts;
     }
 
-    public Set<Version> getVersions() {
+    public Set<String> getVersions() {
         return versions;
     }
 
@@ -137,8 +136,8 @@ public class ClusterStatsNodes implements ToXContentFragment {
         builder.endObject();
 
         builder.startArray(Fields.VERSIONS);
-        for (Version v : versions) {
-            builder.value(v.toString());
+        for (var v : versions) {
+            builder.value(v);
         }
         builder.endArray();
 
@@ -783,9 +782,11 @@ public class ClusterStatsNodes implements ToXContentFragment {
             long coordinatingRejections = 0;
             long primaryRejections = 0;
             long replicaRejections = 0;
+            long primaryDocumentRejections = 0;
             long memoryLimit = 0;
 
             long totalCoordinatingOps = 0;
+            long totalCoordinatingRequests = 0;
             long totalPrimaryOps = 0;
             long totalReplicaOps = 0;
             long currentCoordinatingOps = 0;
@@ -812,6 +813,8 @@ public class ClusterStatsNodes implements ToXContentFragment {
                     currentCoordinatingOps += nodeStatIndexingPressureStats.getCurrentCoordinatingOps();
                     currentPrimaryOps += nodeStatIndexingPressureStats.getCurrentPrimaryOps();
                     currentReplicaOps += nodeStatIndexingPressureStats.getCurrentReplicaOps();
+                    primaryDocumentRejections += nodeStatIndexingPressureStats.getPrimaryDocumentRejections();
+                    totalCoordinatingRequests += nodeStatIndexingPressureStats.getTotalCoordinatingRequests();
                 }
             }
             indexingPressureStats = new IndexingPressureStats(
@@ -832,7 +835,9 @@ public class ClusterStatsNodes implements ToXContentFragment {
                 totalReplicaOps,
                 currentCoordinatingOps,
                 currentPrimaryOps,
-                currentReplicaOps
+                currentReplicaOps,
+                primaryDocumentRejections,
+                totalCoordinatingRequests
             );
         }
 

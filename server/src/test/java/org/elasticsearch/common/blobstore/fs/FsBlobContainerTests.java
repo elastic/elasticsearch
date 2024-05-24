@@ -20,6 +20,7 @@ import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.core.PathUtilsForTesting;
+import org.elasticsearch.repositories.blobstore.RequestedRangeNotSatisfiedException;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.After;
 import org.junit.Before;
@@ -41,14 +42,19 @@ import java.nio.file.spi.FileSystemProvider;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
+import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 
+import static org.elasticsearch.repositories.blobstore.BlobStoreTestUtil.randomNonDataPurpose;
+import static org.elasticsearch.repositories.blobstore.BlobStoreTestUtil.randomPurpose;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.oneOf;
 import static org.hamcrest.Matchers.startsWith;
 
 @LuceneTestCase.SuppressFileSystems("*") // we do our own mocking
@@ -86,10 +92,48 @@ public class FsBlobContainerTests extends ESTestCase {
         final long start = randomLongBetween(0L, Math.max(0L, blobData.length - 1));
         final long length = randomLongBetween(1L, blobData.length - start);
 
-        try (InputStream stream = container.readBlob(blobName, start, length)) {
+        try (InputStream stream = container.readBlob(randomPurpose(), blobName, start, length)) {
             assertThat(totalBytesRead.get(), equalTo(0L));
             assertThat(Streams.consumeFully(stream), equalTo(length));
             assertThat(totalBytesRead.get(), equalTo(length));
+        }
+    }
+
+    public void testReadAfterBlobLengthThrowsRequestedRangeNotSatisfiedException() throws IOException {
+        final var blobName = "blob";
+        final byte[] blobData = randomByteArrayOfLength(randomIntBetween(1, frequently() ? 512 : 1 << 20)); // rarely up to 1mb
+
+        final Path path = PathUtils.get(createTempDir().toString());
+        Files.write(path.resolve(blobName), blobData);
+
+        final FsBlobContainer container = new FsBlobContainer(
+            new FsBlobStore(randomIntBetween(1, 8) * 1024, path, true),
+            BlobPath.EMPTY,
+            path
+        );
+
+        {
+            long position = randomLongBetween(blobData.length, Long.MAX_VALUE - 1L);
+            long length = randomLongBetween(1L, Long.MAX_VALUE - position);
+            var exception = expectThrows(
+                RequestedRangeNotSatisfiedException.class,
+                () -> container.readBlob(randomPurpose(), blobName, position, length)
+            );
+            assertThat(
+                exception.getMessage(),
+                equalTo("Requested range [position=" + position + ", length=" + length + "] cannot be satisfied for [" + blobName + ']')
+            );
+        }
+
+        {
+            long position = randomLongBetween(0L, Math.max(0L, blobData.length - 1));
+            long maxLength = blobData.length - position;
+            long length = randomLongBetween(maxLength + 1L, Long.MAX_VALUE - 1L);
+            try (var stream = container.readBlob(randomPurpose(), blobName, position, length)) {
+                assertThat(totalBytesRead.get(), equalTo(0L));
+                assertThat(Streams.consumeFully(stream), equalTo(maxLength));
+                assertThat(totalBytesRead.get(), equalTo(maxLength));
+            }
         }
     }
 
@@ -118,11 +162,11 @@ public class FsBlobContainerTests extends ESTestCase {
             path
         );
 
-        container.deleteBlobsIgnoringIfNotExists(List.of(blobName).listIterator());
+        container.deleteBlobsIgnoringIfNotExists(randomPurpose(), List.of(blobName).listIterator());
         // Should not throw exception
-        container.deleteBlobsIgnoringIfNotExists(List.of(blobName).listIterator());
+        container.deleteBlobsIgnoringIfNotExists(randomPurpose(), List.of(blobName).listIterator());
 
-        assertFalse(container.blobExists(blobName));
+        assertFalse(container.blobExists(randomPurpose(), blobName));
     }
 
     private static BytesReference getBytesAsync(Consumer<ActionListener<OptionalBytesReference>> consumer) {
@@ -149,10 +193,11 @@ public class FsBlobContainerTests extends ESTestCase {
 
         for (int i = 0; i < 5; i++) {
             switch (between(1, 4)) {
-                case 1 -> assertEquals(expectedValue.get(), getBytesAsync(l -> container.getRegister(key, l)));
+                case 1 -> assertEquals(expectedValue.get(), getBytesAsync(l -> container.getRegister(randomPurpose(), key, l)));
                 case 2 -> assertFalse(
                     getAsync(
                         l -> container.compareAndSetRegister(
+                            randomPurpose(),
                             key,
                             randomValueOtherThan(expectedValue.get(), () -> new BytesArray(randomByteArrayOfLength(8))),
                             new BytesArray(randomByteArrayOfLength(8)),
@@ -164,6 +209,7 @@ public class FsBlobContainerTests extends ESTestCase {
                     expectedValue.get(),
                     getBytesAsync(
                         l -> container.compareAndExchangeRegister(
+                            randomPurpose(),
                             key,
                             randomValueOtherThan(expectedValue.get(), () -> new BytesArray(randomByteArrayOfLength(8))),
                             new BytesArray(randomByteArrayOfLength(8)),
@@ -178,21 +224,94 @@ public class FsBlobContainerTests extends ESTestCase {
 
             final var newValue = new BytesArray(randomByteArrayOfLength(8));
             if (randomBoolean()) {
-                assertTrue(getAsync(l -> container.compareAndSetRegister(key, expectedValue.get(), newValue, l)));
+                assertTrue(getAsync(l -> container.compareAndSetRegister(randomPurpose(), key, expectedValue.get(), newValue, l)));
             } else {
                 assertEquals(
                     expectedValue.get(),
-                    getBytesAsync(l -> container.compareAndExchangeRegister(key, expectedValue.get(), newValue, l))
+                    getBytesAsync(l -> container.compareAndExchangeRegister(randomPurpose(), key, expectedValue.get(), newValue, l))
                 );
             }
             expectedValue.set(newValue);
         }
 
-        container.writeBlob(key, new BytesArray(new byte[17]), false);
+        container.writeBlob(randomPurpose(), key, new BytesArray(new byte[17]), false);
         expectThrows(
             IllegalStateException.class,
-            () -> getBytesAsync(l -> container.compareAndExchangeRegister(key, expectedValue.get(), BytesArray.EMPTY, l))
+            () -> getBytesAsync(l -> container.compareAndExchangeRegister(randomPurpose(), key, expectedValue.get(), BytesArray.EMPTY, l))
         );
+    }
+
+    public void testRegisterContention() throws Exception {
+        final Path path = PathUtils.get(createTempDir().toString());
+        final FsBlobContainer container = new FsBlobContainer(
+            new FsBlobStore(randomIntBetween(1, 8) * 1024, path, false),
+            BlobPath.EMPTY,
+            path
+        );
+
+        final String contendedKey = randomAlphaOfLength(10);
+        final String uncontendedKey = randomAlphaOfLength(10);
+
+        final var startValue = new BytesArray(randomByteArrayOfLength(8));
+        final var finalValue = randomValueOtherThan(startValue, () -> new BytesArray(randomByteArrayOfLength(8)));
+
+        final var p = randomPurpose();
+        assertTrue(PlainActionFuture.get(l -> container.compareAndSetRegister(p, contendedKey, BytesArray.EMPTY, startValue, l)));
+        assertTrue(PlainActionFuture.get(l -> container.compareAndSetRegister(p, uncontendedKey, BytesArray.EMPTY, startValue, l)));
+
+        final var threads = new Thread[between(2, 5)];
+        final var startBarrier = new CyclicBarrier(threads.length + 1);
+        final var casSucceeded = new AtomicBoolean();
+        for (int i = 0; i < threads.length; i++) {
+            threads[i] = new Thread(
+                i == 0
+                    // first thread does an uncontended write, which must succeed
+                    ? () -> {
+                        safeAwait(startBarrier);
+                        final OptionalBytesReference result = PlainActionFuture.get(
+                            l -> container.compareAndExchangeRegister(p, uncontendedKey, startValue, finalValue, l)
+                        );
+                        // NB calling .bytesReference() asserts that the result is present, there was no contention
+                        assertEquals(startValue, result.bytesReference());
+                    }
+                    // other threads try and do contended writes, which may fail and need retrying
+                    : () -> {
+                        safeAwait(startBarrier);
+                        while (casSucceeded.get() == false) {
+                            final OptionalBytesReference result = PlainActionFuture.get(
+                                l -> container.compareAndExchangeRegister(p, contendedKey, startValue, finalValue, l)
+                            );
+                            if (result.isPresent() && result.bytesReference().equals(startValue)) {
+                                casSucceeded.set(true);
+                            }
+                        }
+                    },
+                "write-thread-" + i
+            );
+            threads[i].start();
+        }
+
+        safeAwait(startBarrier);
+        while (casSucceeded.get() == false) {
+            for (var key : new String[] { contendedKey, uncontendedKey }) {
+                // NB calling .bytesReference() asserts that the read did not experience contention
+                assertThat(
+                    PlainActionFuture.<OptionalBytesReference, RuntimeException>get(l -> container.getRegister(p, key, l)).bytesReference(),
+                    oneOf(startValue, finalValue)
+                );
+            }
+        }
+
+        for (Thread thread : threads) {
+            thread.join();
+        }
+
+        for (var key : new String[] { contendedKey, uncontendedKey }) {
+            assertEquals(
+                finalValue,
+                PlainActionFuture.<OptionalBytesReference, RuntimeException>get(l -> container.getRegister(p, key, l)).bytesReference()
+            );
+        }
     }
 
     public void testAtomicWriteMetadataWithoutAtomicOverwrite() throws IOException {
@@ -225,15 +344,25 @@ public class FsBlobContainerTests extends ESTestCase {
             BlobPath.EMPTY,
             path
         );
-        container.writeBlobAtomic(blobName, new BytesArray(randomByteArrayOfLength(randomIntBetween(1, 512))), true);
+        container.writeBlobAtomic(
+            randomNonDataPurpose(),
+            blobName,
+            new BytesArray(randomByteArrayOfLength(randomIntBetween(1, 512))),
+            true
+        );
         final var blobData = new BytesArray(randomByteArrayOfLength(randomIntBetween(1, 512)));
-        container.writeBlobAtomic(blobName, blobData, false);
-        assertEquals(blobData, Streams.readFully(container.readBlob(blobName)));
+        container.writeBlobAtomic(randomNonDataPurpose(), blobName, blobData, false);
+        assertEquals(blobData, Streams.readFully(container.readBlob(randomPurpose(), blobName)));
         expectThrows(
             FileAlreadyExistsException.class,
-            () -> container.writeBlobAtomic(blobName, new BytesArray(randomByteArrayOfLength(randomIntBetween(1, 512))), true)
+            () -> container.writeBlobAtomic(
+                randomNonDataPurpose(),
+                blobName,
+                new BytesArray(randomByteArrayOfLength(randomIntBetween(1, 512))),
+                true
+            )
         );
-        for (String blob : container.listBlobs().keySet()) {
+        for (String blob : container.listBlobs(randomPurpose()).keySet()) {
             assertFalse("unexpected temp blob [" + blob + "]", FsBlobContainer.isTempBlobName(blob));
         }
     }

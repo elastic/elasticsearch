@@ -156,7 +156,7 @@ public class RemoteClusterSecurityTransformMigrationIT extends AbstractRemoteClu
 
     // First migrate to RCS 2.0
     @Order(30)
-    public void testQueryClusterRestartForRcs2() throws IOException {
+    public void testQueryClusterCredentialsChangeForRcs2() throws IOException {
         // Update the transform_user_role so that it is sufficient for both RCS 1.0 and 2.0
         final Request putRoleRequest = new Request("POST", "/_security/role/" + TRANSFORM_USER_ROLE);
         putRoleRequest.setJsonEntity("""
@@ -198,9 +198,7 @@ public class RemoteClusterSecurityTransformMigrationIT extends AbstractRemoteClu
                 }
               ]
             }""");
-        keystoreSettings.put("cluster.remote.my_remote_cluster.credentials", (String) crossClusterAccessApiKey.get("encoded"));
-        queryCluster.restart(false);
-        closeClients();
+        configureRemoteClusterCredentials("my_remote_cluster", (String) crossClusterAccessApiKey.get("encoded"), keystoreSettings);
     }
 
     @Order(40)
@@ -222,7 +220,7 @@ public class RemoteClusterSecurityTransformMigrationIT extends AbstractRemoteClu
 
     // Second migrate back to RCS 1.0
     @Order(50)
-    public void testQueryClusterRestartAgainForRcs1() throws IOException {
+    public void testQueryClusterCredentialsChangeAgainForRcs1() throws IOException {
         stopTransform();
 
         // Remove the RCS 2.0 remote cluster
@@ -247,9 +245,7 @@ public class RemoteClusterSecurityTransformMigrationIT extends AbstractRemoteClu
         indexSourceDocuments(new UserStars("a", 0));
 
         // Remove remote cluster credentials to revert back to RCS 1.0
-        keystoreSettings.remove("cluster.remote.my_remote_cluster.credentials");
-        queryCluster.restart(false);
-        closeClients();
+        removeRemoteClusterCredentials("my_remote_cluster", keystoreSettings);
     }
 
     @Order(60)

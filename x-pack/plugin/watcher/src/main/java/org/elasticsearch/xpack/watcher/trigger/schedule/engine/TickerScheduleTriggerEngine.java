@@ -14,6 +14,7 @@ import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.xpack.core.watcher.support.WatcherDateTimeUtils;
 import org.elasticsearch.xpack.core.watcher.trigger.TriggerEvent;
 import org.elasticsearch.xpack.core.watcher.watch.Watch;
 import org.elasticsearch.xpack.watcher.trigger.schedule.Schedule;
@@ -59,6 +60,7 @@ public class TickerScheduleTriggerEngine extends ScheduleTriggerEngine {
     @Override
     public synchronized void start(Collection<Watch> jobs) {
         long startTime = clock.millis();
+        logger.info("Watcher starting watches at {}", WatcherDateTimeUtils.dateTimeFormatter.formatMillis(startTime));
         Map<String, ActiveSchedule> startingSchedules = Maps.newMapWithExpectedSize(jobs.size());
         for (Watch job : jobs) {
             if (job.trigger() instanceof ScheduleTrigger trigger) {
@@ -128,7 +130,7 @@ public class TickerScheduleTriggerEngine extends ScheduleTriggerEngine {
         }
     }
 
-    private ZonedDateTime utcDateTimeAtEpochMillis(long triggeredTime) {
+    private static ZonedDateTime utcDateTimeAtEpochMillis(long triggeredTime) {
         return Instant.ofEpochMilli(triggeredTime).atZone(ZoneOffset.UTC);
     }
 
@@ -154,6 +156,11 @@ public class TickerScheduleTriggerEngine extends ScheduleTriggerEngine {
             this.schedule = schedule;
             this.startTime = startTime;
             this.scheduledTime = schedule.nextScheduledTimeAfter(startTime, startTime);
+            logger.debug(
+                "Watcher: activating schedule for watch '{}', first run at {}",
+                name,
+                WatcherDateTimeUtils.dateTimeFormatter.formatMillis(scheduledTime)
+            );
         }
 
         /**

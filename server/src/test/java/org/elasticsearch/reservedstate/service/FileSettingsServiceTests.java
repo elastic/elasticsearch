@@ -9,6 +9,7 @@
 package org.elasticsearch.reservedstate.service;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
@@ -62,7 +63,6 @@ public class FileSettingsServiceTests extends ESTestCase {
     private ThreadPool threadpool;
 
     @Before
-    @SuppressWarnings("unchecked")
     public void setUp() throws Exception {
         super.setUp();
 
@@ -83,7 +83,6 @@ public class FileSettingsServiceTests extends ESTestCase {
             .build();
         doAnswer((Answer<ClusterState>) invocation -> clusterState).when(clusterService).state();
 
-        clusterService.setRerouteService(mock(RerouteService.class));
         clusterService.setNodeConnectionsService(mock(NodeConnectionsService.class));
         clusterService.getClusterApplierService().setInitialState(clusterState);
         clusterService.getMasterService().setClusterStatePublisher((e, pl, al) -> {
@@ -101,7 +100,11 @@ public class FileSettingsServiceTests extends ESTestCase {
 
         ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
 
-        controller = new ReservedClusterStateService(clusterService, List.of(new ReservedClusterSettingsAction(clusterSettings)));
+        controller = new ReservedClusterStateService(
+            clusterService,
+            mock(RerouteService.class),
+            List.of(new ReservedClusterSettingsAction(clusterSettings))
+        );
         fileSettingsService = spy(new FileSettingsService(clusterService, controller, env));
     }
 
@@ -110,6 +113,16 @@ public class FileSettingsServiceTests extends ESTestCase {
         super.tearDown();
         clusterService.close();
         threadpool.shutdownNow();
+    }
+
+    public void testStartStop() {
+        fileSettingsService.start();
+        assertFalse(fileSettingsService.watching());
+        fileSettingsService.clusterChanged(new ClusterChangedEvent("test", clusterService.state(), ClusterState.EMPTY_STATE));
+        assertTrue(fileSettingsService.watching());
+        fileSettingsService.stop();
+        assertFalse(fileSettingsService.watching());
+        fileSettingsService.close();
     }
 
     public void testOperatorDirName() {
@@ -220,6 +233,12 @@ public class FileSettingsServiceTests extends ESTestCase {
             return new ReservedStateChunk(Collections.emptyMap(), new ReservedStateVersion(1L, Version.CURRENT));
         }).when(spiedController).parse(any(String.class), any());
 
+        doAnswer((Answer<Void>) invocation -> {
+            var completionListener = invocation.getArgument(1, ActionListener.class);
+            completionListener.onResponse(null);
+            return null;
+        }).when(spiedController).initEmpty(any(String.class), any());
+
         service.start();
         service.clusterChanged(new ClusterChangedEvent("test", clusterService.state(), ClusterState.EMPTY_STATE));
         assertTrue(service.watching());
@@ -234,55 +253,6 @@ public class FileSettingsServiceTests extends ESTestCase {
         assertTrue(processFileLatch.await(30, TimeUnit.SECONDS));
 
         // Stopping the service should interrupt the watcher thread, we should be able to stop
-        service.stop();
-        assertFalse(service.watching());
-        service.close();
-        // let the deadlocked thread end, so we can cleanly exit the test
-        deadThreadLatch.countDown();
-    }
-
-    public void testStopWorksIfProcessingDidntReturnYet() throws Exception {
-        var spiedController = spy(controller);
-        var service = new FileSettingsService(clusterService, spiedController, env);
-
-        CountDownLatch processFileLatch = new CountDownLatch(1);
-        CountDownLatch deadThreadLatch = new CountDownLatch(1);
-
-        doAnswer((Answer<ReservedStateChunk>) invocation -> {
-            // allow the other thread to continue, but hold on a bit to avoid
-            // completing the task immediately in the main watcher loop
-            try {
-                Thread.sleep(1_000);
-            } catch (InterruptedException e) {
-                // pass it on
-                Thread.currentThread().interrupt();
-            }
-            processFileLatch.countDown();
-            new Thread(() -> {
-                // Simulate a thread that never allows the completion to complete
-                try {
-                    deadThreadLatch.await();
-                } catch (InterruptedException e) {
-                    throw new RuntimeException(e);
-                }
-            }).start();
-            return new ReservedStateChunk(Collections.emptyMap(), new ReservedStateVersion(1L, Version.CURRENT));
-        }).when(spiedController).parse(any(String.class), any());
-
-        service.start();
-        service.clusterChanged(new ClusterChangedEvent("test", clusterService.state(), ClusterState.EMPTY_STATE));
-        assertTrue(service.watching());
-
-        Files.createDirectories(service.watchedFileDir());
-
-        // Make some fake settings file to cause the file settings service to process it
-        writeTestFile(service.watchedFile(), "{}");
-
-        // we need to wait a bit, on MacOS it may take up to 10 seconds for the Java watcher service to notice the file,
-        // on Linux is instantaneous. Windows is instantaneous too.
-        assertTrue(processFileLatch.await(30, TimeUnit.SECONDS));
-
-        // Stopping the service should interrupt the watcher thread, allowing the whole thing to exit
         service.stop();
         assertFalse(service.watching());
         service.close();

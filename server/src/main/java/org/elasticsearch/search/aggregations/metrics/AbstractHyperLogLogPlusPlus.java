@@ -81,12 +81,7 @@ public abstract class AbstractHyperLogLogPlusPlus extends AbstractCardinalityAlg
             AbstractHyperLogLog.RunLenIterator iterator = getHyperLogLog(bucketOrd);
             while (iterator.next()) {
                 byte runLength = iterator.value();
-                Integer numOccurances = values.get(runLength);
-                if (numOccurances == null) {
-                    values.put(runLength, 1);
-                } else {
-                    values.put(runLength, numOccurances + 1);
-                }
+                values.merge(runLength, 1, Integer::sum);
             }
             return values;
         }

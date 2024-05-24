@@ -6,8 +6,10 @@
  */
 package org.elasticsearch.xpack.transform.notifications;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.action.admin.indices.template.put.PutComposableIndexTemplateAction;
+import org.elasticsearch.action.admin.indices.template.put.TransportPutComposableIndexTemplateAction;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
@@ -30,6 +32,8 @@ import static org.elasticsearch.xpack.core.ClientHelper.TRANSFORM_ORIGIN;
  */
 public class TransformAuditor extends AbstractAuditor<TransformAuditMessage> {
 
+    private static final Logger logger = LogManager.getLogger(TransformAuditor.class);
+
     private volatile boolean isResetMode = false;
 
     private final boolean includeNodeInfo;
@@ -41,15 +45,16 @@ public class TransformAuditor extends AbstractAuditor<TransformAuditMessage> {
             TransformInternalIndexConstants.AUDIT_INDEX,
             () -> {
                 try {
-                    return new PutComposableIndexTemplateAction.Request(TransformInternalIndexConstants.AUDIT_INDEX).indexTemplate(
-                        new ComposableIndexTemplate.Builder().template(TransformInternalIndex.getAuditIndexTemplate())
+                    return new TransportPutComposableIndexTemplateAction.Request(TransformInternalIndexConstants.AUDIT_INDEX).indexTemplate(
+                        ComposableIndexTemplate.builder()
+                            .template(TransformInternalIndex.getAuditIndexTemplate())
                             .version((long) TransformConfigVersion.CURRENT.id())
-                            .indexPatterns(Collections.singletonList(TransformInternalIndexConstants.AUDIT_INDEX_PREFIX + "*"))
+                            .indexPatterns(Collections.singletonList(TransformInternalIndexConstants.AUDIT_INDEX_PATTERN))
                             .priority(Long.MAX_VALUE)
                             .build()
                     );
                 } catch (IOException e) {
-                    throw new ElasticsearchException("Failure creating transform notification index", e);
+                    throw new ElasticsearchException("Failure creating transform notification index template request", e);
                 }
             },
             nodeName,
@@ -58,7 +63,12 @@ public class TransformAuditor extends AbstractAuditor<TransformAuditMessage> {
         );
         clusterService.addListener(event -> {
             if (event.metadataChanged()) {
-                isResetMode = TransformMetadata.getTransformMetadata(event.state()).isResetMode();
+                boolean oldIsResetMode = isResetMode;
+                boolean newIsResetMode = TransformMetadata.getTransformMetadata(event.state()).isResetMode();
+                if (oldIsResetMode != newIsResetMode) {
+                    logger.debug("TransformAuditor has noticed change of isResetMode bit from {} to {}", oldIsResetMode, newIsResetMode);
+                }
+                isResetMode = newIsResetMode;
             }
         });
         this.includeNodeInfo = includeNodeInfo;

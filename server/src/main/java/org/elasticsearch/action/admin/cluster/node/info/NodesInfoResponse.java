@@ -9,6 +9,7 @@
 package org.elasticsearch.action.admin.cluster.node.info;
 
 import org.elasticsearch.action.FailedNodeException;
+import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.action.support.nodes.BaseNodesResponse;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
@@ -34,22 +35,18 @@ import java.util.Map;
 
 public class NodesInfoResponse extends BaseNodesResponse<NodeInfo> implements ToXContentFragment {
 
-    public NodesInfoResponse(StreamInput in) throws IOException {
-        super(in);
-    }
-
     public NodesInfoResponse(ClusterName clusterName, List<NodeInfo> nodes, List<FailedNodeException> failures) {
         super(clusterName, nodes, failures);
     }
 
     @Override
     protected List<NodeInfo> readNodesFrom(StreamInput in) throws IOException {
-        return in.readCollectionAsList(NodeInfo::new);
+        return TransportAction.localOnly();
     }
 
     @Override
     protected void writeNodesTo(StreamOutput out, List<NodeInfo> nodes) throws IOException {
-        out.writeCollection(nodes);
+        TransportAction.localOnly();
     }
 
     @Override

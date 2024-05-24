@@ -9,12 +9,11 @@ package org.elasticsearch.xpack.slm;
 
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsResponse;
-import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotAction;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
+import org.elasticsearch.action.admin.cluster.snapshots.restore.TransportRestoreSnapshotAction;
 import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotStatus;
 import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotsStatusResponse;
-import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.cluster.SnapshotsInProgress;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
@@ -57,6 +56,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 import static org.elasticsearch.xpack.slm.history.SnapshotHistoryStore.SLM_HISTORY_DATA_STREAM;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.empty;
@@ -271,15 +271,17 @@ public class SLMSnapshotBlockingIntegTests extends AbstractSnapshotIntegTestCase
 
             // Assert that the history document has been written for taking the snapshot and deleting it
             assertBusy(() -> {
-                SearchResponse resp = client().prepareSearch(".slm-history*")
-                    .setQuery(QueryBuilders.matchQuery("snapshot_name", completedSnapshotName))
-                    .get();
-                logger.info(
-                    "--> checking history written for {}, got: {}",
-                    completedSnapshotName,
-                    Strings.arrayToCommaDelimitedString(resp.getHits().getHits())
+                assertResponse(
+                    prepareSearch(".slm-history*").setQuery(QueryBuilders.matchQuery("snapshot_name", completedSnapshotName)),
+                    resp -> {
+                        logger.info(
+                            "--> checking history written for {}, got: {}",
+                            completedSnapshotName,
+                            Strings.arrayToCommaDelimitedString(resp.getHits().getHits())
+                        );
+                        assertThat(resp.getHits().getTotalHits().value, equalTo(2L));
+                    }
                 );
-                assertThat(resp.getHits().getTotalHits().value, equalTo(2L));
             });
         } finally {
             unblockNode(REPO, internalCluster().getMasterName());
@@ -422,8 +424,7 @@ public class SLMSnapshotBlockingIntegTests extends AbstractSnapshotIntegTestCase
                 try {
                     GetSnapshotsResponse snapshotsStatusResponse = clusterAdmin().prepareGetSnapshots(REPO)
                         .setSnapshots(successfulSnapshotName.get())
-                        .execute()
-                        .actionGet();
+                        .get();
                     snapshotInfo = snapshotsStatusResponse.getSnapshots().get(0);
                 } catch (SnapshotMissingException sme) {
                     throw new AssertionError(sme);
@@ -513,7 +514,7 @@ public class SLMSnapshotBlockingIntegTests extends AbstractSnapshotIntegTestCase
         restoreReq.renamePattern("(.+)");
         restoreReq.renameReplacement("restored_$1");
         restoreReq.waitForCompletion(true);
-        RestoreSnapshotResponse resp = client().execute(RestoreSnapshotAction.INSTANCE, restoreReq).get();
+        RestoreSnapshotResponse resp = client().execute(TransportRestoreSnapshotAction.TYPE, restoreReq).get();
         assertThat(resp.status(), equalTo(RestStatus.OK));
 
         logger.info("--> executing SLM retention");

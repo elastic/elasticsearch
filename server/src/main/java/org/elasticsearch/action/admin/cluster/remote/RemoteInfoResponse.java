@@ -9,7 +9,6 @@
 package org.elasticsearch.action.admin.cluster.remote;
 
 import org.elasticsearch.action.ActionResponse;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.transport.RemoteConnectionInfo;
 import org.elasticsearch.xcontent.ToXContentObject;
@@ -22,11 +21,6 @@ import java.util.List;
 public final class RemoteInfoResponse extends ActionResponse implements ToXContentObject {
 
     private final List<RemoteConnectionInfo> infos;
-
-    RemoteInfoResponse(StreamInput in) throws IOException {
-        super(in);
-        infos = in.readCollectionAsImmutableList(RemoteConnectionInfo::new);
-    }
 
     public RemoteInfoResponse(Collection<RemoteConnectionInfo> infos) {
         this.infos = List.copyOf(infos);

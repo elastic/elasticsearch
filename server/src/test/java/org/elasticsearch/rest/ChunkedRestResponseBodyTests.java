@@ -50,7 +50,7 @@ public class ChunkedRestResponseBodyTests extends ESTestCase {
         }
         final var bytesDirect = BytesReference.bytes(builderDirect);
 
-        final var chunkedResponse = ChunkedRestResponseBody.fromXContent(
+        var chunkedResponse = ChunkedRestResponseBody.fromXContent(
             chunkedToXContent,
             ToXContent.EMPTY_PARAMS,
             new FakeRestChannel(
@@ -70,8 +70,7 @@ public class ChunkedRestResponseBodyTests extends ESTestCase {
 
     public void testFromTextChunks() throws IOException {
         final var chunks = randomList(1000, () -> randomUnicodeOfLengthBetween(1, 100));
-        final var body = ChunkedRestResponseBody.fromTextChunks("text/plain", Iterators.map(chunks.iterator(), s -> w -> w.write(s)));
-
+        var body = ChunkedRestResponseBody.fromTextChunks("text/plain", Iterators.map(chunks.iterator(), s -> w -> w.write(s)));
         final List<BytesReference> refsGenerated = new ArrayList<>();
         while (body.isDone() == false) {
             refsGenerated.add(body.encodeChunk(randomIntBetween(2, 10), BytesRefRecycler.NON_RECYCLING_INSTANCE));

@@ -86,7 +86,7 @@ public class PreBuiltAnalyzerIntegrationIT extends ESIntegTestCase {
         int amountOfIndicesToClose = randomInt(numIndices - 1);
         for (int i = 0; i < amountOfIndicesToClose; i++) {
             String indexName = indexNames.get(i);
-            indicesAdmin().prepareClose(indexName).execute().actionGet();
+            indicesAdmin().prepareClose(indexName).get();
         }
 
         ensureGreen();

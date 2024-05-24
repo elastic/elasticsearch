@@ -27,6 +27,7 @@ import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.monitor.jvm.JvmInfo;
 
+import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Arrays;
@@ -107,12 +108,20 @@ class ServerCli extends EnvironmentAwareCommand {
 
         // we are running in the foreground, so wait for the server to exit
         int exitCode = server.waitFor();
+        onExit(exitCode);
+    }
+
+    /**
+     * A post-exit hook to perform additional processing before the command terminates
+     * @param exitCode the server process exit code
+     */
+    protected void onExit(int exitCode) throws UserException {
         if (exitCode != ExitCodes.OK) {
             throw new UserException(exitCode, "Elasticsearch exited unexpectedly");
         }
     }
 
-    private void printVersion(Terminal terminal) {
+    private static void printVersion(Terminal terminal) {
         final String versionOutput = String.format(
             Locale.ROOT,
             "Version: %s, Build: %s/%s/%s, JVM: %s",
@@ -197,7 +206,7 @@ class ServerCli extends EnvironmentAwareCommand {
         syncPlugins.execute(terminal, syncPlugins.parseOptions(new String[0]), env, processInfo);
     }
 
-    private void validatePidFile(Path pidFile) throws UserException {
+    private static void validatePidFile(Path pidFile) throws UserException {
         Path parent = pidFile.getParent();
         if (parent != null && Files.exists(parent) && Files.isDirectory(parent) == false) {
             throw new UserException(ExitCodes.USAGE, "pid file parent [" + parent + "] exists but is not a directory");
@@ -219,14 +228,19 @@ class ServerCli extends EnvironmentAwareCommand {
             }
             validatePidFile(pidFile);
         }
-        return new ServerArgs(daemonize, quiet, pidFile, secrets, env.settings(), env.configFile());
+        return new ServerArgs(daemonize, quiet, pidFile, secrets, env.settings(), env.configFile(), env.logsFile());
     }
 
     @Override
-    public void close() {
+    public void close() throws IOException {
         if (server != null) {
             server.stop();
         }
+    }
+
+    // allow subclasses to access the started process
+    protected ServerProcess getServer() {
+        return server;
     }
 
     // protected to allow tests to override
@@ -235,8 +249,15 @@ class ServerCli extends EnvironmentAwareCommand {
     }
 
     // protected to allow tests to override
-    protected ServerProcess startServer(Terminal terminal, ProcessInfo processInfo, ServerArgs args) throws UserException {
-        return ServerProcess.start(terminal, processInfo, args);
+    protected ServerProcess startServer(Terminal terminal, ProcessInfo processInfo, ServerArgs args) throws Exception {
+        var tempDir = ServerProcessUtils.setupTempDir(processInfo);
+        var jvmOptions = JvmOptionsParser.determineJvmOptions(args, processInfo, tempDir, new MachineDependentHeap());
+        var serverProcessBuilder = new ServerProcessBuilder().withTerminal(terminal)
+            .withProcessInfo(processInfo)
+            .withServerArgs(args)
+            .withTempDir(tempDir)
+            .withJvmOptions(jvmOptions);
+        return serverProcessBuilder.start();
     }
 
     // protected to allow tests to override

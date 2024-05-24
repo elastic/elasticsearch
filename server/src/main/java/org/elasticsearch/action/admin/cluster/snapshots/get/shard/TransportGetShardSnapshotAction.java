@@ -9,6 +9,7 @@
 package org.elasticsearch.action.admin.cluster.snapshots.get.shard;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.cluster.ClusterState;
@@ -20,6 +21,7 @@ import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.repositories.IndexSnapshotsService;
 import org.elasticsearch.repositories.RepositoriesService;
@@ -37,6 +39,8 @@ import java.util.Optional;
 
 public class TransportGetShardSnapshotAction extends TransportMasterNodeAction<GetShardSnapshotRequest, GetShardSnapshotResponse> {
 
+    public static final ActionType<GetShardSnapshotResponse> TYPE = new ActionType<>("internal:admin/snapshot/get_shard");
+
     private final IndexSnapshotsService indexSnapshotsService;
 
     @Inject
@@ -49,7 +53,7 @@ public class TransportGetShardSnapshotAction extends TransportMasterNodeAction<G
         IndexNameExpressionResolver indexNameExpressionResolver
     ) {
         super(
-            GetShardSnapshotAction.NAME,
+            TYPE.name(),
             transportService,
             clusterService,
             threadPool,
@@ -57,7 +61,7 @@ public class TransportGetShardSnapshotAction extends TransportMasterNodeAction<G
             GetShardSnapshotRequest::new,
             indexNameExpressionResolver,
             GetShardSnapshotResponse::new,
-            ThreadPool.Names.SAME
+            EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
         this.indexSnapshotsService = new IndexSnapshotsService(repositoriesService);
     }

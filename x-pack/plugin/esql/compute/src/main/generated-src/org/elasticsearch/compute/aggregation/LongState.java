@@ -8,8 +8,7 @@
 package org.elasticsearch.compute.aggregation;
 
 import org.elasticsearch.compute.data.Block;
-import org.elasticsearch.compute.data.ConstantBooleanVector;
-import org.elasticsearch.compute.data.ConstantLongVector;
+import org.elasticsearch.compute.operator.DriverContext;
 
 /**
  * Aggregator state for a single long.
@@ -45,10 +44,10 @@ final class LongState implements AggregatorState {
 
     /** Extracts an intermediate view of the contents of this state.  */
     @Override
-    public void toIntermediate(Block[] blocks, int offset) {
+    public void toIntermediate(Block[] blocks, int offset, DriverContext driverContext) {
         assert blocks.length >= offset + 2;
-        blocks[offset + 0] = new ConstantLongVector(value, 1).asBlock();
-        blocks[offset + 1] = new ConstantBooleanVector(seen, 1).asBlock();
+        blocks[offset + 0] = driverContext.blockFactory().newConstantLongBlockWith(value, 1);
+        blocks[offset + 1] = driverContext.blockFactory().newConstantBooleanBlockWith(seen, 1);
     }
 
     @Override

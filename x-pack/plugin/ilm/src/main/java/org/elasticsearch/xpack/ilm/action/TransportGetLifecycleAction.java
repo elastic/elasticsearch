@@ -56,7 +56,7 @@ public class TransportGetLifecycleAction extends TransportMasterNodeAction<Reque
             Request::new,
             indexNameExpressionResolver,
             Response::new,
-            ThreadPool.Names.MANAGEMENT
+            threadPool.executor(ThreadPool.Names.MANAGEMENT)
         );
     }
 

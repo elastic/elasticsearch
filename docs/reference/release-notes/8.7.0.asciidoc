@@ -16,6 +16,16 @@ include::8.6.0.asciidoc[tag=reconciliation-imbalance-known-issue]
 Ingest Node::
 * Making `JsonProcessor` stricter so that it does not silently drop data {es-pull}93179[#93179] (issue: {es-issue}92898[#92898])
 
+Indices APIs::
+* The <<indices-resolve-index-api>> API implementation was adjusted to use the
+same index resolution mechanism as other similar APIs, adding support for the
+`ignore_unavailable` and `allow_no_indices` flags and the `_all` meta-index. If
+there are no matching indices then earlier versions of this API would return an
+empty result with the `200 OK` HTTP response code, but from 8.7.0 onwards by
+default it returns an `IndexNotFoundException` with the `404 Not Found` HTTP
+response code. To recover the old behaviour, add the query parameter
+`?ignore_unavailable=true` ({es-pull}92820[#92820]).
+
 [[bug-8.7.0]]
 [float]
 === Bug fixes

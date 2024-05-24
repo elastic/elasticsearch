@@ -35,7 +35,7 @@ import java.io.IOException;
 public class TransportShardFlushAction extends TransportReplicationAction<ShardFlushRequest, ShardFlushRequest, ReplicationResponse> {
 
     public static final String NAME = FlushAction.NAME + "[s]";
-    public static final ActionType<ReplicationResponse> TYPE = new ActionType<>(NAME, ReplicationResponse::new);
+    public static final ActionType<ReplicationResponse> TYPE = new ActionType<>(NAME);
 
     @Inject
     public TransportShardFlushAction(
@@ -79,20 +79,18 @@ public class TransportShardFlushAction extends TransportReplicationAction<ShardF
         IndexShard primary,
         ActionListener<PrimaryResult<ShardFlushRequest, ReplicationResponse>> listener
     ) {
-        ActionListener.completeWith(listener, () -> {
-            primary.flush(shardRequest.getRequest());
+        primary.flush(shardRequest.getRequest(), listener.map(flushed -> {
             logger.trace("{} flush request executed on primary", primary.shardId());
             return new PrimaryResult<>(shardRequest, new ReplicationResponse());
-        });
+        }));
     }
 
     @Override
     protected void shardOperationOnReplica(ShardFlushRequest request, IndexShard replica, ActionListener<ReplicaResult> listener) {
-        ActionListener.completeWith(listener, () -> {
-            replica.flush(request.getRequest());
+        replica.flush(request.getRequest(), listener.map(flushed -> {
             logger.trace("{} flush request executed on replica", replica.shardId());
             return new ReplicaResult();
-        });
+        }));
     }
 
     // TODO: Remove this transition in 9.0

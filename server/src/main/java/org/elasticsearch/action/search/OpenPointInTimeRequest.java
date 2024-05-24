@@ -17,6 +17,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 
@@ -38,6 +39,8 @@ public final class OpenPointInTimeRequest extends ActionRequest implements Indic
     @Nullable
     private String preference;
 
+    private QueryBuilder indexFilter;
+
     public static final IndicesOptions DEFAULT_INDICES_OPTIONS = SearchRequest.DEFAULT_INDICES_OPTIONS;
 
     public OpenPointInTimeRequest(String... indices) {
@@ -51,8 +54,11 @@ public final class OpenPointInTimeRequest extends ActionRequest implements Indic
         this.keepAlive = in.readTimeValue();
         this.routing = in.readOptionalString();
         this.preference = in.readOptionalString();
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_500_020)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_9_X)) {
             this.maxConcurrentShardRequests = in.readVInt();
+        }
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
+            this.indexFilter = in.readOptionalNamedWriteable(QueryBuilder.class);
         }
     }
 
@@ -64,8 +70,11 @@ public final class OpenPointInTimeRequest extends ActionRequest implements Indic
         out.writeTimeValue(keepAlive);
         out.writeOptionalString(routing);
         out.writeOptionalString(preference);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_500_020)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_9_X)) {
             out.writeVInt(maxConcurrentShardRequests);
+        }
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
+            out.writeOptionalWriteable(indexFilter);
         }
     }
 
@@ -151,6 +160,14 @@ public final class OpenPointInTimeRequest extends ActionRequest implements Indic
             throw new IllegalArgumentException("maxConcurrentShardRequests must be >= 1");
         }
         this.maxConcurrentShardRequests = maxConcurrentShardRequests;
+    }
+
+    public void indexFilter(QueryBuilder indexFilter) {
+        this.indexFilter = indexFilter;
+    }
+
+    public QueryBuilder indexFilter() {
+        return indexFilter;
     }
 
     @Override

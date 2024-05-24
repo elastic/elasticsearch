@@ -107,7 +107,7 @@ public class SystemIndexMetadataUpgradeService implements ClusterStateListener {
     }
 
     // package-private for testing
-    boolean isVisible(IndexMetadata indexMetadata) {
+    static boolean isVisible(IndexMetadata indexMetadata) {
         return indexMetadata.getSettings().getAsBoolean(IndexMetadata.SETTING_INDEX_HIDDEN, false) == false;
     }
 
@@ -118,7 +118,7 @@ public class SystemIndexMetadataUpgradeService implements ClusterStateListener {
     }
 
     // package-private for testing
-    boolean hasVisibleAlias(IndexMetadata indexMetadata) {
+    static boolean hasVisibleAlias(IndexMetadata indexMetadata) {
         return indexMetadata.getAliases().values().stream().anyMatch(a -> Boolean.FALSE.equals(a.isHidden()));
     }
 

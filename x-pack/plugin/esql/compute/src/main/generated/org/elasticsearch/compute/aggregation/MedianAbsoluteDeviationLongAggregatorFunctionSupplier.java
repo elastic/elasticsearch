@@ -8,31 +8,28 @@ import java.lang.Integer;
 import java.lang.Override;
 import java.lang.String;
 import java.util.List;
-import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.compute.operator.DriverContext;
 
 /**
  * {@link AggregatorFunctionSupplier} implementation for {@link MedianAbsoluteDeviationLongAggregator}.
  * This class is generated. Do not edit it.
  */
 public final class MedianAbsoluteDeviationLongAggregatorFunctionSupplier implements AggregatorFunctionSupplier {
-  private final BigArrays bigArrays;
-
   private final List<Integer> channels;
 
-  public MedianAbsoluteDeviationLongAggregatorFunctionSupplier(BigArrays bigArrays,
-      List<Integer> channels) {
-    this.bigArrays = bigArrays;
+  public MedianAbsoluteDeviationLongAggregatorFunctionSupplier(List<Integer> channels) {
     this.channels = channels;
   }
 
   @Override
-  public MedianAbsoluteDeviationLongAggregatorFunction aggregator() {
-    return MedianAbsoluteDeviationLongAggregatorFunction.create(channels);
+  public MedianAbsoluteDeviationLongAggregatorFunction aggregator(DriverContext driverContext) {
+    return MedianAbsoluteDeviationLongAggregatorFunction.create(driverContext, channels);
   }
 
   @Override
-  public MedianAbsoluteDeviationLongGroupingAggregatorFunction groupingAggregator() {
-    return MedianAbsoluteDeviationLongGroupingAggregatorFunction.create(channels, bigArrays);
+  public MedianAbsoluteDeviationLongGroupingAggregatorFunction groupingAggregator(
+      DriverContext driverContext) {
+    return MedianAbsoluteDeviationLongGroupingAggregatorFunction.create(channels, driverContext);
   }
 
   @Override

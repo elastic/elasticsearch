@@ -34,7 +34,7 @@ public class PutTrainedModelDefinitionPartAction extends ActionType<Acknowledged
     public static final String NAME = "cluster:admin/xpack/ml/trained_models/part/put";
 
     private PutTrainedModelDefinitionPartAction() {
-        super(NAME, AcknowledgedResponse::readFrom);
+        super(NAME);
     }
 
     public static class Request extends AcknowledgedRequest<Request> {
@@ -76,6 +76,7 @@ public class PutTrainedModelDefinitionPartAction extends ActionType<Acknowledged
             int totalParts,
             boolean allowOverwriting
         ) {
+            super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT, DEFAULT_ACK_TIMEOUT);
             this.modelId = ExceptionsHelper.requireNonNull(modelId, TrainedModelConfig.MODEL_ID);
             this.definition = ExceptionsHelper.requireNonNull(definition, DEFINITION);
             this.part = part;
@@ -91,7 +92,7 @@ public class PutTrainedModelDefinitionPartAction extends ActionType<Acknowledged
             this.part = in.readVInt();
             this.totalDefinitionLength = in.readVLong();
             this.totalParts = in.readVInt();
-            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_500_043)) {
+            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_10_X)) {
                 this.allowOverwriting = in.readBoolean();
             } else {
                 this.allowOverwriting = false;
@@ -148,7 +149,7 @@ public class PutTrainedModelDefinitionPartAction extends ActionType<Acknowledged
             out.writeVInt(part);
             out.writeVLong(totalDefinitionLength);
             out.writeVInt(totalParts);
-            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_500_043)) {
+            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_10_X)) {
                 out.writeBoolean(allowOverwriting);
             }
         }

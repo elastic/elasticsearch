@@ -14,11 +14,11 @@ import org.elasticsearch.test.cluster.local.distribution.ReleasedDistributionRes
 import org.elasticsearch.test.cluster.local.distribution.SnapshotDistributionResolver;
 import org.elasticsearch.test.cluster.util.resource.Resource;
 
-public class DefaultLocalClusterSpecBuilder extends AbstractLocalClusterSpecBuilder<ElasticsearchCluster> {
+public final class DefaultLocalClusterSpecBuilder extends AbstractLocalClusterSpecBuilder<ElasticsearchCluster> {
 
-    @SuppressWarnings("this-escape")
     public DefaultLocalClusterSpecBuilder() {
         super();
+        this.apply(c -> c.systemProperty("ingest.geoip.downloader.enabled.default", "false"));
         this.apply(new FipsEnabledClusterConfigProvider());
         this.settings(new DefaultSettingsProvider());
         this.environment(new DefaultEnvironmentProvider());
@@ -34,4 +34,5 @@ public class DefaultLocalClusterSpecBuilder extends AbstractLocalClusterSpecBuil
             )
         );
     }
+
 }

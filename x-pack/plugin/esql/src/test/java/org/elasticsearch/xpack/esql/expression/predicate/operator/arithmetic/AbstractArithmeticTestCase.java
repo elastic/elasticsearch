@@ -7,20 +7,22 @@
 
 package org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic;
 
+import org.elasticsearch.xpack.esql.core.expression.predicate.BinaryOperator;
+import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.type.DataTypes;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.AbstractBinaryOperatorTestCase;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
-import org.elasticsearch.xpack.ql.expression.predicate.BinaryOperator;
-import org.elasticsearch.xpack.ql.type.DataType;
-import org.elasticsearch.xpack.ql.type.DataTypes;
 import org.hamcrest.Matcher;
 
 import java.util.List;
 import java.util.Locale;
+import java.util.function.Supplier;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.nullValue;
 
 public abstract class AbstractArithmeticTestCase extends AbstractBinaryOperatorTestCase {
     protected Matcher<Object> resultMatcher(List<Object> data, DataType dataType) {
@@ -118,5 +120,28 @@ public abstract class AbstractArithmeticTestCase extends AbstractBinaryOperatorT
             return DataTypes.NULL;
         }
         throw new UnsupportedOperationException();
+    }
+
+    static TestCaseSupplier arithmeticExceptionOverflowCase(
+        DataType dataType,
+        Supplier<Object> lhsSupplier,
+        Supplier<Object> rhsSupplier,
+        String evaluator
+    ) {
+        String typeNameOverflow = dataType.typeName().toLowerCase(Locale.ROOT) + " overflow";
+        return new TestCaseSupplier(
+            "<" + typeNameOverflow + ">",
+            List.of(dataType),
+            () -> new TestCaseSupplier.TestCase(
+                List.of(
+                    new TestCaseSupplier.TypedData(lhsSupplier.get(), dataType, "lhs"),
+                    new TestCaseSupplier.TypedData(rhsSupplier.get(), dataType, "rhs")
+                ),
+                evaluator + "[lhs=Attribute[channel=0], rhs=Attribute[channel=1]]",
+                dataType,
+                is(nullValue())
+            ).withWarning("Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.")
+                .withWarning("Line -1:-1: java.lang.ArithmeticException: " + typeNameOverflow)
+        );
     }
 }

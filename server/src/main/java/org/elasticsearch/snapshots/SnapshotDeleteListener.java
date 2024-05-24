@@ -12,12 +12,14 @@ import org.elasticsearch.repositories.RepositoryData;
 public interface SnapshotDeleteListener {
 
     /**
-     * Invoked once a snapshot has been fully deleted from the repository.
+     * Invoked once the snapshots have been fully deleted from the repository, including all async cleanup operations, indicating that
+     * listeners waiting for the end of the deletion can now be notified.
      */
     void onDone();
 
     /**
-     * Invoked once the updated {@link RepositoryData} has been written to the repository.
+     * Invoked once the updated {@link RepositoryData} has been written to the repository and it is safe for the next repository operation
+     * to proceed.
      *
      * @param repositoryData updated repository data
      */

@@ -12,13 +12,11 @@ import org.elasticsearch.TransportVersions;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.Diff;
-import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ChunkedToXContentDiffableSerializationTestCase;
 import org.elasticsearch.xcontent.XContentParser;
@@ -31,6 +29,7 @@ import java.util.Map;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata.Type.SIGTERM;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
@@ -80,17 +79,13 @@ public class NodesShutdownMetadataTests extends ChunkedToXContentDiffableSeriali
                         .setReason("shutdown for a unit test")
                         .setType(type)
                         .setStartedAtMillis(randomNonNegativeLong())
-                        .setGracePeriod(
-                            type == SingleNodeShutdownMetadata.Type.SIGTERM
-                                ? TimeValue.parseTimeValue(randomTimeValue(), this.getTestName())
-                                : null
-                        )
+                        .setGracePeriod(type == SIGTERM ? randomTimeValue() : null)
                         .build()
                 )
             );
 
             DiscoveryNodes.Builder nodes = DiscoveryNodes.builder();
-            nodes.add(DiscoveryNode.createLocal(Settings.EMPTY, buildNewFakeTransportAddress(), "this_node"));
+            nodes.add(DiscoveryNodeUtils.create("this_node"));
             nodes.localNodeId("this_node");
             nodes.masterNodeId("this_node");
 
@@ -156,11 +151,11 @@ public class NodesShutdownMetadataTests extends ChunkedToXContentDiffableSeriali
             .setReason(randomAlphaOfLength(5))
             .setStartedAtMillis(randomNonNegativeLong());
         if (type.equals(SingleNodeShutdownMetadata.Type.RESTART) && randomBoolean()) {
-            builder.setAllocationDelay(TimeValue.parseTimeValue(randomTimeValue(), this.getTestName()));
+            builder.setAllocationDelay(randomTimeValue());
         } else if (type.equals(SingleNodeShutdownMetadata.Type.REPLACE)) {
             builder.setTargetNodeName(randomAlphaOfLengthBetween(5, 10));
         } else if (type.equals(SingleNodeShutdownMetadata.Type.SIGTERM)) {
-            builder.setGracePeriod(TimeValue.parseTimeValue(randomTimeValue(), this.getTestName()));
+            builder.setGracePeriod(randomTimeValue());
         }
         return builder.setNodeSeen(randomBoolean()).build();
     }

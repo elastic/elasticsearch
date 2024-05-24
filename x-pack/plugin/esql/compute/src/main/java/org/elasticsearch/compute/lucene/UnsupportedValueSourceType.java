@@ -9,11 +9,12 @@ package org.elasticsearch.compute.lucene;
 
 import org.elasticsearch.script.AggregationScript;
 import org.elasticsearch.search.DocValueFormat;
-import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.FieldContext;
 import org.elasticsearch.search.aggregations.support.ValueType;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
+
+import java.util.function.LongSupplier;
 
 // just a placeholder class for unsupported data types
 public class UnsupportedValueSourceType implements ValuesSourceType {
@@ -44,7 +45,7 @@ public class UnsupportedValueSourceType implements ValuesSourceType {
         ValuesSource valuesSource,
         Object rawMissing,
         DocValueFormat docValueFormat,
-        AggregationContext context
+        LongSupplier nowInMillis
     ) {
         throw new UnsupportedOperationException();
     }

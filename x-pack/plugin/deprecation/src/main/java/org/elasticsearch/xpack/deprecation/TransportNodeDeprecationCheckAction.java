@@ -64,11 +64,9 @@ public class TransportNodeDeprecationCheckAction extends TransportNodesAction<
     ) {
         super(
             NodesDeprecationCheckAction.NAME,
-            threadPool,
             clusterService,
             transportService,
             actionFilters,
-            NodesDeprecationCheckRequest::new,
             NodesDeprecationCheckAction.NodeRequest::new,
             threadPool.executor(ThreadPool.Names.GENERIC)
         );
@@ -157,8 +155,8 @@ public class TransportNodeDeprecationCheckAction extends TransportNodesAction<
     ) {
         DiskUsage usage = clusterInfo.getNodeMostAvailableDiskUsages().get(nodeId);
         if (usage != null) {
-            long freeBytes = usage.getFreeBytes();
-            long totalBytes = usage.getTotalBytes();
+            long freeBytes = usage.freeBytes();
+            long totalBytes = usage.totalBytes();
             if (exceedsLowWatermark(nodeSettings, clusterSettings, freeBytes, totalBytes)
                 || exceedsLowWatermark(dynamicSettings, clusterSettings, freeBytes, totalBytes)) {
                 return new DeprecationIssue(

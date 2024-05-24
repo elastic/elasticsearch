@@ -65,7 +65,7 @@ import static org.elasticsearch.core.Strings.format;
  *
  * @see org.elasticsearch.index.analysis.HunspellTokenFilterFactory
  */
-public class HunspellService {
+public final class HunspellService {
 
     private static final Logger logger = LogManager.getLogger(HunspellService.class);
 
@@ -89,7 +89,6 @@ public class HunspellService {
     private final Path hunspellDir;
     private final Function<String, Dictionary> loadingFunction;
 
-    @SuppressWarnings("this-escape")
     public HunspellService(final Settings settings, final Environment env, final Map<String, Dictionary> knownDictionaries)
         throws IOException {
         this.knownDictionaries = Collections.unmodifiableMap(knownDictionaries);

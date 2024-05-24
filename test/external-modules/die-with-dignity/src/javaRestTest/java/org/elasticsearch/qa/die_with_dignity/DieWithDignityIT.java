@@ -24,8 +24,6 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
-import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
@@ -68,7 +66,7 @@ public class DieWithDignityIT extends ESRestTestCase {
                 line,
                 ".*ERROR.*",
                 ".*ElasticsearchUncaughtExceptionHandler.*",
-                ".*fatal error in thread \\[Thread-\\d+\\], exiting.*",
+                ".*fatal error in thread \\[elasticsearch-error-rethrower\\], exiting.*",
                 ".*java.lang.OutOfMemoryError: Requested array size exceeds VM limit.*"
             )) {
                 fatalErrorInThreadExiting = true;
@@ -79,7 +77,7 @@ public class DieWithDignityIT extends ESRestTestCase {
     }
 
     private Process startJcmd(long pid) throws IOException {
-        final String jcmdPath = PathUtils.get(System.getProperty("tests.runtime.java"), "bin/jcmd").toString();
+        final String jcmdPath = PathUtils.get(System.getProperty("java.home"), "bin/jcmd").toString();
         return new ProcessBuilder().command(jcmdPath, Long.toString(pid), "VM.command_line").redirectErrorStream(true).start();
     }
 
@@ -142,12 +140,6 @@ public class DieWithDignityIT extends ESRestTestCase {
             }
         }
         return true;
-    }
-
-    private void debugLogs(Path path) throws IOException {
-        try (BufferedReader reader = Files.newBufferedReader(path)) {
-            reader.lines().forEach(line -> logger.info(line));
-        }
     }
 
     @Override

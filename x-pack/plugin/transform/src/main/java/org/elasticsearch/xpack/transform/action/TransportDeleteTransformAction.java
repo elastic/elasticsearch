@@ -10,8 +10,8 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.admin.indices.delete.DeleteIndexAction;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
+import org.elasticsearch.action.admin.indices.delete.TransportDeleteIndexAction;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.AcknowledgedTransportMasterNodeAction;
@@ -22,6 +22,7 @@ import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexNotFoundException;
@@ -70,10 +71,10 @@ public class TransportDeleteTransformAction extends AcknowledgedTransportMasterN
             actionFilters,
             Request::new,
             indexNameExpressionResolver,
-            ThreadPool.Names.SAME
+            EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
-        this.transformConfigManager = transformServices.getConfigManager();
-        this.auditor = transformServices.getAuditor();
+        this.transformConfigManager = transformServices.configManager();
+        this.auditor = transformServices.auditor();
         this.client = client;
     }
 
@@ -94,7 +95,7 @@ public class TransportDeleteTransformAction extends AcknowledgedTransportMasterN
         // <3> Delete transform config
         ActionListener<AcknowledgedResponse> deleteDestIndexListener = ActionListener.wrap(
             unusedAcknowledgedResponse -> transformConfigManager.deleteTransform(request.getId(), ActionListener.wrap(r -> {
-                logger.debug("[{}] deleted transform", request.getId());
+                logger.info("[{}] deleted transform", request.getId());
                 auditor.info(request.getId(), "Deleted transform.");
                 listener.onResponse(AcknowledgedResponse.of(r));
             }, listener::onFailure)),
@@ -104,14 +105,14 @@ public class TransportDeleteTransformAction extends AcknowledgedTransportMasterN
         // <2> Delete destination index if requested
         ActionListener<StopTransformAction.Response> stopTransformActionListener = ActionListener.wrap(unusedStopResponse -> {
             if (request.isDeleteDestIndex()) {
-                deleteDestinationIndex(parentTaskId, request.getId(), request.timeout(), deleteDestIndexListener);
+                deleteDestinationIndex(parentTaskId, request.getId(), request.ackTimeout(), deleteDestIndexListener);
             } else {
                 deleteDestIndexListener.onResponse(null);
             }
         }, listener::onFailure);
 
         // <1> Stop transform if it's currently running
-        stopTransform(transformIsRunning, parentTaskId, request.getId(), request.timeout(), stopTransformActionListener);
+        stopTransform(transformIsRunning, parentTaskId, request.getId(), request.ackTimeout(), stopTransformActionListener);
     }
 
     private void stopTransform(
@@ -151,13 +152,13 @@ public class TransportDeleteTransformAction extends AcknowledgedTransportMasterN
                 TransformConfig config = transformConfigAndVersion.v1();
                 String destIndex = config.getDestination().getIndex();
                 DeleteIndexRequest deleteDestIndexRequest = new DeleteIndexRequest(destIndex);
-                deleteDestIndexRequest.timeout(timeout);
+                deleteDestIndexRequest.ackTimeout(timeout);
                 deleteDestIndexRequest.setParentTask(parentTaskId);
                 executeWithHeadersAsync(
                     config.getHeaders(),
                     TRANSFORM_ORIGIN,
                     client,
-                    DeleteIndexAction.INSTANCE,
+                    TransportDeleteIndexAction.TYPE,
                     deleteDestIndexRequest,
                     deleteDestIndexListener
                 );

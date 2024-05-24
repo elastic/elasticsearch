@@ -25,6 +25,7 @@ import java.util.concurrent.atomic.AtomicLong;
 
 import static org.elasticsearch.index.seqno.SequenceNumbers.NO_OPS_PERFORMED;
 import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
+import static org.elasticsearch.index.shard.IndexShardTestCase.closeShardNoCheck;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.instanceOf;
@@ -63,7 +64,7 @@ public class GlobalCheckpointListenersIT extends ESSingleNodeTestCase {
                 }
 
             }, null);
-            client().prepareIndex("test").setId(Integer.toString(i)).setSource("{}", XContentType.JSON).get();
+            prepareIndex("test").setId(Integer.toString(i)).setSource("{}", XContentType.JSON).get();
             assertBusy(() -> assertThat(globalCheckpoint.get(), equalTo((long) index)));
             // adding a listener expecting a lower global checkpoint should fire immediately
             final AtomicLong immediateGlobalCheckpint = new AtomicLong();
@@ -101,7 +102,7 @@ public class GlobalCheckpointListenersIT extends ESSingleNodeTestCase {
             }
 
         }, null);
-        shard.close("closed", randomBoolean());
+        closeShardNoCheck(shard, randomBoolean());
         assertBusy(() -> assertTrue(invoked.get()));
     }
 

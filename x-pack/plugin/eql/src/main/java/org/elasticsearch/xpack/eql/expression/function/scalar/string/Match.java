@@ -32,18 +32,16 @@ import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isStringAndE
  * Returns true if the source field matches any of the provided regular expressions
  * Refer to: https://eql.readthedocs.io/en/latest/query-guide/functions.html#match
  */
-public class Match extends BaseSurrogateFunction {
+public final class Match extends BaseSurrogateFunction {
 
     private final Expression field;
     private final List<Expression> patterns;
     private final boolean caseInsensitive;
 
-    @SuppressWarnings("this-escape")
     public Match(Source source, Expression field, List<Expression> patterns, boolean caseInsensitive) {
         this(source, CollectionUtils.combine(singletonList(field), patterns), caseInsensitive);
     }
 
-    @SuppressWarnings("this-escape")
     private Match(Source source, List<Expression> children, boolean caseInsensitive) {
         super(source, children);
         this.field = children().get(0);

@@ -39,7 +39,7 @@ public enum SearchType {
      */
     public static final SearchType[] CURRENTLY_SUPPORTED = { QUERY_THEN_FETCH, DFS_QUERY_THEN_FETCH };
 
-    private byte id;
+    private final byte id;
 
     SearchType(byte id) {
         this.id = id;

@@ -7,27 +7,29 @@
 
 package org.elasticsearch.xpack.esql.planner;
 
-import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.aggregation.Aggregator;
 import org.elasticsearch.compute.aggregation.AggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.AggregatorMode;
 import org.elasticsearch.compute.aggregation.GroupingAggregator;
+import org.elasticsearch.compute.aggregation.blockhash.BlockHash;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.operator.AggregationOperator;
-import org.elasticsearch.compute.operator.HashAggregationOperator;
 import org.elasticsearch.compute.operator.HashAggregationOperator.HashAggregationOperatorFactory;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
+import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
+import org.elasticsearch.xpack.esql.core.expression.Alias;
+import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.Expressions;
+import org.elasticsearch.xpack.esql.core.expression.NameId;
+import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
 import org.elasticsearch.xpack.esql.plan.physical.AggregateExec;
+import org.elasticsearch.xpack.esql.plan.physical.ExchangeSourceExec;
 import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner.LocalExecutionPlannerContext;
 import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner.PhysicalOperation;
-import org.elasticsearch.xpack.ql.expression.Alias;
-import org.elasticsearch.xpack.ql.expression.Attribute;
-import org.elasticsearch.xpack.ql.expression.Expression;
-import org.elasticsearch.xpack.ql.expression.Expressions;
-import org.elasticsearch.xpack.ql.expression.NameId;
-import org.elasticsearch.xpack.ql.expression.NamedExpression;
-import org.elasticsearch.xpack.ql.expression.function.aggregate.AggregateFunction;
 
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -35,7 +37,9 @@ import java.util.List;
 import java.util.Set;
 import java.util.function.Consumer;
 
-abstract class AbstractPhysicalOperationProviders implements PhysicalOperationProviders {
+import static java.util.Collections.emptyList;
+
+public abstract class AbstractPhysicalOperationProviders implements PhysicalOperationProviders {
 
     private final AggregateMapper aggregateMapper = new AggregateMapper();
 
@@ -51,6 +55,20 @@ abstract class AbstractPhysicalOperationProviders implements PhysicalOperationPr
         var aggregates = aggregateExec.aggregates();
 
         var sourceLayout = source.layout;
+        AggregatorMode aggregatorMode;
+
+        if (mode == AggregateExec.Mode.FINAL) {
+            aggregatorMode = AggregatorMode.FINAL;
+        } else if (mode == AggregateExec.Mode.PARTIAL) {
+            if (aggregateExec.child() instanceof ExchangeSourceExec) {// the reducer step at data node (local) level
+                aggregatorMode = AggregatorMode.INTERMEDIATE;
+            } else {
+                aggregatorMode = AggregatorMode.INITIAL;
+            }
+        } else {
+            assert false : "Invalid aggregator mode [" + mode + "]";
+            aggregatorMode = AggregatorMode.SINGLE;
+        }
 
         if (aggregateExec.groupings().isEmpty()) {
             // not grouping
@@ -62,21 +80,18 @@ abstract class AbstractPhysicalOperationProviders implements PhysicalOperationPr
             } else {
                 layout.append(aggregateMapper.mapNonGrouping(aggregates));
             }
+
             // create the agg factories
             aggregatesToFactory(
                 aggregates,
-                mode,
+                aggregatorMode,
                 sourceLayout,
-                context.bigArrays(),
                 false, // non-grouping
                 s -> aggregatorFactories.add(s.supplier.aggregatorFactory(s.mode))
             );
 
             if (aggregatorFactories.isEmpty() == false) {
-                operatorFactory = new AggregationOperator.AggregationOperatorFactory(
-                    aggregatorFactories,
-                    mode == AggregateExec.Mode.FINAL ? AggregatorMode.FINAL : AggregatorMode.INITIAL
-                );
+                operatorFactory = new AggregationOperator.AggregationOperatorFactory(aggregatorFactories, aggregatorMode);
             }
         } else {
             // grouping
@@ -123,8 +138,8 @@ abstract class AbstractPhysicalOperationProviders implements PhysicalOperationPr
 
             if (mode == AggregateExec.Mode.FINAL) {
                 for (var agg : aggregates) {
-                    if (agg instanceof Alias alias && alias.child() instanceof AggregateFunction) {
-                        layout.append(alias);
+                    if (Alias.unwrap(agg) instanceof AggregateFunction) {
+                        layout.append(agg);
                     }
                 }
             } else {
@@ -134,9 +149,8 @@ abstract class AbstractPhysicalOperationProviders implements PhysicalOperationPr
             // create the agg factories
             aggregatesToFactory(
                 aggregates,
-                mode,
+                aggregatorMode,
                 sourceLayout,
-                context.bigArrays(),
                 true, // grouping
                 s -> aggregatorFactories.add(s.supplier.groupingAggregatorFactory(s.mode))
             );
@@ -154,8 +168,7 @@ abstract class AbstractPhysicalOperationProviders implements PhysicalOperationPr
                 operatorFactory = new HashAggregationOperatorFactory(
                     groupSpecs.stream().map(GroupSpec::toHashGroupSpec).toList(),
                     aggregatorFactories,
-                    context.pageSize(aggregateExec.estimatedRowSize()),
-                    context.bigArrays()
+                    context.pageSize(aggregateExec.estimatedRowSize())
                 );
             }
         }
@@ -219,9 +232,8 @@ abstract class AbstractPhysicalOperationProviders implements PhysicalOperationPr
 
     private void aggregatesToFactory(
         List<? extends NamedExpression> aggregates,
-        AggregateExec.Mode mode,
+        AggregatorMode mode,
         Layout layout,
-        BigArrays bigArrays,
         boolean grouping,
         Consumer<AggFunctionSupplierContext> consumer
     ) {
@@ -229,15 +241,34 @@ abstract class AbstractPhysicalOperationProviders implements PhysicalOperationPr
             if (ne instanceof Alias alias) {
                 var child = alias.child();
                 if (child instanceof AggregateFunction aggregateFunction) {
-                    AggregatorMode aggMode = null;
                     List<? extends NamedExpression> sourceAttr;
 
-                    if (mode == AggregateExec.Mode.PARTIAL) {
-                        aggMode = AggregatorMode.INITIAL;
+                    if (mode == AggregatorMode.INITIAL) {
                         // TODO: this needs to be made more reliable - use casting to blow up when dealing with expressions (e+1)
-                        sourceAttr = List.of(Expressions.attribute(aggregateFunction.field()));
-                    } else if (mode == AggregateExec.Mode.FINAL) {
-                        aggMode = AggregatorMode.FINAL;
+                        Expression field = aggregateFunction.field();
+                        // Only count can now support literals - all the other aggs should be optimized away
+                        if (field.foldable()) {
+                            if (aggregateFunction instanceof Count) {
+                                sourceAttr = emptyList();
+                            } else {
+                                throw new InvalidArgumentException(
+                                    "Does not support yet aggregations over constants - [{}]",
+                                    aggregateFunction.sourceText()
+                                );
+                            }
+                        } else {
+                            Attribute attr = Expressions.attribute(field);
+                            // cannot determine attribute
+                            if (attr == null) {
+                                throw new EsqlIllegalArgumentException(
+                                    "Cannot work with target field [{}] for agg [{}]",
+                                    field.sourceText(),
+                                    aggregateFunction.sourceText()
+                                );
+                            }
+                            sourceAttr = List.of(attr);
+                        }
+                    } else if (mode == AggregatorMode.FINAL || mode == AggregatorMode.INTERMEDIATE) {
                         if (grouping) {
                             sourceAttr = aggregateMapper.mapGrouping(aggregateFunction);
                         } else {
@@ -253,9 +284,11 @@ abstract class AbstractPhysicalOperationProviders implements PhysicalOperationPr
                     }
 
                     List<Integer> inputChannels = sourceAttr.stream().map(attr -> layout.get(attr.id()).channel()).toList();
-                    assert inputChannels != null && inputChannels.size() > 0 && inputChannels.stream().allMatch(i -> i >= 0);
+                    if (inputChannels.size() > 0) {
+                        assert inputChannels.size() > 0 && inputChannels.stream().allMatch(i -> i >= 0);
+                    }
                     if (aggregateFunction instanceof ToAggregator agg) {
-                        consumer.accept(new AggFunctionSupplierContext(agg.supplier(bigArrays, inputChannels), aggMode));
+                        consumer.accept(new AggFunctionSupplierContext(agg.supplier(inputChannels), mode));
                     } else {
                         throw new EsqlIllegalArgumentException("aggregate functions must extend ToAggregator");
                     }
@@ -265,15 +298,15 @@ abstract class AbstractPhysicalOperationProviders implements PhysicalOperationPr
     }
 
     private record GroupSpec(Integer channel, Attribute attribute) {
-        HashAggregationOperator.GroupSpec toHashGroupSpec() {
+        BlockHash.GroupSpec toHashGroupSpec() {
             if (channel == null) {
                 throw new EsqlIllegalArgumentException("planned to use ordinals but tried to use the hash instead");
             }
-            return new HashAggregationOperator.GroupSpec(channel, elementType());
+            return new BlockHash.GroupSpec(channel, elementType());
         }
 
         ElementType elementType() {
-            return LocalExecutionPlanner.toElementType(attribute.dataType());
+            return PlannerUtils.toElementType(attribute.dataType());
         }
     }
 

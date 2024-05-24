@@ -10,10 +10,10 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.multivalue;
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
+import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
-import org.elasticsearch.xpack.ql.expression.Expression;
-import org.elasticsearch.xpack.ql.tree.Source;
-import org.elasticsearch.xpack.ql.type.DataType;
 import org.hamcrest.Matcher;
 import org.hamcrest.Matchers;
 
@@ -38,6 +38,7 @@ public class MvDedupeTests extends AbstractMultivalueFunctionTestCase {
         List<TestCaseSupplier> cases = new ArrayList<>();
         booleans(cases, "mv_dedupe", "MvDedupe", (size, values) -> getMatcher(values));
         bytesRefs(cases, "mv_dedupe", "MvDedupe", (size, values) -> getMatcher(values));
+        dateTimes(cases, "mv_dedupe", "MvDedupe", (size, values) -> getMatcher(values.mapToObj(Long::valueOf)));
         doubles(cases, "mv_dedupe", "MvDedupe", (size, values) -> getMatcher(values.mapToObj(Double::valueOf)));
         ints(cases, "mv_dedupe", "MvDedupe", (size, values) -> getMatcher(values.mapToObj(Integer::valueOf)));
         longs(cases, "mv_dedupe", "MvDedupe", (size, values) -> getMatcher(values.mapToObj(Long::valueOf)));
@@ -53,7 +54,7 @@ public class MvDedupeTests extends AbstractMultivalueFunctionTestCase {
 
     @Override
     protected DataType[] supportedTypes() {
-        return representable();
+        return representableTypes();
     }
 
     @SuppressWarnings("unchecked")

@@ -37,7 +37,7 @@ import static org.elasticsearch.core.Strings.format;
 public class ReactorScheduledExecutorService extends AbstractExecutorService implements ScheduledExecutorService {
     private final ThreadPool threadPool;
     private final ExecutorService delegate;
-    private final Logger logger = LogManager.getLogger(ReactorScheduledExecutorService.class);
+    private static final Logger logger = LogManager.getLogger(ReactorScheduledExecutorService.class);
 
     public ReactorScheduledExecutorService(ThreadPool threadPool, String executorName) {
         this.threadPool = threadPool;

@@ -55,7 +55,7 @@ public class TransportCcrStatsAction extends TransportMasterNodeAction<CcrStatsA
             CcrStatsAction.Request::new,
             indexNameExpressionResolver,
             CcrStatsAction.Response::new,
-            Ccr.CCR_THREAD_POOL_NAME
+            threadPool.executor(Ccr.CCR_THREAD_POOL_NAME)
         );
         this.client = client;
         this.ccrLicenseChecker = Objects.requireNonNull(ccrLicenseChecker);
@@ -80,6 +80,9 @@ public class TransportCcrStatsAction extends TransportMasterNodeAction<CcrStatsA
     ) throws Exception {
         FollowStatsAction.StatsRequest statsRequest = new FollowStatsAction.StatsRequest();
         statsRequest.setParentTask(clusterService.localNode().getId(), task.getId());
+        if (request.getTimeout() != null) {
+            statsRequest.setTimeout(request.getTimeout());
+        }
         client.execute(FollowStatsAction.INSTANCE, statsRequest, listener.delegateFailureAndWrap((l, statsResponse) -> {
             AutoFollowStats stats = autoFollowCoordinator.getStats();
             l.onResponse(new CcrStatsAction.Response(stats, statsResponse));

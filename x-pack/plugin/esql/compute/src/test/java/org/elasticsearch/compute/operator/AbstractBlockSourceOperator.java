@@ -7,6 +7,7 @@
 
 package org.elasticsearch.compute.operator;
 
+import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.test.ESTestCase;
 
@@ -16,6 +17,8 @@ import org.elasticsearch.test.ESTestCase;
  */
 public abstract class AbstractBlockSourceOperator extends SourceOperator {
 
+    protected final BlockFactory blockFactory;
+
     private final int maxPagePositions;
 
     private boolean finished;
@@ -23,8 +26,9 @@ public abstract class AbstractBlockSourceOperator extends SourceOperator {
     /** The position of the next element to output. */
     protected int currentPosition;
 
-    protected AbstractBlockSourceOperator(int maxPagePositions) {
+    protected AbstractBlockSourceOperator(BlockFactory blockFactory, int maxPagePositions) {
         this.maxPagePositions = maxPagePositions;
+        this.blockFactory = blockFactory;
     }
 
     /** The number of remaining elements that this source operator will produce. */

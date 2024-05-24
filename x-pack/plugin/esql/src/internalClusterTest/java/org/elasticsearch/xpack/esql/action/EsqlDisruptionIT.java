@@ -8,12 +8,14 @@
 package org.elasticsearch.xpack.esql.action;
 
 import org.elasticsearch.action.ActionFuture;
+import org.elasticsearch.action.admin.cluster.node.tasks.list.TransportListTasksAction;
 import org.elasticsearch.cluster.coordination.Coordinator;
 import org.elasticsearch.cluster.coordination.FollowersChecker;
 import org.elasticsearch.cluster.coordination.LeaderChecker;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.compute.operator.exchange.ExchangeService;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.health.node.selection.HealthNode;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.disruption.NetworkDisruption;
@@ -47,11 +49,13 @@ public class EsqlDisruptionIT extends EsqlActionIT {
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
-        return Settings.builder()
+        Settings settings = Settings.builder()
             .put(super.nodeSettings(nodeOrdinal, otherSettings))
             .put(DEFAULT_SETTINGS)
             .put(ExchangeService.INACTIVE_SINKS_INTERVAL_SETTING, TimeValue.timeValueMillis(between(1000, 2000)))
             .build();
+        logger.info("settings {}", settings);
+        return settings;
     }
 
     @Override
@@ -89,7 +93,23 @@ public class EsqlDisruptionIT extends EsqlActionIT {
         try {
             return future.actionGet(2, TimeUnit.MINUTES);
         } catch (Exception e) {
+            logger.info(
+                "running tasks: {}",
+                client().admin()
+                    .cluster()
+                    .prepareListTasks()
+                    .get()
+                    .getTasks()
+                    .stream()
+                    .filter(
+                        // Skip the tasks we that'd get in the way while debugging
+                        t -> false == t.action().contains(TransportListTasksAction.TYPE.name())
+                            && false == t.action().contains(HealthNode.TASK_NAME)
+                    )
+                    .toList()
+            );
             assertTrue("request must be failed or completed after clearing disruption", future.isDone());
+            ensureBlocksReleased();
             logger.info("--> failed to execute esql query with disruption; retrying...", e);
             return client().execute(EsqlQueryAction.INSTANCE, request).actionGet(2, TimeUnit.MINUTES);
         }

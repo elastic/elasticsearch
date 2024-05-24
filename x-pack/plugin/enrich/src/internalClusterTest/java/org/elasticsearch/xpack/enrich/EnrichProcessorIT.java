@@ -52,9 +52,9 @@ public class EnrichProcessorIT extends ESSingleNodeTestCase {
         var statsRequest = new EnrichStatsAction.Request();
         var statsResponse = client().execute(EnrichStatsAction.INSTANCE, statsRequest).actionGet();
         assertThat(statsResponse.getCacheStats().size(), equalTo(1));
-        assertThat(statsResponse.getCacheStats().get(0).getCount(), equalTo(0L));
-        assertThat(statsResponse.getCacheStats().get(0).getMisses(), equalTo(0L));
-        assertThat(statsResponse.getCacheStats().get(0).getHits(), equalTo(0L));
+        assertThat(statsResponse.getCacheStats().get(0).count(), equalTo(0L));
+        assertThat(statsResponse.getCacheStats().get(0).misses(), equalTo(0L));
+        assertThat(statsResponse.getCacheStats().get(0).hits(), equalTo(0L));
 
         String policyName = "device-enrich-policy";
         String sourceIndexName = "devices-idx";
@@ -128,9 +128,9 @@ public class EnrichProcessorIT extends ESSingleNodeTestCase {
         // Verify that there was a cache miss and a new entry was added to enrich cache.
         statsResponse = client().execute(EnrichStatsAction.INSTANCE, statsRequest).actionGet();
         assertThat(statsResponse.getCacheStats().size(), equalTo(1));
-        assertThat(statsResponse.getCacheStats().get(0).getCount(), equalTo(1L));
-        assertThat(statsResponse.getCacheStats().get(0).getMisses(), equalTo(1L));
-        assertThat(statsResponse.getCacheStats().get(0).getHits(), equalTo(0L));
+        assertThat(statsResponse.getCacheStats().get(0).count(), equalTo(1L));
+        assertThat(statsResponse.getCacheStats().get(0).misses(), equalTo(1L));
+        assertThat(statsResponse.getCacheStats().get(0).hits(), equalTo(0L));
 
         simulatePipelineRequest = new SimulatePipelineRequest(new BytesArray("""
             {
@@ -164,9 +164,9 @@ public class EnrichProcessorIT extends ESSingleNodeTestCase {
         // Verify that enrich lookup was served from cache:
         statsResponse = client().execute(EnrichStatsAction.INSTANCE, statsRequest).actionGet();
         assertThat(statsResponse.getCacheStats().size(), equalTo(1));
-        assertThat(statsResponse.getCacheStats().get(0).getCount(), equalTo(1L));
-        assertThat(statsResponse.getCacheStats().get(0).getMisses(), equalTo(1L));
-        assertThat(statsResponse.getCacheStats().get(0).getHits(), equalTo(1L));
+        assertThat(statsResponse.getCacheStats().get(0).count(), equalTo(1L));
+        assertThat(statsResponse.getCacheStats().get(0).misses(), equalTo(1L));
+        assertThat(statsResponse.getCacheStats().get(0).hits(), equalTo(1L));
     }
 
 }

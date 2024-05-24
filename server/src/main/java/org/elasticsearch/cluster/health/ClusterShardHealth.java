@@ -17,59 +17,20 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.xcontent.ConstructingObjectParser;
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Locale;
 import java.util.Objects;
 
-import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
-import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
-
 public final class ClusterShardHealth implements Writeable, ToXContentFragment {
-    private static final String STATUS = "status";
-    private static final String ACTIVE_SHARDS = "active_shards";
-    private static final String RELOCATING_SHARDS = "relocating_shards";
-    private static final String INITIALIZING_SHARDS = "initializing_shards";
-    private static final String UNASSIGNED_SHARDS = "unassigned_shards";
-    private static final String PRIMARY_ACTIVE = "primary_active";
-
-    public static final ConstructingObjectParser<ClusterShardHealth, Integer> PARSER = new ConstructingObjectParser<>(
-        "cluster_shard_health",
-        true,
-        (parsedObjects, shardId) -> {
-            int i = 0;
-            boolean primaryActive = (boolean) parsedObjects[i++];
-            int activeShards = (int) parsedObjects[i++];
-            int relocatingShards = (int) parsedObjects[i++];
-            int initializingShards = (int) parsedObjects[i++];
-            int unassignedShards = (int) parsedObjects[i++];
-            String statusStr = (String) parsedObjects[i];
-            ClusterHealthStatus status = ClusterHealthStatus.fromString(statusStr);
-            return new ClusterShardHealth(
-                shardId,
-                status,
-                activeShards,
-                relocatingShards,
-                initializingShards,
-                unassignedShards,
-                primaryActive
-            );
-        }
-    );
-
-    static {
-        PARSER.declareBoolean(constructorArg(), new ParseField(PRIMARY_ACTIVE));
-        PARSER.declareInt(constructorArg(), new ParseField(ACTIVE_SHARDS));
-        PARSER.declareInt(constructorArg(), new ParseField(RELOCATING_SHARDS));
-        PARSER.declareInt(constructorArg(), new ParseField(INITIALIZING_SHARDS));
-        PARSER.declareInt(constructorArg(), new ParseField(UNASSIGNED_SHARDS));
-        PARSER.declareString(constructorArg(), new ParseField(STATUS));
-    }
+    static final String STATUS = "status";
+    static final String ACTIVE_SHARDS = "active_shards";
+    static final String RELOCATING_SHARDS = "relocating_shards";
+    static final String INITIALIZING_SHARDS = "initializing_shards";
+    static final String UNASSIGNED_SHARDS = "unassigned_shards";
+    static final String PRIMARY_ACTIVE = "primary_active";
 
     private final int shardId;
     private final ClusterHealthStatus status;
@@ -228,20 +189,6 @@ public final class ClusterShardHealth implements Writeable, ToXContentFragment {
         builder.field(UNASSIGNED_SHARDS, getUnassignedShards());
         builder.endObject();
         return builder;
-    }
-
-    static ClusterShardHealth innerFromXContent(XContentParser parser, Integer shardId) {
-        return PARSER.apply(parser, shardId);
-    }
-
-    public static ClusterShardHealth fromXContent(XContentParser parser) throws IOException {
-        ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser);
-        XContentParser.Token token = parser.nextToken();
-        ensureExpectedToken(XContentParser.Token.FIELD_NAME, token, parser);
-        String shardIdStr = parser.currentName();
-        ClusterShardHealth parsed = innerFromXContent(parser, Integer.valueOf(shardIdStr));
-        ensureExpectedToken(XContentParser.Token.END_OBJECT, parser.nextToken(), parser);
-        return parsed;
     }
 
     @Override

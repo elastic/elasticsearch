@@ -23,7 +23,6 @@ public class ClassificationConfig implements LenientlyParsedInferenceConfig, Str
 
     public static final ParseField NAME = new ParseField("classification");
 
-    public static final ParseField RESULTS_FIELD = new ParseField("results_field");
     public static final ParseField NUM_TOP_CLASSES = new ParseField("num_top_classes");
     public static final ParseField TOP_CLASSES_RESULTS_FIELD = new ParseField("top_classes_results_field");
     public static final ParseField NUM_TOP_FEATURE_IMPORTANCE_VALUES = new ParseField("num_top_feature_importance_values");
@@ -108,6 +107,33 @@ public class ClassificationConfig implements LenientlyParsedInferenceConfig, Str
         this.resultsField = in.readString();
         this.numTopFeatureImportanceValues = in.readVInt();
         this.predictionFieldType = PredictionFieldType.fromStream(in);
+    }
+
+    @Override
+    public InferenceConfig apply(InferenceConfigUpdate update) {
+        if (update instanceof ClassificationConfigUpdate configUpdate) {
+            ClassificationConfig.Builder builder = new ClassificationConfig.Builder(this);
+            if (configUpdate.getResultsField() != null) {
+                builder.setResultsField(configUpdate.getResultsField());
+            }
+            if (configUpdate.getNumTopFeatureImportanceValues() != null) {
+                builder.setNumTopFeatureImportanceValues(configUpdate.getNumTopFeatureImportanceValues());
+            }
+            if (configUpdate.getTopClassesResultsField() != null) {
+                builder.setTopClassesResultsField(configUpdate.getTopClassesResultsField());
+            }
+            if (configUpdate.getNumTopClasses() != null) {
+                builder.setNumTopClasses(configUpdate.getNumTopClasses());
+            }
+            if (configUpdate.getPredictionFieldType() != null) {
+                builder.setPredictionFieldType(configUpdate.getPredictionFieldType());
+            }
+            return builder.build();
+        } else if (update instanceof ResultsFieldUpdate resultsFieldUpdate) {
+            return new ClassificationConfig.Builder(this).setResultsField(resultsFieldUpdate.getResultsField()).build();
+        } else {
+            throw incompatibleUpdateException(update.getName());
+        }
     }
 
     public int getNumTopClasses() {

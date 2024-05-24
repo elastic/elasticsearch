@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.transform.transforms.pivot;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.Numbers;
 import org.elasticsearch.common.geo.GeoPoint;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.geometry.Rectangle;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.search.aggregations.Aggregation;
@@ -38,10 +39,10 @@ import org.elasticsearch.xpack.core.transform.transforms.pivot.SingleGroupSource
 import org.elasticsearch.xpack.transform.transforms.IDGenerator;
 import org.elasticsearch.xpack.transform.utils.OutputFieldNameConverter;
 
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -49,6 +50,7 @@ import java.util.function.Function;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.xpack.transform.transforms.pivot.SchemaUtil.dropFloatingPointComponentIfTypeRequiresIt;
+import static org.elasticsearch.xpack.transform.transforms.pivot.SchemaUtil.isDateType;
 import static org.elasticsearch.xpack.transform.transforms.pivot.SchemaUtil.isNumericType;
 
 public final class AggregationResultUtils {
@@ -70,16 +72,9 @@ public final class AggregationResultUtils {
         TYPE_VALUE_EXTRACTOR_MAP = Collections.unmodifiableMap(tempMap);
     }
 
-    private static final Map<String, BucketKeyExtractor> BUCKET_KEY_EXTRACTOR_MAP;
     private static final BucketKeyExtractor DEFAULT_BUCKET_KEY_EXTRACTOR = new DefaultBucketKeyExtractor();
     private static final BucketKeyExtractor DATES_AS_EPOCH_BUCKET_KEY_EXTRACTOR = new DatesAsEpochBucketKeyExtractor();
-
-    static {
-        Map<String, BucketKeyExtractor> tempMap = new HashMap<>();
-        tempMap.put(GeoTileGroupSource.class.getName(), new GeoTileBucketKeyExtractor());
-
-        BUCKET_KEY_EXTRACTOR_MAP = Collections.unmodifiableMap(tempMap);
-    }
+    private static final BucketKeyExtractor GEO_TILE_BUCKET_KEY_EXTRACTOR = new GeoTileBucketKeyExtractor();
 
     private static final String FIELD_TYPE = "type";
     private static final String FIELD_COORDINATES = "coordinates";
@@ -112,7 +107,7 @@ public final class AggregationResultUtils {
             progress.incrementDocsProcessed(bucket.getDocCount());
             progress.incrementDocsIndexed(1L);
 
-            Map<String, Object> document = new HashMap<>();
+            Map<String, Object> document = new LinkedHashMap<>();
             // generator to create unique but deterministic document ids, so we
             // - do not create duplicates if we re-run after failure
             // - update documents
@@ -150,10 +145,13 @@ public final class AggregationResultUtils {
     }
 
     static BucketKeyExtractor getBucketKeyExtractor(SingleGroupSource groupSource, boolean datesAsEpoch) {
-        return BUCKET_KEY_EXTRACTOR_MAP.getOrDefault(
-            groupSource.getClass().getName(),
-            datesAsEpoch ? DATES_AS_EPOCH_BUCKET_KEY_EXTRACTOR : DEFAULT_BUCKET_KEY_EXTRACTOR
-        );
+        if (groupSource instanceof GeoTileGroupSource) {
+            return GEO_TILE_BUCKET_KEY_EXTRACTOR;
+        } else if (datesAsEpoch) {
+            return DATES_AS_EPOCH_BUCKET_KEY_EXTRACTOR;
+        } else {
+            return DEFAULT_BUCKET_KEY_EXTRACTOR;
+        }
     }
 
     static AggValueExtractor getExtractor(Aggregation aggregation) {
@@ -226,7 +224,7 @@ public final class AggregationResultUtils {
                         throw new AggregationExtractionException("mixed object types of nested and non-nested fields [{}]", fieldName);
                     }
                 } else {
-                    Map<String, Object> newMap = new HashMap<>();
+                    Map<String, Object> newMap = new LinkedHashMap<>();
                     internalMap.put(token, newMap);
                     internalMap = newMap;
                 }
@@ -287,7 +285,7 @@ public final class AggregationResultUtils {
         @Override
         public Object value(Aggregation agg, Map<String, String> fieldTypeMap, String lookupFieldPrefix) {
             MultiValueAggregation aggregation = (MultiValueAggregation) agg;
-            Map<String, Object> extracted = new HashMap<>();
+            Map<String, Object> extracted = new LinkedHashMap<>();
             for (String valueName : aggregation.valueNames()) {
                 List<String> valueAsStrings = aggregation.getValuesAsStrings(valueName);
 
@@ -305,7 +303,7 @@ public final class AggregationResultUtils {
         @Override
         public Object value(Aggregation agg, Map<String, String> fieldTypeMap, String lookupFieldPrefix) {
             MultiValue aggregation = (MultiValue) agg;
-            Map<String, Object> extracted = new HashMap<>();
+            Map<String, Object> extracted = new LinkedHashMap<>();
 
             String fieldLookupPrefix = (lookupFieldPrefix.isEmpty() ? agg.getName() : lookupFieldPrefix + "." + agg.getName()) + ".";
             for (String valueName : aggregation.valueNames()) {
@@ -325,15 +323,15 @@ public final class AggregationResultUtils {
         @Override
         public Object value(Aggregation agg, Map<String, String> fieldTypeMap, String lookupFieldPrefix) {
             Percentiles aggregation = (Percentiles) agg;
-            HashMap<String, Double> percentiles = new HashMap<>();
+            Map<String, Double> percentiles = new LinkedHashMap<>();
 
             for (Percentile p : aggregation) {
                 // in case of sparse data percentiles might not have data, in this case it returns NaN,
                 // we need to guard the output and set null in this case
-                if (Numbers.isValidDouble(p.getValue()) == false) {
-                    percentiles.put(OutputFieldNameConverter.fromDouble(p.getPercent()), null);
+                if (Numbers.isValidDouble(p.value()) == false) {
+                    percentiles.put(OutputFieldNameConverter.fromDouble(p.percent()), null);
                 } else {
-                    percentiles.put(OutputFieldNameConverter.fromDouble(p.getPercent()), p.getValue());
+                    percentiles.put(OutputFieldNameConverter.fromDouble(p.percent()), p.value());
                 }
             }
 
@@ -363,16 +361,10 @@ public final class AggregationResultUtils {
                 return aggregation.getDocCount();
             }
 
-            HashMap<String, Object> nested = new HashMap<>();
+            var subAggLookupFieldPrefix = lookupFieldPrefix.isEmpty() ? agg.getName() : lookupFieldPrefix + "." + agg.getName();
+            Map<String, Object> nested = new LinkedHashMap<>();
             for (Aggregation subAgg : aggregation.getAggregations()) {
-                nested.put(
-                    subAgg.getName(),
-                    getExtractor(subAgg).value(
-                        subAgg,
-                        fieldTypeMap,
-                        lookupFieldPrefix.isEmpty() ? agg.getName() : lookupFieldPrefix + "." + agg.getName()
-                    )
-                );
+                nested.put(subAgg.getName(), getExtractor(subAgg).value(subAgg, fieldTypeMap, subAggLookupFieldPrefix));
             }
 
             return nested;
@@ -395,23 +387,17 @@ public final class AggregationResultUtils {
         public Object value(Aggregation agg, Map<String, String> fieldTypeMap, String lookupFieldPrefix) {
             MultiBucketsAggregation aggregation = (MultiBucketsAggregation) agg;
 
-            HashMap<String, Object> nested = new HashMap<>();
+            var subAggLookupFieldPrefix = lookupFieldPrefix.isEmpty() ? agg.getName() : lookupFieldPrefix + "." + agg.getName();
+            Map<String, Object> nested = Maps.newLinkedHashMapWithExpectedSize(aggregation.getBuckets().size());
 
             for (MultiBucketsAggregation.Bucket bucket : aggregation.getBuckets()) {
                 String bucketKey = bucketKeyTransfomer.apply(bucket.getKeyAsString());
                 if (bucket.getAggregations().iterator().hasNext() == false) {
                     nested.put(bucketKey, bucket.getDocCount());
                 } else {
-                    HashMap<String, Object> nestedBucketObject = new HashMap<>();
+                    Map<String, Object> nestedBucketObject = new LinkedHashMap<>();
                     for (Aggregation subAgg : bucket.getAggregations()) {
-                        nestedBucketObject.put(
-                            subAgg.getName(),
-                            getExtractor(subAgg).value(
-                                subAgg,
-                                fieldTypeMap,
-                                lookupFieldPrefix.isEmpty() ? agg.getName() : lookupFieldPrefix + "." + agg.getName()
-                            )
-                        );
+                        nestedBucketObject.put(subAgg.getName(), getExtractor(subAgg).value(subAgg, fieldTypeMap, subAggLookupFieldPrefix));
                     }
                     nested.put(bucketKey, nestedBucketObject);
                 }
@@ -444,18 +430,18 @@ public final class AggregationResultUtils {
             if (aggregation.bottomRight() == null || aggregation.topLeft() == null) {
                 return null;
             }
-            final Map<String, Object> geoShape = new HashMap<>();
+            final Map<String, Object> geoShape = new LinkedHashMap<>();
             // If the two geo_points are equal, it is a point
             if (aggregation.topLeft().equals(aggregation.bottomRight())) {
                 geoShape.put(FIELD_TYPE, POINT);
-                geoShape.put(FIELD_COORDINATES, Arrays.asList(aggregation.topLeft().getLon(), aggregation.bottomRight().getLat()));
+                geoShape.put(FIELD_COORDINATES, List.of(aggregation.topLeft().getLon(), aggregation.bottomRight().getLat()));
                 // If only the lat or the lon of the two geo_points are equal, than we know it should be a line
             } else if (Double.compare(aggregation.topLeft().getLat(), aggregation.bottomRight().getLat()) == 0
                 || Double.compare(aggregation.topLeft().getLon(), aggregation.bottomRight().getLon()) == 0) {
                     geoShape.put(FIELD_TYPE, LINESTRING);
                     geoShape.put(
                         FIELD_COORDINATES,
-                        Arrays.asList(
+                        List.of(
                             new Double[] { aggregation.topLeft().getLon(), aggregation.topLeft().getLat() },
                             new Double[] { aggregation.bottomRight().getLon(), aggregation.bottomRight().getLat() }
                         )
@@ -468,7 +454,7 @@ public final class AggregationResultUtils {
                     geoShape.put(
                         FIELD_COORDINATES,
                         Collections.singletonList(
-                            Arrays.asList(
+                            List.of(
                                 new Double[] { tl.getLon(), tl.getLat() },
                                 new Double[] { br.getLon(), tl.getLat() },
                                 new Double[] { br.getLon(), br.getLat() },
@@ -498,12 +484,12 @@ public final class AggregationResultUtils {
         public Object value(Object key, String type) {
             assert key instanceof String;
             Rectangle rectangle = GeoTileUtils.toBoundingBox(key.toString());
-            final Map<String, Object> geoShape = new HashMap<>();
+            final Map<String, Object> geoShape = Maps.newLinkedHashMapWithExpectedSize(2);
             geoShape.put(FIELD_TYPE, POLYGON);
             geoShape.put(
                 FIELD_COORDINATES,
                 Collections.singletonList(
-                    Arrays.asList(
+                    List.of(
                         new Double[] { rectangle.getMaxLon(), rectangle.getMinLat() },
                         new Double[] { rectangle.getMinLon(), rectangle.getMinLat() },
                         new Double[] { rectangle.getMinLon(), rectangle.getMaxLat() },
@@ -514,7 +500,6 @@ public final class AggregationResultUtils {
             );
             return geoShape;
         }
-
     }
 
     static class DefaultBucketKeyExtractor implements BucketKeyExtractor {
@@ -523,16 +508,14 @@ public final class AggregationResultUtils {
         public Object value(Object key, String type) {
             if (isNumericType(type) && key instanceof Double) {
                 return dropFloatingPointComponentIfTypeRequiresIt(type, (Double) key);
-            } else if ((DateFieldMapper.CONTENT_TYPE.equals(type) || DateFieldMapper.DATE_NANOS_CONTENT_TYPE.equals(type))
-                && key instanceof Long) {
-                    // date_histogram return bucket keys with milliseconds since epoch precision, therefore we don't need a
-                    // nanosecond formatter, for the parser on indexing side, time is optional (only the date part is mandatory)
-                    return DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.formatMillis((Long) key);
-                }
-
-            return key;
+            } else if (isDateType(type) && key instanceof Long) {
+                // date_histogram return bucket keys with milliseconds since epoch precision, therefore we don't need a
+                // nanosecond formatter, for the parser on indexing side, time is optional (only the date part is mandatory)
+                return DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.formatMillis((Long) key);
+            } else {
+                return key;
+            }
         }
-
     }
 
     static class DatesAsEpochBucketKeyExtractor implements BucketKeyExtractor {
@@ -541,9 +524,9 @@ public final class AggregationResultUtils {
         public Object value(Object key, String type) {
             if (isNumericType(type) && key instanceof Double) {
                 return dropFloatingPointComponentIfTypeRequiresIt(type, (Double) key);
+            } else {
+                return key;
             }
-            return key;
         }
-
     }
 }

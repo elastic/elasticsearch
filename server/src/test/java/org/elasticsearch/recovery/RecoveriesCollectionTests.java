@@ -146,11 +146,11 @@ public class RecoveriesCollectionTests extends ESIndexLevelReplicationTestCase {
         }
     }
 
-    long startRecovery(RecoveriesCollection collection, DiscoveryNode sourceNode, IndexShard shard) {
+    static long startRecovery(RecoveriesCollection collection, DiscoveryNode sourceNode, IndexShard shard) {
         return startRecovery(collection, sourceNode, shard, listener, TimeValue.timeValueMinutes(60));
     }
 
-    long startRecovery(
+    static long startRecovery(
         RecoveriesCollection collection,
         DiscoveryNode sourceNode,
         IndexShard indexShard,

@@ -8,9 +8,6 @@
 package org.elasticsearch.xpack.core.security.action.apikey;
 
 import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.action.support.WriteRequest;
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
@@ -37,20 +34,6 @@ public final class CreateCrossClusterApiKeyRequest extends AbstractCreateApiKeyR
         this.metadata = metadata;
     }
 
-    public CreateCrossClusterApiKeyRequest(StreamInput in) throws IOException {
-        super(in);
-        this.name = in.readString();
-        this.expiration = in.readOptionalTimeValue();
-        this.roleDescriptors = in.readCollectionAsImmutableList(RoleDescriptor::new);
-        this.refreshPolicy = WriteRequest.RefreshPolicy.readFrom(in);
-        this.metadata = in.readMap();
-    }
-
-    @Override
-    protected String doReadId(StreamInput in) throws IOException {
-        return in.readString();
-    }
-
     @Override
     public ApiKey.Type getType() {
         return ApiKey.Type.CROSS_CLUSTER;
@@ -65,17 +48,6 @@ public final class CreateCrossClusterApiKeyRequest extends AbstractCreateApiKeyR
             assert RoleDescriptorRequestValidator.validate(roleDescriptor) == null;
         }
         return super.validate();
-    }
-
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        super.writeTo(out);
-        out.writeString(id);
-        out.writeString(name);
-        out.writeOptionalTimeValue(expiration);
-        out.writeCollection(roleDescriptors);
-        refreshPolicy.writeTo(out);
-        out.writeGenericMap(metadata);
     }
 
     @Override

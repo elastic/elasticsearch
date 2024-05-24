@@ -8,22 +8,20 @@
 package org.elasticsearch.compute.data;
 
 import org.apache.lucene.util.RamUsageEstimator;
+import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.core.ReleasableIterator;
 
 /**
  * Vector implementation that stores a constant boolean value.
  * This class is generated. Do not edit it.
  */
-public final class ConstantBooleanVector extends AbstractVector implements BooleanVector {
+final class ConstantBooleanVector extends AbstractVector implements BooleanVector {
 
-    private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(ConstantBooleanVector.class);
+    static final long RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(ConstantBooleanVector.class);
 
     private final boolean value;
 
-    public ConstantBooleanVector(boolean value, int positionCount) {
-        this(value, positionCount, BlockFactory.getNonBreakingInstance());
-    }
-
-    public ConstantBooleanVector(boolean value, int positionCount, BlockFactory blockFactory) {
+    ConstantBooleanVector(boolean value, int positionCount, BlockFactory blockFactory) {
         super(positionCount, blockFactory);
         this.value = value;
     }
@@ -40,7 +38,29 @@ public final class ConstantBooleanVector extends AbstractVector implements Boole
 
     @Override
     public BooleanVector filter(int... positions) {
-        return new ConstantBooleanVector(value, positions.length);
+        return blockFactory().newConstantBooleanVector(value, positions.length);
+    }
+
+    @Override
+    public ReleasableIterator<BooleanBlock> lookup(IntBlock positions, ByteSizeValue targetBlockSize) {
+        if (positions.getPositionCount() == 0) {
+            return ReleasableIterator.empty();
+        }
+        IntVector positionsVector = positions.asVector();
+        if (positionsVector == null) {
+            return new BooleanLookup(asBlock(), positions, targetBlockSize);
+        }
+        int min = positionsVector.min();
+        if (min < 0) {
+            throw new IllegalArgumentException("invalid position [" + min + "]");
+        }
+        if (min > getPositionCount()) {
+            return ReleasableIterator.single((BooleanBlock) positions.blockFactory().newConstantNullBlock(positions.getPositionCount()));
+        }
+        if (positionsVector.max() < getPositionCount()) {
+            return ReleasableIterator.single(positions.blockFactory().newConstantBooleanBlockWith(value, positions.getPositionCount()));
+        }
+        return new BooleanLookup(asBlock(), positions, targetBlockSize);
     }
 
     @Override
@@ -55,7 +75,7 @@ public final class ConstantBooleanVector extends AbstractVector implements Boole
 
     @Override
     public long ramBytesUsed() {
-        return BASE_RAM_BYTES_USED + RamUsageEstimator.shallowSizeOfInstance(boolean.class);
+        return RAM_BYTES_USED;
     }
 
     @Override
@@ -73,10 +93,5 @@ public final class ConstantBooleanVector extends AbstractVector implements Boole
 
     public String toString() {
         return getClass().getSimpleName() + "[positions=" + getPositionCount() + ", value=" + value + ']';
-    }
-
-    @Override
-    public void close() {
-        blockFactory.adjustBreaker(-ramBytesUsed(), true);
     }
 }

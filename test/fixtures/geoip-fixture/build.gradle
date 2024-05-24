@@ -18,5 +18,3 @@ dependencies {
     exclude module: 'hamcrest-core'
   }
 }
-
-tasks.named("test") { enabled = false }

@@ -13,7 +13,6 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
@@ -21,15 +20,17 @@ import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.fielddata.FieldData;
 import org.elasticsearch.index.fielddata.FieldDataContext;
-import org.elasticsearch.index.fielddata.FormattedDocValues;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
 import org.elasticsearch.index.fielddata.LeafNumericFieldData;
 import org.elasticsearch.index.fielddata.NumericDoubleValues;
-import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.elasticsearch.index.fielddata.SourceValueFetcherSortedDoubleIndexFieldData;
+import org.elasticsearch.index.fielddata.plain.LeafDoubleFieldData;
 import org.elasticsearch.index.fielddata.plain.SortedNumericIndexFieldData;
+import org.elasticsearch.index.mapper.BlockDocValuesReader;
+import org.elasticsearch.index.mapper.BlockLoader;
+import org.elasticsearch.index.mapper.BlockSourceReader;
 import org.elasticsearch.index.mapper.DocumentParserContext;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
@@ -185,7 +186,7 @@ public class ScaledFloatFieldMapper extends FieldMapper {
         @Override
         public ScaledFloatFieldMapper build(MapperBuilderContext context) {
             ScaledFloatFieldType type = new ScaledFloatFieldType(
-                context.buildFullName(name),
+                context.buildFullName(name()),
                 indexed.getValue(),
                 stored.getValue(),
                 hasDocValues.getValue(),
@@ -195,7 +196,7 @@ public class ScaledFloatFieldMapper extends FieldMapper {
                 metric.getValue(),
                 indexMode
             );
-            return new ScaledFloatFieldMapper(name, type, multiFieldsBuilder.build(this, context), copyTo, this);
+            return new ScaledFloatFieldMapper(name(), type, multiFieldsBuilder.build(this, context), copyTo, this);
         }
     }
 
@@ -309,6 +310,23 @@ public class ScaledFloatFieldMapper extends FieldMapper {
         }
 
         @Override
+        public BlockLoader blockLoader(BlockLoaderContext blContext) {
+            if (indexMode == IndexMode.TIME_SERIES && metricType == TimeSeriesParams.MetricType.COUNTER) {
+                // Counters are not supported by ESQL so we load them in null
+                return BlockLoader.CONSTANT_NULLS;
+            }
+            if (hasDocValues()) {
+                double scalingFactorInverse = 1d / scalingFactor;
+                return new BlockDocValuesReader.DoublesBlockLoader(name(), l -> l * scalingFactorInverse);
+            }
+            ValueFetcher valueFetcher = sourceValueFetcher(blContext.sourcePaths(name()));
+            BlockSourceReader.LeafIteratorLookup lookup = isStored() || isIndexed()
+                ? BlockSourceReader.lookupFromFieldNames(blContext.fieldNames(), name())
+                : BlockSourceReader.lookupMatchingAll();
+            return new BlockSourceReader.DoublesBlockLoader(valueFetcher, lookup);
+        }
+
+        @Override
         public IndexFieldData.Builder fielddataBuilder(FieldDataContext fieldDataContext) {
             FielddataOperation operation = fieldDataContext.fielddataOperation();
 
@@ -327,7 +345,8 @@ public class ScaledFloatFieldMapper extends FieldMapper {
                         valuesSourceType,
                         (dv, n) -> {
                             throw new UnsupportedOperationException();
-                        }
+                        },
+                        isIndexed()
                     ).build(cache, breakerService);
                     return new ScaledFloatIndexFieldData(scaledValues, scalingFactor, ScaledFloatDocValuesField::new);
                 };
@@ -368,7 +387,7 @@ public class ScaledFloatFieldMapper extends FieldMapper {
                         }
                         doubleValue = nullValue;
                     } else {
-                        doubleValue = objectToDouble(value);
+                        doubleValue = NumberFieldMapper.NumberType.objectToDouble(value);
                     }
 
                     double factor = getScalingFactor();
@@ -404,7 +423,9 @@ public class ScaledFloatFieldMapper extends FieldMapper {
          * @return Scaled value
          */
         private double scale(Object input) {
-            return new BigDecimal(Double.toString(parse(input))).multiply(BigDecimal.valueOf(scalingFactor)).doubleValue();
+            return new BigDecimal(Double.toString(NumberFieldMapper.NumberType.objectToDouble(input))).multiply(
+                BigDecimal.valueOf(scalingFactor)
+            ).doubleValue();
         }
 
         /**
@@ -421,7 +442,6 @@ public class ScaledFloatFieldMapper extends FieldMapper {
             b.append("ScaledFloatFieldType[").append(scalingFactor);
             if (nullValue != null) {
                 b.append(", nullValue=").append(nullValue);
-                ;
             }
             if (metricType != null) {
                 b.append(", metricType=").append(metricType);
@@ -499,7 +519,7 @@ public class ScaledFloatFieldMapper extends FieldMapper {
             value = null;
         } else {
             try {
-                numericValue = parse(parser, coerce.value());
+                numericValue = parser.doubleValue(coerce.value());
             } catch (IllegalArgumentException e) {
                 if (ignoreMalformed.value()) {
                     context.addIgnoredField(mappedFieldType.name());
@@ -520,7 +540,7 @@ public class ScaledFloatFieldMapper extends FieldMapper {
         }
 
         if (numericValue == null) {
-            numericValue = parse(value);
+            numericValue = NumberFieldMapper.NumberType.objectToDouble(value);
         }
 
         double doubleValue = numericValue.doubleValue();
@@ -544,31 +564,6 @@ public class ScaledFloatFieldMapper extends FieldMapper {
 
     static long encode(double value, double scalingFactor) {
         return Math.round(value * scalingFactor);
-    }
-
-    static Double parse(Object value) {
-        return objectToDouble(value);
-    }
-
-    private static Double parse(XContentParser parser, boolean coerce) throws IOException {
-        return parser.doubleValue(coerce);
-    }
-
-    /**
-     * Converts an Object to a double by checking it against known types first
-     */
-    private static double objectToDouble(Object value) {
-        double doubleValue;
-
-        if (value instanceof Number) {
-            doubleValue = ((Number) value).doubleValue();
-        } else if (value instanceof BytesRef) {
-            doubleValue = Double.parseDouble(((BytesRef) value).utf8ToString());
-        } else {
-            doubleValue = Double.parseDouble(value.toString());
-        }
-
-        return doubleValue;
     }
 
     private static class ScaledFloatIndexFieldData extends IndexNumericFieldData {
@@ -620,6 +615,11 @@ public class ScaledFloatFieldMapper extends FieldMapper {
         }
 
         @Override
+        protected boolean isIndexed() {
+            return false; // We don't know how to take advantage of the index with half floats anyway
+        }
+
+        @Override
         public NumericType getNumericType() {
             /*
              * {@link ScaledFloatLeafFieldData#getDoubleValues()} transforms the raw long values in `scaled` floats.
@@ -629,7 +629,7 @@ public class ScaledFloatFieldMapper extends FieldMapper {
 
     }
 
-    private static class ScaledFloatLeafFieldData implements LeafNumericFieldData {
+    private static class ScaledFloatLeafFieldData extends LeafDoubleFieldData {
 
         private final LeafNumericFieldData scaledFieldData;
         private final double scalingFactorInverse;
@@ -651,11 +651,6 @@ public class ScaledFloatFieldMapper extends FieldMapper {
         }
 
         @Override
-        public SortedBinaryDocValues getBytesValues() {
-            return FieldData.toString(getDoubleValues());
-        }
-
-        @Override
         public long ramBytesUsed() {
             return scaledFieldData.ramBytesUsed();
         }
@@ -663,11 +658,6 @@ public class ScaledFloatFieldMapper extends FieldMapper {
         @Override
         public void close() {
             scaledFieldData.close();
-        }
-
-        @Override
-        public SortedNumericDocValues getLongValues() {
-            return FieldData.castToLong(getDoubleValues());
         }
 
         @Override
@@ -706,27 +696,11 @@ public class ScaledFloatFieldMapper extends FieldMapper {
                 };
             }
         }
+    }
 
-        @Override
-        public FormattedDocValues getFormattedValues(DocValueFormat format) {
-            SortedNumericDoubleValues values = getDoubleValues();
-            return new FormattedDocValues() {
-                @Override
-                public boolean advanceExact(int docId) throws IOException {
-                    return values.advanceExact(docId);
-                }
-
-                @Override
-                public int docValueCount() throws IOException {
-                    return values.docValueCount();
-                }
-
-                @Override
-                public Object nextValue() throws IOException {
-                    return format.format(values.nextValue());
-                }
-            };
-        }
+    @Override
+    protected SyntheticSourceMode syntheticSourceMode() {
+        return SyntheticSourceMode.NATIVE;
     }
 
     @Override
@@ -785,6 +759,20 @@ public class ScaledFloatFieldMapper extends FieldMapper {
      */
     static double decodeForSyntheticSource(long scaledValue, double scalingFactor) {
         double v = scaledValue / scalingFactor;
+
+        // If original double value is close to MAX_VALUE
+        // and rounding is performed in the direction of the same infinity
+        // it is possible to "overshoot" infinity during reconstruction.
+        // E.g. for a value close to Double.MAX_VALUE "true" scaled value is 10.5
+        // and with rounding it becomes 11.
+        // Now, because of that rounding difference, 11 divided by scaling factor goes into infinity.
+        // There is nothing we can do about it so we'll return the closest finite value to infinity
+        // which is MAX_VALUE.
+        if (Double.isInfinite(v)) {
+            var sign = v == Double.POSITIVE_INFINITY ? 1 : -1;
+            return sign * Double.MAX_VALUE;
+        }
+
         long reenc = Math.round(v * scalingFactor);
         if (reenc != scaledValue) {
             if (reenc > scaledValue) {

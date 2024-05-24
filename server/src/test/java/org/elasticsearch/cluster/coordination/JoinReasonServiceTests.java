@@ -83,17 +83,14 @@ public class JoinReasonServiceTests extends ESTestCase {
             matchesNeedingGuidance("joining, removed [0ms] ago with reason [second test removal], [2] total removals")
         );
 
-        final DiscoveryNode rebootedNode = new DiscoveryNode(
-            discoveryNode.getName(),
-            discoveryNode.getId(),
-            UUIDs.randomBase64UUID(random()),
-            discoveryNode.getHostName(),
-            discoveryNode.getHostAddress(),
-            discoveryNode.getAddress(),
-            discoveryNode.getAttributes(),
-            discoveryNode.getRoles(),
-            discoveryNode.getVersionInformation()
-        );
+        final DiscoveryNode rebootedNode = DiscoveryNodeUtils.builder(discoveryNode.getId())
+            .name(discoveryNode.getName())
+            .ephemeralId(UUIDs.randomBase64UUID(random()))
+            .address(discoveryNode.getHostName(), discoveryNode.getHostAddress(), discoveryNode.getAddress())
+            .attributes(discoveryNode.getAttributes())
+            .roles(discoveryNode.getRoles())
+            .version(discoveryNode.getVersionInformation())
+            .build();
 
         assertThat(
             joinReasonService.getJoinReason(rebootedNode, LEADER),

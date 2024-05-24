@@ -28,7 +28,7 @@ available under the current license and some usage statistics.
 [[usage-api-query-parms]]
 === {api-query-parms-title}
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=master-timeout]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=master-timeout]
 
 [discrete]
 [[usage-api-example]]
@@ -183,6 +183,7 @@ GET /_xpack/usage
           "avg": 0.0,
           "max": 0.0
         },
+        "stats_by_model": [],
         "model_sizes_bytes": {
           "total": 0.0,
           "min": 0.0,
@@ -195,6 +196,11 @@ GET /_xpack/usage
       }
     },
     "node_count" : 1
+  },
+  "inference": {
+    "available" : true,
+    "enabled" : true,
+    "models" : []
   },
   "logstash" : {
     "available" : true,
@@ -214,7 +220,16 @@ GET /_xpack/usage
       "grok" : 0,
       "limit" : 0,
       "where" : 0,
-      "sort" : 0
+      "sort" : 0,
+      "drop" : 0,
+      "show" : 0,
+      "rename" : 0,
+      "mv_expand" : 0,
+      "keep" : 0,
+      "enrich" : 0,
+      "from" : 0,
+      "row" : 0,
+      "meta" : 0
     },
     "queries" : {
       "rest" : {
@@ -293,7 +308,8 @@ GET /_xpack/usage
   },
   "rollup" : {
     "available" : true,
-    "enabled" : true
+    "enabled" : true,
+    ...
   },
   "ilm" : {
     "policy_count" : 3,
@@ -473,16 +489,22 @@ GET /_xpack/usage
       "min_rule_count": 0,
       "max_rule_count": 0
     }
+  },
+  "universal_profiling" : {
+    "available" : true,
+    "enabled" : true
   }
 }
 ------------------------------------------------------------
 // TESTRESPONSE[s/"security" : \{[^\}]*\},/"security" : $body.$_path,/]
+// TESTRESPONSE[s/"rollup" : \{[^\}]*\},/"rollup" : $body.$_path,/]
 // TESTRESPONSE[s/"detectors" : \{[^\}]*\},/"detectors" : $body.$_path,/]
 // TESTRESPONSE[s/"model_size" : \{[^\}]*\},/"model_size" : $body.$_path,/]
 // TESTRESPONSE[s/"eql" : \{[^\}]*\},/"eql" : $body.$_path,/]
 // TESTRESPONSE[s/"policy_stats" : \[[^\]]*\]/"policy_stats" : $body.$_path/]
 // TESTRESPONSE[s/"slm" : \{[^\}]*\},/"slm" : $body.$_path,/]
 // TESTRESPONSE[s/"health_api" : \{[^\}]*\}\s*\}/"health_api" : $body.$_path/]
+// TESTRESPONSE[s/"data_streams" : \{[^\}]*\},/"data_streams" : $body.$_path,/]
 // TESTRESPONSE[s/ : true/ : $body.$_path/]
 // TESTRESPONSE[s/ : false/ : $body.$_path/]
 // TESTRESPONSE[s/ : (\-)?[0-9]+/ : $body.$_path/]
@@ -498,3 +520,4 @@ GET /_xpack/usage
 // 5. All of the numbers and strings on the right hand side of *every* field in
 //    the response are ignored. So we're really only asserting things about the
 //    the shape of this response, not the values in it.
+// 6. Ignore the contents of data streams until the failure store is tech preview.

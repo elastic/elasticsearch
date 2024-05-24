@@ -11,8 +11,8 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
@@ -29,6 +29,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.license.License;
@@ -82,6 +83,7 @@ import org.elasticsearch.xpack.ml.notifications.DataFrameAnalyticsAuditor;
 import org.elasticsearch.xpack.ml.process.MlMemoryTracker;
 import org.elasticsearch.xpack.ml.task.AbstractJobPersistentTasksExecutor;
 
+import java.time.Instant;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
@@ -136,7 +138,7 @@ public class TransportStartDataFrameAnalyticsAction extends TransportMasterNodeA
             StartDataFrameAnalyticsAction.Request::new,
             indexNameExpressionResolver,
             NodeAcknowledgedResponse::new,
-            ThreadPool.Names.SAME
+            EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
         this.licenseState = licenseState;
         this.client = client;
@@ -209,6 +211,7 @@ public class TransportStartDataFrameAnalyticsAction extends TransportMasterNodeA
                 MlTasks.dataFrameAnalyticsTaskId(request.getId()),
                 MlTasks.DATA_FRAME_ANALYTICS_TASK_NAME,
                 taskParams,
+                null,
                 waitForAnalyticsToStart
             );
         }, listener::onFailure);
@@ -339,7 +342,7 @@ public class TransportStartDataFrameAnalyticsAction extends TransportMasterNodeA
         validateSourceIndexHasAtLeastOneAnalyzedField(startContext, validateAtLeastOneAnalyzedFieldListener);
     }
 
-    private void validateSourceIndexHasAtLeastOneAnalyzedField(StartContext startContext, ActionListener<Void> listener) {
+    private static void validateSourceIndexHasAtLeastOneAnalyzedField(StartContext startContext, ActionListener<Void> listener) {
         Set<String> requiredFields = startContext.config.getAnalysis()
             .getRequiredFields()
             .stream()
@@ -414,7 +417,7 @@ public class TransportStartDataFrameAnalyticsAction extends TransportMasterNodeA
         );
     }
 
-    private void checkDestIndexIsEmptyIfExists(
+    private static void checkDestIndexIsEmptyIfExists(
         ParentTaskAssigningClient parentTaskClient,
         StartContext startContext,
         ActionListener<StartContext> listener
@@ -427,7 +430,7 @@ public class TransportStartDataFrameAnalyticsAction extends TransportMasterNodeA
             startContext.config.getHeaders(),
             ClientHelper.ML_ORIGIN,
             parentTaskClient,
-            SearchAction.INSTANCE,
+            TransportSearchAction.TYPE,
             destEmptySearch,
             ActionListener.wrap(searchResponse -> {
                 if (searchResponse.getHits().getTotalHits().value > 0) {
@@ -600,6 +603,7 @@ public class TransportStartDataFrameAnalyticsAction extends TransportMasterNodeA
     ) {
         persistentTasksService.sendRemoveRequest(
             persistentTask.getId(),
+            null,
             new ActionListener<PersistentTasksCustomMetadata.PersistentTask<?>>() {
                 @Override
                 public void onResponse(PersistentTasksCustomMetadata.PersistentTask<?> task) {
@@ -787,7 +791,8 @@ public class TransportStartDataFrameAnalyticsAction extends TransportMasterNodeA
             DataFrameAnalyticsTaskState startedState = new DataFrameAnalyticsTaskState(
                 DataFrameAnalyticsState.STARTED,
                 task.getAllocationId(),
-                null
+                null,
+                Instant.now()
             );
             task.updatePersistentTaskState(
                 startedState,
@@ -806,21 +811,8 @@ public class TransportStartDataFrameAnalyticsAction extends TransportMasterNodeA
                     + id
                     + "] on node ["
                     + JobNodeSelector.nodeNameAndVersion(node)
-                    + "], because the data frame analytics requires a node of version ["
+                    + "], because the data frame analytics requires a node with ML config version ["
                     + TaskParams.VERSION_INTRODUCED
-                    + "] or higher";
-            }
-            if (node.getVersion().before(TaskParams.VERSION_DESTINATION_INDEX_MAPPINGS_CHANGED)
-                && params.getVersion().onOrAfter(MlConfigVersion.fromVersion(TaskParams.VERSION_DESTINATION_INDEX_MAPPINGS_CHANGED))) {
-                return "Not opening job ["
-                    + id
-                    + "] on node ["
-                    + JobNodeSelector.nodeNameAndVersion(node)
-                    + "], because the data frame analytics created for version ["
-                    + params.getVersion()
-                    + "] requires a node of version "
-                    + "["
-                    + TaskParams.VERSION_DESTINATION_INDEX_MAPPINGS_CHANGED
                     + "] or higher";
             }
 

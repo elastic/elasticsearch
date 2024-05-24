@@ -8,6 +8,7 @@
 
 package org.elasticsearch.cluster.coordination;
 
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -19,7 +20,14 @@ import java.util.concurrent.TimeUnit;
 
 public record JoinStatus(DiscoveryNode remoteNode, long term, String message, TimeValue age) implements Writeable {
     public JoinStatus(StreamInput in) throws IOException {
-        this(new DiscoveryNode(in), in.readLong(), in.readString(), new TimeValue(in.readLong(), TimeUnit.valueOf(in.readString())));
+        this(
+            new DiscoveryNode(in),
+            in.readLong(),
+            in.readString(),
+            in.getTransportVersion().onOrAfter(TransportVersions.JOIN_STATUS_AGE_SERIALIZATION)
+                ? in.readTimeValue()
+                : new TimeValue(in.readLong(), TimeUnit.valueOf(in.readString()))
+        );
     }
 
     @Override
@@ -27,7 +35,11 @@ public record JoinStatus(DiscoveryNode remoteNode, long term, String message, Ti
         remoteNode.writeTo(out);
         out.writeLong(term);
         out.writeString(message);
-        out.writeLong(age.duration());
-        out.writeString(age.timeUnit().name());
+        if (out.getTransportVersion().onOrAfter(TransportVersions.JOIN_STATUS_AGE_SERIALIZATION)) {
+            out.writeTimeValue(age);
+        } else {
+            out.writeLong(age.duration());
+            out.writeString(age.timeUnit().name());
+        }
     }
 }

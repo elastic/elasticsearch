@@ -1,8 +1,6 @@
 [[delete-synonym-rule]]
 === Delete synonym rule
 
-beta::[]
-
 ++++
 <titleabbrev>Delete synonym rule</titleabbrev>
 ++++

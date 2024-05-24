@@ -55,6 +55,7 @@ public class InternalDistributionModuleCheckTaskProvider {
         "org.elasticsearch.grok",
         "org.elasticsearch.logging",
         "org.elasticsearch.lz4",
+        "org.elasticsearch.nativeaccess",
         "org.elasticsearch.plugin",
         "org.elasticsearch.plugin.analysis",
         "org.elasticsearch.pluginclassloader",
@@ -62,6 +63,7 @@ public class InternalDistributionModuleCheckTaskProvider {
         "org.elasticsearch.securesm",
         "org.elasticsearch.server",
         "org.elasticsearch.tdigest",
+        "org.elasticsearch.vec",
         "org.elasticsearch.xcontent"
     );
 

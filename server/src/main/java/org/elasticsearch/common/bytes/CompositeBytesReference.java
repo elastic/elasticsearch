@@ -148,16 +148,17 @@ public final class CompositeBytesReference extends AbstractBytesReference {
         // for slices we only need to find the start and the end reference
         // adjust them and pass on the references in between as they are fully contained
         final int to = from + length;
-        final int limit = getOffsetIndex(to - 1);
         final int start = getOffsetIndex(from);
-        final BytesReference[] inSlice = new BytesReference[1 + (limit - start)];
-        for (int i = 0, j = start; i < inSlice.length; i++) {
-            inSlice[i] = references[j++];
+        int limit = start;
+        for (int i = start + 1; i < offsets.length && offsets[i] < to; i++) {
+            limit = i;
         }
         int inSliceOffset = from - offsets[start];
-        if (inSlice.length == 1) {
-            return inSlice[0].slice(inSliceOffset, length);
+        if (start == limit) {
+            return references[start].slice(inSliceOffset, length);
         }
+        final BytesReference[] inSlice = new BytesReference[1 + (limit - start)];
+        System.arraycopy(references, start, inSlice, 0, inSlice.length);
         // now adjust slices in front and at the end
         inSlice[0] = inSlice[0].slice(inSliceOffset, inSlice[0].length() - inSliceOffset);
         inSlice[inSlice.length - 1] = inSlice[inSlice.length - 1].slice(0, to - offsets[limit]);

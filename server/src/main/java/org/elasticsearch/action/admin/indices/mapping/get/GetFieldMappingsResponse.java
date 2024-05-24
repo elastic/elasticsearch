@@ -18,7 +18,6 @@ import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.rest.BaseRestHandler;
-import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.ToXContentObject;
@@ -123,12 +122,6 @@ public class GetFieldMappingsResponse extends ActionResponse implements ToXConte
 
         private static final ParseField FULL_NAME = new ParseField("full_name");
         private static final ParseField MAPPING = new ParseField("mapping");
-
-        private static final ConstructingObjectParser<FieldMappingMetadata, String> PARSER = new ConstructingObjectParser<>(
-            "field_mapping_meta_data",
-            true,
-            a -> new FieldMappingMetadata((String) a[0], (BytesReference) a[1])
-        );
 
         /**
          * Returns the mappings as a map. Note that the returned map has a single key which is always the field's {@link Mapper#name}.

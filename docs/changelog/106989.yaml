@@ -1,0 +1,7 @@
+pr: 106989
+summary: Make force-stopping the transform always remove persistent task from cluster
+  state
+area: Transform
+type: bug
+issues:
+ - 106811

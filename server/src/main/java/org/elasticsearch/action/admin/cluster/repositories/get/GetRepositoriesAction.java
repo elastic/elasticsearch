@@ -19,7 +19,7 @@ public class GetRepositoriesAction extends ActionType<GetRepositoriesResponse> {
     public static final String NAME = "cluster:admin/repository/get";
 
     private GetRepositoriesAction() {
-        super(NAME, GetRepositoriesResponse::new);
+        super(NAME);
     }
 
 }

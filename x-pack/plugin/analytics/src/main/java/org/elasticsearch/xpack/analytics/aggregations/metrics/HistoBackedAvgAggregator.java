@@ -32,7 +32,7 @@ import java.util.Map;
  * Average aggregator operating over histogram datatypes {@link HistogramValuesSource}
  * The aggregation computes weighted average by taking counts into consideration for each value
  */
-public class HistoBackedAvgAggregator extends NumericMetricsAggregator.SingleValue {
+public final class HistoBackedAvgAggregator extends NumericMetricsAggregator.SingleValue {
 
     private final HistogramValuesSource.Histogram valuesSource;
 
@@ -41,7 +41,6 @@ public class HistoBackedAvgAggregator extends NumericMetricsAggregator.SingleVal
     DoubleArray compensations;
     DocValueFormat format;
 
-    @SuppressWarnings("this-escape")
     public HistoBackedAvgAggregator(
         String name,
         ValuesSourceConfig valuesSourceConfig,

@@ -13,16 +13,15 @@ import org.elasticsearch.index.fielddata.IndexGeoPointFieldData;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.script.AggregationScript;
 import org.elasticsearch.search.DocValueFormat;
-import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.FieldContext;
 import org.elasticsearch.search.aggregations.support.MissingValues;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 import org.elasticsearch.xpack.spatial.index.fielddata.GeoShapeValues;
 import org.elasticsearch.xpack.spatial.index.fielddata.IndexShapeFieldData;
-import org.elasticsearch.xpack.spatial.index.fielddata.plain.LatLonShapeIndexFieldData;
 
 import java.io.IOException;
+import java.util.function.LongSupplier;
 
 public class GeoShapeValuesSourceType extends ShapeValuesSourceType {
 
@@ -38,6 +37,7 @@ public class GeoShapeValuesSourceType extends ShapeValuesSourceType {
     }
 
     @Override
+    @SuppressWarnings("unchecked")
     public ValuesSource getField(FieldContext fieldContext, AggregationScript.LeafFactory script) {
         boolean isPoint = fieldContext.indexFieldData() instanceof IndexGeoPointFieldData;
         boolean isShape = fieldContext.indexFieldData() instanceof IndexShapeFieldData;
@@ -53,7 +53,7 @@ public class GeoShapeValuesSourceType extends ShapeValuesSourceType {
         if (isPoint) {
             return new ValuesSource.GeoPoint.Fielddata((IndexGeoPointFieldData) fieldContext.indexFieldData());
         }
-        return new GeoShapeValuesSource.Fielddata((LatLonShapeIndexFieldData) fieldContext.indexFieldData());
+        return new GeoShapeValuesSource.Fielddata((IndexShapeFieldData<GeoShapeValues>) fieldContext.indexFieldData());
     }
 
     @Override
@@ -61,7 +61,7 @@ public class GeoShapeValuesSourceType extends ShapeValuesSourceType {
         ValuesSource valuesSource,
         Object rawMissing,
         DocValueFormat docValueFormat,
-        AggregationContext context
+        LongSupplier nowInMillis
     ) {
         GeoShapeValuesSource shapeValuesSource = (GeoShapeValuesSource) valuesSource;
         final GeoShapeValues.GeoShapeValue missing = GeoShapeValues.EMPTY.missing(rawMissing.toString());

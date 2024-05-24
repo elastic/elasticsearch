@@ -83,7 +83,7 @@ public class TransportGetDataFrameAnalyticsAction extends AbstractTransportGetRe
         searchResources(
             request,
             new TaskId(clusterService.localNode().getId(), task.getId()),
-            ActionListener.wrap(queryPage -> listener.onResponse(new GetDataFrameAnalyticsAction.Response(queryPage)), listener::onFailure)
+            listener.delegateFailureAndWrap((l, queryPage) -> l.onResponse(new GetDataFrameAnalyticsAction.Response(queryPage)))
         );
     }
 

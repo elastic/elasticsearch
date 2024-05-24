@@ -170,7 +170,7 @@ public class ShardFollowTaskReplicationTests extends ESIndexLevelReplicationTest
                     if (leaderGroup.getReplicas().isEmpty() == false && randomInt(100) < 5) {
                         IndexShard closingReplica = randomFrom(leaderGroup.getReplicas());
                         leaderGroup.removeReplica(closingReplica);
-                        closingReplica.close("test", false);
+                        closeShardNoCheck(closingReplica);
                         closingReplica.store().close();
                     } else if (leaderGroup.getReplicas().isEmpty() == false && rarely()) {
                         IndexShard newPrimary = randomFrom(leaderGroup.getReplicas());
@@ -527,7 +527,7 @@ public class ShardFollowTaskReplicationTests extends ESIndexLevelReplicationTest
                     )
                 );
                 primaryShard.markAsRecovering("remote recovery from leader", new RecoveryState(routing, localNode, null));
-                final PlainActionFuture<Boolean> future = PlainActionFuture.newFuture();
+                final PlainActionFuture<Boolean> future = new PlainActionFuture<>();
                 primaryShard.restoreFromRepository(new RestoreOnlyRepository(index.getName()) {
                     @Override
                     public void restoreShard(

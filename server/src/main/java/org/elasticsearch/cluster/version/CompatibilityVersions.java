@@ -69,10 +69,10 @@ public record CompatibilityVersions(
 
         if (candidate.transportVersion().before(minimumClusterVersions.transportVersion())) {
             throw new IllegalStateException(
-                "node with transport version ["
-                    + candidate.transportVersion()
-                    + "] may not join a cluster with minimum transport version ["
-                    + minimumClusterVersions.transportVersion()
+                "node with version ["
+                    + candidate.transportVersion().toReleaseVersion()
+                    + "] may not join a cluster with minimum version ["
+                    + minimumClusterVersions.transportVersion().toReleaseVersion()
                     + "]"
             );
         }
@@ -101,7 +101,7 @@ public record CompatibilityVersions(
         TransportVersion transportVersion = TransportVersion.readVersion(in);
 
         Map<String, SystemIndexDescriptor.MappingsVersion> mappingsVersions = Map.of();
-        if (in.getTransportVersion().onOrAfter(TransportVersions.COMPAT_VERSIONS_MAPPING_VERSION_ADDED)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_11_X)) {
             mappingsVersions = in.readMap(SystemIndexDescriptor.MappingsVersion::new);
         }
 
@@ -112,7 +112,7 @@ public record CompatibilityVersions(
     public void writeTo(StreamOutput out) throws IOException {
         TransportVersion.writeVersion(this.transportVersion(), out);
 
-        if (out.getTransportVersion().onOrAfter(TransportVersions.COMPAT_VERSIONS_MAPPING_VERSION_ADDED)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_11_X)) {
             out.writeMap(this.systemIndexMappingsVersion(), (o, v) -> v.writeTo(o));
         }
     }

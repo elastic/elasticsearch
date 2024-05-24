@@ -7,8 +7,7 @@
 package org.elasticsearch.xpack.watcher.test.integration;
 
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
-import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
-import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.support.broadcast.BroadcastResponse;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.protocol.xpack.watcher.PutWatchResponse;
 import org.elasticsearch.rest.RestStatus;
@@ -24,6 +23,7 @@ import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.test.ESIntegTestCase.Scope.SUITE;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 import static org.elasticsearch.xpack.watcher.actions.ActionBuilders.loggingAction;
 import static org.elasticsearch.xpack.watcher.client.WatchSourceBuilders.watchBuilder;
 import static org.elasticsearch.xpack.watcher.input.InputBuilders.simpleInput;
@@ -65,10 +65,12 @@ public class SingleNodeTests extends AbstractWatcherIntegrationTestCase {
         ensureGreen(HistoryStoreField.DATA_STREAM);
 
         assertBusy(() -> {
-            RefreshResponse refreshResponse = indicesAdmin().prepareRefresh(".watcher-history*").get();
+            BroadcastResponse refreshResponse = indicesAdmin().prepareRefresh(".watcher-history*").get();
             assertThat(refreshResponse.getStatus(), equalTo(RestStatus.OK));
-            SearchResponse searchResponse = client().prepareSearch(".watcher-history*").setSize(0).get();
-            assertThat(searchResponse.getHits().getTotalHits().value, is(greaterThanOrEqualTo(1L)));
+            assertResponse(
+                prepareSearch(".watcher-history*").setSize(0),
+                searchResponse -> assertThat(searchResponse.getHits().getTotalHits().value, is(greaterThanOrEqualTo(1L)))
+            );
         }, 30, TimeUnit.SECONDS);
     }
 

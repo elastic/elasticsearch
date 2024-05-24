@@ -10,6 +10,7 @@ package org.elasticsearch.action.fieldcaps;
 
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
+import org.elasticsearch.core.Predicates;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -49,16 +50,16 @@ final class ResponseRewriter {
         String[] filters,
         String[] allowedTypes
     ) {
-        Predicate<IndexFieldCapabilities> test = ifc -> true;
+        Predicate<IndexFieldCapabilities> test = Predicates.always();
         Set<String> objects = null;
         Set<String> nestedObjects = null;
         if (allowedTypes.length > 0) {
             Set<String> at = Set.of(allowedTypes);
-            test = test.and(ifc -> at.contains(ifc.getType()));
+            test = test.and(ifc -> at.contains(ifc.type()));
         }
         for (String filter : filters) {
             if ("-parent".equals(filter)) {
-                test = test.and(fc -> fc.getType().equals("nested") == false && fc.getType().equals("object") == false);
+                test = test.and(fc -> fc.type().equals("nested") == false && fc.type().equals("object") == false);
             }
             if ("-metadata".equals(filter)) {
                 test = test.and(fc -> fc.isMetadatafield() == false);
@@ -71,7 +72,7 @@ final class ResponseRewriter {
                     nestedObjects = findTypes("nested", input);
                 }
                 Set<String> no = nestedObjects;
-                test = test.and(fc -> isNestedField(fc.getName(), no) == false);
+                test = test.and(fc -> isNestedField(fc.name(), no) == false);
             }
             if ("-multifield".equals(filter)) {
                 // immediate parent is not an object field
@@ -79,7 +80,7 @@ final class ResponseRewriter {
                     objects = findTypes("object", input);
                 }
                 Set<String> o = objects;
-                test = test.and(fc -> isNotMultifield(fc.getName(), o));
+                test = test.and(fc -> isNotMultifield(fc.name(), o));
             }
         }
         Predicate<IndexFieldCapabilities> finalTest = test;
@@ -94,7 +95,7 @@ final class ResponseRewriter {
     private static Set<String> findTypes(String type, Map<String, IndexFieldCapabilities> fieldCaps) {
         return fieldCaps.entrySet()
             .stream()
-            .filter(entry -> type.equals(entry.getValue().getType()))
+            .filter(entry -> type.equals(entry.getValue().type()))
             .map(Map.Entry::getKey)
             .collect(Collectors.toSet());
     }
@@ -109,7 +110,7 @@ final class ResponseRewriter {
     }
 
     private static boolean isNotMultifield(String field, Set<String> objectFields) {
-        int lastDotPos = field.lastIndexOf(".");
+        int lastDotPos = field.lastIndexOf('.');
         if (lastDotPos == -1) {
             return true;
         }

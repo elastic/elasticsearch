@@ -78,7 +78,8 @@ public class RestTable {
                 ),
                 ToXContent.EMPTY_PARAMS,
                 channel
-            )
+            ),
+            null
         );
     }
 
@@ -127,7 +128,8 @@ public class RestTable {
                         writer.append("\n");
                     })
                 )
-            )
+            ),
+            null
         );
     }
 
@@ -154,9 +156,7 @@ public class RestTable {
                 if (headerAliasMap.containsKey(columnHeader)) {
                     ordering.add(new ColumnOrderElement(headerAliasMap.get(columnHeader), reverse));
                 } else {
-                    throw new UnsupportedOperationException(
-                        String.format(Locale.ROOT, "Unable to sort by unknown sort key `%s`", columnHeader)
-                    );
+                    throw new IllegalArgumentException(String.format(Locale.ROOT, "Unable to sort by unknown sort key `%s`", columnHeader));
                 }
             }
             Collections.sort(rowOrder, new TableIndexComparator(table, ordering));
@@ -492,6 +492,26 @@ public class RestTable {
 
         public boolean isReversed() {
             return reverse;
+        }
+    }
+
+    /**
+     * A formatted number, such that it sorts according to its numeric value but captures a specific string representation too
+     */
+    record FormattedDouble(String displayValue, double numericValue) implements Comparable<FormattedDouble> {
+
+        static FormattedDouble format2DecimalPlaces(double numericValue) {
+            return new FormattedDouble(Strings.format("%.2f", numericValue), numericValue);
+        }
+
+        @Override
+        public int compareTo(FormattedDouble other) {
+            return Double.compare(numericValue, other.numericValue);
+        }
+
+        @Override
+        public String toString() {
+            return displayValue;
         }
     }
 }

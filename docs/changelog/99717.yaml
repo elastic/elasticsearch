@@ -1,5 +1,0 @@
-pr: 99717
-summary: Treating watcher webhook response header names as case-insensitive
-area: Watcher
-type: bug
-issues: []

@@ -7,8 +7,8 @@
 
 package org.elasticsearch.compute.aggregation;
 
-import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.LongIntBlockSourceOperator;
@@ -23,8 +23,8 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class MinIntGroupingAggregatorFunctionTests extends GroupingAggregatorFunctionTestCase {
     @Override
-    protected AggregatorFunctionSupplier aggregatorFunction(BigArrays bigArrays, List<Integer> inputChannels) {
-        return new MinIntAggregatorFunctionSupplier(bigArrays, inputChannels);
+    protected AggregatorFunctionSupplier aggregatorFunction(List<Integer> inputChannels) {
+        return new MinIntAggregatorFunctionSupplier(inputChannels);
     }
 
     @Override
@@ -33,8 +33,11 @@ public class MinIntGroupingAggregatorFunctionTests extends GroupingAggregatorFun
     }
 
     @Override
-    protected SourceOperator simpleInput(int size) {
-        return new LongIntBlockSourceOperator(LongStream.range(0, size).mapToObj(l -> Tuple.tuple(randomLongBetween(0, 4), randomInt())));
+    protected SourceOperator simpleInput(BlockFactory blockFactory, int size) {
+        return new LongIntBlockSourceOperator(
+            blockFactory,
+            LongStream.range(0, size).mapToObj(l -> Tuple.tuple(randomLongBetween(0, 4), randomInt()))
+        );
     }
 
     @Override

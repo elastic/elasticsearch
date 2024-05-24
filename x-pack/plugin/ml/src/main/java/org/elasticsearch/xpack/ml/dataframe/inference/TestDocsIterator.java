@@ -61,7 +61,7 @@ public class TestDocsIterator extends SearchAfterDocumentsIterator<SearchHit> {
 
     @Override
     protected SearchHit map(SearchHit hit) {
-        return hit;
+        return hit.asUnpooled();
     }
 
     @Override

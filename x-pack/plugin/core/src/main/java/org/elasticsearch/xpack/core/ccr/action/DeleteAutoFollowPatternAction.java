@@ -24,7 +24,7 @@ public class DeleteAutoFollowPatternAction extends ActionType<AcknowledgedRespon
     public static final DeleteAutoFollowPatternAction INSTANCE = new DeleteAutoFollowPatternAction();
 
     private DeleteAutoFollowPatternAction() {
-        super(NAME, AcknowledgedResponse::readFrom);
+        super(NAME);
     }
 
     public static class Request extends AcknowledgedRequest<Request> {
@@ -32,6 +32,7 @@ public class DeleteAutoFollowPatternAction extends ActionType<AcknowledgedRespon
         private final String name;
 
         public Request(String name) {
+            super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT, DEFAULT_ACK_TIMEOUT);
             this.name = name;
         }
 

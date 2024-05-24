@@ -140,7 +140,7 @@ public class PublicationTests extends ESTestCase {
 
         @Override
         protected void onJoin(Join join) {
-            assertNull(joins.put(join.getSourceNode(), join));
+            assertNull(joins.put(join.votingNode(), join));
         }
 
         @Override

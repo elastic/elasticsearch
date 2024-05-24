@@ -59,7 +59,7 @@ public class CorruptedTranslogIT extends ESIntegTestCase {
 
         IndexRequestBuilder[] builders = new IndexRequestBuilder[scaledRandomIntBetween(100, 1000)];
         for (int i = 0; i < builders.length; i++) {
-            builders[i] = client().prepareIndex("test").setSource("foo", "bar");
+            builders[i] = prepareIndex("test").setSource("foo", "bar");
         }
 
         indexRandom(false, false, false, Arrays.asList(builders));
@@ -97,8 +97,7 @@ public class CorruptedTranslogIT extends ESIntegTestCase {
         });
 
         assertThat(
-            expectThrows(SearchPhaseExecutionException.class, () -> client().prepareSearch("test").setQuery(matchAllQuery()).get())
-                .getMessage(),
+            expectThrows(SearchPhaseExecutionException.class, prepareSearch("test").setQuery(matchAllQuery())).getMessage(),
             containsString("all shards failed")
         );
 

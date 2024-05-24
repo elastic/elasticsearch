@@ -81,37 +81,36 @@ public class TestFixturesPlugin implements Plugin<Project> {
         );
 
         ExtraPropertiesExtension ext = project.getExtensions().getByType(ExtraPropertiesExtension.class);
-        File testfixturesDir = project.file("testfixtures_shared");
-        ext.set("testFixturesDir", testfixturesDir);
+        File testFixturesDir = project.file("testfixtures_shared");
+        ext.set("testFixturesDir", testFixturesDir);
 
         if (project.file(DOCKER_COMPOSE_YML).exists()) {
             project.getPluginManager().apply(BasePlugin.class);
             project.getPluginManager().apply(DockerComposePlugin.class);
-
-            TaskProvider<Task> preProcessFixture = project.getTasks().register("preProcessFixture", t -> {
-                t.doFirst(new Action<Task>() {
-                    @Override
-                    public void execute(Task task) {
-                        try {
-                            Files.createDirectories(testfixturesDir.toPath());
-                        } catch (IOException e) {
-                            throw new UncheckedIOException(e);
-                        }
+            TaskProvider<TestFixtureTask> preProcessFixture = project.getTasks().register("preProcessFixture", TestFixtureTask.class, t -> {
+                t.getFixturesDir().set(testFixturesDir);
+                t.doFirst(task -> {
+                    try {
+                        Files.createDirectories(testFixturesDir.toPath());
+                    } catch (IOException e) {
+                        throw new UncheckedIOException(e);
                     }
                 });
             });
             TaskProvider<Task> buildFixture = project.getTasks()
                 .register("buildFixture", t -> t.dependsOn(preProcessFixture, tasks.named("composeUp")));
 
-            TaskProvider<Task> postProcessFixture = project.getTasks().register("postProcessFixture", task -> {
-                task.dependsOn(buildFixture);
-                configureServiceInfoForTask(
-                    task,
-                    project,
-                    false,
-                    (name, port) -> task.getExtensions().getByType(ExtraPropertiesExtension.class).set(name, port)
-                );
-            });
+            TaskProvider<TestFixtureTask> postProcessFixture = project.getTasks()
+                .register("postProcessFixture", TestFixtureTask.class, task -> {
+                    task.getFixturesDir().set(testFixturesDir);
+                    task.dependsOn(buildFixture);
+                    configureServiceInfoForTask(
+                        task,
+                        project,
+                        false,
+                        (name, port) -> task.getExtensions().getByType(ExtraPropertiesExtension.class).set(name, port)
+                    );
+                });
 
             maybeSkipTask(dockerSupport, preProcessFixture);
             maybeSkipTask(dockerSupport, postProcessFixture);
@@ -123,6 +122,7 @@ public class TestFixturesPlugin implements Plugin<Project> {
             composeExtension.getRemoveContainers().set(true);
             composeExtension.getCaptureContainersOutput()
                 .set(EnumSet.of(LogLevel.INFO, LogLevel.DEBUG).contains(project.getGradle().getStartParameter().getLogLevel()));
+            composeExtension.getUseDockerComposeV2().set(false);
             composeExtension.getExecutable().set(this.providerFactory.provider(() -> {
                 String composePath = dockerSupport.get().getDockerAvailability().dockerComposePath();
                 LOGGER.debug("Docker Compose path: {}", composePath);
@@ -137,7 +137,7 @@ public class TestFixturesPlugin implements Plugin<Project> {
                 t.mustRunAfter(preProcessFixture);
             });
             tasks.named("composePull").configure(t -> t.mustRunAfter(preProcessFixture));
-            tasks.named("composeDown").configure(t -> t.doLast(t2 -> getFileSystemOperations().delete(d -> d.delete(testfixturesDir))));
+            tasks.named("composeDown").configure(t -> t.doLast(t2 -> getFileSystemOperations().delete(d -> d.delete(testFixturesDir))));
         } else {
             project.afterEvaluate(spec -> {
                 if (extension.fixtures.isEmpty()) {
@@ -178,7 +178,7 @@ public class TestFixturesPlugin implements Plugin<Project> {
         tasks.withType(taskClass).configureEach(t -> maybeSkipTask(dockerSupport, t));
     }
 
-    private void maybeSkipTask(Provider<DockerSupportService> dockerSupport, TaskProvider<Task> task) {
+    private void maybeSkipTask(Provider<DockerSupportService> dockerSupport, TaskProvider<? extends Task> task) {
         task.configure(t -> maybeSkipTask(dockerSupport, t));
     }
 

@@ -41,12 +41,7 @@ public class URLRepositoryTests extends ESTestCase {
             MockBigArrays.NON_RECYCLING_INSTANCE,
             new RecoverySettings(baseSettings, new ClusterSettings(baseSettings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)),
             mock(URLHttpClient.Factory.class)
-        ) {
-            @Override
-            protected void assertSnapshotOrGenericThread() {
-                // eliminate thread name check as we create repo manually on test/main threads
-            }
-        };
+        );
     }
 
     public void testWhiteListingRepoURL() throws IOException {

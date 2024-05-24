@@ -10,7 +10,7 @@ package org.elasticsearch.compute.data;
 import java.util.Arrays;
 
 /**
- * Block build of IntBlocks.
+ * Builder for {@link IntVector}s that grows as needed.
  * This class is generated. Do not edit it.
  */
 final class IntVectorBuilder extends AbstractVectorBuilder implements IntVector.Builder {
@@ -49,17 +49,17 @@ final class IntVectorBuilder extends AbstractVectorBuilder implements IntVector.
 
     @Override
     public IntVector build() {
+        finish();
         IntVector vector;
         if (valueCount == 1) {
-            vector = new ConstantIntVector(values[0], 1, blockFactory);
+            vector = blockFactory.newConstantIntBlockWith(values[0], 1, estimatedBytes).asVector();
         } else {
             if (values.length - valueCount > 1024 || valueCount < (values.length / 2)) {
                 values = Arrays.copyOf(values, valueCount);
             }
-            vector = new IntArrayVector(values, valueCount, blockFactory);
+            vector = blockFactory.newIntArrayVector(values, valueCount, estimatedBytes);
         }
-        // update the breaker with the actual bytes used.
-        blockFactory.adjustBreaker(vector.ramBytesUsed() - estimatedBytes, true);
+        built();
         return vector;
     }
 }

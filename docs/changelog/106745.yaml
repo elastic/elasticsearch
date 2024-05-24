@@ -1,0 +1,5 @@
+pr: 106745
+summary: Fix `AffixSetting.exists` to include secure settings
+area: Infra/Core
+type: bug
+issues: []

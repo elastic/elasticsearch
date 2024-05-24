@@ -1,6 +1,0 @@
-pr: 98244
-summary: Optimize ContentPath#pathAsText
-area: Search
-type: enhancement
-issues:
-  - 94544

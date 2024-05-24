@@ -100,10 +100,7 @@ public class FileSettingsServiceIT extends ESIntegTestCase {
         }""";
 
     private void assertMasterNode(Client client, String node) {
-        assertThat(
-            client.admin().cluster().prepareState().execute().actionGet().getState().nodes().getMasterNode().getName(),
-            equalTo(node)
-        );
+        assertThat(client.admin().cluster().prepareState().get().getState().nodes().getMasterNode().getName(), equalTo(node));
     }
 
     private void writeJSONFile(String node, String json) throws Exception {
@@ -246,7 +243,7 @@ public class FileSettingsServiceIT extends ESIntegTestCase {
 
         FileSettingsService masterFileSettingsService = internalCluster().getInstance(FileSettingsService.class, masterNode);
 
-        assertTrue(masterFileSettingsService.watching());
+        assertBusy(() -> assertTrue(masterFileSettingsService.watching()));
 
         logger.info("--> write some settings");
         writeJSONFile(masterNode, testJSON);

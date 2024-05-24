@@ -31,14 +31,13 @@ public class NamedComponentScanner {
     public static void main(String[] args) throws IOException {
         List<ClassReader> classReaders = ClassReaders.ofClassPath();
 
-        NamedComponentScanner scanner = new NamedComponentScanner();
-        Map<String, Map<String, String>> namedComponentsMap = scanner.scanForNamedClasses(classReaders);
+        Map<String, Map<String, String>> namedComponentsMap = scanForNamedClasses(classReaders);
         Path outputFile = Path.of(args[0]);
-        scanner.writeToFile(namedComponentsMap, outputFile);
+        NamedComponentScanner.writeToFile(namedComponentsMap, outputFile);
     }
 
     // scope for testing
-    public void writeToFile(Map<String, Map<String, String>> namedComponentsMap, Path outputFile) throws IOException {
+    public static void writeToFile(Map<String, Map<String, String>> namedComponentsMap, Path outputFile) throws IOException {
         Files.createDirectories(outputFile.getParent());
 
         try (OutputStream outputStream = Files.newOutputStream(outputFile)) {
@@ -58,7 +57,7 @@ public class NamedComponentScanner {
     }
 
     // returns a Map<String, Map<String,String> - extensible interface -> map{ namedName -> className }
-    public Map<String, Map<String, String>> scanForNamedClasses(List<ClassReader> classReaders) {
+    public static Map<String, Map<String, String>> scanForNamedClasses(List<ClassReader> classReaders) {
         ClassScanner extensibleClassScanner = new ClassScanner(Type.getDescriptor(Extensible.class), (classname, map) -> {
             map.put(classname, classname);
             return null;
@@ -95,7 +94,7 @@ public class NamedComponentScanner {
         return componentInfo;
     }
 
-    private String pathToClassName(String classWithSlashes) {
+    private static String pathToClassName(String classWithSlashes) {
         return classWithSlashes.replace('/', '.');
     }
 

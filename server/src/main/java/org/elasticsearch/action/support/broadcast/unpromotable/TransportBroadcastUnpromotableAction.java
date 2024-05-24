@@ -22,6 +22,7 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportChannel;
@@ -44,29 +45,6 @@ public abstract class TransportBroadcastUnpromotableAction<Request extends Broad
     protected final String transportUnpromotableAction;
     protected final Executor executor;
 
-    /**
-     * Temporary for serverless compatibility. TODO remove.
-     */
-    protected TransportBroadcastUnpromotableAction(
-        String actionName,
-        ClusterService clusterService,
-        TransportService transportService,
-        ShardStateAction shardStateAction,
-        ActionFilters actionFilters,
-        Writeable.Reader<Request> requestReader,
-        String executor
-    ) {
-        this(
-            actionName,
-            clusterService,
-            transportService,
-            shardStateAction,
-            actionFilters,
-            requestReader,
-            transportService.getThreadPool().executor(executor)
-        );
-    }
-
     protected TransportBroadcastUnpromotableAction(
         String actionName,
         ClusterService clusterService,
@@ -76,7 +54,7 @@ public abstract class TransportBroadcastUnpromotableAction<Request extends Broad
         Writeable.Reader<Request> requestReader,
         Executor executor
     ) {
-        super(actionName, transportService, actionFilters, requestReader);
+        super(actionName, transportService, actionFilters, requestReader, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         this.clusterService = clusterService;
         this.shardStateAction = shardStateAction;
         this.transportService = transportService;
@@ -86,6 +64,8 @@ public abstract class TransportBroadcastUnpromotableAction<Request extends Broad
         transportService.registerRequestHandler(
             transportUnpromotableAction,
             this.executor,
+            false,
+            false,
             requestReader,
             new UnpromotableTransportHandler()
         );

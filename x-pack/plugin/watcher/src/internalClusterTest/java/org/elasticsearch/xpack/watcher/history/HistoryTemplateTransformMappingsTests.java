@@ -47,15 +47,10 @@ public class HistoryTemplateTransformMappingsTests extends AbstractWatcherIntegr
         client().prepareBulk()
             .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
             .add(
-                client().prepareIndex()
-                    .setIndex("idx")
-                    .setId("1")
-                    .setSource(jsonBuilder().startObject().field("name", "first").field("foo", "bar").endObject())
+                prepareIndex("idx").setId("1").setSource(jsonBuilder().startObject().field("name", "first").field("foo", "bar").endObject())
             )
             .add(
-                client().prepareIndex()
-                    .setIndex("idx")
-                    .setId("2")
+                prepareIndex("idx").setId("2")
                     .setSource(
                         jsonBuilder().startObject().field("name", "second").startObject("foo").field("what", "ever").endObject().endObject()
                     )

@@ -10,13 +10,13 @@ package org.elasticsearch.xpack.core.api.filtering;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
-import org.elasticsearch.action.support.ActionFilter;
 import org.elasticsearch.action.support.ActionFilterChain;
+import org.elasticsearch.action.support.MappedActionFilter;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationField;
 
-public abstract class ApiFilteringActionFilter<Res extends ActionResponse> implements ActionFilter {
+public abstract class ApiFilteringActionFilter<Res extends ActionResponse> implements MappedActionFilter {
 
     private final ThreadContext threadContext;
     private final String actionName;
@@ -32,8 +32,8 @@ public abstract class ApiFilteringActionFilter<Res extends ActionResponse> imple
     }
 
     @Override
-    public int order() {
-        return 0;
+    public final String actionName() {
+        return actionName;
     }
 
     @Override

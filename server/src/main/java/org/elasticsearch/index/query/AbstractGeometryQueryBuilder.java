@@ -121,7 +121,7 @@ public abstract class AbstractGeometryQueryBuilder<QB extends AbstractGeometryQu
         this.supplier = null;
     }
 
-    private void checkGeometry(Geometry geometry) {
+    private static void checkGeometry(Geometry geometry) {
         // linear ring geometries are not serializable, fail at construction time.
         if (geometry.type() == ShapeType.LINEARRING) {
             throw new IllegalArgumentException("[" + ShapeType.LINEARRING + "] geometries are not supported");

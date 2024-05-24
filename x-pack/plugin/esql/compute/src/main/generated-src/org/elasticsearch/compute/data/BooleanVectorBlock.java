@@ -7,18 +7,22 @@
 
 package org.elasticsearch.compute.data;
 
+import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.core.ReleasableIterator;
 import org.elasticsearch.core.Releasables;
 
 /**
- * Block view of a BooleanVector.
+ * Block view of a {@link BooleanVector}. Cannot represent multi-values or nulls.
  * This class is generated. Do not edit it.
  */
 public final class BooleanVectorBlock extends AbstractVectorBlock implements BooleanBlock {
 
     private final BooleanVector vector;
 
+    /**
+     * @param vector considered owned by the current block; must not be used in any other {@code Block}
+     */
     BooleanVectorBlock(BooleanVector vector) {
-        super(vector.getPositionCount(), vector.blockFactory());
         this.vector = vector;
     }
 
@@ -33,7 +37,7 @@ public final class BooleanVectorBlock extends AbstractVectorBlock implements Boo
     }
 
     @Override
-    public int getTotalValueCount() {
+    public int getPositionCount() {
         return vector.getPositionCount();
     }
 
@@ -44,7 +48,18 @@ public final class BooleanVectorBlock extends AbstractVectorBlock implements Boo
 
     @Override
     public BooleanBlock filter(int... positions) {
-        return new FilterBooleanVector(vector, positions).asBlock();
+        return vector.filter(positions).asBlock();
+    }
+
+    @Override
+    public ReleasableIterator<? extends BooleanBlock> lookup(IntBlock positions, ByteSizeValue targetBlockSize) {
+        return vector.lookup(positions, targetBlockSize);
+    }
+
+    @Override
+    public BooleanBlock expand() {
+        incRef();
+        return this;
     }
 
     @Override
@@ -71,7 +86,18 @@ public final class BooleanVectorBlock extends AbstractVectorBlock implements Boo
     }
 
     @Override
-    public void close() {
+    public void closeInternal() {
+        assert (vector.isReleased() == false) : "can't release block [" + this + "] containing already released vector";
         Releasables.closeExpectNoException(vector);
+    }
+
+    @Override
+    public void allowPassingToDifferentDriver() {
+        vector.allowPassingToDifferentDriver();
+    }
+
+    @Override
+    public BlockFactory blockFactory() {
+        return vector.blockFactory();
     }
 }

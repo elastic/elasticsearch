@@ -128,7 +128,7 @@ public class TransformCheckpoint implements Writeable, ToXContentObject {
         this.transformId = in.readString();
         this.timestampMillis = in.readLong();
         this.checkpoint = in.readLong();
-        this.indicesCheckpoints = readCheckpoints(in.readMap());
+        this.indicesCheckpoints = readCheckpoints(in.readGenericMap());
         this.timeUpperBoundMillis = in.readLong();
     }
 

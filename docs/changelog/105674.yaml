@@ -1,0 +1,6 @@
+pr: 105674
+summary: Health monitor concurrency fixes
+area: Health
+type: bug
+issues:
+ - 105065

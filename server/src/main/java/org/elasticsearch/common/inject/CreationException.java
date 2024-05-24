@@ -27,13 +27,12 @@ import java.util.Collection;
  *
  * @author crazybob@google.com (Bob Lee)
  */
-public class CreationException extends RuntimeException {
+public final class CreationException extends RuntimeException {
     private final Collection<Message> messages;
 
     /**
      * Creates a CreationException containing {@code messages}.
      */
-    @SuppressWarnings("this-escape")
     public CreationException(Collection<Message> messages) {
         this.messages = messages;
         if (this.messages.isEmpty()) {

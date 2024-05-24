@@ -40,8 +40,10 @@ import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.gateway.GatewayAllocator;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.snapshots.SnapshotShardSizeInfo;
 import org.elasticsearch.snapshots.SnapshotsInfoService;
+import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.gateway.TestGatewayAllocator;
@@ -53,6 +55,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.OptionalDouble;
 import java.util.Set;
+import java.util.function.Predicate;
 
 import static org.elasticsearch.cluster.ClusterModule.BALANCED_ALLOCATOR;
 import static org.elasticsearch.cluster.ClusterModule.DESIRED_BALANCE_ALLOCATOR;
@@ -160,7 +163,8 @@ public abstract class ESAllocationTestCase extends ESTestCase {
             new BalancedShardsAllocator(settings),
             queue.getThreadPool(),
             clusterService,
-            null
+            null,
+            TelemetryProvider.NOOP
         ) {
             private RoutingAllocation lastAllocation;
 
@@ -215,7 +219,7 @@ public abstract class ESAllocationTestCase extends ESTestCase {
     protected static DiscoveryNode newNode(String nodeId, Version version, IndexVersion indexVersion) {
         return DiscoveryNodeUtils.builder(nodeId)
             .roles(MASTER_DATA_ROLES)
-            .version(version, IndexVersion.MINIMUM_COMPATIBLE, indexVersion)
+            .version(version, IndexVersions.MINIMUM_COMPATIBLE, indexVersion)
             .build();
     }
 
@@ -409,7 +413,7 @@ public abstract class ESAllocationTestCase extends ESTestCase {
         }
 
         @Override
-        public void afterPrimariesBeforeReplicas(RoutingAllocation allocation) {
+        public void afterPrimariesBeforeReplicas(RoutingAllocation allocation, Predicate<ShardRouting> isRelevantShardPredicate) {
             // no-op
         }
 

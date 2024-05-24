@@ -146,7 +146,7 @@ public class EqlSession {
         return postAnalyzer.postAnalyze(verified, configuration);
     }
 
-    private LogicalPlan doParse(String eql, ParserParams params) {
+    private static LogicalPlan doParse(String eql, ParserParams params) {
         return new EqlParser().createStatement(eql, params);
     }
 }

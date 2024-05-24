@@ -78,26 +78,41 @@ public class CanMatchIT extends AbstractEsqlIntegTestCase {
                     handler.messageReceived(request, channel, task);
                 });
             }
-            EsqlQueryResponse resp = run("from events_*", randomPragmas(), new RangeQueryBuilder("@timestamp").gte("2023-01-01"));
-            assertThat(getValuesList(resp), hasSize(4));
-            assertThat(queriedIndices, equalTo(Set.of("events_2023")));
-            queriedIndices.clear();
+            try (EsqlQueryResponse resp = run("from events_*", randomPragmas(), new RangeQueryBuilder("@timestamp").gte("2023-01-01"))) {
+                assertThat(getValuesList(resp), hasSize(4));
+                assertThat(queriedIndices, equalTo(Set.of("events_2023")));
+                queriedIndices.clear();
+            }
 
-            resp = run("from events_*", randomPragmas(), new RangeQueryBuilder("@timestamp").lt("2023-01-01"));
-            assertThat(getValuesList(resp), hasSize(3));
-            assertThat(queriedIndices, equalTo(Set.of("events_2022")));
-            queriedIndices.clear();
+            try (EsqlQueryResponse resp = run("from events_*", randomPragmas(), new RangeQueryBuilder("@timestamp").lt("2023-01-01"))) {
+                assertThat(getValuesList(resp), hasSize(3));
+                assertThat(queriedIndices, equalTo(Set.of("events_2022")));
+                queriedIndices.clear();
+            }
 
-            resp = run("from events_*", randomPragmas(), new RangeQueryBuilder("@timestamp").gt("2022-01-01").lt("2023-12-31"));
-            assertThat(getValuesList(resp), hasSize(7));
-            assertThat(queriedIndices, equalTo(Set.of("events_2022", "events_2023")));
-            queriedIndices.clear();
+            try (
+                EsqlQueryResponse resp = run(
+                    "from events_*",
+                    randomPragmas(),
+                    new RangeQueryBuilder("@timestamp").gt("2022-01-01").lt("2023-12-31")
+                )
+            ) {
+                assertThat(getValuesList(resp), hasSize(7));
+                assertThat(queriedIndices, equalTo(Set.of("events_2022", "events_2023")));
+                queriedIndices.clear();
+            }
 
-            resp = run("from events_*", randomPragmas(), new RangeQueryBuilder("@timestamp").gt("2021-01-01").lt("2021-12-31"));
-            assertThat(getValuesList(resp), hasSize(0));
-            assertThat(queriedIndices, empty());
-            queriedIndices.clear();
-
+            try (
+                EsqlQueryResponse resp = run(
+                    "from events_*",
+                    randomPragmas(),
+                    new RangeQueryBuilder("@timestamp").gt("2021-01-01").lt("2021-12-31")
+                )
+            ) {
+                assertThat(getValuesList(resp), hasSize(0));
+                assertThat(queriedIndices, empty());
+                queriedIndices.clear();
+            }
         } finally {
             for (TransportService ts : internalCluster().getInstances(TransportService.class)) {
                 ((MockTransportService) ts).clearAllRules();
@@ -129,52 +144,68 @@ public class CanMatchIT extends AbstractEsqlIntegTestCase {
                 .addAlias("employees", "engineers", new MatchQueryBuilder("dept", "engineering"))
                 .addAlias("employees", "sales", new MatchQueryBuilder("dept", "sales"))
         );
-        EsqlQueryResponse resp;
         // employees index
-        resp = run("from employees | stats count(emp_no)", randomPragmas());
-        assertThat(getValuesList(resp).get(0), equalTo(List.of(6L)));
-        resp = run("from employees | stats avg(salary)", randomPragmas());
-        assertThat(getValuesList(resp).get(0), equalTo(List.of(26.95d)));
+        try (var resp = run("from employees | stats count(emp_no)", randomPragmas())) {
+            assertThat(getValuesList(resp).get(0), equalTo(List.of(6L)));
+        }
+        try (var resp = run("from employees | stats avg(salary)", randomPragmas())) {
+            assertThat(getValuesList(resp).get(0), equalTo(List.of(26.95d)));
+        }
 
-        resp = run("from employees | stats count(emp_no)", randomPragmas(), new RangeQueryBuilder("hired").lt("2012-04-30"));
-        assertThat(getValuesList(resp).get(0), equalTo(List.of(4L)));
-        resp = run("from employees | stats avg(salary)", randomPragmas(), new RangeQueryBuilder("hired").lt("2012-04-30"));
-        assertThat(getValuesList(resp).get(0), equalTo(List.of(26.65d)));
+        try (var resp = run("from employees | stats count(emp_no)", randomPragmas(), new RangeQueryBuilder("hired").lt("2012-04-30"))) {
+            assertThat(getValuesList(resp).get(0), equalTo(List.of(4L)));
+        }
+        try (var resp = run("from employees | stats avg(salary)", randomPragmas(), new RangeQueryBuilder("hired").lt("2012-04-30"))) {
+            assertThat(getValuesList(resp).get(0), equalTo(List.of(26.65d)));
+        }
 
         // match both employees index and engineers alias -> employees
-        resp = run("from e* | stats count(emp_no)", randomPragmas());
-        assertThat(getValuesList(resp).get(0), equalTo(List.of(6L)));
-        resp = run("from employees | stats avg(salary)", randomPragmas());
-        assertThat(getValuesList(resp).get(0), equalTo(List.of(26.95d)));
+        try (var resp = run("from e* | stats count(emp_no)", randomPragmas())) {
+            assertThat(getValuesList(resp).get(0), equalTo(List.of(6L)));
+        }
+        try (var resp = run("from employees | stats avg(salary)", randomPragmas())) {
+            assertThat(getValuesList(resp).get(0), equalTo(List.of(26.95d)));
+        }
 
-        resp = run("from e* | stats count(emp_no)", randomPragmas(), new RangeQueryBuilder("hired").lt("2012-04-30"));
-        assertThat(getValuesList(resp).get(0), equalTo(List.of(4L)));
-        resp = run("from e* | stats avg(salary)", randomPragmas(), new RangeQueryBuilder("hired").lt("2012-04-30"));
-        assertThat(getValuesList(resp).get(0), equalTo(List.of(26.65d)));
+        try (var resp = run("from e* | stats count(emp_no)", randomPragmas(), new RangeQueryBuilder("hired").lt("2012-04-30"))) {
+            assertThat(getValuesList(resp).get(0), equalTo(List.of(4L)));
+        }
+        try (var resp = run("from e* | stats avg(salary)", randomPragmas(), new RangeQueryBuilder("hired").lt("2012-04-30"))) {
+            assertThat(getValuesList(resp).get(0), equalTo(List.of(26.65d)));
+        }
 
         // engineers alias
-        resp = run("from engineer* | stats count(emp_no)", randomPragmas());
-        assertThat(getValuesList(resp).get(0), equalTo(List.of(4L)));
-        resp = run("from engineer* | stats avg(salary)", randomPragmas());
-        assertThat(getValuesList(resp).get(0), equalTo(List.of(26.65d)));
+        try (var resp = run("from engineer* | stats count(emp_no)", randomPragmas())) {
+            assertThat(getValuesList(resp).get(0), equalTo(List.of(4L)));
+        }
+        try (var resp = run("from engineer* | stats avg(salary)", randomPragmas())) {
+            assertThat(getValuesList(resp).get(0), equalTo(List.of(26.65d)));
+        }
 
-        resp = run("from engineer* | stats count(emp_no)", randomPragmas(), new RangeQueryBuilder("hired").lt("2012-04-30"));
-        assertThat(getValuesList(resp).get(0), equalTo(List.of(3L)));
-        resp = run("from engineer* | stats avg(salary)", randomPragmas(), new RangeQueryBuilder("hired").lt("2012-04-30"));
-        assertThat(getValuesList(resp).get(0), equalTo(List.of(27.2d)));
+        try (var resp = run("from engineer* | stats count(emp_no)", randomPragmas(), new RangeQueryBuilder("hired").lt("2012-04-30"))) {
+            assertThat(getValuesList(resp).get(0), equalTo(List.of(3L)));
+        }
+        try (var resp = run("from engineer* | stats avg(salary)", randomPragmas(), new RangeQueryBuilder("hired").lt("2012-04-30"))) {
+            assertThat(getValuesList(resp).get(0), equalTo(List.of(27.2d)));
+        }
 
         // sales alias
-        resp = run("from sales | stats count(emp_no)", randomPragmas());
-        assertThat(getValuesList(resp).get(0), equalTo(List.of(2L)));
-        resp = run("from sales | stats avg(salary)", randomPragmas());
-        assertThat(getValuesList(resp).get(0), equalTo(List.of(27.55d)));
+        try (var resp = run("from sales | stats count(emp_no)", randomPragmas())) {
+            assertThat(getValuesList(resp).get(0), equalTo(List.of(2L)));
+        }
+        try (var resp = run("from sales | stats avg(salary)", randomPragmas())) {
+            assertThat(getValuesList(resp).get(0), equalTo(List.of(27.55d)));
+        }
 
-        resp = run("from sales | stats count(emp_no)", randomPragmas(), new RangeQueryBuilder("hired").lt("2012-04-30"));
-        assertThat(getValuesList(resp).get(0), equalTo(List.of(1L)));
-        resp = run("from sales | stats avg(salary)", randomPragmas(), new RangeQueryBuilder("hired").lt("2012-04-30"));
-        assertThat(getValuesList(resp).get(0), equalTo(List.of(25.0d)));
+        try (var resp = run("from sales | stats count(emp_no)", randomPragmas(), new RangeQueryBuilder("hired").lt("2012-04-30"))) {
+            assertThat(getValuesList(resp).get(0), equalTo(List.of(1L)));
+        }
+        try (var resp = run("from sales | stats avg(salary)", randomPragmas(), new RangeQueryBuilder("hired").lt("2012-04-30"))) {
+            assertThat(getValuesList(resp).get(0), equalTo(List.of(25.0d)));
+        }
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/103749")
     public void testFailOnUnavailableShards() throws Exception {
         internalCluster().ensureAtLeastNumDataNodes(2);
         String logsOnlyNode = internalCluster().startDataOnlyNode();
@@ -211,11 +242,12 @@ public class CanMatchIT extends AbstractEsqlIntegTestCase {
             .add(new IndexRequest().source("timestamp", 10, "message", "aa"))
             .add(new IndexRequest().source("timestamp", 11, "message", "bb"))
             .get();
-        EsqlQueryResponse resp = run("from events,logs | KEEP timestamp,message");
-        assertThat(getValuesList(resp), hasSize(5));
-        internalCluster().stopNode(logsOnlyNode);
-        ensureClusterSizeConsistency();
-        Exception error = expectThrows(Exception.class, () -> run("from events,logs | KEEP timestamp,message"));
-        assertThat(error.getMessage(), containsString("no shard copies found"));
+        try (EsqlQueryResponse resp = run("from events,logs | KEEP timestamp,message")) {
+            assertThat(getValuesList(resp), hasSize(5));
+            internalCluster().stopNode(logsOnlyNode);
+            ensureClusterSizeConsistency();
+            Exception error = expectThrows(Exception.class, () -> run("from events,logs | KEEP timestamp,message"));
+            assertThat(error.getMessage(), containsString("no shard copies found"));
+        }
     }
 }

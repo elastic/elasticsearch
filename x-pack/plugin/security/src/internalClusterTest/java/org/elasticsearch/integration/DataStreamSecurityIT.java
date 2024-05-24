@@ -10,7 +10,7 @@ package org.elasticsearch.integration;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.admin.indices.rollover.RolloverRequest;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsRequest;
-import org.elasticsearch.action.admin.indices.template.put.PutComposableIndexTemplateAction;
+import org.elasticsearch.action.admin.indices.template.put.TransportPutComposableIndexTemplateAction;
 import org.elasticsearch.action.datastreams.CreateDataStreamAction;
 import org.elasticsearch.action.datastreams.ModifyDataStreamsAction;
 import org.elasticsearch.action.search.SearchRequest;
@@ -58,20 +58,14 @@ public class DataStreamSecurityIT extends SecurityIntegTestCase {
         );
         final var client = client().filterWithHeader(headers);
 
-        var putTemplateRequest = new PutComposableIndexTemplateAction.Request("id");
+        var putTemplateRequest = new TransportPutComposableIndexTemplateAction.Request("id");
         putTemplateRequest.indexTemplate(
-            new ComposableIndexTemplate(
-                List.of("logs-*"),
-                null,
-                null,
-                null,
-                null,
-                null,
-                new ComposableIndexTemplate.DataStreamTemplate(),
-                null
-            )
+            ComposableIndexTemplate.builder()
+                .indexPatterns(List.of("logs-*"))
+                .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate())
+                .build()
         );
-        assertAcked(client.execute(PutComposableIndexTemplateAction.INSTANCE, putTemplateRequest).actionGet());
+        assertAcked(client.execute(TransportPutComposableIndexTemplateAction.TYPE, putTemplateRequest).actionGet());
 
         String dataStreamName = "logs-es";
         var request = new CreateDataStreamAction.Request(dataStreamName);
@@ -95,17 +89,14 @@ public class DataStreamSecurityIT extends SecurityIntegTestCase {
                     String brokenIndexName = shouldBreakIndexName
                         ? original.getIndices().get(0).getName() + "-broken"
                         : original.getIndices().get(0).getName();
-                    DataStream broken = new DataStream(
-                        original.getName(),
-                        List.of(new Index(brokenIndexName, "broken"), original.getIndices().get(1)),
-                        original.getGeneration(),
-                        original.getMetadata(),
-                        original.isHidden(),
-                        original.isReplicated(),
-                        original.isSystem(),
-                        original.isAllowCustomRouting(),
-                        original.getIndexMode()
-                    );
+                    DataStream broken = original.copy()
+                        .setBackingIndices(
+                            original.getBackingIndices()
+                                .copy()
+                                .setIndices(List.of(new Index(brokenIndexName, "broken"), original.getIndices().get(1)))
+                                .build()
+                        )
+                        .build();
                     brokenDataStreamHolder.set(broken);
                     return ClusterState.builder(currentState)
                         .metadata(Metadata.builder(currentState.getMetadata()).put(broken).build())
@@ -135,7 +126,7 @@ public class DataStreamSecurityIT extends SecurityIntegTestCase {
             client.execute(
                 ModifyDataStreamsAction.INSTANCE,
                 new ModifyDataStreamsAction.Request(List.of(DataStreamAction.removeBackingIndex(dataStreamName, ghostReference.getName())))
-            ).actionGet()
+            )
         );
         ClusterState after = internalCluster().getCurrentMasterNodeInstance(ClusterService.class).state();
         assertThat(after.getMetadata().dataStreams().get(dataStreamName).getIndices(), hasSize(1));

@@ -63,6 +63,13 @@ public class RobertaTokenizationTests extends AbstractBWCSerializationTestCase<R
         return mutateForVersion(instance, version);
     }
 
+    public void testsBuildUpdatedTokenization() {
+        var update = new RobertaTokenization(true, true, 100, Tokenization.Truncate.FIRST, -1).buildWindowingTokenization(50, 20);
+        assertEquals(Tokenization.Truncate.NONE, update.getTruncate());
+        assertEquals(50, update.maxSequenceLength());
+        assertEquals(20, update.getSpan());
+    }
+
     public static RobertaTokenization createRandom() {
         return new RobertaTokenization(
             randomBoolean() ? null : randomBoolean(),

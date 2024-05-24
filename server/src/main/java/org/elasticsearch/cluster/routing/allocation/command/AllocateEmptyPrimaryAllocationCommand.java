@@ -74,8 +74,7 @@ public class AllocateEmptyPrimaryAllocationCommand extends BasePrimaryAllocation
 
     public static class Builder extends BasePrimaryAllocationCommand.Builder<AllocateEmptyPrimaryAllocationCommand> {
 
-        @Override
-        public Builder parse(XContentParser parser) throws IOException {
+        private Builder parse(XContentParser parser) throws IOException {
             return EMPTY_PRIMARY_PARSER.parse(parser, this, null);
         }
 

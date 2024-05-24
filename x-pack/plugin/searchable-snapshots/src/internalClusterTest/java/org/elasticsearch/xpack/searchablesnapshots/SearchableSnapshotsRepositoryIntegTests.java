@@ -17,6 +17,7 @@ import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.repositories.RepositoryConflictException;
 import org.elasticsearch.repositories.fs.FsRepository;
+import org.elasticsearch.search.SearchResponseUtils;
 import org.elasticsearch.snapshots.SnapshotRestoreException;
 
 import java.util.Arrays;
@@ -49,12 +50,9 @@ public class SearchableSnapshotsRepositoryIntegTests extends BaseFrozenSearchabl
             Settings.builder().put(INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1).put(INDEX_SOFT_DELETES_SETTING.getKey(), true)
         );
 
-        final TotalHits totalHits = internalCluster().client()
-            .prepareSearch(indexName)
-            .setTrackTotalHits(true)
-            .get()
-            .getHits()
-            .getTotalHits();
+        final TotalHits totalHits = SearchResponseUtils.getTotalHits(
+            internalCluster().client().prepareSearch(indexName).setTrackTotalHits(true)
+        );
 
         final String snapshotName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
         createSnapshot(repositoryName, snapshotName, List.of(indexName));
@@ -68,7 +66,7 @@ public class SearchableSnapshotsRepositoryIntegTests extends BaseFrozenSearchabl
             Storage storage = randomFrom(Storage.values());
             String restoredIndexName = (storage == Storage.FULL_COPY ? "fully-mounted-" : "partially-mounted-") + indexName + '-' + i;
             mountSnapshot(repositoryName, snapshotName, indexName, restoredIndexName, Settings.EMPTY, storage);
-            assertHitCount(client().prepareSearch(restoredIndexName).setTrackTotalHits(true).get(), totalHits.value);
+            assertHitCount(prepareSearch(restoredIndexName).setTrackTotalHits(true), totalHits.value);
             mountedIndices[i] = restoredIndexName;
         }
 
@@ -164,7 +162,9 @@ public class SearchableSnapshotsRepositoryIntegTests extends BaseFrozenSearchabl
         final String index = "index";
         createAndPopulateIndex(index, Settings.builder().put(INDEX_SOFT_DELETES_SETTING.getKey(), true));
 
-        final TotalHits totalHits = internalCluster().client().prepareSearch(index).setTrackTotalHits(true).get().getHits().getTotalHits();
+        final TotalHits totalHits = SearchResponseUtils.getTotalHits(
+            internalCluster().client().prepareSearch(index).setTrackTotalHits(true)
+        );
 
         final String snapshot = "snapshot";
         createSnapshot(repository, snapshot, List.of(index));
@@ -182,7 +182,7 @@ public class SearchableSnapshotsRepositoryIntegTests extends BaseFrozenSearchabl
                 ? equalTo(Boolean.toString(deleteSnapshot))
                 : nullValue()
         );
-        assertHitCount(client().prepareSearch(mounted).setTrackTotalHits(true).get(), totalHits.value);
+        assertHitCount(prepareSearch(mounted).setTrackTotalHits(true), totalHits.value);
 
         final String mountedAgain = randomValueOtherThan(mounted, () -> randomAlphaOfLength(10).toLowerCase(Locale.ROOT));
         final SnapshotRestoreException exception = expectThrows(
@@ -207,7 +207,7 @@ public class SearchableSnapshotsRepositoryIntegTests extends BaseFrozenSearchabl
                 ? equalTo(Boolean.toString(deleteSnapshot))
                 : nullValue()
         );
-        assertHitCount(client().prepareSearch(mountedAgain).setTrackTotalHits(true).get(), totalHits.value);
+        assertHitCount(prepareSearch(mountedAgain).setTrackTotalHits(true), totalHits.value);
 
         assertAcked(indicesAdmin().prepareDelete(mountedAgain));
         assertAcked(indicesAdmin().prepareDelete(mounted));
@@ -220,7 +220,9 @@ public class SearchableSnapshotsRepositoryIntegTests extends BaseFrozenSearchabl
         final String index = "index";
         createAndPopulateIndex(index, Settings.builder().put(INDEX_SOFT_DELETES_SETTING.getKey(), true));
 
-        final TotalHits totalHits = internalCluster().client().prepareSearch(index).setTrackTotalHits(true).get().getHits().getTotalHits();
+        final TotalHits totalHits = SearchResponseUtils.getTotalHits(
+            internalCluster().client().prepareSearch(index).setTrackTotalHits(true)
+        );
 
         final String snapshot = "snapshot";
         createSnapshot(repository, snapshot, List.of(index));
@@ -237,7 +239,7 @@ public class SearchableSnapshotsRepositoryIntegTests extends BaseFrozenSearchabl
                 ? equalTo(Boolean.toString(deleteSnapshot))
                 : nullValue()
         );
-        assertHitCount(client().prepareSearch(mounted).setTrackTotalHits(true).get(), totalHits.value);
+        assertHitCount(prepareSearch(mounted).setTrackTotalHits(true), totalHits.value);
 
         if (randomBoolean()) {
             assertAcked(indicesAdmin().prepareClose(mounted));

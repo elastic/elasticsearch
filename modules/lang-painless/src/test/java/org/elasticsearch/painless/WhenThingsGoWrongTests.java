@@ -20,6 +20,7 @@ import java.util.function.Supplier;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonMap;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 
 public class WhenThingsGoWrongTests extends ScriptTestCase {
@@ -117,34 +118,34 @@ public class WhenThingsGoWrongTests extends ScriptTestCase {
     }
 
     public void testInfiniteLoops() {
-        PainlessError expected = expectScriptThrows(PainlessError.class, () -> { exec("boolean x = true; while (x) {}"); });
+        var expected = expectScriptThrows(ErrorCauseWrapper.class, () -> { exec("boolean x = true; while (x) {}"); });
         assertTrue(expected.getMessage().contains("The maximum number of statements that can be executed in a loop has been reached."));
 
-        expected = expectScriptThrows(PainlessError.class, () -> { exec("while (true) {int y = 5;}"); });
+        expected = expectScriptThrows(ErrorCauseWrapper.class, () -> { exec("while (true) {int y = 5;}"); });
         assertTrue(expected.getMessage().contains("The maximum number of statements that can be executed in a loop has been reached."));
 
-        expected = expectScriptThrows(PainlessError.class, () -> { exec("while (true) { boolean x = true; while (x) {} }"); });
+        expected = expectScriptThrows(ErrorCauseWrapper.class, () -> { exec("while (true) { boolean x = true; while (x) {} }"); });
         assertTrue(expected.getMessage().contains("The maximum number of statements that can be executed in a loop has been reached."));
 
-        expected = expectScriptThrows(PainlessError.class, () -> {
+        expected = expectScriptThrows(ErrorCauseWrapper.class, () -> {
             exec("while (true) { boolean x = false; while (x) {} }");
             fail("should have hit PainlessError");
         });
         assertTrue(expected.getMessage().contains("The maximum number of statements that can be executed in a loop has been reached."));
 
-        expected = expectScriptThrows(PainlessError.class, () -> {
+        expected = expectScriptThrows(ErrorCauseWrapper.class, () -> {
             exec("boolean x = true; for (;x;) {}");
             fail("should have hit PainlessError");
         });
         assertTrue(expected.getMessage().contains("The maximum number of statements that can be executed in a loop has been reached."));
 
-        expected = expectScriptThrows(PainlessError.class, () -> {
+        expected = expectScriptThrows(ErrorCauseWrapper.class, () -> {
             exec("for (;;) {int x = 5;}");
             fail("should have hit PainlessError");
         });
         assertTrue(expected.getMessage().contains("The maximum number of statements that can be executed in a loop has been reached."));
 
-        expected = expectScriptThrows(PainlessError.class, () -> {
+        expected = expectScriptThrows(ErrorCauseWrapper.class, () -> {
             exec("def x = true; do {int y = 5;} while (x)");
             fail("should have hit PainlessError");
         });
@@ -161,7 +162,7 @@ public class WhenThingsGoWrongTests extends ScriptTestCase {
         // right below limit: ok
         exec("for (int x = 0; x < 999999; ++x) {}");
 
-        PainlessError expected = expectScriptThrows(PainlessError.class, () -> { exec("for (int x = 0; x < 1000000; ++x) {}"); });
+        var expected = expectScriptThrows(ErrorCauseWrapper.class, () -> { exec("for (int x = 0; x < 1000000; ++x) {}"); });
         assertTrue(expected.getMessage().contains("The maximum number of statements that can be executed in a loop has been reached."));
     }
 
@@ -212,11 +213,13 @@ public class WhenThingsGoWrongTests extends ScriptTestCase {
 
     public void testOutOfMemoryError() {
         assumeTrue("test only happens to work for sure on oracle jre", Constants.JAVA_VENDOR.startsWith("Oracle"));
-        expectScriptThrows(OutOfMemoryError.class, () -> { exec("int[] x = new int[Integer.MAX_VALUE - 1];"); });
+        var e = expectScriptThrows(ErrorCauseWrapper.class, () -> { exec("int[] x = new int[Integer.MAX_VALUE - 1];"); });
+        assertThat(e.realCause.getClass(), equalTo(OutOfMemoryError.class));
     }
 
     public void testStackOverflowError() {
-        expectScriptThrows(StackOverflowError.class, () -> { exec("void recurse(int x, int y) {recurse(x, y)} recurse(1, 2);"); });
+        var e = expectScriptThrows(ErrorCauseWrapper.class, () -> { exec("void recurse(int x, int y) {recurse(x, y)} recurse(1, 2);"); });
+        assertThat(e.realCause.getClass(), equalTo(StackOverflowError.class));
     }
 
     public void testCanNotOverrideRegexEnabled() {

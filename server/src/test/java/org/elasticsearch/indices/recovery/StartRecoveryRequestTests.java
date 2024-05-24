@@ -14,6 +14,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.ShardId;
@@ -42,8 +43,14 @@ public class StartRecoveryRequestTests extends ESTestCase {
         final StartRecoveryRequest outRequest = new StartRecoveryRequest(
             new ShardId("test", "_na_", 0),
             UUIDs.randomBase64UUID(),
-            DiscoveryNodeUtils.builder("a").roles(emptySet()).version(targetNodeVersion, IndexVersion.ZERO, IndexVersion.current()).build(),
-            DiscoveryNodeUtils.builder("b").roles(emptySet()).version(targetNodeVersion, IndexVersion.ZERO, IndexVersion.current()).build(),
+            DiscoveryNodeUtils.builder("a")
+                .roles(emptySet())
+                .version(targetNodeVersion, IndexVersions.ZERO, IndexVersion.current())
+                .build(),
+            DiscoveryNodeUtils.builder("b")
+                .roles(emptySet())
+                .version(targetNodeVersion, IndexVersions.ZERO, IndexVersion.current())
+                .build(),
             randomNonNegativeLong(),
             metadataSnapshot,
             randomBoolean(),
@@ -68,7 +75,7 @@ public class StartRecoveryRequestTests extends ESTestCase {
         assertThat(outRequest.recoveryId(), equalTo(inRequest.recoveryId()));
         assertThat(outRequest.startingSeqNo(), equalTo(inRequest.startingSeqNo()));
 
-        if (serializationVersion.onOrAfter(TransportVersions.WAIT_FOR_CLUSTER_STATE_IN_RECOVERY_ADDED)) {
+        if (serializationVersion.onOrAfter(TransportVersions.V_8_11_X)) {
             assertEquals(outRequest.clusterStateVersion(), inRequest.clusterStateVersion());
         } else {
             assertEquals(0L, inRequest.clusterStateVersion());

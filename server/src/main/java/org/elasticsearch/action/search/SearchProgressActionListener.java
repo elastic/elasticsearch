@@ -11,7 +11,7 @@ package org.elasticsearch.action.search;
 import org.elasticsearch.action.ActionListener;
 
 /**
- * An {@link ActionListener} for search requests that allows to track progress of the {@link SearchAction}.
+ * An {@link ActionListener} for search requests that allows to track progress of the {@link TransportSearchAction}.
  * See {@link SearchProgressListener}.
  */
 public abstract class SearchProgressActionListener extends SearchProgressListener implements ActionListener<SearchResponse> {}

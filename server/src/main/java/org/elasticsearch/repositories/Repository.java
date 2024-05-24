@@ -15,6 +15,7 @@ import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.component.LifecycleComponent;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.ShardId;
@@ -30,6 +31,8 @@ import java.io.IOException;
 import java.util.Collection;
 import java.util.List;
 import java.util.Set;
+import java.util.concurrent.Executor;
+import java.util.function.BooleanSupplier;
 import java.util.function.Function;
 
 /**
@@ -69,11 +72,24 @@ public interface Repository extends LifecycleComponent {
     RepositoryMetadata getMetadata();
 
     /**
-     * Reads snapshot descriptions from the repository.
+     * Reads a collection of {@link SnapshotInfo} instances from the repository.
      *
-     * @param context get-snapshot-info-context
+     * @param snapshotIds    The IDs of the snapshots whose {@link SnapshotInfo} instances should be retrieved.
+     * @param abortOnFailure Whether to stop fetching further {@link SnapshotInfo} instances if a single fetch fails.
+     * @param isCancelled    Supplies whether the enclosing task is cancelled, which should stop fetching {@link SnapshotInfo} instances.
+     * @param consumer       A consumer for each {@link SnapshotInfo} retrieved. Called concurrently from multiple threads. If the consumer
+     *                       throws an exception and {@code abortOnFailure} is {@code true} then the fetching will stop.
+     * @param listener       If {@code abortOnFailure} is {@code true} and any operation fails then the failure is passed to this listener.
+     *                       Also completed exceptionally on cancellation. Otherwise, completed once all requested {@link SnapshotInfo}
+     *                       instances have been processed by the {@code consumer}.
      */
-    void getSnapshotInfo(GetSnapshotInfoContext context);
+    void getSnapshotInfo(
+        Collection<SnapshotId> snapshotIds,
+        boolean abortOnFailure,
+        BooleanSupplier isCancelled,
+        CheckedConsumer<SnapshotInfo, Exception> consumer,
+        ActionListener<Void> listener
+    );
 
     /**
      * Reads a single snapshot description from the repository
@@ -82,7 +98,7 @@ public interface Repository extends LifecycleComponent {
      * @param listener   listener to resolve with snapshot description (is resolved on the {@link ThreadPool.Names#SNAPSHOT_META} pool)
      */
     default void getSnapshotInfo(SnapshotId snapshotId, ActionListener<SnapshotInfo> listener) {
-        getSnapshotInfo(new GetSnapshotInfoContext(List.of(snapshotId), true, () -> false, (context, snapshotInfo) -> {
+        getSnapshotInfo(List.of(snapshotId), true, () -> false, snapshotInfo -> {
             assert Repository.assertSnapshotMetaThread();
             listener.onResponse(snapshotInfo);
         }, new ActionListener<>() {
@@ -95,7 +111,7 @@ public interface Repository extends LifecycleComponent {
             public void onFailure(Exception e) {
                 listener.onFailure(e);
             }
-        }));
+        });
     }
 
     /**
@@ -117,13 +133,17 @@ public interface Repository extends LifecycleComponent {
     IndexMetadata getSnapshotIndexMetaData(RepositoryData repositoryData, SnapshotId snapshotId, IndexId index) throws IOException;
 
     /**
-     * Returns a {@link RepositoryData} to describe the data in the repository, including the snapshots
-     * and the indices across all snapshots found in the repository.  Throws a {@link RepositoryException}
-     * if there was an error in reading the data.
-     * @param listener listener that may be resolved on different kinds of threads including transport and cluster state applier threads
-     *                 and therefore must fork to a new thread for executing any long running actions
+     * Returns a {@link RepositoryData} to describe the data in the repository, including the snapshots and the indices across all snapshots
+     * found in the repository. Completes the listener with a {@link RepositoryException} if there was an error in reading the data.
+     *
+     * @param responseExecutor Executor to use to complete the listener if not using the calling thread. Using {@link
+     *                         org.elasticsearch.common.util.concurrent.EsExecutors#DIRECT_EXECUTOR_SERVICE} means to complete the listener
+     *                         on the thread which ultimately resolved the {@link RepositoryData}, which might be a low-latency transport or
+     *                         cluster applier thread so make sure not to do anything slow or expensive in that case.
+     * @param listener         Listener which is either completed on the calling thread (if the {@link RepositoryData} is immediately
+     *                         available, e.g. from an in-memory cache), otherwise it is completed using {@code responseExecutor}.
      */
-    void getRepositoryData(ActionListener<RepositoryData> listener);
+    void getRepositoryData(Executor responseExecutor, ActionListener<RepositoryData> listener);
 
     /**
      * Finalizes snapshotting process
@@ -137,15 +157,16 @@ public interface Repository extends LifecycleComponent {
     /**
      * Deletes snapshots
      *
-     * @param snapshotIds           snapshot ids
-     * @param repositoryStateId     the unique id identifying the state of the repository when the snapshot deletion began
-     * @param repositoryMetaVersion version of the updated repository metadata to write
-     * @param listener              completion listener
+     * @param snapshotIds                  snapshot ids to delete
+     * @param repositoryDataGeneration     the generation of the {@link RepositoryData} in the repository at the start of the deletion
+     * @param minimumNodeVersion           the minimum {@link IndexVersion} across the nodes in the cluster, with which the repository
+     *                                     format must remain compatible
+     * @param listener                     completion listener, see {@link SnapshotDeleteListener}.
      */
     void deleteSnapshots(
         Collection<SnapshotId> snapshotIds,
-        long repositoryStateId,
-        IndexVersion repositoryMetaVersion,
+        long repositoryDataGeneration,
+        IndexVersion minimumNodeVersion,
         SnapshotDeleteListener listener
     );
 
@@ -202,7 +223,7 @@ public interface Repository extends LifecycleComponent {
      * Creates a snapshot of the shard referenced by the given {@link SnapshotShardContext}.
      * <p>
      * As snapshot process progresses, implementation of this method should update {@link IndexShardSnapshotStatus} object returned by
-     * {@link SnapshotShardContext#status()} and check its {@link IndexShardSnapshotStatus#isAborted()} to see if the snapshot process
+     * {@link SnapshotShardContext#status()} and call {@link IndexShardSnapshotStatus#ensureNotAborted()} to see if the snapshot process
      * should be aborted.
      *
      * @param snapshotShardContext snapshot shard context that must be completed via {@link SnapshotShardContext#onResponse} or
@@ -238,7 +259,7 @@ public interface Repository extends LifecycleComponent {
      * @param shardId    shard id
      * @return snapshot status
      */
-    IndexShardSnapshotStatus getShardSnapshotStatus(SnapshotId snapshotId, IndexId indexId, ShardId shardId);
+    IndexShardSnapshotStatus.Copy getShardSnapshotStatus(SnapshotId snapshotId, IndexId indexId, ShardId shardId);
 
     /**
      * Check if this instances {@link Settings} can be changed to the provided updated settings without recreating the repository.

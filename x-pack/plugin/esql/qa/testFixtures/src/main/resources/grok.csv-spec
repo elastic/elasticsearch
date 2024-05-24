@@ -15,17 +15,12 @@ foo bar   | null
 
 
 complexPattern
-// tag::grok[]
 ROW a = "1953-01-23T12:15:00Z 127.0.0.1 some.email@foo.com 42" 
 | GROK a "%{TIMESTAMP_ISO8601:date} %{IP:ip} %{EMAILADDRESS:email} %{NUMBER:num:int}" 
-| KEEP date, ip, email, num
-// end::grok[]
-;
+| KEEP date, ip, email, num;
 
-// tag::grok-result[]
 date:keyword          | ip:keyword    | email:keyword       | num:integer
 1953-01-23T12:15:00Z  | 127.0.0.1     | some.email@foo.com  | 42
-// end::grok-result[]
 ;
 
 
@@ -124,6 +119,15 @@ from employees | sort emp_no asc | eval full_name = concat(first_name, " ", last
 
 full_name:keyword | emp_no:keyword | b:keyword
 Bezalel Simmel    | Bezalel        | Simmel 
+;
+
+
+overwriteNameAfterSort#[skip:-8.13.0]
+from employees | sort emp_no ASC | grok first_name "Ge(?<emp_no>[a-z]{2})gi" | limit 1 | rename emp_no as first_name_fragment | keep first_name_fragment
+;
+
+first_name_fragment:keyword
+or
 ;
 
 

@@ -28,6 +28,7 @@ import org.apache.lucene.search.BooleanClause.Occur;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.FieldExistsQuery;
 import org.apache.lucene.search.MatchAllDocsQuery;
+import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TotalHits;
@@ -35,12 +36,10 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.NumericUtils;
-import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.MockPageCacheRecycler;
 import org.elasticsearch.core.CheckedConsumer;
@@ -77,7 +76,6 @@ import org.elasticsearch.script.ScriptModule;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.script.StringFieldScript;
-import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.AggregationExecutionException;
@@ -87,14 +85,11 @@ import org.elasticsearch.search.aggregations.AggregatorTestCase;
 import org.elasticsearch.search.aggregations.BucketOrder;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalMultiBucketAggregation;
-import org.elasticsearch.search.aggregations.MultiBucketConsumerService;
 import org.elasticsearch.search.aggregations.MultiBucketConsumerService.TooManyBucketsException;
 import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation;
 import org.elasticsearch.search.aggregations.bucket.filter.Filter;
 import org.elasticsearch.search.aggregations.bucket.filter.FilterAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.filter.InternalFilter;
-import org.elasticsearch.search.aggregations.bucket.global.GlobalAggregationBuilder;
-import org.elasticsearch.search.aggregations.bucket.global.InternalGlobal;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 import org.elasticsearch.search.aggregations.bucket.histogram.InternalDateHistogram;
@@ -117,6 +112,7 @@ import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.search.runtime.StringScriptFieldTermQuery;
 import org.elasticsearch.search.sort.FieldSortBuilder;
 import org.elasticsearch.search.sort.ScoreSortBuilder;
+import org.elasticsearch.test.InternalAggregationTestCase;
 import org.elasticsearch.test.MapMatcher;
 import org.elasticsearch.test.geo.RandomGeoGenerator;
 
@@ -288,6 +284,26 @@ public class TermsAggregatorTests extends AggregatorTestCase {
         }, new AggTestConfig(aggregationBuilder, fieldType));
     }
 
+    public void testMatchNoDocsQuery() throws Exception {
+        MappedFieldType fieldType = new KeywordFieldMapper.KeywordFieldType("string", randomBoolean(), true, Collections.emptyMap());
+        TermsAggregationBuilder aggregationBuilder = new TermsAggregationBuilder("_name").field("string");
+        CheckedConsumer<RandomIndexWriter, IOException> createIndex = iw -> {
+            iw.addDocument(doc(fieldType, "a", "b"));
+            iw.addDocument(doc(fieldType, "", "c", "a"));
+            iw.addDocument(doc(fieldType, "b", "d"));
+            iw.addDocument(doc(fieldType, ""));
+        };
+        testCase(
+            createIndex,
+            (InternalTerms<?, ?> result) -> { assertEquals(0, result.getBuckets().size()); },
+            new AggTestConfig(aggregationBuilder, fieldType).withQuery(new MatchNoDocsQuery())
+        );
+
+        debugTestCase(aggregationBuilder, new MatchNoDocsQuery(), createIndex, (result, impl, debug) -> {
+            assertEquals(impl, MapStringTermsAggregator.class);
+        }, fieldType);
+    }
+
     public void testStringShardMinDocCount() throws IOException {
         MappedFieldType fieldType = new KeywordFieldMapper.KeywordFieldType("string", true, true, Collections.emptyMap());
         for (TermsAggregatorFactory.ExecutionMode executionMode : TermsAggregatorFactory.ExecutionMode.values()) {
@@ -422,7 +438,7 @@ public class TermsAggregatorTests extends AggregatorTestCase {
         });
     }
 
-    private List<IndexableField> doc(MappedFieldType ft, String... values) {
+    static List<IndexableField> doc(MappedFieldType ft, String... values) {
         List<IndexableField> doc = new ArrayList<IndexableField>();
         for (String v : values) {
             BytesRef bytes = new BytesRef(v);
@@ -1273,72 +1289,19 @@ public class TermsAggregatorTests extends AggregatorTestCase {
                 b -> {},
                 PipelineTree.EMPTY
             );
-            for (InternalAggregation internalAgg : aggs) {
-                InternalAggregation mergedAggs = internalAgg.reduce(aggs, ctx);
-                assertTrue(mergedAggs instanceof DoubleTerms);
-                long expected = numLongs + numDoubles;
-                List<? extends Terms.Bucket> buckets = ((DoubleTerms) mergedAggs).getBuckets();
-                assertEquals(4, buckets.size());
-                assertEquals("1.0", buckets.get(0).getKeyAsString());
-                assertEquals(expected, buckets.get(0).getDocCount());
-                assertEquals("10.0", buckets.get(1).getKeyAsString());
-                assertEquals(expected * 2, buckets.get(1).getDocCount());
-                assertEquals("100.0", buckets.get(2).getKeyAsString());
-                assertEquals(expected * 2, buckets.get(2).getDocCount());
-                assertEquals("1000.0", buckets.get(3).getKeyAsString());
-                assertEquals(expected, buckets.get(3).getDocCount());
-            }
-        }
-    }
-
-    public void testGlobalAggregationWithScore() throws IOException {
-        try (Directory directory = newDirectory()) {
-            try (RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory)) {
-                Document document = new Document();
-                document.add(new SortedDocValuesField("keyword", new BytesRef("a")));
-                indexWriter.addDocument(document);
-                document = new Document();
-                document.add(new SortedDocValuesField("keyword", new BytesRef("c")));
-                indexWriter.addDocument(document);
-                document = new Document();
-                document.add(new SortedDocValuesField("keyword", new BytesRef("e")));
-                indexWriter.addDocument(document);
-                try (DirectoryReader indexReader = maybeWrapReaderEs(indexWriter.getReader())) {
-                    String executionHint = randomFrom(TermsAggregatorFactory.ExecutionMode.values()).toString();
-                    Aggregator.SubAggCollectionMode collectionMode = randomFrom(Aggregator.SubAggCollectionMode.values());
-                    GlobalAggregationBuilder globalBuilder = new GlobalAggregationBuilder("global").subAggregation(
-                        new TermsAggregationBuilder("terms").userValueTypeHint(ValueType.STRING)
-                            .executionHint(executionHint)
-                            .collectMode(collectionMode)
-                            .field("keyword")
-                            .order(BucketOrder.key(true))
-                            .subAggregation(
-                                new TermsAggregationBuilder("sub_terms").userValueTypeHint(ValueType.STRING)
-                                    .executionHint(executionHint)
-                                    .collectMode(collectionMode)
-                                    .field("keyword")
-                                    .order(BucketOrder.key(true))
-                                    .subAggregation(new TopHitsAggregationBuilder("top_hits").storedField("_none_"))
-                            )
-                    );
-
-                    MappedFieldType fieldType = new KeywordFieldMapper.KeywordFieldType("keyword");
-
-                    InternalGlobal result = searchAndReduce(indexReader, new AggTestConfig(globalBuilder, fieldType));
-                    InternalMultiBucketAggregation<?, ?> terms = result.getAggregations().get("terms");
-                    assertThat(terms.getBuckets().size(), equalTo(3));
-                    for (MultiBucketsAggregation.Bucket bucket : terms.getBuckets()) {
-                        InternalMultiBucketAggregation<?, ?> subTerms = bucket.getAggregations().get("sub_terms");
-                        assertThat(subTerms.getBuckets().size(), equalTo(1));
-                        MultiBucketsAggregation.Bucket subBucket = subTerms.getBuckets().get(0);
-                        InternalTopHits topHits = subBucket.getAggregations().get("top_hits");
-                        assertThat(topHits.getHits().getHits().length, equalTo(1));
-                        for (SearchHit hit : topHits.getHits()) {
-                            assertThat(hit.getScore(), greaterThan(0f));
-                        }
-                    }
-                }
-            }
+            InternalAggregation mergedAggs = InternalAggregationTestCase.reduce(aggs, ctx);
+            assertTrue(mergedAggs instanceof DoubleTerms);
+            long expected = numLongs + numDoubles;
+            List<? extends Terms.Bucket> buckets = ((DoubleTerms) mergedAggs).getBuckets();
+            assertEquals(4, buckets.size());
+            assertEquals("1.0", buckets.get(0).getKeyAsString());
+            assertEquals(expected, buckets.get(0).getDocCount());
+            assertEquals("10.0", buckets.get(1).getKeyAsString());
+            assertEquals(expected * 2, buckets.get(1).getDocCount());
+            assertEquals("100.0", buckets.get(2).getKeyAsString());
+            assertEquals(expected * 2, buckets.get(2).getDocCount());
+            assertEquals("1000.0", buckets.get(3).getKeyAsString());
+            assertEquals(expected, buckets.get(3).getDocCount());
         }
     }
 
@@ -1730,8 +1693,8 @@ public class TermsAggregatorTests extends AggregatorTestCase {
 
                     MappedFieldType fieldType = new KeywordFieldMapper.KeywordFieldType("field");
 
-                    AggregationExecutionException e = expectThrows(
-                        AggregationExecutionException.class,
+                    AggregationExecutionException.InvalidPath e = expectThrows(
+                        AggregationExecutionException.InvalidPath.class,
                         () -> searchAndReduce(indexReader, new AggTestConfig(termsAgg, fieldType))
                     );
                     assertEquals(
@@ -2246,29 +2209,6 @@ public class TermsAggregatorTests extends AggregatorTestCase {
         return aggregator.buildTopLevel();
          */
         return searchAndReduce(reader, new AggTestConfig(builder, fieldType));
-    }
-
-    private <T extends InternalAggregation> T reduce(AggregationBuilder builder, Aggregator agg, BigArrays bigArrays) throws IOException {
-        // now do the final reduce
-        MultiBucketConsumerService.MultiBucketConsumer reduceBucketConsumer = new MultiBucketConsumerService.MultiBucketConsumer(
-            Integer.MAX_VALUE,
-            new NoneCircuitBreakerService().getBreaker(CircuitBreaker.REQUEST)
-        );
-        AggregationReduceContext context = new AggregationReduceContext.ForFinal(
-            bigArrays,
-            getMockScriptService(),
-            () -> false,
-            builder,
-            reduceBucketConsumer,
-            PipelineTree.EMPTY
-        );
-
-        @SuppressWarnings("unchecked")
-        T topLevel = (T) agg.buildTopLevel();
-        @SuppressWarnings("unchecked")
-        T result = (T) topLevel.reduce(Collections.singletonList(topLevel), context);
-        doAssertReducedMultiBucketConsumer(result, reduceBucketConsumer);
-        return result;
     }
 
     @Override

@@ -18,7 +18,6 @@ import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
-import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.common.TriConsumer;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.blobstore.BlobContainer;
@@ -52,6 +51,7 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.LongSupplier;
 
 import static org.elasticsearch.blobcache.BlobCacheUtils.toIntBytes;
+import static org.elasticsearch.cluster.routing.TestShardRouting.shardRoutingBuilder;
 import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.SNAPSHOT_CACHE_ENABLED_SETTING;
 import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.SNAPSHOT_CACHE_PREWARM_ENABLED_SETTING;
 import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.SNAPSHOT_UNCACHED_CHUNK_SIZE_SETTING;
@@ -680,21 +680,22 @@ public class SearchableSnapshotDirectoryStatsTests extends AbstractSearchableSna
             cacheService.start();
             assertThat(directory.getStats(fileName), nullValue());
 
-            ShardRouting shardRouting = TestShardRouting.newShardRouting(
+            ShardRouting shardRouting = shardRoutingBuilder(
                 new ShardId(randomAlphaOfLength(10), randomAlphaOfLength(10), 0),
                 randomAlphaOfLength(10),
                 true,
-                ShardRoutingState.INITIALIZING,
+                ShardRoutingState.INITIALIZING
+            ).withRecoverySource(
                 new RecoverySource.SnapshotRecoverySource(
                     UUIDs.randomBase64UUID(),
                     new Snapshot("repo", new SnapshotId(randomAlphaOfLength(8), UUIDs.randomBase64UUID())),
                     IndexVersion.current(),
                     new IndexId("some_index", UUIDs.randomBase64UUID(random()))
                 )
-            );
+            ).build();
             DiscoveryNode targetNode = DiscoveryNodeUtils.create("local");
             RecoveryState recoveryState = new SearchableSnapshotRecoveryState(shardRouting, targetNode, null);
-            final PlainActionFuture<Void> future = PlainActionFuture.newFuture();
+            final PlainActionFuture<Void> future = new PlainActionFuture<>();
             final boolean loaded = directory.loadSnapshot(recoveryState, () -> false, future);
             future.get();
             assertThat("Failed to load snapshot", loaded, is(true));

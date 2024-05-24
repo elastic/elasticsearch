@@ -153,7 +153,7 @@ public class EmailAttachmentTests extends AbstractWatcherIntegrationTestCase {
 
         createIndex("idx");
         // Have a sample document in the index, the watch is going to evaluate
-        client().prepareIndex("idx").setSource("field", "value").get();
+        prepareIndex("idx").setSource("field", "value").get();
         refresh();
 
         List<EmailAttachmentParser.EmailAttachment> attachments = new ArrayList<>();
@@ -194,10 +194,9 @@ public class EmailAttachmentTests extends AbstractWatcherIntegrationTestCase {
         assertBusy(() -> {
             SearchResponse searchResponse;
             try {
-                searchResponse = client().prepareSearch(HistoryStoreField.DATA_STREAM + "*")
-                    .setQuery(QueryBuilders.termQuery("watch_id", "_test_id"))
-                    .execute()
-                    .actionGet();
+                searchResponse = prepareSearch(HistoryStoreField.DATA_STREAM + "*").setQuery(
+                    QueryBuilders.termQuery("watch_id", "_test_id")
+                ).get();
             } catch (SearchPhaseExecutionException e) {
                 if (e.getCause() instanceof NoShardAvailableActionException) {
                     // Nothing has created the index yet
@@ -207,7 +206,12 @@ public class EmailAttachmentTests extends AbstractWatcherIntegrationTestCase {
                 }
             }
             assertNotNull(searchResponse);
-            assertHitCount(searchResponse, 1);
+            try {
+                assertHitCount(searchResponse, 1);
+            } finally {
+                searchResponse.decRef();
+            }
+
         });
 
         if (latch.await(5, TimeUnit.SECONDS) == false) {

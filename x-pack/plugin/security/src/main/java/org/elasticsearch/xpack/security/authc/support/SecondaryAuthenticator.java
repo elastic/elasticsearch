@@ -37,7 +37,7 @@ public class SecondaryAuthenticator {
      */
     public static final String SECONDARY_AUTH_HEADER_NAME = "es-secondary-authorization";
 
-    private final Logger logger = LogManager.getLogger(SecondaryAuthenticator.class);
+    private static final Logger logger = LogManager.getLogger(SecondaryAuthenticator.class);
     private final SecurityContext securityContext;
     private final AuthenticationService authenticationService;
     private final AuditTrailService auditTrailService;

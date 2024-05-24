@@ -1,0 +1,6 @@
+pr: 107224
+summary: "Enable 'encoder' and 'tags_schema' highlighting settings at field level"
+area: Highlighting
+type: enhancement
+issues:
+  - 94028

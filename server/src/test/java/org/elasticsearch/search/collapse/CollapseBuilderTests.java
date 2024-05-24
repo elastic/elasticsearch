@@ -174,7 +174,7 @@ public class CollapseBuilderTests extends AbstractXContentSerializingTestCase<Co
                 null
             );
             when(searchExecutionContext.getFieldType("field")).thenReturn(numberFieldType);
-            builder.setInnerHits(new InnerHitBuilder());
+            builder.setInnerHits(new InnerHitBuilder().setName("field"));
             exc = expectThrows(IllegalArgumentException.class, () -> builder.build(searchExecutionContext));
             assertEquals(
                 exc.getMessage(),
@@ -194,7 +194,7 @@ public class CollapseBuilderTests extends AbstractXContentSerializingTestCase<Co
 
             keywordFieldType = new KeywordFieldMapper.KeywordFieldType("field", false, true, Collections.emptyMap());
             when(searchExecutionContext.getFieldType("field")).thenReturn(keywordFieldType);
-            kbuilder.setInnerHits(new InnerHitBuilder());
+            kbuilder.setInnerHits(new InnerHitBuilder().setName("field"));
             exc = expectThrows(IllegalArgumentException.class, () -> builder.build(searchExecutionContext));
             assertEquals(
                 exc.getMessage(),

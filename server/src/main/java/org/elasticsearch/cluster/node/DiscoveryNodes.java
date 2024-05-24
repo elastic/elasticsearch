@@ -21,6 +21,7 @@ import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -666,7 +667,7 @@ public class DiscoveryNodes implements Iterable<DiscoveryNode>, SimpleDiffable<D
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeOptionalString(masterNodeId);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_500_020)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_9_X)) {
             out.writeVLong(nodeLeftGeneration);
         } // else nodeLeftGeneration is zero, or we're sending this to a remote cluster which does not care about the nodeLeftGeneration
         out.writeCollection(nodes.values());
@@ -681,7 +682,7 @@ public class DiscoveryNodes implements Iterable<DiscoveryNode>, SimpleDiffable<D
             builder.localNodeId(localNode.getId());
         }
 
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_500_020)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_9_X)) {
             builder.nodeLeftGeneration(in.readVLong());
         } // else nodeLeftGeneration is zero, or we're receiving this from a remote cluster so the nodeLeftGeneration does not matter to us
 
@@ -881,7 +882,7 @@ public class DiscoveryNodes implements Iterable<DiscoveryNode>, SimpleDiffable<D
                 Objects.requireNonNullElse(maxNodeVersion, Version.CURRENT),
                 Objects.requireNonNullElse(minNodeVersion, Version.CURRENT.minimumCompatibilityVersion()),
                 Objects.requireNonNullElse(maxDataNodeCompatibleIndexVersion, IndexVersion.current()),
-                Objects.requireNonNullElse(minSupportedIndexVersion, IndexVersion.MINIMUM_COMPATIBLE),
+                Objects.requireNonNullElse(minSupportedIndexVersion, IndexVersions.MINIMUM_COMPATIBLE),
                 computeTiersToNodesMap(dataNodes)
             );
         }

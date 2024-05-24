@@ -33,7 +33,7 @@ public class RetryableActionTests extends ESTestCase {
 
     public void testRetryableActionNoRetries() {
         final AtomicInteger executedCount = new AtomicInteger();
-        final PlainActionFuture<Boolean> future = PlainActionFuture.newFuture();
+        final PlainActionFuture<Boolean> future = new PlainActionFuture<>();
         final RetryableAction<Boolean> retryableAction = new RetryableAction<>(
             logger,
             taskQueue.getThreadPool(),
@@ -65,7 +65,7 @@ public class RetryableActionTests extends ESTestCase {
         int expectedRetryCount = randomIntBetween(1, 8);
         final AtomicInteger remainingFailedCount = new AtomicInteger(expectedRetryCount);
         final AtomicInteger retryCount = new AtomicInteger();
-        final PlainActionFuture<Boolean> future = PlainActionFuture.newFuture();
+        final PlainActionFuture<Boolean> future = new PlainActionFuture<>();
         final RetryableAction<Boolean> retryableAction = new RetryableAction<>(
             logger,
             taskQueue.getThreadPool(),
@@ -113,7 +113,7 @@ public class RetryableActionTests extends ESTestCase {
 
     public void testRetryableActionTimeout() {
         final AtomicInteger retryCount = new AtomicInteger();
-        final PlainActionFuture<Boolean> future = PlainActionFuture.newFuture();
+        final PlainActionFuture<Boolean> future = new PlainActionFuture<>();
         final RetryableAction<Boolean> retryableAction = new RetryableAction<>(
             logger,
             taskQueue.getThreadPool(),
@@ -161,7 +161,7 @@ public class RetryableActionTests extends ESTestCase {
 
     public void testTimeoutOfZeroMeansNoRetry() {
         final AtomicInteger executedCount = new AtomicInteger();
-        final PlainActionFuture<Boolean> future = PlainActionFuture.newFuture();
+        final PlainActionFuture<Boolean> future = new PlainActionFuture<>();
         final RetryableAction<Boolean> retryableAction = new RetryableAction<>(
             logger,
             taskQueue.getThreadPool(),
@@ -191,7 +191,7 @@ public class RetryableActionTests extends ESTestCase {
 
     public void testFailedBecauseNotRetryable() {
         final AtomicInteger executedCount = new AtomicInteger();
-        final PlainActionFuture<Boolean> future = PlainActionFuture.newFuture();
+        final PlainActionFuture<Boolean> future = new PlainActionFuture<>();
         final RetryableAction<Boolean> retryableAction = new RetryableAction<>(
             logger,
             taskQueue.getThreadPool(),
@@ -221,7 +221,7 @@ public class RetryableActionTests extends ESTestCase {
 
     public void testRetryableActionCancelled() {
         final AtomicInteger executedCount = new AtomicInteger();
-        final PlainActionFuture<Boolean> future = PlainActionFuture.newFuture();
+        final PlainActionFuture<Boolean> future = new PlainActionFuture<>();
         final RetryableAction<Boolean> retryableAction = new RetryableAction<>(
             logger,
             taskQueue.getThreadPool(),
@@ -259,7 +259,7 @@ public class RetryableActionTests extends ESTestCase {
     }
 
     public void testMaxDelayBound() {
-        final PlainActionFuture<Boolean> future = PlainActionFuture.newFuture();
+        final PlainActionFuture<Boolean> future = new PlainActionFuture<>();
         final RetryableAction<Boolean> retryableAction = new RetryableAction<>(
             logger,
             taskQueue.getThreadPool(),

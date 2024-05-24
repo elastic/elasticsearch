@@ -6,19 +6,21 @@
  */
 package org.elasticsearch.xpack.ml.integration;
 
+import org.apache.logging.log4j.Level;
+import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ResourceNotFoundException;
-import org.elasticsearch.action.admin.cluster.node.hotthreads.NodeHotThreads;
-import org.elasticsearch.action.admin.cluster.node.hotthreads.NodesHotThreadsResponse;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
+import org.elasticsearch.common.ReferenceDocs;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.monitor.jvm.HotThreads;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
@@ -72,6 +74,7 @@ import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.oneOf;
 
+@LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/105239")
 public class DatafeedJobsIT extends MlNativeAutodetectIntegTestCase {
 
     @After
@@ -468,11 +471,7 @@ public class DatafeedJobsIT extends MlNativeAutodetectIntegTestCase {
             StopDatafeedAction.Response stopJobResponse = stopDatafeed(datafeedId);
             assertTrue(stopJobResponse.isStopped());
         } catch (Exception e) {
-            NodesHotThreadsResponse nodesHotThreadsResponse = clusterAdmin().prepareNodesHotThreads().get();
-            int i = 0;
-            for (NodeHotThreads nodeHotThreads : nodesHotThreadsResponse.getNodes()) {
-                logger.info(i++ + ":\n" + nodeHotThreads.getHotThreads());
-            }
+            HotThreads.logLocalHotThreads(logger, Level.INFO, "hot threads at failure", ReferenceDocs.LOGGING);
             throw e;
         }
         assertBusy(() -> {
@@ -491,11 +490,7 @@ public class DatafeedJobsIT extends MlNativeAutodetectIntegTestCase {
             CloseJobAction.Response closeJobResponse = closeJob(jobId);
             assertTrue(closeJobResponse.isClosed());
         } catch (Exception e) {
-            NodesHotThreadsResponse nodesHotThreadsResponse = clusterAdmin().prepareNodesHotThreads().get();
-            int i = 0;
-            for (NodeHotThreads nodeHotThreads : nodesHotThreadsResponse.getNodes()) {
-                logger.info(i++ + ":\n" + nodeHotThreads.getHotThreads());
-            }
+            HotThreads.logLocalHotThreads(logger, Level.INFO, "hot threads at failure", ReferenceDocs.LOGGING);
             throw e;
         }
         assertBusy(() -> {
@@ -538,11 +533,7 @@ public class DatafeedJobsIT extends MlNativeAutodetectIntegTestCase {
             CloseJobAction.Response closeJobResponse = closeJob(jobId, useForce);
             assertTrue(closeJobResponse.isClosed());
         } catch (Exception e) {
-            NodesHotThreadsResponse nodesHotThreadsResponse = clusterAdmin().prepareNodesHotThreads().get();
-            int i = 0;
-            for (NodeHotThreads nodeHotThreads : nodesHotThreadsResponse.getNodes()) {
-                logger.info(i++ + ":\n" + nodeHotThreads.getHotThreads());
-            }
+            HotThreads.logLocalHotThreads(logger, Level.INFO, "hot threads at failure", ReferenceDocs.LOGGING);
             throw e;
         }
         GetDatafeedsStatsAction.Request request = new GetDatafeedsStatsAction.Request(datafeedId);
@@ -821,6 +812,38 @@ public class DatafeedJobsIT extends MlNativeAutodetectIntegTestCase {
         );
 
         assertThat(e.status(), equalTo(RestStatus.REQUEST_TIMEOUT));
+    }
+
+    public void testStartDatafeed_GivenNegativeStartTime_Returns408() throws Exception {
+        client().admin().indices().prepareCreate("data-1").setMapping("time", "type=date").get();
+        long numDocs = 100;
+        long now = System.currentTimeMillis();
+        long oneWeekAgo = now - 604800000;
+        long negativeStartTime = -1000;
+        indexDocs(logger, "data-1", numDocs, oneWeekAgo, now);
+
+        String jobId = "job-for-start-datafeed-timeout";
+        String datafeedId = jobId + "-datafeed";
+
+        Job.Builder job = createScheduledJob(jobId);
+        putJob(job);
+        openJob(job.getId());
+        assertBusy(() -> assertEquals(getJobStats(job.getId()).get(0).getState(), JobState.OPENED));
+
+        DatafeedConfig.Builder datafeedConfigBuilder = createDatafeedBuilder(
+            job.getId() + "-datafeed",
+            job.getId(),
+            Collections.singletonList("data-1")
+        );
+        DatafeedConfig datafeedConfig = datafeedConfigBuilder.build();
+        putDatafeed(datafeedConfig);
+
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> new StartDatafeedAction.Request(datafeedId, negativeStartTime)
+        );
+
+        assertThat(e.getMessage(), equalTo("[start] must not be negative [-1000]."));
     }
 
     public void testStart_GivenAggregateMetricDoubleWithoutAggs() throws Exception {

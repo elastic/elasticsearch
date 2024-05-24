@@ -83,11 +83,6 @@ public class InternalTDigestPercentilesRanksTests extends InternalPercentilesRan
     }
 
     @Override
-    protected Class<? extends ParsedPercentiles> implementationClass() {
-        return ParsedTDigestPercentileRanks.class;
-    }
-
-    @Override
     protected InternalTDigestPercentileRanks mutateInstance(InternalTDigestPercentileRanks instance) {
         String name = instance.getName();
         double[] percents = instance.keys;

@@ -644,19 +644,19 @@ public class SetupPasswordToolTests extends CommandTestCase {
     }
 
     private URL authenticateUrl(URL url) throws MalformedURLException, URISyntaxException {
-        return new URL(url, (url.toURI().getPath() + "/_security/_authenticate").replaceAll("/+", "/") + "?pretty");
+        return new URL(url, (url.toURI().getPath() + "/_security/_authenticate").replaceAll("//+", "/") + "?pretty");
     }
 
     private URL passwordUrl(URL url, String user) throws MalformedURLException, URISyntaxException {
-        return new URL(url, (url.toURI().getPath() + "/_security/user/" + user + "/_password").replaceAll("/+", "/") + "?pretty");
+        return new URL(url, (url.toURI().getPath() + "/_security/user/" + user + "/_password").replaceAll("//+", "/") + "?pretty");
     }
 
     private URL clusterHealthUrl(URL url) throws MalformedURLException, URISyntaxException {
-        return new URL(url, (url.toURI().getPath() + "/_cluster/health").replaceAll("/+", "/") + "?pretty");
+        return new URL(url, (url.toURI().getPath() + "/_cluster/health").replaceAll("//+", "/") + "?pretty");
     }
 
     private URL queryXPackSecurityFeatureConfigURL(URL url) throws MalformedURLException, URISyntaxException {
-        return new URL(url, (url.toURI().getPath() + "/_xpack").replaceAll("/+", "/") + "?categories=features&human=false&pretty");
+        return new URL(url, (url.toURI().getPath() + "/_xpack").replaceAll("//+", "/") + "?categories=features&human=false&pretty");
     }
 
     private HttpResponse createHttpResponse(final int httpStatus, final String responseJson) throws IOException {

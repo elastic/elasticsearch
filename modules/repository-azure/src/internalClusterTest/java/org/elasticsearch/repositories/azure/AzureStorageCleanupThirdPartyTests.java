@@ -35,6 +35,7 @@ import java.io.ByteArrayInputStream;
 import java.net.HttpURLConnection;
 import java.util.Collection;
 
+import static org.elasticsearch.repositories.blobstore.BlobStoreTestUtil.randomPurpose;
 import static org.hamcrest.Matchers.blankOrNullString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
@@ -48,6 +49,31 @@ public class AzureStorageCleanupThirdPartyTests extends AbstractThirdPartyReposi
         System.getProperty("test.azure.account"),
         System.getProperty("test.azure.container")
     );
+
+    @Override
+    public void testCreateSnapshot() {
+        super.testCreateSnapshot();
+    }
+
+    @Override
+    public void testIndexLatest() throws Exception {
+        super.testIndexLatest();
+    }
+
+    @Override
+    public void testListChildren() {
+        super.testListChildren();
+    }
+
+    @Override
+    public void testCleanup() throws Exception {
+        super.testCleanup();
+    }
+
+    @Override
+    public void testReadFromPositionWithLength() {
+        super.testReadFromPositionWithLength();
+    }
 
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
@@ -104,7 +130,7 @@ public class AzureStorageCleanupThirdPartyTests extends AbstractThirdPartyReposi
 
     private void ensureSasTokenPermissions() {
         final BlobStoreRepository repository = getRepository();
-        final PlainActionFuture<Void> future = PlainActionFuture.newFuture();
+        final PlainActionFuture<Void> future = new PlainActionFuture<>();
         repository.threadPool().generic().execute(ActionRunnable.wrap(future, l -> {
             final AzureBlobStore blobStore = (AzureBlobStore) repository.blobStore();
             final AzureBlobServiceClient azureBlobServiceClient = blobStore.getService().client("default", LocationMode.PRIMARY_ONLY);
@@ -135,11 +161,17 @@ public class AzureStorageCleanupThirdPartyTests extends AbstractThirdPartyReposi
         final BlobStoreRepository repo = getRepository();
         // The configured threshold for this test suite is 1mb
         final int blobSize = ByteSizeUnit.MB.toIntBytes(2);
-        PlainActionFuture<Void> future = PlainActionFuture.newFuture();
+        PlainActionFuture<Void> future = new PlainActionFuture<>();
         repo.threadPool().generic().execute(ActionRunnable.run(future, () -> {
             final BlobContainer blobContainer = repo.blobStore().blobContainer(repo.basePath().add("large_write"));
-            blobContainer.writeBlob(UUIDs.base64UUID(), new ByteArrayInputStream(randomByteArrayOfLength(blobSize)), blobSize, false);
-            blobContainer.delete();
+            blobContainer.writeBlob(
+                randomPurpose(),
+                UUIDs.base64UUID(),
+                new ByteArrayInputStream(randomByteArrayOfLength(blobSize)),
+                blobSize,
+                false
+            );
+            blobContainer.delete(randomPurpose());
         }));
         future.get();
     }

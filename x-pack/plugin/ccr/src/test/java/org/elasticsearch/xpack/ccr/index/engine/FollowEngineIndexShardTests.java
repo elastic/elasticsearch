@@ -42,7 +42,7 @@ import java.util.Collections;
 import java.util.concurrent.CountDownLatch;
 
 import static java.util.Collections.emptySet;
-import static org.elasticsearch.cluster.routing.TestShardRouting.newShardRouting;
+import static org.elasticsearch.cluster.routing.TestShardRouting.shardRoutingBuilder;
 import static org.elasticsearch.common.lucene.Lucene.cleanLuceneIndex;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
@@ -80,14 +80,12 @@ public class FollowEngineIndexShardTests extends IndexShardTestCase {
 
         // promote the replica to primary:
         final ShardRouting replicaRouting = indexShard.routingEntry();
-        final ShardRouting primaryRouting = newShardRouting(
+        final ShardRouting primaryRouting = shardRoutingBuilder(
             replicaRouting.shardId(),
             replicaRouting.currentNodeId(),
-            null,
             true,
-            ShardRoutingState.STARTED,
-            replicaRouting.allocationId()
-        );
+            ShardRoutingState.STARTED
+        ).withAllocationId(replicaRouting.allocationId()).build();
         indexShard.updateShardState(
             primaryRouting,
             indexShard.getOperationPrimaryTerm() + 1,
@@ -143,7 +141,7 @@ public class FollowEngineIndexShardTests extends IndexShardTestCase {
 
         DiscoveryNode localNode = DiscoveryNodeUtils.builder("foo").roles(emptySet()).build();
         target.markAsRecovering("store", new RecoveryState(routing, localNode, null));
-        final PlainActionFuture<Boolean> future = PlainActionFuture.newFuture();
+        final PlainActionFuture<Boolean> future = new PlainActionFuture<>();
         target.restoreFromRepository(new RestoreOnlyRepository("test") {
             @Override
             public void restoreShard(

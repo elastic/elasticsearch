@@ -7,7 +7,6 @@
 
 package org.elasticsearch.compute.aggregation;
 
-import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BooleanVector;
@@ -15,20 +14,21 @@ import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.operator.DriverContext;
 
 import java.util.List;
 
 public class CountAggregatorFunction implements AggregatorFunction {
-    public static AggregatorFunctionSupplier supplier(BigArrays bigArrays, List<Integer> channels) {
+    public static AggregatorFunctionSupplier supplier(List<Integer> channels) {
         return new AggregatorFunctionSupplier() {
             @Override
-            public AggregatorFunction aggregator() {
+            public AggregatorFunction aggregator(DriverContext driverContext) {
                 return CountAggregatorFunction.create(channels);
             }
 
             @Override
-            public GroupingAggregatorFunction groupingAggregator() {
-                return CountGroupingAggregatorFunction.create(bigArrays, channels);
+            public GroupingAggregatorFunction groupingAggregator(DriverContext driverContext) {
+                return CountGroupingAggregatorFunction.create(driverContext, channels);
             }
 
             @Override
@@ -49,6 +49,7 @@ public class CountAggregatorFunction implements AggregatorFunction {
 
     private final LongState state;
     private final List<Integer> channels;
+    private final boolean countAll;
 
     public static CountAggregatorFunction create(List<Integer> inputChannels) {
         return new CountAggregatorFunction(inputChannels, new LongState());
@@ -57,6 +58,8 @@ public class CountAggregatorFunction implements AggregatorFunction {
     private CountAggregatorFunction(List<Integer> channels, LongState state) {
         this.channels = channels;
         this.state = state;
+        // no channels specified means count-all/count(*)
+        this.countAll = channels.isEmpty();
     }
 
     @Override
@@ -64,17 +67,27 @@ public class CountAggregatorFunction implements AggregatorFunction {
         return intermediateStateDesc().size();
     }
 
+    private int blockIndex() {
+        return countAll ? 0 : channels.get(0);
+    }
+
     @Override
     public void addRawInput(Page page) {
-        Block block = page.getBlock(channels.get(0));
+        Block block = page.getBlock(blockIndex());
         LongState state = this.state;
-        state.longValue(state.longValue() + block.getTotalValueCount());
+        int count = countAll ? block.getPositionCount() : block.getTotalValueCount();
+        state.longValue(state.longValue() + count);
     }
 
     @Override
     public void addIntermediateInput(Page page) {
         assert channels.size() == intermediateBlockCount();
-        assert page.getBlockCount() >= channels.get(0) + intermediateStateDesc().size();
+        var blockIndex = blockIndex();
+        assert page.getBlockCount() >= blockIndex + intermediateStateDesc().size();
+        Block uncastBlock = page.getBlock(channels.get(0));
+        if (uncastBlock.areAllValuesNull()) {
+            return;
+        }
         LongVector count = page.<LongBlock>getBlock(channels.get(0)).asVector();
         BooleanVector seen = page.<BooleanBlock>getBlock(channels.get(1)).asVector();
         assert count.getPositionCount() == 1;
@@ -83,13 +96,13 @@ public class CountAggregatorFunction implements AggregatorFunction {
     }
 
     @Override
-    public void evaluateIntermediate(Block[] blocks, int offset) {
-        state.toIntermediate(blocks, offset);
+    public void evaluateIntermediate(Block[] blocks, int offset, DriverContext driverContext) {
+        state.toIntermediate(blocks, offset, driverContext);
     }
 
     @Override
-    public void evaluateFinal(Block[] blocks, int offset) {
-        blocks[offset] = LongBlock.newConstantBlockWith(state.longValue(), 1);
+    public void evaluateFinal(Block[] blocks, int offset, DriverContext driverContext) {
+        blocks[offset] = driverContext.blockFactory().newConstantLongBlockWith(state.longValue(), 1);
     }
 
     @Override

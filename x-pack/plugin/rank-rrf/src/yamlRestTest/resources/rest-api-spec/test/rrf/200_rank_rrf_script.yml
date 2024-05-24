@@ -1,8 +1,8 @@
 setup:
-  - skip:
-      features: close_to
-      version: ' - 8.7.99'
+  - requires:
+      cluster_features: "gte_v8.8.0"
       reason: 'rank added in 8.8'
+      test_runner_features: "close_to"
 
   - do:
       indices.create:
@@ -18,11 +18,19 @@ setup:
                 dims: 1
                 index: true
                 similarity: l2_norm
+                index_options:
+                  type: hnsw
+                  ef_construction: 100
+                  m: 16
               vector_desc:
                 type: dense_vector
                 dims: 1
                 index: true
                 similarity: l2_norm
+                index_options:
+                  type: hnsw
+                  ef_construction: 100
+                  m: 16
               int:
                 type: integer
               text:
@@ -116,7 +124,7 @@ setup:
                   ]
           rank:
             rrf:
-              window_size: 100
+              rank_window_size: 100
               rank_constant: 1
           size: 5
 
@@ -181,7 +189,7 @@ setup:
                   ]
           rank:
             rrf:
-              window_size: 3
+              rank_window_size: 3
               rank_constant: 1
           size: 1
 
@@ -259,7 +267,7 @@ setup:
                   ]
           rank:
             rrf:
-              window_size: 100
+              rank_window_size: 100
               rank_constant: 1
           size: 5
 

@@ -146,13 +146,16 @@ public class CopyRestApiTask extends DefaultTask {
         try {
             // check source folder for tests
             if (sourceResourceDir != null && new File(sourceResourceDir, REST_TEST_PREFIX).exists()) {
-                return Files.walk(sourceResourceDir.toPath().resolve(REST_TEST_PREFIX))
-                    .anyMatch(p -> p.getFileName().toString().endsWith("yml"));
+                try (var files = Files.walk(sourceResourceDir.toPath().resolve(REST_TEST_PREFIX))) {
+                    return files.anyMatch(p -> p.getFileName().toString().endsWith("yml"));
+                }
             }
             // check output for cases where tests are copied programmatically
             File yamlTestOutputDir = new File(additionalYamlTestsDir.get().getAsFile(), REST_TEST_PREFIX);
             if (yamlTestOutputDir.exists()) {
-                return Files.walk(yamlTestOutputDir.toPath()).anyMatch(p -> p.getFileName().toString().endsWith("yml"));
+                try (var files = Files.walk(yamlTestOutputDir.toPath())) {
+                    return files.anyMatch(p -> p.getFileName().toString().endsWith("yml"));
+                }
             }
         } catch (IOException e) {
             throw new IllegalStateException(String.format("Error determining if this project [%s] has rest tests.", getProject()), e);

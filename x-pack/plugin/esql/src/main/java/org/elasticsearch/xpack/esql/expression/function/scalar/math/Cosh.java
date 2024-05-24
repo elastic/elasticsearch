@@ -8,12 +8,13 @@
 package org.elasticsearch.xpack.esql.expression.function.scalar.math;
 
 import org.elasticsearch.compute.ann.Evaluator;
-import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
-import org.elasticsearch.xpack.esql.expression.function.Named;
-import org.elasticsearch.xpack.ql.expression.Expression;
-import org.elasticsearch.xpack.ql.tree.NodeInfo;
-import org.elasticsearch.xpack.ql.tree.Source;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
+import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.expression.function.Example;
+import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
+import org.elasticsearch.xpack.esql.expression.function.Param;
 
 import java.util.List;
 
@@ -21,13 +22,25 @@ import java.util.List;
  * Cosine hyperbolic function.
  */
 public class Cosh extends AbstractTrigonometricFunction {
-    public Cosh(Source source, @Named("n") Expression n) {
-        super(source, n);
+    @FunctionInfo(
+        returnType = "double",
+        description = "Returns the {wikipedia}/Hyperbolic_functions[hyperbolic cosine] of an angle.",
+        examples = @Example(file = "floats", tag = "cosh")
+    )
+    public Cosh(
+        Source source,
+        @Param(
+            name = "angle",
+            type = { "double", "integer", "long", "unsigned_long" },
+            description = "An angle, in radians. If `null`, the function returns `null`."
+        ) Expression angle
+    ) {
+        super(source, angle);
     }
 
     @Override
-    protected EvalOperator.ExpressionEvaluator doubleEvaluator(EvalOperator.ExpressionEvaluator field, DriverContext dvrCtx) {
-        return new CoshEvaluator(source(), field, dvrCtx);
+    protected EvalOperator.ExpressionEvaluator.Factory doubleEvaluator(EvalOperator.ExpressionEvaluator.Factory field) {
+        return new CoshEvaluator.Factory(source(), field);
     }
 
     @Override

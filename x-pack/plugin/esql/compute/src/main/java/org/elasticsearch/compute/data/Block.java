@@ -8,9 +8,15 @@
 package org.elasticsearch.compute.data;
 
 import org.apache.lucene.util.Accountable;
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.ReleasableIterator;
+import org.elasticsearch.core.Releasables;
+import org.elasticsearch.index.mapper.BlockLoader;
 
 import java.util.List;
 
@@ -20,19 +26,35 @@ import java.util.List;
  * position.
  *
  * <p> Blocks can represent various shapes of underlying data. A Block can represent either sparse
- * or dense data. A Block can represent either single or multi valued data. A Block that represents
+ * or dense data. A Block can represent either single or multivalued data. A Block that represents
  * dense single-valued data can be viewed as a {@link Vector}.
  *
- * TODO: update comment
- * <p> All Blocks share the same set of data retrieval methods, but actual concrete implementations
- * effectively support a subset of these, throwing {@code UnsupportedOperationException} where a
- * particular data retrieval method is not supported. For example, a Block of primitive longs may
- * not support retrieval as an integer, {code getInt}. This greatly simplifies Block usage and
- * avoids cumbersome use-site casting.
+ * <p> Blocks are reference counted; to make a shallow copy of a block (e.g. if a {@link Page} contains
+ * the same column twice), use {@link Block#incRef()}. Before a block is garbage collected,
+ * {@link Block#close()} must be called to release a block's resources; it must also be called one
+ * additional time for each time {@link Block#incRef()} was called. Calls to {@link Block#decRef()} and
+ * {@link Block#close()} are equivalent.
  *
- * <p> Block are immutable and can be passed between threads.
+ * <p> Block are immutable and can be passed between threads as long as no two threads hold a reference to
+ * the same block at the same time.
  */
-public interface Block extends Accountable, NamedWriteable, Releasable {
+public interface Block extends Accountable, BlockLoader.Block, NamedWriteable, RefCounted, Releasable {
+    /**
+     * The maximum number of values that can be added to one position via lookup.
+     * TODO maybe make this everywhere?
+     */
+    long MAX_LOOKUP = 100_000;
+
+    /**
+     * We do not track memory for pages directly (only for single blocks),
+     * but the page memory overhead can still be significant, especially for pages containing thousands of blocks.
+     * For now, we approximate this overhead, per block, using this value.
+     *
+     * The exact overhead per block would be (more correctly) {@link RamUsageEstimator#NUM_BYTES_OBJECT_REF},
+     * but we approximate it with {@link RamUsageEstimator#NUM_BYTES_OBJECT_ALIGNMENT} to avoid further alignments
+     * to object size (at the end of the alignment, it would make no practical difference).
+     */
+    int PAGE_MEM_OVERHEAD_PER_BLOCK = RamUsageEstimator.NUM_BYTES_OBJECT_ALIGNMENT;
 
     /**
      * {@return an efficient dense single-value view of this block}.
@@ -59,20 +81,28 @@ public interface Block extends Accountable, NamedWriteable, Releasable {
     ElementType elementType();
 
     /** The block factory associated with this block. */
+    // TODO: renaming this to owning blockFactory once we pass blockFactory for filter and expand
     BlockFactory blockFactory();
 
     /**
-     * Returns true if the value stored at the given position is null, false otherwise.
-     *
-     * @param position the position
-     * @return true or false
+     * Before passing a Block to another Driver, it is necessary to switch the owning block factory to its parent, which is associated
+     * with the global circuit breaker. This ensures that when the new driver releases this Block, it returns memory directly to the
+     * parent block factory instead of the local block factory of this Block. This is important because the local block factory is
+     * not thread safe and doesn't support simultaneous access by more than one thread.
      */
-    boolean isNull(int position);
+    void allowPassingToDifferentDriver();
 
     /**
-     * @return the number of null values in this block.
+     * Tells if this block has been released. A block is released by calling its {@link Block#close()} or {@link Block#decRef()} methods.
+     * @return true iff the block's reference count is zero.
+     * */
+    boolean isReleased();
+
+    /**
+     * @param position the position
+     * @return true if the value stored at the given position is null, false otherwise
      */
-    int nullValuesCount();
+    boolean isNull(int position);
 
     /**
      * @return true if some values might be null. False, if all values are guaranteed to be not null.
@@ -91,20 +121,57 @@ public interface Block extends Accountable, NamedWriteable, Releasable {
     boolean mayHaveMultivaluedFields();
 
     /**
-     * Creates a new block that only exposes the positions provided. Materialization of the selected positions is avoided.
+     * Creates a new block that only exposes the positions provided.
      * @param positions the positions to retain
      * @return a filtered block
+     * TODO: pass BlockFactory
      */
     Block filter(int... positions);
 
     /**
+     * Builds an Iterator of new {@link Block}s with the same {@link #elementType}
+     * as this Block whose values are copied from positions in this Block. It has the
+     * same number of {@link #getPositionCount() positions} as the {@code positions}
+     * parameter.
+     * <p>
+     *     For example, if this block contained {@code [a, b, [b, c]]}
+     *     and were called with the block {@code [0, 1, 1, [1, 2]]} then the
+     *     result would be {@code [a, b, b, [b, b, c]]}.
+     * </p>
+     * <p>
+     *     This process produces {@code count(this) * count(positions)} values per
+     *     positions which could be quite large. Instead of returning a single
+     *     Block, this returns an Iterator of Blocks containing all of the promised
+     *     values.
+     * </p>
+     * <p>
+     *     The returned {@link ReleasableIterator} may retain a reference to the
+     *     {@code positions} parameter. Close it to release those references.
+     * </p>
+     * <p>
+     *     This block is built using the same {@link BlockFactory} as was used to
+     *     build the {@code positions} parameter.
+     * </p>
+     */
+    ReleasableIterator<? extends Block> lookup(IntBlock positions, ByteSizeValue targetBlockSize);
+
+    /**
      * How are multivalued fields ordered?
-     * <p>Note that there isn't a {@code DESCENDING} because we don't have
-     * anything that makes descending fields.</p>
+     * Some operators can enable its optimization when mv_values are sorted ascending or de-duplicated.
      */
     enum MvOrdering {
-        ASCENDING,
-        UNORDERED;
+        UNORDERED(false, false),
+        DEDUPLICATED_UNORDERD(true, false),
+        DEDUPLICATED_AND_SORTED_ASCENDING(true, true),
+        SORTED_ASCENDING(false, true);
+
+        private final boolean deduplicated;
+        private final boolean sortedAscending;
+
+        MvOrdering(boolean deduplicated, boolean sortedAscending) {
+            this.deduplicated = deduplicated;
+            this.sortedAscending = sortedAscending;
+        }
     }
 
     /**
@@ -113,24 +180,31 @@ public interface Block extends Accountable, NamedWriteable, Releasable {
     MvOrdering mvOrdering();
 
     /**
-     * Expand multivalued fields into one row per value. Returns the
-     * block if there aren't any multivalued fields to expand.
+     * Are multivalued fields de-duplicated in each position
+     */
+    default boolean mvDeduplicated() {
+        return mayHaveMultivaluedFields() == false || mvOrdering().deduplicated;
+    }
+
+    /**
+     * Are multivalued fields sorted ascending in each position
+     */
+    default boolean mvSortedAscending() {
+        return mayHaveMultivaluedFields() == false || mvOrdering().sortedAscending;
+    }
+
+    /**
+     * Expand multivalued fields into one row per value. Returns the same block if there aren't any multivalued
+     * fields to expand. The returned block needs to be closed by the caller to release the block's resources.
+     * TODO: pass BlockFactory
      */
     Block expand();
 
     /**
-     * {@return a constant null block with the given number of positions, using the non-breaking block factory}.
+     * Builds {@link Block}s. Typically, you use one of it's direct supinterfaces like {@link IntBlock.Builder}.
+     * This is {@link Releasable} and should be released after building the block or if building the block fails.
      */
-    // Eventually, this should use the GLOBAL breaking instance
-    static Block constantNullBlock(int positions) {
-        return constantNullBlock(positions, BlockFactory.getNonBreakingInstance());
-    }
-
-    static Block constantNullBlock(int positions, BlockFactory blockFactory) {
-        return blockFactory.newConstantNullBlock(positions);
-    }
-
-    interface Builder {
+    interface Builder extends BlockLoader.Builder, Releasable {
 
         /**
          * Appends a null value to the block.
@@ -152,12 +226,6 @@ public interface Block extends Accountable, NamedWriteable, Releasable {
         Builder endPositionEntry();
 
         /**
-         * Appends the all values of the given block into a the current position
-         * in this builder.
-         */
-        Builder appendAllValuesToCurrentPosition(Block block);
-
-        /**
          * Copy the values in {@code block} from {@code beginInclusive} to
          * {@code endExclusive} into this builder.
          */
@@ -165,7 +233,7 @@ public interface Block extends Accountable, NamedWriteable, Releasable {
 
         /**
          * How are multivalued fields ordered? This defaults to {@link Block.MvOrdering#UNORDERED}
-         * but when you set it to {@link Block.MvOrdering#ASCENDING} some operators can optimize
+         * but when you set it to {@link Block.MvOrdering#DEDUPLICATED_AND_SORTED_ASCENDING} some operators can optimize
          * themselves. This is a <strong>promise</strong> that is never checked. If you set this
          * to anything other than {@link Block.MvOrdering#UNORDERED} be sure the values are in
          * that order or other operators will make mistakes. The actual ordering isn't checked
@@ -174,9 +242,34 @@ public interface Block extends Accountable, NamedWriteable, Releasable {
         Builder mvOrdering(Block.MvOrdering mvOrdering);
 
         /**
+         * An estimate of the number of bytes the {@link Block} created by
+         * {@link #build} will use. This may overestimate the size but shouldn't
+         * underestimate it.
+         */
+        long estimatedBytes();
+
+        /**
          * Builds the block. This method can be called multiple times.
          */
         Block build();
+
+        /**
+         * Build many {@link Block}s at once, releasing any partially built blocks
+         * if any fail.
+         */
+        static Block[] buildAll(Block.Builder... builders) {
+            Block[] blocks = new Block[builders.length];
+            try {
+                for (int b = 0; b < blocks.length; b++) {
+                    blocks[b] = builders[b].build();
+                }
+            } finally {
+                if (blocks[blocks.length - 1] == null) {
+                    Releasables.closeExpectNoException(blocks);
+                }
+            }
+            return blocks;
+        }
     }
 
     static List<NamedWriteableRegistry.Entry> getNamedWriteables() {
@@ -189,4 +282,13 @@ public interface Block extends Accountable, NamedWriteable, Releasable {
             ConstantNullBlock.ENTRY
         );
     }
+
+    /**
+     * Serialization type for blocks: 0 and 1 replace false/true used in pre-8.14
+     */
+    byte SERIALIZE_BLOCK_VALUES = 0;
+    byte SERIALIZE_BLOCK_VECTOR = 1;
+    byte SERIALIZE_BLOCK_ARRAY = 2;
+    byte SERIALIZE_BLOCK_BIG_ARRAY = 3;
+    byte SERIALIZE_BLOCK_ORDINAL = 3;
 }

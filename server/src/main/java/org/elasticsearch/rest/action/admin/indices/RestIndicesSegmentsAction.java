@@ -19,7 +19,7 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.Scope;
 import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestCancellableNodeClient;
-import org.elasticsearch.rest.action.RestChunkedToXContentListener;
+import org.elasticsearch.rest.action.RestRefCountedChunkedToXContentListener;
 
 import java.io.IOException;
 import java.util.List;
@@ -47,7 +47,7 @@ public class RestIndicesSegmentsAction extends BaseRestHandler {
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         IndicesSegmentsRequest indicesSegmentsRequest = new IndicesSegmentsRequest(
             Strings.splitStringByCommaToArray(request.param("index"))
-        );
+        ).withVectorFormatsInfo(request.paramAsBoolean("vector_formats", false));
         if (request.hasParam("verbose")) {
             DEPRECATION_LOGGER.warn(
                 DeprecationCategory.INDICES,
@@ -58,6 +58,6 @@ public class RestIndicesSegmentsAction extends BaseRestHandler {
         indicesSegmentsRequest.indicesOptions(IndicesOptions.fromRequest(request, indicesSegmentsRequest.indicesOptions()));
         return channel -> new RestCancellableNodeClient(client, request.getHttpChannel()).admin()
             .indices()
-            .segments(indicesSegmentsRequest, new RestChunkedToXContentListener<>(channel));
+            .segments(indicesSegmentsRequest, new RestRefCountedChunkedToXContentListener<>(channel));
     }
 }

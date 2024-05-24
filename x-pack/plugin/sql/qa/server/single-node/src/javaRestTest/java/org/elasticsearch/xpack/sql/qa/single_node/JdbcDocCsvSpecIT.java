@@ -10,10 +10,12 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.client.RestClient;
+import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.xpack.sql.qa.jdbc.DataLoader;
 import org.elasticsearch.xpack.sql.qa.jdbc.JdbcAssert;
 import org.elasticsearch.xpack.sql.qa.jdbc.SpecBaseIntegrationTestCase;
 import org.elasticsearch.xpack.sql.qa.jdbc.SqlSpecTestCase;
+import org.junit.ClassRule;
 
 import java.sql.Connection;
 import java.sql.ResultSet;
@@ -39,6 +41,13 @@ import static org.elasticsearch.xpack.sql.qa.jdbc.CsvTestUtils.executeCsvQuery;
  * at this stage and, to not keep things stalling, started with this approach.
  */
 public class JdbcDocCsvSpecIT extends SpecBaseIntegrationTestCase {
+    @ClassRule
+    public static final ElasticsearchCluster cluster = SqlTestCluster.getCluster(false);
+
+    @Override
+    protected String getTestRestCluster() {
+        return cluster.getHttpAddresses();
+    }
 
     private final CsvTestCase testCase;
 
@@ -49,7 +58,7 @@ public class JdbcDocCsvSpecIT extends SpecBaseIntegrationTestCase {
 
     @Override
     protected void loadDataset(RestClient client) throws Exception {
-        DataLoader.loadDocsDatasetIntoEs(client);
+        DataLoader.loadDocsDatasetIntoEs(client, false);
     }
 
     @ParametersFactory(shuffle = false, argumentFormatting = SqlSpecTestCase.PARAM_FORMATTING)

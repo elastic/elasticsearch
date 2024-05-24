@@ -23,22 +23,24 @@ import java.util.Map;
 public final class RenameProcessor extends AbstractProcessor {
 
     public static final String TYPE = "rename";
-
     private final TemplateScript.Factory field;
     private final TemplateScript.Factory targetField;
     private final boolean ignoreMissing;
+    private final boolean overrideEnabled;
 
     RenameProcessor(
         String tag,
         String description,
         TemplateScript.Factory field,
         TemplateScript.Factory targetField,
-        boolean ignoreMissing
+        boolean ignoreMissing,
+        boolean overrideEnabled
     ) {
         super(tag, description);
         this.field = field;
         this.targetField = targetField;
         this.ignoreMissing = ignoreMissing;
+        this.overrideEnabled = overrideEnabled;
     }
 
     TemplateScript.Factory getField() {
@@ -53,6 +55,10 @@ public final class RenameProcessor extends AbstractProcessor {
         return ignoreMissing;
     }
 
+    public boolean isOverrideEnabled() {
+        return overrideEnabled;
+    }
+
     @Override
     public IngestDocument execute(IngestDocument document) {
         String path = document.renderTemplate(field);
@@ -63,12 +69,13 @@ public final class RenameProcessor extends AbstractProcessor {
                 throw new IllegalArgumentException("field [" + path + "] doesn't exist");
             }
         }
+
         // We fail here if the target field point to an array slot that is out of range.
         // If we didn't do this then we would fail if we set the value in the target_field
         // and then on failure processors would not see that value we tried to rename as we already
         // removed it.
         String target = document.renderTemplate(targetField);
-        if (document.hasField(target, true)) {
+        if (document.hasField(target, true) && overrideEnabled == false) {
             throw new IllegalArgumentException("field [" + target + "] already exists");
         }
 
@@ -115,7 +122,8 @@ public final class RenameProcessor extends AbstractProcessor {
                 scriptService
             );
             boolean ignoreMissing = ConfigurationUtils.readBooleanProperty(TYPE, processorTag, config, "ignore_missing", false);
-            return new RenameProcessor(processorTag, description, fieldTemplate, targetFieldTemplate, ignoreMissing);
+            boolean overrideEnabled = ConfigurationUtils.readBooleanProperty(TYPE, processorTag, config, "override", false);
+            return new RenameProcessor(processorTag, description, fieldTemplate, targetFieldTemplate, ignoreMissing, overrideEnabled);
         }
     }
 }

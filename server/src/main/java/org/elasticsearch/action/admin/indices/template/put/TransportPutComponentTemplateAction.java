@@ -25,6 +25,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -55,7 +56,7 @@ public class TransportPutComponentTemplateAction extends AcknowledgedTransportMa
             actionFilters,
             PutComponentTemplateAction.Request::new,
             indexNameExpressionResolver,
-            ThreadPool.Names.SAME
+            EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
         this.indexTemplateService = indexTemplateService;
         this.indexScopedSettings = indexScopedSettings;
@@ -77,7 +78,12 @@ public class TransportPutComponentTemplateAction extends AcknowledgedTransportMa
             Settings settings = builder.build();
             indexScopedSettings.validate(settings, true);
             template = new Template(settings, template.mappings(), template.aliases(), template.lifecycle());
-            componentTemplate = new ComponentTemplate(template, componentTemplate.version(), componentTemplate.metadata());
+            componentTemplate = new ComponentTemplate(
+                template,
+                componentTemplate.version(),
+                componentTemplate.metadata(),
+                componentTemplate.deprecated()
+            );
         }
 
         return componentTemplate;

@@ -11,6 +11,7 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.security.action.token.InvalidateTokenAction;
@@ -28,7 +29,13 @@ public final class TransportInvalidateTokenAction extends HandledTransportAction
 
     @Inject
     public TransportInvalidateTokenAction(TransportService transportService, ActionFilters actionFilters, TokenService tokenService) {
-        super(InvalidateTokenAction.NAME, transportService, actionFilters, InvalidateTokenRequest::new);
+        super(
+            InvalidateTokenAction.NAME,
+            transportService,
+            actionFilters,
+            InvalidateTokenRequest::new,
+            EsExecutors.DIRECT_EXECUTOR_SERVICE
+        );
         this.tokenService = tokenService;
     }
 

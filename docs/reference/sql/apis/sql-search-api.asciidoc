@@ -123,7 +123,7 @@ the scroll request. Defaults to `45s` (45 seconds).
 (Optional, <<time-units,time value>>) Timeout before the request fails. Defaults
 to `90s` (90 seconds).
 
-include::{es-repo-dir}/search/search.asciidoc[tag=runtime-mappings-def]
+include::{es-ref-dir}/search/search.asciidoc[tag=runtime-mappings-def]
 
 [[sql-search-api-time-zone]]
 `time_zone`::

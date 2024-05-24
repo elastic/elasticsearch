@@ -101,6 +101,38 @@ public record TransportVersion(int id) implements VersionId<TransportVersion> {
         return TransportVersion.fromId(Integer.parseInt(str));
     }
 
+    /**
+     * Returns {@code true} if this version is a patch version at or after {@code version}.
+     * <p>
+     * This should not be used normally. It is used for matching patch versions of the same base version,
+     * using the standard version number format specified in {@link TransportVersions}.
+     * When a patch version of an existing transport version is created, {@code transportVersion.isPatchFrom(patchVersion)}
+     * will match any transport version at or above {@code patchVersion} that is also of the same base version.
+     * <p>
+     * For example, {@code version.isPatchFrom(8_800_00_4)} will return the following for the given {@code version}:
+     * <ul>
+     *     <li>{@code 8_799_00_0.isPatchFrom(8_800_00_4)}: {@code false}</li>
+     *     <li>{@code 8_799_00_9.isPatchFrom(8_800_00_4)}: {@code false}</li>
+     *     <li>{@code 8_800_00_0.isPatchFrom(8_800_00_4)}: {@code false}</li>
+     *     <li>{@code 8_800_00_3.isPatchFrom(8_800_00_4)}: {@code false}</li>
+     *     <li>{@code 8_800_00_4.isPatchFrom(8_800_00_4)}: {@code true}</li>
+     *     <li>{@code 8_800_00_9.isPatchFrom(8_800_00_4)}: {@code true}</li>
+     *     <li>{@code 8_800_01_0.isPatchFrom(8_800_00_4)}: {@code false}</li>
+     *     <li>{@code 8_801_00_0.isPatchFrom(8_800_00_4)}: {@code false}</li>
+     * </ul>
+     */
+    public boolean isPatchFrom(TransportVersion version) {
+        return onOrAfter(version) && id < version.id + 10 - (version.id % 10);
+    }
+
+    /**
+     * Returns a string representing the Elasticsearch release version of this transport version,
+     * if applicable for this deployment, otherwise the raw version number.
+     */
+    public String toReleaseVersion() {
+        return TransportVersions.VERSION_LOOKUP.apply(id);
+    }
+
     @Override
     public String toString() {
         return Integer.toString(id);
@@ -109,13 +141,11 @@ public record TransportVersion(int id) implements VersionId<TransportVersion> {
     private static class CurrentHolder {
         private static final TransportVersion CURRENT = findCurrent();
 
-        // finds the pluggable current version, or uses the given fallback
+        // finds the pluggable current version
         private static TransportVersion findCurrent() {
-            var versionExtension = ExtensionLoader.loadSingleton(ServiceLoader.load(VersionExtension.class), () -> null);
-            if (versionExtension == null) {
-                return TransportVersions.LATEST_DEFINED;
-            }
-            var version = versionExtension.getCurrentTransportVersion(TransportVersions.LATEST_DEFINED);
+            var version = ExtensionLoader.loadSingleton(ServiceLoader.load(VersionExtension.class))
+                .map(e -> e.getCurrentTransportVersion(TransportVersions.LATEST_DEFINED))
+                .orElse(TransportVersions.LATEST_DEFINED);
             assert version.onOrAfter(TransportVersions.LATEST_DEFINED);
             return version;
         }

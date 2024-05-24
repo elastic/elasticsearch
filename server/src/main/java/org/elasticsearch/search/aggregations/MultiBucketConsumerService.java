@@ -13,6 +13,8 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.aggregations.bucket.BucketsAggregator;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -23,7 +25,7 @@ import java.util.function.IntConsumer;
 /**
  * An aggregation service that creates instances of {@link MultiBucketConsumer}.
  * The consumer is used by {@link BucketsAggregator} and {@link InternalMultiBucketAggregation} to limit the number of buckets created
- * in {@link Aggregator#buildAggregations} and {@link InternalAggregation#reduce}.
+ * in {@link Aggregator#buildAggregations} and {@link InternalAggregation#getReducer(AggregationReduceContext, int)}.
  * The limit can be set by changing the `search.max_buckets` cluster setting and defaults to 65536.
  */
 public class MultiBucketConsumerService {
@@ -88,9 +90,10 @@ public class MultiBucketConsumerService {
      * An {@link IntConsumer} that throws a {@link TooManyBucketsException}
      * when the sum of the provided values is above the limit (`search.max_buckets`).
      * It is used by aggregators to limit the number of bucket creation during
-     * {@link Aggregator#buildAggregations} and {@link InternalAggregation#reduce}.
+     * {@link Aggregator#buildAggregations} and {@link InternalAggregation#getReducer(AggregationReduceContext, int)}.
      */
     public static class MultiBucketConsumer implements IntConsumer {
+        private static final Logger logger = LogManager.getLogger(MultiBucketConsumer.class);
         private final int limit;
         private final CircuitBreaker breaker;
 
@@ -108,6 +111,7 @@ public class MultiBucketConsumerService {
             if (value != 0) {
                 count += value;
                 if (count > limit) {
+                    logger.warn("Too many buckets (max [{}], count [{}])", limit, count);
                     throw new TooManyBucketsException(
                         "Trying to create too many buckets. Must be less than or equal to: ["
                             + limit

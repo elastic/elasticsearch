@@ -16,6 +16,7 @@ import java.io.IOException;
 import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.POST;
+import static org.elasticsearch.rest.RestUtils.getMasterNodeTimeout;
 import static org.elasticsearch.xpack.core.ccr.action.ResumeFollowAction.INSTANCE;
 import static org.elasticsearch.xpack.core.ccr.action.ResumeFollowAction.Request;
 
@@ -38,14 +39,16 @@ public class RestResumeFollowAction extends BaseRestHandler {
     }
 
     static Request createRequest(RestRequest restRequest) throws IOException {
+        Request request;
         if (restRequest.hasContentOrSourceParam()) {
             try (XContentParser parser = restRequest.contentOrSourceParamParser()) {
-                return Request.fromXContent(parser, restRequest.param("index"));
+                request = Request.fromXContent(parser, restRequest.param("index"));
             }
         } else {
-            Request request = new Request();
+            request = new Request();
             request.setFollowerIndex(restRequest.param("index"));
-            return request;
         }
+        request.masterNodeTimeout(getMasterNodeTimeout(restRequest));
+        return request;
     }
 }

@@ -13,17 +13,17 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.core.LogEvent;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.MockLogAppender;
-import org.elasticsearch.test.MockLogAppender.LoggingExpectation;
-import org.elasticsearch.test.MockLogAppender.SeenEventExpectation;
+import org.elasticsearch.test.MockLog;
+import org.elasticsearch.test.MockLog.LoggingExpectation;
+import org.elasticsearch.test.MockLog.SeenEventExpectation;
 import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.BeforeClass;
 
 import java.util.logging.ConsoleHandler;
+import java.util.logging.Handler;
 
 import static org.hamcrest.CoreMatchers.equalTo;
-import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.instanceOf;
 
@@ -31,7 +31,7 @@ public class JULBridgeTests extends ESTestCase {
 
     private static final java.util.logging.Logger logger = java.util.logging.Logger.getLogger("");
     private static java.util.logging.Level savedLevel;
-    private static java.util.logging.Handler[] savedHandlers;
+    private static Handler[] savedHandlers;
 
     @BeforeClass
     public static void saveLoggerState() {
@@ -60,19 +60,17 @@ public class JULBridgeTests extends ESTestCase {
 
     private void assertLogged(Runnable loggingCode, LoggingExpectation... expectations) {
         Logger testLogger = LogManager.getLogger("");
-        Loggers.setLevel(testLogger, Level.ALL);
-        MockLogAppender mockAppender = new MockLogAppender();
-        mockAppender.start();
-        try {
-            Loggers.addAppender(testLogger, mockAppender);
+        Level savedLevel = testLogger.getLevel();
+
+        try (var mockLog = MockLog.capture("")) {
+            Loggers.setLevel(testLogger, Level.ALL);
             for (var expectation : expectations) {
-                mockAppender.addExpectation(expectation);
+                mockLog.addExpectation(expectation);
             }
             loggingCode.run();
-            mockAppender.assertAllExpectationsMatched();
+            mockLog.assertAllExpectationsMatched();
         } finally {
-            Loggers.removeAppender(testLogger, mockAppender);
-            mockAppender.stop();
+            Loggers.setLevel(testLogger, savedLevel);
         }
     }
 

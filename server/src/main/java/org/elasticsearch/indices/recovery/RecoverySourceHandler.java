@@ -33,13 +33,12 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.CancellableThreads;
 import org.elasticsearch.common.util.concurrent.CountDown;
 import org.elasticsearch.common.util.set.Sets;
-import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.RecoveryEngineException;
 import org.elasticsearch.index.seqno.ReplicationTracker;
@@ -426,7 +425,7 @@ public class RecoverySourceHandler {
     }
 
     static void runUnderPrimaryPermit(
-        CheckedRunnable<Exception> action,
+        Runnable action,
         IndexShard primary,
         CancellableThreads cancellableThreads,
         ActionListener<Void> listener
@@ -566,19 +565,17 @@ public class RecoverySourceHandler {
                     // but we must still create a retention lease
                     .<RetentionLease>newForked(leaseListener -> createRetentionLease(startingSeqNo, leaseListener))
                     // and then compute the result of sending no files
-                    .<SendFileResult>andThen((l, ignored) -> {
+                    .andThenApply(ignored -> {
                         final TimeValue took = stopWatch.totalTime();
                         logger.trace("recovery [phase1]: took [{}]", took);
-                        l.onResponse(
-                            new SendFileResult(
-                                Collections.emptyList(),
-                                Collections.emptyList(),
-                                0L,
-                                Collections.emptyList(),
-                                Collections.emptyList(),
-                                0L,
-                                took
-                            )
+                        return new SendFileResult(
+                            Collections.emptyList(),
+                            Collections.emptyList(),
+                            0L,
+                            Collections.emptyList(),
+                            Collections.emptyList(),
+                            0L,
+                            took
                         );
                     })
                     // and finally respond
@@ -752,19 +749,17 @@ public class RecoverySourceHandler {
                     cleanFiles(store, recoverySourceMetadata, () -> translogOps, lastKnownGlobalCheckpoint, finalRecoveryPlanListener);
                 })
                 // compute the result
-                .<SendFileResult>andThen((resultListener, ignored) -> {
+                .andThenApply(ignored -> {
                     final TimeValue took = stopWatch.totalTime();
                     logger.trace("recovery [phase1]: took [{}]", took);
-                    resultListener.onResponse(
-                        new SendFileResult(
-                            shardRecoveryPlan.getFilesToRecoverNames(),
-                            shardRecoveryPlan.getFilesToRecoverSizes(),
-                            shardRecoveryPlan.getTotalSize(),
-                            shardRecoveryPlan.getFilesPresentInTargetNames(),
-                            shardRecoveryPlan.getFilesPresentInTargetSizes(),
-                            shardRecoveryPlan.getExistingSize(),
-                            took
-                        )
+                    return new SendFileResult(
+                        shardRecoveryPlan.getFilesToRecoverNames(),
+                        shardRecoveryPlan.getFilesToRecoverSizes(),
+                        shardRecoveryPlan.getTotalSize(),
+                        shardRecoveryPlan.getFilesPresentInTargetNames(),
+                        shardRecoveryPlan.getFilesPresentInTargetSizes(),
+                        shardRecoveryPlan.getExistingSize(),
+                        took
                     );
                 })
                 // and finally respond
@@ -977,7 +972,7 @@ public class RecoverySourceHandler {
                 // it's possible that the primary has no retention lease yet if we are doing a rolling upgrade from a version before
                 // 7.4, and in that case we just create a lease using the local checkpoint of the safe commit which we're using for
                 // recovery as a conservative estimate for the global checkpoint.
-                assert shard.indexSettings().getIndexVersionCreated().before(IndexVersion.V_7_4_0)
+                assert shard.indexSettings().getIndexVersionCreated().before(IndexVersions.V_7_4_0)
                     || shard.indexSettings().isSoftDeleteEnabled() == false;
                 final long estimatedGlobalCheckpoint = startingSeqNo - 1;
                 final var newLease = shard.addPeerRecoveryRetentionLease(targetNodeId, estimatedGlobalCheckpoint, backgroundSyncListener);
@@ -1260,7 +1255,7 @@ public class RecoverySourceHandler {
          */
         final SubscribableListener<Void> markInSyncStep = new SubscribableListener<>();
         runUnderPrimaryPermit(
-            () -> shard.markAllocationIdAsInSync(request.targetAllocationId(), targetLocalCheckpoint),
+            () -> cancellableThreads.execute(() -> shard.markAllocationIdAsInSync(request.targetAllocationId(), targetLocalCheckpoint)),
             shard,
             cancellableThreads,
             markInSyncStep
@@ -1292,7 +1287,12 @@ public class RecoverySourceHandler {
                 logger.trace("performing relocation hand-off");
                 cancellableThreads.execute(
                     // this acquires all IndexShard operation permits and will thus delay new recoveries until it is done
-                    () -> shard.relocated(request.targetAllocationId(), recoveryTarget::handoffPrimaryContext, finalStep)
+                    () -> shard.relocated(
+                        request.targetNode().getId(),
+                        request.targetAllocationId(),
+                        recoveryTarget::handoffPrimaryContext,
+                        finalStep
+                    )
                 );
                 /*
                  * if the recovery process fails after disabling primary mode on the source shard, both relocation source and

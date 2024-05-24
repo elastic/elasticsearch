@@ -25,6 +25,7 @@ import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.IOUtils;
+import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.gateway.GatewayMetaState;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.plugins.ClusterCoordinationPlugin;
@@ -115,7 +116,8 @@ public class DiscoveryModuleTests extends ESTestCase {
             mock(RerouteService.class),
             null,
             new NoneCircuitBreakerService(),
-            CompatibilityVersionsUtils.staticCurrent()
+            CompatibilityVersionsUtils.staticCurrent(),
+            new FeatureService(List.of())
         );
     }
 

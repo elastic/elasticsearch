@@ -54,7 +54,7 @@ public abstract class AbstractTransportQlAsyncGetStatusAction<
         BigArrays bigArrays,
         Class<? extends AsyncTask> asyncTaskClass
     ) {
-        super(actionName, transportService, actionFilters, GetAsyncStatusRequest::new);
+        super(actionName, transportService, actionFilters, GetAsyncStatusRequest::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         this.actionName = actionName;
         this.transportService = transportService;
         this.clusterService = clusterService;

@@ -10,7 +10,6 @@ package org.elasticsearch.transport;
 
 import org.apache.logging.log4j.Level;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -26,8 +25,9 @@ import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.MockLogAppender;
+import org.elasticsearch.test.MockLog;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.junit.After;
@@ -38,7 +38,6 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Set;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.ExecutionException;
@@ -69,7 +68,7 @@ public class ClusterConnectionManagerTests extends ESTestCase {
     @Before
     public void createConnectionManager() {
         Settings settings = Settings.builder().put("node.name", ClusterConnectionManagerTests.class.getSimpleName()).build();
-        threadPool = new ThreadPool(settings);
+        threadPool = new ThreadPool(settings, MeterRegistry.NOOP);
         transport = mock(Transport.class);
         connectionManager = new ClusterConnectionManager(settings, transport, threadPool.getThreadContext());
         TimeValue oneSecond = new TimeValue(1000);
@@ -174,26 +173,25 @@ public class ClusterConnectionManagerTests extends ESTestCase {
         final Releasable localConnectionRef = toClose.getAndSet(null);
         assertThat(localConnectionRef, notNullValue());
 
-        final MockLogAppender appender = new MockLogAppender();
-        try (var ignored = appender.capturing(ClusterConnectionManager.class)) {
-            appender.addExpectation(
-                new MockLogAppender.SeenEventExpectation(
+        try (var mockLog = MockLog.capture(ClusterConnectionManager.class)) {
+            mockLog.addExpectation(
+                new MockLog.SeenEventExpectation(
                     "locally-triggered close message",
                     ClusterConnectionManager.class.getCanonicalName(),
                     Level.DEBUG,
                     "closing unused transport connection to [" + localClose + "]"
                 )
             );
-            appender.addExpectation(
-                new MockLogAppender.SeenEventExpectation(
+            mockLog.addExpectation(
+                new MockLog.SeenEventExpectation(
                     "remotely-triggered close message",
                     ClusterConnectionManager.class.getCanonicalName(),
                     Level.INFO,
                     "transport connection to [" + remoteClose.descriptionWithoutAttributes() + "] closed by remote"
                 )
             );
-            appender.addExpectation(
-                new MockLogAppender.SeenEventExpectation(
+            mockLog.addExpectation(
+                new MockLog.SeenEventExpectation(
                     "shutdown-triggered close message",
                     ClusterConnectionManager.class.getCanonicalName(),
                     Level.TRACE,
@@ -205,12 +203,12 @@ public class ClusterConnectionManagerTests extends ESTestCase {
             connectionManager.disconnectFromNode(remoteClose);
             connectionManager.close();
 
-            appender.assertAllExpectationsMatched();
+            mockLog.assertAllExpectationsMatched();
         }
     }
 
     public void testConcurrentConnects() throws Exception {
-        Set<Transport.Connection> connections = Collections.newSetFromMap(new ConcurrentHashMap<>());
+        Set<Transport.Connection> connections = ConcurrentCollections.newConcurrentSet();
 
         DiscoveryNode node = DiscoveryNodeUtils.create("", new TransportAddress(InetAddress.getLoopbackAddress(), 0));
         doAnswer(invocationOnMock -> {
@@ -470,7 +468,7 @@ public class ClusterConnectionManagerTests extends ESTestCase {
 
         final ConnectionManager.ConnectionValidator validator = (c, p, l) -> {
             assertTrue(validatorPermits.tryAcquire());
-            threadPool.executor(randomFrom(ThreadPool.Names.GENERIC, ThreadPool.Names.SAME)).execute(() -> {
+            randomExecutor(threadPool).execute(() -> {
                 try {
                     l.onResponse(null);
                 } finally {
@@ -510,7 +508,7 @@ public class ClusterConnectionManagerTests extends ESTestCase {
                                 connectionPermits.release();
                                 runAgain();
                             } else {
-                                throw new AssertionError("unexpected", e);
+                                fail(e);
                             }
                         }
 
@@ -548,7 +546,7 @@ public class ClusterConnectionManagerTests extends ESTestCase {
 
         final ConnectionManager.ConnectionValidator validator = (c, p, l) -> {
             assertTrue(validatorPermits.tryAcquire());
-            threadPool.executor(randomFrom(ThreadPool.Names.GENERIC, ThreadPool.Names.SAME)).execute(() -> {
+            randomExecutor(threadPool).execute(() -> {
                 try {
                     l.onResponse(null);
                 } finally {
@@ -592,7 +590,7 @@ public class ClusterConnectionManagerTests extends ESTestCase {
                                 && e.getMessage().contains("concurrently connecting and disconnecting")) {
                                 runAgain();
                             } else {
-                                throw new AssertionError("unexpected", e);
+                                fail(e);
                             }
                         }
 
@@ -753,11 +751,6 @@ public class ClusterConnectionManagerTests extends ESTestCase {
         @Override
         public DiscoveryNode getNode() {
             return node;
-        }
-
-        @Override
-        public Version getVersion() {
-            return node.getVersion();
         }
 
         @Override

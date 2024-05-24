@@ -38,6 +38,13 @@ public class PagedBytesReferenceTests extends AbstractBytesReferenceTestCase {
         return ref;
     }
 
+    @Override
+    protected BytesReference newBytesReference(byte[] content) {
+        ByteArray byteArray = bigarrays.newByteArray(content.length);
+        byteArray.set(0, content, 0, content.length);
+        return BytesReference.fromByteArray(byteArray, content.length);
+    }
+
     public void testToBytesRefMaterializedPages() throws IOException {
         // we need a length != (n * pagesize) to avoid page sharing at boundaries
         int length = 0;

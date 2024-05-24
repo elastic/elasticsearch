@@ -10,6 +10,7 @@ package org.elasticsearch.script.field.vectors;
 
 import org.apache.lucene.index.FloatVectorValues;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.mapper.vectors.DenormalizedCosineFloatVectorValues;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.ElementType;
 import org.elasticsearch.index.mapper.vectors.DenseVectorScriptDocValues;
 
@@ -63,6 +64,9 @@ public class KnnDenseVectorDocValuesField extends DenseVectorDocValuesField {
             return DenseVector.EMPTY;
         }
 
+        if (input instanceof DenormalizedCosineFloatVectorValues normalized) {
+            return new KnnDenseVector(vector, normalized.magnitude());
+        }
         return new KnnDenseVector(vector);
     }
 
@@ -72,6 +76,9 @@ public class KnnDenseVectorDocValuesField extends DenseVectorDocValuesField {
             return defaultValue;
         }
 
+        if (input instanceof DenormalizedCosineFloatVectorValues normalized) {
+            return new KnnDenseVector(vector, normalized.magnitude());
+        }
         return new KnnDenseVector(vector);
     }
 

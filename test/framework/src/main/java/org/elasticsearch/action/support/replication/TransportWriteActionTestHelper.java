@@ -11,6 +11,7 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.translog.Translog;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
@@ -52,10 +53,6 @@ public abstract class TransportWriteActionTestHelper {
             new PostWriteRefresh(transportService),
             null
         ).run();
-        try {
-            latch.await();
-        } catch (InterruptedException e) {
-            throw new AssertionError(e);
-        }
+        ESTestCase.safeAwait(latch);
     }
 }

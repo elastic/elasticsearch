@@ -8,22 +8,20 @@
 package org.elasticsearch.compute.data;
 
 import org.apache.lucene.util.RamUsageEstimator;
+import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.core.ReleasableIterator;
 
 /**
  * Vector implementation that stores a constant double value.
  * This class is generated. Do not edit it.
  */
-public final class ConstantDoubleVector extends AbstractVector implements DoubleVector {
+final class ConstantDoubleVector extends AbstractVector implements DoubleVector {
 
-    private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(ConstantDoubleVector.class);
+    static final long RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(ConstantDoubleVector.class);
 
     private final double value;
 
-    public ConstantDoubleVector(double value, int positionCount) {
-        this(value, positionCount, BlockFactory.getNonBreakingInstance());
-    }
-
-    public ConstantDoubleVector(double value, int positionCount, BlockFactory blockFactory) {
+    ConstantDoubleVector(double value, int positionCount, BlockFactory blockFactory) {
         super(positionCount, blockFactory);
         this.value = value;
     }
@@ -40,7 +38,29 @@ public final class ConstantDoubleVector extends AbstractVector implements Double
 
     @Override
     public DoubleVector filter(int... positions) {
-        return new ConstantDoubleVector(value, positions.length);
+        return blockFactory().newConstantDoubleVector(value, positions.length);
+    }
+
+    @Override
+    public ReleasableIterator<DoubleBlock> lookup(IntBlock positions, ByteSizeValue targetBlockSize) {
+        if (positions.getPositionCount() == 0) {
+            return ReleasableIterator.empty();
+        }
+        IntVector positionsVector = positions.asVector();
+        if (positionsVector == null) {
+            return new DoubleLookup(asBlock(), positions, targetBlockSize);
+        }
+        int min = positionsVector.min();
+        if (min < 0) {
+            throw new IllegalArgumentException("invalid position [" + min + "]");
+        }
+        if (min > getPositionCount()) {
+            return ReleasableIterator.single((DoubleBlock) positions.blockFactory().newConstantNullBlock(positions.getPositionCount()));
+        }
+        if (positionsVector.max() < getPositionCount()) {
+            return ReleasableIterator.single(positions.blockFactory().newConstantDoubleBlockWith(value, positions.getPositionCount()));
+        }
+        return new DoubleLookup(asBlock(), positions, targetBlockSize);
     }
 
     @Override
@@ -55,7 +75,7 @@ public final class ConstantDoubleVector extends AbstractVector implements Double
 
     @Override
     public long ramBytesUsed() {
-        return BASE_RAM_BYTES_USED + RamUsageEstimator.shallowSizeOfInstance(double.class);
+        return RAM_BYTES_USED;
     }
 
     @Override
@@ -73,10 +93,5 @@ public final class ConstantDoubleVector extends AbstractVector implements Double
 
     public String toString() {
         return getClass().getSimpleName() + "[positions=" + getPositionCount() + ", value=" + value + ']';
-    }
-
-    @Override
-    public void close() {
-        blockFactory.adjustBreaker(-ramBytesUsed(), true);
     }
 }

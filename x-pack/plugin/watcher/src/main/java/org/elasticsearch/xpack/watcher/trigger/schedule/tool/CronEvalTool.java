@@ -61,7 +61,7 @@ class CronEvalTool extends Command {
         execute(terminal, args.get(0), count, printDetail);
     }
 
-    private void execute(Terminal terminal, String expression, int count, boolean printDetail) throws Exception {
+    private static void execute(Terminal terminal, String expression, int count, boolean printDetail) throws Exception {
         try {
             Cron.validate(expression);
             terminal.println("Valid!");

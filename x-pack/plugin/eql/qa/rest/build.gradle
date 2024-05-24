@@ -21,6 +21,7 @@ artifacts {
 
 tasks.named('javaRestTest') {
   usesDefaultDistribution()
+  maxParallelForks = 1
 }
 tasks.named('yamlRestTest') {
   usesDefaultDistribution()

@@ -8,7 +8,9 @@ package org.elasticsearch.xpack.sql.qa.single_node;
 
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
+import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.xpack.sql.qa.jdbc.CsvSpecTestCase;
+import org.junit.ClassRule;
 
 import java.util.List;
 import java.util.Properties;
@@ -18,6 +20,13 @@ import static org.elasticsearch.xpack.ql.CsvSpecReader.CsvTestCase;
 import static org.elasticsearch.xpack.ql.CsvSpecReader.specParser;
 
 public class JdbcFrozenCsvSpecIT extends CsvSpecTestCase {
+    @ClassRule
+    public static final ElasticsearchCluster cluster = SqlTestCluster.getCluster(true);
+
+    @Override
+    protected String getTestRestCluster() {
+        return cluster.getHttpAddresses();
+    }
 
     @ParametersFactory(argumentFormatting = PARAM_FORMATTING)
     public static List<Object[]> readScriptSpec() throws Exception {

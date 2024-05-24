@@ -15,13 +15,13 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.inference.InferenceResults;
 import org.elasticsearch.ingest.IngestMetadata;
 import org.elasticsearch.ingest.PipelineConfiguration;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.xpack.core.ml.inference.results.InferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.RegressionConfig;
 import org.elasticsearch.xpack.ml.inference.ingest.InferenceProcessor;
 
@@ -62,6 +62,30 @@ public class InferenceProcessorInfoExtractorTests extends ESTestCase {
             pipelineIdsByModelIds,
             hasEntry(modelId3, new HashSet<>(Arrays.asList("pipeline_with_model_" + modelId3 + 0, "pipeline_with_model_" + modelId3 + 1)))
         );
+    }
+
+    public void testGetModelIdsFromInferenceProcessors() throws IOException {
+        String modelId1 = "trained_model_1";
+        String modelId2 = "trained_model_2";
+        String modelId3 = "trained_model_3";
+        Set<String> expectedModelIds = new HashSet<>(Arrays.asList(modelId1, modelId2, modelId3));
+
+        ClusterState clusterState = buildClusterStateWithModelReferences(2, modelId1, modelId2, modelId3);
+        IngestMetadata ingestMetadata = clusterState.metadata().custom(IngestMetadata.TYPE);
+        Set<String> actualModelIds = InferenceProcessorInfoExtractor.getModelIdsFromInferenceProcessors(ingestMetadata);
+
+        assertThat(actualModelIds, equalTo(expectedModelIds));
+    }
+
+    public void testGetModelIdsFromInferenceProcessorsWhenNull() throws IOException {
+
+        Set<String> expectedModelIds = new HashSet<>(Arrays.asList());
+
+        ClusterState clusterState = buildClusterStateWithModelReferences(0);
+        IngestMetadata ingestMetadata = clusterState.metadata().custom(IngestMetadata.TYPE);
+        Set<String> actualModelIds = InferenceProcessorInfoExtractor.getModelIdsFromInferenceProcessors(ingestMetadata);
+
+        assertThat(actualModelIds, equalTo(expectedModelIds));
     }
 
     public void testNumInferenceProcessors() throws IOException {

@@ -13,7 +13,7 @@ import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.util.Version;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.index.IndexService;
-import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.store.StoreFileMetadata;
 import org.elasticsearch.test.ESSingleNodeTestCase;
@@ -22,8 +22,10 @@ import java.io.IOException;
 import java.util.Set;
 import java.util.regex.Pattern;
 
+import static org.elasticsearch.index.shard.IndexShardTestCase.closeShardNoCheck;
+
 public class RecoveryStatusTests extends ESSingleNodeTestCase {
-    private static final Version MIN_SUPPORTED_LUCENE_VERSION = IndexVersion.MINIMUM_COMPATIBLE.luceneVersion();
+    private static final Version MIN_SUPPORTED_LUCENE_VERSION = IndexVersions.MINIMUM_COMPATIBLE.luceneVersion();
 
     public void testRenameTempFiles() throws IOException {
         IndexService service = createIndex("foo");
@@ -71,7 +73,7 @@ public class RecoveryStatusTests extends ESSingleNodeTestCase {
             }
         }
         assertNotNull(expectedFile);
-        indexShard.close("foo", false);// we have to close it here otherwise rename fails since the write.lock is held by the engine
+        closeShardNoCheck(indexShard); // we have to close it here otherwise rename fails since the write.lock is held by the engine
         multiFileWriter.renameAllTempFiles();
         strings = Sets.newHashSet(indexShard.store().directory().listAll());
         assertTrue(strings.toString(), strings.contains("foo.bar"));

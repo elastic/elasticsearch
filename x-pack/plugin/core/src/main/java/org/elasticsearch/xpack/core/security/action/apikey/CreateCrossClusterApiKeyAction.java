@@ -18,7 +18,7 @@ public final class CreateCrossClusterApiKeyAction extends ActionType<CreateApiKe
     public static final CreateCrossClusterApiKeyAction INSTANCE = new CreateCrossClusterApiKeyAction();
 
     private CreateCrossClusterApiKeyAction() {
-        super(NAME, CreateApiKeyResponse::new);
+        super(NAME);
     }
 
 }

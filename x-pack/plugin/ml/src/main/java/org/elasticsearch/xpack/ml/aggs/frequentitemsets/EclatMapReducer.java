@@ -240,7 +240,7 @@ public final class EclatMapReducer extends AbstractItemSetMapReducer<
     /**
      * rewrites items that use ordinals to their real values
      */
-    private ImmutableTransactionStore rewriteOrdinalItems(
+    private static ImmutableTransactionStore rewriteOrdinalItems(
         ImmutableTransactionStore transactionStore,
         List<OrdinalLookupFunction> ordinalLookups
     ) throws IOException {

@@ -24,7 +24,7 @@ public class UpdateTrainedModelAssignmentRoutingInfoAction extends ActionType<Ac
     public static final String NAME = "cluster:internal/xpack/ml/model_allocation/update";
 
     private UpdateTrainedModelAssignmentRoutingInfoAction() {
-        super(NAME, AcknowledgedResponse::readFrom);
+        super(NAME);
     }
 
     public static class Request extends MasterNodeRequest<Request> {
@@ -33,6 +33,7 @@ public class UpdateTrainedModelAssignmentRoutingInfoAction extends ActionType<Ac
         private final RoutingInfoUpdate update;
 
         public Request(String nodeId, String deploymentId, RoutingInfoUpdate update) {
+            super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT);
             this.nodeId = ExceptionsHelper.requireNonNull(nodeId, "node_id");
             this.deploymentId = ExceptionsHelper.requireNonNull(deploymentId, "deployment_id");
             this.update = ExceptionsHelper.requireNonNull(update, "update");

@@ -18,10 +18,9 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.MetadataCreateIndexService;
-import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.cluster.node.VersionInformation;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.version.CompatibilityVersions;
 import org.elasticsearch.common.settings.Settings;
@@ -60,18 +59,15 @@ public class TransportCreateIndexActionTests extends ESTestCase {
         .nodes(
             DiscoveryNodes.builder()
                 .add(
-                    new DiscoveryNode(
-                        "node-1",
-                        "node-1",
-                        new TransportAddress(InetAddress.getLoopbackAddress(), 9300),
-                        Map.of(),
-                        Set.of(DiscoveryNodeRole.DATA_ROLE),
-                        VersionInformation.CURRENT
-                    )
+                    DiscoveryNodeUtils.builder("node-1")
+                        .name("node-1")
+                        .address(new TransportAddress(InetAddress.getLoopbackAddress(), 9300))
+                        .roles(Set.of(DiscoveryNodeRole.DATA_ROLE))
+                        .build()
                 )
                 .build()
         )
-        .compatibilityVersions(
+        .nodeIdsToCompatibilityVersions(
             Map.of(
                 "node-1",
                 new CompatibilityVersions(

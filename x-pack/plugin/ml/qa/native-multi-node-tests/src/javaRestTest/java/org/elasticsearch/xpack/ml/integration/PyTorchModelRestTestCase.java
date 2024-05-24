@@ -357,6 +357,24 @@ public abstract class PyTorchModelRestTestCase extends ESRestTestCase {
         assertOkWithErrorMessage(client().performRequest(request));
     }
 
+    protected void putPipeline(String pipelineId, String pipelineDefinition) throws IOException {
+        Request request = new Request("PUT", "_ingest/pipeline/" + pipelineId);
+        request.setJsonEntity(pipelineDefinition);
+        assertOkWithErrorMessage(client().performRequest(request));
+    }
+
+    protected Response simulatePipeline(String pipelineDef, String docs) throws IOException {
+        String simulate = Strings.format("""
+            {
+              "pipeline": %s,
+              "docs": %s
+            }""", pipelineDef, docs);
+
+        Request request = new Request("POST", "_ingest/pipeline/_simulate?error_trace=true");
+        request.setJsonEntity(simulate);
+        return client().performRequest(request);
+    }
+
     @SuppressWarnings("unchecked")
     protected int getAllocationCount(String modelId) throws IOException {
         Response response = getTrainedModelStats(modelId);

@@ -108,7 +108,7 @@ class TestQueryVectorBuilderPlugin implements SearchPlugin {
     @Override
     public List<QueryVectorBuilderSpec<?>> getQueryVectorBuilders() {
         return List.of(
-            new QueryVectorBuilderSpec<>(TestQueryVectorBuilder.NAME, TestQueryVectorBuilder::new, TestQueryVectorBuilder.PARSER::apply)
+            new QueryVectorBuilderSpec<>(TestQueryVectorBuilder.NAME, TestQueryVectorBuilder::new, TestQueryVectorBuilder.PARSER)
         );
     }
 }

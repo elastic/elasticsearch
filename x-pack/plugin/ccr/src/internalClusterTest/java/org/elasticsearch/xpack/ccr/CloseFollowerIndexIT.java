@@ -8,16 +8,16 @@ package org.elasticsearch.xpack.ccr;
 
 import org.elasticsearch.action.admin.indices.close.CloseIndexRequest;
 import org.elasticsearch.action.admin.indices.open.OpenIndexRequest;
-import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.MetadataIndexStateService;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.engine.ReadOnlyEngine;
+import org.elasticsearch.index.shard.CloseFollowerIndexErrorSuppressionHelper;
+import org.elasticsearch.search.SearchResponseUtils;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.CcrIntegTestCase;
 import org.elasticsearch.xpack.core.ccr.action.PutFollowAction;
@@ -39,13 +39,16 @@ public class CloseFollowerIndexIT extends CcrIntegTestCase {
 
     @Before
     public void wrapUncaughtExceptionHandler() {
+        CloseFollowerIndexErrorSuppressionHelper.setSuppressCreateEngineErrors(true);
         uncaughtExceptionHandler = Thread.getDefaultUncaughtExceptionHandler();
         AccessController.doPrivileged((PrivilegedAction<Void>) () -> {
             Thread.setDefaultUncaughtExceptionHandler((t, e) -> {
-                if (t.getThreadGroup().getName().contains(getTestClass().getSimpleName())) {
+                if (t.getThreadGroup().getName().contains(getTestClass().getSimpleName())
+                    && t.getName().equals("elasticsearch-error-rethrower")) {
                     for (StackTraceElement element : e.getStackTrace()) {
                         if (element.getClassName().equals(ReadOnlyEngine.class.getName())) {
                             if (element.getMethodName().equals("assertMaxSeqNoEqualsToGlobalCheckpoint")) {
+                                logger.error("HACK: suppressing uncaught exception thrown from assertMaxSeqNoEqualsToGlobalCheckpoint", e);
                                 return;
                             }
                         }
@@ -59,6 +62,7 @@ public class CloseFollowerIndexIT extends CcrIntegTestCase {
 
     @After
     public void restoreUncaughtExceptionHandler() {
+        CloseFollowerIndexErrorSuppressionHelper.setSuppressCreateEngineErrors(false);
         AccessController.doPrivileged((PrivilegedAction<Void>) () -> {
             Thread.setDefaultUncaughtExceptionHandler(uncaughtExceptionHandler);
             return null;
@@ -105,7 +109,6 @@ public class CloseFollowerIndexIT extends CcrIntegTestCase {
         ClusterState clusterState = followerClient().admin().cluster().prepareState().get().getState();
         assertThat(clusterState.metadata().index("index2").getState(), is(IndexMetadata.State.CLOSE));
         assertThat(clusterState.getBlocks().hasIndexBlock("index2", MetadataIndexStateService.INDEX_CLOSED_BLOCK), is(true));
-        assertThat(followerClient().admin().cluster().prepareHealth("index2").get().getStatus(), equalTo(ClusterHealthStatus.RED));
 
         isRunning.set(false);
         for (Thread thread : threads) {
@@ -120,14 +123,12 @@ public class CloseFollowerIndexIT extends CcrIntegTestCase {
         ensureFollowerGreen("index2");
 
         refresh(leaderClient(), "index1");
-        SearchRequest leaderSearchRequest = new SearchRequest("index1");
-        leaderSearchRequest.source().trackTotalHits(true);
-        long leaderIndexDocs = leaderClient().search(leaderSearchRequest).actionGet().getHits().getTotalHits().value;
+        long leaderIndexDocs = SearchResponseUtils.getTotalHitsValue(leaderClient().prepareSearch("index1").setTrackTotalHits(true));
         assertBusy(() -> {
             refresh(followerClient(), "index2");
-            SearchRequest followerSearchRequest = new SearchRequest("index2");
-            followerSearchRequest.source().trackTotalHits(true);
-            long followerIndexDocs = followerClient().search(followerSearchRequest).actionGet().getHits().getTotalHits().value;
+            long followerIndexDocs = SearchResponseUtils.getTotalHitsValue(
+                followerClient().prepareSearch("index2").setTrackTotalHits(true)
+            );
             assertThat(followerIndexDocs, equalTo(leaderIndexDocs));
         }, 30L, TimeUnit.SECONDS);
     }

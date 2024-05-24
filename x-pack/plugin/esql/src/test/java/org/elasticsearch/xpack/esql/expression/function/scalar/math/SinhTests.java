@@ -10,10 +10,10 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.math;
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
+import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.expression.function.AbstractFunctionTestCase;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
-import org.elasticsearch.xpack.ql.expression.Expression;
-import org.elasticsearch.xpack.ql.tree.Source;
 
 import java.util.List;
 import java.util.function.Supplier;
@@ -33,7 +33,6 @@ public class SinhTests extends AbstractFunctionTestCase {
             710d,  // Hyperbolic sine grows extremely fast. Values outside this range return Double.POSITIVE_INFINITY
             List.of()
         );
-        suppliers = anyNullIsNull(true, suppliers);
 
         // Out of range cases
         suppliers.addAll(
@@ -45,7 +44,7 @@ public class SinhTests extends AbstractFunctionTestCase {
                 -711d,
                 List.of(
                     "Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.",
-                    "java.lang.ArithmeticException: sinh overflow"
+                    "Line -1:-1: java.lang.ArithmeticException: sinh overflow"
                 )
             )
         );
@@ -58,11 +57,11 @@ public class SinhTests extends AbstractFunctionTestCase {
                 Double.POSITIVE_INFINITY,
                 List.of(
                     "Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.",
-                    "java.lang.ArithmeticException: sinh overflow"
+                    "Line -1:-1: java.lang.ArithmeticException: sinh overflow"
                 )
             )
         );
-        return parameterSuppliersFromTypedData(errorsForCasesWithoutExamples(suppliers));
+        return parameterSuppliersFromTypedData(errorsForCasesWithoutExamples(anyNullIsNull(true, suppliers)));
     }
 
     @Override

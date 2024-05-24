@@ -13,9 +13,11 @@ import org.hamcrest.StringDescription;
 
 import java.util.List;
 
+import static org.elasticsearch.test.LambdaMatchers.falseWith;
 import static org.elasticsearch.test.LambdaMatchers.transformedArrayItemsMatch;
 import static org.elasticsearch.test.LambdaMatchers.transformedItemsMatch;
 import static org.elasticsearch.test.LambdaMatchers.transformedMatch;
+import static org.elasticsearch.test.LambdaMatchers.trueWith;
 import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.arrayContainingInAnyOrder;
 import static org.hamcrest.Matchers.containsInAnyOrder;
@@ -95,6 +97,21 @@ public class LambdaMatchersTests extends ESTestCase {
             transformedArrayItemsMatch((A a) -> a.str, arrayContainingInAnyOrder("1")),
             equalTo("array with transformed items to match [\"1\"] in any order")
         );
+    }
+
+    public void testPredicateMatcher() {
+        assertThat(t -> true, trueWith(new Object()));
+        assertThat(t -> true, trueWith(null));
+        assertThat(t -> false, falseWith(new Object()));
+        assertThat(t -> false, falseWith(null));
+
+        assertMismatch(t -> false, trueWith("obj"), equalTo("predicate with argument \"obj\" evaluated to <false>"));
+        assertMismatch(t -> true, falseWith("obj"), equalTo("predicate with argument \"obj\" evaluated to <true>"));
+    }
+
+    public void testPredicateMatcherDescription() {
+        assertDescribeTo(trueWith("obj"), equalTo("predicate evaluates to <true> with argument \"obj\""));
+        assertDescribeTo(falseWith("obj"), equalTo("predicate evaluates to <false> with argument \"obj\""));
     }
 
     static <T> void assertMismatch(T v, Matcher<? super T> matcher, Matcher<String> mismatchDescriptionMatcher) {

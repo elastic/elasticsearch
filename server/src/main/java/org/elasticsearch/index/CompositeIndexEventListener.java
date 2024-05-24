@@ -96,6 +96,18 @@ final class CompositeIndexEventListener implements IndexEventListener {
     }
 
     @Override
+    public void afterIndexShardClosing(ShardId shardId, @Nullable IndexShard indexShard, Settings indexSettings) {
+        for (IndexEventListener listener : listeners) {
+            try {
+                listener.afterIndexShardClosing(shardId, indexShard, indexSettings);
+            } catch (Exception e) {
+                logger.warn(() -> "[" + shardId.getId() + "] failed to invoke after shard closing callback", e);
+                throw e;
+            }
+        }
+    }
+
+    @Override
     public void afterIndexShardClosed(ShardId shardId, @Nullable IndexShard indexShard, Settings indexSettings) {
         for (IndexEventListener listener : listeners) {
             try {
@@ -244,7 +256,7 @@ final class CompositeIndexEventListener implements IndexEventListener {
         }
     }
 
-    private void callListeners(
+    private static void callListeners(
         IndexShard indexShard,
         Iterator<Consumer<ActionListener<Void>>> iterator,
         ActionListener<Void> outerListener

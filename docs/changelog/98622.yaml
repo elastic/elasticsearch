@@ -1,6 +1,0 @@
-pr: 98622
-summary: Add 'dataset' size to cat indices and cat shards
-area: CAT APIs
-type: enhancement
-issues:
- - 95092

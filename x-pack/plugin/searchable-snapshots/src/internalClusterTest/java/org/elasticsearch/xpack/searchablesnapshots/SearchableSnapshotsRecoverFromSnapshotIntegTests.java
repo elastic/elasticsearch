@@ -8,14 +8,13 @@
 package org.elasticsearch.xpack.searchablesnapshots;
 
 import org.apache.logging.log4j.Level;
-import org.apache.logging.log4j.LogManager;
 import org.apache.lucene.search.TotalHits;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.indices.recovery.plan.ShardSnapshotsService;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 import org.elasticsearch.repositories.fs.FsRepository;
-import org.elasticsearch.test.MockLogAppender;
+import org.elasticsearch.search.SearchResponseUtils;
+import org.elasticsearch.test.MockLog;
 import org.elasticsearch.xpack.core.searchablesnapshots.MountSearchableSnapshotRequest;
 
 import java.util.List;
@@ -43,12 +42,9 @@ public class SearchableSnapshotsRecoverFromSnapshotIntegTests extends BaseSearch
                 .put(INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 0)
         );
 
-        final TotalHits totalHits = internalCluster().client()
-            .prepareSearch(indexName)
-            .setTrackTotalHits(true)
-            .get()
-            .getHits()
-            .getTotalHits();
+        final TotalHits totalHits = SearchResponseUtils.getTotalHits(
+            internalCluster().client().prepareSearch(indexName).setTrackTotalHits(true)
+        );
 
         final var snapshotName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
         createSnapshot(repositoryName, snapshotName, List.of(indexName));
@@ -68,29 +64,24 @@ public class SearchableSnapshotsRecoverFromSnapshotIntegTests extends BaseSearch
 
         final var newNode = internalCluster().startDataOnlyNode();
 
-        final var mockAppender = new MockLogAppender();
-        mockAppender.start();
-        mockAppender.addExpectation(
-            new MockLogAppender.UnseenEventExpectation(
-                "Error fetching segments file",
-                ShardSnapshotsService.class.getCanonicalName(),
-                Level.WARN,
-                "Unable to fetch shard snapshot files for*"
-            )
-        );
+        try (var mockLog = MockLog.capture(ShardSnapshotsService.class)) {
+            mockLog.addExpectation(
+                new MockLog.UnseenEventExpectation(
+                    "Error fetching segments file",
+                    ShardSnapshotsService.class.getCanonicalName(),
+                    Level.WARN,
+                    "Unable to fetch shard snapshot files for*"
+                )
+            );
 
-        final var logger = LogManager.getLogger(ShardSnapshotsService.class);
-        Loggers.addAppender(logger, mockAppender);
+            // Relocate the searchable snapshot shard to the new node
+            updateIndexSettings(Settings.builder().put("index.routing.allocation.require._name", newNode), restoredIndexName);
 
-        // Relocate the searchable snapshot shard to the new node
-        updateIndexSettings(Settings.builder().put("index.routing.allocation.require._name", newNode), restoredIndexName);
+            ensureGreen(restoredIndexName);
 
-        ensureGreen(restoredIndexName);
+            assertHitCount(prepareSearch(restoredIndexName).setTrackTotalHits(true), totalHits.value);
 
-        assertHitCount(client().prepareSearch(restoredIndexName).setTrackTotalHits(true).get(), totalHits.value);
-
-        mockAppender.assertAllExpectationsMatched();
-        Loggers.removeAppender(logger, mockAppender);
-        mockAppender.stop();
+            mockLog.assertAllExpectationsMatched();
+        }
     }
 }

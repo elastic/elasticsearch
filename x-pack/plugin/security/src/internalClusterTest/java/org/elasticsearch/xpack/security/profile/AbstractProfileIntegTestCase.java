@@ -94,12 +94,12 @@ public abstract class AbstractProfileIntegTestCase extends SecurityIntegTestCase
         return super.configUsersRoles() + RAC_ROLE + ":" + RAC_USER_NAME + "," + OTHER_RAC_USER_NAME + "\n";
     }
 
-    protected Profile doActivateProfile(String username, SecureString password) {
+    protected static Profile doActivateProfile(String username, SecureString password) {
         // User and its access token should be associated to the same profile
         return doActivateProfile(username, password, randomBoolean());
     }
 
-    protected Profile doActivateProfile(String username, SecureString password, boolean useToken) {
+    protected static Profile doActivateProfile(String username, SecureString password, boolean useToken) {
         final ActivateProfileRequest activateProfileRequest = new ActivateProfileRequest();
         if (useToken) {
             final CreateTokenRequest createTokenRequest = new CreateTokenRequest("password", username, password.clone(), null, null, null);
@@ -122,7 +122,7 @@ public abstract class AbstractProfileIntegTestCase extends SecurityIntegTestCase
         return profile;
     }
 
-    protected Profile getProfile(String uid, Set<String> dataKeys) {
+    protected static Profile getProfile(String uid, Set<String> dataKeys) {
         final GetProfilesResponse getProfilesResponse = client().execute(GetProfilesAction.INSTANCE, new GetProfilesRequest(uid, dataKeys))
             .actionGet();
         assertThat(getProfilesResponse.getProfiles(), hasSize(1));

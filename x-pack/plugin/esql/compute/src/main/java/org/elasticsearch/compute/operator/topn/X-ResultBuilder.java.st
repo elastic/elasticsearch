@@ -8,8 +8,13 @@
 package org.elasticsearch.compute.operator.topn;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.$Type$Block;
 
+/**
+ * Builds the resulting {@link $Type$Block} for some column in a top-n.
+ * This class is generated. Edit {@code X-ResultBuilder.java.st} instead.
+ */
 class ResultBuilderFor$Type$ implements ResultBuilder {
     private final $Type$Block.Builder builder;
 
@@ -26,14 +31,14 @@ $endif$
      */
     private $type$ key;
 
-    ResultBuilderFor$Type$(TopNEncoder encoder, boolean inKey, int initialSize) {
+    ResultBuilderFor$Type$(BlockFactory blockFactory, TopNEncoder encoder, boolean inKey, int initialSize) {
 $if(BytesRef)$
         this.encoder = encoder;
 $else$
         assert encoder == TopNEncoder.DEFAULT_UNSORTABLE : encoder.toString();
 $endif$
         this.inKey = inKey;
-        this.builder = $Type$Block.newBlockBuilder(initialSize);
+        this.builder = blockFactory.new$Type$BlockBuilder(initialSize);
     }
 
     @Override
@@ -80,5 +85,10 @@ $endif$
     @Override
     public String toString() {
         return "ResultBuilderFor$Type$[inKey=" + inKey + "]";
+    }
+
+    @Override
+    public void close() {
+        builder.close();
     }
 }

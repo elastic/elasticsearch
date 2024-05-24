@@ -181,7 +181,7 @@ public abstract class ESMockAPIBasedRepositoryIntegTestCase extends ESBlobStoreR
     }
 
     public void testRequestStats() throws Exception {
-        final String repository = createRepository(randomRepositoryName());
+        final String repository = createRepository(randomRepositoryName(), false);
         final String index = "index-no-merges";
         createIndex(index, 1, 0);
 

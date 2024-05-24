@@ -127,6 +127,7 @@ public class StaleIndicesGCIT extends AbstractStatelessIntegTestCase {
         assertBusy(() -> assertIndexDoesNotExistsInObjectStore(indexUUID));
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch-serverless/issues/1406")
     public void testStaleIndicesAreCleanedAfterThePersistentTaskNodeFails() throws Exception {
         internalCluster().setBootstrapMasterNodeIndex(0);
         startMasterNode();

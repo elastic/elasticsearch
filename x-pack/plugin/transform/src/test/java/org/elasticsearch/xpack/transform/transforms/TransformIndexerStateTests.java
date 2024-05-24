@@ -971,9 +971,10 @@ public class TransformIndexerStateTests extends ESTestCase {
     }
 
     /**
-     * Given
-     * When
-     * Then
+     * Given one indexer thread is finishing its run
+     * And that thread is after finishAndSetState() but before afterFinishOrFailure()
+     * When another thread calls maybeTriggerAsyncJob
+     * Then that other thread should not start another indexer run
      */
     public void testRunOneJobAtATime() throws Exception {
         var indexer = createMockIndexer(

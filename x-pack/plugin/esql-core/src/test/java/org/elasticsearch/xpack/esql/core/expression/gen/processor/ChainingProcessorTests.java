@@ -10,8 +10,6 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.xpack.esql.core.expression.predicate.logical.BinaryLogicProcessorTests;
-import org.elasticsearch.xpack.esql.core.expression.predicate.operator.arithmetic.BinaryArithmeticProcessorTests;
-import org.elasticsearch.xpack.esql.core.expression.predicate.operator.comparison.BinaryComparisonProcessorTests;
 import org.elasticsearch.xpack.esql.core.expression.processor.Processors;
 
 import java.util.ArrayList;
@@ -52,8 +50,6 @@ public class ChainingProcessorTests extends AbstractWireSerializingTestCase<Chai
         List<Supplier<Processor>> options = new ArrayList<>();
         options.add(ChainingProcessorTests::randomComposeProcessor);
         options.add(BinaryLogicProcessorTests::randomProcessor);
-        options.add(BinaryArithmeticProcessorTests::randomProcessor);
-        options.add(BinaryComparisonProcessorTests::randomProcessor);
         return randomFrom(options).get();
     }
 }

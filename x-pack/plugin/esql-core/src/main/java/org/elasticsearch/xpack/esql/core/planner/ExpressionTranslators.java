@@ -17,7 +17,6 @@ import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.TypedAttribute;
 import org.elasticsearch.xpack.esql.core.expression.function.scalar.ScalarFunction;
-import org.elasticsearch.xpack.esql.core.expression.function.scalar.string.StartsWith;
 import org.elasticsearch.xpack.esql.core.expression.predicate.Range;
 import org.elasticsearch.xpack.esql.core.expression.predicate.fulltext.MatchQueryPredicate;
 import org.elasticsearch.xpack.esql.core.expression.predicate.fulltext.MultiMatchQueryPredicate;
@@ -45,7 +44,6 @@ import org.elasticsearch.xpack.esql.core.querydsl.query.ExistsQuery;
 import org.elasticsearch.xpack.esql.core.querydsl.query.MatchQuery;
 import org.elasticsearch.xpack.esql.core.querydsl.query.MultiMatchQuery;
 import org.elasticsearch.xpack.esql.core.querydsl.query.NotQuery;
-import org.elasticsearch.xpack.esql.core.querydsl.query.PrefixQuery;
 import org.elasticsearch.xpack.esql.core.querydsl.query.Query;
 import org.elasticsearch.xpack.esql.core.querydsl.query.QueryStringQuery;
 import org.elasticsearch.xpack.esql.core.querydsl.query.RangeQuery;
@@ -456,24 +454,9 @@ public final class ExpressionTranslators {
             return doTranslate(f, handler);
         }
 
+        @Deprecated(forRemoval = true)
         public static Query doTranslate(ScalarFunction f, TranslatorHandler handler) {
-            Query q = doKnownTranslate(f, handler);
-            if (q != null) {
-                return q;
-            }
             throw new QlIllegalArgumentException("Cannot translate expression:[" + f.sourceText() + "]");
-        }
-
-        public static Query doKnownTranslate(ScalarFunction f, TranslatorHandler handler) {
-            if (f instanceof StartsWith sw) {
-                if (sw.input() instanceof FieldAttribute && sw.pattern().foldable()) {
-                    String targetFieldName = handler.nameOf(((FieldAttribute) sw.input()).exactAttribute());
-                    String pattern = (String) sw.pattern().fold();
-
-                    return new PrefixQuery(f.source(), targetFieldName, pattern, sw.isCaseInsensitive());
-                }
-            }
-            return null;
         }
     }
 

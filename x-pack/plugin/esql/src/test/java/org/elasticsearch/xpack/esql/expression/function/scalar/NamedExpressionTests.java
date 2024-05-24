@@ -4,22 +4,22 @@
  * 2.0; you may not use this file except in compliance with the Elastic License
  * 2.0.
  */
-package org.elasticsearch.xpack.esql.core.expression.function;
+package org.elasticsearch.xpack.esql.expression.function.scalar;
 
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.TestUtils;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
-import org.elasticsearch.xpack.esql.core.expression.predicate.operator.arithmetic.Add;
-import org.elasticsearch.xpack.esql.core.expression.predicate.operator.arithmetic.Div;
-import org.elasticsearch.xpack.esql.core.expression.predicate.operator.arithmetic.Mod;
-import org.elasticsearch.xpack.esql.core.expression.predicate.operator.arithmetic.Mul;
-import org.elasticsearch.xpack.esql.core.expression.predicate.operator.arithmetic.Neg;
-import org.elasticsearch.xpack.esql.core.expression.predicate.operator.arithmetic.Sub;
 import org.elasticsearch.xpack.esql.core.tree.Location;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataTypes;
 import org.elasticsearch.xpack.esql.core.type.EsField;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Add;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Div;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Mod;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Mul;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Neg;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Sub;
 
 import static java.util.Collections.emptyMap;
 import static org.elasticsearch.xpack.esql.core.tree.Source.EMPTY;

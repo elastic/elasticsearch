@@ -9,6 +9,7 @@
 package org.elasticsearch.action.support;
 
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.core.CheckedConsumer;
 
 import java.util.Objects;
 
@@ -31,5 +32,11 @@ public class UnsafePlainActionFuture<T> extends PlainActionFuture<T> {
     @Override
     boolean allowedExecutors(Thread thread1, Thread thread2) {
         return super.allowedExecutors(thread1, thread2) || unsafeExecutor.equals(EsExecutors.executorName(thread1));
+    }
+
+    public static <T, E extends Exception> T get(CheckedConsumer<PlainActionFuture<T>, E> e, String allowedExecutor) throws E {
+        PlainActionFuture<T> fut = new UnsafePlainActionFuture<>(allowedExecutor);
+        e.accept(fut);
+        return fut.actionGet();
     }
 }

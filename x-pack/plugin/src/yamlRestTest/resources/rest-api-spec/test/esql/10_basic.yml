@@ -310,6 +310,9 @@ setup:
 
 ---
 "Test Named Input Params":
+  - requires:
+      cluster_features: ["gte_v8.15.0"]
+      reason: "Support named parameters in 8.15+"
   - do:
       esql.query:
         body:

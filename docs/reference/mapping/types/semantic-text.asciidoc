@@ -119,6 +119,8 @@ types and create an ingest pipeline with an
 <<inference-processor, {infer} processor>> to generate the embeddings.
 <<semantic-search-inference,This tutorial>> walks you through the process.
 
+NOTE: Update that uses a script is not supported when the index contains a `semantic_text` field.
+
 
 [discrete]
 [[copy-to-support]]

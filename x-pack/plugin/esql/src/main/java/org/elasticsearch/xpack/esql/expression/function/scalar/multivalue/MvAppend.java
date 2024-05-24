@@ -16,26 +16,27 @@ import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.Nullability;
+import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
+import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.type.DataTypes;
 import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunction;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
-import org.elasticsearch.xpack.ql.expression.Expression;
-import org.elasticsearch.xpack.ql.expression.Nullability;
-import org.elasticsearch.xpack.ql.tree.NodeInfo;
-import org.elasticsearch.xpack.ql.tree.Source;
-import org.elasticsearch.xpack.ql.type.DataType;
 
 import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
 import java.util.function.Function;
 
-import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.FIRST;
-import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.SECOND;
-import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isType;
+import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.FIRST;
+import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.SECOND;
+import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
 
 /**
  * Appends values to a multi-value
@@ -114,6 +115,10 @@ public class MvAppend extends EsqlScalarFunction implements EvaluatorMapper {
             return resolution;
         }
         dataType = field1.dataType();
+        if (dataType == DataTypes.NULL) {
+            dataType = field2.dataType();
+            return isType(field2, EsqlDataTypes::isRepresentable, sourceText(), SECOND, "representable");
+        }
         return isType(field2, t -> t == dataType, sourceText(), SECOND, dataType.typeName());
     }
 
@@ -172,13 +177,13 @@ public class MvAppend extends EsqlScalarFunction implements EvaluatorMapper {
     @Evaluator(extraName = "Int")
     static void process(IntBlock.Builder builder, int position, IntBlock field1, IntBlock field2) {
         int count1 = field1.getValueCount(position);
-        int first1 = field1.getFirstValueIndex(position);
         int count2 = field2.getValueCount(position);
-        int first2 = field2.getFirstValueIndex(position);
         if (count1 == 0 || count2 == 0) {
             builder.appendNull();
         } else {
             builder.beginPositionEntry();
+            int first1 = field1.getFirstValueIndex(position);
+            int first2 = field2.getFirstValueIndex(position);
             for (int i = 0; i < count1; i++) {
                 builder.appendInt(field1.getInt(first1 + i));
             }
@@ -193,12 +198,12 @@ public class MvAppend extends EsqlScalarFunction implements EvaluatorMapper {
     @Evaluator(extraName = "Boolean")
     static void process(BooleanBlock.Builder builder, int position, BooleanBlock field1, BooleanBlock field2) {
         int count1 = field1.getValueCount(position);
-        int first1 = field1.getFirstValueIndex(position);
         int count2 = field2.getValueCount(position);
-        int first2 = field2.getFirstValueIndex(position);
         if (count1 == 0 || count2 == 0) {
             builder.appendNull();
         } else {
+            int first1 = field1.getFirstValueIndex(position);
+            int first2 = field2.getFirstValueIndex(position);
             builder.beginPositionEntry();
             for (int i = 0; i < count1; i++) {
                 builder.appendBoolean(field1.getBoolean(first1 + i));
@@ -214,12 +219,12 @@ public class MvAppend extends EsqlScalarFunction implements EvaluatorMapper {
     @Evaluator(extraName = "Long")
     static void process(LongBlock.Builder builder, int position, LongBlock field1, LongBlock field2) {
         int count1 = field1.getValueCount(position);
-        int first1 = field1.getFirstValueIndex(position);
         int count2 = field2.getValueCount(position);
-        int first2 = field2.getFirstValueIndex(position);
         if (count1 == 0 || count2 == 0) {
             builder.appendNull();
         } else {
+            int first1 = field1.getFirstValueIndex(position);
+            int first2 = field2.getFirstValueIndex(position);
             builder.beginPositionEntry();
             for (int i = 0; i < count1; i++) {
                 builder.appendLong(field1.getLong(first1 + i));
@@ -234,12 +239,12 @@ public class MvAppend extends EsqlScalarFunction implements EvaluatorMapper {
     @Evaluator(extraName = "Double")
     static void process(DoubleBlock.Builder builder, int position, DoubleBlock field1, DoubleBlock field2) {
         int count1 = field1.getValueCount(position);
-        int first1 = field1.getFirstValueIndex(position);
         int count2 = field2.getValueCount(position);
-        int first2 = field2.getFirstValueIndex(position);
         if (count1 == 0 || count2 == 0) {
             builder.appendNull();
         } else {
+            int first1 = field1.getFirstValueIndex(position);
+            int first2 = field2.getFirstValueIndex(position);
             builder.beginPositionEntry();
             for (int i = 0; i < count1; i++) {
                 builder.appendDouble(field1.getDouble(first1 + i));
@@ -255,12 +260,12 @@ public class MvAppend extends EsqlScalarFunction implements EvaluatorMapper {
     @Evaluator(extraName = "BytesRef")
     static void process(BytesRefBlock.Builder builder, int position, BytesRefBlock field1, BytesRefBlock field2) {
         int count1 = field1.getValueCount(position);
-        int first1 = field1.getFirstValueIndex(position);
         int count2 = field2.getValueCount(position);
-        int first2 = field2.getFirstValueIndex(position);
         if (count1 == 0 || count2 == 0) {
             builder.appendNull();
         } else {
+            int first1 = field1.getFirstValueIndex(position);
+            int first2 = field2.getFirstValueIndex(position);
             builder.beginPositionEntry();
             BytesRef spare = new BytesRef();
             for (int i = 0; i < count1; i++) {

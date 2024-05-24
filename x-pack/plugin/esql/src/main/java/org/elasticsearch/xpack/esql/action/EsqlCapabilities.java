@@ -27,7 +27,7 @@ public class EsqlCapabilities {
     private static final String FN_CBRT = "fn_cbrt";
 
     /**
-     * Support for {@code MV_APPEND} funciton. #107001
+     * Support for {@code MV_APPEND} function. #107001
      */
     private static final String FN_MV_APPEND = "fn_mv_append";
 

@@ -444,7 +444,7 @@ public class IndexDirectory extends ByteSizeDirectory {
                 input.reopenInputFromCache();
             } catch (Exception e) {
                 assert false : e;
-                logger.warn(() -> format("{} unexpected exception when reopening {}", cacheDirectory.getShardId(), input), e);
+                logger.warn(() -> format("%s unexpected exception when reopening %s", cacheDirectory.getShardId(), input), e);
             }
         }
 
@@ -485,7 +485,7 @@ public class IndexDirectory extends ByteSizeDirectory {
                 String lengthAsString = (length == -1L ? "unknown" : String.valueOf(length));
                 logger.warn(
                     () -> format(
-                        "{} unable to delete local file [{}}] of {} bytes size from disk (the file may or may not still exist on disk), "
+                        "%s unable to delete local file [%s] of %s bytes size from disk (the file may or may not still exist on disk), "
                             + "directory size will probably now diverge from real directory disk usage",
                         cacheDirectory.getShardId(),
                         name,

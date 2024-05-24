@@ -352,7 +352,7 @@ override sort mode settings:
   - match: { test-sort-mode.settings.index.sort.mode.1: "max" }
 
 ---
-override sort field using nested field type:
+override sort field using nested field type in sorting:
   - requires:
       cluster_features: ["gte_v8.15.0"]
       reason: introduced in 8.15.0
@@ -360,7 +360,7 @@ override sort field using nested field type:
   - do:
       catch: bad_request
       indices.create:
-        index: test-hostname-missing
+        index: test-nested-sort
         body:
           settings:
             index:
@@ -369,6 +369,46 @@ override sort field using nested field type:
               number_of_shards: 2
               sort:
                 field: [ "hostname", "nested", "@timestamp" ]
+          mappings:
+            properties:
+              "@timestamp":
+                type: date
+              hostname:
+                type: keyword
+              agent_id:
+                type: keyword
+              process_id:
+                type: integer
+              http_method:
+                type: keyword
+              message:
+                type: text
+              nested:
+                type: nested
+                properties:
+                  keywords:
+                    type: keyword
+
+  - match: { error.root_cause.0.type: "illegal_argument_exception" }
+  - match: { error.type: "illegal_argument_exception" }
+  - match: { error.reason: "cannot have nested fields when index sort is activated" }
+
+---
+override sort field using nested field type:
+  - requires:
+      cluster_features: ["gte_v8.15.0"]
+      reason: introduced in 8.15.0
+
+  - do:
+      catch: bad_request
+      indices.create:
+        index: test-nested
+        body:
+          settings:
+            index:
+              mode: logs
+              number_of_replicas: 0
+              number_of_shards: 2
           mappings:
             properties:
               "@timestamp":

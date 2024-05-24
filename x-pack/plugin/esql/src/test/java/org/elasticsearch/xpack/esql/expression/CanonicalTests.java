@@ -5,30 +5,33 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.esql.core.expression;
+package org.elasticsearch.xpack.esql.expression;
 
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.TestUtils;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
+import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.predicate.BinaryOperator;
 import org.elasticsearch.xpack.esql.core.expression.predicate.Predicates;
 import org.elasticsearch.xpack.esql.core.expression.predicate.logical.And;
 import org.elasticsearch.xpack.esql.core.expression.predicate.logical.Not;
 import org.elasticsearch.xpack.esql.core.expression.predicate.logical.Or;
-import org.elasticsearch.xpack.esql.core.expression.predicate.operator.arithmetic.Add;
-import org.elasticsearch.xpack.esql.core.expression.predicate.operator.arithmetic.Div;
-import org.elasticsearch.xpack.esql.core.expression.predicate.operator.arithmetic.Mod;
-import org.elasticsearch.xpack.esql.core.expression.predicate.operator.arithmetic.Mul;
-import org.elasticsearch.xpack.esql.core.expression.predicate.operator.arithmetic.Sub;
-import org.elasticsearch.xpack.esql.core.expression.predicate.operator.comparison.Equals;
-import org.elasticsearch.xpack.esql.core.expression.predicate.operator.comparison.GreaterThan;
-import org.elasticsearch.xpack.esql.core.expression.predicate.operator.comparison.GreaterThanOrEqual;
-import org.elasticsearch.xpack.esql.core.expression.predicate.operator.comparison.In;
-import org.elasticsearch.xpack.esql.core.expression.predicate.operator.comparison.LessThan;
-import org.elasticsearch.xpack.esql.core.expression.predicate.operator.comparison.LessThanOrEqual;
-import org.elasticsearch.xpack.esql.core.expression.predicate.operator.comparison.NotEquals;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.DataTypes;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Add;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Div;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Mod;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Mul;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Sub;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThan;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThanOrEqual;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.In;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThan;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThanOrEqual;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.NotEquals;
 
 import java.time.ZoneId;
 import java.util.ArrayList;

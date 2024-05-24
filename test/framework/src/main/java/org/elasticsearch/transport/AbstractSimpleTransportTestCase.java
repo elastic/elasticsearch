@@ -961,7 +961,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
                 protected void doRun() throws Exception {
                     safeAwait(go);
                     for (int iter = 0; iter < 10; iter++) {
-                        PlainActionFuture<TestResponse> listener = new PlainActionFuture<>();
+                        PlainActionFuture<TestResponse> listener = new UnsafePlainActionFuture<>(ThreadPool.Names.GENERIC);
                         final String info = sender + "_B_" + iter;
                         serviceB.sendRequest(
                             nodeA,

@@ -299,7 +299,8 @@ public class CorruptedBlobStoreRepositoryIT extends AbstractSnapshotIntegTestCas
         final ThreadPool threadPool = internalCluster().getCurrentMasterNodeInstance(ThreadPool.class);
         assertThat(
             PlainActionFuture.get(
-                f -> threadPool.generic()
+                // any other executor than generic and management
+                f -> threadPool.executor(ThreadPool.Names.SNAPSHOT)
                     .execute(
                         ActionRunnable.supply(
                             f,

@@ -16,6 +16,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.VersionId;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.indices.ExecutorNames;
@@ -56,6 +57,8 @@ public class SecuritySystemIndices {
     public static final String SECURITY_PROFILE_ALIAS = ".security-profile";
     public static final Version VERSION_SECURITY_PROFILE_ORIGIN = Version.V_8_3_0;
     public static final NodeFeature SECURITY_PROFILE_ORIGIN_FEATURE = new NodeFeature("security.security_profile_origin");
+    public static final NodeFeature SECURITY_MIGRATION_FRAMEWORK = new NodeFeature("security.migration_framework");
+    public static final NodeFeature SECURITY_ROLES_METADATA_FLATTENED = new NodeFeature("security.roles_metadata_flattened");
 
     /**
      * Security managed index mappings used to be updated based on the product version. They are now updated based on per-index mappings
@@ -90,13 +93,18 @@ public class SecuritySystemIndices {
         return List.of(mainDescriptor, tokenDescriptor, profileDescriptor);
     }
 
-    public void init(Client client, ClusterService clusterService) {
+    public void init(Client client, FeatureService featureService, ClusterService clusterService) {
         if (this.initialized.compareAndSet(false, true) == false) {
             throw new IllegalStateException("Already initialized");
         }
-        this.mainIndexManager = SecurityIndexManager.buildSecurityIndexManager(client, clusterService, mainDescriptor);
-        this.tokenIndexManager = SecurityIndexManager.buildSecurityIndexManager(client, clusterService, tokenDescriptor);
-        this.profileIndexManager = SecurityIndexManager.buildSecurityIndexManager(client, clusterService, profileDescriptor);
+        this.mainIndexManager = SecurityIndexManager.buildSecurityIndexManager(client, clusterService, featureService, mainDescriptor);
+        this.tokenIndexManager = SecurityIndexManager.buildSecurityIndexManager(client, clusterService, featureService, tokenDescriptor);
+        this.profileIndexManager = SecurityIndexManager.buildSecurityIndexManager(
+            client,
+            clusterService,
+            featureService,
+            profileDescriptor
+        );
     }
 
     public SecurityIndexManager getMainIndexManager() {

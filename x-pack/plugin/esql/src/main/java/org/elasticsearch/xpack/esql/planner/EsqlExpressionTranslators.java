@@ -146,16 +146,6 @@ public final class EsqlExpressionTranslators {
     public static class BinaryComparisons extends ExpressionTranslator<BinaryComparison> {
         @Override
         protected Query asQuery(BinaryComparison bc, TranslatorHandler handler) {
-            // TODO: Pretty sure this check is redundant with the one at the beginning of translate
-            ExpressionTranslators.BinaryComparisons.checkBinaryComparison(bc);
-            Query translated = translateOutOfRangeComparisons(bc);
-            if (translated != null) {
-                return handler.wrapFunctionQuery(bc, bc.left(), () -> translated);
-            }
-            return handler.wrapFunctionQuery(bc, bc.left(), () -> translate(bc, handler));
-        }
-
-        static Query translate(BinaryComparison bc, TranslatorHandler handler) {
             Check.isTrue(
                 bc.right().foldable(),
                 "Line {}:{}: Comparisons against fields are not (currently) supported; offender [{}] in [{}]",
@@ -164,6 +154,15 @@ public final class EsqlExpressionTranslators {
                 Expressions.name(bc.right()),
                 bc.symbol()
             );
+
+            Query translated = translateOutOfRangeComparisons(bc);
+            if (translated != null) {
+                return handler.wrapFunctionQuery(bc, bc.left(), () -> translated);
+            }
+            return handler.wrapFunctionQuery(bc, bc.left(), () -> translate(bc, handler));
+        }
+
+        static Query translate(BinaryComparison bc, TranslatorHandler handler) {
             TypedAttribute attribute = checkIsPushableAttribute(bc.left());
             Source source = bc.source();
             String name = handler.nameOf(attribute);

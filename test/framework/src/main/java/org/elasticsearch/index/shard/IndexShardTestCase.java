@@ -13,6 +13,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.flush.FlushRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.action.support.UnsafePlainActionFuture;
 import org.elasticsearch.action.support.replication.TransportReplicationAction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
@@ -869,7 +870,7 @@ public abstract class IndexShardTestCase extends ESTestCase {
             routingTable
         );
         try {
-            PlainActionFuture<RecoveryResponse> future = new PlainActionFuture<>();
+            PlainActionFuture<RecoveryResponse> future = new UnsafePlainActionFuture<>(ThreadPool.Names.GENERIC);
             recovery.recoverToTarget(future);
             future.actionGet();
             recoveryTarget.markAsDone();

@@ -36,6 +36,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.SubscribableListener;
+import org.elasticsearch.action.support.UnsafePlainActionFuture;
 import org.elasticsearch.cluster.service.ClusterApplierService;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.logging.Loggers;
@@ -75,6 +76,7 @@ import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.index.translog.TranslogStats;
 import org.elasticsearch.search.suggest.completion.CompletionStats;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.Transports;
 
 import java.io.Closeable;
@@ -1956,7 +1958,7 @@ public abstract class Engine implements Closeable {
 
         logger.debug("drainForClose(): draining ops");
         releaseEnsureOpenRef.close();
-        final var future = new PlainActionFuture<Void>() {
+        final var future = new UnsafePlainActionFuture<Void>(ThreadPool.Names.GENERIC) {
             @Override
             protected boolean blockingAllowed() {
                 // TODO remove this blocking, or at least do it elsewhere, see https://github.com/elastic/elasticsearch/issues/89821
@@ -1964,13 +1966,8 @@ public abstract class Engine implements Closeable {
                     || super.blockingAllowed();
             }
         };
-        CountDownLatch latch = new CountDownLatch(1);
         drainOnCloseListener.addListener(future);
-        drainOnCloseListener.addListener(ActionListener.releasing(latch::countDown));
         try {
-            // todo: hack to circumvent same executor check here to see if more failures appear.
-            // need to make this method async, which includes making engine close async, which we should be able to do now.
-            latch.await();
             future.get();
             return true;
         } catch (ExecutionException e) {

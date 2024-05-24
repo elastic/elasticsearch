@@ -266,18 +266,7 @@ public class EsExecutors {
         return "elasticsearch" + (nodeName.isEmpty() ? "" : "[") + nodeName + (nodeName.isEmpty() ? "" : "]") + "[" + namePrefix + "]";
     }
 
-    // to be used in assertions only.
-    public static boolean differentExecutors(Thread thread1, Thread thread2) {
-        // this should only be used to validate thread interactions, like not waiting for a future completed on the same
-        // executor, hence calling it with the same thread indicates a bug in the assertion using this.
-        assert thread1 != thread2 : "only call this for different threads";
-        String thread1Name = executorName(thread1);
-        String thread2Name = executorName(thread2);
-        return thread1Name == null || thread2Name == null || thread1Name.equals(thread2Name) == false;
-    }
-
-    // visible for tests
-    static String executorName(Thread thread) {
+    public static String executorName(Thread thread) {
         String name = thread.getName();
         // subtract 2 to avoid the `]` of the thread number part.
         int executorNameEnd = name.lastIndexOf(']', name.length() - 2);

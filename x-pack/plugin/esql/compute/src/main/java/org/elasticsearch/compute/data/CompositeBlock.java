@@ -96,11 +96,6 @@ public final class CompositeBlock extends AbstractNonThreadSafeRefCounted implem
     }
 
     @Override
-    public int nullValuesCount() {
-        throw new UnsupportedOperationException("Composite block");
-    }
-
-    @Override
     public boolean isNull(int position) {
         throw new UnsupportedOperationException("Composite block");
     }

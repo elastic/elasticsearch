@@ -229,6 +229,77 @@ public enum IndexMode {
         public boolean isSyntheticSourceEnabled() {
             return true;
         }
+    },
+    LOGS("logs") { // TODO: stub waiting for PR #108896
+        @Override
+        void validateWithOtherSettings(Map<Setting<?>, Object> settings) {
+
+        }
+
+        @Override
+        public void validateMapping(MappingLookup lookup) {
+
+        }
+
+        @Override
+        public void validateAlias(String indexRouting, String searchRouting) {
+
+        }
+
+        @Override
+        public void validateTimestampFieldMapping(boolean isDataStream, MappingLookup mappingLookup) throws IOException {
+
+        }
+
+        @Override
+        public CompressedXContent getDefaultMapping() {
+            return null;
+        }
+
+        @Override
+        public IdFieldMapper buildIdFieldMapper(BooleanSupplier fieldDataEnabled) {
+            return null;
+        }
+
+        @Override
+        public IdFieldMapper idFieldMapperWithoutFieldData() {
+            return null;
+        }
+
+        @Override
+        public TimestampBounds getTimestampBound(IndexMetadata indexMetadata) {
+            return null;
+        }
+
+        @Override
+        public MetadataFieldMapper timeSeriesIdFieldMapper() {
+            return null;
+        }
+
+        @Override
+        public MetadataFieldMapper timeSeriesRoutingHashFieldMapper() {
+            return null;
+        }
+
+        @Override
+        public DocumentDimensions buildDocumentDimensions(IndexSettings settings) {
+            return null;
+        }
+
+        @Override
+        public boolean shouldValidateTimestamp() {
+            return false;
+        }
+
+        @Override
+        public void validateSourceFieldMapper(SourceFieldMapper sourceFieldMapper) {
+
+        }
+
+        @Override
+        public boolean isSyntheticSourceEnabled() {
+            return false;
+        }
     };
 
     protected static String tsdbMode() {

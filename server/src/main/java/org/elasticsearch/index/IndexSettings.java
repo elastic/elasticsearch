@@ -23,6 +23,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.ingest.IngestService;
@@ -595,6 +596,18 @@ public final class IndexSettings {
         Property.ServerlessPublic
     );
 
+    private static final Boolean LOGS_MODE_MODE_FEATURE_FLAG_ENABLED;
+
+    static {
+        final String property = System.getProperty("es.index_mode_logs_feature_flag_enabled");
+        LOGS_MODE_MODE_FEATURE_FLAG_ENABLED = Booleans.parseBoolean(property, false);
+    }
+    public static final Setting<Boolean> LOGS_INDEX_MODE_ENABLED = Setting.boolSetting(
+        "index.mode.logs.enabled",
+        LOGS_MODE_MODE_FEATURE_FLAG_ENABLED,
+        Setting.Property.NodeScope
+    );
+
     /**
      * in time series mode, the end time of the index, timestamp must smaller than start_time
      */
@@ -826,6 +839,17 @@ public final class IndexSettings {
     }
 
     /**
+     * Determines the index mode depending on settings. The 'logs' mode is only allowed if explicitly enabled by means of
+     * 'index.mode.logs.enabled'. If not explicitly enabled, 'standard' index mode is used in place of 'logs'.
+     */
+    private static IndexMode indexMode(final Settings nodeSettings, final IndexScopedSettings indexScopedSettings) {
+        if (IndexMode.LOGS == indexScopedSettings.get(MODE) && LOGS_INDEX_MODE_ENABLED.get(nodeSettings) == false) {
+            return IndexMode.STANDARD;
+        }
+        return indexScopedSettings.get(MODE);
+    }
+
+    /**
      * Creates a new {@link IndexSettings} instance. The given node settings will be merged with the settings in the metadata
      * while index level settings will overwrite node settings.
      *
@@ -842,7 +866,7 @@ public final class IndexSettings {
         nodeName = Node.NODE_NAME_SETTING.get(settings);
         this.indexMetadata = indexMetadata;
         numberOfShards = settings.getAsInt(IndexMetadata.SETTING_NUMBER_OF_SHARDS, null);
-        mode = scopedSettings.get(MODE);
+        mode = indexMode(nodeSettings, scopedSettings);
         this.timestampBounds = mode.getTimestampBound(indexMetadata);
         if (timestampBounds != null) {
             scopedSettings.addSettingsUpdateConsumer(IndexSettings.TIME_SERIES_END_TIME, endTime -> {

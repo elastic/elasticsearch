@@ -35,6 +35,8 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.index.IndexSettings.LOGS_INDEX_MODE_ENABLED;
+
 public class StackTemplateRegistry extends IndexTemplateRegistry {
     private static final Logger logger = LogManager.getLogger(StackTemplateRegistry.class);
 
@@ -60,6 +62,8 @@ public class StackTemplateRegistry extends IndexTemplateRegistry {
     private final ClusterService clusterService;
     private final FeatureService featureService;
     private volatile boolean stackTemplateEnabled;
+
+    private final boolean logsIndexModeEnabled;
 
     public static final Map<String, String> ADDITIONAL_TEMPLATE_VARIABLES = Map.of("xpack.stack.template.deprecated", "false");
 
@@ -121,6 +125,7 @@ public class StackTemplateRegistry extends IndexTemplateRegistry {
         this.clusterService = clusterService;
         this.featureService = featureService;
         this.stackTemplateEnabled = STACK_TEMPLATES_ENABLED.get(nodeSettings);
+        this.logsIndexModeEnabled = LOGS_INDEX_MODE_ENABLED.get(nodeSettings);
     }
 
     @Override
@@ -167,7 +172,7 @@ public class StackTemplateRegistry extends IndexTemplateRegistry {
 
     static {
         final Map<String, ComponentTemplate> componentTemplates = new HashMap<>();
-        List<IndexTemplateConfig> configs = List.of(
+        for (IndexTemplateConfig config : List.of(
             new IndexTemplateConfig(
                 DATA_STREAMS_MAPPINGS_COMPONENT_TEMPLATE_NAME,
                 "/data-streams@mappings.json",
@@ -238,17 +243,7 @@ public class StackTemplateRegistry extends IndexTemplateRegistry {
                 TEMPLATE_VERSION_VARIABLE,
                 ADDITIONAL_TEMPLATE_VARIABLES
             )
-        );
-        configs.add(
-            new IndexTemplateConfig(
-                LOGS_SETTINGS_COMPONENT_TEMPLATE_NAME,
-                "/logs@settings-logsdb.json",
-                REGISTRY_VERSION,
-                TEMPLATE_VERSION_VARIABLE,
-                ADDITIONAL_TEMPLATE_VARIABLES
-            )
-        );
-        for (IndexTemplateConfig config : configs) {
+        )) {
             try {
                 componentTemplates.put(
                     config.getTemplateName(),
@@ -263,6 +258,32 @@ public class StackTemplateRegistry extends IndexTemplateRegistry {
 
     @Override
     protected Map<String, ComponentTemplate> getComponentTemplateConfigs() {
+        if (logsIndexModeEnabled) {
+            final IndexTemplateConfig override = new IndexTemplateConfig(
+                LOGS_SETTINGS_COMPONENT_TEMPLATE_NAME,
+                "/logs@settings-logsdb.json",
+                REGISTRY_VERSION,
+                TEMPLATE_VERSION_VARIABLE,
+                ADDITIONAL_TEMPLATE_VARIABLES
+            );
+            try {
+                COMPONENT_TEMPLATE_CONFIGS.replace(
+                    override.getTemplateName(),
+                    ComponentTemplate.parse(JsonXContent.jsonXContent.createParser(XContentParserConfiguration.EMPTY, override.loadBytes()))
+                );
+                logger.info("Overriding component template [" + override.getTemplateName() + "] with [" + override.getFileName() + "]");
+            } catch (IOException e) {
+                logger.error(
+                    "Error while overriding template ["
+                        + override.getTemplateName()
+                        + "] with ["
+                        + override.getFileName()
+                        + "]. Error ["
+                        + e.getMessage()
+                        + "]"
+                );
+            }
+        }
         return COMPONENT_TEMPLATE_CONFIGS;
     }
 

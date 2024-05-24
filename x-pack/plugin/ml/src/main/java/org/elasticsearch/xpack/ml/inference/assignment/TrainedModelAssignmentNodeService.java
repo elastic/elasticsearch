@@ -13,6 +13,7 @@ import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.action.support.UnsafePlainActionFuture;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
@@ -205,7 +206,9 @@ public class TrainedModelAssignmentNodeService implements ClusterStateListener {
             if (stopped) {
                 return;
             }
-            final PlainActionFuture<TrainedModelDeploymentTask> listener = new PlainActionFuture<>();
+            final PlainActionFuture<TrainedModelDeploymentTask> listener = new UnsafePlainActionFuture<>(
+                MachineLearning.UTILITY_THREAD_POOL_NAME
+            );
             try {
                 deploymentManager.startDeployment(loadingTask, listener);
                 // This needs to be synchronous here in the utility thread to keep queueing order

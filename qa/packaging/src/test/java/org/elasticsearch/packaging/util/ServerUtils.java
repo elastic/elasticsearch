@@ -445,10 +445,4 @@ public class ServerUtils {
         );
     }
 
-    public static void enableBootstrapChecks(Path confPath) throws IOException {
-        Path jvmOptionsDir = confPath.resolve("jvm.options.d");
-        Path enableBootstrap = jvmOptionsDir.resolve("enable_bootstrap.options");
-        Files.writeString(enableBootstrap, "-Des.enforce.bootstrap.checks=true");
-    }
-
 }

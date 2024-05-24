@@ -44,7 +44,6 @@ public class DockerRun {
         var builder = new DockerRun();
         // Disable this setting by default in the Docker tests
         builder.envVar("ingest.geoip.downloader.enabled", "false");
-        builder.envVar("ES_JAVA_OPTS", "-Des.enforce.bootstrap.checks=true");
         return builder;
     }
 

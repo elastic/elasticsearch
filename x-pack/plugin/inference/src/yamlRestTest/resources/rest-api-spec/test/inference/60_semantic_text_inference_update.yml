@@ -169,6 +169,105 @@ setup:
   - match:  { _source.non_inference_field: "non inference test" }
 
 ---
+"Update logic handles source fields in object fields":
+  - do:
+      indices.create:
+        index: test-copy-to-index
+        body:
+          mappings:
+            properties:
+              sparse_field:
+                type: semantic_text
+                inference_id: sparse-inference-id
+              dense_field:
+                type: semantic_text
+                inference_id: dense-inference-id
+              object_source:
+                properties:
+                  sparse_field:
+                    type: text
+                    copy_to: sparse_field
+                  dense_field:
+                    type: text
+                    copy_to: dense_field
+
+  - do:
+      index:
+        index: test-copy-to-index
+        id: doc_1
+        body:
+          sparse_field: "sparse data 1"
+          dense_field: "dense data 1"
+
+  - do:
+      get:
+        index: test-copy-to-index
+        id: doc_1
+
+  - match: { _source.sparse_field.text: "sparse data 1" }
+  - length: { _source.sparse_field.inference.chunks: 1 }
+  - match: { _source.sparse_field.inference.chunks.0.text: "sparse data 1" }
+  - match: { _source.dense_field.text: "dense data 1" }
+  - length: { _source.dense_field.inference.chunks: 1 }
+  - match: { _source.dense_field.inference.chunks.0.text: "dense data 1" }
+
+  - do:
+      bulk:
+        index: test-copy-to-index
+        body:
+          - '{"update": {"_id": "doc_1"}}'
+          - >
+           {
+             "doc": {
+               "sparse_field": "sparse data 1",
+               "object_source.sparse_field": "sparse data 2",
+               "dense_field": "dense data 1",
+               "object_source.dense_field": "dense data 2"
+             }
+           }
+
+  - do:
+      get:
+        index: test-copy-to-index
+        id: doc_1
+
+  - match: { _source.sparse_field.text: "sparse data 1" }
+  - length: { _source.sparse_field.inference.chunks: 2 }
+  - match: { _source.sparse_field.inference.chunks.0.text: "sparse data 2" }
+  - match: { _source.sparse_field.inference.chunks.1.text: "sparse data 1" }
+  - match: { _source.dense_field.text: "dense data 1" }
+  - length: { _source.dense_field.inference.chunks: 2 }
+  - match: { _source.dense_field.inference.chunks.0.text: "dense data 1" }
+  - match: { _source.dense_field.inference.chunks.1.text: "dense data 2" }
+
+  - do:
+      update:
+        index: test-copy-to-index
+        id: doc_1
+        body:
+          doc:
+            {
+              "sparse_field": "sparse data 1",
+              "object_source.sparse_field": "sparse data 3",
+              "dense_field": "dense data 1",
+              "object_source.dense_field": "dense data 3"
+            }
+
+  - do:
+      get:
+        index: test-copy-to-index
+        id: doc_1
+
+  - match: { _source.sparse_field.text: "sparse data 1" }
+  - length: { _source.sparse_field.inference.chunks: 2 }
+  - match: { _source.sparse_field.inference.chunks.0.text: "sparse data 3" }
+  - match: { _source.sparse_field.inference.chunks.1.text: "sparse data 1" }
+  - match: { _source.dense_field.text: "dense data 1" }
+  - length: { _source.dense_field.inference.chunks: 2 }
+  - match: { _source.dense_field.inference.chunks.0.text: "dense data 1" }
+  - match: { _source.dense_field.inference.chunks.1.text: "dense data 3" }
+
+---
 "Updates fail when the updated value is invalid":
   - do:
       index:

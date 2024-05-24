@@ -464,6 +464,7 @@ public enum IndexMode {
         return switch (value) {
             case "standard" -> IndexMode.STANDARD;
             case "time_series" -> IndexMode.TIME_SERIES;
+            case "logs" -> IndexMode.LOGS;
             default -> throw new IllegalArgumentException(
                 "["
                     + value

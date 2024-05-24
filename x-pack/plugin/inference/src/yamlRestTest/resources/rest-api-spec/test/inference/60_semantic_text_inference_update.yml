@@ -169,6 +169,50 @@ setup:
   - match:  { _source.non_inference_field: "non inference test" }
 
 ---
+"Updates fail when the updated value is invalid":
+  - do:
+      index:
+        index: test-index
+        id: doc_1
+        body:
+          sparse_field: "inference test"
+          dense_field: "another inference test"
+          non_inference_field: "non inference test"
+
+  - do:
+      get:
+        index: test-index
+        id: doc_1
+
+  - match: { _source.sparse_field.text: "inference test" }
+  - match: { _source.sparse_field.inference.chunks.0.text: "inference test" }
+  - match: { _source.dense_field.text: "another inference test" }
+  - match: { _source.dense_field.inference.chunks.0.text: "another inference test" }
+  - match: { _source.non_inference_field: "non inference test" }
+
+  - do:
+      bulk:
+        index: test-index
+        body:
+          - '{"update": {"_id": "doc_1"}}'
+          - '{"doc":{"sparse_field": [{"key": "value"}], "dense_field": [{"key": "value"}]}}'
+
+  - match: { errors: true }
+  - match: { items.0.update.status: 400 }
+  - match: { items.0.update.error.reason: "/Invalid\\sformat\\sfor\\sfield\\s\\[(dense|sparse)_field\\].+/" }
+
+  - do:
+      catch: bad_request
+      update:
+        index: test-index
+        id: doc_1
+        body:
+          doc: { "sparse_field": [{"key": "value"}], "dense_field": [{"key": "value"}] }
+
+  - match: { error.type: "status_exception" }
+  - match: { error.reason: "/Invalid\\sformat\\sfor\\sfield\\s\\[(dense|sparse)_field\\].+/" }
+
+---
 "Partial updates work when using the update API":
   - do:
       indices.create:

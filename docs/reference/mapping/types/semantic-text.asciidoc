@@ -62,7 +62,7 @@ When the first document is indexed, the `inference_id` will be used to generate 
 To allow for large amounts of text to be used in semantic search, `semantic_text` automatically generates smaller passages if needed called _chunks_.
 
 Each chunk will include the text subpassage and its corresponding embedding generated from it.
-When querying, the individual passages will be automatically searched for each document, and the score combined to obtain relevant results.
+When querying, the individual passages will be automatically searched for each document, and the most relevant passage will be retrieved as a result.
 
 
 [discrete]

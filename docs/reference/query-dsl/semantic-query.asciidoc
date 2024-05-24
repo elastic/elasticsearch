@@ -95,21 +95,21 @@ GET my-index/_search
             "query": {
               "term": {
                 "text": "shoes"
-	            }
-	          }
-	        }
-	      },
-	      {
+              }
+            }
+          }
+        },
+        {
           "semantic": {
             "field": "semantic_field",
-	          "query": "shoes"
-	        }
-	      }
-	    ],
-	    "rank_window_size": 50,
-	    "rank_constant": 20
-	  }
-	}
+            "query": "shoes"
+          }
+        }
+      ],
+      "rank_window_size": 50,
+      "rank_constant": 20
+    }
+  }
 }
 ------------------------------------------------------------
 // TEST[skip:TBD]

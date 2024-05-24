@@ -6,7 +6,7 @@
 
 beta[]
 
-This tutorial show you how to use the semantic text feature to perform semantic search on your data.
+This tutorial shows you how to use the semantic text feature to perform semantic search on your data.
 
 Semantic text simplifies the {infer} workflow by providing {infer} at ingestion time and sensible default values automatically.
 You don't need to define certain settings and parameters or create {infer} ingest pipelines.
@@ -21,7 +21,7 @@ This tutorial uses the `elser` service for demonstration but you can use any ser
 [[semantic-text-requirements]]
 ==== Requirements
 
-To use `semantic_text` field type, you must have an {infer} endpoint deployed in
+To use the `semantic_text` field type, you must have an {infer} endpoint deployed in
 your cluster using the <<put-inference-api>>.
 
 
@@ -54,9 +54,9 @@ be used and ELSER creates sparse vectors. The `inference_id` is
 ==== Create the index mapping
 
 The mapping of the destination index - the index that contains the embeddings
-that the model will create based on your input text - must be created. The
+that the inference endpoint will generate based on your input text - must be created. The
 destination index must have a field with the <<semantic-text,`semantic_text`>>
-field type to index the output of the used model.
+field type to index the output of the used inference endpoint.
 
 [source,console]
 ------------------------------------------------------------
@@ -83,7 +83,7 @@ PUT semantic-embeddings
 It will be used to generate the tokens based on the input text.
 Every time you ingest data into the related `semantic_text` field, this endpoint will be used for creating the vector representation of the text.
 <4> The field to store the text reindexed from a source index in the  <<semantic-text-reindex-data,Reindex the data>> step.
-<5> The textual data stored in the `content` field will be copied to `semantic_text` and processed by the {infer} task.
+<5> The textual data stored in the `content` field will be copied to `semantic_text` and processed by the {infer} endpoint.
 The `semantic_text` field will store the embeddings generated based on the input data.
 
 
@@ -176,7 +176,7 @@ GET semantic-embeddings/_search
 <2> The query text.
 
 As a result, you receive the top 10 documents that are closest in meaning to the
-query from the `semantic-embedding`index:
+query from the `semantic-embedding` index:
 
 [source,consol-result]
 ------------------------------------------------------------

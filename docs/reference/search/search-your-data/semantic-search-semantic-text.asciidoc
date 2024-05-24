@@ -33,7 +33,7 @@ Create an inference endpoint by using the <<put-inference-api>>:
 
 [source,console]
 ------------------------------------------------------------
-PUT _inference/sparse_embedding/my-elser-model <1>
+PUT _inference/sparse_embedding/my-elser-endpoint <1>
 {
   "service": "elser", <2>
   "service_settings": {
@@ -45,7 +45,7 @@ PUT _inference/sparse_embedding/my-elser-model <1>
 // TEST[skip:TBD]
 <1> The task type is `sparse_embedding` in the path as the `elser` service will
 be used and ELSER creates sparse vectors. The `inference_id` is
-`my-elser-model`.
+`my-elser-endpoint`.
 <2> The `elser` service is used in this example.
 
 
@@ -66,7 +66,7 @@ PUT semantic-embeddings
     "properties": {
       "semantic_text": { <1>
         "type": "semantic_text", <2>
-        "inference_id": "my-elser-model" <3>
+        "inference_id": "my-elser-endpoint" <3>
       },
       "content": { <4>
         "type": "text",
@@ -84,7 +84,7 @@ It will be used to generate the tokens based on the input text.
 Every time you ingest data into the related `semantic_text` field, this endpoint will be used for creating the vector representation of the text.
 <4> The field to store the text reindexed from a source index in the  <<semantic-text-reindex-data,Reindex the data>> step.
 <5> The textual data stored in the `content` field will be copied to `semantic_text` and processed by the {infer} task.
-The `semantic_text` field will store the tokens generated based on the input data.
+The `semantic_text` field will store the embeddings generated based on the input data.
 
 
 [discrete]
@@ -113,10 +113,10 @@ you can see an index named `test-data` with 182469 documents.
 Create the embeddings from the text by reindexing the data from the `test-data`
 index to the `semantic-embeddings` index. The data in the `content` field will
 be reindexed into the `content` field of the destination index. Then the same
-data will be copied to the `inference_content` field as a result of the
-`copy_to` parameter set in the index mapping creation step. The copied data will
-be processed by the {infer} task associated with the `inference_content`
-semantic text field.
+data will be copied to the `semantic_text` field as a result of the `copy_to`
+parameter set in the index mapping creation step. The copied data will be
+processed by the {infer} task associated with the `semantic_text` semantic text
+field.
 
 [source,console]
 ------------------------------------------------------------
@@ -156,8 +156,8 @@ POST _tasks/<task_id>/_cancel
 
 After the data set has been enriched with the embeddings, you can query the data
 using semantic search. Provide the `semantic_text` field name and the query text
-in a `semantic` query type. The {infer} endpoint used to generate the tokens for
-the `semantic_text` field will be used to process the query text.
+in a `semantic` query type. The {infer} endpoint used to generate the embeddings
+for the `semantic_text` field will be used to process the query text.
 
 [source,console]
 ------------------------------------------------------------
@@ -165,7 +165,7 @@ GET semantic-embeddings/_search
 {
   "query": {
     "semantic": { 
-      "field": "inference_content", <1>
+      "field": "semantic_text", <1>
       "query": "How to avoid muscle soreness while running?" <2>
     }
   }

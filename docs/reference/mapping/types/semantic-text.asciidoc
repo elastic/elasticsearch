@@ -8,16 +8,16 @@
 beta[]
 
 The `semantic_text` field type automatically generates embeddings for text
-content using an inference service. 
+content using an inference endpoint. 
 
-The `semantic_text` field type specifies an `inference_id` of the 
-{ml-docs}/ml-nlp.html[NLP model] that will be used to generate the embeddings.
+The `semantic_text` field type specifies an `inference_id` that you can create
+by using the <<put-inference-api>> that will be used to generate embeddings.
 This field type and the <<query-dsl-semantic-query,`semantic` query>> type make
 it simpler to perform semantic search on your data.
 
 Using `semantic_text`, you won't need to specify how to generate embeddings for
-your data, or how to index it. The inference service specified automatically
-determines the embedding generation, indexing, and query to use.
+your data, or how to index it. The inference endpoint automatically determines
+the embedding generation, indexing, and query to use.
 
 [source,console]
 ------------------------------------------------------------
@@ -47,8 +47,8 @@ Use the <<put-inference-api>> to create the endpoint.
 
 
 [discrete]
-[[infer-service-validation]]
-==== {infer-cap} service validation
+[[infer-endpoint-validation]]
+==== {infer-cap} endpoint validation
 
 The `inference_id` will not be validated when the mapping is created, but when documents are ingested into the index.
 When the first document is indexed, the `inference_id` will be used to generate underlying indexing structures for the field.
@@ -58,7 +58,7 @@ When the first document is indexed, the `inference_id` will be used to generate 
 [[auto-text-chunking]]
 ==== Automatic text chunking
 
-{infer-cap} services have a limit on the amount of text they can process.
+{infer-cap} endpoints have a limit on the amount of text they can process.
 To allow for large amounts of text to be used in semantic search, `semantic_text` automatically generates smaller passages if needed called _chunks_.
 
 Each chunk will include the text subpassage and its corresponding embedding generated from it.
@@ -69,7 +69,7 @@ When querying, the individual passages will be automatically searched for each d
 [[semantic-text-structure]]
 ==== `semantic_text` structure
 
-Once ingested, a `semantic_text` field will have the following structure:
+Once a document is ingested, a `semantic_text` field will have the following structure:
 
 [source,console-result]
 ------------------------------------------------------------
@@ -101,14 +101,14 @@ applicable.
 text and embeddings.
 
 Refer to <<semantic-search-semantic-text,this tutorial>> to learn more about
-semantic search using `semantic_text` and `semantic_query`.
+semantic search using `semantic_text` and the `semantic` query.
 
 
 [discrete]
 [[custom-indexing]]
 ==== Customizing `semantic_text` indexing
 
-`semantic_text` uses defaults for indexing data based on the {infer} service
+`semantic_text` uses defaults for indexing data based on the {infer} endpoint
 specified. It enables you to quickstart your semantic search by providing
 automatic {infer} and a dedicated query so you don't need to provide further
 details.
@@ -126,9 +126,9 @@ types and create an ingest pipeline with an
 
 The `semantic_text` field type can be the target of
 <<copy-to,`copy_to` fields>>. This means you can use a single `semantic_text`
-field to copy the values of other fields. Each value has its embeddings
-calculated separately; each field value is a separate chunk in the resulting
-embeddings.
+field to collect the values of other fields for semantic search. Each value has
+its embeddings calculated separately; each field value is a separate chunk in
+the resulting embeddings.
 
 This imposes some restrictions on updating documents with `semantic_text`:
 * In bulk requests, all fields that are copied to a `semantic_text` field must

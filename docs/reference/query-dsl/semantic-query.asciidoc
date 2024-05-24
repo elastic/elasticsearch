@@ -47,8 +47,8 @@ Refer to <<semantic-search-semantic-text,this tutorial>> to learn more about sem
 [[hybrid-search-semantic]]
 ==== Hybrid search with the `semantic` query
 
-The `semantic` query can be used as a part of a hybrid search where `semantic` query is combined with lexical queries.
-For example, the query below finds documents with title matching "mountain lake", and combines them with doing the same semantic search on the field `title_semantic`, that is a `semantic_text` field.
+The `semantic` query can be used as a part of a hybrid search where the `semantic` query is combined with lexical queries.
+For example, the query below finds documents with title matching "mountain lake", and combines them with results from a semantic search on the field `title_semantic`, that is a `semantic_text` field.
 The combined documents are then scored, and the top 3 top scored documents are returned.
 
 [source,console]
@@ -119,7 +119,7 @@ GET my-index/_search
 [[search-sparse-inference]]
 ==== Search with `sparse_embedding` inference
 
-When the {infer} service uses a `sparse_embedding` model, you can use a `sparse_vector` query on a <<semantic-text,`semantic_text`>> field in the following way:
+When the {infer} endpoint uses a `sparse_embedding` model, you can use a `sparse_vector` query on a <<semantic-text,`semantic_text`>> field in the following way:
 
 [source,console]
 ------------------------------------------------------------
@@ -148,7 +148,7 @@ You can customize the `sparse_vector` query to include specific settings, like p
 [[search-text-inferece]]
 ==== Search with text_embedding inference
 
-When the {infer} service uses a `text_embedding` model, you can use a <<query-dsl-knn-query,`knn`query>> on a `semantic_text` field in the following way:
+When the {infer} endpoint uses a `text_embedding` model, you can use a <<query-dsl-knn-query,`knn`query>> on a `semantic_text` field in the following way:
 
 [source,console]
 ------------------------------------------------------------

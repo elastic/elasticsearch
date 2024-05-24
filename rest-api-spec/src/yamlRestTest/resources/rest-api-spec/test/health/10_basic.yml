@@ -1,8 +1,8 @@
 ---
 "cluster health basic test":
   - skip:
-      version: "- 8.6.99"
-      reason: "health was added in 8.2.0, master_is_stable in 8.4.0, and REST API updated in 8.7"
+      version: "- 8.12.99"
+      reason: "data stream lifecycle indicator was added in 8.13.0"
 
   - do:
       health_report: { }
@@ -36,34 +36,10 @@
   - exists: indicators.shards_availability.details.started_primaries
   - exists: indicators.shards_availability.details.unassigned_replicas
 
----
-"basic shards capacity health indicator test":
-  - skip:
-      version: "- 8.7.99"
-      reason: "shards capacity indicator was added in 8.8.0"
-
-  - do:
-      health_report: { }
-
-  - is_true: cluster_name
-  # This test might execute before the health node has received all health info, resulting in status "unknown"
-  - is_true: status
   - match: { indicators.shards_capacity.status: "green" }
   - match: { indicators.shards_capacity.symptom: "The cluster has enough room to add new shards." }
   - is_true: indicators.shards_capacity.details.data.max_shards_in_cluster
   - is_true: indicators.shards_capacity.details.frozen.max_shards_in_cluster
 
----
-"basic data stream lifecycle health indicator test":
-  - skip:
-      version: "- 8.12.99"
-      reason: "data stream lifecycle indicator was added in 8.13.0"
-
-  - do:
-      health_report: { }
-
-  - is_true: cluster_name
-  # This test might execute before the health node has received all health info, resulting in status "unknown"
-  - is_true: status
   - is_true: indicators.data_stream_lifecycle.status
   - is_true: indicators.data_stream_lifecycle.symptom

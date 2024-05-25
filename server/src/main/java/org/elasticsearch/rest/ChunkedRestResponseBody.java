@@ -35,8 +35,15 @@ import java.nio.charset.StandardCharsets;
 import java.util.Iterator;
 
 /**
- * The body of a rest response that uses chunked HTTP encoding. Implementations are used to avoid materializing full responses on heap and
- * instead serialize only as much of the response as can be flushed to the network right away.
+ * <p>A body (or a part thereof) of an HTTP response that uses the {@code chunked} transfer-encoding. This allows Elasticsearch to avoid
+ * materializing the full response into on-heap buffers up front, instead serializing only as much of the response as can be flushed to the
+ * network right away.</p>
+ *
+ * <p>Each {@link ChunkedRestResponseBody} represents a sequence of chunks that are ready for immediate transmission: if {@link #isDone}
+ * returns {@code false} then {@link #encodeChunk} can be called at any time and must synchronously return the next chunk to be sent.
+ * Many HTTP responses will be a single such sequence. However, if an implementation's {@link #isEndOfResponse} returns {@code false} at the
+ * end of the sequence then the transmission is paused and {@link #getContinuation} is called to compute the next sequence of chunks
+ * asynchronously.</p>
  */
 public interface ChunkedRestResponseBody {
 

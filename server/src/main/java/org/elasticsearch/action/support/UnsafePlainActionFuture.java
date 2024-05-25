@@ -23,15 +23,25 @@ import java.util.Objects;
 public class UnsafePlainActionFuture<T> extends PlainActionFuture<T> {
 
     private final String unsafeExecutor;
+    private final String unsafeExecutor2;
 
     public UnsafePlainActionFuture(String unsafeExecutor) {
+        this(unsafeExecutor, null);
+    }
+
+    public UnsafePlainActionFuture(String unsafeExecutor, String unsafeExecutor2) {
         Objects.requireNonNull(unsafeExecutor);
+        Objects.requireNonNull(unsafeExecutor2);
         this.unsafeExecutor = unsafeExecutor;
+        this.unsafeExecutor2 = unsafeExecutor2;
     }
 
     @Override
     boolean allowedExecutors(Thread thread1, Thread thread2) {
-        return super.allowedExecutors(thread1, thread2) || unsafeExecutor.equals(EsExecutors.executorName(thread1));
+        return super.allowedExecutors(thread1, thread2)
+            || unsafeExecutor.equals(EsExecutors.executorName(thread1))
+            || unsafeExecutor2 == null
+            || unsafeExecutor2.equals(EsExecutors.executorName(thread1));
     }
 
     public static <T, E extends Exception> T get(CheckedConsumer<PlainActionFuture<T>, E> e, String allowedExecutor) throws E {

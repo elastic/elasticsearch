@@ -601,7 +601,10 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
         Index followerIndex
     ) {
         // todo: this could manifest in production and seems we could make this async easily.
-        final PlainActionFuture<IndexMetadata> indexMetadataFuture = new UnsafePlainActionFuture<>(Ccr.CCR_THREAD_POOL_NAME);
+        final PlainActionFuture<IndexMetadata> indexMetadataFuture = new UnsafePlainActionFuture<>(
+            Ccr.CCR_THREAD_POOL_NAME,
+            ThreadPool.Names.GENERIC
+        );
         final long startTimeInNanos = System.nanoTime();
         final Supplier<TimeValue> timeout = () -> {
             final long elapsedInNanos = System.nanoTime() - startTimeInNanos;

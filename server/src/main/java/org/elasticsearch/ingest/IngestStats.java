@@ -13,6 +13,7 @@ import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.core.TimeValue;
@@ -285,10 +286,16 @@ public record IngestStats(Stats totalStats, List<PipelineStat> pipelineStats, Ma
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            if (bytesIngested > 0 || bytesProduced > 0) {
-                builder.field("ingested_as_first_pipeline_in_bytes", bytesIngested);
-                builder.field("produced_as_first_pipeline_in_bytes", bytesProduced);
-            }
+            builder.humanReadableField(
+                "ingested_as_first_pipeline_in_bytes",
+                "ingested_as_first_pipeline",
+                ByteSizeValue.ofBytes(bytesIngested)
+            );
+            builder.humanReadableField(
+                "produced_as_first_pipeline_in_bytes",
+                "produced_as_first_pipeline",
+                ByteSizeValue.ofBytes(bytesProduced)
+            );
             return builder;
         }
 

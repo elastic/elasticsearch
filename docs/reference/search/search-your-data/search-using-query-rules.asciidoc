@@ -1,18 +1,18 @@
 [[search-using-query-rules]]
 === Searching with query rules
+
 ++++
 <titleabbrev>Searching with query rules</titleabbrev>
 ++++
 
 [[query-rules]]
-
 preview::[]
 
 _Query rules_ allow customization of search results for queries that match specified criteria metadata.
 This allows for more control over results, for example ensuring that promoted documents that match defined criteria are returned at the top of the result list.
 Metadata is defined in the query rule, and is matched against the query criteria.
 Query rules use metadata to match a query.
-Metadata is provided as part of the `rule_query` as an object and can be anything that helps differentiate the query, for example:
+Metadata is provided as part of the <<query-dsl-rule-query, rule query>> as an object and can be anything that helps differentiate the query, for example:
 
 * A user-entered query string
 * Personalized metadata about users (e.g. country, language, etc)
@@ -20,9 +20,9 @@ Metadata is provided as part of the `rule_query` as an object and can be anythin
 * A referring site
 * etc.
 
-Query rules define a metadata key that will be used to match the metadata provided in the `rule_query` with the criteria specified in the rule.
+Query rules define a metadata key that will be used to match the metadata provided in the <<query-dsl-rule-query, rule query>> with the criteria specified in the rule.
 
-When a query rule matches the `rule_query` metadata according to its defined criteria, the query rule action is applied to the underlying `organic_query`.
+When a query rule matches the <<query-dsl-rule-query, rule query>> metadata according to its defined criteria, the query rule action is applied to the underlying `organic` query.
 
 For example, a query rule could be defined to match a user-entered query string of `pugs` and a country `us` and promote adoptable shelter dogs if the rule query met both criteria.
 
@@ -38,19 +38,20 @@ When defining a rule, consider the following:
 [[query-rule-type]]
 ===== Rule type
 
-The type of rule we want to apply. For the moment there is a single rule type:
+The type of rule we want to apply.
+For the moment there is a single rule type:
 
 * `pinned` will re-write the query into a <<query-dsl-pinned-query, pinned query>>, pinning specified results matching the query rule at the top of the returned result set.
-
 
 [discrete]
 [[query-rule-criteria]]
 ===== Rule criteria
 
-The criteria for which this rule will match. Criteria is defined as `type`, `metadata`, and `values`.
+The criteria for which this rule will match.
+Criteria is defined as `type`, `metadata`, and `values`.
 Allowed criteria types are:
 
-[cols="2*", options="header"]
+[cols="2*",options="header"]
 |===
 |Type
 |Match Requirements
@@ -103,7 +104,8 @@ See <<query-dsl-pinned-query,pinned query>> for details.
 [[add-query-rules]]
 ==== Add query rules
 
-You can add query rules using the <<put-query-ruleset>> call. This adds a ruleset containing one or more query rules that will be applied to queries that match their specified criteria.
+You can add query rules using the <<put-query-ruleset>> call.
+This adds a ruleset containing one or more query rules that will be applied to queries that match their specified criteria.
 
 The following command will create a query ruleset called `my-ruleset` with two pinned document rules:
 
@@ -185,15 +187,15 @@ This can be increased up to 1000 using the `xpack.applications.rules.max_rules_p
 ----
 // TEST[continued]
 
-You can use the <<get-query-ruleset>> call to retrieve the ruleset you just created,
-the <<list-query-rulesets>> call to retrieve a summary of all query rulesets,
-and the <<delete-query-ruleset>> call to delete a query ruleset.
+You can use the <<get-query-ruleset>> call to retrieve the ruleset you just created, the <<list-query-rulesets>> call to retrieve a summary of all query rulesets, and the <<delete-query-ruleset>> call to delete a query ruleset.
 
 [discrete]
 [[rule-query-search]]
 ==== Perform a rule query
 
-Once you have defined a query ruleset, you can search this ruleset using the <<query-dsl-rule-query>> query.
+Once you have defined one or more query rulesets, you can search these rulesets using the <<query-dsl-rule-query>> query.
+Rulesets are evaluated in order, so rules in the first ruleset you specify will be applied before any subsequent rulesets.
+
 An example query for the `my-ruleset` defined above is:
 
 [source,console]
@@ -201,7 +203,7 @@ An example query for the `my-ruleset` defined above is:
 GET /my-index-000001/_search
 {
   "query": {
-    "rule_query": {
+    "rule": {
       "organic": {
         "query_string": {
           "query": "puggles"
@@ -211,7 +213,7 @@ GET /my-index-000001/_search
         "query_string": "puggles",
         "user_country": "us"
       },
-      "ruleset_id": "my-ruleset"
+      "ruleset_ids": ["my-ruleset"]
     }
   }
 }
@@ -221,7 +223,8 @@ GET /my-index-000001/_search
 This rule query will match against `rule1` in the defined query ruleset, and will convert the organic query into a pinned query with `id1` and `id2` pinned as the top hits.
 Any other matches from the organic query will be returned below the pinned results.
 
-It's possible to have multiple rules in a ruleset match a single `rule_query`. In this case, the pinned documents are returned in the following order:
+It's possible to have multiple rules in a ruleset match a single <<query-dsl-rule-query, rule query>>.
+In this case, the pinned documents are returned in the following order:
 
 - Where the matching rule appears in the ruleset
 - If multiple documents are specified in a single rule, in the order they are specified

@@ -28,11 +28,11 @@ public class VectorBuilderTests extends ESTestCase {
     @ParametersFactory
     public static List<Object[]> params() {
         List<Object[]> params = new ArrayList<>();
-        for (ElementType elementType : ElementType.values()) {
-            if (elementType == ElementType.UNKNOWN || elementType == ElementType.NULL || elementType == ElementType.DOC) {
+        for (ElementType e : ElementType.values()) {
+            if (e == ElementType.UNKNOWN || e == ElementType.NULL || e == ElementType.DOC || e == ElementType.COMPOSITE) {
                 continue;
             }
-            params.add(new Object[] { elementType });
+            params.add(new Object[] { e });
         }
         return params;
     }
@@ -113,7 +113,7 @@ public class VectorBuilderTests extends ESTestCase {
 
     private Vector.Builder vectorBuilder(int estimatedSize, BlockFactory blockFactory) {
         return switch (elementType) {
-            case NULL, DOC, UNKNOWN -> throw new UnsupportedOperationException();
+            case NULL, DOC, COMPOSITE, UNKNOWN -> throw new UnsupportedOperationException();
             case BOOLEAN -> blockFactory.newBooleanVectorBuilder(estimatedSize);
             case BYTES_REF -> blockFactory.newBytesRefVectorBuilder(estimatedSize);
             case DOUBLE -> blockFactory.newDoubleVectorBuilder(estimatedSize);
@@ -124,7 +124,7 @@ public class VectorBuilderTests extends ESTestCase {
 
     private void fill(Vector.Builder builder, Vector from) {
         switch (elementType) {
-            case NULL, DOC, UNKNOWN -> throw new UnsupportedOperationException();
+            case NULL, DOC, COMPOSITE, UNKNOWN -> throw new UnsupportedOperationException();
             case BOOLEAN -> {
                 for (int p = 0; p < from.getPositionCount(); p++) {
                     ((BooleanVector.Builder) builder).appendBoolean(((BooleanVector) from).getBoolean(p));

@@ -9,69 +9,128 @@
 package org.elasticsearch.index.mapper;
 
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.IOException;
+import java.math.BigDecimal;
 import java.math.BigInteger;
+import java.util.Base64;
 import java.util.List;
 
 import static org.hamcrest.Matchers.equalTo;
 
 public class XContentDataHelperTests extends ESTestCase {
 
-    private String parse(XContentParser parser) throws IOException {
+    private String dataInParser(XContentParser parser) throws IOException {
         XContentBuilder builder = XContentFactory.jsonBuilder();
         builder.humanReadable(true);
         builder.copyCurrentStructure(parser);
         return Strings.toString(builder);
     }
 
-    private String encodeAndDecode(String value) throws IOException {
-        XContentParser parser = createParser(JsonXContent.jsonXContent, "{ \"foo\": " + value + " }");
+    private String encodeAndDecode(Object value) throws IOException {
+        return encodeAndDecodeCustom(randomFrom(XContentType.values()), value);
+    }
+
+    private String encodeAndDecodeCustom(XContentType type, Object value) throws IOException {
+        var builder = XContentFactory.contentBuilder(type);
+        builder.startObject().field("foo", value).endObject();
+
+        XContentParser parser = createParser(builder);
         assertThat(parser.nextToken(), equalTo(XContentParser.Token.START_OBJECT));
         assertThat(parser.nextToken(), equalTo(XContentParser.Token.FIELD_NAME));
         assertThat(parser.currentName(), equalTo("foo"));
         parser.nextToken();
-        return parse(parser);
+
+        var encoded = XContentDataHelper.encodeToken(parser);
+        var decoded = XContentFactory.jsonBuilder();
+        XContentDataHelper.decodeAndWrite(decoded, encoded);
+
+        return Strings.toString(decoded);
     }
 
     public void testBoolean() throws IOException {
         boolean b = randomBoolean();
-        assertEquals(b, Boolean.parseBoolean(encodeAndDecode(Boolean.toString(b))));
+        assertEquals(b, Boolean.parseBoolean(encodeAndDecode(b)));
     }
 
     public void testString() throws IOException {
-        String s = "\"" + randomAlphaOfLength(5) + "\"";
-        assertEquals(s, encodeAndDecode(s));
+        String s = randomAlphaOfLength(5);
+        assertEquals("\"" + s + "\"", encodeAndDecode(s));
     }
 
     public void testInt() throws IOException {
         int i = randomInt();
-        assertEquals(i, Integer.parseInt(encodeAndDecode(Integer.toString(i))));
+        assertEquals(i, Integer.parseInt(encodeAndDecode(i)));
     }
 
     public void testLong() throws IOException {
         long l = randomLong();
-        assertEquals(l, Long.parseLong(encodeAndDecode(Long.toString(l))));
+        assertEquals(l, Long.parseLong(encodeAndDecode(l)));
     }
 
     public void testFloat() throws IOException {
         float f = randomFloat();
-        assertEquals(0, Float.compare(f, Float.parseFloat(encodeAndDecode(Float.toString(f)))));
+        // JSON does not have special encoding for float
+        assertEquals(0, Float.compare(f, Float.parseFloat(encodeAndDecodeCustom(XContentType.SMILE, f))));
     }
 
     public void testDouble() throws IOException {
         double d = randomDouble();
-        assertEquals(0, Double.compare(d, Double.parseDouble(encodeAndDecode(Double.toString(d)))));
+        assertEquals(0, Double.compare(d, Double.parseDouble(encodeAndDecode(d))));
     }
 
     public void testBigInteger() throws IOException {
         BigInteger i = randomBigInteger();
-        assertEquals(i, new BigInteger(encodeAndDecode(i.toString()), 10));
+        // JSON does not have special encoding for BigInteger
+        assertEquals(i, new BigInteger(encodeAndDecodeCustom(XContentType.SMILE, i), 10));
+    }
+
+    public void testBigDecimal() throws IOException {
+        BigDecimal i = new BigDecimal(randomLong());
+        // JSON does not have special encoding for BigDecimal
+        assertEquals(i, new BigDecimal(encodeAndDecodeCustom(XContentType.SMILE, i)));
+    }
+
+    public void testNull() throws IOException {
+        assertEquals("null", encodeAndDecode(null));
+    }
+
+    public void testEmbeddedObject() throws IOException {
+        // XContentType.JSON never produces VALUE_EMBEDDED_OBJECT
+        XContentBuilder builder = XContentBuilder.builder(XContentType.CBOR.xContent());
+        builder.startObject();
+        CompressedXContent embedded = new CompressedXContent("{\"field\":\"value\"}");
+        builder.field("bytes", embedded.compressed());
+        builder.endObject();
+        var originalBytes = BytesReference.bytes(builder);
+
+        try (XContentParser parser = createParser(builder)) {
+            assertEquals(XContentParser.Token.START_OBJECT, parser.nextToken());
+            assertEquals(XContentParser.Token.FIELD_NAME, parser.nextToken());
+            parser.nextToken();
+            var encoded = XContentDataHelper.encodeToken(parser);
+
+            var decoded = XContentFactory.jsonBuilder();
+            XContentDataHelper.decodeAndWrite(decoded, encoded);
+
+            assertEquals("\"" + Base64.getEncoder().encodeToString(embedded.compressed()) + "\"", Strings.toString(decoded));
+        }
+
+        var encoded = XContentDataHelper.encodeXContentBuilder(builder);
+
+        var decoded = XContentFactory.jsonBuilder();
+        XContentDataHelper.decodeAndWrite(decoded, encoded);
+        var decodedBytes = BytesReference.bytes(builder);
+
+        assertEquals(originalBytes, decodedBytes);
     }
 
     public void testObject() throws IOException {
@@ -94,7 +153,7 @@ public class XContentDataHelperTests extends ESTestCase {
         String values = "["
             + String.join(",", List.of(Integer.toString(randomInt()), Integer.toString(randomInt()), Integer.toString(randomInt())))
             + "]";
-        assertEquals(values, encodeAndDecode(values));
+        assertEquals("\"" + values + "\"", encodeAndDecode(values));
     }
 
     public void testCloneSubContextWithParser() throws IOException {
@@ -105,8 +164,8 @@ public class XContentDataHelperTests extends ESTestCase {
         TestDocumentParserContext context = new TestDocumentParserContext(xContentParser);
         assertFalse(context.getClonedSource());
         var tuple = XContentDataHelper.cloneSubContextWithParser(context);
-        assertEquals(data, parse(tuple.v1().parser()));
-        assertEquals(data, parse(tuple.v2()));
+        assertEquals(data, dataInParser(tuple.v1().parser()));
+        assertEquals(data, dataInParser(tuple.v2()));
         assertTrue(tuple.v1().getClonedSource());
     }
 }

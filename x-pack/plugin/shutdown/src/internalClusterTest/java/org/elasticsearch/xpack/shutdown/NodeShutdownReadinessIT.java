@@ -105,7 +105,8 @@ public class NodeShutdownReadinessIT extends ESIntegTestCase {
     }
 
     private void assertNoShuttingDownNodes(String nodeId) throws ExecutionException, InterruptedException {
-        var response = client().execute(GetShutdownStatusAction.INSTANCE, new GetShutdownStatusAction.Request(nodeId)).get();
+        var response = client().execute(GetShutdownStatusAction.INSTANCE, new GetShutdownStatusAction.Request(TEST_REQUEST_TIMEOUT, nodeId))
+            .get();
         assertThat(response.getShutdownStatuses(), empty());
     }
 

@@ -83,8 +83,10 @@ public class DesiredBalanceShutdownIT extends ESIntegTestCase {
         logger.info("--> waiting for replacement to complete");
 
         assertBusy(() -> {
-            final var getShutdownResponse = client().execute(GetShutdownStatusAction.INSTANCE, new GetShutdownStatusAction.Request())
-                .actionGet(10, TimeUnit.SECONDS);
+            final var getShutdownResponse = client().execute(
+                GetShutdownStatusAction.INSTANCE,
+                new GetShutdownStatusAction.Request(TEST_REQUEST_TIMEOUT)
+            ).actionGet(10, TimeUnit.SECONDS);
             assertTrue(
                 Strings.toString(getShutdownResponse, true, true),
                 getShutdownResponse.getShutdownStatuses()

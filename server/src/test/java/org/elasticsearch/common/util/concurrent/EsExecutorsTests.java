@@ -627,12 +627,15 @@ public class EsExecutorsTests extends ESTestCase {
         );
     }
 
-    public void testParseExecutorName() {
-        String executorName = randomAlphaOfLength(10);
-        ThreadFactory threadFactory = EsExecutors.daemonThreadFactory(rarely() ? null : randomAlphaOfLength(10), executorName);
-        Thread thread = threadFactory.newThread(() -> {});
-
-        assertThat(EsExecutors.executorName(thread), equalTo(executorName));
+    public void testParseExecutorName() throws InterruptedException {
+        final var executorName = randomAlphaOfLength(10);
+        final var threadFactory = EsExecutors.daemonThreadFactory(rarely() ? null : randomAlphaOfLength(10), executorName);
+        final var thread = threadFactory.newThread(() -> {});
+        try {
+            assertThat(EsExecutors.executorName(thread.getName()), equalTo(executorName));
+        } finally {
+            thread.join();
+        }
     }
 
     private static void runRejectOnShutdownTest(ExecutorService executor) {

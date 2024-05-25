@@ -82,7 +82,7 @@ public class RestControllerIT extends ESIntegTestCase {
                     return channel -> {
                         final var response = RestResponse.chunked(
                             RestStatus.OK,
-                            ChunkedRestResponseBody.fromXContent(
+                            ChunkedRestResponseBodyPart.fromXContent(
                                 params -> Iterators.single((b, p) -> b.startObject().endObject()),
                                 request,
                                 channel

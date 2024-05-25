@@ -31,7 +31,7 @@ import org.elasticsearch.common.util.MockPageCacheRecycler;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
-import org.elasticsearch.rest.ChunkedRestResponseBody;
+import org.elasticsearch.rest.ChunkedRestResponseBodyPart;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
@@ -530,20 +530,20 @@ public class DefaultRestChannelTests extends ESTestCase {
         {
             // chunked response
             final var isClosed = new AtomicBoolean();
-            channel.sendResponse(RestResponse.chunked(RestStatus.OK, new ChunkedRestResponseBody() {
+            channel.sendResponse(RestResponse.chunked(RestStatus.OK, new ChunkedRestResponseBodyPart() {
 
                 @Override
-                public boolean isDone() {
+                public boolean isPartComplete() {
                     return false;
                 }
 
                 @Override
-                public boolean isEndOfResponse() {
+                public boolean isLastPart() {
                     throw new AssertionError("should not check for end-of-response for HEAD request");
                 }
 
                 @Override
-                public void getContinuation(ActionListener<ChunkedRestResponseBody> listener) {
+                public void getNextPart(ActionListener<ChunkedRestResponseBodyPart> listener) {
                     throw new AssertionError("should not get any continuations for HEAD request");
                 }
 
@@ -688,25 +688,25 @@ public class DefaultRestChannelTests extends ESTestCase {
 
         HttpRequest httpRequest = new TestHttpRequest(HttpRequest.HttpVersion.HTTP_1_1, RestRequest.Method.GET, "/") {
             @Override
-            public HttpResponse createResponse(RestStatus status, ChunkedRestResponseBody content) {
+            public HttpResponse createResponse(RestStatus status, ChunkedRestResponseBodyPart firstBodyPart) {
                 try (var bso = new BytesStreamOutput()) {
-                    writeContent(bso, content);
+                    writeContent(bso, firstBodyPart);
                     return new TestHttpResponse(status, bso.bytes());
                 } catch (IOException e) {
                     return fail(e);
                 }
             }
 
-            private static void writeContent(OutputStream bso, ChunkedRestResponseBody content) throws IOException {
-                while (content.isDone() == false) {
+            private static void writeContent(OutputStream bso, ChunkedRestResponseBodyPart content) throws IOException {
+                while (content.isPartComplete() == false) {
                     try (var bytes = content.encodeChunk(1 << 14, BytesRefRecycler.NON_RECYCLING_INSTANCE)) {
                         bytes.writeTo(bso);
                     }
                 }
-                if (content.isEndOfResponse()) {
+                if (content.isLastPart()) {
                     return;
                 }
-                writeContent(bso, PlainActionFuture.get(content::getContinuation));
+                writeContent(bso, PlainActionFuture.get(content::getNextPart));
             }
         };
 
@@ -735,14 +735,14 @@ public class DefaultRestChannelTests extends ESTestCase {
             )
         );
 
-        final var parts = new ArrayList<ChunkedRestResponseBody>();
-        class TestBody implements ChunkedRestResponseBody {
+        final var parts = new ArrayList<ChunkedRestResponseBodyPart>();
+        class TestBodyPart implements ChunkedRestResponseBodyPart {
             boolean isDone;
             final BytesReference thisChunk;
             final BytesReference remainingChunks;
             final int remainingContinuations;
 
-            TestBody(BytesReference content, int remainingContinuations) {
+            TestBodyPart(BytesReference content, int remainingContinuations) {
                 if (remainingContinuations == 0) {
                     thisChunk = content;
                     remainingChunks = BytesArray.EMPTY;
@@ -755,18 +755,18 @@ public class DefaultRestChannelTests extends ESTestCase {
             }
 
             @Override
-            public boolean isDone() {
+            public boolean isPartComplete() {
                 return isDone;
             }
 
             @Override
-            public boolean isEndOfResponse() {
+            public boolean isLastPart() {
                 return remainingContinuations == 0;
             }
 
             @Override
-            public void getContinuation(ActionListener<ChunkedRestResponseBody> listener) {
-                final var continuation = new TestBody(remainingChunks, remainingContinuations - 1);
+            public void getNextPart(ActionListener<ChunkedRestResponseBodyPart> listener) {
+                final var continuation = new TestBodyPart(remainingChunks, remainingContinuations - 1);
                 parts.add(continuation);
                 listener.onResponse(continuation);
             }
@@ -785,7 +785,7 @@ public class DefaultRestChannelTests extends ESTestCase {
         }
 
         final var isClosed = new AtomicBoolean();
-        final var firstPart = new TestBody(responseBody, between(0, 3));
+        final var firstPart = new TestBodyPart(responseBody, between(0, 3));
         parts.add(firstPart);
         assertEquals(
             responseBody,
@@ -797,8 +797,8 @@ public class DefaultRestChannelTests extends ESTestCase {
                 () -> channel.sendResponse(RestResponse.chunked(RestStatus.OK, firstPart, () -> {
                     assertTrue(isClosed.compareAndSet(false, true));
                     for (int i = 0; i < parts.size(); i++) {
-                        assertTrue("isDone " + i, parts.get(i).isDone());
-                        assertEquals("isEndOfResponse " + i, i == parts.size() - 1, parts.get(i).isEndOfResponse());
+                        assertTrue("isDone " + i, parts.get(i).isPartComplete());
+                        assertEquals("isEndOfResponse " + i, i == parts.size() - 1, parts.get(i).isLastPart());
                     }
                 }))
             )

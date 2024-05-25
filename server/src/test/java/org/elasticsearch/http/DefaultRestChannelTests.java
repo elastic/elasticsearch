@@ -781,6 +781,7 @@ public class DefaultRestChannelTests extends ESTestCase {
         }
 
         final var isClosed = new AtomicBoolean();
+        final var testBody = new TestBody(responseBody, between(0, 3));
         assertEquals(
             responseBody,
             ChunkedLoggingStreamTestUtils.getDecodedLoggedBody(
@@ -791,8 +792,12 @@ public class DefaultRestChannelTests extends ESTestCase {
                 () -> channel.sendResponse(
                     RestResponse.chunked(
                         RestStatus.OK,
-                        new TestBody(responseBody, between(0, 3)),
-                        () -> assertTrue(isClosed.compareAndSet(false, true))
+                        testBody,
+                        () -> {
+                            assertTrue(isClosed.compareAndSet(false, true));
+                            assertTrue(testBody.isDone());
+                            assertTrue(testBody.isEndOfResponse());
+                        }
                     )
                 )
             )

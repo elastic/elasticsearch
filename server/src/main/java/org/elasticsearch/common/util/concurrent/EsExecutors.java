@@ -277,8 +277,7 @@ public class EsExecutors {
     }
 
     public static String executorName(Thread thread) {
-        String name = thread.getName();
-        return executorName(name);
+        return executorName(thread.getName());
     }
 
     public static ThreadFactory daemonThreadFactory(Settings settings, String namePrefix) {

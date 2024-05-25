@@ -37,6 +37,10 @@ public class ByteEmbedding extends Embedding<ByteEmbedding.ByteArrayWrapper> {
             this.bytes = bytes;
         }
 
+        public byte[] getBytes() {
+            return bytes;
+        }
+
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             return valuesToXContent(EMBEDDING, builder, params);

@@ -29,9 +29,10 @@ import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xpack.core.inference.results.ChunkedTextEmbeddingFloatResults;
+import org.elasticsearch.xpack.core.inference.results.EmbeddingChunk;
 import org.elasticsearch.xpack.core.inference.results.FloatEmbedding;
 import org.elasticsearch.xpack.core.inference.results.TextEmbeddingResults;
-import org.elasticsearch.xpack.core.ml.inference.results.ChunkedTextEmbeddingResults;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -140,10 +141,10 @@ public class TestDenseInferenceServiceExtension implements InferenceServiceExten
         private TextEmbeddingResults makeResults(List<String> input, int dimensions) {
             List<FloatEmbedding> embeddings = new ArrayList<>();
             for (int i = 0; i < input.size(); i++) {
-                double[] doubleEmbeddings = generateEmbedding(input.get(i), dimensions);
+                float[] embeddingArray = generateEmbedding(input.get(i), dimensions);
                 List<Float> floatEmbeddings = new ArrayList<>(dimensions);
                 for (int j = 0; j < dimensions; j++) {
-                    floatEmbeddings.add((float) doubleEmbeddings[j]);
+                    floatEmbeddings.add(embeddingArray[j]);
                 }
                 embeddings.add(FloatEmbedding.of(floatEmbeddings));
             }
@@ -153,10 +154,10 @@ public class TestDenseInferenceServiceExtension implements InferenceServiceExten
         private List<ChunkedInferenceServiceResults> makeChunkedResults(List<String> input, int dimensions) {
             var results = new ArrayList<ChunkedInferenceServiceResults>();
             for (int i = 0; i < input.size(); i++) {
-                double[] embeddings = generateEmbedding(input.get(i), dimensions);
+                float[] embeddings = generateEmbedding(input.get(i), dimensions);
                 results.add(
-                    new org.elasticsearch.xpack.core.inference.results.ChunkedTextEmbeddingResults(
-                        List.of(new ChunkedTextEmbeddingResults.EmbeddingChunk(input.get(i), embeddings))
+                    new ChunkedTextEmbeddingFloatResults(
+                        List.of(new EmbeddingChunk<>(input.get(i), new FloatEmbedding(embeddings)))
                     )
                 );
             }
@@ -167,8 +168,8 @@ public class TestDenseInferenceServiceExtension implements InferenceServiceExten
             return TestServiceSettings.fromMap(serviceSettingsMap);
         }
 
-        private static double[] generateEmbedding(String input, int dimensions) {
-            double[] embedding = new double[dimensions];
+        private static float[] generateEmbedding(String input, int dimensions) {
+            float[] embedding = new float[dimensions];
             for (int j = 0; j < dimensions; j++) {
                 embedding[j] = input.hashCode() + 1 + j;
             }

@@ -28,7 +28,7 @@ import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.core.ClientHelper;
-import org.elasticsearch.xpack.core.inference.results.ChunkedTextEmbeddingResults;
+import org.elasticsearch.xpack.core.inference.results.ChunkedTextEmbeddingFloatResults;
 import org.elasticsearch.xpack.core.inference.results.ErrorChunkedInferenceResults;
 import org.elasticsearch.xpack.core.inference.results.RankedDocsResults;
 import org.elasticsearch.xpack.core.inference.results.TextEmbeddingResults;
@@ -55,7 +55,6 @@ import java.util.function.Function;
 
 import static org.elasticsearch.xpack.core.ClientHelper.INFERENCE_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
-import static org.elasticsearch.xpack.core.inference.results.ResultUtils.createInvalidChunkedResultException;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeFromMap;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeFromMapOrThrowIfNull;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.throwIfNotEmptyMap;
@@ -358,11 +357,16 @@ public class ElasticsearchInternalService implements InferenceService {
 
     private static ChunkedInferenceServiceResults translateToChunkedResult(InferenceResults inferenceResult) {
         if (inferenceResult instanceof org.elasticsearch.xpack.core.ml.inference.results.ChunkedTextEmbeddingResults mlChunkedResult) {
-            return ChunkedTextEmbeddingResults.ofMlResult(mlChunkedResult);
+            return ChunkedTextEmbeddingFloatResults.ofMlResult(mlChunkedResult);
         } else if (inferenceResult instanceof ErrorInferenceResults error) {
             return new ErrorChunkedInferenceResults(error.getException());
         } else {
-            throw createInvalidChunkedResultException(inferenceResult.getWriteableName());
+            throw new ElasticsearchStatusException(
+                "Expected a chunked inference [{}] received [{}]",
+                RestStatus.INTERNAL_SERVER_ERROR,
+                ChunkedTextEmbeddingFloatResults.NAME,
+                inferenceResult.getWriteableName()
+            );
         }
     }
 

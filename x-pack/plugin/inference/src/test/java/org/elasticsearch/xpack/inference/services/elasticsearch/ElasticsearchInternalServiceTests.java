@@ -27,7 +27,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xpack.core.action.util.QueryPage;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
-import org.elasticsearch.xpack.core.inference.results.ChunkedTextEmbeddingResults;
+import org.elasticsearch.xpack.core.inference.results.ChunkedTextEmbeddingFloatResults;
 import org.elasticsearch.xpack.core.inference.results.ErrorChunkedInferenceResults;
 import org.elasticsearch.xpack.core.ml.action.GetTrainedModelsAction;
 import org.elasticsearch.xpack.core.ml.action.InferTrainedModelDeploymentAction;
@@ -495,18 +495,34 @@ public class ElasticsearchInternalServiceTests extends ESTestCase {
         var gotResults = new AtomicBoolean();
         var resultsListener = ActionListener.<List<ChunkedInferenceServiceResults>>wrap(chunkedResponse -> {
             assertThat(chunkedResponse, hasSize(3));
-            assertThat(chunkedResponse.get(0), instanceOf(ChunkedTextEmbeddingResults.class));
-            var result1 = (ChunkedTextEmbeddingResults) chunkedResponse.get(0);
-            assertEquals(
-                ((org.elasticsearch.xpack.core.ml.inference.results.ChunkedTextEmbeddingResults) mlTrainedModelResults.get(0)).getChunks(),
-                result1.getChunks()
-            );
-            assertThat(chunkedResponse.get(1), instanceOf(ChunkedTextEmbeddingResults.class));
-            var result2 = (ChunkedTextEmbeddingResults) chunkedResponse.get(1);
-            assertEquals(
-                ((org.elasticsearch.xpack.core.ml.inference.results.ChunkedTextEmbeddingResults) mlTrainedModelResults.get(1)).getChunks(),
-                result2.getChunks()
-            );
+            assertThat(chunkedResponse.get(0), instanceOf(ChunkedTextEmbeddingFloatResults.class));
+            {
+                var result1 = (ChunkedTextEmbeddingFloatResults) chunkedResponse.get(0);
+                for (int i = 0; i < result1.chunks().size(); i++) {
+                    var mlResult = (org.elasticsearch.xpack.core.ml.inference.results.ChunkedTextEmbeddingResults) mlTrainedModelResults
+                        .get(0);
+                    assertEquals(mlResult.getChunks().get(i).matchedText(), result1.getChunks().get(i).matchedText());
+                    assertArrayEquals(
+                        doubleArrayToFloat(mlResult.getChunks().get(i).embedding()),
+                        result1.getChunks().get(i).embedding().getEmbedding().getFloats(),
+                        0.001f
+                    );
+                }
+            }
+            {
+                assertThat(chunkedResponse.get(1), instanceOf(ChunkedTextEmbeddingFloatResults.class));
+                var result2 = (ChunkedTextEmbeddingFloatResults) chunkedResponse.get(1);
+                for (int i = 0; i < result2.chunks().size(); i++) {
+                    var mlResult = (org.elasticsearch.xpack.core.ml.inference.results.ChunkedTextEmbeddingResults) mlTrainedModelResults
+                        .get(1);
+                    assertEquals(mlResult.getChunks().get(i).matchedText(), result2.getChunks().get(i).matchedText());
+                    assertArrayEquals(
+                        doubleArrayToFloat(mlResult.getChunks().get(i).embedding()),
+                        result2.getChunks().get(i).embedding().getEmbedding().getFloats(),
+                        0.001f
+                    );
+                }
+            }
             var result3 = (ErrorChunkedInferenceResults) chunkedResponse.get(2);
             assertThat(result3.getException(), instanceOf(RuntimeException.class));
             assertThat(result3.getException().getMessage(), containsString("boom"));
@@ -528,6 +544,14 @@ public class ElasticsearchInternalServiceTests extends ESTestCase {
             terminate(threadpool);
         }
         assertTrue("Listener not called", gotResults.get());
+    }
+
+    private static float[] doubleArrayToFloat(double[] arr) {
+        var result = new float[arr.length];
+        for (int i = 0; i < arr.length; i++) {
+            result[i] = (float) arr[i];
+        }
+        return result;
     }
 
     @SuppressWarnings("unchecked")

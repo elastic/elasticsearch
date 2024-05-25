@@ -15,6 +15,13 @@ import org.elasticsearch.xpack.core.inference.results.FloatEmbedding;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
+
+import static org.elasticsearch.xpack.core.ml.inference.results.ChunkedNlpInferenceResults.INFERENCE;
+import static org.elasticsearch.xpack.core.ml.inference.results.ChunkedNlpInferenceResults.TEXT;
 
 public class ChunkedTextEmbeddingFloatResultsTests extends AbstractWireSerializingTestCase<ChunkedTextEmbeddingFloatResults> {
 
@@ -52,5 +59,30 @@ public class ChunkedTextEmbeddingFloatResultsTests extends AbstractWireSerializi
     @Override
     protected ChunkedTextEmbeddingFloatResults mutateInstance(ChunkedTextEmbeddingFloatResults instance) throws IOException {
         return randomValueOtherThan(instance, this::createTestInstance);
+    }
+
+    /**
+     * Similar to {@link ChunkedTextEmbeddingFloatResults#asMap()} but it converts the embeddings double array into a list of doubles to
+     * make testing equality easier.
+     */
+    public static Map<String, Object> asMapWithListsInsteadOfArrays(ChunkedTextEmbeddingFloatResults result) {
+        return Map.of(
+            ChunkedTextEmbeddingFloatResults.FIELD_NAME,
+            result.getChunks()
+                .stream()
+                .map(ChunkedTextEmbeddingFloatResultsTests::asMapWithListsInsteadOfArrays)
+                .collect(Collectors.toList())
+        );
+    }
+
+    private static Map<String, Object> asMapWithListsInsteadOfArrays(EmbeddingChunk<FloatEmbedding.FloatArrayWrapper> chunk) {
+        var map = new HashMap<String, Object>();
+        map.put(TEXT, chunk.matchedText());
+        List<Float> asList = new ArrayList<>();
+        for (var val : chunk.embedding().getEmbedding().getFloats()) {
+            asList.add(val);
+        }
+        map.put(INFERENCE, asList);
+        return map;
     }
 }

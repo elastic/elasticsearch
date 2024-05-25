@@ -18,8 +18,12 @@ import org.elasticsearch.test.AbstractXContentTestCase;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xpack.core.inference.results.ByteEmbedding;
 import org.elasticsearch.xpack.core.inference.results.ChunkedSparseEmbeddingResults;
-import org.elasticsearch.xpack.core.inference.results.ChunkedTextEmbeddingResults;
+import org.elasticsearch.xpack.core.inference.results.ChunkedTextEmbeddingByteResults;
+import org.elasticsearch.xpack.core.inference.results.ChunkedTextEmbeddingFloatResults;
+import org.elasticsearch.xpack.core.inference.results.EmbeddingChunk;
+import org.elasticsearch.xpack.core.inference.results.FloatEmbedding;
 import org.elasticsearch.xpack.core.ml.inference.results.ChunkedTextExpansionResults;
 import org.elasticsearch.xpack.core.ml.search.WeightedToken;
 import org.elasticsearch.xpack.inference.model.TestModel;
@@ -54,12 +58,12 @@ public class SemanticTextFieldTests extends AbstractXContentTestCase<SemanticTex
             assertThat(newInstance.inference().chunks().get(i).text(), equalTo(expectedInstance.inference().chunks().get(i).text()));
             switch (modelSettings.taskType()) {
                 case TEXT_EMBEDDING -> {
-                    double[] expectedVector = parseDenseVector(
+                    float[] expectedVector = parseDenseVector(
                         expectedInstance.inference().chunks().get(i).rawEmbeddings(),
                         modelSettings.dimensions(),
                         expectedInstance.contentType()
                     );
-                    double[] newVector = parseDenseVector(
+                    float[] newVector = parseDenseVector(
                         newInstance.inference().chunks().get(i).rawEmbeddings(),
                         modelSettings.dimensions(),
                         newInstance.contentType()
@@ -132,16 +136,38 @@ public class SemanticTextFieldTests extends AbstractXContentTestCase<SemanticTex
         assertThat(ex.getMessage(), containsString("required [similarity] field is missing"));
     }
 
-    public static ChunkedTextEmbeddingResults randomTextEmbeddings(Model model, List<String> inputs) {
-        List<org.elasticsearch.xpack.core.ml.inference.results.ChunkedTextEmbeddingResults.EmbeddingChunk> chunks = new ArrayList<>();
+    public static ChunkedInferenceServiceResults randomTextEmbeddings(Model model, List<String> inputs) {
+        return randomFloatTextEmbeddings(model, inputs);
+        // TODO byte or float
+        // if (randomBoolean()) {
+        // return randomFloatTextEmbeddings(model, inputs);
+        // } else {
+        // return randomByteTextEmbeddings(model, inputs);
+        // }
+    }
+
+    public static ChunkedTextEmbeddingFloatResults randomFloatTextEmbeddings(Model model, List<String> inputs) {
+        List<EmbeddingChunk<FloatEmbedding.FloatArrayWrapper>> chunks = new ArrayList<>();
         for (String input : inputs) {
-            double[] values = new double[model.getServiceSettings().dimensions()];
+            float[] values = new float[model.getServiceSettings().dimensions()];
             for (int j = 0; j < values.length; j++) {
-                values[j] = randomDouble();
+                values[j] = randomFloat();
             }
-            chunks.add(new org.elasticsearch.xpack.core.ml.inference.results.ChunkedTextEmbeddingResults.EmbeddingChunk(input, values));
+            chunks.add(new EmbeddingChunk<>(input, new FloatEmbedding(values)));
         }
-        return new ChunkedTextEmbeddingResults(chunks);
+        return new ChunkedTextEmbeddingFloatResults(chunks);
+    }
+
+    public static ChunkedTextEmbeddingByteResults randomByteTextEmbeddings(Model model, List<String> inputs) {
+        List<EmbeddingChunk<ByteEmbedding.ByteArrayWrapper>> chunks = new ArrayList<>();
+        for (String input : inputs) {
+            byte[] values = new byte[model.getServiceSettings().dimensions()];
+            for (int j = 0; j < values.length; j++) {
+                values[j] = randomByte();
+            }
+            chunks.add(new EmbeddingChunk<>(input, new ByteEmbedding(values)));
+        }
+        return new ChunkedTextEmbeddingByteResults(chunks, randomBoolean());
     }
 
     public static ChunkedSparseEmbeddingResults randomSparseEmbeddings(List<String> inputs) {
@@ -185,35 +211,29 @@ public class SemanticTextFieldTests extends AbstractXContentTestCase<SemanticTex
                 return new ChunkedSparseEmbeddingResults(chunks);
             }
             case TEXT_EMBEDDING -> {
-                List<org.elasticsearch.xpack.core.ml.inference.results.ChunkedTextEmbeddingResults.EmbeddingChunk> chunks =
-                    new ArrayList<>();
+                List<EmbeddingChunk<FloatEmbedding.FloatArrayWrapper>> chunks = new ArrayList<>();
                 for (var chunk : field.inference().chunks()) {
-                    double[] values = parseDenseVector(
+                    float[] values = parseDenseVector(
                         chunk.rawEmbeddings(),
                         field.inference().modelSettings().dimensions(),
                         field.contentType()
                     );
-                    chunks.add(
-                        new org.elasticsearch.xpack.core.ml.inference.results.ChunkedTextEmbeddingResults.EmbeddingChunk(
-                            chunk.text(),
-                            values
-                        )
-                    );
+                    chunks.add(new EmbeddingChunk<>(chunk.text(), new FloatEmbedding(values)));
                 }
-                return new ChunkedTextEmbeddingResults(chunks);
+                return new ChunkedTextEmbeddingFloatResults(chunks);
             }
             default -> throw new AssertionError("Invalid task_type: " + field.inference().modelSettings().taskType().name());
         }
     }
 
-    private static double[] parseDenseVector(BytesReference value, int numDims, XContentType contentType) {
+    private static float[] parseDenseVector(BytesReference value, int numDims, XContentType contentType) {
         try (XContentParser parser = XContentHelper.createParserNotCompressed(XContentParserConfiguration.EMPTY, value, contentType)) {
             parser.nextToken();
             assertThat(parser.currentToken(), equalTo(XContentParser.Token.START_ARRAY));
-            double[] values = new double[numDims];
+            float[] values = new float[numDims];
             for (int i = 0; i < numDims; i++) {
                 assertThat(parser.nextToken(), equalTo(XContentParser.Token.VALUE_NUMBER));
-                values[i] = parser.doubleValue();
+                values[i] = parser.floatValue();
             }
             assertThat(parser.nextToken(), equalTo(XContentParser.Token.END_ARRAY));
             return values;

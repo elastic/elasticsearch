@@ -32,7 +32,8 @@ import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.support.MapXContentParser;
 import org.elasticsearch.xpack.core.inference.results.ChunkedSparseEmbeddingResults;
-import org.elasticsearch.xpack.core.inference.results.ChunkedTextEmbeddingResults;
+import org.elasticsearch.xpack.core.inference.results.ChunkedTextEmbeddingByteResults;
+import org.elasticsearch.xpack.core.inference.results.ChunkedTextEmbeddingFloatResults;
 import org.elasticsearch.xpack.core.ml.search.WeightedToken;
 
 import java.io.IOException;
@@ -296,9 +297,23 @@ public record SemanticTextField(String fieldName, List<String> originalValues, I
                 for (var chunk : textExpansionResults.getChunkedResults()) {
                     chunks.add(new Chunk(chunk.matchedText(), toBytesReference(contentType.xContent(), chunk.weightedTokens())));
                 }
-            } else if (result instanceof ChunkedTextEmbeddingResults textEmbeddingResults) {
-                for (var chunk : textEmbeddingResults.getChunks()) {
-                    chunks.add(new Chunk(chunk.matchedText(), toBytesReference(contentType.xContent(), chunk.embedding())));
+            } else if (result instanceof ChunkedTextEmbeddingFloatResults textEmbeddingFloatResults) {
+                for (var chunk : textEmbeddingFloatResults.chunks()) {
+                    chunks.add(
+                        new Chunk(
+                            chunk.matchedText(),
+                            toBytesReference(contentType.xContent(), chunk.embedding().getEmbedding().getFloats())
+                        )
+                    );
+                }
+            } else if (result instanceof ChunkedTextEmbeddingByteResults textEmbeddingByteResults) {
+                for (var chunk : textEmbeddingByteResults.getChunks()) {
+                    chunks.add(
+                        new Chunk(
+                            chunk.matchedText(),
+                            toBytesReference(contentType.xContent(), chunk.embedding().getEmbedding().getBytes())
+                        )
+                    );
                 }
             } else {
                 throw new ElasticsearchStatusException(
@@ -316,11 +331,25 @@ public record SemanticTextField(String fieldName, List<String> originalValues, I
     /**
      * Serialises the {@code value} array, according to the provided {@link XContent}, into a {@link BytesReference}.
      */
-    private static BytesReference toBytesReference(XContent xContent, double[] value) {
+    private static BytesReference toBytesReference(XContent xContent, float[] value) {
         try {
             XContentBuilder b = XContentBuilder.builder(xContent);
             b.startArray();
-            for (double v : value) {
+            for (float v : value) {
+                b.value(v);
+            }
+            b.endArray();
+            return BytesReference.bytes(b);
+        } catch (IOException exc) {
+            throw new RuntimeException(exc);
+        }
+    }
+
+    private static BytesReference toBytesReference(XContent xContent, byte[] value) {
+        try {
+            XContentBuilder b = XContentBuilder.builder(xContent);
+            b.startArray();
+            for (byte v : value) {
                 b.value(v);
             }
             b.endArray();

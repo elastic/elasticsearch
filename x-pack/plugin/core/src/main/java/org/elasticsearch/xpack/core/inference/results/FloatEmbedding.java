@@ -27,7 +27,7 @@ public class FloatEmbedding extends Embedding<FloatEmbedding.FloatArrayWrapper> 
 
     public static class FloatArrayWrapper implements EmbeddingValues {
 
-        final float[] floats;
+        private final float[] floats;
 
         public FloatArrayWrapper(float[] floats) {
             this.floats = floats;
@@ -36,6 +36,10 @@ public class FloatEmbedding extends Embedding<FloatEmbedding.FloatArrayWrapper> 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             return valuesToXContent(EMBEDDING, builder, params);
+        }
+
+        public float[] getFloats() {
+            return floats;
         }
 
         @Override

@@ -56,6 +56,7 @@ import java.io.OutputStream;
 import java.net.InetSocketAddress;
 import java.nio.channels.ClosedChannelException;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -734,6 +735,7 @@ public class DefaultRestChannelTests extends ESTestCase {
             )
         );
 
+        final var parts = new ArrayList<ChunkedRestResponseBody>();
         class TestBody implements ChunkedRestResponseBody {
             boolean isDone;
             final BytesReference thisChunk;
@@ -764,7 +766,9 @@ public class DefaultRestChannelTests extends ESTestCase {
 
             @Override
             public void getContinuation(ActionListener<ChunkedRestResponseBody> listener) {
-                listener.onResponse(new TestBody(remainingChunks, remainingContinuations - 1));
+                final var continuation = new TestBody(remainingChunks, remainingContinuations - 1);
+                parts.add(continuation);
+                listener.onResponse(continuation);
             }
 
             @Override
@@ -781,6 +785,8 @@ public class DefaultRestChannelTests extends ESTestCase {
         }
 
         final var isClosed = new AtomicBoolean();
+        final var firstPart = new TestBody(responseBody, between(0, 3));
+        parts.add(firstPart);
         assertEquals(
             responseBody,
             ChunkedLoggingStreamTestUtils.getDecodedLoggedBody(
@@ -788,13 +794,13 @@ public class DefaultRestChannelTests extends ESTestCase {
                 Level.TRACE,
                 "[" + request.getRequestId() + "] response body",
                 ReferenceDocs.HTTP_TRACER,
-                () -> channel.sendResponse(
-                    RestResponse.chunked(
-                        RestStatus.OK,
-                        new TestBody(responseBody, between(0, 3)),
-                        () -> assertTrue(isClosed.compareAndSet(false, true))
-                    )
-                )
+                () -> channel.sendResponse(RestResponse.chunked(RestStatus.OK, firstPart, () -> {
+                    assertTrue(isClosed.compareAndSet(false, true));
+                    for (int i = 0; i < parts.size(); i++) {
+                        assertTrue("isDone " + i, parts.get(i).isDone());
+                        assertEquals("isEndOfResponse " + i, i == parts.size() - 1, parts.get(i).isEndOfResponse());
+                    }
+                }))
             )
         );
 

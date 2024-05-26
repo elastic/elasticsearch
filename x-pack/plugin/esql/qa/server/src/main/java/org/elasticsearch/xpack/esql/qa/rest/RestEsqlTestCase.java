@@ -173,9 +173,6 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
 
         public RequestObjectBuilder build() throws IOException {
             if (isBuilt == false) {
-                if ("true".equals(System.getProperty("tests.version_parameter_required"))) {
-                    builder.field("version", "2024.04.01");
-                }
                 builder.endObject();
                 isBuilt = true;
             }

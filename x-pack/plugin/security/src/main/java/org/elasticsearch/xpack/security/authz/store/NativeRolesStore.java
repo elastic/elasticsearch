@@ -31,6 +31,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.license.LicenseUtils;
@@ -74,6 +75,7 @@ import static org.elasticsearch.xpack.core.security.authz.RoleDescriptor.ROLE_TY
 import static org.elasticsearch.xpack.security.support.SecurityIndexManager.Availability.PRIMARY_SHARDS;
 import static org.elasticsearch.xpack.security.support.SecurityIndexManager.Availability.SEARCH_SHARDS;
 import static org.elasticsearch.xpack.security.support.SecuritySystemIndices.SECURITY_MAIN_ALIAS;
+import static org.elasticsearch.xpack.security.support.SecuritySystemIndices.SECURITY_ROLES_METADATA_FLATTENED;
 
 /**
  * NativeRolesStore is a {@code RolesStore} that, instead of reading from a
@@ -113,18 +115,22 @@ public class NativeRolesStore implements BiConsumer<Set<String>, ActionListener<
 
     private final ClusterService clusterService;
 
+    private final FeatureService featureService;
+
     public NativeRolesStore(
         Settings settings,
         Client client,
         XPackLicenseState licenseState,
         SecurityIndexManager securityIndex,
-        ClusterService clusterService
+        ClusterService clusterService,
+        FeatureService featureService
     ) {
         this.settings = settings;
         this.client = client;
         this.licenseState = licenseState;
         this.securityIndex = securityIndex;
         this.clusterService = clusterService;
+        this.featureService = featureService;
         this.enabled = settings.getAsBoolean(NATIVE_ROLES_ENABLED, true);
     }
 
@@ -299,7 +305,12 @@ public class NativeRolesStore implements BiConsumer<Set<String>, ActionListener<
         securityIndex.prepareIndexIfNeededThenExecute(listener::onFailure, () -> {
             final XContentBuilder xContentBuilder;
             try {
-                xContentBuilder = role.toXContent(jsonBuilder(), ToXContent.EMPTY_PARAMS, true);
+                xContentBuilder = role.toXContent(
+                    jsonBuilder(),
+                    ToXContent.EMPTY_PARAMS,
+                    true,
+                    featureService.clusterHasFeature(clusterService.state(), SECURITY_ROLES_METADATA_FLATTENED)
+                );
             } catch (IOException e) {
                 listener.onFailure(e);
                 return;

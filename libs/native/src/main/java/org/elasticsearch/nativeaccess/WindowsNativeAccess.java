@@ -28,10 +28,12 @@ class WindowsNativeAccess extends AbstractNativeAccess {
     public static final int MEM_COMMIT = 0x1000;
 
     private final Kernel32Library kernel;
+    private final WindowsFunctions windowsFunctions;
 
     WindowsNativeAccess(NativeLibraryProvider libraryProvider) {
         super("Windows", libraryProvider);
         this.kernel = libraryProvider.getLibrary(Kernel32Library.class);
+        this.windowsFunctions = new WindowsFunctions(kernel);
     }
 
     @Override
@@ -69,6 +71,11 @@ class WindowsNativeAccess extends AbstractNativeAccess {
     @Override
     public ProcessLimits getProcessLimits() {
         return new ProcessLimits(ProcessLimits.UNKNOWN, ProcessLimits.UNKNOWN, ProcessLimits.UNKNOWN);
+    }
+
+    @Override
+    public WindowsFunctions getWindowsFunctions() {
+        return windowsFunctions;
     }
 
     @Override

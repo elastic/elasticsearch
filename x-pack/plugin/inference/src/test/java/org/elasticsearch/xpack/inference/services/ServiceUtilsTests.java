@@ -765,11 +765,7 @@ public class ServiceUtilsTests extends ESTestCase {
 
         var size = listener.actionGet(TIMEOUT);
 
-<<<<<<< HEAD
         assertThat(size, is(textEmbedding.embeddings().get(0).getEmbedding().size()));
-=======
-        assertThat(size, is(textEmbedding.embeddings().get(0).getSize()));
->>>>>>> main
     }
 
     public void testGetEmbeddingSize_ReturnsSize_ForTextEmbeddingByteResults() {
@@ -793,11 +789,7 @@ public class ServiceUtilsTests extends ESTestCase {
 
         var size = listener.actionGet(TIMEOUT);
 
-<<<<<<< HEAD
         assertThat(size, is(textEmbedding.embeddings().get(0).getEmbedding().size()));
-=======
-        assertThat(size, is(textEmbedding.embeddings().get(0).getSize()));
->>>>>>> main
     }
 
     private static <K, V> Map<K, V> modifiableMap(Map<K, V> aMap) {

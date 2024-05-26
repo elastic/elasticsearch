@@ -13,8 +13,17 @@ import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.List;
 
 public class ByteEmbedding extends Embedding<ByteEmbedding.ByteArrayWrapper> {
+
+    public static ByteEmbedding of(List<Byte> embedding) {
+        byte[] embeddingBytes = new byte[embedding.size()];
+        for (int i = 0; i < embedding.size(); i++) {
+            embeddingBytes[i] = embedding.get(i);
+        }
+        return new ByteEmbedding(embeddingBytes);
+    }
 
     /**
      * Wrapper so around a primitive byte array so that it can be
@@ -30,12 +39,7 @@ public class ByteEmbedding extends Embedding<ByteEmbedding.ByteArrayWrapper> {
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            builder.startArray(EMBEDDING);
-            for (var value : bytes) {
-                builder.value(value);
-            }
-            builder.endArray();
-            return builder;
+            return valuesToXContent(EMBEDDING, builder, params);
         }
 
         @Override
@@ -44,8 +48,13 @@ public class ByteEmbedding extends Embedding<ByteEmbedding.ByteArrayWrapper> {
         }
 
         @Override
-        public XContentBuilder valuesToXContent(String fieldName, XContentBuilder builder, Params params) {
-            return null;
+        public XContentBuilder valuesToXContent(String fieldName, XContentBuilder builder, Params params) throws IOException {
+            builder.startArray(fieldName);
+            for (var value : bytes) {
+                builder.value(value);
+            }
+            builder.endArray();
+            return builder;
         }
 
         @Override

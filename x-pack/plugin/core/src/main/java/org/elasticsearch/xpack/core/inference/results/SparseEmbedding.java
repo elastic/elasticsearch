@@ -14,6 +14,7 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.ml.inference.results.TextExpansionResults;
+import org.elasticsearch.xpack.core.ml.search.WeightedToken;
 
 import java.io.IOException;
 import java.util.LinkedHashMap;
@@ -25,9 +26,12 @@ public class SparseEmbedding extends Embedding<SparseEmbedding.WeightedTokens> {
 
     public static final String IS_TRUNCATED = "is_truncated";
 
-    public static SparseEmbedding create(List<TextExpansionResults.WeightedToken> weightedTokens, boolean isTruncated) {
+    public static SparseEmbedding fromMlResults(
+        List<org.elasticsearch.xpack.core.ml.search.WeightedToken> weightedTokens,
+        boolean isTruncated
+    ) {
         return new SparseEmbedding(
-            weightedTokens.stream().map(token -> new WeightedToken(token.token(), token.weight())).toList(),
+            new WeightedTokens(weightedTokens.stream().map(token -> new WeightedToken(token.token(), token.weight())).toList()),
             isTruncated
         );
     }
@@ -35,17 +39,22 @@ public class SparseEmbedding extends Embedding<SparseEmbedding.WeightedTokens> {
     private final boolean isTruncated;
 
     public SparseEmbedding(StreamInput in) throws IOException {
-        this(in.readCollectionAsImmutableList(SparseEmbedding.WeightedToken::new), in.readBoolean());
+        this(new WeightedTokens(in.readCollectionAsImmutableList(SparseEmbedding.WeightedToken::new)), in.readBoolean());
     }
 
-    public SparseEmbedding(WeightedTokens embeddings, boolean isTruncated) {
+    public SparseEmbedding(WeightedTokens embedding, boolean isTruncated) {
         super(embedding);
+        this.isTruncated = isTruncated;
+    }
+
+    public SparseEmbedding(List<WeightedToken> tokens, boolean isTruncated) {
+        super(new WeightedTokens(tokens));
         this.isTruncated = isTruncated;
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeCollection(embedding);
+        out.writeCollection(embedding.tokens);
         out.writeBoolean(isTruncated);
     }
 
@@ -53,13 +62,7 @@ public class SparseEmbedding extends Embedding<SparseEmbedding.WeightedTokens> {
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         builder.field(IS_TRUNCATED, isTruncated);
-        builder.startObject(EMBEDDING);
-
-        for (var weightedToken : embedding) {
-            weightedToken.toXContent(builder, params);
-        }
-
-        builder.endObject();
+        embedding.toXContent(builder, params);
         builder.endObject();
         return builder;
     }
@@ -76,7 +79,11 @@ public class SparseEmbedding extends Embedding<SparseEmbedding.WeightedTokens> {
         return new LinkedHashMap<>(Map.of(IS_TRUNCATED, isTruncated, EMBEDDING, embeddingMap));
     }
 
-    public static class WeightedTokens() implements Embedding.EmbeddingValues {
+    public List<WeightedToken> tokens() {
+        return embedding.tokens;
+    }
+
+    public static class WeightedTokens implements Embedding.EmbeddingValues {
 
         private final List<WeightedToken> tokens;
 
@@ -86,12 +93,7 @@ public class SparseEmbedding extends Embedding<SparseEmbedding.WeightedTokens> {
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            builder.startObject(EMBEDDING);
-            for (var weightedToken : tokens) {
-                weightedToken.toXContent(builder, params);
-            }
-            builder.endObject();
-            return builder;
+            return valuesToXContent(EMBEDDING, builder, params);
         }
 
         @Override
@@ -100,8 +102,17 @@ public class SparseEmbedding extends Embedding<SparseEmbedding.WeightedTokens> {
         }
 
         @Override
-        public XContentBuilder valuesToXContent(String fieldName, XContentBuilder builder, Params params) {
-            return null;
+        public XContentBuilder valuesToXContent(String fieldName, XContentBuilder builder, Params params) throws IOException {
+            builder.startObject(fieldName);
+            for (var weightedToken : tokens) {
+                weightedToken.toXContent(builder, params);
+            }
+            builder.endObject();
+            return builder;
+        }
+
+        public List<WeightedToken> tokens() {
+            return tokens;
         }
     }
 

@@ -187,24 +187,14 @@ public class EmbeddingRequestChunkerTests extends ESTestCase {
         {
             var embeddings = new ArrayList<FloatEmbedding>();
             for (int i = 0; i < batchSize; i++) {
-<<<<<<< HEAD
-                embeddings.add(new FloatEmbedding(List.of(randomFloat())));
-=======
-                embeddings.add(new TextEmbeddingResults.Embedding(new float[] { randomFloat() }));
->>>>>>> main
+                embeddings.add(FloatEmbedding.of(List.of(randomFloat())));
             }
             batches.get(0).listener().onResponse(new TextEmbeddingResults(embeddings));
         }
         {
-<<<<<<< HEAD
             var embeddings = new ArrayList<FloatEmbedding>();
             for (int i = 0; i < 2; i++) { // 2 requests in the 2nd batch
-                embeddings.add(new FloatEmbedding(List.of(randomFloat())));
-=======
-            var embeddings = new ArrayList<TextEmbeddingResults.Embedding>();
-            for (int i = 0; i < 4; i++) { // 4 requests in the 2nd batch
-                embeddings.add(new TextEmbeddingResults.Embedding(new float[] { randomFloat() }));
->>>>>>> main
+                embeddings.add(FloatEmbedding.of(List.of(randomFloat())));
             }
             batches.get(1).listener().onResponse(new TextEmbeddingResults(embeddings));
         }
@@ -313,14 +303,14 @@ public class EmbeddingRequestChunkerTests extends ESTestCase {
         {
             var embeddings = new ArrayList<ByteEmbedding>();
             for (int i = 0; i < batchSize; i++) {
-                embeddings.add(new ByteEmbedding(List.of(randomByte())));
+                embeddings.add(ByteEmbedding.of(List.of(randomByte())));
             }
             batches.get(0).listener().onResponse(new TextEmbeddingByteResults(embeddings));
         }
         {
             var embeddings = new ArrayList<ByteEmbedding>();
             for (int i = 0; i < 2; i++) { // 2 requests in the 2nd batch
-                embeddings.add(new ByteEmbedding(List.of(randomByte())));
+                embeddings.add(ByteEmbedding.of(List.of(randomByte())));
             }
             batches.get(1).listener().onResponse(new TextEmbeddingByteResults(embeddings));
         }
@@ -358,8 +348,8 @@ public class EmbeddingRequestChunkerTests extends ESTestCase {
         var batches = new EmbeddingRequestChunker(inputs, 1, 100, 0).batchRequestsWithListeners(listener);
         assertThat(batches, hasSize(2));
 
-        batches.get(0).listener().onResponse(new TextEmbeddingByteResults(List.of(new ByteEmbedding(List.of(randomByte())))));
-        batches.get(1).listener().onResponse(new TextEmbeddingResults(List.of(new FloatEmbedding(List.of(randomFloat())))));
+        batches.get(0).listener().onResponse(new TextEmbeddingByteResults(List.of(ByteEmbedding.of(List.of(randomByte())))));
+        batches.get(1).listener().onResponse(new TextEmbeddingResults(List.of(FloatEmbedding.of(List.of(randomFloat())))));
 
         assertThat(result.get().get(0), instanceOf(ChunkedTextEmbeddingByteResults.class));
         assertThat(result.get().get(1), instanceOf(ErrorChunkedInferenceResults.class));
@@ -394,15 +384,9 @@ public class EmbeddingRequestChunkerTests extends ESTestCase {
         var batches = new EmbeddingRequestChunker(inputs, 10, 100, 0).batchRequestsWithListeners(listener);
         assertThat(batches, hasSize(1));
 
-<<<<<<< HEAD
         var embeddings = new ArrayList<FloatEmbedding>();
-        embeddings.add(new FloatEmbedding(List.of(randomFloat())));
-        embeddings.add(new FloatEmbedding(List.of(randomFloat())));
-=======
-        var embeddings = new ArrayList<TextEmbeddingResults.Embedding>();
-        embeddings.add(new TextEmbeddingResults.Embedding(new float[] { randomFloat() }));
-        embeddings.add(new TextEmbeddingResults.Embedding(new float[] { randomFloat() }));
->>>>>>> main
+        embeddings.add(FloatEmbedding.of(List.of(randomFloat())));
+        embeddings.add(FloatEmbedding.of(List.of(randomFloat())));
         batches.get(0).listener().onResponse(new TextEmbeddingResults(embeddings));
         assertEquals("Error the number of embedding responses [2] does not equal the number of requests [3]", failureMessage.get());
     }

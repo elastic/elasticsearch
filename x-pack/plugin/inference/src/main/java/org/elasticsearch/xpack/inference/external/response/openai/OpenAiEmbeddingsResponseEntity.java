@@ -102,11 +102,7 @@ public class OpenAiEmbeddingsResponseEntity {
         // parse and discard the rest of the object
         consumeUntilObjectEnd(parser);
 
-<<<<<<< HEAD
-        return new FloatEmbedding(embeddingValues);
-=======
-        return TextEmbeddingResults.Embedding.of(embeddingValuesList);
->>>>>>> main
+        return FloatEmbedding.of(embeddingValuesList);
     }
 
     private static float parseEmbeddingList(XContentParser parser) throws IOException {

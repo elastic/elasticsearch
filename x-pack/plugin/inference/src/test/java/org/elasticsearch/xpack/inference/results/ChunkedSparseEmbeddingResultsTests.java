@@ -74,11 +74,7 @@ public class ChunkedSparseEmbeddingResultsTests extends AbstractWireSerializingT
     public void testToXContent_CreatesTheRightJsonForASingleChunk_FromSparseEmbeddingResults() {
         var entity = ChunkedSparseEmbeddingResults.of(
             List.of("text"),
-<<<<<<< HEAD
             new SparseEmbeddingResults(List.of(new SparseEmbedding(List.of(new SparseEmbedding.WeightedToken("token", 0.1f)), false)))
-=======
-            new SparseEmbeddingResults(List.of(new SparseEmbeddingResults.Embedding(List.of(new WeightedToken("token", 0.1f)), false)))
->>>>>>> main
         );
 
         assertThat(entity.size(), is(1));
@@ -114,11 +110,7 @@ public class ChunkedSparseEmbeddingResultsTests extends AbstractWireSerializingT
             IllegalArgumentException.class,
             () -> ChunkedSparseEmbeddingResults.of(
                 List.of("text", "text2"),
-<<<<<<< HEAD
                 new SparseEmbeddingResults(List.of(new SparseEmbedding(List.of(new SparseEmbedding.WeightedToken("token", 0.1f)), false)))
-=======
-                new SparseEmbeddingResults(List.of(new SparseEmbeddingResults.Embedding(List.of(new WeightedToken("token", 0.1f)), false)))
->>>>>>> main
             )
         );
 

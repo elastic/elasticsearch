@@ -193,12 +193,7 @@ public class CohereEmbeddingsResponseEntity {
     private static ByteEmbedding parseByteArrayEntry(XContentParser parser) throws IOException {
         XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_ARRAY, parser.currentToken(), parser);
         List<Byte> embeddingValuesList = XContentParserUtils.parseList(parser, CohereEmbeddingsResponseEntity::parseEmbeddingInt8Entry);
-
-<<<<<<< HEAD
-        return new ByteEmbedding(embeddingValues);
-=======
-        return TextEmbeddingByteResults.Embedding.of(embeddingValuesList);
->>>>>>> main
+        return ByteEmbedding.of(embeddingValuesList);
     }
 
     private static Byte parseEmbeddingInt8Entry(XContentParser parser) throws IOException {
@@ -224,14 +219,8 @@ public class CohereEmbeddingsResponseEntity {
 
     private static FloatEmbedding parseFloatArrayEntry(XContentParser parser) throws IOException {
         XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_ARRAY, parser.currentToken(), parser);
-<<<<<<< HEAD
         List<Float> embeddingValues = XContentParserUtils.parseList(parser, CohereEmbeddingsResponseEntity::parseEmbeddingFloatEntry);
-
-        return new FloatEmbedding(embeddingValues);
-=======
-        List<Float> embeddingValuesList = XContentParserUtils.parseList(parser, CohereEmbeddingsResponseEntity::parseEmbeddingFloatEntry);
-        return TextEmbeddingResults.Embedding.of(embeddingValuesList);
->>>>>>> main
+        return FloatEmbedding.of(embeddingValues);
     }
 
     private static Float parseEmbeddingFloatEntry(XContentParser parser) throws IOException {

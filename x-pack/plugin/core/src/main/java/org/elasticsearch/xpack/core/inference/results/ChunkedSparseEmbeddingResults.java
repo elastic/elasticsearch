@@ -50,7 +50,7 @@ public class ChunkedSparseEmbeddingResults implements ChunkedInferenceServiceRes
     }
 
     public static ChunkedSparseEmbeddingResults of(String input, SparseEmbedding embedding) {
-        var weightedTokens = embedding.getEmbedding()
+        var weightedTokens = embedding.tokens()
             .stream()
             .map(weightedToken -> new WeightedToken(weightedToken.token(), weightedToken.weight()))
             .toList();
@@ -58,15 +58,14 @@ public class ChunkedSparseEmbeddingResults implements ChunkedInferenceServiceRes
         return new ChunkedSparseEmbeddingResults(List.of(new ChunkedTextExpansionResults.ChunkedResult(input, weightedTokens)));
     }
 
-    public static ChunkedSparseEmbeddingResults of(List<EmbeddingChunk<SparseEmbedding.WeightedToken>> embeddingChunks) {
+    public static ChunkedSparseEmbeddingResults of(List<EmbeddingChunk<SparseEmbedding.WeightedTokens>> embeddingChunks) {
         var ch = embeddingChunks.stream()
             .map(
                 chunk -> new ChunkedTextExpansionResults.ChunkedResult(
                     chunk.matchedText(),
-                    chunk.embedding()
-                        .getEmbedding()
+                    chunk.embedding().embedding.tokens()
                         .stream()
-                        .map(weightedToken -> new TextExpansionResults.WeightedToken(weightedToken.token(), weightedToken.weight()))
+                        .map(weightedToken -> new WeightedToken(weightedToken.token(), weightedToken.weight()))
                         .toList()
                 )
             )

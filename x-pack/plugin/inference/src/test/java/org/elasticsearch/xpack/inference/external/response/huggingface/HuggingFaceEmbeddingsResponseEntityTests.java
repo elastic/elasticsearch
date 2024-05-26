@@ -38,14 +38,7 @@ public class HuggingFaceEmbeddingsResponseEntityTests extends ESTestCase {
             new HttpResult(mock(HttpResponse.class), responseJson.getBytes(StandardCharsets.UTF_8))
         );
 
-<<<<<<< HEAD
-        assertThat(parsedResults.embeddings(), is(List.of(new FloatEmbedding(List.of(0.014539449F, -0.015288644F)))));
-=======
-        assertThat(
-            parsedResults.embeddings(),
-            is(List.of(new TextEmbeddingResults.Embedding(new float[] { 0.014539449F, -0.015288644F })))
-        );
->>>>>>> main
+        assertThat(parsedResults.embeddings(), is(List.of(FloatEmbedding.of(List.of(0.014539449F, -0.015288644F)))));
     }
 
     public void testFromResponse_CreatesResultsForASingleItem_ObjectFormat() throws IOException {
@@ -65,14 +58,7 @@ public class HuggingFaceEmbeddingsResponseEntityTests extends ESTestCase {
             new HttpResult(mock(HttpResponse.class), responseJson.getBytes(StandardCharsets.UTF_8))
         );
 
-<<<<<<< HEAD
-        assertThat(parsedResults.embeddings(), is(List.of(new FloatEmbedding(List.of(0.014539449F, -0.015288644F)))));
-=======
-        assertThat(
-            parsedResults.embeddings(),
-            is(List.of(new TextEmbeddingResults.Embedding(new float[] { 0.014539449F, -0.015288644F })))
-        );
->>>>>>> main
+        assertThat(parsedResults.embeddings(), is(List.of(FloatEmbedding.of(List.of(0.014539449F, -0.015288644F)))));
     }
 
     public void testFromResponse_CreatesResultsForMultipleItems_ArrayFormat() throws IOException {
@@ -96,16 +82,7 @@ public class HuggingFaceEmbeddingsResponseEntityTests extends ESTestCase {
 
         assertThat(
             parsedResults.embeddings(),
-<<<<<<< HEAD
-            is(List.of(new FloatEmbedding(List.of(0.014539449F, -0.015288644F)), new FloatEmbedding(List.of(0.0123F, -0.0123F))))
-=======
-            is(
-                List.of(
-                    new TextEmbeddingResults.Embedding(new float[] { 0.014539449F, -0.015288644F }),
-                    new TextEmbeddingResults.Embedding(new float[] { 0.0123F, -0.0123F })
-                )
-            )
->>>>>>> main
+            is(List.of(FloatEmbedding.of(List.of(0.014539449F, -0.015288644F)), FloatEmbedding.of(List.of(0.0123F, -0.0123F))))
         );
     }
 
@@ -132,16 +109,7 @@ public class HuggingFaceEmbeddingsResponseEntityTests extends ESTestCase {
 
         assertThat(
             parsedResults.embeddings(),
-<<<<<<< HEAD
-            is(List.of(new FloatEmbedding(List.of(0.014539449F, -0.015288644F)), new FloatEmbedding(List.of(0.0123F, -0.0123F))))
-=======
-            is(
-                List.of(
-                    new TextEmbeddingResults.Embedding(new float[] { 0.014539449F, -0.015288644F }),
-                    new TextEmbeddingResults.Embedding(new float[] { 0.0123F, -0.0123F })
-                )
-            )
->>>>>>> main
+            is(List.of(FloatEmbedding.of(List.of(0.014539449F, -0.015288644F)), FloatEmbedding.of(List.of(0.0123F, -0.0123F))))
         );
     }
 
@@ -277,11 +245,7 @@ public class HuggingFaceEmbeddingsResponseEntityTests extends ESTestCase {
             new HttpResult(mock(HttpResponse.class), responseJson.getBytes(StandardCharsets.UTF_8))
         );
 
-<<<<<<< HEAD
-        assertThat(parsedResults.embeddings(), is(List.of(new FloatEmbedding(List.of(1.0F)))));
-=======
-        assertThat(parsedResults.embeddings(), is(List.of(new TextEmbeddingResults.Embedding(new float[] { 1.0F }))));
->>>>>>> main
+        assertThat(parsedResults.embeddings(), is(List.of(FloatEmbedding.of(List.of(1.0F)))));
     }
 
     public void testFromResponse_SucceedsWhenEmbeddingValueIsInt_ObjectFormat() throws IOException {
@@ -300,11 +264,7 @@ public class HuggingFaceEmbeddingsResponseEntityTests extends ESTestCase {
             new HttpResult(mock(HttpResponse.class), responseJson.getBytes(StandardCharsets.UTF_8))
         );
 
-<<<<<<< HEAD
-        assertThat(parsedResults.embeddings(), is(List.of(new FloatEmbedding(List.of(1.0F)))));
-=======
-        assertThat(parsedResults.embeddings(), is(List.of(new TextEmbeddingResults.Embedding(new float[] { 1.0F }))));
->>>>>>> main
+        assertThat(parsedResults.embeddings(), is(List.of(FloatEmbedding.of(List.of(1.0F)))));
     }
 
     public void testFromResponse_SucceedsWhenEmbeddingValueIsLong_ArrayFormat() throws IOException {
@@ -321,11 +281,7 @@ public class HuggingFaceEmbeddingsResponseEntityTests extends ESTestCase {
             new HttpResult(mock(HttpResponse.class), responseJson.getBytes(StandardCharsets.UTF_8))
         );
 
-<<<<<<< HEAD
-        assertThat(parsedResults.embeddings(), is(List.of(new FloatEmbedding(List.of(4.0294965E10F)))));
-=======
-        assertThat(parsedResults.embeddings(), is(List.of(new TextEmbeddingResults.Embedding(new float[] { 4.0294965E10F }))));
->>>>>>> main
+        assertThat(parsedResults.embeddings(), is(List.of(FloatEmbedding.of(List.of(4.0294965E10F)))));
     }
 
     public void testFromResponse_SucceedsWhenEmbeddingValueIsLong_ObjectFormat() throws IOException {
@@ -344,11 +300,7 @@ public class HuggingFaceEmbeddingsResponseEntityTests extends ESTestCase {
             new HttpResult(mock(HttpResponse.class), responseJson.getBytes(StandardCharsets.UTF_8))
         );
 
-<<<<<<< HEAD
-        assertThat(parsedResults.embeddings(), is(List.of(new FloatEmbedding(List.of(4.0294965E10F)))));
-=======
-        assertThat(parsedResults.embeddings(), is(List.of(new TextEmbeddingResults.Embedding(new float[] { 4.0294965E10F }))));
->>>>>>> main
+        assertThat(parsedResults.embeddings(), is(List.of(FloatEmbedding.of(List.of(4.0294965E10F)))));
     }
 
     public void testFromResponse_FailsWhenEmbeddingValueIsAnObject_ObjectFormat() {

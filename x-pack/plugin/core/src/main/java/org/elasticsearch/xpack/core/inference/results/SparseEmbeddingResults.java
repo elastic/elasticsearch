@@ -40,7 +40,7 @@ public record SparseEmbeddingResults(List<SparseEmbedding> embeddings) implement
 
         for (InferenceResults result : results) {
             if (result instanceof TextExpansionResults expansionResults) {
-                embeddings.add(SparseEmbedding.create(expansionResults.getWeightedTokens(), expansionResults.isTruncated()));
+                embeddings.add(SparseEmbedding.fromMlResults(expansionResults.getWeightedTokens(), expansionResults.isTruncated()));
             } else if (result instanceof org.elasticsearch.xpack.core.ml.inference.results.ErrorInferenceResults errorResult) {
                 if (errorResult.getException() instanceof ElasticsearchStatusException statusException) {
                     throw statusException;
@@ -104,7 +104,7 @@ public record SparseEmbeddingResults(List<SparseEmbedding> embeddings) implement
             .map(
                 embedding -> new TextExpansionResults(
                     DEFAULT_RESULTS_FIELD,
-                    embedding.getEmbedding()
+                    embedding.tokens()
                         .stream()
                         .map(weightedToken -> new WeightedToken(weightedToken.token(), weightedToken.weight()))
                         .toList(),

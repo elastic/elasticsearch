@@ -13,8 +13,17 @@ import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.List;
 
 public class FloatEmbedding extends Embedding<FloatEmbedding.FloatArrayWrapper> {
+
+    public static FloatEmbedding of(List<Float> embedding) {
+        float[] embeddingFloats = new float[embedding.size()];
+        for (int i = 0; i < embedding.size(); i++) {
+            embeddingFloats[i] = embedding.get(i);
+        }
+        return new FloatEmbedding(embeddingFloats);
+    }
 
     public static class FloatArrayWrapper implements EmbeddingValues {
 
@@ -26,12 +35,7 @@ public class FloatEmbedding extends Embedding<FloatEmbedding.FloatArrayWrapper> 
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            builder.startArray(EMBEDDING);
-            for (var value : floats) {
-                builder.value(value);
-            }
-            builder.endArray();
-            return builder;
+            return valuesToXContent(EMBEDDING, builder, params);
         }
 
         @Override
@@ -40,8 +44,13 @@ public class FloatEmbedding extends Embedding<FloatEmbedding.FloatArrayWrapper> 
         }
 
         @Override
-        public XContentBuilder valuesToXContent(String fieldName, XContentBuilder builder, Params params) {
-            return null;
+        public XContentBuilder valuesToXContent(String fieldName, XContentBuilder builder, Params params) throws IOException {
+            builder.startArray(fieldName);
+            for (var value : floats) {
+                builder.value(value);
+            }
+            builder.endArray();
+            return builder;
         }
 
         @Override
@@ -65,6 +74,8 @@ public class FloatEmbedding extends Embedding<FloatEmbedding.FloatArrayWrapper> 
     public FloatEmbedding(float[] embedding) {
         super(new FloatArrayWrapper(embedding));
     }
+
+
 
     public float[] asFloatArray() {
         return embedding.floats;

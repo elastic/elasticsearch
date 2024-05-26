@@ -145,11 +145,7 @@ public class TestDenseInferenceServiceExtension implements InferenceServiceExten
                 for (int j = 0; j < dimensions; j++) {
                     floatEmbeddings.add((float) doubleEmbeddings[j]);
                 }
-<<<<<<< HEAD
-                embeddings.add(new FloatEmbedding(values));
-=======
-                embeddings.add(TextEmbeddingResults.Embedding.of(floatEmbeddings));
->>>>>>> main
+                embeddings.add(FloatEmbedding.of(floatEmbeddings));
             }
             return new TextEmbeddingResults(embeddings);
         }

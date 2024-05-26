@@ -23,7 +23,7 @@ public abstract class Embedding<T extends Embedding.EmbeddingValues> implements 
 
     public interface EmbeddingValues extends ToXContentFragment {
         int size();
-        XContentBuilder valuesToXContent(String fieldName, XContentBuilder builder, Params params);
+        XContentBuilder valuesToXContent(String fieldName, XContentBuilder builder, Params params) throws IOException;
     }
 
     protected final T embedding;

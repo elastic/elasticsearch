@@ -130,15 +130,9 @@ public class TestSparseInferenceServiceExtension implements InferenceServiceExte
         private SparseEmbeddingResults makeResults(List<String> input) {
             var embeddings = new ArrayList<SparseEmbedding>();
             for (int i = 0; i < input.size(); i++) {
-<<<<<<< HEAD
                 var tokens = new ArrayList<SparseEmbedding.WeightedToken>();
                 for (int j = 0; j < 5; j++) {
-                    tokens.add(new SparseEmbedding.WeightedToken("feature_" + j, stringWeight(input.get(i), j)));
-=======
-                var tokens = new ArrayList<WeightedToken>();
-                for (int j = 0; j < 5; j++) {
-                    tokens.add(new WeightedToken("feature_" + j, generateEmbedding(input.get(i), j)));
->>>>>>> main
+                    tokens.add(new SparseEmbedding.WeightedToken("feature_" + j, generateEmbedding(input.get(i), j)));
                 }
                 embeddings.add(new SparseEmbedding(tokens, false));
             }

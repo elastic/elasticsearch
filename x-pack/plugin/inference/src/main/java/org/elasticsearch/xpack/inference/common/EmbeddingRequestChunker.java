@@ -279,9 +279,9 @@ public class EmbeddingRequestChunker {
 
             assert chunks.size() == all.size();
 
-            var embeddingChunks = new ArrayList<EmbeddingChunk<Float>>();
+            var embeddingChunks = new ArrayList<EmbeddingChunk<FloatEmbedding.FloatArrayWrapper>>();
             for (int i = 0; i < chunks.size(); i++) {
-                embeddingChunks.add(new EmbeddingChunk<Float>(chunks.get(i), all.get(i)));
+                embeddingChunks.add(new EmbeddingChunk<>(chunks.get(i), all.get(i)));
             }
 
             return new ChunkedTextEmbeddingFloatResults(embeddingChunks);
@@ -309,9 +309,9 @@ public class EmbeddingRequestChunker {
 
             assert chunks.size() == all.size();
 
-            var embeddingChunks = new ArrayList<EmbeddingChunk<Byte>>();
+            var embeddingChunks = new ArrayList<EmbeddingChunk<ByteEmbedding.ByteArrayWrapper>>();
             for (int i = 0; i < chunks.size(); i++) {
-                embeddingChunks.add(new EmbeddingChunk<Byte>(chunks.get(i), all.get(i)));
+                embeddingChunks.add(new EmbeddingChunk<>(chunks.get(i), all.get(i)));
             }
 
             return new ChunkedTextEmbeddingByteResults(embeddingChunks, false);
@@ -339,7 +339,7 @@ public class EmbeddingRequestChunker {
 
             assert chunks.size() == all.size();
 
-            var embeddingChunks = new ArrayList<EmbeddingChunk<SparseEmbedding.WeightedToken>>();
+            var embeddingChunks = new ArrayList<EmbeddingChunk<SparseEmbedding.WeightedTokens>>();
             for (int i = 0; i < chunks.size(); i++) {
                 embeddingChunks.add(new EmbeddingChunk<>(chunks.get(i), all.get(i)));
             }

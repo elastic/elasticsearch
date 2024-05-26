@@ -10,11 +10,9 @@ package org.elasticsearch.xpack.inference.results;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
-<<<<<<< HEAD
+import org.elasticsearch.xpack.core.inference.results.ByteEmbedding;
 import org.elasticsearch.xpack.core.inference.results.FloatEmbedding;
-=======
 import org.elasticsearch.xpack.core.inference.results.TextEmbeddingByteResults;
->>>>>>> main
 import org.elasticsearch.xpack.core.inference.results.TextEmbeddingResults;
 
 import java.io.IOException;
@@ -47,16 +45,12 @@ public class TextEmbeddingResultsTests extends AbstractWireSerializingTestCase<T
     }
 
     public void testToXContent_CreatesTheRightFormatForASingleEmbedding() throws IOException {
-<<<<<<< HEAD
-        var entity = new TextEmbeddingResults(List.of(new FloatEmbedding(List.of(0.1F))));
+        var entity = new TextEmbeddingResults(List.of(FloatEmbedding.of(List.of(0.1F))));
 
         assertThat(
             entity.asMap(),
             is(Map.of(TextEmbeddingResults.TEXT_EMBEDDING, List.of(Map.of(FloatEmbedding.EMBEDDING, List.of(0.1F)))))
         );
-=======
-        var entity = new TextEmbeddingResults(List.of(new TextEmbeddingResults.Embedding(new float[] { 0.1F })));
->>>>>>> main
 
         String xContentResult = Strings.toString(entity, true, true);
         assertThat(xContentResult, is("""
@@ -72,11 +66,7 @@ public class TextEmbeddingResultsTests extends AbstractWireSerializingTestCase<T
     }
 
     public void testToXContent_CreatesTheRightFormatForMultipleEmbeddings() throws IOException {
-        var entity = new TextEmbeddingResults(
-<<<<<<< HEAD
-            List.of(new FloatEmbedding(List.of(0.1F)), new FloatEmbedding(List.of(0.2F)))
-
-        );
+        var entity = new TextEmbeddingResults(List.of(FloatEmbedding.of(List.of(0.1F)), FloatEmbedding.of(List.of(0.2F))));
 
         assertThat(
             entity.asMap(),
@@ -88,12 +78,6 @@ public class TextEmbeddingResultsTests extends AbstractWireSerializingTestCase<T
             )
         );
 
-=======
-            List.of(new TextEmbeddingResults.Embedding(new float[] { 0.1F }), new TextEmbeddingResults.Embedding(new float[] { 0.2F }))
-
-        );
-
->>>>>>> main
         String xContentResult = Strings.toString(entity, true, true);
         assertThat(xContentResult, is("""
             {
@@ -113,17 +97,8 @@ public class TextEmbeddingResultsTests extends AbstractWireSerializingTestCase<T
     }
 
     public void testTransformToCoordinationFormat() {
-<<<<<<< HEAD
-        var results = new TextEmbeddingResults(List.of(new FloatEmbedding(List.of(0.1F, 0.2F)), new FloatEmbedding(List.of(0.3F, 0.4F))))
+        var results = new TextEmbeddingResults(List.of(FloatEmbedding.of(List.of(0.1F, 0.2F)), FloatEmbedding.of(List.of(0.3F, 0.4F))))
             .transformToCoordinationFormat();
-=======
-        var results = new TextEmbeddingResults(
-            List.of(
-                new TextEmbeddingResults.Embedding(new float[] { 0.1F, 0.2F }),
-                new TextEmbeddingResults.Embedding(new float[] { 0.3F, 0.4F })
-            )
-        ).transformToCoordinationFormat();
->>>>>>> main
 
         assertThat(
             results,
@@ -169,19 +144,11 @@ public class TextEmbeddingResultsTests extends AbstractWireSerializingTestCase<T
     }
 
     public static Map<String, Object> buildExpectationFloat(List<float[]> embeddings) {
-        return Map.of(TextEmbeddingResults.TEXT_EMBEDDING, embeddings.stream().map(TextEmbeddingResults.Embedding::new).toList());
+        return Map.of(TextEmbeddingResults.TEXT_EMBEDDING, embeddings.stream().map(FloatEmbedding::new).toList());
     }
 
     public static Map<String, Object> buildExpectationByte(List<byte[]> embeddings) {
-        return Map.of(
-<<<<<<< HEAD
-            TextEmbeddingResults.TEXT_EMBEDDING,
-            embeddings.stream().map(embedding -> Map.of(FloatEmbedding.EMBEDDING, embedding)).toList()
-=======
-            TextEmbeddingByteResults.TEXT_EMBEDDING_BYTES,
-            embeddings.stream().map(TextEmbeddingByteResults.Embedding::new).toList()
->>>>>>> main
-        );
+        return Map.of(TextEmbeddingByteResults.TEXT_EMBEDDING_BYTES, embeddings.stream().map(ByteEmbedding::new).toList());
     }
 
 }

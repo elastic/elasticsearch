@@ -19,7 +19,7 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 
-public class EmbeddingChunk<T> implements Writeable, ToXContentObject {
+public class EmbeddingChunk<T extends Embedding.EmbeddingValues> implements Writeable, ToXContentObject {
 
     private final String matchedText;
     private final Embedding<T> embedding;
@@ -47,13 +47,7 @@ public class EmbeddingChunk<T> implements Writeable, ToXContentObject {
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         builder.field(ChunkedNlpInferenceResults.TEXT, matchedText);
-
-        builder.startArray(ChunkedNlpInferenceResults.INFERENCE);
-        for (var value : embedding.getEmbedding()) {
-            builder.value(value);
-        }
-        builder.endArray();
-
+        embedding.embedding.valuesToXContent(ChunkedNlpInferenceResults.INFERENCE, builder, params);
         builder.endObject();
         return builder;
     }

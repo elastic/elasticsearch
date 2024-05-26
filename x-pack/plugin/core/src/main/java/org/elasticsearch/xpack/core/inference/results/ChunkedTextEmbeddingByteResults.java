@@ -7,25 +7,20 @@
 
 package org.elasticsearch.xpack.core.inference.results;
 
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.inference.ChunkedInferenceServiceResults;
 import org.elasticsearch.inference.InferenceResults;
-import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xpack.core.ml.inference.results.ChunkedNlpInferenceResults;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 
 import static org.elasticsearch.xpack.core.inference.results.TextEmbeddingUtils.validateInputSizeAgainstEmbeddings;
 
-public record ChunkedTextEmbeddingByteResults(List<EmbeddingChunk<ByteEmbedding>> chunks, boolean isTruncated)
+public record ChunkedTextEmbeddingByteResults(List<EmbeddingChunk<ByteEmbedding.ByteArrayWrapper>> chunks, boolean isTruncated)
     implements
         ChunkedInferenceServiceResults {
 
@@ -42,18 +37,18 @@ public record ChunkedTextEmbeddingByteResults(List<EmbeddingChunk<ByteEmbedding>
 
         var results = new ArrayList<ChunkedInferenceServiceResults>(inputs.size());
         for (int i = 0; i < inputs.size(); i++) {
-            results.add(of(inputs.get(i), textEmbeddings.embeddings().get(i).getEmbedding()));
+            results.add(of(inputs.get(i), textEmbeddings.embeddings().get(i).getEmbedding().bytes));
         }
 
         return results;
     }
 
     public static ChunkedTextEmbeddingByteResults of(String input, byte[] byteEmbeddings) {
-        return new ChunkedTextEmbeddingByteResults(List.of(new EmbeddingChunk(input, byteEmbeddings)), false);
+        return new ChunkedTextEmbeddingByteResults(List.of(new EmbeddingChunk<>(input, new ByteEmbedding(byteEmbeddings))), false);
     }
 
     public ChunkedTextEmbeddingByteResults(StreamInput in) throws IOException {
-        this(in.readCollectionAsList(in1 -> new EmbeddingChunk<Byte>(in1.readString(), new ByteEmbedding(in1))), in.readBoolean());
+        this(in.readCollectionAsList(in1 -> new EmbeddingChunk<>(in1.readString(), new ByteEmbedding(in1))), in.readBoolean());
     }
 
     @Override
@@ -92,40 +87,7 @@ public record ChunkedTextEmbeddingByteResults(List<EmbeddingChunk<ByteEmbedding>
         return NAME;
     }
 
-    public List<EmbeddingChunk<Byte>> getChunks() {
+    public List<EmbeddingChunk<ByteEmbedding.ByteArrayWrapper>> getChunks() {
         return chunks;
-    }
-
-    public record EmbeddingChunk(String matchedText, byte[] embedding) implements Writeable, ToXContentObject {
-
-        public EmbeddingChunk(StreamInput in) throws IOException {
-            this(in.readString(), in.readByteArray());
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            out.writeString(matchedText);
-            out.writeByteArray(embedding);
-        }
-
-        @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            builder.startObject();
-            builder.field(ChunkedNlpInferenceResults.TEXT, matchedText);
-
-            builder.startArray(ChunkedNlpInferenceResults.INFERENCE);
-            for (byte value : embedding) {
-                builder.value(value);
-            }
-            builder.endArray();
-
-            builder.endObject();
-            return builder;
-        }
-
-        @Override
-        public String toString() {
-            return Strings.toString(this);
-        }
     }
 }

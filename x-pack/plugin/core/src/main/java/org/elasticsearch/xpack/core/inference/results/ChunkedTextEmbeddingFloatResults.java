@@ -15,21 +15,18 @@ import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
-<<<<<<< HEAD
-=======
 import java.util.Arrays;
->>>>>>> main
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
-public record ChunkedTextEmbeddingFloatResults(List<EmbeddingChunk<Float>> chunks) implements ChunkedInferenceServiceResults {
+public record ChunkedTextEmbeddingFloatResults(List<EmbeddingChunk<FloatEmbedding.FloatArrayWrapper>> chunks) implements ChunkedInferenceServiceResults {
 
     public static final String NAME = "chunked_text_embedding_service_float_results";
     public static final String FIELD_NAME = "text_embedding_float_chunk";
 
     public ChunkedTextEmbeddingFloatResults(StreamInput in) throws IOException {
-        this(in.readCollectionAsList(in1 -> new EmbeddingChunk<Float>(in1.readString(), new FloatEmbedding(in1))));
+        this(in.readCollectionAsList(in1 -> new EmbeddingChunk<>(in1.readString(), new FloatEmbedding(in1))));
     }
 
     @Override
@@ -67,72 +64,8 @@ public record ChunkedTextEmbeddingFloatResults(List<EmbeddingChunk<Float>> chunk
         return NAME;
     }
 
-    public List<EmbeddingChunk<Float>> getChunks() {
+    public List<EmbeddingChunk<FloatEmbedding.FloatArrayWrapper>> getChunks() {
         return chunks;
     }
-<<<<<<< HEAD
-=======
 
-    @Override
-    public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-        ChunkedTextEmbeddingFloatResults that = (ChunkedTextEmbeddingFloatResults) o;
-        return Objects.equals(chunks, that.chunks);
-    }
-
-    @Override
-    public int hashCode() {
-        return Objects.hash(chunks);
-    }
-
-    public record EmbeddingChunk(String matchedText, float[] embedding) implements Writeable, ToXContentObject {
-
-        public EmbeddingChunk(StreamInput in) throws IOException {
-            this(in.readString(), in.readFloatArray());
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            out.writeString(matchedText);
-            out.writeFloatArray(embedding);
-        }
-
-        @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            builder.startObject();
-            builder.field(ChunkedNlpInferenceResults.TEXT, matchedText);
-
-            builder.startArray(ChunkedNlpInferenceResults.INFERENCE);
-            for (float value : embedding) {
-                builder.value(value);
-            }
-            builder.endArray();
-
-            builder.endObject();
-            return builder;
-        }
-
-        @Override
-        public String toString() {
-            return Strings.toString(this);
-        }
-
-        @Override
-        public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-            EmbeddingChunk that = (EmbeddingChunk) o;
-            return Objects.equals(matchedText, that.matchedText) && Arrays.equals(embedding, that.embedding);
-        }
-
-        @Override
-        public int hashCode() {
-            int result = Objects.hash(matchedText);
-            result = 31 * result + Arrays.hashCode(embedding);
-            return result;
-        }
-    }
-
->>>>>>> main
 }

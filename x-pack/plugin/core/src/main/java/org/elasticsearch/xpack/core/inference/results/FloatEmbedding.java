@@ -9,32 +9,81 @@ package org.elasticsearch.xpack.core.inference.results;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.List;
+import java.util.Arrays;
 
-public class FloatEmbedding extends Embedding<Float> {
+public class FloatEmbedding extends Embedding<FloatEmbedding.FloatArrayWrapper> {
 
-    public FloatEmbedding(StreamInput in) throws IOException {
-        this(in.readCollectionAsImmutableList(StreamInput::readFloat));
+    public static class FloatArrayWrapper implements EmbeddingValues {
+
+        final float[] floats;
+
+        public FloatArrayWrapper(float[] floats) {
+            this.floats = floats;
+        }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            builder.startArray(EMBEDDING);
+            for (var value : floats) {
+                builder.value(value);
+            }
+            builder.endArray();
+            return builder;
+        }
+
+        @Override
+        public int size() {
+            return floats.length;
+        }
+
+        @Override
+        public XContentBuilder valuesToXContent(String fieldName, XContentBuilder builder, Params params) {
+            return null;
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            FloatArrayWrapper that = (FloatArrayWrapper) o;
+            return Arrays.equals(floats, that.floats);
+        }
+
+        @Override
+        public int hashCode() {
+            return Arrays.hashCode(floats);
+        }
     }
 
-    public FloatEmbedding(List<Float> embedding) {
-        super(embedding);
+    public FloatEmbedding(StreamInput in) throws IOException {
+        this(in.readFloatArray());
+    }
+
+    public FloatEmbedding(float[] embedding) {
+        super(new FloatArrayWrapper(embedding));
+    }
+
+    public float[] asFloatArray() {
+        return embedding.floats;
+    }
+
+    public double[] asDoubleArray() {
+        var result = new double[embedding.floats.length];
+        for (int i = 0; i<embedding.floats.length; i++) {
+            result[i] = embedding.floats[i];
+        }
+        return result;
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeCollection(embedding, StreamOutput::writeFloat);
+        out.writeFloatArray(embedding.floats);
     }
 
     public static FloatEmbedding of(org.elasticsearch.xpack.core.ml.inference.results.TextEmbeddingResults embeddingResult) {
-        List<Float> embeddingAsList = new ArrayList<>();
-        float[] embeddingAsArray = embeddingResult.getInferenceAsFloat();
-        for (float dim : embeddingAsArray) {
-            embeddingAsList.add(dim);
-        }
-        return new FloatEmbedding(embeddingAsList);
+        return new FloatEmbedding(embeddingResult.getInferenceAsFloat());
     }
 }

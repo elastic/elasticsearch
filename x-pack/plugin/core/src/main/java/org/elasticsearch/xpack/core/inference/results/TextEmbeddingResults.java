@@ -114,10 +114,6 @@ public record TextEmbeddingResults(List<FloatEmbedding> embeddings) implements I
     @Override
     public List<? extends InferenceResults> transformToCoordinationFormat() {
         return embeddings.stream()
-<<<<<<< HEAD
-            .map(embedding -> embedding.embedding.stream().mapToDouble(value -> value).toArray())
-            .map(values -> new org.elasticsearch.xpack.core.ml.inference.results.TextEmbeddingResults(TEXT_EMBEDDING, values, false))
-=======
             .map(
                 embedding -> new org.elasticsearch.xpack.core.ml.inference.results.TextEmbeddingResults(
                     TEXT_EMBEDDING,
@@ -125,7 +121,6 @@ public record TextEmbeddingResults(List<FloatEmbedding> embeddings) implements I
                     false
                 )
             )
->>>>>>> main
             .toList();
     }
 
@@ -133,7 +128,7 @@ public record TextEmbeddingResults(List<FloatEmbedding> embeddings) implements I
     @SuppressWarnings("deprecation")
     public List<? extends InferenceResults> transformToLegacyFormat() {
         var legacyEmbedding = new LegacyTextEmbeddingResults(
-            embeddings.stream().map(embedding -> new LegacyTextEmbeddingResults.Embedding(embedding.embedding)).toList()
+            embeddings.stream().map(embedding -> new LegacyTextEmbeddingResults.Embedding(embedding.asFloatArray())).toList()
         );
 
         return List.of(legacyEmbedding);
@@ -147,7 +142,6 @@ public record TextEmbeddingResults(List<FloatEmbedding> embeddings) implements I
     }
 
     @Override
-<<<<<<< HEAD
     public List<FloatEmbedding> embeddings() {
         return embeddings;
     }
@@ -155,88 +149,5 @@ public record TextEmbeddingResults(List<FloatEmbedding> embeddings) implements I
     @Override
     public EmbeddingType embeddingType() {
         return EmbeddingType.FLOAT;
-=======
-    public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-        TextEmbeddingResults that = (TextEmbeddingResults) o;
-        return Objects.equals(embeddings, that.embeddings);
-    }
-
-    @Override
-    public int hashCode() {
-        return Objects.hash(embeddings);
-    }
-
-    public record Embedding(float[] values) implements Writeable, ToXContentObject, EmbeddingInt {
-        public static final String EMBEDDING = "embedding";
-
-        public Embedding(StreamInput in) throws IOException {
-            this(in.readFloatArray());
-        }
-
-        public static Embedding of(org.elasticsearch.xpack.core.ml.inference.results.TextEmbeddingResults embeddingResult) {
-            float[] embeddingAsArray = embeddingResult.getInferenceAsFloat();
-            return new Embedding(embeddingAsArray);
-        }
-
-        public static Embedding of(List<Float> embeddingValuesList) {
-            float[] embeddingValues = new float[embeddingValuesList.size()];
-            for (int i = 0; i < embeddingValuesList.size(); i++) {
-                embeddingValues[i] = embeddingValuesList.get(i);
-            }
-            return new Embedding(embeddingValues);
-        }
-
-        @Override
-        public int getSize() {
-            return values.length;
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            out.writeFloatArray(values);
-        }
-
-        @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            builder.startObject();
-
-            builder.startArray(EMBEDDING);
-            for (float value : values) {
-                builder.value(value);
-            }
-            builder.endArray();
-
-            builder.endObject();
-            return builder;
-        }
-
-        @Override
-        public String toString() {
-            return Strings.toString(this);
-        }
-
-        private double[] asDoubleArray() {
-            double[] doubles = new double[values.length];
-            for (int i = 0; i < values.length; i++) {
-                doubles[i] = values[i];
-            }
-            return doubles;
-        }
-
-        @Override
-        public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-            Embedding embedding = (Embedding) o;
-            return Arrays.equals(values, embedding.values);
-        }
-
-        @Override
-        public int hashCode() {
-            return Arrays.hashCode(values);
-        }
->>>>>>> main
     }
 }

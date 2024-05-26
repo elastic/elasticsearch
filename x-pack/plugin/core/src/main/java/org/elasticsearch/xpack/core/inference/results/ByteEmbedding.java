@@ -9,11 +9,10 @@ package org.elasticsearch.xpack.core.inference.results;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
-import java.util.List;
+import java.util.Arrays;
 
 public class ByteEmbedding extends Embedding<ByteEmbedding.ByteArrayWrapper> {
 
@@ -21,18 +20,18 @@ public class ByteEmbedding extends Embedding<ByteEmbedding.ByteArrayWrapper> {
      * Wrapper so around a primitive byte array so that it can be
      * treated as a generic
      */
-    public static class ByteArrayWrapper implements ToXContentFragment {
+    public static class ByteArrayWrapper implements EmbeddingValues {
 
-        final byte[] embedding;
+        final byte[] bytes;
 
         public ByteArrayWrapper(byte[] bytes) {
-            this.embedding = bytes;
+            this.bytes = bytes;
         }
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startArray(EMBEDDING);
-            for (var value : embedding) {
+            for (var value : bytes) {
                 builder.value(value);
             }
             builder.endArray();
@@ -41,7 +40,25 @@ public class ByteEmbedding extends Embedding<ByteEmbedding.ByteArrayWrapper> {
 
         @Override
         public int size() {
-            return embedding.length;
+            return bytes.length;
+        }
+
+        @Override
+        public XContentBuilder valuesToXContent(String fieldName, XContentBuilder builder, Params params) {
+            return null;
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            ByteArrayWrapper that = (ByteArrayWrapper) o;
+            return Arrays.equals(bytes, that.bytes);
+        }
+
+        @Override
+        public int hashCode() {
+            return Arrays.hashCode(bytes);
         }
     }
 
@@ -55,6 +72,18 @@ public class ByteEmbedding extends Embedding<ByteEmbedding.ByteArrayWrapper> {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeByteArray(embedding.embedding);
+        out.writeByteArray(embedding.bytes);
+    }
+
+    public byte[] bytes() {
+        return embedding.bytes;
+    }
+
+    public float[] toFloatArray() {
+        float[] floatArray = new float[embedding.bytes.length];
+        for (int i = 0; i < embedding.bytes.length; i++) {
+            floatArray[i] = ((Byte) embedding.bytes[i]).floatValue();
+        }
+        return floatArray;
     }
 }

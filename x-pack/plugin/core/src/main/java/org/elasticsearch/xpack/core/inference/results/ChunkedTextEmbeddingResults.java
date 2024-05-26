@@ -44,7 +44,7 @@ public class ChunkedTextEmbeddingResults implements ChunkedInferenceServiceResul
 
         var results = new ArrayList<ChunkedInferenceServiceResults>(inputs.size());
         for (int i = 0; i < inputs.size(); i++) {
-            results.add(ChunkedTextEmbeddingResults.of(inputs.get(i), textEmbeddings.embeddings().get(i).getEmbedding()));
+            results.add(ChunkedTextEmbeddingResults.of(inputs.get(i), textEmbeddings.embeddings().get(i).getEmbedding().floats));
         }
 
         return results;

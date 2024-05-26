@@ -21,7 +21,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
-public class SparseEmbedding extends Embedding<SparseEmbedding.WeightedToken> {
+public class SparseEmbedding extends Embedding<SparseEmbedding.WeightedTokens> {
 
     public static final String IS_TRUNCATED = "is_truncated";
 
@@ -38,7 +38,7 @@ public class SparseEmbedding extends Embedding<SparseEmbedding.WeightedToken> {
         this(in.readCollectionAsImmutableList(SparseEmbedding.WeightedToken::new), in.readBoolean());
     }
 
-    public SparseEmbedding(List<WeightedToken> embedding, boolean isTruncated) {
+    public SparseEmbedding(WeightedTokens embeddings, boolean isTruncated) {
         super(embedding);
         this.isTruncated = isTruncated;
     }
@@ -70,10 +70,39 @@ public class SparseEmbedding extends Embedding<SparseEmbedding.WeightedToken> {
 
     public Map<String, Object> asMap() {
         var embeddingMap = new LinkedHashMap<String, Object>(
-            embedding.stream().collect(Collectors.toMap(WeightedToken::token, WeightedToken::weight))
+            embedding.tokens.stream().collect(Collectors.toMap(WeightedToken::token, WeightedToken::weight))
         );
 
         return new LinkedHashMap<>(Map.of(IS_TRUNCATED, isTruncated, EMBEDDING, embeddingMap));
+    }
+
+    public static class WeightedTokens() implements Embedding.EmbeddingValues {
+
+        private final List<WeightedToken> tokens;
+
+        public WeightedTokens(List<WeightedToken> tokens) {
+            this.tokens = tokens;
+        }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            builder.startObject(EMBEDDING);
+            for (var weightedToken : tokens) {
+                weightedToken.toXContent(builder, params);
+            }
+            builder.endObject();
+            return builder;
+        }
+
+        @Override
+        public int size() {
+            return tokens.size();
+        }
+
+        @Override
+        public XContentBuilder valuesToXContent(String fieldName, XContentBuilder builder, Params params) {
+            return null;
+        }
     }
 
     public record WeightedToken(String token, float weight) implements Writeable, ToXContentFragment {

@@ -21,7 +21,7 @@ import java.util.Objects;
 public abstract class Embedding<T extends Embedding.EmbeddingValues> implements Writeable, ToXContentObject {
     public static final String EMBEDDING = "embedding";
 
-    public interface EmbeddingValues {
+    public interface EmbeddingValues extends ToXContentFragment {
         int size();
         XContentBuilder valuesToXContent(String fieldName, XContentBuilder builder, Params params);
     }

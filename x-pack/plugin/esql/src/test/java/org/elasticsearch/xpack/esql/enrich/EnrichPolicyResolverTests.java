@@ -36,9 +36,9 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.enrich.EnrichMetadata;
 import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
 import org.elasticsearch.xpack.esql.analysis.EnrichResolution;
+import org.elasticsearch.xpack.esql.core.index.IndexResolver;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypeRegistry;
-import org.elasticsearch.xpack.ql.index.IndexResolver;
 import org.junit.After;
 import org.junit.Before;
 

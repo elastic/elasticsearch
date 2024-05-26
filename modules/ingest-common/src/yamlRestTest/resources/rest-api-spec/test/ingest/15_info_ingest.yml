@@ -198,7 +198,6 @@ teardown:
   - do:
       bulk:
         refresh: true
-        index: index-foo
         body:
           - '{"index": { "_index": "an-index", "_id": 1 }}'
           - '{"some-field": 1 }'
@@ -214,8 +213,8 @@ teardown:
   - gt: { ingest.pipelines.pipeline-1.ingested_as_first_pipeline_in_bytes: 0 }
   - set: { ingest.pipelines.pipeline-1.ingested_as_first_pipeline_in_bytes: ingest_bytes }
   - gt: { ingest.pipelines.pipeline-1.produced_as_first_pipeline_in_bytes: $ingest_bytes }
-  - match: { ingest.pipelines.pipeline-2.ingested_as_first_pipeline_in_bytes: null }
-  - match: { ingest.pipelines.pipeline-2.produced_as_first_pipeline_in_bytes: null }
+  - match: { ingest.pipelines.pipeline-2.ingested_as_first_pipeline_in_bytes: 0 }
+  - match: { ingest.pipelines.pipeline-2.produced_as_first_pipeline_in_bytes: 0 }
 
 ---
 "Test that final pipeline has byte stats recorded in first pipeline":
@@ -251,7 +250,6 @@ teardown:
   - do:
       bulk:
         refresh: true
-        index: index-foo
         body:
           - '{"index": { "_index": "an-index", "_id": 1 }}'
           - '{"some-field": 1 }'
@@ -267,9 +265,8 @@ teardown:
   - gt: { ingest.pipelines.pipeline-1.ingested_as_first_pipeline_in_bytes: 0 }
   - set: { ingest.pipelines.pipeline-1.ingested_as_first_pipeline_in_bytes: ingest_bytes }
   - gt: { ingest.pipelines.pipeline-1.produced_as_first_pipeline_in_bytes: $ingest_bytes }
-  - match: { ingest.pipelines.pipeline-2.ingested_as_first_pipeline_in_bytes: null }
-  - match: { ingest.pipelines.pipeline-2.produced_as_first_pipeline_in_bytes: null }
-
+  - match: { ingest.pipelines.pipeline-2.ingested_as_first_pipeline_in_bytes: 0 }
+  - match: { ingest.pipelines.pipeline-2.produced_as_first_pipeline_in_bytes: 0 }
 
 ---
 "Test that reroute processor has byte stats recorded in first pipeline":
@@ -333,5 +330,38 @@ teardown:
   - gt: { ingest.pipelines.pipeline-1.ingested_as_first_pipeline_in_bytes: 0 }
   - set: { ingest.pipelines.pipeline-1.ingested_as_first_pipeline_in_bytes: ingest_bytes }
   - gt: { ingest.pipelines.pipeline-1.produced_as_first_pipeline_in_bytes: $ingest_bytes }
-  - match: { ingest.pipelines.pipeline-2.ingested_as_first_pipeline_in_bytes: null }
-  - match: { ingest.pipelines.pipeline-2.produced_as_first_pipeline_in_bytes: null }
+  - match: { ingest.pipelines.pipeline-2.ingested_as_first_pipeline_in_bytes: 0 }
+  - match: { ingest.pipelines.pipeline-2.produced_as_first_pipeline_in_bytes: 0 }
+
+---
+"Test human readable byte stat fields":
+  - do:
+      ingest.put_pipeline:
+        id: "pipeline-1"
+        body:  >
+          {
+            "processors": [
+              {
+                "set": {
+                  "field": "added-field",
+                  "value": true
+                }
+              }
+            ]
+          }
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - '{"index": { "_index": "an-index", "_id": 1, "pipeline": "pipeline-1"}}'
+          - '{"some-field": 1 }'
+  - do:
+      cluster.info:
+        target: [ ingest ]
+        human: true
+
+  - match: { ingest.pipelines.pipeline-1.count: 1 }
+  - gt: { ingest.pipelines.pipeline-1.ingested_as_first_pipeline_in_bytes: 0 }
+  - gt: { ingest.pipelines.pipeline-1.produced_as_first_pipeline_in_bytes: 0 }
+  - is_true: ingest.pipelines.pipeline-1.ingested_as_first_pipeline
+  - is_true: ingest.pipelines.pipeline-1.produced_as_first_pipeline

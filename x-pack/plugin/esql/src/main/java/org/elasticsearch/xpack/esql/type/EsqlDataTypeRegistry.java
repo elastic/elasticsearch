@@ -8,19 +8,19 @@
 package org.elasticsearch.xpack.esql.type;
 
 import org.elasticsearch.index.mapper.TimeSeriesParams;
-import org.elasticsearch.xpack.ql.type.DataType;
-import org.elasticsearch.xpack.ql.type.DataTypeRegistry;
+import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.type.DataTypeRegistry;
 
 import java.util.Collection;
 
+import static org.elasticsearch.xpack.esql.core.type.DataTypes.DATETIME;
+import static org.elasticsearch.xpack.esql.core.type.DataTypes.isDateTime;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.DATE_PERIOD;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.TIME_DURATION;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.isDateTimeOrTemporal;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.isNullOrDatePeriod;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.isNullOrTemporalAmount;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypes.isNullOrTimeDuration;
-import static org.elasticsearch.xpack.ql.type.DataTypes.DATETIME;
-import static org.elasticsearch.xpack.ql.type.DataTypes.isDateTime;
 
 public class EsqlDataTypeRegistry implements DataTypeRegistry {
 

@@ -10,8 +10,8 @@ package org.elasticsearch.xpack.esql.enrich;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
-import org.elasticsearch.xpack.ql.type.EsField;
 
 import java.io.IOException;
 import java.util.List;

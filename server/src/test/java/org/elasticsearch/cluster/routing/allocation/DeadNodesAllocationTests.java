@@ -23,7 +23,7 @@ import org.elasticsearch.cluster.routing.allocation.command.MoveAllocationComman
 import org.elasticsearch.cluster.routing.allocation.decider.ClusterRebalanceAllocationDecider;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexVersion;
-import org.elasticsearch.test.MockLogAppender;
+import org.elasticsearch.test.MockLog;
 
 import static org.elasticsearch.cluster.routing.ShardRoutingState.INITIALIZING;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.RELOCATING;
@@ -97,11 +97,11 @@ public class DeadNodesAllocationTests extends ESAllocationTestCase {
 
         assertTrue(initialState.toString(), initialState.getRoutingNodes().unassigned().isEmpty());
 
-        try (var appender = MockLogAppender.capture(AllocationService.class)) {
+        try (var mockLog = MockLog.capture(AllocationService.class)) {
             final String dissociationReason = "node left " + randomAlphaOfLength(10);
 
-            appender.addExpectation(
-                new MockLogAppender.SeenEventExpectation(
+            mockLog.addExpectation(
+                new MockLog.SeenEventExpectation(
                     "health change log message",
                     AllocationService.class.getName(),
                     Level.INFO,
@@ -117,7 +117,7 @@ public class DeadNodesAllocationTests extends ESAllocationTestCase {
                 dissociationReason
             );
 
-            appender.assertAllExpectationsMatched();
+            mockLog.assertAllExpectationsMatched();
         }
     }
 

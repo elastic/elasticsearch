@@ -13,13 +13,12 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xpack.core.ml.inference.results.TextExpansionResults;
-import org.elasticsearch.xpack.core.ml.search.WeightedToken;
 
 import java.io.IOException;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.stream.Collectors;
 
 public class SparseEmbedding extends Embedding<SparseEmbedding.WeightedTokens> {
@@ -83,8 +82,21 @@ public class SparseEmbedding extends Embedding<SparseEmbedding.WeightedTokens> {
         return embedding.tokens;
     }
 
-    public static class WeightedTokens implements Embedding.EmbeddingValues {
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        if (!super.equals(o)) return false;
+        SparseEmbedding that = (SparseEmbedding) o;
+        return isTruncated == that.isTruncated;
+    }
 
+    @Override
+    public int hashCode() {
+        return Objects.hash(super.hashCode(), isTruncated);
+    }
+
+    public static class WeightedTokens implements Embedding.EmbeddingValues {
         private final List<WeightedToken> tokens;
 
         public WeightedTokens(List<WeightedToken> tokens) {
@@ -113,6 +125,19 @@ public class SparseEmbedding extends Embedding<SparseEmbedding.WeightedTokens> {
 
         public List<WeightedToken> tokens() {
             return tokens;
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            WeightedTokens that = (WeightedTokens) o;
+            return Objects.equals(tokens, that.tokens);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(tokens);
         }
     }
 

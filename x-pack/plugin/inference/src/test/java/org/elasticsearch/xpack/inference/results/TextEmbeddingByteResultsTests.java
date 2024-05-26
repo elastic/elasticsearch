@@ -46,11 +46,6 @@ public class TextEmbeddingByteResultsTests extends AbstractWireSerializingTestCa
     public void testToXContent_CreatesTheRightFormatForASingleEmbedding() throws IOException {
         var entity = new TextEmbeddingByteResults(List.of(ByteEmbedding.of(List.of((byte) 23))));
 
-        assertThat(
-            entity.asMap(),
-            is(Map.of(TextEmbeddingByteResults.TEXT_EMBEDDING_BYTES, List.of(Map.of(ByteEmbedding.EMBEDDING, List.of((byte) 23)))))
-        );
-
         String xContentResult = Strings.toString(entity, true, true);
         assertThat(xContentResult, is("""
             {
@@ -68,16 +63,6 @@ public class TextEmbeddingByteResultsTests extends AbstractWireSerializingTestCa
         var entity = new TextEmbeddingByteResults(
             List.of(ByteEmbedding.of(List.of((byte) 23)), ByteEmbedding.of(List.of((byte) 24)))
 
-        );
-
-        assertThat(
-            entity.asMap(),
-            is(
-                Map.of(
-                    TextEmbeddingByteResults.TEXT_EMBEDDING_BYTES,
-                    List.of(Map.of(ByteEmbedding.EMBEDDING, List.of((byte) 23)), Map.of(ByteEmbedding.EMBEDDING, List.of((byte) 24)))
-                )
-            )
         );
 
         String xContentResult = Strings.toString(entity, true, true);
@@ -107,14 +92,14 @@ public class TextEmbeddingByteResultsTests extends AbstractWireSerializingTestCa
             results,
             is(
                 List.of(
-                    new org.elasticsearch.xpack.core.ml.inference.results.TextEmbeddingResults(
+                    new org.elasticsearch.xpack.core.ml.inference.results.TextEmbeddingByteResults(
                         TextEmbeddingByteResults.TEXT_EMBEDDING_BYTES,
-                        new double[] { 23F, 24F },
+                        new byte[] { 23, 24 },
                         false
                     ),
-                    new org.elasticsearch.xpack.core.ml.inference.results.TextEmbeddingResults(
+                    new org.elasticsearch.xpack.core.ml.inference.results.TextEmbeddingByteResults(
                         TextEmbeddingByteResults.TEXT_EMBEDDING_BYTES,
-                        new double[] { 25F, 26F },
+                        new byte[] { 25, 26 },
                         false
                     )
                 )

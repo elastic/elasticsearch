@@ -47,11 +47,6 @@ public class TextEmbeddingResultsTests extends AbstractWireSerializingTestCase<T
     public void testToXContent_CreatesTheRightFormatForASingleEmbedding() throws IOException {
         var entity = new TextEmbeddingResults(List.of(FloatEmbedding.of(List.of(0.1F))));
 
-        assertThat(
-            entity.asMap(),
-            is(Map.of(TextEmbeddingResults.TEXT_EMBEDDING, List.of(Map.of(FloatEmbedding.EMBEDDING, List.of(0.1F)))))
-        );
-
         String xContentResult = Strings.toString(entity, true, true);
         assertThat(xContentResult, is("""
             {
@@ -67,16 +62,6 @@ public class TextEmbeddingResultsTests extends AbstractWireSerializingTestCase<T
 
     public void testToXContent_CreatesTheRightFormatForMultipleEmbeddings() throws IOException {
         var entity = new TextEmbeddingResults(List.of(FloatEmbedding.of(List.of(0.1F)), FloatEmbedding.of(List.of(0.2F))));
-
-        assertThat(
-            entity.asMap(),
-            is(
-                Map.of(
-                    TextEmbeddingResults.TEXT_EMBEDDING,
-                    List.of(Map.of(FloatEmbedding.EMBEDDING, List.of(0.1F)), Map.of(FloatEmbedding.EMBEDDING, List.of(0.2F)))
-                )
-            )
-        );
 
         String xContentResult = Strings.toString(entity, true, true);
         assertThat(xContentResult, is("""

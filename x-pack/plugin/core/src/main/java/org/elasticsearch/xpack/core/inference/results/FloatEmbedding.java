@@ -75,15 +75,13 @@ public class FloatEmbedding extends Embedding<FloatEmbedding.FloatArrayWrapper> 
         super(new FloatArrayWrapper(embedding));
     }
 
-
-
     public float[] asFloatArray() {
         return embedding.floats;
     }
 
     public double[] asDoubleArray() {
         var result = new double[embedding.floats.length];
-        for (int i = 0; i<embedding.floats.length; i++) {
+        for (int i = 0; i < embedding.floats.length; i++) {
             result[i] = embedding.floats[i];
         }
         return result;

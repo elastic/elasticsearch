@@ -14,7 +14,6 @@ import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
-import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
@@ -23,6 +22,7 @@ public abstract class Embedding<T extends Embedding.EmbeddingValues> implements 
 
     public interface EmbeddingValues extends ToXContentFragment {
         int size();
+
         XContentBuilder valuesToXContent(String fieldName, XContentBuilder builder, Params params) throws IOException;
     }
 

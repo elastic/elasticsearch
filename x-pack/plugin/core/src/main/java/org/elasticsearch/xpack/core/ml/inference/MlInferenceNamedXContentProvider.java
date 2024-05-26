@@ -654,7 +654,9 @@ public class MlInferenceNamedXContentProvider implements NamedXContentProvider {
         );
         namedWriteables.add(new NamedWriteableRegistry.Entry(InferenceResults.class, TextExpansionResults.NAME, TextExpansionResults::new));
         namedWriteables.add(new NamedWriteableRegistry.Entry(InferenceResults.class, TextEmbeddingResults.NAME, TextEmbeddingResults::new));
-        namedWriteables.add(new NamedWriteableRegistry.Entry(InferenceResults.class, TextEmbeddingByteResults.NAME, TextEmbeddingByteResults::new));
+        namedWriteables.add(
+            new NamedWriteableRegistry.Entry(InferenceResults.class, TextEmbeddingByteResults.NAME, TextEmbeddingByteResults::new)
+        );
         namedWriteables.add(
             new NamedWriteableRegistry.Entry(
                 InferenceResults.class,

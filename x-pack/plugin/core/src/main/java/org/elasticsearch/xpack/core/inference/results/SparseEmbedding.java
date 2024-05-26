@@ -86,7 +86,7 @@ public class SparseEmbedding extends Embedding<SparseEmbedding.WeightedTokens> {
     public boolean equals(Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
-        if (!super.equals(o)) return false;
+        if (super.equals(o) == false) return false;
         SparseEmbedding that = (SparseEmbedding) o;
         return isTruncated == that.isTruncated;
     }

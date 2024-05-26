@@ -15,12 +15,12 @@ import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
-import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 
-public record ChunkedTextEmbeddingFloatResults(List<EmbeddingChunk<FloatEmbedding.FloatArrayWrapper>> chunks) implements ChunkedInferenceServiceResults {
+public record ChunkedTextEmbeddingFloatResults(List<EmbeddingChunk<FloatEmbedding.FloatArrayWrapper>> chunks)
+    implements
+        ChunkedInferenceServiceResults {
 
     public static final String NAME = "chunked_text_embedding_service_float_results";
     public static final String FIELD_NAME = "text_embedding_float_chunk";

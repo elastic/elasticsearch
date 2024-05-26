@@ -31,7 +31,6 @@ public class UnsafePlainActionFuture<T> extends PlainActionFuture<T> {
 
     public UnsafePlainActionFuture(String unsafeExecutor, String unsafeExecutor2) {
         Objects.requireNonNull(unsafeExecutor);
-        Objects.requireNonNull(unsafeExecutor2);
         this.unsafeExecutor = unsafeExecutor;
         this.unsafeExecutor2 = unsafeExecutor2;
     }

@@ -492,16 +492,25 @@ public class SimpleSearchIT extends ESIntegTestCase {
 
     public void testTooLongPrefixInPrefixQuery() throws Exception {
         createIndex("idx");
-        indexRandom(true, prepareIndex("idx").setSource("{}", XContentType.JSON));
+
+        // Ensure the field `num` exists in the mapping
+        client().admin().indices().preparePutMapping("idx")
+            .setSource("{\"properties\":{\"num\":{\"type\":\"keyword\"}}}", XContentType.JSON)
+            .get();
+
+        // Index a simple document to ensure the field `num` is in the index
+        indexRandom(true, prepareIndex("idx").setSource("{\"num\":\"test\"}", XContentType.JSON));
 
         int defaultMaxRegexLength = IndexSettings.MAX_REGEX_LENGTH_SETTING.get(Settings.EMPTY);
         StringBuilder prefix = new StringBuilder(defaultMaxRegexLength);
+
         while (prefix.length() <= defaultMaxRegexLength) {
             prefix.append("a");
         }
+
         SearchPhaseExecutionException e = expectThrows(
             SearchPhaseExecutionException.class,
-            prepareSearch("idx").setQuery(QueryBuilders.prefixQuery("num", prefix.toString()))
+            () -> client().prepareSearch("idx").setQuery(QueryBuilders.prefixQuery("num", prefix.toString())).get()
         );
         assertThat(
             e.getRootCause().getMessage(),

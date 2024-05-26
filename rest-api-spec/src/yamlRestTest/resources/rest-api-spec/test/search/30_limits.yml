@@ -164,6 +164,11 @@ setup:
 
 ---
 "Prefix length limit":
+
+  - requires:
+      cluster_features: "gte_v8.15.0"
+      reason: "Limit for value in prefix query was introduced in 8.15"
+
   - do:
       catch: /The length of prefix \[1110\] used in the Prefix Query request has exceeded the allowed maximum of \[1000\]\. This maximum can be set by changing the \[index.max_regex_length\] index level setting\./
       search:

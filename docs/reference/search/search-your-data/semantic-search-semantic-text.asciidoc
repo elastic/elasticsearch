@@ -123,7 +123,7 @@ field.
 POST _reindex?wait_for_completion=false
 {
   "source": { 
-    "index": "test-data"
+    "index": "test-data",
     "size": 10 <1>
   },
   "dest": {

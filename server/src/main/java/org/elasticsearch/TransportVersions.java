@@ -172,17 +172,13 @@ public class TransportVersions {
     public static final TransportVersion SEMANTIC_QUERY = def(8_663_00_0);
     public static final TransportVersion GET_AUTOSCALING_CAPACITY_UNUSED_TIMEOUT = def(8_664_00_0);
     public static final TransportVersion SIMULATE_VALIDATES_MAPPINGS = def(8_665_00_0);
-<<<<<<< global_reranker/add_new_rank_feature_phase_impl
-    public static final TransportVersion RANK_FEATURE_PHASE_ADDED = def(8_666_00_0);
-=======
     public static final TransportVersion RULE_QUERY_RENAME = def(8_666_00_0);
     public static final TransportVersion SPARSE_VECTOR_QUERY_ADDED = def(8_667_00_0);
     public static final TransportVersion ESQL_ADD_INDEX_MODE_TO_SOURCE = def(8_668_00_0);
     public static final TransportVersion GET_SHUTDOWN_STATUS_TIMEOUT = def(8_669_00_0);
     public static final TransportVersion FAILURE_STORE_TELEMETRY = def(8_670_00_0);
     public static final TransportVersion ADD_METADATA_FLATTENED_TO_ROLES = def(8_671_00_0);
-
->>>>>>> main
+    public static final TransportVersion RANK_FEATURE_PHASE_ADDED = def(8_672_00_0);
     /*
      * STOP! READ THIS FIRST! No, really,
      *        ____ _____ ___  ____  _        ____  _____    _    ____    _____ _   _ ___ ____    _____ ___ ____  ____ _____ _

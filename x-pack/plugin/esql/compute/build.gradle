@@ -5,6 +5,7 @@ dependencies {
   compileOnly project(':server')
   compileOnly project('ann')
   annotationProcessor project('gen')
+  implementation 'com.carrotsearch:hppc:0.8.1'
 
   testImplementation project(':test:framework')
   testImplementation(project(xpackModule('esql-core')))

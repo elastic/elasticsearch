@@ -33,6 +33,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.repositories.RepositoryStats;
 import org.elasticsearch.repositories.blobstore.ESMockAPIBasedRepositoryIntegTestCase;
@@ -211,6 +212,7 @@ public class S3ObjectStoreTests extends AbstractMockObjectStoreIntegTestCase {
 
         record CallSite(String threadName, String commitFile) {}
 
+        final AtomicBoolean completed = new AtomicBoolean(false);
         try (var mockLogAppender = MockLog.capture(loggerName)) {
             // On each call site that experiences an initial failure, we expect to see a pairing of
             // failure messages (can be multiple) and the eventual success message.
@@ -287,11 +289,10 @@ public class S3ObjectStoreTests extends AbstractMockObjectStoreIntegTestCase {
             });
 
             final String indexName = randomIdentifier();
-            createIndex(indexName, indexSettings(1, 1).build());
+            createIndex(indexName, indexSettings(1, 1).put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), -1).build());
             ensureGreen(indexName);
 
             final CyclicBarrier uploadedCommitNotificationBarrier = new CyclicBarrier(2);
-            final AtomicBoolean completed = new AtomicBoolean(false);
             MockTransportService.getInstance(searchNode)
                 .addRequestHandlingBehavior(TransportNewCommitNotificationAction.NAME + "[u]", (handler, request, channel, task) -> {
                     if (((NewCommitNotificationRequest) request).isUploaded()) {
@@ -303,7 +304,9 @@ public class S3ObjectStoreTests extends AbstractMockObjectStoreIntegTestCase {
 
                             @Override
                             public void sendResponse(TransportResponse response) {
-                                safeAwait(uploadedCommitNotificationBarrier);
+                                if (completed.get() == false) {
+                                    safeAwait(uploadedCommitNotificationBarrier);
+                                }
                                 channel.sendResponse(response);
                             }
 
@@ -331,10 +334,11 @@ public class S3ObjectStoreTests extends AbstractMockObjectStoreIntegTestCase {
                 safeAwait(uploadedCommitNotificationBarrier); // wait till uploaded commit notification is processed
                 assertHitCount(client().prepareSearch(indexName), totalNumDocs); // ensure search works
             }
-
+            logger.info("--> all search hit counts matched");
             mockLogAppender.assertAllExpectationsMatched();
-            completed.set(true);
+            logger.info("--> logging expectation matched");
         } finally {
+            completed.set(true);
             // Stop the node otherwise the test can fail because node tries to publish cluster state to a closed HTTP handler
             internalCluster().stopNode(searchNode);
             internalCluster().stopNode(masterAndIndexNode);

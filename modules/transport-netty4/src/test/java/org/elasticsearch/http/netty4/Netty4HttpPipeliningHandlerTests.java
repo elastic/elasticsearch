@@ -28,6 +28,7 @@ import io.netty.handler.codec.http.QueryStringDecoder;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -509,6 +510,16 @@ public class Netty4HttpPipeliningHandlerTests extends ESTestCase {
             @Override
             public boolean isDone() {
                 return remaining == 0;
+            }
+
+            @Override
+            public boolean isEndOfResponse() {
+                return true;
+            }
+
+            @Override
+            public void getContinuation(ActionListener<ChunkedRestResponseBody> listener) {
+                fail("no continuations here");
             }
 
             @Override

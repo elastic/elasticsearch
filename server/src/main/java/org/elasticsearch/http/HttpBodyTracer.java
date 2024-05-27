@@ -17,7 +17,7 @@ import org.elasticsearch.transport.NetworkTraceFlag;
 
 import java.io.OutputStream;
 
-class HttpBodyTracer {
+public class HttpBodyTracer {
     private static final Logger logger = LogManager.getLogger(HttpBodyTracer.class);
 
     public static boolean isEnabled() {

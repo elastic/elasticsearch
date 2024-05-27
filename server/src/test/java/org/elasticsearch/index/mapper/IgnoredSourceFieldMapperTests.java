@@ -776,4 +776,220 @@ public class IgnoredSourceFieldMapperTests extends MapperServiceTestCase {
         assertEquals("""
             {"path":{"foo":"A","bar":"B"}}""", syntheticSource);
     }
+
+    public void testNoDynamicObjectSingleField() throws IOException {
+        String name = randomAlphaOfLength(20);
+        DocumentMapper documentMapper = createMapperService(syntheticSourceMapping(b -> {
+            b.startObject("path").field("type", "object").field("dynamic", "false").endObject();
+        })).documentMapper();
+        var syntheticSource = syntheticSource(documentMapper, b -> {
+            b.startObject("path");
+            {
+                b.field("name", name);
+            }
+            b.endObject();
+        });
+        assertEquals(String.format(Locale.ROOT, """
+            {"path":{"name":"%s"}}""", name), syntheticSource);
+    }
+
+    public void testNoDynamicObjectManyFields() throws IOException {
+        boolean booleanValue = randomBoolean();
+        int intValue = randomInt();
+        String stringValue = randomAlphaOfLength(20);
+
+        DocumentMapper documentMapper = createMapperService(syntheticSourceMapping(b -> {
+            b.startObject("boolean_value").field("type", "boolean").endObject();
+            b.startObject("path").field("type", "object").field("dynamic", "false");
+            {
+                b.startObject("properties");
+                {
+                    b.startObject("string_value").field("type", "keyword").endObject();
+                }
+                b.endObject();
+            }
+            b.endObject();
+        })).documentMapper();
+
+        var syntheticSource = syntheticSource(documentMapper, b -> {
+            b.field("boolean_value", booleanValue);
+            b.startObject("path");
+            {
+                b.field("int_value", intValue);
+                b.startObject("to");
+                {
+                    b.startObject("some");
+                    {
+                        b.startObject("deeply");
+                        {
+                            b.startObject("nested");
+                            b.field("string_value", stringValue);
+                            b.endObject();
+                        }
+                        b.endObject();
+                    }
+                    b.endObject();
+                }
+                b.field("string_value", stringValue);
+                b.endObject();
+            }
+            b.endObject();
+        });
+
+        assertEquals(String.format(Locale.ROOT, """
+            {"boolean_value":%s,"path":{"int_value":%s,"to":{"some":{"deeply":{"nested":{"string_value":"%s"}}},\
+            "string_value":"%s"}}}""", booleanValue, intValue, stringValue, stringValue), syntheticSource);
+    }
+
+    public void testNoDynamicObjectSimpleArray() throws IOException {
+        DocumentMapper documentMapper = createMapperService(syntheticSourceMapping(b -> {
+            b.startObject("path").field("type", "object").field("dynamic", "false").endObject();
+        })).documentMapper();
+        var syntheticSource = syntheticSource(documentMapper, b -> {
+            b.startArray("path");
+            {
+                b.startObject().field("name", "foo").endObject();
+                b.startObject().field("name", "bar").endObject();
+            }
+            b.endArray();
+        });
+        assertEquals("""
+            {"path":[{"name":"foo"},{"name":"bar"}]}""", syntheticSource);
+    }
+
+    public void testNoDynamicObjectSimpleValueArray() throws IOException {
+        DocumentMapper documentMapper = createMapperService(syntheticSourceMapping(b -> {
+            b.startObject("path").field("type", "object").field("dynamic", "false").endObject();
+        })).documentMapper();
+        var syntheticSource = syntheticSource(
+            documentMapper,
+            b -> { b.startObject("path").array("name", "A", "B", "C", "D").endObject(); }
+        );
+        assertEquals("""
+            {"path":{"name":["A","B","C","D"]}}""", syntheticSource);
+    }
+
+    public void testNoDynamicObjectNestedArray() throws IOException {
+        DocumentMapper documentMapper = createMapperService(syntheticSourceMapping(b -> {
+            b.startObject("path").field("type", "object").field("dynamic", "false").endObject();
+        })).documentMapper();
+        var syntheticSource = syntheticSource(documentMapper, b -> {
+            b.startArray("path");
+            {
+                b.startObject().startObject("to").field("foo", "A").field("bar", "B").endObject().endObject();
+                b.startObject().startObject("to").field("foo", "C").field("bar", "D").endObject().endObject();
+            }
+            b.endArray();
+        });
+        assertEquals("""
+            {"path":[{"to":{"foo":"A","bar":"B"}},{"to":{"foo":"C","bar":"D"}}]}""", syntheticSource);
+    }
+
+    public void testRuntimeDynamicObjectSingleField() throws IOException {
+        String name = randomAlphaOfLength(20);
+        DocumentMapper documentMapper = createMapperService(syntheticSourceMapping(b -> {
+            b.startObject("path").field("type", "object").field("dynamic", "runtime").endObject();
+        })).documentMapper();
+        var syntheticSource = syntheticSource(documentMapper, b -> {
+            b.startObject("path");
+            {
+                b.field("name", name);
+            }
+            b.endObject();
+        });
+        assertEquals(String.format(Locale.ROOT, """
+            {"path":{"name":"%s"}}""", name), syntheticSource);
+    }
+
+    public void testRuntimeDynamicObjectManyFields() throws IOException {
+        boolean booleanValue = randomBoolean();
+        int intValue = randomInt();
+        String stringValue = randomAlphaOfLength(20);
+
+        DocumentMapper documentMapper = createMapperService(syntheticSourceMapping(b -> {
+            b.startObject("boolean_value").field("type", "boolean").endObject();
+            b.startObject("path").field("type", "object").field("dynamic", "runtime");
+            {
+                b.startObject("properties");
+                {
+                    b.startObject("string_value").field("type", "keyword").endObject();
+                }
+                b.endObject();
+            }
+            b.endObject();
+        })).documentMapper();
+
+        var syntheticSource = syntheticSource(documentMapper, b -> {
+            b.field("boolean_value", booleanValue);
+            b.startObject("path");
+            {
+                b.field("int_value", intValue);
+                b.startObject("to");
+                {
+                    b.startObject("some");
+                    {
+                        b.startObject("deeply");
+                        {
+                            b.startObject("nested");
+                            b.field("string_value", stringValue);
+                            b.endObject();
+                        }
+                        b.endObject();
+                    }
+                    b.endObject();
+                }
+                b.field("string_value", stringValue);
+                b.endObject();
+            }
+            b.endObject();
+        });
+
+        assertEquals(String.format(Locale.ROOT, """
+            {"boolean_value":%s,"path":{"int_value":%s,"to":{"some":{"deeply":{"nested":{"string_value":"%s"}}},\
+            "string_value":"%s"}}}""", booleanValue, intValue, stringValue, stringValue), syntheticSource);
+    }
+
+    public void testRuntimeDynamicObjectSimpleArray() throws IOException {
+        DocumentMapper documentMapper = createMapperService(syntheticSourceMapping(b -> {
+            b.startObject("path").field("type", "object").field("dynamic", "runtime").endObject();
+        })).documentMapper();
+        var syntheticSource = syntheticSource(documentMapper, b -> {
+            b.startArray("path");
+            {
+                b.startObject().field("name", "foo").endObject();
+                b.startObject().field("name", "bar").endObject();
+            }
+            b.endArray();
+        });
+        assertEquals("""
+            {"path":[{"name":"foo"},{"name":"bar"}]}""", syntheticSource);
+    }
+
+    public void testRuntimeDynamicObjectSimpleValueArray() throws IOException {
+        DocumentMapper documentMapper = createMapperService(syntheticSourceMapping(b -> {
+            b.startObject("path").field("type", "object").field("dynamic", "runtime").endObject();
+        })).documentMapper();
+        var syntheticSource = syntheticSource(
+            documentMapper,
+            b -> { b.startObject("path").array("name", "A", "B", "C", "D").endObject(); }
+        );
+        assertEquals("""
+            {"path":{"name":["A","B","C","D"]}}""", syntheticSource);
+    }
+
+    public void testRuntimeDynamicObjectNestedArray() throws IOException {
+        DocumentMapper documentMapper = createMapperService(syntheticSourceMapping(b -> {
+            b.startObject("path").field("type", "object").field("dynamic", "runtime").endObject();
+        })).documentMapper();
+        var syntheticSource = syntheticSource(documentMapper, b -> {
+            b.startArray("path");
+            {
+                b.startObject().startObject("to").field("foo", "A").field("bar", "B").endObject().endObject();
+                b.startObject().startObject("to").field("foo", "C").field("bar", "D").endObject().endObject();
+            }
+            b.endArray();
+        });
+        assertEquals("""
+            {"path":[{"to":{"foo":"A","bar":"B"}},{"to":{"foo":"C","bar":"D"}}]}""", syntheticSource);
+    }
 }

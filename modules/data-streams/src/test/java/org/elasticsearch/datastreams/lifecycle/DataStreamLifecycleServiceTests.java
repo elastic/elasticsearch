@@ -118,8 +118,10 @@ import static org.elasticsearch.datastreams.lifecycle.DataStreamLifecycleService
 import static org.elasticsearch.datastreams.lifecycle.DataStreamLifecycleService.TARGET_MERGE_FACTOR_VALUE;
 import static org.elasticsearch.test.ClusterServiceUtils.createClusterService;
 import static org.elasticsearch.test.ClusterServiceUtils.setState;
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
@@ -353,7 +355,7 @@ public class DataStreamLifecycleServiceTests extends ESTestCase {
                     .put(indexMetadata.getSettings())
                     .put(
                         IndexMetadata.INDEX_DOWNSAMPLE_STATUS_KEY,
-                        randomValueOtherThan(UNKNOWN, () -> randomFrom(IndexMetadata.DownsampleTaskStatus.values()))
+                        STARTED // See: See TransportDownsampleAction#createDownsampleIndex(...)
                     )
             );
             indexMetaBuilder.putCustom(
@@ -1514,6 +1516,76 @@ public class DataStreamLifecycleServiceTests extends ESTestCase {
             ((DeleteIndexRequest) clientSeenRequests.get(2)).indices()[0],
             is(dataStream.getFailureIndices().getIndices().get(0).getName())
         );
+    }
+
+    public void testMaybeExecuteRetentionSuccessfulDownsampledIndex() {
+        String dataStreamName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+        ClusterState state = downsampleSetup(dataStreamName, SUCCESS);
+        DataStream dataStream = state.metadata().dataStreams().get(dataStreamName);
+        String firstGenIndexName = DataStream.getDefaultBackingIndexName(dataStreamName, 1);
+
+        // Executing the method to be tested:
+        Set<Index> indicesToBeRemoved = dataStreamLifecycleService.maybeExecuteRetention(clusterService.state(), dataStream, Set.of());
+        assertThat(indicesToBeRemoved, contains(state.getMetadata().index(firstGenIndexName).getIndex()));
+    }
+
+    public void testMaybeExecuteRetentionDownsampledIndexInProgress() {
+        String dataStreamName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+        ClusterState state = downsampleSetup(dataStreamName, STARTED);
+        DataStream dataStream = state.metadata().dataStreams().get(dataStreamName);
+        String firstGenIndexName = DataStream.getDefaultBackingIndexName(dataStreamName, 1);
+
+        // Executing the method to be tested:
+        Set<Index> indicesToBeRemoved = dataStreamLifecycleService.maybeExecuteRetention(clusterService.state(), dataStream, Set.of());
+        assertThat(indicesToBeRemoved, empty());
+    }
+
+    public void testMaybeExecuteRetentionDownsampledUnknown() {
+        String dataStreamName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+        ClusterState state = downsampleSetup(dataStreamName, UNKNOWN);
+        DataStream dataStream = state.metadata().dataStreams().get(dataStreamName);
+        String firstGenIndexName = DataStream.getDefaultBackingIndexName(dataStreamName, 1);
+
+        // Executing the method to be tested:
+        Set<Index> indicesToBeRemoved = dataStreamLifecycleService.maybeExecuteRetention(clusterService.state(), dataStream, Set.of());
+        assertThat(indicesToBeRemoved, contains(state.getMetadata().index(firstGenIndexName).getIndex()));
+    }
+
+    private ClusterState downsampleSetup(String dataStreamName, IndexMetadata.DownsampleTaskStatus status) {
+        // Base setup:
+        Metadata.Builder builder = Metadata.builder();
+        DataStream dataStream = createDataStream(
+            builder,
+            dataStreamName,
+            2,
+            settings(IndexVersion.current()).put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES)
+                .put("index.routing_path", "@timestamp"),
+            DataStreamLifecycle.newBuilder()
+                .downsampling(
+                    new Downsampling(
+                        List.of(new Round(TimeValue.timeValueMillis(0), new DownsampleConfig(new DateHistogramInterval("5m"))))
+                    )
+                )
+                .dataRetention(TimeValue.timeValueMillis(1))
+                .build(),
+            now
+        );
+        builder.put(dataStream);
+
+        // Update the first backing index so that is appears to have been downsampled:
+        String firstGenIndexName = DataStream.getDefaultBackingIndexName(dataStreamName, 1);
+        var imd = builder.get(firstGenIndexName);
+        var imdBuilder = new IndexMetadata.Builder(imd);
+        imdBuilder.settings(Settings.builder().put(imd.getSettings()).put(IndexMetadata.INDEX_DOWNSAMPLE_STATUS.getKey(), status).build());
+        builder.put(imdBuilder);
+
+        // Attaching state:
+        String nodeId = "localNode";
+        DiscoveryNodes.Builder nodesBuilder = buildNodes(nodeId);
+        nodesBuilder.masterNodeId(nodeId);
+        ClusterState state = ClusterState.builder(ClusterName.DEFAULT).metadata(builder).nodes(nodesBuilder).build();
+        setState(clusterService, state);
+        return state;
     }
 
     /*

@@ -654,6 +654,189 @@ nested object array next to other fields:
 
 
 ---
+object with dynamic override:
+  - requires:
+      cluster_features: ["mapper.track_ignored_source"]
+      reason: requires tracking ignored source
+
+  - do:
+      indices.create:
+        index: test
+        body:
+          mappings:
+            _source:
+              mode: synthetic
+            properties:
+              path_no:
+                dynamic: false
+                properties:
+                  name:
+                    type: keyword
+              path_runtime:
+                dynamic: runtime
+                properties:
+                  name:
+                    type: keyword
+
+  - do:
+      bulk:
+        index: test
+        refresh: true
+        body:
+          - '{ "create": { } }'
+          - '{ "name": "a", "path_no": { "some_int": 10, "to.a.very.deeply.nested.field": "A", "name": "foo" }, "path_runtime": { "some_int": 20, "to.a.very.deeply.nested.field": "B", "name": "bar" } }'
+
+  - do:
+      search:
+        index: test
+
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0._source.name: a }
+  - match: { hits.hits.0._source.path_no.name: foo }
+  - match: { hits.hits.0._source.path_no.some_int: 10 }
+  - match: { hits.hits.0._source.path_no.to.a.very.deeply.nested.field: A }
+  - match: { hits.hits.0._source.path_runtime.name: bar }
+  - match: { hits.hits.0._source.path_runtime.some_int: 20 }
+  - match: { hits.hits.0._source.path_runtime.to.a.very.deeply.nested.field: B }
+
+
+---
+subobject with dynamic override:
+  - requires:
+      cluster_features: ["mapper.track_ignored_source"]
+      reason: requires tracking ignored source
+
+  - do:
+      indices.create:
+        index: test
+        body:
+          mappings:
+            _source:
+              mode: synthetic
+            properties:
+              path:
+                properties:
+                  to_no:
+                    dynamic: false
+                    properties:
+                      name:
+                        type: keyword
+                  to_runtime:
+                    dynamic: runtime
+                    properties:
+                      name:
+                        type: keyword
+
+  - do:
+      bulk:
+        index: test
+        refresh: true
+        body:
+          - '{ "create": { } }'
+          - '{ "name": "a", "path": { "some_int": 10, "to_no": { "some_text": "A", "name": "foo" }, "to_runtime": { "some_text": "B", "name": "bar" } } }'
+
+  - do:
+      search:
+        index: test
+
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0._source.name: a }
+  - match: { hits.hits.0._source.path.some_int: 10 }
+  - match: { hits.hits.0._source.path.to_no.name: foo }
+  - match: { hits.hits.0._source.path.to_no.some_text: A }
+  - match: { hits.hits.0._source.path.to_runtime.name: bar }
+  - match: { hits.hits.0._source.path.to_runtime.some_text: B }
+
+
+---
+object array in object with dynamic override:
+  - requires:
+      cluster_features: ["mapper.track_ignored_source"]
+      reason: requires tracking ignored source
+
+  - do:
+      indices.create:
+        index: test
+        body:
+          mappings:
+            _source:
+              mode: synthetic
+            properties:
+              path_no:
+                dynamic: false
+                properties:
+                  name:
+                    type: keyword
+              path_runtime:
+                dynamic: runtime
+                properties:
+                  name:
+                    type: keyword
+
+  - do:
+      bulk:
+        index: test
+        refresh: true
+        body:
+          - '{ "create": { } }'
+          - '{ "path_no": [ { "some_int": 10 }, {"name": "foo"} ], "path_runtime": [ { "some_int": 20 }, {"name": "bar"} ], "name": "baz" }'
+
+  - do:
+      search:
+        index: test
+
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0._source.name: baz }
+  - match: { hits.hits.0._source.path_no.0.some_int: 10 }
+  - match: { hits.hits.0._source.path_no.1.name: foo }
+  - match: { hits.hits.0._source.path_runtime.0.some_int: 20 }
+  - match: { hits.hits.0._source.path_runtime.1.name: bar }
+
+
+---
+value array in object with dynamic override:
+  - requires:
+      cluster_features: ["mapper.track_ignored_source"]
+      reason: requires tracking ignored source
+
+  - do:
+      indices.create:
+        index: test
+        body:
+          mappings:
+            _source:
+              mode: synthetic
+            properties:
+              path_no:
+                dynamic: false
+                properties:
+                  name:
+                    type: keyword
+              path_runtime:
+                dynamic: runtime
+                properties:
+                  name:
+                    type: keyword
+
+  - do:
+      bulk:
+        index: test
+        refresh: true
+        body:
+          - '{ "create": { } }'
+          - '{ "path_no": { "values": [ "A", "B" ] }, "path_runtime": { "values": [ "C", "D" ] }, "name": "foo" }'
+
+  - do:
+      search:
+        index: test
+
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0._source.name: foo }
+  - match: { hits.hits.0._source.path_no.values: [ A, B] }
+  - match: { hits.hits.0._source.path_runtime.values: [ C, D] }
+
+
+---
 nested object:
   - requires:
       cluster_features: ["mapper.track_ignored_source"]

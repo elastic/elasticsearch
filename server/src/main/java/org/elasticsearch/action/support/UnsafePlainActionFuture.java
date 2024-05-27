@@ -20,6 +20,7 @@ import java.util.Objects;
  * This future is unsafe, since it allows notifying the future on the same thread pool executor that it is being waited on. This
  * is a common deadlock scenario, since all threads may be waiting and thus no thread may be able to complete the future.
  */
+@Deprecated(forRemoval = true)
 public class UnsafePlainActionFuture<T> extends PlainActionFuture<T> {
 
     private final String unsafeExecutor;

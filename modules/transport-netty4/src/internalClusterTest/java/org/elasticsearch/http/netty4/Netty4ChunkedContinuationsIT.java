@@ -60,7 +60,7 @@ import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.BaseRestHandler;
-import org.elasticsearch.rest.ChunkedRestResponseBody;
+import org.elasticsearch.rest.ChunkedRestResponseBodyPart;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
@@ -370,31 +370,31 @@ public class Netty4ChunkedContinuationsIT extends ESNetty4IntegTestCase {
                 TransportAction.localOnly();
             }
 
-            public ChunkedRestResponseBody getChunkedBody() {
-                return getChunkBatch(0);
+            public ChunkedRestResponseBodyPart getFirstResponseBodyPart() {
+                return getResponseBodyPart(0);
             }
 
-            private ChunkedRestResponseBody getChunkBatch(int batchIndex) {
+            private ChunkedRestResponseBodyPart getResponseBodyPart(int batchIndex) {
                 if (batchIndex == failIndex && randomBoolean()) {
                     throw new ElasticsearchException("simulated failure creating next batch");
                 }
-                return new ChunkedRestResponseBody() {
+                return new ChunkedRestResponseBodyPart() {
 
                     private final Iterator<String> lines = Iterators.forRange(0, 3, i -> "batch-" + batchIndex + "-chunk-" + i + "\n");
 
                     @Override
-                    public boolean isDone() {
+                    public boolean isPartComplete() {
                         return lines.hasNext() == false;
                     }
 
                     @Override
-                    public boolean isEndOfResponse() {
+                    public boolean isLastPart() {
                         return batchIndex == 2;
                     }
 
                     @Override
-                    public void getContinuation(ActionListener<ChunkedRestResponseBody> listener) {
-                        executor.execute(ActionRunnable.supply(listener, () -> getChunkBatch(batchIndex + 1)));
+                    public void getNextPart(ActionListener<ChunkedRestResponseBodyPart> listener) {
+                        executor.execute(ActionRunnable.supply(listener, () -> getResponseBodyPart(batchIndex + 1)));
                     }
 
                     @Override
@@ -486,11 +486,12 @@ public class Netty4ChunkedContinuationsIT extends ESNetty4IntegTestCase {
                                 @Override
                                 protected void processResponse(Response response) {
                                     try {
-                                        final var responseBody = response.getChunkedBody(); // might fail, so do this before acquiring ref
+                                        final var responseBody = response.getFirstResponseBodyPart();
+                                        // preceding line might fail, so needs to be done before acquiring the sendResponse ref
                                         refs.mustIncRef();
                                         channel.sendResponse(RestResponse.chunked(RestStatus.OK, responseBody, refs::decRef));
                                     } finally {
-                                        refs.decRef();
+                                        refs.decRef(); // release the ref acquired at the top of accept()
                                     }
                                 }
                             });
@@ -534,26 +535,26 @@ public class Netty4ChunkedContinuationsIT extends ESNetty4IntegTestCase {
                 TransportAction.localOnly();
             }
 
-            public ChunkedRestResponseBody getChunkedBody() {
-                return new ChunkedRestResponseBody() {
+            public ChunkedRestResponseBodyPart getResponseBodyPart() {
+                return new ChunkedRestResponseBodyPart() {
                     private final Iterator<String> lines = Iterators.single("infinite response\n");
 
                     @Override
-                    public boolean isDone() {
+                    public boolean isPartComplete() {
                         return lines.hasNext() == false;
                     }
 
                     @Override
-                    public boolean isEndOfResponse() {
+                    public boolean isLastPart() {
                         return false;
                     }
 
                     @Override
-                    public void getContinuation(ActionListener<ChunkedRestResponseBody> listener) {
+                    public void getNextPart(ActionListener<ChunkedRestResponseBodyPart> listener) {
                         computingContinuation = true;
                         executor.execute(ActionRunnable.supply(listener, () -> {
                             computingContinuation = false;
-                            return getChunkedBody();
+                            return getResponseBodyPart();
                         }));
                     }
 
@@ -628,7 +629,7 @@ public class Netty4ChunkedContinuationsIT extends ESNetty4IntegTestCase {
                                 client.execute(TYPE, new Request(), new RestActionListener<>(channel) {
                                     @Override
                                     protected void processResponse(Response response) {
-                                        channel.sendResponse(RestResponse.chunked(RestStatus.OK, response.getChunkedBody(), () -> {
+                                        channel.sendResponse(RestResponse.chunked(RestStatus.OK, response.getResponseBodyPart(), () -> {
                                             // cancellation notification only happens while processing a continuation, not while computing
                                             // the next one; prompt cancellation requires use of something like RestCancellableNodeClient
                                             assertFalse(response.computingContinuation);

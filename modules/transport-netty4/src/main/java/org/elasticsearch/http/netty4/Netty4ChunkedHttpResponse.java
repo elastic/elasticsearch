@@ -13,7 +13,7 @@ import io.netty.handler.codec.http.HttpResponseStatus;
 import io.netty.handler.codec.http.HttpVersion;
 
 import org.elasticsearch.http.HttpResponse;
-import org.elasticsearch.rest.ChunkedRestResponseBody;
+import org.elasticsearch.rest.ChunkedRestResponseBodyPart;
 import org.elasticsearch.rest.RestStatus;
 
 /**
@@ -23,16 +23,16 @@ final class Netty4ChunkedHttpResponse extends DefaultHttpResponse implements Net
 
     private final int sequence;
 
-    private final ChunkedRestResponseBody body;
+    private final ChunkedRestResponseBodyPart firstBodyPart;
 
-    Netty4ChunkedHttpResponse(int sequence, HttpVersion version, RestStatus status, ChunkedRestResponseBody body) {
+    Netty4ChunkedHttpResponse(int sequence, HttpVersion version, RestStatus status, ChunkedRestResponseBodyPart firstBodyPart) {
         super(version, HttpResponseStatus.valueOf(status.getStatus()));
         this.sequence = sequence;
-        this.body = body;
+        this.firstBodyPart = firstBodyPart;
     }
 
-    public ChunkedRestResponseBody body() {
-        return body;
+    public ChunkedRestResponseBodyPart firstBodyPart() {
+        return firstBodyPart;
     }
 
     @Override

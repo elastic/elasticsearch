@@ -39,32 +39,32 @@ import java.util.Iterator;
  * materializing the full response into on-heap buffers up front, instead serializing only as much of the response as can be flushed to the
  * network right away.</p>
  *
- * <p>Each {@link ChunkedRestResponseBody} represents a sequence of chunks that are ready for immediate transmission: if {@link #isDone}
- * returns {@code false} then {@link #encodeChunk} can be called at any time and must synchronously return the next chunk to be sent.
- * Many HTTP responses will be a single such sequence. However, if an implementation's {@link #isEndOfResponse} returns {@code false} at the
- * end of the sequence then the transmission is paused and {@link #getContinuation} is called to compute the next sequence of chunks
+ * <p>Each {@link ChunkedRestResponseBodyPart} represents a sequence of chunks that are ready for <i>immediate</i> transmission: if
+ * {@link #isPartComplete} returns {@code false} then {@link #encodeChunk} can be called at any time and must synchronously return the next
+ * chunk to be sent. Many HTTP responses will be a single part, but if an implementation's {@link #isLastPart} returns {@code false} at the
+ * end of the part then the transmission is paused and {@link #getNextPart} is called to compute the next sequence of chunks
  * asynchronously.</p>
  */
-public interface ChunkedRestResponseBody {
+public interface ChunkedRestResponseBodyPart {
 
-    Logger logger = LogManager.getLogger(ChunkedRestResponseBody.class);
+    Logger logger = LogManager.getLogger(ChunkedRestResponseBodyPart.class);
 
     /**
-     * @return {@code true} if this body contains no more chunks and the REST layer should check for a possible continuation by calling
-     * {@link #isEndOfResponse}, or {@code false} if the REST layer should request another chunk from this body using {@link #encodeChunk}.
+     * @return {@code true} if this body part contains no more chunks and the REST layer should check for a possible continuation by calling
+     * {@link #isLastPart}, or {@code false} if the REST layer should request another chunk from this body using {@link #encodeChunk}.
      */
-    boolean isDone();
+    boolean isPartComplete();
 
     /**
-     * @return {@code true} if this is the last chunked body in the response, or {@code false} if the REST layer should request further
-     * chunked bodies by calling {@link #getContinuation}.
+     * @return {@code true} if this is the last chunked body part in the response, or {@code false} if the REST layer should request further
+     * chunked bodies by calling {@link #getNextPart}.
      */
-    boolean isEndOfResponse();
+    boolean isLastPart();
 
     /**
-     * <p>Asynchronously retrieves the next part of the body. Called if {@link #isEndOfResponse} returns {@code false}.</p>
+     * <p>Asynchronously retrieves the next part of the response body. Called if {@link #isLastPart} returns {@code false}.</p>
      *
-     * <p>Note that this is called on a transport thread, so implementations must take care to dispatch any nontrivial work elsewhere.</p>
+     * <p>Note that this is called on a transport thread: implementations must take care to dispatch any nontrivial work elsewhere.</p>
 
      * <p>Note that the {@link Task} corresponding to any invocation of {@link Client#execute} completes as soon as the client action
      * returns its response, so it no longer exists when this method is called and cannot be used to receive cancellation notifications.
@@ -78,7 +78,7 @@ public interface ChunkedRestResponseBody {
      *                 the body of the response, so there's no good ways to handle an exception here. Completing the listener exceptionally
      *                 will log an error, abort sending the response, and close the HTTP connection.
      */
-    void getContinuation(ActionListener<ChunkedRestResponseBody> listener);
+    void getNextPart(ActionListener<ChunkedRestResponseBodyPart> listener);
 
     /**
      * Serializes approximately as many bytes of the response as request by {@code sizeHint} to a {@link ReleasableBytesReference} that
@@ -97,17 +97,17 @@ public interface ChunkedRestResponseBody {
     String getResponseContentTypeString();
 
     /**
-     * Create a chunked response body to be written to a specific {@link RestChannel} from a {@link ChunkedToXContent}.
+     * Create a one-part chunked response body to be written to a specific {@link RestChannel} from a {@link ChunkedToXContent}.
      *
      * @param chunkedToXContent chunked x-content instance to serialize
      * @param params parameters to use for serialization
      * @param channel channel the response will be written to
      * @return chunked rest response body
      */
-    static ChunkedRestResponseBody fromXContent(ChunkedToXContent chunkedToXContent, ToXContent.Params params, RestChannel channel)
+    static ChunkedRestResponseBodyPart fromXContent(ChunkedToXContent chunkedToXContent, ToXContent.Params params, RestChannel channel)
         throws IOException {
 
-        return new ChunkedRestResponseBody() {
+        return new ChunkedRestResponseBodyPart() {
 
             private final OutputStream out = new OutputStream() {
                 @Override
@@ -135,17 +135,17 @@ public interface ChunkedRestResponseBody {
             private BytesStream target;
 
             @Override
-            public boolean isDone() {
+            public boolean isPartComplete() {
                 return serialization.hasNext() == false;
             }
 
             @Override
-            public boolean isEndOfResponse() {
+            public boolean isLastPart() {
                 return true;
             }
 
             @Override
-            public void getContinuation(ActionListener<ChunkedRestResponseBody> listener) {
+            public void getNextPart(ActionListener<ChunkedRestResponseBodyPart> listener) {
                 assert false : "no continuations";
                 listener.onFailure(new IllegalStateException("no continuations available"));
             }
@@ -191,11 +191,11 @@ public interface ChunkedRestResponseBody {
     }
 
     /**
-     * Create a chunked response body to be written to a specific {@link RestChannel} from a stream of text chunks, each represented as a
-     * consumer of a {@link Writer}.
+     * Create a one-part chunked response body to be written to a specific {@link RestChannel} from a stream of UTF-8-encoded text chunks,
+     * each represented as a consumer of a {@link Writer}.
      */
-    static ChunkedRestResponseBody fromTextChunks(String contentType, Iterator<CheckedConsumer<Writer, IOException>> chunkIterator) {
-        return new ChunkedRestResponseBody() {
+    static ChunkedRestResponseBodyPart fromTextChunks(String contentType, Iterator<CheckedConsumer<Writer, IOException>> chunkIterator) {
+        return new ChunkedRestResponseBodyPart() {
             private RecyclerBytesStreamOutput currentOutput;
             private final Writer writer = new OutputStreamWriter(new OutputStream() {
                 @Override
@@ -224,17 +224,17 @@ public interface ChunkedRestResponseBody {
             }, StandardCharsets.UTF_8);
 
             @Override
-            public boolean isDone() {
+            public boolean isPartComplete() {
                 return chunkIterator.hasNext() == false;
             }
 
             @Override
-            public boolean isEndOfResponse() {
+            public boolean isLastPart() {
                 return true;
             }
 
             @Override
-            public void getContinuation(ActionListener<ChunkedRestResponseBody> listener) {
+            public void getNextPart(ActionListener<ChunkedRestResponseBodyPart> listener) {
                 assert false : "no continuations";
                 listener.onFailure(new IllegalStateException("no continuations available"));
             }

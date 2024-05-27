@@ -53,9 +53,9 @@ public class IpPrefix extends EsqlScalarFunction {
         @Param(
             name = "prefixLength",
             type = { "integer" },
-            description = "Prefix length. If in the range (0, 32), the IP is treated as an IPv4 address. " +
-                "If in the range (32, 128), the IP is treated as an IPv6 address. " +
-                "If the prefix length is out of range, the function returns `null`."
+            description = "Prefix length. If in the range (0, 32), the IP is treated as an IPv4 address. "
+                + "If in the range (32, 128), the IP is treated as an IPv6 address. "
+                + "If the prefix length is out of range, the function returns `null`."
         ) Expression prefixLengthField
     ) {
         super(source, Arrays.asList(ipField, prefixLengthField));
@@ -80,11 +80,7 @@ public class IpPrefix extends EsqlScalarFunction {
     public ExpressionEvaluator.Factory toEvaluator(Function<Expression, ExpressionEvaluator.Factory> toEvaluator) {
         var ipEvaluatorSupplier = toEvaluator.apply(ipField);
         var prefixLengthEvaluatorSupplier = toEvaluator.apply(prefixLengthField);
-        return new IpPrefixEvaluator.Factory(
-            source(),
-            ipEvaluatorSupplier,
-            prefixLengthEvaluatorSupplier
-        );
+        return new IpPrefixEvaluator.Factory(source(), ipEvaluatorSupplier, prefixLengthEvaluatorSupplier);
     }
 
     @Evaluator

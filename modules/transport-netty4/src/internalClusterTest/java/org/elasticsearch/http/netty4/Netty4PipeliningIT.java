@@ -252,6 +252,16 @@ public class Netty4PipeliningIT extends ESNetty4IntegTestCase {
                             }
 
                             @Override
+                            public boolean isEndOfResponse() {
+                                return true;
+                            }
+
+                            @Override
+                            public void getContinuation(ActionListener<ChunkedRestResponseBody> listener) {
+                                fail("no continuations here");
+                            }
+
+                            @Override
                             public ReleasableBytesReference encodeChunk(int sizeHint, Recycler<BytesRef> recycler) throws IOException {
                                 assert bytesRemaining >= 0 : "already failed";
                                 if (bytesRemaining == 0) {

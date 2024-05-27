@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.ml.integration;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.junit.Before;
@@ -272,14 +273,14 @@ public class LearningToRankRescorerIT extends InferenceTestCase {
 
         {
             Request request = new Request("GET", "store/_search?size=4");
-            request.setJsonEntity(String.format(queryTemplate, randomIntBetween(2, 10000), randomIntBetween(4, 5)));
+            request.setJsonEntity(Strings.format(queryTemplate, randomIntBetween(2, 10000), randomIntBetween(4, 5)));
             assertHitScores(client().performRequest(request), List.of(40.0, 40.0, 37.0, 29.0));
         }
 
         {
             int lastRescorerWindowSize = randomIntBetween(6, 10000);
             Request request = new Request("GET", "store/_search?size=4");
-            request.setJsonEntity(String.format(queryTemplate, randomIntBetween(2, 10000), lastRescorerWindowSize));
+            request.setJsonEntity(Strings.format(queryTemplate, randomIntBetween(2, 10000), lastRescorerWindowSize));
 
             Exception e = assertThrows(ResponseException.class, () -> client().performRequest(request));
             assertThat(

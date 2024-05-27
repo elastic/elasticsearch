@@ -797,8 +797,8 @@ public class DefaultRestChannelTests extends ESTestCase {
                 () -> channel.sendResponse(RestResponse.chunked(RestStatus.OK, firstPart, () -> {
                     assertTrue(isClosed.compareAndSet(false, true));
                     for (int i = 0; i < parts.size(); i++) {
-                        assertTrue("isDone " + i, parts.get(i).isPartComplete());
-                        assertEquals("isEndOfResponse " + i, i == parts.size() - 1, parts.get(i).isLastPart());
+                        assertTrue("isPartComplete " + i, parts.get(i).isPartComplete());
+                        assertEquals("isLastPart " + i, i == parts.size() - 1, parts.get(i).isLastPart());
                     }
                 }))
             )

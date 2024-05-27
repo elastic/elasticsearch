@@ -79,6 +79,8 @@ public class ReservedRealmElasticAutoconfigIntegTests extends SecuritySingleNode
             if (getIndexResponse.getIndices().length > 0) {
                 assertThat(getIndexResponse.getIndices().length, is(1));
                 assertThat(getIndexResponse.getIndices()[0], is(TestRestrictedIndices.INTERNAL_SECURITY_MAIN_INDEX_7));
+                // Security migration needs to finish before deleting the index
+                awaitSecurityMigration();
                 DeleteIndexRequest deleteIndexRequest = new DeleteIndexRequest(getIndexResponse.getIndices());
                 assertAcked(client().admin().indices().delete(deleteIndexRequest).actionGet());
             }
@@ -137,6 +139,8 @@ public class ReservedRealmElasticAutoconfigIntegTests extends SecuritySingleNode
             putUserRequest.passwordHash(Hasher.PBKDF2.hash(password));
             putUserRequest.roles(Strings.EMPTY_ARRAY);
             client().execute(PutUserAction.INSTANCE, putUserRequest).get();
+            // Security migration needs to finish before making the cluster read only
+            awaitSecurityMigration();
 
             // but then make the cluster read-only
             ClusterUpdateSettingsRequest updateSettingsRequest = new ClusterUpdateSettingsRequest();
@@ -160,7 +164,6 @@ public class ReservedRealmElasticAutoconfigIntegTests extends SecuritySingleNode
             restRequest.setOptions(options);
             ResponseException exception = expectThrows(ResponseException.class, () -> getRestClient().performRequest(restRequest));
             assertThat(exception.getResponse().getStatusLine().getStatusCode(), is(RestStatus.SERVICE_UNAVAILABLE.getStatus()));
-
             // clear cluster-wide write block
             updateSettingsRequest = new ClusterUpdateSettingsRequest();
             updateSettingsRequest.transientSettings(

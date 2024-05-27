@@ -35,11 +35,12 @@ public class GoogleAiStudioCompletionServiceSettings extends FilteredXContentObj
     public static final String NAME = "google_ai_studio_completion_service_settings";
 
     /**
-     * TODO: rate limit docs
+     * Rate limits are defined at <a href="https://ai.google.dev/pricing">Google Gemini API Pricing</a>.
+     * For pay-as-you-go you've 360 requests per minute.
      */
 
     // TODO: check rate limits
-    private static final RateLimitSettings DEFAULT_RATE_LIMIT_SETTINGS = new RateLimitSettings(120);
+    private static final RateLimitSettings DEFAULT_RATE_LIMIT_SETTINGS = new RateLimitSettings(360);
 
     public static GoogleAiStudioCompletionServiceSettings fromMap(Map<String, Object> map) {
         ValidationException validationException = new ValidationException();

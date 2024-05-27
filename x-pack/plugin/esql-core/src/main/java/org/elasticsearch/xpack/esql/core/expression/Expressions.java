@@ -7,18 +7,11 @@
 package org.elasticsearch.xpack.esql.core.expression;
 
 import org.elasticsearch.core.Tuple;
-import org.elasticsearch.xpack.esql.core.QlIllegalArgumentException;
-import org.elasticsearch.xpack.esql.core.expression.function.Function;
-import org.elasticsearch.xpack.esql.core.expression.gen.pipeline.AttributeInput;
-import org.elasticsearch.xpack.esql.core.expression.gen.pipeline.ConstantInput;
-import org.elasticsearch.xpack.esql.core.expression.gen.pipeline.Pipe;
 import org.elasticsearch.xpack.esql.core.type.DataTypes;
 
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.LinkedHashSet;
 import java.util.List;
-import java.util.Set;
 import java.util.function.Predicate;
 
 import static java.util.Collections.emptyList;
@@ -180,59 +173,6 @@ public final class Expressions {
             }
         }
         return aliases;
-    }
-
-    public static boolean hasReferenceAttribute(Collection<Attribute> output) {
-        for (Attribute attribute : output) {
-            if (attribute instanceof ReferenceAttribute) {
-                return true;
-            }
-        }
-        return false;
-    }
-
-    public static List<Attribute> onlyPrimitiveFieldAttributes(Collection<Attribute> attributes) {
-        List<Attribute> filtered = new ArrayList<>();
-        // add only primitives
-        // but filter out multi fields (allow only the top-level value)
-        Set<Attribute> seenMultiFields = new LinkedHashSet<>();
-
-        for (Attribute a : attributes) {
-            if (DataTypes.isUnsupported(a.dataType()) == false && DataTypes.isPrimitive(a.dataType())) {
-                if (a instanceof FieldAttribute fa) {
-                    // skip nested fields and seen multi-fields
-                    if (fa.isNested() == false && seenMultiFields.contains(fa.parent()) == false) {
-                        filtered.add(a);
-                        seenMultiFields.add(a);
-                    }
-                } else {
-                    filtered.add(a);
-                }
-            }
-        }
-
-        return filtered;
-    }
-
-    public static Pipe pipe(Expression e) {
-        if (e.foldable()) {
-            return new ConstantInput(e.source(), e, e.fold());
-        }
-        if (e instanceof NamedExpression ne) {
-            return new AttributeInput(e.source(), e, ne.toAttribute());
-        }
-        if (e instanceof Function f) {
-            return f.asPipe();
-        }
-        throw new QlIllegalArgumentException("Cannot create pipe for {}", e);
-    }
-
-    public static List<Pipe> pipe(List<Expression> expressions) {
-        List<Pipe> pipes = new ArrayList<>(expressions.size());
-        for (Expression e : expressions) {
-            pipes.add(pipe(e));
-        }
-        return pipes;
     }
 
     public static String id(Expression e) {

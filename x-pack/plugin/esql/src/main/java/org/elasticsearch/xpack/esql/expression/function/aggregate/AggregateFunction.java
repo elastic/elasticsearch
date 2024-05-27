@@ -9,8 +9,6 @@ package org.elasticsearch.xpack.esql.expression.function.aggregate;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
 import org.elasticsearch.xpack.esql.core.expression.function.Function;
-import org.elasticsearch.xpack.esql.core.expression.gen.pipeline.AggNameInput;
-import org.elasticsearch.xpack.esql.core.expression.gen.pipeline.Pipe;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.util.CollectionUtils;
 
@@ -50,12 +48,6 @@ public abstract class AggregateFunction extends Function {
     @Override
     protected TypeResolution resolveType() {
         return TypeResolutions.isExact(field, sourceText(), DEFAULT);
-    }
-
-    @Override
-    protected Pipe makePipe() {
-        // unresolved AggNameInput (should always get replaced by the folder)
-        return new AggNameInput(source(), this, sourceText());
     }
 
     @Override

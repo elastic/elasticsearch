@@ -26,6 +26,21 @@ tests:
 - class: "org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT"
   issue: "https://github.com/elastic/elasticsearch/issues/108950"
   method: "test {p0=health/10_basic/cluster health basic test}"
+- class: "org.elasticsearch.upgrades.SearchStatesIT"
+  issue: "https://github.com/elastic/elasticsearch/issues/108991"
+  method: "testCanMatch"
+- class: "org.elasticsearch.upgrades.AggregationsIT"
+  issue: "https://github.com/elastic/elasticsearch/issues/108992"
+  method: "testHistogram"
+- class: "org.elasticsearch.upgrades.MlTrainedModelsUpgradeIT"
+  issue: "https://github.com/elastic/elasticsearch/issues/108993"
+  method: "testTrainedModelInference"
+- class: "org.elasticsearch.xpack.security.authc.esnative.ReservedRealmElasticAutoconfigIntegTests"
+  issue: "https://github.com/elastic/elasticsearch/issues/109058"
+  method: "testAutoconfigSucceedsAfterPromotionFailure"
+- class: "org.elasticsearch.xpack.security.authc.esnative.ReservedRealmElasticAutoconfigIntegTests"
+  issue: "https://github.com/elastic/elasticsearch/issues/109059"
+  method: "testAutoconfigFailedPasswordPromotion"
 # Examples:
 #
 #  Mute a single test case in a YAML test suite:

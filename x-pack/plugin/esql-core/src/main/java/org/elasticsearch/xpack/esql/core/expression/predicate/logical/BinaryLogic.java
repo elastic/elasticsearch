@@ -7,10 +7,8 @@
 package org.elasticsearch.xpack.esql.core.expression.predicate.logical;
 
 import org.elasticsearch.xpack.esql.core.expression.Expression;
-import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal;
-import org.elasticsearch.xpack.esql.core.expression.gen.pipeline.Pipe;
 import org.elasticsearch.xpack.esql.core.expression.predicate.BinaryOperator;
 import org.elasticsearch.xpack.esql.core.expression.predicate.logical.BinaryLogicProcessor.BinaryLogicOperation;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -33,11 +31,6 @@ public abstract class BinaryLogic extends BinaryOperator<Boolean, Boolean, Boole
     @Override
     protected TypeResolution resolveInputType(Expression e, ParamOrdinal paramOrdinal) {
         return isBoolean(e, sourceText(), paramOrdinal);
-    }
-
-    @Override
-    protected Pipe makePipe() {
-        return new BinaryLogicPipe(source(), this, Expressions.pipe(left()), Expressions.pipe(right()), function());
     }
 
     @Override

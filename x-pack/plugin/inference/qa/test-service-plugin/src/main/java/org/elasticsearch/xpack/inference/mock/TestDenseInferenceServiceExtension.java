@@ -29,6 +29,7 @@ import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xpack.core.inference.results.FloatEmbedding;
 import org.elasticsearch.xpack.core.inference.results.TextEmbeddingResults;
 import org.elasticsearch.xpack.core.ml.inference.results.ChunkedTextEmbeddingResults;
 
@@ -137,14 +138,14 @@ public class TestDenseInferenceServiceExtension implements InferenceServiceExten
         }
 
         private TextEmbeddingResults makeResults(List<String> input, int dimensions) {
-            List<TextEmbeddingResults.Embedding> embeddings = new ArrayList<>();
+            List<FloatEmbedding> embeddings = new ArrayList<>();
             for (int i = 0; i < input.size(); i++) {
                 double[] doubleEmbeddings = generateEmbedding(input.get(i), dimensions);
                 List<Float> floatEmbeddings = new ArrayList<>(dimensions);
                 for (int j = 0; j < dimensions; j++) {
                     floatEmbeddings.add((float) doubleEmbeddings[j]);
                 }
-                embeddings.add(TextEmbeddingResults.Embedding.of(floatEmbeddings));
+                embeddings.add(FloatEmbedding.of(floatEmbeddings));
             }
             return new TextEmbeddingResults(embeddings);
         }

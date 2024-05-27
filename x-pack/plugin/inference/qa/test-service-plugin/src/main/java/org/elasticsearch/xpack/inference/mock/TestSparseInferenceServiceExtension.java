@@ -29,6 +29,7 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.inference.results.ChunkedSparseEmbeddingResults;
+import org.elasticsearch.xpack.core.inference.results.SparseEmbedding;
 import org.elasticsearch.xpack.core.inference.results.SparseEmbeddingResults;
 import org.elasticsearch.xpack.core.ml.inference.results.ChunkedTextExpansionResults;
 import org.elasticsearch.xpack.core.ml.search.WeightedToken;
@@ -127,13 +128,13 @@ public class TestSparseInferenceServiceExtension implements InferenceServiceExte
         }
 
         private SparseEmbeddingResults makeResults(List<String> input) {
-            var embeddings = new ArrayList<SparseEmbeddingResults.Embedding>();
+            var embeddings = new ArrayList<SparseEmbedding>();
             for (int i = 0; i < input.size(); i++) {
-                var tokens = new ArrayList<WeightedToken>();
+                var tokens = new ArrayList<SparseEmbedding.WeightedToken>();
                 for (int j = 0; j < 5; j++) {
-                    tokens.add(new WeightedToken("feature_" + j, generateEmbedding(input.get(i), j)));
+                    tokens.add(new SparseEmbedding.WeightedToken("feature_" + j, generateEmbedding(input.get(i), j)));
                 }
-                embeddings.add(new SparseEmbeddingResults.Embedding(tokens, false));
+                embeddings.add(new SparseEmbedding(tokens, false));
             }
             return new SparseEmbeddingResults(embeddings);
         }

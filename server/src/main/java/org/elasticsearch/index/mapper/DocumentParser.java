@@ -657,13 +657,13 @@ public final class DocumentParser {
     ) throws IOException {
         // Check if we need to record the array source. This only applies to synthetic source.
         if (context.canAddIgnoredField()) {
-            if ((mapper instanceof ObjectMapper objectMapper
-                && (objectMapper.storeArraySource() || objectMapper.dynamic == ObjectMapper.Dynamic.RUNTIME))
-                || (mapper instanceof FieldMapper fieldMapper
-                    && fieldMapper.syntheticSourceMode() == FieldMapper.SyntheticSourceMode.FALLBACK)
-                || mapper instanceof NestedObjectMapper
-                || context.dynamic() == ObjectMapper.Dynamic.RUNTIME) {
-                // Clone the DocumentParserContext to parse its subtree twice.
+            boolean objectRequiresStoringSource = mapper instanceof ObjectMapper objectMapper
+                && (objectMapper.storeArraySource() || objectMapper.dynamic == ObjectMapper.Dynamic.RUNTIME);
+            boolean fieldWithFallbackSyntheticSource = mapper instanceof FieldMapper fieldMapper
+                && fieldMapper.syntheticSourceMode() == FieldMapper.SyntheticSourceMode.FALLBACK;
+            boolean nestedObject = mapper instanceof NestedObjectMapper;
+            boolean dynamicRuntimeContext = context.dynamic() == ObjectMapper.Dynamic.RUNTIME;
+            if (objectRequiresStoringSource || fieldWithFallbackSyntheticSource || nestedObject || dynamicRuntimeContext) {
                 Tuple<DocumentParserContext, XContentBuilder> tuple = XContentDataHelper.cloneSubContext(context);
                 context.addIgnoredField(
                     IgnoredSourceFieldMapper.NameValue.fromContext(

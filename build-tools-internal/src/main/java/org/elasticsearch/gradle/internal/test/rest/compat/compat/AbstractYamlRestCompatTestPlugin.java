@@ -24,6 +24,7 @@ import org.gradle.api.Task;
 import org.gradle.api.artifacts.Configuration;
 import org.gradle.api.artifacts.Dependency;
 import org.gradle.api.file.Directory;
+import org.gradle.api.file.FileTree;
 import org.gradle.api.file.ProjectLayout;
 import org.gradle.api.file.RelativePath;
 import org.gradle.api.internal.file.FileOperations;
@@ -221,7 +222,8 @@ public abstract class AbstractYamlRestCompatTestPlugin implements Plugin<Project
             testTask.setTestClassesDirs(
                 yamlTestSourceSet.getOutput().getClassesDirs().plus(yamlCompatTestSourceSet.getOutput().getClassesDirs())
             );
-            testTask.onlyIf("Compatibility tests are available", t -> yamlCompatTestSourceSet.getAllSource().isEmpty() == false);
+            FileTree allSource = yamlCompatTestSourceSet.getAllSource();
+            testTask.onlyIf("Compatibility tests are available", t -> allSource.isEmpty() == false);
             testTask.setClasspath(
                 yamlCompatTestSourceSet.getRuntimeClasspath()
                     // remove the "normal" api and tests

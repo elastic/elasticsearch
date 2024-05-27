@@ -285,7 +285,7 @@ public class InternalDistributionBwcSetupPlugin implements Plugin<Project> {
     public static String buildBwcTaskName(String projectName) {
         return "buildBwc"
             + stream(projectName.split("-")).map(i -> i.substring(0, 1).toUpperCase(Locale.ROOT) + i.substring(1))
-            .collect(Collectors.joining());
+                .collect(Collectors.joining());
     }
 
     static void createBuildBwcTask(

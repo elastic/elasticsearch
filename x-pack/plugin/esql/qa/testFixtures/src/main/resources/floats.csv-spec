@@ -61,8 +61,8 @@ ROW str1 = "5.20128E11", str2 = "foo"
 | EVAL dbl = TO_DOUBLE("520128000000"), dbl1 = TO_DOUBLE(str1), dbl2 = TO_DOUBLE(str2)
 // end::to_double-str[]
 ;
-warning:Line 2:72: evaluation of [TO_DOUBLE(str2)] failed, treating result as null. Only first 20 failures recorded.
-warning:Line 2:72: org.elasticsearch.xpack.ql.InvalidArgumentException: Cannot parse number [foo]
+warningRegex:Line 2:72: evaluation of \[TO_DOUBLE\(str2\)\] failed, treating result as null. Only first 20 failures recorded.
+warningRegex:Line 2:72: org.elasticsearch.xpack.(esql.core|ql).InvalidArgumentException: Cannot parse number \[foo\]
 
 // tag::to_double-str-result[]
 str1:keyword |str2:keyword |dbl:double |dbl1:double |dbl2:double

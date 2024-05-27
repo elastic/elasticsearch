@@ -12,9 +12,6 @@ setup:
       indices.create:
         index: test
         body:
-          settings:
-            number_of_shards: 1
-            number_of_replicas: 0
           mappings:
             properties:
               integer:
@@ -43,8 +40,7 @@ setup:
   - do:
       esql.query:
         body:
-          query: 'from test metadata _ignored | WHERE case == "ok" | limit 2 | keep integer, keyword, _ignored'
-          version: 2024.04.01
+          query: 'from test metadata _ignored | where case == "ok" | limit 2 | keep integer, keyword, _ignored'
 
   - length: { columns: 3 }
   - match: { columns.0.name: integer }
@@ -64,8 +60,7 @@ setup:
   - do:
       esql.query:
         body:
-          query: 'from test metadata _ignored | WHERE case == "integer_ignored" | limit 2 | keep integer, keyword, _ignored'
-          version: 2024.04.01
+          query: 'from test metadata _ignored | where case == "integer_ignored" | limit 2 | keep integer, keyword, _ignored'
 
   - length: { columns: 3 }
   - match: { columns.0.name: integer }
@@ -85,8 +80,7 @@ setup:
   - do:
       esql.query:
         body:
-          query: 'from test metadata _ignored | WHERE case == "all_ignored" | limit 2 | keep integer, keyword, _ignored'
-          version: 2024.04.01
+          query: 'from test metadata _ignored | where case == "all_ignored" | limit 2 | keep integer, keyword, _ignored'
 
   - length: { columns: 3 }
   - match: { columns.0.name: integer }
@@ -106,8 +100,7 @@ setup:
   - do:
       esql.query:
         body:
-          query: 'from test metadata _ignored | WHERE _ignored == "keyword" | limit 3 | stats count(*)'
-          version: 2024.04.01
+          query: 'from test metadata _ignored | where _ignored == "keyword" | limit 3 | stats count(*)'
 
   - length: { columns: 1 }
   - length: { values: 1 }
@@ -121,7 +114,6 @@ setup:
       esql.query:
         body:
           query: 'from test metadata _ignored | limit 3 | stats count = count(*) by _ignored'
-          version: 2024.04.01
 
   - length: { columns: 2 }
   - length: { values: 3 }
@@ -142,7 +134,6 @@ setup:
       esql.query:
         body:
           query: 'from test metadata _ignored | limit 3 | stats count_distinct(_ignored)'
-          version: 2024.04.01
 
   - length: { columns: 1 }
   - length: { values: 1 }

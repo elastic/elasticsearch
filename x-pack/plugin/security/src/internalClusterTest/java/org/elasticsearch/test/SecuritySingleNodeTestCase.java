@@ -93,7 +93,7 @@ public abstract class SecuritySingleNodeTestCase extends ESSingleNodeTestCase {
         return getTaskWithId(state, TASK_NAME) == null;
     }
 
-    protected void awaitSecurityMigration() {
+    private void awaitSecurityMigration() {
         final var latch = new CountDownLatch(1);
         ClusterService clusterService = getInstanceFromNode(ClusterService.class);
         clusterService.addListener((event) -> {

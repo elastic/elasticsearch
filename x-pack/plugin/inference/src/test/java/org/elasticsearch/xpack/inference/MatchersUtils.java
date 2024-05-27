@@ -15,7 +15,6 @@ import java.util.regex.Pattern;
 
 public class MatchersUtils {
 
-    // TODO: test
     protected static class IsEqualIgnoreWhitespaceInJsonString extends TypeSafeMatcher<String> {
 
         protected static final Pattern WHITESPACE_IN_JSON_EXCEPT_KEYS_AND_VALUES_PATTERN = createPattern();

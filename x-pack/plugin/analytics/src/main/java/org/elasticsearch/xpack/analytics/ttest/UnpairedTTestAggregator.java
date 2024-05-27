@@ -111,8 +111,8 @@ public class UnpairedTTestAggregator extends TTestAggregator<UnpairedTTestState>
                     processValues(doc, bucket, docAValues, compSumA, compSumOfSqrA, a);
                 }
                 if (bitsB == null || bitsB.get(doc)) {
-                    processValues(doc, bucket, docBValues, compSumB, compSumOfSqrB, b);
                     b.grow(bigArrays(), bucket + 1);
+                    processValues(doc, bucket, docBValues, compSumB, compSumOfSqrB, b);
                 }
             }
         };

@@ -16,18 +16,17 @@ import java.util.Objects;
 
 /**
  * Holder for all transform services that need to get injected via guice.
- *
+ * <p>
  * Needed because interfaces can not be injected.
  * Note: Guice will be removed in the long run.
  */
-public final class TransformServices {
-
-    private final TransformConfigManager configManager;
-    private final TransformCheckpointService checkpointService;
-    private final TransformAuditor auditor;
-    private final TransformScheduler scheduler;
-    private final TransformNode transformNode;
-
+public record TransformServices(
+    TransformConfigManager configManager,
+    TransformCheckpointService checkpointService,
+    TransformAuditor auditor,
+    TransformScheduler scheduler,
+    TransformNode transformNode
+) {
     public TransformServices(
         TransformConfigManager configManager,
         TransformCheckpointService checkpointService,
@@ -39,26 +38,6 @@ public final class TransformServices {
         this.checkpointService = Objects.requireNonNull(checkpointService);
         this.auditor = Objects.requireNonNull(auditor);
         this.scheduler = Objects.requireNonNull(scheduler);
-        this.transformNode = transformNode;
-    }
-
-    public TransformConfigManager getConfigManager() {
-        return configManager;
-    }
-
-    public TransformCheckpointService getCheckpointService() {
-        return checkpointService;
-    }
-
-    public TransformAuditor getAuditor() {
-        return auditor;
-    }
-
-    public TransformScheduler getScheduler() {
-        return scheduler;
-    }
-
-    public TransformNode getTransformNode() {
-        return transformNode;
+        this.transformNode = Objects.requireNonNull(transformNode);
     }
 }

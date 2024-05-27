@@ -1,0 +1,5 @@
+pr: 108854
+summary: "[Connector API] Fix bug with parsing *_doc_count nullable fields"
+area: Application
+type: bug
+issues: []

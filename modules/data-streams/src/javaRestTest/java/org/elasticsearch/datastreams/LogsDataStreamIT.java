@@ -11,8 +11,16 @@ package org.elasticsearch.datastreams;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
+import org.elasticsearch.common.settings.SecureString;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.test.cluster.ElasticsearchCluster;
+import org.elasticsearch.test.cluster.FeatureFlag;
+import org.elasticsearch.test.cluster.local.distribution.DistributionType;
+import org.elasticsearch.test.rest.ESRestTestCase;
 import org.junit.After;
 import org.junit.Before;
+import org.junit.ClassRule;
 
 import java.io.IOException;
 import java.util.List;
@@ -27,7 +35,33 @@ import static org.hamcrest.Matchers.matchesRegex;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 
-public class LogsDataStreamIT extends DisabledSecurityDataStreamTestCase {
+public class LogsDataStreamIT extends ESRestTestCase {
+
+    @ClassRule
+    public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
+        .distribution(DistributionType.DEFAULT)
+        .feature(FeatureFlag.FAILURE_STORE_ENABLED)
+        .setting("xpack.security.enabled", "false")
+        .setting("xpack.watcher.enabled", "false")
+        // Disable apm-data so the index templates it installs do not impact
+        // tests such as testIgnoreDynamicBeyondLimit.
+        .setting("xpack.apm_data.enabled", "false")
+        .build();
+
+    @Override
+    protected String getTestRestCluster() {
+        return cluster.getHttpAddresses();
+    }
+
+    @Override
+    protected Settings restAdminSettings() {
+        if (super.restAdminSettings().keySet().contains(ThreadContext.PREFIX + ".Authorization")) {
+            return super.restAdminSettings();
+        } else {
+            String token = basicAuthHeaderValue("admin", new SecureString("admin-password".toCharArray()));
+            return Settings.builder().put(super.restAdminSettings()).put(ThreadContext.PREFIX + ".Authorization", token).build();
+        }
+    }
 
     private RestClient client;
 

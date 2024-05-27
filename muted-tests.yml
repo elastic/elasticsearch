@@ -23,9 +23,18 @@ tests:
   issue: "https://github.com/elastic/elasticsearch/issues/108857"
   method: "test {yaml=search/180_locale_dependent_mapping/Test Index and Search locale\
     \ dependent mappings / dates}"
-- class: "org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT"
-  issue: "https://github.com/elastic/elasticsearch/issues/108859"
-  method: "test {stats.SumOfDouble SYNC}"
+- class: "org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT"
+  issue: "https://github.com/elastic/elasticsearch/issues/108950"
+  method: "test {p0=health/10_basic/cluster health basic test}"
+- class: "org.elasticsearch.upgrades.SearchStatesIT"
+  issue: "https://github.com/elastic/elasticsearch/issues/108991"
+  method: "testCanMatch"
+- class: "org.elasticsearch.upgrades.AggregationsIT"
+  issue: "https://github.com/elastic/elasticsearch/issues/108992"
+  method: "testHistogram"
+- class: "org.elasticsearch.upgrades.MlTrainedModelsUpgradeIT"
+  issue: "https://github.com/elastic/elasticsearch/issues/108993"
+  method: "testTrainedModelInference"
 # Examples:
 #
 #  Mute a single test case in a YAML test suite:

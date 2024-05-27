@@ -630,7 +630,7 @@ public class EsExecutorsTests extends ESTestCase {
 
     public void testParseExecutorName() throws InterruptedException {
         final var executorName = randomAlphaOfLength(10);
-        final String nodeName = rarely() ? null : randomAlphaOfLength(10);
+        final String nodeName = rarely() ? null : randomIdentifier();
         final ThreadFactory threadFactory;
         if (nodeName == null) {
             threadFactory = EsExecutors.daemonThreadFactory(Settings.EMPTY, executorName);

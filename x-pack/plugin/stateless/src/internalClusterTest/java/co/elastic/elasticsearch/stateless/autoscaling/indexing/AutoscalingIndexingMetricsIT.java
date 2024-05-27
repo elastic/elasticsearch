@@ -22,13 +22,14 @@ import co.elastic.elasticsearch.stateless.autoscaling.MetricQuality;
 
 import org.elasticsearch.action.admin.cluster.settings.ClusterGetSettingsAction;
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.action.support.ChannelActionListener;
 import org.elasticsearch.cluster.coordination.stateless.StoreHeartbeatService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.TaskExecutionTimeTrackingEsThreadPoolExecutor;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.test.junit.annotations.TestIssueLogging;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.TestTransportChannel;
 import org.elasticsearch.transport.TransportService;
 
 import java.util.List;
@@ -37,6 +38,7 @@ import java.util.Map;
 import java.util.concurrent.BrokenBarrierException;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CyclicBarrier;
+import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -229,12 +231,8 @@ public class AutoscalingIndexingMetricsIT extends AbstractStatelessIntegTestCase
         longAwait(barrier);
     }
 
-    @TestIssueLogging(
-        issueUrl = "https://github.com/elastic/elasticsearch-serverless/issues/1532",
-        value = "co.elastic.elasticsearch.stateless.autoscaling.indexing:TRACE"
-    )
     public void testAverageWriteLoadSamplerDynamicEwmaAlphaSetting() throws Exception {
-        startMasterOnlyNode();
+        var master = startMasterOnlyNode();
         // Reduce the time between publications, so we can expect at least one publication per second.
         startIndexNode(
             Settings.builder()
@@ -247,59 +245,63 @@ public class AutoscalingIndexingMetricsIT extends AbstractStatelessIntegTestCase
         ensureGreen(indexName);
 
         var ingestMetricsService = internalCluster().getCurrentMasterNodeInstance(IngestMetricsService.class);
-        final var barrier = new CyclicBarrier(2);
-        for (var transportService : internalCluster().getInstances(TransportService.class)) {
-            MockTransportService mockTransportService = (MockTransportService) transportService;
-            mockTransportService.addSendBehavior((connection, requestId, action, request, options) -> {
-                if (action.equals(TransportPublishNodeIngestLoadMetric.NAME)) {
-                    longAwait(barrier);
-                }
-                connection.sendRequest(requestId, action, request, options);
+        final var publicationsProcessed = new Semaphore(0);
+        MockTransportService.getInstance(master)
+            .addRequestHandlingBehavior(TransportPublishNodeIngestLoadMetric.NAME, (handler, request, channel, task) -> {
+                var testChannel = new TestTransportChannel(new ChannelActionListener<>(channel).delegateFailure((l, r) -> {
+                    // Increment processed publications only upon response. This makes sure that any read via `ingestMetricsService`
+                    // reflects the processed metrics.
+                    publicationsProcessed.release();
+                    l.onResponse(r);
+                }));
+                handler.messageReceived(request, testChannel, task);
             });
-        }
 
-        // Wait for a publication of the metrics
-        longAwait(barrier);
-        var loadsBeforeIndexing = ingestMetricsService.getIndexTierMetrics().getNodesLoad();
-        assertThat(loadsBeforeIndexing.size(), equalTo(1));
-        assertThat(loadsBeforeIndexing.get(0).metricQuality(), equalTo(MetricQuality.EXACT));
-        assertThat(loadsBeforeIndexing.get(0).load(), equalTo(0.0));
+        // Wait for a new round of publication of the metrics
+        publicationsProcessed.drainPermits();
+        safeAcquire(publicationsProcessed);
+        assertThat(
+            ingestMetricsService.getIndexTierMetrics().getNodesLoad(),
+            equalTo(List.of(new NodeIngestLoadSnapshot(0.0, MetricQuality.EXACT)))
+        );
 
         // As initial value of the EWMA is 0 and Alpha is 0, the EWMA should not change as we index documents.
         logger.info("--> Indexing documents with {}=0.0", AverageWriteLoadSampler.WRITE_LOAD_SAMPLER_EWMA_ALPHA_SETTING.getKey());
         int bulks = randomIntBetween(3, 5);
         for (int i = 0; i < bulks; i++) {
             indexDocs(indexName, randomIntBetween(10, 100));
-            longAwait(barrier);
         }
-        assertBusy(() -> {
-            var loadsAfterIndexing = ingestMetricsService.getIndexTierMetrics().getNodesLoad();
-            assertThat(loadsAfterIndexing.size(), equalTo(1));
-            assertThat(loadsAfterIndexing.get(0).metricQuality(), equalTo(MetricQuality.EXACT));
-            assertThat(loadsAfterIndexing.get(0).load(), equalTo(0.0));
-        }, 30, TimeUnit.SECONDS);
+        // wait for a new round of publication of the metrics
+        publicationsProcessed.drainPermits();
+        safeAcquire(publicationsProcessed);
+
+        assertThat(
+            ingestMetricsService.getIndexTierMetrics().getNodesLoad(),
+            equalTo(List.of(new NodeIngestLoadSnapshot(0.0, MetricQuality.EXACT)))
+        );
 
         // Updating Alpha means the EWMA would reflect task execution time of new tasks.
-        logger.info("--> Updating {} to 1.0", AverageWriteLoadSampler.WRITE_LOAD_SAMPLER_EWMA_ALPHA_SETTING.getKey());
+        logger.info("--> Updating {} to 0.5", AverageWriteLoadSampler.WRITE_LOAD_SAMPLER_EWMA_ALPHA_SETTING.getKey());
 
         assertAcked(
             admin().cluster()
                 .prepareUpdateSettings()
-                .setPersistentSettings(Map.of(AverageWriteLoadSampler.WRITE_LOAD_SAMPLER_EWMA_ALPHA_SETTING.getKey(), 1.0))
+                .setPersistentSettings(Map.of(AverageWriteLoadSampler.WRITE_LOAD_SAMPLER_EWMA_ALPHA_SETTING.getKey(), 0.5))
                 .get()
         );
 
-        logger.info("--> Indexing documents with {}=1.0", AverageWriteLoadSampler.WRITE_LOAD_SAMPLER_EWMA_ALPHA_SETTING.getKey());
+        logger.info("--> Indexing documents with {}=0.5", AverageWriteLoadSampler.WRITE_LOAD_SAMPLER_EWMA_ALPHA_SETTING.getKey());
         for (int i = 0; i < bulks; i++) {
             indexDocs(indexName, randomIntBetween(10, 100));
-            longAwait(barrier);
         }
+        // Eventually, we'd see the indexing load reflected in the new metrics. This might not immediately happen upon the first
+        // publication after the indexing activity, therefore, we'd use assertBusy.
         assertBusy(() -> {
-            var loadsAfterIndexing = ingestMetricsService.getIndexTierMetrics().getNodesLoad();
-            assertThat(loadsAfterIndexing.size(), equalTo(1));
-            assertThat(loadsAfterIndexing.get(0).metricQuality(), equalTo(MetricQuality.EXACT));
-            assertThat(loadsAfterIndexing.get(0).load(), greaterThan(0.0));
-        }, 30, TimeUnit.SECONDS);
+            var loadsAfterIndexing2 = ingestMetricsService.getIndexTierMetrics().getNodesLoad();
+            assertThat(loadsAfterIndexing2.size(), equalTo(1));
+            assertThat(loadsAfterIndexing2.get(0).metricQuality(), equalTo(MetricQuality.EXACT));
+            assertThat(loadsAfterIndexing2.get(0).load(), greaterThan(0.0));
+        });
     }
 
     public void testMetricsAreRepublishedAfterMasterFailover() throws Exception {

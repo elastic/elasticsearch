@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.ip;
 import java.lang.IllegalArgumentException;
 import java.lang.Override;
 import java.lang.String;
+import java.util.function.Function;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BytesRefBlock;
@@ -31,13 +32,17 @@ public final class IpPrefixEvaluator implements EvalOperator.ExpressionEvaluator
 
   private final EvalOperator.ExpressionEvaluator prefixLength;
 
+  private final BytesRef scratch;
+
   private final DriverContext driverContext;
 
   public IpPrefixEvaluator(Source source, EvalOperator.ExpressionEvaluator ip,
-      EvalOperator.ExpressionEvaluator prefixLength, DriverContext driverContext) {
+      EvalOperator.ExpressionEvaluator prefixLength, BytesRef scratch,
+      DriverContext driverContext) {
     this.warnings = new Warnings(source);
     this.ip = ip;
     this.prefixLength = prefixLength;
+    this.scratch = scratch;
     this.driverContext = driverContext;
   }
 
@@ -84,7 +89,7 @@ public final class IpPrefixEvaluator implements EvalOperator.ExpressionEvaluator
           result.appendNull();
           continue position;
         }
-        result.appendBytesRef(IpPrefix.process(ipBlock.getBytesRef(ipBlock.getFirstValueIndex(p), ipScratch), prefixLengthBlock.getInt(prefixLengthBlock.getFirstValueIndex(p))));
+        result.appendBytesRef(IpPrefix.process(ipBlock.getBytesRef(ipBlock.getFirstValueIndex(p), ipScratch), prefixLengthBlock.getInt(prefixLengthBlock.getFirstValueIndex(p)), scratch));
       }
       return result.build();
     }
@@ -95,7 +100,7 @@ public final class IpPrefixEvaluator implements EvalOperator.ExpressionEvaluator
     try(BytesRefVector.Builder result = driverContext.blockFactory().newBytesRefVectorBuilder(positionCount)) {
       BytesRef ipScratch = new BytesRef();
       position: for (int p = 0; p < positionCount; p++) {
-        result.appendBytesRef(IpPrefix.process(ipVector.getBytesRef(p, ipScratch), prefixLengthVector.getInt(p)));
+        result.appendBytesRef(IpPrefix.process(ipVector.getBytesRef(p, ipScratch), prefixLengthVector.getInt(p), scratch));
       }
       return result.build();
     }
@@ -118,16 +123,20 @@ public final class IpPrefixEvaluator implements EvalOperator.ExpressionEvaluator
 
     private final EvalOperator.ExpressionEvaluator.Factory prefixLength;
 
+    private final Function<DriverContext, BytesRef> scratch;
+
     public Factory(Source source, EvalOperator.ExpressionEvaluator.Factory ip,
-        EvalOperator.ExpressionEvaluator.Factory prefixLength) {
+        EvalOperator.ExpressionEvaluator.Factory prefixLength,
+        Function<DriverContext, BytesRef> scratch) {
       this.source = source;
       this.ip = ip;
       this.prefixLength = prefixLength;
+      this.scratch = scratch;
     }
 
     @Override
     public IpPrefixEvaluator get(DriverContext context) {
-      return new IpPrefixEvaluator(source, ip.get(context), prefixLength.get(context), context);
+      return new IpPrefixEvaluator(source, ip.get(context), prefixLength.get(context), scratch.apply(context), context);
     }
 
     @Override

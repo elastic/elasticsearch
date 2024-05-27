@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.ip;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.ann.Evaluator;
+import org.elasticsearch.compute.ann.Fixed;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
@@ -80,11 +81,16 @@ public class IpPrefix extends EsqlScalarFunction {
     public ExpressionEvaluator.Factory toEvaluator(Function<Expression, ExpressionEvaluator.Factory> toEvaluator) {
         var ipEvaluatorSupplier = toEvaluator.apply(ipField);
         var prefixLengthEvaluatorSupplier = toEvaluator.apply(prefixLengthField);
-        return new IpPrefixEvaluator.Factory(source(), ipEvaluatorSupplier, prefixLengthEvaluatorSupplier);
+        return new IpPrefixEvaluator.Factory(
+            source(),
+            ipEvaluatorSupplier,
+            prefixLengthEvaluatorSupplier,
+            context -> new BytesRef(new byte[16])
+        );
     }
 
     @Evaluator
-    static BytesRef process(BytesRef ip, int prefixLength) {
+    static BytesRef process(BytesRef ip, int prefixLength, @Fixed(includeInToString = false, build = true) BytesRef scratch) {
         if (ip.length != 16 || prefixLength < 0 || prefixLength > ip.length * 8) {
             return null;
         }
@@ -95,18 +101,21 @@ public class IpPrefix extends EsqlScalarFunction {
         int fullBytes = offset + prefixLength / 8;
         int remainingBits = prefixLength % 8;
 
-        BytesRef prefix = new BytesRef(new byte[ip.length]);
-
         // Copy the first full bytes
-        System.arraycopy(ip.bytes, ip.offset, prefix.bytes, 0, fullBytes);
+        System.arraycopy(ip.bytes, ip.offset, scratch.bytes, 0, fullBytes);
 
         // Copy the last byte ignoring the trailing bits
         if (remainingBits > 0) {
             byte lastByteMask = (byte) (0xFF << (8 - remainingBits));
-            prefix.bytes[fullBytes] = (byte) (ip.bytes[fullBytes] & lastByteMask);
+            scratch.bytes[fullBytes] = (byte) (ip.bytes[fullBytes] & lastByteMask);
         }
 
-        return prefix;
+        // Copy the last empty bytes
+        if (fullBytes < 16) {
+            Arrays.fill(scratch.bytes, fullBytes + 1, 16, (byte) 0);
+        }
+
+        return scratch;
     }
 
     @Override

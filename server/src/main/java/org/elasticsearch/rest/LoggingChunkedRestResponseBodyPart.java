@@ -9,25 +9,36 @@
 package org.elasticsearch.rest;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.recycler.Recycler;
 
 import java.io.IOException;
 import java.io.OutputStream;
 
-public class LoggingChunkedRestResponseBody implements ChunkedRestResponseBody {
+public class LoggingChunkedRestResponseBodyPart implements ChunkedRestResponseBodyPart {
 
-    private final ChunkedRestResponseBody inner;
+    private final ChunkedRestResponseBodyPart inner;
     private final OutputStream loggerStream;
 
-    public LoggingChunkedRestResponseBody(ChunkedRestResponseBody inner, OutputStream loggerStream) {
+    public LoggingChunkedRestResponseBodyPart(ChunkedRestResponseBodyPart inner, OutputStream loggerStream) {
         this.inner = inner;
         this.loggerStream = loggerStream;
     }
 
     @Override
-    public boolean isDone() {
-        return inner.isDone();
+    public boolean isPartComplete() {
+        return inner.isPartComplete();
+    }
+
+    @Override
+    public boolean isLastPart() {
+        return inner.isLastPart();
+    }
+
+    @Override
+    public void getNextPart(ActionListener<ChunkedRestResponseBodyPart> listener) {
+        inner.getNextPart(listener.map(continuation -> new LoggingChunkedRestResponseBodyPart(continuation, loggerStream)));
     }
 
     @Override

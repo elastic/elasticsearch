@@ -30,6 +30,11 @@ public enum ElementType {
     DOC(DocBlock::newBlockBuilder),
 
     /**
+     * Composite blocks which contain array of sub-blocks.
+     */
+    COMPOSITE((blockFactory, estimatedSize) -> { throw new UnsupportedOperationException("can't build composite blocks"); }),
+
+    /**
      * Intermediate blocks which don't support retrieving elements.
      */
     UNKNOWN((blockFactory, estimatedSize) -> { throw new UnsupportedOperationException("can't build null blocks"); });

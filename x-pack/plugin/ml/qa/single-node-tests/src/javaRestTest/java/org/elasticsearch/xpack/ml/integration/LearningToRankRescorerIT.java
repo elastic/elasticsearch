@@ -246,11 +246,9 @@ public class LearningToRankRescorerIT extends InferenceTestCase {
         Exception e = assertThrows(ResponseException.class, () -> client().performRequest(request));
         assertThat(
             e.getMessage(),
-            containsString(    "rescorer [window_size] is too small and should be at least the value of [from + size: 4] but was [2]")
+            containsString("rescorer [window_size] is too small and should be at least the value of [from + size: 4] but was [2]")
         );
     }
-
-
 
     public void testLearningToRankRescorerWithChainedRescorers() throws IOException {
 
@@ -262,7 +260,7 @@ public class LearningToRankRescorerIT extends InferenceTestCase {
                     "query": { "rescore_query" : { "script_score": { "query": { "match_all": {} }, "script": { "source": "return 4" } } } }
                 },
                 {
-                    "window_size": 4,
+                    "window_size": 5,
                     "learning_to_rank": { "model_id": "ltr-model" }
                 },
                 {
@@ -272,15 +270,14 @@ public class LearningToRankRescorerIT extends InferenceTestCase {
                   ]
             }""";
 
-
         {
             Request request = new Request("GET", "store/_search?size=4");
-            request.setJsonEntity(String.format(queryTemplate, randomIntBetween(2, 10000), randomIntBetween(2, 4)));
+            request.setJsonEntity(String.format(queryTemplate, randomIntBetween(2, 10000), randomIntBetween(4, 5)));
             assertHitScores(client().performRequest(request), List.of(40.0, 40.0, 37.0, 29.0));
         }
 
         {
-            int lastRescorerWindowSize = randomIntBetween(5, 10000);
+            int lastRescorerWindowSize = randomIntBetween(6, 10000);
             Request request = new Request("GET", "store/_search?size=4");
             request.setJsonEntity(String.format(queryTemplate, randomIntBetween(2, 10000), lastRescorerWindowSize));
 
@@ -289,9 +286,9 @@ public class LearningToRankRescorerIT extends InferenceTestCase {
                 e.getMessage(),
                 containsString(
                     "unable to add a rescorer with [window_size: "
-                    + lastRescorerWindowSize
-                    + "] because a rescorer of type [learning_to_rank]"
-                    +" with a smaller [window_size: 4] has been added before"
+                        + lastRescorerWindowSize
+                        + "] because a rescorer of type [learning_to_rank]"
+                        + " with a smaller [window_size: 5] has been added before"
                 )
             );
         }

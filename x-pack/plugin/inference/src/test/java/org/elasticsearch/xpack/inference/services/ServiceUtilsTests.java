@@ -311,15 +311,6 @@ public class ServiceUtilsTests extends ESTestCase {
         assertThat(validation.validationErrors().get(0), startsWith("[scope] Invalid url [^^] received for field [name]"));
     }
 
-    public void testConvertToUri_AddsValidationError_WhenUrlIsEmpty() {
-        var validation = new ValidationException();
-        var uri = convertToUri("", "name", "scope", validation);
-
-        assertNull(uri);
-        assertThat(validation.validationErrors().size(), is(1));
-        assertThat(validation.validationErrors().get(0), is("[scope] Url must be non-empty for field [name]"));
-    }
-
     public void testCreateUri_CreatesUri() {
         var uri = createUri("www.elastic.co");
 

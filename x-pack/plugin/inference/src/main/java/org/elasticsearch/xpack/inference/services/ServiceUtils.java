@@ -241,11 +241,6 @@ public class ServiceUtils {
                 return null;
             }
 
-            if (url.isEmpty()) {
-                validationException.addValidationError(ServiceUtils.emptyUrlErrorMsg(url, settingName, settingScope));
-                return null;
-            }
-
             return createUri(url);
         } catch (IllegalArgumentException cause) {
             validationException.addValidationError(ServiceUtils.invalidUrlErrorMsg(url, settingName, settingScope, cause.getMessage()));

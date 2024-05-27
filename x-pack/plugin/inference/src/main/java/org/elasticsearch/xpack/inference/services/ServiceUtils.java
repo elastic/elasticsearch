@@ -196,8 +196,12 @@ public class ServiceUtils {
         );
     }
 
-    public static String invalidUrlErrorMsg(String url, String settingName, String settingScope) {
-        return Strings.format("[%s] Invalid url [%s] received for field [%s]", settingScope, url, settingName);
+    public static String invalidUrlErrorMsg(String url, String settingName, String settingScope, String error) {
+        return Strings.format("[%s] Invalid url [%s] received for field [%s]. Error: %s", settingScope, url, settingName, error);
+    }
+
+    public static String emptyUrlErrorMsg(String url, String settingName, String settingScope) {
+        return Strings.format("[%s] Url must be non-empty for field [%s]", settingScope, settingName);
     }
 
     public static String mustBeNonEmptyString(String settingName, String scope) {
@@ -231,16 +235,20 @@ public class ServiceUtils {
         return Strings.format("[%s] does not allow the setting [%s]", scope, settingName);
     }
 
-    // TODO improve URI validation logic
     public static URI convertToUri(@Nullable String url, String settingName, String settingScope, ValidationException validationException) {
         try {
             if (url == null) {
                 return null;
             }
 
+            if (url.isEmpty()) {
+                validationException.addValidationError(ServiceUtils.emptyUrlErrorMsg(url, settingName, settingScope));
+                return null;
+            }
+
             return createUri(url);
-        } catch (IllegalArgumentException ignored) {
-            validationException.addValidationError(ServiceUtils.invalidUrlErrorMsg(url, settingName, settingScope));
+        } catch (IllegalArgumentException cause) {
+            validationException.addValidationError(ServiceUtils.invalidUrlErrorMsg(url, settingName, settingScope, cause.getMessage()));
             return null;
         }
     }
@@ -251,7 +259,7 @@ public class ServiceUtils {
         try {
             return new URI(url);
         } catch (URISyntaxException e) {
-            throw new IllegalArgumentException(format("unable to parse url [%s]", url), e);
+            throw new IllegalArgumentException(format("unable to parse url [%s]. Reason: %s", url, e.getReason()), e);
         }
     }
 

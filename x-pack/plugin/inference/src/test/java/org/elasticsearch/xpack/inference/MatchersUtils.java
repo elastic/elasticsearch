@@ -13,8 +13,26 @@ import org.hamcrest.TypeSafeMatcher;
 
 import java.util.regex.Pattern;
 
+/**
+ * Utility class containing custom hamcrest {@link Matcher} implementations or other utility functionality related to hamcrest.
+ */
 public class MatchersUtils {
 
+    /**
+     * Custom matcher implementing a matcher operating on json strings ignoring whitespaces, which are not inside a key or a value.
+     *
+     * Example:
+     * {
+     *     "key": "value"
+     * }
+     *
+     * will match
+     *
+     * {"key":"value"}
+     *
+     * as both json strings are equal ignoring the whitespace, which does not reside in a key or a value.
+     *
+     */
     protected static class IsEqualIgnoreWhitespaceInJsonString extends TypeSafeMatcher<String> {
 
         protected static final Pattern WHITESPACE_IN_JSON_EXCEPT_KEYS_AND_VALUES_PATTERN = createPattern();

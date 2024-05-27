@@ -10,7 +10,6 @@ import org.elasticsearch.xpack.esql.core.capabilities.Unresolvable;
 import org.elasticsearch.xpack.esql.core.capabilities.UnresolvedException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
-import org.elasticsearch.xpack.esql.core.expression.gen.script.ScriptTemplate;
 import org.elasticsearch.xpack.esql.core.session.Configuration;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -128,11 +127,6 @@ public class UnresolvedFunction extends Function implements Unresolvable {
     @Override
     public Nullability nullable() {
         throw new UnresolvedException("nullable", this);
-    }
-
-    @Override
-    public ScriptTemplate asScript() {
-        throw new UnresolvedException("script", this);
     }
 
     @Override

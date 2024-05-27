@@ -29,6 +29,7 @@ import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.autoscaling.action.GetAutoscalingCapacityAction;
 import org.elasticsearch.xpack.autoscaling.action.PutAutoscalingPolicyAction;
+import org.elasticsearch.xpack.autoscaling.capacity.AutoscalingDeciderResults;
 import org.hamcrest.Matchers;
 
 import java.util.Arrays;
@@ -295,8 +296,10 @@ public class ReactiveStorageIT extends AutoscalingStorageIntegTestCase {
 
         GetAutoscalingCapacityAction.Response response = capacity();
         assertThat(response.results().keySet(), equalTo(Set.of(policyName)));
-        assertThat(response.results().get(policyName).currentCapacity().total().storage().getBytes(), equalTo(enoughSpace));
-        assertThat(response.results().get(policyName).requiredCapacity().total().storage().getBytes(), equalTo(enoughSpace));
+        AutoscalingDeciderResults autoscalingDeciderResults = response.results().get(policyName);
+        logger.info("Verifying autoscaling decider results: {} for with node shard stats: {}", autoscalingDeciderResults, byNode);
+        assertThat(autoscalingDeciderResults.currentCapacity().total().storage().getBytes(), equalTo(enoughSpace));
+        assertThat(autoscalingDeciderResults.requiredCapacity().total().storage().getBytes(), equalTo(enoughSpace));
         assertThat(
             response.results().get(policyName).requiredCapacity().node().storage().getBytes(),
             equalTo(maxShardSize + LOW_WATERMARK_BYTES + ReactiveStorageDeciderService.NODE_DISK_OVERHEAD)

@@ -121,7 +121,7 @@ public abstract class DocumentParserContext {
     private final Set<String> copyToFields;
 
     // Indicates if the source for this context has been cloned and gets parsed multiple times.
-    private boolean clonedSource = false;
+    private boolean clonedSource;
 
     private DocumentParserContext(
         MappingLookup mappingLookup,
@@ -140,7 +140,8 @@ public abstract class DocumentParserContext {
         ObjectMapper.Dynamic dynamic,
         Set<String> fieldsAppliedFromTemplates,
         Set<String> copyToFields,
-        DynamicMapperSize dynamicMapperSize
+        DynamicMapperSize dynamicMapperSize,
+        boolean clonedSource
     ) {
         this.mappingLookup = mappingLookup;
         this.mappingParserContext = mappingParserContext;
@@ -159,6 +160,7 @@ public abstract class DocumentParserContext {
         this.fieldsAppliedFromTemplates = fieldsAppliedFromTemplates;
         this.copyToFields = copyToFields;
         this.dynamicMappersSize = dynamicMapperSize;
+        this.clonedSource = clonedSource;
     }
 
     private DocumentParserContext(ObjectMapper parent, ObjectMapper.Dynamic dynamic, DocumentParserContext in) {
@@ -179,7 +181,8 @@ public abstract class DocumentParserContext {
             dynamic,
             in.fieldsAppliedFromTemplates,
             in.copyToFields,
-            in.dynamicMappersSize
+            in.dynamicMappersSize,
+            in.clonedSource
         );
     }
 
@@ -207,7 +210,8 @@ public abstract class DocumentParserContext {
             dynamic,
             new HashSet<>(),
             new HashSet<>(),
-            new DynamicMapperSize()
+            new DynamicMapperSize(),
+            false
         );
     }
 
@@ -265,7 +269,7 @@ public abstract class DocumentParserContext {
      * Add the given ignored values to the corresponding list.
      */
     public final void addIgnoredField(IgnoredSourceFieldMapper.NameValue values) {
-        if (clonedSource == false) {
+        if (canAddIgnoredField()) {
             // Skip tracking the source for this field twice, it's already tracked for the entire parsing subcontext.
             ignoredFieldValues.add(values);
         }
@@ -321,6 +325,10 @@ public abstract class DocumentParserContext {
 
     final boolean getClonedSource() {
         return clonedSource;
+    }
+
+    final boolean canAddIgnoredField() {
+        return mappingLookup.isSourceSynthetic() && clonedSource == false;
     }
 
     /**
@@ -380,7 +388,7 @@ public abstract class DocumentParserContext {
             int additionalFieldsToAdd = getNewFieldsSize() + mapperSize;
             if (indexSettings().isIgnoreDynamicFieldsBeyondLimit()) {
                 if (mappingLookup.exceedsLimit(indexSettings().getMappingTotalFieldsLimit(), additionalFieldsToAdd)) {
-                    if (mappingLookup.isSourceSynthetic()) {
+                    if (canAddIgnoredField()) {
                         try {
                             addIgnoredField(
                                 IgnoredSourceFieldMapper.NameValue.fromContext(

@@ -7,11 +7,7 @@
 package org.elasticsearch.xpack.esql.core.expression.function.scalar;
 
 import org.elasticsearch.xpack.esql.core.expression.Expression;
-import org.elasticsearch.xpack.esql.core.expression.Expressions;
-import org.elasticsearch.xpack.esql.core.expression.gen.pipeline.Pipe;
-import org.elasticsearch.xpack.esql.core.expression.gen.pipeline.UnaryPipe;
 import org.elasticsearch.xpack.esql.core.expression.gen.processor.Processor;
-import org.elasticsearch.xpack.esql.core.expression.gen.script.ScriptTemplate;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 
 import java.util.List;
@@ -43,11 +39,6 @@ public abstract class UnaryScalarFunction extends ScalarFunction {
         return field;
     }
 
-    @Override
-    public final Pipe makePipe() {
-        return new UnaryPipe(source(), this, Expressions.pipe(field()), makeProcessor());
-    }
-
     protected abstract Processor makeProcessor();
 
     @Override
@@ -58,10 +49,5 @@ public abstract class UnaryScalarFunction extends ScalarFunction {
     @Override
     public Object fold() {
         return makeProcessor().process(field().fold());
-    }
-
-    @Override
-    public ScriptTemplate asScript() {
-        return asScript(field);
     }
 }

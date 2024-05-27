@@ -30,7 +30,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
-public class ChunkedRestResponseBodyTests extends ESTestCase {
+public class ChunkedRestResponseBodyPartTests extends ESTestCase {
 
     public void testEncodesChunkedXContentCorrectly() throws IOException {
         final ChunkedToXContent chunkedToXContent = (ToXContent.Params outerParams) -> Iterators.forArray(
@@ -50,7 +50,7 @@ public class ChunkedRestResponseBodyTests extends ESTestCase {
         }
         final var bytesDirect = BytesReference.bytes(builderDirect);
 
-        var chunkedResponse = ChunkedRestResponseBody.fromXContent(
+        var firstBodyPart = ChunkedRestResponseBodyPart.fromXContent(
             chunkedToXContent,
             ToXContent.EMPTY_PARAMS,
             new FakeRestChannel(
@@ -61,20 +61,25 @@ public class ChunkedRestResponseBodyTests extends ESTestCase {
         );
 
         final List<BytesReference> refsGenerated = new ArrayList<>();
-        while (chunkedResponse.isDone() == false) {
-            refsGenerated.add(chunkedResponse.encodeChunk(randomIntBetween(2, 10), BytesRefRecycler.NON_RECYCLING_INSTANCE));
+        while (firstBodyPart.isPartComplete() == false) {
+            refsGenerated.add(firstBodyPart.encodeChunk(randomIntBetween(2, 10), BytesRefRecycler.NON_RECYCLING_INSTANCE));
         }
+        assertTrue(firstBodyPart.isLastPart());
 
         assertEquals(bytesDirect, CompositeBytesReference.of(refsGenerated.toArray(new BytesReference[0])));
     }
 
     public void testFromTextChunks() throws IOException {
         final var chunks = randomList(1000, () -> randomUnicodeOfLengthBetween(1, 100));
-        var body = ChunkedRestResponseBody.fromTextChunks("text/plain", Iterators.map(chunks.iterator(), s -> w -> w.write(s)));
+        var firstBodyPart = ChunkedRestResponseBodyPart.fromTextChunks(
+            "text/plain",
+            Iterators.map(chunks.iterator(), s -> w -> w.write(s))
+        );
         final List<BytesReference> refsGenerated = new ArrayList<>();
-        while (body.isDone() == false) {
-            refsGenerated.add(body.encodeChunk(randomIntBetween(2, 10), BytesRefRecycler.NON_RECYCLING_INSTANCE));
+        while (firstBodyPart.isPartComplete() == false) {
+            refsGenerated.add(firstBodyPart.encodeChunk(randomIntBetween(2, 10), BytesRefRecycler.NON_RECYCLING_INSTANCE));
         }
+        assertTrue(firstBodyPart.isLastPart());
         final BytesReference chunkedBytes = CompositeBytesReference.of(refsGenerated.toArray(new BytesReference[0]));
 
         try (var outputStream = new ByteArrayOutputStream(); var writer = new OutputStreamWriter(outputStream, StandardCharsets.UTF_8)) {

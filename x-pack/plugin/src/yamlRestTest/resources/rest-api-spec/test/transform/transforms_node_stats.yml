@@ -84,7 +84,7 @@ teardown:
 "Test get node stats":
   - do:
       transform.get_node_stats: {}
-  - match: { total.registered_transform_count: 0 }
+  - match: { total.scheduler.registered_transform_count: 0 }
 
   - do:
       transform.start_transform:
@@ -92,7 +92,7 @@ teardown:
 
   - do:
       transform.get_node_stats: {}
-  - match: { total.registered_transform_count: 1 }
+  - match: { total.scheduler.registered_transform_count: 1 }
 
   - do:
       transform.start_transform:
@@ -100,7 +100,7 @@ teardown:
 
   - do:
       transform.get_node_stats: {}
-  - match: { total.registered_transform_count: 2 }
+  - match: { total.scheduler.registered_transform_count: 2 }
 
   - do:
       transform.start_transform:
@@ -108,4 +108,4 @@ teardown:
 
   - do:
       transform.get_node_stats: {}
-  - match: { total.registered_transform_count: 3 }
+  - match: { total.scheduler.registered_transform_count: 3 }

@@ -213,7 +213,7 @@ public class ES814ScalarQuantizedVectorsFormat extends FlatVectorsFormat {
                         .getInt7ScalarQuantizedVectorScorer(
                             VectorSimilarityType.of(sim),
                             values.getSlice(),
-                            values,
+                            qValues,
                             qValues.getScalarQuantizer().getConstantMultiplier()
                         );
                     if (scorer.isPresent()) {

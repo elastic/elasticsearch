@@ -9,8 +9,8 @@
 package org.elasticsearch.vec;
 
 import org.apache.lucene.store.IndexInput;
-import org.apache.lucene.util.hnsw.RandomAccessVectorValues;
 import org.apache.lucene.util.hnsw.RandomVectorScorerSupplier;
+import org.apache.lucene.util.quantization.RandomAccessQuantizedByteVectorValues;
 import org.elasticsearch.nativeaccess.NativeAccess;
 import org.elasticsearch.vec.internal.IndexInputUtils;
 import org.elasticsearch.vec.internal.Int7SQVectorScorerSupplier.DotProductSupplier;
@@ -33,7 +33,7 @@ class VectorScorerFactoryImpl implements VectorScorerFactory {
     public Optional<RandomVectorScorerSupplier> getInt7ScalarQuantizedVectorScorer(
         VectorSimilarityType similarityType,
         IndexInput input,
-        RandomAccessVectorValues values,
+        RandomAccessQuantizedByteVectorValues values,
         float scoreCorrectionConstant
     ) {
         input = IndexInputUtils.unwrapAndCheckInputOrNull(input);

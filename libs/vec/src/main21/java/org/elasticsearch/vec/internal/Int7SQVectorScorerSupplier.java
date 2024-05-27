@@ -9,9 +9,9 @@
 package org.elasticsearch.vec.internal;
 
 import org.apache.lucene.store.IndexInput;
-import org.apache.lucene.util.hnsw.RandomAccessVectorValues;
 import org.apache.lucene.util.hnsw.RandomVectorScorer;
 import org.apache.lucene.util.hnsw.RandomVectorScorerSupplier;
+import org.apache.lucene.util.quantization.RandomAccessQuantizedByteVectorValues;
 import org.apache.lucene.util.quantization.ScalarQuantizedVectorSimilarity;
 
 import java.io.IOException;
@@ -30,7 +30,7 @@ public abstract sealed class Int7SQVectorScorerSupplier implements RandomVectorS
     final int maxOrd;
     final float scoreCorrectionConstant;
     final IndexInput input;
-    final RandomAccessVectorValues values; // to support ordToDoc/getAcceptOrds
+    final RandomAccessQuantizedByteVectorValues values; // to support ordToDoc/getAcceptOrds
     final ScalarQuantizedVectorSimilarity fallbackScorer;
 
     final MemorySegment segment;
@@ -41,7 +41,7 @@ public abstract sealed class Int7SQVectorScorerSupplier implements RandomVectorS
 
     protected Int7SQVectorScorerSupplier(
         IndexInput input,
-        RandomAccessVectorValues values,
+        RandomAccessQuantizedByteVectorValues values,
         float scoreCorrectionConstant,
         ScalarQuantizedVectorSimilarity fallbackScorer
     ) {
@@ -143,7 +143,7 @@ public abstract sealed class Int7SQVectorScorerSupplier implements RandomVectorS
 
     public static final class EuclideanSupplier extends Int7SQVectorScorerSupplier {
 
-        public EuclideanSupplier(IndexInput input, RandomAccessVectorValues values, float scoreCorrectionConstant) {
+        public EuclideanSupplier(IndexInput input, RandomAccessQuantizedByteVectorValues values, float scoreCorrectionConstant) {
             super(input, values, scoreCorrectionConstant, fromVectorSimilarity(EUCLIDEAN, scoreCorrectionConstant, BITS));
         }
 
@@ -162,7 +162,7 @@ public abstract sealed class Int7SQVectorScorerSupplier implements RandomVectorS
 
     public static final class DotProductSupplier extends Int7SQVectorScorerSupplier {
 
-        public DotProductSupplier(IndexInput input, RandomAccessVectorValues values, float scoreCorrectionConstant) {
+        public DotProductSupplier(IndexInput input, RandomAccessQuantizedByteVectorValues values, float scoreCorrectionConstant) {
             super(input, values, scoreCorrectionConstant, fromVectorSimilarity(DOT_PRODUCT, scoreCorrectionConstant, BITS));
         }
 
@@ -182,7 +182,7 @@ public abstract sealed class Int7SQVectorScorerSupplier implements RandomVectorS
 
     public static final class MaxInnerProductSupplier extends Int7SQVectorScorerSupplier {
 
-        public MaxInnerProductSupplier(IndexInput input, RandomAccessVectorValues values, float scoreCorrectionConstant) {
+        public MaxInnerProductSupplier(IndexInput input, RandomAccessQuantizedByteVectorValues values, float scoreCorrectionConstant) {
             super(input, values, scoreCorrectionConstant, fromVectorSimilarity(MAXIMUM_INNER_PRODUCT, scoreCorrectionConstant, BITS));
         }
 

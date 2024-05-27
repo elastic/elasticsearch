@@ -156,9 +156,7 @@ public class TestDenseInferenceServiceExtension implements InferenceServiceExten
             for (int i = 0; i < input.size(); i++) {
                 float[] embeddings = generateEmbedding(input.get(i), dimensions);
                 results.add(
-                    new ChunkedTextEmbeddingFloatResults(
-                        List.of(new EmbeddingChunk<>(input.get(i), new FloatEmbedding(embeddings)))
-                    )
+                    new ChunkedTextEmbeddingFloatResults(List.of(new EmbeddingChunk<>(input.get(i), new FloatEmbedding(embeddings))))
                 );
             }
             return results;

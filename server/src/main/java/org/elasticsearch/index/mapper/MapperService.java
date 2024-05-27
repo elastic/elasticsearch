@@ -483,7 +483,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
                         // Recursively merge these two field mappings.
                         // Since "key" is an arbitrary field name, for which we only need plain mapping subtrees merge, no need to pass it
                         // to the recursion as it shouldn't affect the merge logic. Specifically, passing "null" as parent avoids merge
-                        // failures of fields named "properties". See  https://github.com/elastic/elasticsearch/issues/108866
+                        // failures of fields named "properties". See https://github.com/elastic/elasticsearch/issues/108866
                         XContentHelper.merge(mergedMappings, mapToMerge, INSTANCE);
                         return mergedMappings;
                     } else {

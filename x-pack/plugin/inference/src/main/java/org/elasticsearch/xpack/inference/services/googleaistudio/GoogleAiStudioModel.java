@@ -14,13 +14,10 @@ import org.elasticsearch.inference.ModelSecrets;
 import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
 import org.elasticsearch.xpack.inference.external.action.googleaistudio.GoogleAiStudioActionVisitor;
 
-import java.net.URI;
 import java.util.Map;
 import java.util.Objects;
 
 public abstract class GoogleAiStudioModel extends Model {
-
-    protected URI uri;
 
     private final GoogleAiStudioRateLimitServiceSettings rateLimitServiceSettings;
 
@@ -35,10 +32,6 @@ public abstract class GoogleAiStudioModel extends Model {
     }
 
     public abstract ExecutableAction accept(GoogleAiStudioActionVisitor creator, Map<String, Object> taskSettings, InputType inputType);
-
-    public URI uri() {
-        return uri;
-    }
 
     public GoogleAiStudioRateLimitServiceSettings rateLimitServiceSettings() {
         return rateLimitServiceSettings;

@@ -28,6 +28,9 @@ import java.util.Map;
 import static org.elasticsearch.core.Strings.format;
 
 public class GoogleAiStudioCompletionModel extends GoogleAiStudioModel {
+
+    private URI uri;
+
     public GoogleAiStudioCompletionModel(
         String inferenceEntityId,
         TaskType taskType,
@@ -87,6 +90,10 @@ public class GoogleAiStudioCompletionModel extends GoogleAiStudioModel {
         } catch (URISyntaxException e) {
             throw new RuntimeException(e);
         }
+    }
+
+    public URI uri() {
+        return uri;
     }
 
     @Override

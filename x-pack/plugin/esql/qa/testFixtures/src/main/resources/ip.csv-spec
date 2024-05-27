@@ -506,13 +506,15 @@ row ip4 = to_ip("1.2.3.255"), ip6 = to_ip("fe80::cae2:65ff:fece:feff")
 | eval ip4_prefix = ip_prefix(ip4, 25), ip6_prefix = ip_prefix(ip6, 121);
 
 ip4:ip   | ip6:ip                    | ip4_prefix:ip | ip6_prefix:ip
-1.2.3.255 | fe80::cae2:65ff:fece:febf | 1.2.3.128       | fe80::cae2:65ff:fece:fe80
+1.2.3.255 | fe80::cae2:65ff:fece:feff | 1.2.3.128       | fe80::cae2:65ff:fece:fe80
 ;
 
 ipPrefixAsGroup
 required_capability: fn_ip_prefix
 from hosts
 | stats count(*) by ip_prefix(ip1, 24);
+warning:Line 2:21: evaluation of [ip_prefix(ip1, 24)] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 2:21: java.lang.IllegalArgumentException: single-value function encountered multi-value
 
 count(*):long | ip_prefix(ip1, 24):ip
 2             | null

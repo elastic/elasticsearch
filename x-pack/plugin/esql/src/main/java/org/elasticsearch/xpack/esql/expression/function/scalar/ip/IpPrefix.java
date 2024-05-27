@@ -89,7 +89,7 @@ public class IpPrefix extends EsqlScalarFunction {
 
     @Evaluator
     static BytesRef process(BytesRef ip, int prefixLength) {
-        if (prefixLength < 0 || prefixLength > ip.length * 8) {
+        if (ip.length != 16 || prefixLength < 0 || prefixLength > ip.length * 8) {
             return null;
         }
 
@@ -102,7 +102,7 @@ public class IpPrefix extends EsqlScalarFunction {
         BytesRef prefix = new BytesRef(new byte[ip.length]);
 
         // Copy the first full bytes
-        System.arraycopy(ip.bytes, 0, prefix.bytes, 0, fullBytes);
+        System.arraycopy(ip.bytes, ip.offset, prefix.bytes, 0, fullBytes);
 
         // Copy the last byte ignoring the trailing bits
         if (remainingBits > 0) {

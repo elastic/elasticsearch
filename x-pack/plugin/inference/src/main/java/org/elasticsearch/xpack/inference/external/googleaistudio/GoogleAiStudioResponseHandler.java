@@ -56,7 +56,6 @@ public class GoogleAiStudioResponseHandler extends BaseResponseHandler {
         } else if (statusCode > 500) {
             throw new RetryException(false, buildError(SERVER_ERROR, request, result));
         } else if (statusCode == 429) {
-            // TODO: handle explicit?
             throw new RetryException(true, buildError(RATE_LIMIT, request, result));
         } else if (statusCode == 404) {
             throw new RetryException(false, buildError(resourceNotFoundError(request), request, result));

@@ -29,7 +29,31 @@ public class GoogleAiStudioErrorResponseEntity implements ErrorMessage {
         return errorMessage;
     }
 
-    // TODO: docs
+    /**
+     * An example error response for invalid auth would look like
+     * <code>
+     *    {
+     *     "error": {
+     *         "code": 400,
+     *         "message": "API key not valid. Please pass a valid API key.",
+     *         "status": "INVALID_ARGUMENT",
+     *         "details": [
+     *             {
+     *                 "@type": "type.googleapis.com/google.rpc.ErrorInfo",
+     *                 "reason": "API_KEY_INVALID",
+     *                 "domain": "googleapis.com",
+     *                 "metadata": {
+     *                     "service": "generativelanguage.googleapis.com"
+     *                 }
+     *             }
+     *         ]
+     *     }
+     * }
+     * </code>
+     * @param response The error response
+     * @return An error entity if the response is JSON with the above structure
+     * or null if the response does not contain the `error.message` field
+     */
 
     @SuppressWarnings("unchecked")
     public static GoogleAiStudioErrorResponseEntity fromResponse(HttpResult response) {

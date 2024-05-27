@@ -6,6 +6,7 @@
  * Side Public License, v 1.
  */
 apply plugin: 'c'
+apply plugin: 'cpp'
 
 var os = org.gradle.internal.os.OperatingSystem.current()
 
@@ -51,6 +52,8 @@ model {
       target("amd64") {
         cCompiler.executable = "/usr/bin/gcc"
         cCompiler.withArguments { args -> args.addAll(["-O3", "-std=c99", "-march=core-avx2", "-Wno-incompatible-pointer-types"]) }
+        cppCompiler.executable = "/usr/bin/g++"
+        cppCompiler.withArguments { args -> args.addAll(["-O3", "-march=core-avx2"]) }
       }
     }
     cl(VisualCpp) {
@@ -81,6 +84,15 @@ model {
           source {
             srcDir "src/vec/c/${platformName}/"
             include "*.c"
+          }
+          exportedHeaders {
+            srcDir "src/vec/headers/"
+          }
+        }
+        cpp {
+          source {
+            srcDir "src/vec/c/${platformName}/"
+            include "*.cpp"
           }
           exportedHeaders {
             srcDir "src/vec/headers/"

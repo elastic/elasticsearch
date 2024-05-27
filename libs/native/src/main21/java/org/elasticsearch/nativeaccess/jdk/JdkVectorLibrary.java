@@ -23,8 +23,8 @@ import static org.elasticsearch.nativeaccess.jdk.LinkerHelper.downcallHandle;
 
 public final class JdkVectorLibrary implements VectorLibrary {
 
-    static final String DOT7U_NAME;
-    static final String SQR7U_NAME;
+    static final String DOT7U_FUNCTION_NAME;
+    static final String SQR7U_FUNCTION_NAME;
 
     static final VectorSimilarityFunctions INSTANCE;
 
@@ -35,12 +35,17 @@ public final class JdkVectorLibrary implements VectorLibrary {
         try {
             int caps = (int) vecCaps$mh.invokeExact();
             if (caps != 0) {
-                DOT7U_NAME = "dot7u";
-                SQR7U_NAME = "sqr7u";
+                if (caps == 2) {
+                    DOT7U_FUNCTION_NAME = "dot7u_2";
+                    SQR7U_FUNCTION_NAME = "sqr7u_2";
+                } else {
+                    DOT7U_FUNCTION_NAME = "dot7u";
+                    SQR7U_FUNCTION_NAME = "sqr7u";
+                }
                 INSTANCE = new JdkVectorSimilarityFunctions();
             } else {
-                DOT7U_NAME = null;
-                SQR7U_NAME = null;
+                DOT7U_FUNCTION_NAME = null;
+                SQR7U_FUNCTION_NAME = null;
                 INSTANCE = null;
             }
         } catch (Throwable t) {
@@ -57,9 +62,13 @@ public final class JdkVectorLibrary implements VectorLibrary {
 
     private static final class JdkVectorSimilarityFunctions implements VectorSimilarityFunctions {
 
-        static final MethodHandle dot7u$mh = downcallHandle(DOT7U_NAME, FunctionDescriptor.of(JAVA_INT, ADDRESS, ADDRESS, JAVA_INT));
-        static final MethodHandle sqr7u$mh = downcallHandle(SQR7U_NAME, FunctionDescriptor.of(JAVA_INT, ADDRESS, ADDRESS, JAVA_INT));
+        static final MethodHandle dot7u$mh;
+        static final MethodHandle sqr7u$mh;
 
+        static {
+            dot7u$mh = downcallHandle(DOT7U_FUNCTION_NAME, FunctionDescriptor.of(JAVA_INT, ADDRESS, ADDRESS, JAVA_INT));
+            sqr7u$mh = downcallHandle(SQR7U_FUNCTION_NAME, FunctionDescriptor.of(JAVA_INT, ADDRESS, ADDRESS, JAVA_INT));
+        }
         /**
          * Computes the dot product of given unsigned int7 byte vectors.
          *

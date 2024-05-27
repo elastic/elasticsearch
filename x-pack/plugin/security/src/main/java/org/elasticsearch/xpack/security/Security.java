@@ -618,6 +618,8 @@ public class Security extends Plugin
     // restart or master node change.
     private final AtomicInteger nodeLocalMigrationRetryCount = new AtomicInteger(0);
 
+    private final SetOnce<List<AutoCloseable>> closableComponents = new SetOnce<>();
+
     public Security(Settings settings) {
         this(settings, Collections.emptyList());
     }
@@ -936,7 +938,8 @@ public class Security extends Plugin
             systemIndices.getMainIndexManager(),
             clusterService,
             cacheInvalidatorRegistry,
-            threadPool
+            threadPool,
+            telemetryProvider.getMeterRegistry()
         );
         components.add(apiKeyService);
 
@@ -1151,13 +1154,19 @@ public class Security extends Plugin
 
         cacheInvalidatorRegistry.validate();
 
-        this.reloadableComponents.set(
-            components.stream()
-                .filter(ReloadableSecurityComponent.class::isInstance)
-                .map(ReloadableSecurityComponent.class::cast)
-                .collect(Collectors.toUnmodifiableList())
-        );
+        final List<ReloadableSecurityComponent> reloadableComponents = new ArrayList<>();
+        final List<AutoCloseable> closableComponents = new ArrayList<>();
+        for (Object component : components) {
+            if (component instanceof ReloadableSecurityComponent reloadable) {
+                reloadableComponents.add(reloadable);
+            }
+            if (component instanceof AutoCloseable closeable) {
+                closableComponents.add(closeable);
+            }
+        }
 
+        this.reloadableComponents.set(List.copyOf(reloadableComponents));
+        this.closableComponents.set(List.copyOf(closableComponents));
         return components;
     }
 
@@ -2285,5 +2294,16 @@ public class Security extends Plugin
     // visible for testing
     OperatorPrivileges.OperatorPrivilegesService getOperatorPrivilegesService() {
         return operatorPrivilegesService.get();
+    }
+
+    @Override
+    public void close() {
+        closableComponents.get().forEach(component -> {
+            try {
+                component.close();
+            } catch (Exception e) {
+                logger.warn("component close() method should not throw Exception", e);
+            }
+        });
     }
 }

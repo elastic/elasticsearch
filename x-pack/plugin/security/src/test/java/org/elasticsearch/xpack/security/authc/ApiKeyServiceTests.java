@@ -63,6 +63,7 @@ import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
+import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockLog;
@@ -2716,7 +2717,8 @@ public class ApiKeyServiceTests extends ESTestCase {
             securityIndex,
             clusterService,
             cacheInvalidatorRegistry,
-            threadPool
+            threadPool,
+            MeterRegistry.NOOP
         );
 
         final PlainActionFuture<CreateApiKeyResponse> future = new PlainActionFuture<>();
@@ -2853,7 +2855,8 @@ public class ApiKeyServiceTests extends ESTestCase {
             securityIndex,
             clusterService,
             cacheInvalidatorRegistry,
-            threadPool
+            threadPool,
+            MeterRegistry.NOOP
         );
 
         final List<RoleDescriptor> roleDescriptorsWithWorkflowsRestriction = randomList(
@@ -2918,7 +2921,8 @@ public class ApiKeyServiceTests extends ESTestCase {
             securityIndex,
             clusterService,
             cacheInvalidatorRegistry,
-            threadPool
+            threadPool,
+            MeterRegistry.NOOP
         );
 
         final Set<RoleDescriptor> userRoleDescriptorsWithWorkflowsRestriction = randomSet(
@@ -3093,7 +3097,8 @@ public class ApiKeyServiceTests extends ESTestCase {
             securityIndex,
             ClusterServiceUtils.createClusterService(threadPool, clusterSettings),
             cacheInvalidatorRegistry,
-            threadPool
+            threadPool,
+            MeterRegistry.NOOP
         );
         if ("0s".equals(settings.get(ApiKeyService.CACHE_TTL_SETTING.getKey()))) {
             verify(cacheInvalidatorRegistry, never()).registerCacheInvalidator(eq("api_key"), any());

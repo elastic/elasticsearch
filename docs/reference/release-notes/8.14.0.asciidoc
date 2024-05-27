@@ -108,6 +108,7 @@ Machine Learning::
 * Fix `startOffset` must be non-negative error in XLMRoBERTa tokenizer {es-pull}107891[#107891] (issue: {es-issue}104626[#104626])
 * Fix the position of spike, dip and distribution changes bucket when the sibling aggregation includes empty buckets {es-pull}106472[#106472]
 * Make OpenAI embeddings parser more flexible {es-pull}106808[#106808]
+* Remove ineffective optimizations for duplicate strings. {ml-pull}2652[#2652] (issue: {ml-issue}2130[#2130])
 
 Mapping::
 * Dedupe terms in terms queries {es-pull}106381[#106381]

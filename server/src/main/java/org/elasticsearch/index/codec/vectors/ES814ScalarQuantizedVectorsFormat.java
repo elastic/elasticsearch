@@ -39,7 +39,6 @@ import org.elasticsearch.vec.VectorScorerFactory;
 import org.elasticsearch.vec.VectorSimilarityType;
 
 import java.io.IOException;
-import java.util.Optional;
 
 public class ES814ScalarQuantizedVectorsFormat extends FlatVectorsFormat {
 
@@ -198,24 +197,24 @@ public class ES814ScalarQuantizedVectorsFormat extends FlatVectorsFormat {
     static final class ESFlatVectorsScorer implements FlatVectorsScorer {
 
         final FlatVectorsScorer delegate;
+        final VectorScorerFactory factory;
 
         ESFlatVectorsScorer(FlatVectorsScorer delegte) {
             this.delegate = delegte;
+            factory = VectorScorerFactory.instance().orElse(null);
         }
 
         @Override
         public RandomVectorScorerSupplier getRandomVectorScorerSupplier(VectorSimilarityFunction sim, RandomAccessVectorValues values)
             throws IOException {
             if (values instanceof RandomAccessQuantizedByteVectorValues qValues && values.getSlice() != null) {
-                Optional<VectorScorerFactory> factory = VectorScorerFactory.instance();
-                if (factory.isPresent()) {
-                    var scorer = factory.get()
-                        .getInt7ScalarQuantizedVectorScorer(
-                            VectorSimilarityType.of(sim),
-                            values.getSlice(),
-                            qValues,
-                            qValues.getScalarQuantizer().getConstantMultiplier()
-                        );
+                if (factory != null) {
+                    var scorer = factory.getInt7SQVectorScorerSupplier(
+                        VectorSimilarityType.of(sim),
+                        values.getSlice(),
+                        qValues,
+                        qValues.getScalarQuantizer().getConstantMultiplier()
+                    );
                     if (scorer.isPresent()) {
                         return scorer.get();
                     }
@@ -227,6 +226,14 @@ public class ES814ScalarQuantizedVectorsFormat extends FlatVectorsFormat {
         @Override
         public RandomVectorScorer getRandomVectorScorer(VectorSimilarityFunction sim, RandomAccessVectorValues values, float[] query)
             throws IOException {
+            if (values instanceof RandomAccessQuantizedByteVectorValues qValues && values.getSlice() != null) {
+                if (factory != null) {
+                    var scorer = factory.getInt7SQVectorScorer(sim, qValues, query);
+                    if (scorer.isPresent()) {
+                        return scorer.get();
+                    }
+                }
+            }
             return delegate.getRandomVectorScorer(sim, values, query);
         }
 

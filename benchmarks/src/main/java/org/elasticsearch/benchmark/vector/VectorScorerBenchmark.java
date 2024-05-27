@@ -116,8 +116,8 @@ public class VectorScorerBenchmark {
         values = vectorValues(dims, 2, in, VectorSimilarityFunction.EUCLIDEAN);
         luceneSqrScorer = luceneScoreSupplier(values, VectorSimilarityFunction.EUCLIDEAN).scorer(0);
 
-        nativeDotScorer = factory.getInt7ScalarQuantizedVectorScorer(DOT_PRODUCT, in, values, scoreCorrectionConstant).get().scorer(0);
-        nativeSqrScorer = factory.getInt7ScalarQuantizedVectorScorer(EUCLIDEAN, in, values, scoreCorrectionConstant).get().scorer(0);
+        nativeDotScorer = factory.getInt7SQVectorScorerSupplier(DOT_PRODUCT, in, values, scoreCorrectionConstant).get().scorer(0);
+        nativeSqrScorer = factory.getInt7SQVectorScorerSupplier(EUCLIDEAN, in, values, scoreCorrectionConstant).get().scorer(0);
 
         // sanity
         var f1 = dotProductLucene();

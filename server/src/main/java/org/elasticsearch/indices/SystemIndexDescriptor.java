@@ -37,8 +37,10 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.NavigableMap;
 import java.util.Objects;
 import java.util.Set;
+import java.util.TreeMap;
 
 /**
  * Uses a pattern string to define a protected space for indices belonging to a system feature, and, if needed, provides metadata for
@@ -190,6 +192,8 @@ public class SystemIndexDescriptor implements IndexPatternMatcher, Comparable<Sy
      */
     private final ExecutorNames executorNames;
 
+    private final TreeMap<Integer, SystemIndexMigrationTask> migrationsByVersion;
+
     /**
      * Creates a descriptor for system indices matching the supplied pattern. These indices will be managed
      * by Elasticsearch internally if mappings or settings are provided.
@@ -231,7 +235,8 @@ public class SystemIndexDescriptor implements IndexPatternMatcher, Comparable<Sy
         List<SystemIndexDescriptor> priorSystemIndexDescriptors,
         ExecutorNames executorNames,
         boolean isNetNew,
-        boolean allowsTemplates
+        boolean allowsTemplates,
+        TreeMap<Integer, SystemIndexMigrationTask> migrationsByVersion
     ) {
         Objects.requireNonNull(indexPattern, "system index pattern must not be null");
         if (indexPattern.length() < 2) {
@@ -355,6 +360,8 @@ public class SystemIndexDescriptor implements IndexPatternMatcher, Comparable<Sy
         this.indexPattern = indexPattern;
         this.primaryIndex = primaryIndex;
         this.aliasName = aliasName;
+
+        this.migrationsByVersion = migrationsByVersion;
 
         final Automaton automaton = buildAutomaton(indexPattern, aliasName);
         this.indexPatternAutomaton = new CharacterRunAutomaton(automaton);
@@ -545,6 +552,27 @@ public class SystemIndexDescriptor implements IndexPatternMatcher, Comparable<Sy
             throw new IllegalStateException(this + " is not managed so there are no mappings or version");
         }
         return mappingsVersion;
+    }
+
+    public NavigableMap<Integer, SystemIndexMigrationTask> getMigrationsAfter(int version) {
+        if (isAutomaticallyManaged() == false) {
+            throw new IllegalStateException(this + " is not managed so there are no migrations");
+        }
+        return migrationsByVersion.tailMap(version, false);
+    }
+
+    public Integer getMostRecentMigrationVersion() {
+        if (isAutomaticallyManaged() == false) {
+            throw new IllegalStateException(this + " is not managed so there are no migrations");
+        }
+        return migrationsByVersion.lastKey();
+    }
+
+    public SystemIndexMigrationTask getMigrationTaskByVersion(int version) {
+        if (isAutomaticallyManaged() == false) {
+            throw new IllegalStateException(this + " is not managed so there are no migrations");
+        }
+        return migrationsByVersion.get(version);
     }
 
     /**
@@ -748,6 +776,7 @@ public class SystemIndexDescriptor implements IndexPatternMatcher, Comparable<Sy
         private ExecutorNames executorNames;
         private boolean isNetNew = false;
         private boolean allowsTemplates = false;
+        private TreeMap<Integer, SystemIndexMigrationTask> migrationTasks = new TreeMap<>();
 
         private Builder() {}
 
@@ -844,6 +873,12 @@ public class SystemIndexDescriptor implements IndexPatternMatcher, Comparable<Sy
             return this;
         }
 
+        public Builder addSystemIndexMigration(SystemIndexMigrationTask migrationTask) {
+            int lastKey = migrationTasks.isEmpty() ? 0 : migrationTasks.lastKey();
+            this.migrationTasks.put(lastKey + 1, migrationTask);
+            return this;
+        }
+
         /**
          * Builds a {@link SystemIndexDescriptor} using the fields supplied to this builder.
          * @return a populated descriptor.
@@ -865,7 +900,8 @@ public class SystemIndexDescriptor implements IndexPatternMatcher, Comparable<Sy
                 priorSystemIndexDescriptors,
                 executorNames,
                 isNetNew,
-                allowsTemplates
+                allowsTemplates,
+                migrationTasks
             );
         }
     }

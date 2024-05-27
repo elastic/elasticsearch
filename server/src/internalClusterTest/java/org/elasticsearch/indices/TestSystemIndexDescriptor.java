@@ -18,6 +18,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.List;
+import java.util.TreeMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
@@ -58,7 +59,8 @@ public class TestSystemIndexDescriptor extends SystemIndexDescriptor {
             List.of(),
             null,
             false,
-            false
+            false,
+            new TreeMap<>()
         );
     }
 
@@ -79,7 +81,8 @@ public class TestSystemIndexDescriptor extends SystemIndexDescriptor {
             List.of(),
             null,
             false,
-            allowsTemplates
+            allowsTemplates,
+            new TreeMap<>()
         );
     }
 

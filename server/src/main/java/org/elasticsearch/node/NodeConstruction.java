@@ -119,6 +119,8 @@ import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.IndicesServiceBuilder;
 import org.elasticsearch.indices.ShardLimitValidator;
 import org.elasticsearch.indices.SystemIndexMappingUpdateService;
+import org.elasticsearch.indices.SystemIndexMigrationService;
+import org.elasticsearch.indices.SystemIndexMigrationTaskExecutor;
 import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.indices.analysis.AnalysisModule;
 import org.elasticsearch.indices.breaker.CircuitBreakerMetrics;
@@ -226,6 +228,7 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.core.Types.forciblyCast;
+import static org.elasticsearch.threadpool.ThreadPool.Names.MANAGEMENT;
 
 /**
  * Class uses to perform all the operations needed to construct a {@link Node} instance.
@@ -1539,6 +1542,17 @@ class NodeConstruction {
         MetadataCreateIndexService metadataCreateIndexService
     ) {
         PersistentTasksService persistentTasksService = new PersistentTasksService(clusterService, threadPool, client);
+
+        if (DiscoveryNode.isMasterNode(settingsModule.getSettings())) {
+            clusterService.addListener(new SystemIndexMigrationService(systemIndices, featureService, persistentTasksService));
+        }
+
+        SystemIndexMigrationTaskExecutor systemIndexMigrationTaskExecutor = new SystemIndexMigrationTaskExecutor(
+            threadPool.executor(MANAGEMENT),
+            client,
+            systemIndices
+        );
+
         SystemIndexMigrationExecutor systemIndexMigrationExecutor = new SystemIndexMigrationExecutor(
             client,
             clusterService,
@@ -1554,7 +1568,11 @@ class NodeConstruction {
             settingsModule.getSettings(),
             clusterService.getClusterSettings()
         );
-        Stream<PersistentTasksExecutor<?>> builtinTaskExecutors = Stream.of(systemIndexMigrationExecutor, healthNodeTaskExecutor);
+        Stream<PersistentTasksExecutor<?>> builtinTaskExecutors = Stream.of(
+            systemIndexMigrationExecutor,
+            healthNodeTaskExecutor,
+            systemIndexMigrationTaskExecutor
+        );
 
         Stream<PersistentTasksExecutor<?>> pluginTaskExecutors = pluginsService.filterPlugins(PersistentTaskPlugin.class)
             .map(p -> p.getPersistentTasksExecutor(clusterService, threadPool, client, settingsModule, indexNameExpressionResolver))

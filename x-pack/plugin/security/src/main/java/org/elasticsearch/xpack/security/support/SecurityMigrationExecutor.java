@@ -13,11 +13,11 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ThreadedActionListener;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.indices.UpdateIndexMigrationVersionAction;
 import org.elasticsearch.persistent.AllocatedPersistentTask;
 import org.elasticsearch.persistent.PersistentTaskState;
 import org.elasticsearch.persistent.PersistentTasksExecutor;
 import org.elasticsearch.tasks.TaskCancelledException;
-import org.elasticsearch.xpack.core.security.action.UpdateIndexMigrationVersionAction;
 import org.elasticsearch.xpack.core.security.support.SecurityMigrationTaskParams;
 
 import java.util.Map;

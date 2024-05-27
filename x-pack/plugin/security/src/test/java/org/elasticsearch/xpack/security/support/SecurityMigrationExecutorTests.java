@@ -15,12 +15,12 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.features.NodeFeature;
+import org.elasticsearch.indices.UpdateIndexMigrationVersionResponse;
 import org.elasticsearch.persistent.AllocatedPersistentTask;
 import org.elasticsearch.persistent.PersistentTaskState;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.client.NoOpClient;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.xpack.core.security.action.UpdateIndexMigrationVersionResponse;
 import org.elasticsearch.xpack.core.security.support.SecurityMigrationTaskParams;
 import org.junit.Before;
 

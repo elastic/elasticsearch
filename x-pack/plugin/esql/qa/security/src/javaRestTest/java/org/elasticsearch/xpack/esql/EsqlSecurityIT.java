@@ -38,8 +38,6 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
 public class EsqlSecurityIT extends ESRestTestCase {
-    static String ESQL_VERSION = "2024.04.01.🚀";
-
     @ClassRule
     public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
         .distribution(DistributionType.DEFAULT)
@@ -355,7 +353,6 @@ public class EsqlSecurityIT extends ESRestTestCase {
         }
         XContentBuilder json = JsonXContent.contentBuilder();
         json.startObject();
-        json.field("version", ESQL_VERSION);
         json.field("query", command);
         addRandomPragmas(json);
         json.endObject();

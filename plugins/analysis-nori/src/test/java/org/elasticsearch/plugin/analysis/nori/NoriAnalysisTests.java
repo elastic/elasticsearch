@@ -129,6 +129,7 @@ public class NoriAnalysisTests extends ESTokenStreamTestCase {
         assertThat(exc.getMessage(), containsString("[세종] in user dictionary at line [3]"));
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/apache/lucene/issues/13426")
     public void testNoriAnalyzerDuplicateUserDictRuleWithLegacyVersion() throws IOException {
         Settings settings = Settings.builder()
             .put("index.analysis.analyzer.my_analyzer.type", "nori")

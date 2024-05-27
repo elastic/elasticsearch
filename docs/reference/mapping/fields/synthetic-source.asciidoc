@@ -52,6 +52,7 @@ types:
 ** <<flattened-synthetic-source, `flattened`>>
 ** <<numeric-synthetic-source,`float`>>
 ** <<geo-point-synthetic-source,`geo_point`>>
+** <<geo-shape-synthetic-source,`geo_shape`>>
 ** <<numeric-synthetic-source,`half_float`>>
 ** <<histogram-synthetic-source,`histogram`>>
 ** <<numeric-synthetic-source,`integer`>>

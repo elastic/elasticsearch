@@ -8,7 +8,7 @@
 
 package org.elasticsearch.vec.internal;
 
-import org.apache.lucene.store.IndexInput;
+import org.apache.lucene.store.MemorySegmentAccessInput;
 import org.apache.lucene.util.hnsw.RandomVectorScorer;
 import org.apache.lucene.util.hnsw.RandomVectorScorerSupplier;
 import org.apache.lucene.util.quantization.RandomAccessQuantizedByteVectorValues;
@@ -29,18 +29,12 @@ public abstract sealed class Int7SQVectorScorerSupplier implements RandomVectorS
     final int dims;
     final int maxOrd;
     final float scoreCorrectionConstant;
-    final IndexInput input;
+    final MemorySegmentAccessInput input;
     final RandomAccessQuantizedByteVectorValues values; // to support ordToDoc/getAcceptOrds
     final ScalarQuantizedVectorSimilarity fallbackScorer;
 
-    final MemorySegment segment;
-    final MemorySegment[] segments;
-    final long offset;
-    final int chunkSizePower;
-    final long chunkSizeMask;
-
     protected Int7SQVectorScorerSupplier(
-        IndexInput input,
+        MemorySegmentAccessInput input,
         RandomAccessQuantizedByteVectorValues values,
         float scoreCorrectionConstant,
         ScalarQuantizedVectorSimilarity fallbackScorer
@@ -51,17 +45,6 @@ public abstract sealed class Int7SQVectorScorerSupplier implements RandomVectorS
         this.maxOrd = values.size();
         this.scoreCorrectionConstant = scoreCorrectionConstant;
         this.fallbackScorer = fallbackScorer;
-
-        this.segments = IndexInputUtils.segmentArray(input);
-        if (segments.length == 1) {
-            segment = segments[0];
-            offset = 0L;
-        } else {
-            segment = null;
-            offset = IndexInputUtils.offset(input);
-        }
-        this.chunkSizePower = IndexInputUtils.chunkSizePower(input);
-        this.chunkSizeMask = IndexInputUtils.chunkSizeMask(input);
     }
 
     protected final void checkOrdinal(int ord) {
@@ -78,19 +61,17 @@ public abstract sealed class Int7SQVectorScorerSupplier implements RandomVectorS
         long firstByteOffset = (long) firstOrd * (length + Float.BYTES);
         long secondByteOffset = (long) secondOrd * (length + Float.BYTES);
 
-        MemorySegment firstSeg = segmentSlice(firstByteOffset, length);
+        MemorySegment firstSeg = input.segmentSliceOrNull(firstByteOffset, length);
         if (firstSeg == null) {
             return fallbackScore(firstByteOffset, secondByteOffset);
         }
-        input.seek(firstByteOffset + length);
-        float firstOffset = Float.intBitsToFloat(input.readInt());
+        float firstOffset = Float.intBitsToFloat(input.readInt(firstByteOffset + length));
 
-        MemorySegment secondSeg = segmentSlice(secondByteOffset, length);
+        MemorySegment secondSeg = input.segmentSliceOrNull(secondByteOffset, length);
         if (secondSeg == null) {
             return fallbackScore(firstByteOffset, secondByteOffset);
         }
-        input.seek(secondByteOffset + length);
-        float secondOffset = Float.intBitsToFloat(input.readInt());
+        float secondOffset = Float.intBitsToFloat(input.readInt(secondByteOffset + length));
 
         return scoreFromSegments(firstSeg, firstOffset, secondSeg, secondOffset);
     }
@@ -98,15 +79,13 @@ public abstract sealed class Int7SQVectorScorerSupplier implements RandomVectorS
     abstract float scoreFromSegments(MemorySegment a, float aOffset, MemorySegment b, float bOffset);
 
     protected final float fallbackScore(long firstByteOffset, long secondByteOffset) throws IOException {
-        input.seek(firstByteOffset);
         byte[] a = new byte[dims];
-        input.readBytes(a, 0, a.length);
-        float aOffsetValue = Float.intBitsToFloat(input.readInt());
+        input.readBytes(firstByteOffset, a, 0, a.length);
+        float aOffsetValue = Float.intBitsToFloat(input.readInt(firstByteOffset + dims));
 
-        input.seek(secondByteOffset);
         byte[] b = new byte[dims];
-        input.readBytes(b, 0, a.length);
-        float bOffsetValue = Float.intBitsToFloat(input.readInt());
+        input.readBytes(secondByteOffset, b, 0, a.length);
+        float bOffsetValue = Float.intBitsToFloat(input.readInt(secondByteOffset + dims));
 
         return fallbackScorer.score(a, aOffsetValue, b, bOffsetValue);
     }
@@ -122,28 +101,13 @@ public abstract sealed class Int7SQVectorScorerSupplier implements RandomVectorS
         };
     }
 
-    protected final MemorySegment segmentSlice(long pos, int length) {
-        if (segment != null) {
-            // single
-            if (checkIndex(pos, segment.byteSize() + 1)) {
-                return segment.asSlice(pos, length);
-            }
-        } else {
-            // multi
-            pos = pos + this.offset;
-            final int si = (int) (pos >> chunkSizePower);
-            final MemorySegment seg = segments[si];
-            long offset = pos & chunkSizeMask;
-            if (checkIndex(offset + length, seg.byteSize() + 1)) {
-                return seg.asSlice(offset, length);
-            }
-        }
-        return null;
-    }
-
     public static final class EuclideanSupplier extends Int7SQVectorScorerSupplier {
 
-        public EuclideanSupplier(IndexInput input, RandomAccessQuantizedByteVectorValues values, float scoreCorrectionConstant) {
+        public EuclideanSupplier(
+            MemorySegmentAccessInput input,
+            RandomAccessQuantizedByteVectorValues values,
+            float scoreCorrectionConstant
+        ) {
             super(input, values, scoreCorrectionConstant, fromVectorSimilarity(EUCLIDEAN, scoreCorrectionConstant, BITS));
         }
 
@@ -162,7 +126,11 @@ public abstract sealed class Int7SQVectorScorerSupplier implements RandomVectorS
 
     public static final class DotProductSupplier extends Int7SQVectorScorerSupplier {
 
-        public DotProductSupplier(IndexInput input, RandomAccessQuantizedByteVectorValues values, float scoreCorrectionConstant) {
+        public DotProductSupplier(
+            MemorySegmentAccessInput input,
+            RandomAccessQuantizedByteVectorValues values,
+            float scoreCorrectionConstant
+        ) {
             super(input, values, scoreCorrectionConstant, fromVectorSimilarity(DOT_PRODUCT, scoreCorrectionConstant, BITS));
         }
 
@@ -182,7 +150,11 @@ public abstract sealed class Int7SQVectorScorerSupplier implements RandomVectorS
 
     public static final class MaxInnerProductSupplier extends Int7SQVectorScorerSupplier {
 
-        public MaxInnerProductSupplier(IndexInput input, RandomAccessQuantizedByteVectorValues values, float scoreCorrectionConstant) {
+        public MaxInnerProductSupplier(
+            MemorySegmentAccessInput input,
+            RandomAccessQuantizedByteVectorValues values,
+            float scoreCorrectionConstant
+        ) {
             super(input, values, scoreCorrectionConstant, fromVectorSimilarity(MAXIMUM_INNER_PRODUCT, scoreCorrectionConstant, BITS));
         }
 

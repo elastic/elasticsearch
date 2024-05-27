@@ -8,11 +8,12 @@
 
 package org.elasticsearch.vec;
 
+import org.apache.lucene.store.FilterIndexInput;
 import org.apache.lucene.store.IndexInput;
+import org.apache.lucene.store.MemorySegmentAccessInput;
 import org.apache.lucene.util.hnsw.RandomVectorScorerSupplier;
 import org.apache.lucene.util.quantization.RandomAccessQuantizedByteVectorValues;
 import org.elasticsearch.nativeaccess.NativeAccess;
-import org.elasticsearch.vec.internal.IndexInputUtils;
 import org.elasticsearch.vec.internal.Int7SQVectorScorerSupplier.DotProductSupplier;
 import org.elasticsearch.vec.internal.Int7SQVectorScorerSupplier.EuclideanSupplier;
 import org.elasticsearch.vec.internal.Int7SQVectorScorerSupplier.MaxInnerProductSupplier;
@@ -36,15 +37,16 @@ class VectorScorerFactoryImpl implements VectorScorerFactory {
         RandomAccessQuantizedByteVectorValues values,
         float scoreCorrectionConstant
     ) {
-        input = IndexInputUtils.unwrapAndCheckInputOrNull(input);
-        if (input == null) {
-            return Optional.empty(); // the input type is not MemorySegment based
+        input = FilterIndexInput.unwrapOnlyTest(input);
+        if (input instanceof MemorySegmentAccessInput == false) {
+            return Optional.empty();
         }
+        MemorySegmentAccessInput msInput = (MemorySegmentAccessInput) input;
         checkInvariants(values.size(), values.dimension(), input);
         return switch (similarityType) {
-            case COSINE, DOT_PRODUCT -> Optional.of(new DotProductSupplier(input, values, scoreCorrectionConstant));
-            case EUCLIDEAN -> Optional.of(new EuclideanSupplier(input, values, scoreCorrectionConstant));
-            case MAXIMUM_INNER_PRODUCT -> Optional.of(new MaxInnerProductSupplier(input, values, scoreCorrectionConstant));
+            case COSINE, DOT_PRODUCT -> Optional.of(new DotProductSupplier(msInput, values, scoreCorrectionConstant));
+            case EUCLIDEAN -> Optional.of(new EuclideanSupplier(msInput, values, scoreCorrectionConstant));
+            case MAXIMUM_INNER_PRODUCT -> Optional.of(new MaxInnerProductSupplier(msInput, values, scoreCorrectionConstant));
         };
     }
 

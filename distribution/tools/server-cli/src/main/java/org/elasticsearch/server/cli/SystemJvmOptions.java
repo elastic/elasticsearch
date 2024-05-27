@@ -74,7 +74,6 @@ final class SystemJvmOptions {
                  * while we explore alternatives. See org.elasticsearch.xpack.searchablesnapshots.preallocate.Preallocate.
                  */
                 "--add-opens=java.base/java.io=org.elasticsearch.preallocate",
-                "--add-opens=org.apache.lucene.core/org.apache.lucene.store=org.elasticsearch.vec",
                 maybeEnableNativeAccess(),
                 maybeOverrideDockerCgroup(distroType),
                 maybeSetActiveProcessorCount(nodeSettings),

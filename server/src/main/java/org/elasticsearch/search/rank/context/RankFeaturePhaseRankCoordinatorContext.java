@@ -35,7 +35,7 @@ public abstract class RankFeaturePhaseRankCoordinatorContext {
 
     /**
      * This is used to re-rank the results once we have retrieved all {@code RankFeatureResult} shard responses
-     * during the {@code RankFeaturePhase} phase. This method computes a reranked list of global top-K results,
+     * during the {@code RankFeaturePhase} phase. This method computes a reranked list of global top `rank_window_size` results,
      * based on the feature data extracted by each of the shards.
      * To support non-blocking async operations, once we generate a final array of {@link ScoreDoc} results, we pass them
      * to the {@param onFinish} consumer to proceed with the next steps, as defined by the caller.

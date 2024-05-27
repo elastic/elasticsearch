@@ -247,7 +247,7 @@ public class LearningToRankRescorerBuilder extends RescorerBuilder<LearningToRan
     @Override
     protected LearningToRankRescorerContext innerBuildContext(int windowSize, SearchExecutionContext context) {
         rescoreOccurred = true;
-        return new LearningToRankRescorerContext(windowSize, LearningToRankRescorer.INSTANCE, learningToRankConfig, localModel, context);
+        return new LearningToRankRescorerContext(windowSize, LearningToRankRescorer.INSTANCE, canCombineScores(), learningToRankConfig, localModel, context);
     }
 
     @Override
@@ -262,8 +262,8 @@ public class LearningToRankRescorerBuilder extends RescorerBuilder<LearningToRan
     }
 
     @Override
-    protected boolean isWindowSizeRequired() {
-        return true;
+    public boolean canCombineScores() {
+        return false;
     }
 
     @Override

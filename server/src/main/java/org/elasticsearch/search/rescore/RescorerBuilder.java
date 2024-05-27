@@ -68,6 +68,24 @@ public abstract class RescorerBuilder<RB extends RescorerBuilder<RB>>
         return windowSize;
     }
 
+    /**
+     * In some situations (e.g., LTR rescorer), it is impossible to combine scores issued by the rescoring phase those from
+     * the first-pass query (or previous rescorers) because they are not comparable each others.
+     *
+     * In this case:
+     *
+     * - we need to ensure that the full topDocs is rescored
+     * - the topDocs is truncated to the window size before executing the rescorer
+     * - we prevent subsequent rescorers with a bigger window size
+     * - we check the window size for the rescorer is at least equals to from + size
+     * - window size is a required parameter for the rescorer
+     *
+     * @return whether it is possible to combine scores issued by the rescoring phase with original scores or not.
+     */
+    public boolean canCombineScores() {
+        return true;
+    }
+
     public static RescorerBuilder<?> parseFromXContent(XContentParser parser, Consumer<String> rescorerNameConsumer) throws IOException {
         String fieldName = null;
         RescorerBuilder<?> rescorer = null;
@@ -100,7 +118,7 @@ public abstract class RescorerBuilder<RB extends RescorerBuilder<RB>>
 
         if (windowSize != null) {
             rescorer.windowSize(windowSize.intValue());
-        } else if (rescorer.isWindowSizeRequired()) {
+        } else if (rescorer.canCombineScores() == false) {
             throw new ParsingException(parser.getTokenLocation(), "window_size is required for rescorer of type [" + rescorerType + "]");
         }
 
@@ -121,23 +139,16 @@ public abstract class RescorerBuilder<RB extends RescorerBuilder<RB>>
     protected abstract void doXContent(XContentBuilder builder, Params params) throws IOException;
 
     /**
-     * Indicate if the window_size is a required parameter for the rescorer.
-     */
-    protected boolean isWindowSizeRequired() {
-        return false;
-    }
-
-    /**
      * Build the {@linkplain RescoreContext} that will be used to actually
      * execute the rescore against a particular shard.
      */
     public final RescoreContext buildContext(SearchExecutionContext context) throws IOException {
-        if (isWindowSizeRequired()) {
+        if (canCombineScores() == false) {
             assert windowSize != null;
         }
         int finalWindowSize = windowSize == null ? DEFAULT_WINDOW_SIZE : windowSize;
-        RescoreContext rescoreContext = innerBuildContext(finalWindowSize, context);
-        return rescoreContext;
+
+        return innerBuildContext(finalWindowSize, context);
     }
 
     /**

@@ -56,22 +56,12 @@ public class LearningToRankRescorer implements Rescorer {
             throw new IllegalStateException("local model reference is null, missing rewriteAndFetch before rescore phase?");
         }
 
-        if (rescoreContext.getWindowSize() < topDocs.scoreDocs.length) {
-            throw new IllegalArgumentException(
-                "Rescore window is too small and should be at least the value of from + size but was ["
-                    + rescoreContext.getWindowSize()
-                    + "]"
-            );
-        }
-
         LocalModel definition = ltrRescoreContext.regressionModelDefinition;
 
-        // First take top slice of incoming docs, to be rescored:
-        TopDocs topNFirstPass = topN(topDocs, rescoreContext.getWindowSize());
         // Save doc IDs for which rescoring was applied to be used in score explanation
-        Set<Integer> topNDocIDs = Arrays.stream(topNFirstPass.scoreDocs).map(scoreDoc -> scoreDoc.doc).collect(toUnmodifiableSet());
-        rescoreContext.setRescoredDocs(topNDocIDs);
-        ScoreDoc[] hitsToRescore = topNFirstPass.scoreDocs;
+        Set<Integer> topDocIDs = Arrays.stream(topDocs.scoreDocs).map(scoreDoc -> scoreDoc.doc).collect(toUnmodifiableSet());
+        rescoreContext.setRescoredDocs(topDocIDs);
+        ScoreDoc[] hitsToRescore = topDocs.scoreDocs;
         Arrays.sort(hitsToRescore, Comparator.comparingInt(a -> a.doc));
         int hitUpto = 0;
         int readerUpto = -1;
@@ -81,7 +71,7 @@ public class LearningToRankRescorer implements Rescorer {
         LeafReaderContext currentSegment = null;
         boolean changedSegment = true;
         List<FeatureExtractor> featureExtractors = ltrRescoreContext.buildFeatureExtractors(searcher);
-        List<Map<String, Object>> docFeatures = new ArrayList<>(topNDocIDs.size());
+        List<Map<String, Object>> docFeatures = new ArrayList<>(topDocIDs.size());
         int featureSize = featureExtractors.stream().mapToInt(fe -> fe.featureNames().size()).sum();
         while (hitUpto < hitsToRescore.length) {
             final ScoreDoc hit = hitsToRescore[hitUpto];
@@ -137,18 +127,5 @@ public class LearningToRankRescorer implements Rescorer {
         throws IOException {
         // TODO: Call infer again but with individual feature importance values and explaining the model (which features are used, etc.)
         return null;
-    }
-
-    /** Returns a new {@link TopDocs} with the topN from the incoming one, or the same TopDocs if the number of hits is already &lt;=
-     *  topN. */
-    private static TopDocs topN(TopDocs in, int topN) {
-        if (in.scoreDocs.length < topN) {
-            return in;
-        }
-
-        ScoreDoc[] subset = new ScoreDoc[topN];
-        System.arraycopy(in.scoreDocs, 0, subset, 0, topN);
-
-        return new TopDocs(in.totalHits, subset);
     }
 }

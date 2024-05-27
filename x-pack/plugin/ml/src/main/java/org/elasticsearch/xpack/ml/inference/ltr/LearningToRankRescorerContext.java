@@ -33,6 +33,7 @@ public class LearningToRankRescorerContext extends RescoreContext {
     /**
      * @param windowSize how many documents to rescore
      * @param rescorer The rescorer to apply
+     * @param canCombineScores Indicates if the rescorer score can be combined with other scores
      * @param learningToRankConfig The inference config containing updated and rewritten parameters
      * @param regressionModelDefinition The local model inference definition, may be null during certain search phases.
      * @param executionContext The local shard search context
@@ -40,11 +41,12 @@ public class LearningToRankRescorerContext extends RescoreContext {
     public LearningToRankRescorerContext(
         int windowSize,
         Rescorer rescorer,
+        boolean canCombineScores,
         LearningToRankConfig learningToRankConfig,
         LocalModel regressionModelDefinition,
         SearchExecutionContext executionContext
     ) {
-        super(windowSize, rescorer);
+        super(windowSize, rescorer, canCombineScores);
         this.executionContext = executionContext;
         this.regressionModelDefinition = regressionModelDefinition;
         this.learningToRankConfig = learningToRankConfig;

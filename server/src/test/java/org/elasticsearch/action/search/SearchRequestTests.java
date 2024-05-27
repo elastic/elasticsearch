@@ -29,6 +29,7 @@ import org.elasticsearch.search.collapse.CollapseBuilder;
 import org.elasticsearch.search.fetch.subphase.highlight.HighlightBuilder;
 import org.elasticsearch.search.rank.TestRankBuilder;
 import org.elasticsearch.search.rescore.QueryRescorerBuilder;
+import org.elasticsearch.search.rescore.RescorerBuilder;
 import org.elasticsearch.search.slice.SliceBuilder;
 import org.elasticsearch.search.suggest.SuggestBuilder;
 import org.elasticsearch.search.suggest.term.TermSuggestionBuilder;
@@ -47,6 +48,8 @@ import java.util.List;
 import static java.util.Collections.emptyMap;
 import static org.elasticsearch.test.EqualsHashCodeTestUtils.checkEqualsAndHashCode;
 import static org.hamcrest.Matchers.equalTo;
+import static org.mockito.Mockito.doReturn;
+import static org.mockito.Mockito.mock;
 
 public class SearchRequestTests extends AbstractSearchTestCase {
 
@@ -658,5 +661,62 @@ public class SearchRequestTests extends AbstractSearchTestCase {
         out.setTransportVersion(TransportVersions.V_8_3_0);
         Exception e = expectThrows(IllegalArgumentException.class, () -> request.writeTo(out));
         assertEquals(e.getMessage(), "force_synthetic_source is not supported before 8.4.0");
+    }
+
+    public void testRescoreChainValidation() {
+        {
+            SearchSourceBuilder source = new SearchSourceBuilder().from(10).size(10)
+                .addRescorer(createRescorerMock(true, randomIntBetween(2, 10000)))
+                .addRescorer(createRescorerMock(true, randomIntBetween(2, 10000)))
+                .addRescorer(createRescorerMock(false, 50))
+                .addRescorer(createRescorerMock(true, randomIntBetween(2, 50)))
+                .addRescorer(createRescorerMock(false, 50))
+                .addRescorer(createRescorerMock(false, 20))
+                .addRescorer(createRescorerMock(true, randomIntBetween(2, 20)))
+                .addRescorer(createRescorerMock(true, randomIntBetween(2, 20)));
+
+            SearchRequest searchRequest = new SearchRequest().source(source);
+            ActionRequestValidationException validationErrors = searchRequest.validate();
+            assertNull(validationErrors);
+        }
+
+        {
+            RescorerBuilder<?> rescorer = createRescorerMock(false, randomIntBetween(2, 19));
+            SearchSourceBuilder source = new SearchSourceBuilder().from(10).size(10).addRescorer(rescorer);
+
+            SearchRequest searchRequest = new SearchRequest().source(source);
+            ActionRequestValidationException validationErrors = searchRequest.validate();
+            assertThat(
+                validationErrors.validationErrors().get(0),
+                equalTo(
+                    "rescorer [window_size] is too small and should be at least the value of [from + size: 20] but was [" + rescorer.windowSize() + "]"
+                )
+            );
+        }
+
+        {
+            SearchSourceBuilder source = new SearchSourceBuilder().from(10).size(10)
+                .addRescorer(createRescorerMock(true, randomIntBetween(2, 10000)))
+                .addRescorer(createRescorerMock(true, randomIntBetween(2, 10000)))
+                .addRescorer(createRescorerMock(false, 50))
+                .addRescorer(createRescorerMock(randomBoolean(), 60));
+
+            SearchRequest searchRequest = new SearchRequest().source(source);
+            ActionRequestValidationException validationErrors = searchRequest.validate();
+            assertThat(
+                validationErrors.validationErrors().get(0),
+                equalTo(
+                "unable to add a rescorer with [window_size: 60] because a rescorer of type [not_combinable] with a smaller [window_size: 50] has been added before"
+                )
+            );
+        }
+    }
+
+    private RescorerBuilder<?> createRescorerMock(boolean canCombineScore, int windowSize) {
+        RescorerBuilder<?> rescorer = mock(RescorerBuilder.class);
+        doReturn(canCombineScore).when(rescorer).canCombineScores();
+        doReturn(windowSize).when(rescorer).windowSize();
+        doReturn("not_combinable").when(rescorer).getWriteableName();
+        return rescorer;
     }
 }

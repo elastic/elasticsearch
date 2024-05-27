@@ -44,6 +44,15 @@ public class RescorePhase {
         }
         try {
             for (RescoreContext ctx : context.rescore()) {
+                if (ctx.canCombineScores() == false) {
+                    /**
+                     * When it is impossible to combine scores from the first-pass query and the rescorer, we truncate the top docs to
+                     * the window size before executing the rescorer.
+                     *
+                     * @see RescorerBuilder#canCombineScores() for more details.
+                     */
+                    topDocs = topN(topDocs, ctx.getWindowSize());
+                }
                 topDocs = ctx.rescorer().rescore(topDocs, context.searcher(), ctx);
                 // It is the responsibility of the rescorer to sort the resulted top docs,
                 // here we only assert that this condition is met.
@@ -104,5 +113,18 @@ public class RescorePhase {
             lastScore = doc.score;
         }
         return true;
+    }
+
+    /** Returns a new {@link TopDocs} with the topN from the incoming one, or the same TopDocs if the number of hits is already &lt;=
+     *  topN. */
+    private static TopDocs topN(TopDocs in, int topN) {
+        if (in.scoreDocs.length < topN) {
+            return in;
+        }
+
+        ScoreDoc[] subset = new ScoreDoc[topN];
+        System.arraycopy(in.scoreDocs, 0, subset, 0, topN);
+
+        return new TopDocs(in.totalHits, subset);
     }
 }

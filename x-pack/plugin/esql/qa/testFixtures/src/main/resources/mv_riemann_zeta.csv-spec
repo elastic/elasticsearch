@@ -10,6 +10,20 @@ normalized_score:double|score:double
 ;
 
 
+multivalue-aggregation
+FROM alerts
+| WHERE host.name is not null
+| SORT host.name, kibana.alert.risk_score
+| STATS score=MV_RIEMANN_ZETA(VALUES(kibana.alert.risk_score), 1.5) BY host.name
+| EVAL normalized_score = ROUND(100 * score / 261.2, 2)
+| KEEP host.name, normalized_score, score;
+
+host.name:keyword|normalized_score:double|score:double
+test-host-1      |36.16                  |94.45465156212452
+test-host-2      |36.16                  |94.45465156212452
+;
+
+
 aggregation
 from alerts
 | where host.name is not null

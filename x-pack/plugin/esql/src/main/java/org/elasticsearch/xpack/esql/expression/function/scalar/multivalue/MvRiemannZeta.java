@@ -125,7 +125,7 @@ public class MvRiemannZeta extends EsqlScalarFunction implements EvaluatorMapper
         int end = block.getValueCount(position) + start;
 
         for (int i = start; i < end; i++) {
-            double current_score = block.getDouble(i) / Math.pow(i + 1, p);
+            double current_score = block.getDouble(i) / Math.pow(i - start + 1, p);
             sum.add(current_score);
         }
         builder.appendDouble(sum.value());

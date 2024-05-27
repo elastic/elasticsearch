@@ -21,7 +21,10 @@ import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunction;
+import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
+import org.elasticsearch.xpack.esql.io.stream.PlanStreamOutput;
 
+import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
 import java.util.function.Function;
@@ -62,6 +65,18 @@ public class IpPrefix extends EsqlScalarFunction {
         super(source, Arrays.asList(ipField, prefixLengthField));
         this.ipField = ipField;
         this.prefixLengthField = prefixLengthField;
+    }
+
+    public static IpPrefix readFrom(PlanStreamInput in) throws IOException {
+        return new IpPrefix(in.readSource(), in.readExpression(), in.readExpression());
+    }
+
+    public static void writeTo(PlanStreamOutput out, IpPrefix ipPrefix) throws IOException {
+        out.writeSource(ipPrefix.source());
+        List<Expression> fields = ipPrefix.children();
+        assert fields.size() == 2;
+        out.writeExpression(fields.get(0));
+        out.writeExpression(fields.get(1));
     }
 
     public Expression ipField() {

@@ -395,7 +395,7 @@ public final class PlanNamedTypes {
             of(ScalarFunction.class, DateTrunc.class, PlanNamedTypes::writeDateTrunc, PlanNamedTypes::readDateTrunc),
             of(ScalarFunction.class, E.class, PlanNamedTypes::writeNoArgScalar, PlanNamedTypes::readNoArgScalar),
             of(ScalarFunction.class, Greatest.class, PlanNamedTypes::writeVararg, PlanNamedTypes::readVarag),
-            of(ScalarFunction.class, IpPrefix.class, PlanNamedTypes::writeIpPrefix, PlanNamedTypes::readIpPrefix),
+            of(ScalarFunction.class, IpPrefix.class, IpPrefix::writeTo, IpPrefix::readFrom),
             of(ScalarFunction.class, Least.class, PlanNamedTypes::writeVararg, PlanNamedTypes::readVarag),
             of(ScalarFunction.class, Log.class, PlanNamedTypes::writeLog, PlanNamedTypes::readLog),
             of(ScalarFunction.class, Now.class, PlanNamedTypes::writeNow, PlanNamedTypes::readNow),
@@ -1563,18 +1563,6 @@ public final class PlanNamedTypes {
     static void writeDateTrunc(PlanStreamOutput out, DateTrunc dateTrunc) throws IOException {
         out.writeSource(dateTrunc.source());
         List<Expression> fields = dateTrunc.children();
-        assert fields.size() == 2;
-        out.writeExpression(fields.get(0));
-        out.writeExpression(fields.get(1));
-    }
-
-    static IpPrefix readIpPrefix(PlanStreamInput in) throws IOException {
-        return new IpPrefix(in.readSource(), in.readExpression(), in.readExpression());
-    }
-
-    static void writeIpPrefix(PlanStreamOutput out, IpPrefix ipPrefix) throws IOException {
-        out.writeSource(ipPrefix.source());
-        List<Expression> fields = ipPrefix.children();
         assert fields.size() == 2;
         out.writeExpression(fields.get(0));
         out.writeExpression(fields.get(1));

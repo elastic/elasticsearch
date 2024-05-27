@@ -239,7 +239,11 @@ public class HuggingFaceElserResponseEntityTests extends ESTestCase {
 
         assertThat(
             parsedResults.asMap(),
-            is(buildExpectationSparseEmbeddings(List.of(new SparseEmbeddingResultsTests.EmbeddingExpectation(Map.of("field", 1.0f), false))))
+            is(
+                buildExpectationSparseEmbeddings(
+                    List.of(new SparseEmbeddingResultsTests.EmbeddingExpectation(Map.of("field", 1.0f), false))
+                )
+            )
         );
     }
 
@@ -259,7 +263,11 @@ public class HuggingFaceElserResponseEntityTests extends ESTestCase {
 
         assertThat(
             parsedResults.asMap(),
-            is(buildExpectationSparseEmbeddings(List.of(new SparseEmbeddingResultsTests.EmbeddingExpectation(Map.of("field", 4.0294965E10F), false))))
+            is(
+                buildExpectationSparseEmbeddings(
+                    List.of(new SparseEmbeddingResultsTests.EmbeddingExpectation(Map.of("field", 4.0294965E10F), false))
+                )
+            )
         );
     }
 

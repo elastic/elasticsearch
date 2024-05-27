@@ -23,18 +23,19 @@ import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xpack.core.transform.transforms.TransformSchedulerStats;
 
 import java.io.IOException;
 import java.util.List;
+
+import static org.elasticsearch.xpack.core.transform.transforms.TransformSchedulerStats.REGISTERED_TRANSFORM_COUNT_FIELD_NAME;
 
 public class GetTransformNodeStatsAction extends ActionType<GetTransformNodeStatsAction.NodesStatsResponse> {
 
     public static final GetTransformNodeStatsAction INSTANCE = new GetTransformNodeStatsAction();
     public static final String NAME = "cluster:admin/transform/node_stats";
 
-    private static final String TOTAL_FIELD_NAME = "total";
-    private static final String REGISTERED_TRANSFORM_COUNT_FIELD_NAME = "registered_transform_count";
-    private static final String PEEK_TRANSFORM_FIELD_NAME = "peek_transform";
+    private static final String SCHEDULER_STATS_FIELD_NAME = "scheduler";
 
     private GetTransformNodeStatsAction() {
         super(NAME);
@@ -54,10 +55,12 @@ public class GetTransformNodeStatsAction extends ActionType<GetTransformNodeStat
 
     public static class NodesStatsResponse extends BaseNodesResponse<NodeStatsResponse> implements ToXContentObject {
 
+        private static final String TOTAL_FIELD_NAME = "total";
+
         public int getTotalRegisteredTransformCount() {
             int totalRegisteredTransformCount = 0;
             for (var nodeResponse : getNodes()) {
-                totalRegisteredTransformCount += nodeResponse.getRegisteredTransformCount();
+                totalRegisteredTransformCount += nodeResponse.schedulerStats().registeredTransformCount();
             }
             return totalRegisteredTransformCount;
         }
@@ -80,7 +83,9 @@ public class GetTransformNodeStatsAction extends ActionType<GetTransformNodeStat
                 nodeResponse.toXContent(builder, params);
             }
             builder.startObject(TOTAL_FIELD_NAME);
+            builder.startObject(SCHEDULER_STATS_FIELD_NAME);
             builder.field(REGISTERED_TRANSFORM_COUNT_FIELD_NAME, getTotalRegisteredTransformCount());
+            builder.endObject();
             builder.endObject();
             return builder.endObject();
         }
@@ -112,41 +117,32 @@ public class GetTransformNodeStatsAction extends ActionType<GetTransformNodeStat
 
     public static class NodeStatsResponse extends BaseNodeResponse implements ToXContentObject {
 
-        private final int registeredTransformCount;
-        private final String peekTransformName;
+        private final TransformSchedulerStats schedulerStats;
 
-        public int getRegisteredTransformCount() {
-            return this.registeredTransformCount;
-        }
-
-        public NodeStatsResponse(DiscoveryNode node, int registeredTransformCount) {
-            this(node, registeredTransformCount, null);
-        }
-
-        public NodeStatsResponse(DiscoveryNode node, int registeredTransformCount, String peekTransformName) {
+        public NodeStatsResponse(DiscoveryNode node, TransformSchedulerStats schedulerStats) {
             super(node);
-            this.registeredTransformCount = registeredTransformCount;
-            this.peekTransformName = peekTransformName;
+            this.schedulerStats = schedulerStats;
         }
 
         public NodeStatsResponse(StreamInput in) throws IOException {
             super(in);
-            this.registeredTransformCount = in.readVInt();
-            this.peekTransformName = in.readOptionalString();
+            this.schedulerStats = in.readOptionalWriteable(TransformSchedulerStats::new);
+        }
+
+        TransformSchedulerStats schedulerStats() {
+            return schedulerStats;
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
-            out.writeVInt(this.registeredTransformCount);
-            out.writeOptionalString(peekTransformName);
+            out.writeOptionalWriteable(schedulerStats);
         }
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, ToXContent.Params params) throws IOException {
             builder.startObject();
-            builder.field(REGISTERED_TRANSFORM_COUNT_FIELD_NAME, registeredTransformCount);
-            builder.field(PEEK_TRANSFORM_FIELD_NAME, peekTransformName);
+            builder.field(SCHEDULER_STATS_FIELD_NAME, schedulerStats);
             return builder.endObject();
         }
     }

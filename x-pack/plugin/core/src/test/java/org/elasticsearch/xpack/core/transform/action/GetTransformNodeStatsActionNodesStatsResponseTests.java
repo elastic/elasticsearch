@@ -15,6 +15,7 @@ import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.transform.action.GetTransformNodeStatsAction.NodeStatsResponse;
 import org.elasticsearch.xpack.core.transform.action.GetTransformNodeStatsAction.NodesStatsResponse;
+import org.elasticsearch.xpack.core.transform.transforms.TransformSchedulerStats;
 
 import java.util.List;
 
@@ -36,9 +37,9 @@ public class GetTransformNodeStatsActionNodesStatsResponseTests extends ESTestCa
     }
 
     public void testResponse() {
-        var nodeA = new NodeStatsResponse(createNode("node-A"), 7);
-        var nodeB = new NodeStatsResponse(createNode("node-B"), 0);
-        var nodeC = new NodeStatsResponse(createNode("node-C"), 4);
+        var nodeA = new NodeStatsResponse(createNode("node-A"), new TransformSchedulerStats(7, null));
+        var nodeB = new NodeStatsResponse(createNode("node-B"), new TransformSchedulerStats(0, null));
+        var nodeC = new NodeStatsResponse(createNode("node-C"), new TransformSchedulerStats(4, null));
 
         var nodesStatsResponse = new NodesStatsResponse(CLUSTER_NAME, List.of(nodeA, nodeB, nodeC), List.of());
         assertThat(nodesStatsResponse.getNodes(), containsInAnyOrder(nodeA, nodeB, nodeC));
@@ -47,8 +48,8 @@ public class GetTransformNodeStatsActionNodesStatsResponseTests extends ESTestCa
     }
 
     public void testResponseWithFailure() {
-        var nodeA = new NodeStatsResponse(createNode("node-A"), 7);
-        var nodeB = new NodeStatsResponse(createNode("node-B"), 0);
+        var nodeA = new NodeStatsResponse(createNode("node-A"), new TransformSchedulerStats(7, null));
+        var nodeB = new NodeStatsResponse(createNode("node-B"), new TransformSchedulerStats(0, null));
         var nodeC = new FailedNodeException("node-C", "node C failed", null);
 
         var nodesStatsResponse = new NodesStatsResponse(CLUSTER_NAME, List.of(nodeA, nodeB), List.of(nodeC));

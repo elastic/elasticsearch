@@ -83,7 +83,7 @@ public abstract class TransformCommonRestTestCase extends ESRestTestCase {
 
     protected int getTotalRegisteredTransformCount() throws IOException {
         Response response = getNodeStats();
-        return (int) XContentMapValues.extractValue(entityAsMap(response), "total", "registered_transform_count");
+        return (int) XContentMapValues.extractValue(entityAsMap(response), "total", "scheduler", "registered_transform_count");
     }
 
     @SuppressWarnings("unchecked")

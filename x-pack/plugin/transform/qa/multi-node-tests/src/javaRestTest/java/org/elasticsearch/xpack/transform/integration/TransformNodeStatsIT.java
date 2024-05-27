@@ -56,14 +56,14 @@ public class TransformNodeStatsIT extends TransformRestTestCase {
         assertThat(response, hasKey("total"));
         assertThat(
             "Response was: " + response,
-            XContentMapValues.extractValue(response, "total", "registered_transform_count"),
+            XContentMapValues.extractValue(response, "total", "scheduler", "registered_transform_count"),
             is(equalTo(0))
         );
         for (String nodeId : nodesInfo.keySet()) {
             assertThat(response, hasKey(nodeId));
             assertThat(
                 "Response was: " + response,
-                XContentMapValues.extractValue(response, nodeId, "registered_transform_count"),
+                XContentMapValues.extractValue(response, nodeId, "scheduler", "registered_transform_count"),
                 is(equalTo(0))
             );
         }

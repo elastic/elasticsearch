@@ -13,6 +13,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.core.transform.transforms.TransformSchedulerStats;
 import org.elasticsearch.xpack.core.transform.transforms.TransformTaskParams;
 import org.elasticsearch.xpack.transform.Transform;
 
@@ -60,8 +61,6 @@ public final class TransformScheduler {
          */
         void triggered(Event event);
     }
-
-    public record Stats(int registeredTransformCount, String peekTransformName) {}
 
     private static final Logger logger = LogManager.getLogger(TransformScheduler.class);
 
@@ -273,8 +272,8 @@ public final class TransformScheduler {
         scheduledTasks.remove(transformId);
     }
 
-    public Stats getStats() {
-        return new Stats(
+    public TransformSchedulerStats getStats() {
+        return new TransformSchedulerStats(
             scheduledTasks.size(),
             Optional.ofNullable(scheduledTasks.first()).map(TransformScheduledTask::getTransformId).orElse(null)
         );

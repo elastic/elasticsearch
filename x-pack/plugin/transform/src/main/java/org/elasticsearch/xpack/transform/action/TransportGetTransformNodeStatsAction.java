@@ -77,8 +77,8 @@ public class TransportGetTransformNodeStatsAction extends TransportNodesAction<
 
     @Override
     protected NodeStatsResponse nodeOperation(NodeStatsRequest request, Task task) {
-        final DiscoveryNode localNode = transportService.getLocalNode();
-        final TransformScheduler.Stats schedulerStats = scheduler.getStats();
-        return new NodeStatsResponse(localNode, schedulerStats.registeredTransformCount(), schedulerStats.peekTransformName());
+        var localNode = transportService.getLocalNode();
+        var schedulerStats = scheduler.getStats();
+        return new NodeStatsResponse(localNode, schedulerStats);
     }
 }

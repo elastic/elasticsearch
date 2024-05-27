@@ -180,7 +180,10 @@ public class GoogleAiStudioCompletionActionTests extends ESTestCase {
 
         var thrownException = expectThrows(ElasticsearchException.class, () -> listener.actionGet(TIMEOUT));
 
-        assertThat(thrownException.getMessage(), is(format("Failed to send Google AI Studio completion request to [%s]", getUrl(webServer))));
+        assertThat(
+            thrownException.getMessage(),
+            is(format("Failed to send Google AI Studio completion request to [%s]", getUrl(webServer)))
+        );
     }
 
     public void testExecute_ThrowsException() {
@@ -194,7 +197,10 @@ public class GoogleAiStudioCompletionActionTests extends ESTestCase {
 
         var thrownException = expectThrows(ElasticsearchException.class, () -> listener.actionGet(TIMEOUT));
 
-        assertThat(thrownException.getMessage(), is(format("Failed to send Google AI Studio completion request to [%s]", getUrl(webServer))));
+        assertThat(
+            thrownException.getMessage(),
+            is(format("Failed to send Google AI Studio completion request to [%s]", getUrl(webServer)))
+        );
     }
 
     public void testExecute_ThrowsException_WhenInputIsGreaterThanOne() throws IOException {

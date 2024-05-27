@@ -16,12 +16,12 @@ import java.util.regex.Pattern;
 public class MatchersUtils {
 
     // TODO: test
-    private static class IsEqualIgnoreWhitespaceInJsonString extends TypeSafeMatcher<String> {
+    protected static class IsEqualIgnoreWhitespaceInJsonString extends TypeSafeMatcher<String> {
 
-        private static final Pattern WHITESPACE_IN_JSON_EXCEPT_KEYS_AND_VALUES_PATTERN = createPattern();
+        protected static final Pattern WHITESPACE_IN_JSON_EXCEPT_KEYS_AND_VALUES_PATTERN = createPattern();
 
         private static Pattern createPattern() {
-            String regex = "(?<=[:,\\[{])\\s+|\\s+(?=[\\]}:,])";
+            String regex = "(?<=[:,\\[{])\\s+|\\s+(?=[\\]}:,])|^\\s+|\\s+$";
             return Pattern.compile(regex);
         }
 

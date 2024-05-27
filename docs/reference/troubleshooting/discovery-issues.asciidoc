@@ -125,69 +125,73 @@ for more information.
 === Multiple masters are elected
 
 Infrequently, {es} can enter a {wikipedia}/Split-brain_(computing)[split-brain] 
-problem, which is when nodes within a cluster disagree on which node is elected 
-as master node. This is a non-viable state for the cluster which can lead to 
+state, where nodes within a cluster disagree on which node is elected 
+as master node. This is a non-viable state for the cluster, and can lead to 
 inconsistencies and data loss. 
 
-To prevent this, we recommend
+To prevent state from occurring, we recommend the following practices:
 
-* <<modules-discovery-voting,avoiding even 
-master-eligible node counts>> for example with <<high-availability-cluster-design-two-nodes,tie 
-breakers>>
+* <<modules-discovery-voting,Avoid even 
+master-eligible node counts>> by creating an odd number of master-eligible nodes or adding a voting-only <<high-availability-cluster-design-two-nodes, tiebreaker>>
 
-* <<modules-discovery-voting,not stopping more half of the voting nodes>> at the same time
+* <<modules-discovery-voting,Avoid stopping more half of the voting nodes>> at the same time
 
-* removing <<initial_master_nodes,`cluster.initial_master_nodes` 
+* Remove the <<initial_master_nodes,`cluster.initial_master_nodes` 
 setting>> after <<modules-discovery-bootstrap-cluster,bootstrapping a cluster>>
 
-To mitigate impact if this occurs, we recommend having a <<high-availability,highly 
+To mitigate the impact of split-brain, we recommend having a <<high-availability,highly 
 available cluster>> and <<snapshot-restore,snapshots to restore from>> as needed. 
 
-{ess} and {ece} automatically detect split-brain for their deployments and and will 
-applicably report `The requested resource is currently split` when polling the 
-<<rest-apis,{es} API>>. For other deployment types, you cannot detect split-brain 
-from within a cluster, but must check for per node. Example detections: 
+{ess} and {ece} deployments can automatically detect split-brain. If the state arises, these deployment types report `The requested resource is currently split` when polling the 
+<<rest-apis,{es} API>>. 
 
-* If <<cluster-state,Cluster State>> flagged `local=true` disagrees on the 
-reported `master_node` when polled across all nodes' expected within a cluster
+For other deployment types, you can't detect split-brain 
+from within a cluster. Instead, you have to check for split-brain per node, using one of the following signals: 
+
+* If, when polling the <<cluster-state,Cluster state API>> with the `local=true` flag, polled nodes report differing master nodes:
 +
 [source,console]
 --------------------------------------------------
 GET /_cluster/state/master_node?local=true
 --------------------------------------------------
 
-* If node's logs contain messages about cluster UUID disagreements like 
+* If a node's logs contain messages about cluster UUID disagreements, such as:
 
-** `trying to join a different cluster with UUID`
+** `trying to join a different cluster with UUID [YYYYY]`:
 +
 [source,txt]
 --------------------------------------------------
-org.elasticsearch.cluster.coordination.CoordinationStateRejectedException: This node previously joined a cluster with UUID [XXXXX] and is now trying to join a different cluster with UUID [YYYYY]. This is forbidden and usually indicates an incorrect discovery or cluster bootstrapping configuration. Note that the cluster UUID persists across restarts and can only be changed by deleting the contents of the node's data path [/app/data] which will also remove any data held by this node.
+org.elasticsearch.cluster.coordination.CoordinationStateRejectedException: 
+This node previously joined a cluster with UUID [XXXXX] and is now 
+trying to join a different cluster with UUID [YYYYY]. 
+This is forbidden and usually indicates an incorrect discovery or 
+cluster bootstrapping configuration. 
+Note that the cluster UUID persists across restarts and can only be 
+changed by deleting the contents of the node's data path [/app/data] 
+which will also remove any data held by this node.
 --------------------------------------------------
 
-** `join validation on cluster state with a different cluster uuid`
+** `join validation on cluster state with a different cluster uuid [XXXXX]`
 +
 [source,txt]
 --------------------------------------------------
-org.elasticsearch.cluster.coordination.CoordinationStateRejectedException: join validation on cluster state with a different cluster uuid XXXXX than local cluster uuid YYYYY, rejecting
+org.elasticsearch.cluster.coordination.CoordinationStateRejectedException: 
+join validation on cluster state with a different cluster uuid XXXXX 
+than local cluster uuid YYYYY, rejecting
 --------------------------------------------------
 
-To resolve when detected
+To resolve split-brain, do the following:
 
-. You must choose which elected master to continue running the cluster. Usually 
+. Choose which elected master to continue running the cluster. Usually 
 this will be the one recognized by the most nodes or containing the most desired data. 
 
-. For the group of nodes pointing to the other master(s), you'll stop 
-those problematic nodes. As needed while stopped, fix any 
-<<settings,`elasticsearch.yml`>> settings as highlighted above. 
+. Stop any nodes pointing to the other master or masters. While each node is stopped, fix any <<settings,`elasticsearch.yml`>> settings as highlighted above. 
 
-. Then attempt to start the nodes back up. Start-up logs will show if node is willing 
-and able to join existing master or if it refuses to leave previous cluster UUID. 
+. Attempt to restart the nodes. Start-up logs will show if the node is willing 
+and able to join the existing master, or if it refuses to leave previous cluster UUID. 
 
 ** If the nodes are able to join to the existing elected master node's cluster, 
 you've resolved the current split-brain issue. 
 
-** If the nodes are unwilling to leave the previous cluster UUID, you are 
-in potential data loss territory but there are still options to resolve the 
-cluster state. You will want to consider <<node-tool-unsafe-bootstrap,unsafe 
+** If the nodes are unwilling to leave the previous cluster UUID, then your cluster is at risk of losing data and you need to take additional steps to resolve the cluster state. Consider <<node-tool-unsafe-bootstrap,unsafe 
 bootstrapping>> the node. 

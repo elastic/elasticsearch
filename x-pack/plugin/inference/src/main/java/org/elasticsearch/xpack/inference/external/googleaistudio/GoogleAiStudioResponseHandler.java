@@ -72,6 +72,4 @@ public class GoogleAiStudioResponseHandler extends BaseResponseHandler {
         return format("Resource not found at [%s]", request.getURI());
     }
 
-    // TODO: rate limits
-
 }

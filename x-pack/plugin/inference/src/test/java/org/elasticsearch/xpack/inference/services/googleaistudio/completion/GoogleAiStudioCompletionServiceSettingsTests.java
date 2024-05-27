@@ -44,7 +44,7 @@ public class GoogleAiStudioCompletionServiceSettingsTests extends AbstractWireSe
         String xContentResult = Strings.toString(builder);
 
         assertThat(xContentResult, is("""
-            {"model_id":"model","rate_limit":{"requests_per_minute":120}}"""));
+            {"model_id":"model","rate_limit":{"requests_per_minute":360}}"""));
     }
 
     public void testToFilteredXContent_WritesAllValues_Except_RateLimit() throws IOException {

@@ -40,7 +40,7 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.blobcache.BlobCachePlugin;
-import org.elasticsearch.blobcache.shared.SharedBlobCacheService;
+import org.elasticsearch.blobcache.shared.SharedBytes;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
@@ -53,7 +53,6 @@ import org.elasticsearch.common.io.stream.InputStreamStreamInput;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.store.InputStreamIndexInput;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.RatioValue;
 import org.elasticsearch.core.TimeValue;
@@ -94,6 +93,8 @@ import java.util.stream.Collectors;
 
 import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
 import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.WAIT_UNTIL;
+import static org.elasticsearch.blobcache.shared.SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING;
+import static org.elasticsearch.blobcache.shared.SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.hamcrest.Matchers.equalTo;
@@ -283,20 +284,40 @@ public abstract class AbstractStatelessIntegTestCase extends ESIntegTestCase {
     }
 
     protected Settings.Builder settingsForRoles(DiscoveryNodeRole... roles) {
-        return nodeSettings().putList(
+        var builder = nodeSettings().putList(
             NodeRoleSettings.NODE_ROLES_SETTING.getKey(),
             Arrays.stream(roles).map(DiscoveryNodeRole::roleName).toList()
-        )
-            .put(
-                SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(),
-                rarely()
-                    ? randomBoolean()
-                        ? new ByteSizeValue(randomIntBetween(1, 10), ByteSizeUnit.KB).getStringRep()
-                        : new ByteSizeValue(randomIntBetween(1, 1000), ByteSizeUnit.BYTES).getStringRep()
-                    : randomBoolean() ? new ByteSizeValue(randomIntBetween(1, 10), ByteSizeUnit.MB).getStringRep()
-                    // only use up to 0.1% disk to be friendly.
-                    : new RatioValue(randomDoubleBetween(0.0d, 0.1d, false)).toString()
-            );
+        );
+
+        // when changing those values, keep in mind that multiple nodes with their own caches can be created by integration tests which can
+        // also be executed concurrently.
+        if (frequently()) {
+            if (randomBoolean()) {
+                // region is between 1 page (4kb) to 8 pages (32kb)
+                var regionPages = randomIntBetween(1, 8);
+                builder.put(SHARED_CACHE_REGION_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes((long) regionPages * SharedBytes.PAGE_SIZE));
+                // cache is between 1 and 256 regions (max. possible cache size is 8mb)
+                builder.put(
+                    SHARED_CACHE_SIZE_SETTING.getKey(),
+                    ByteSizeValue.ofBytes((long) randomIntBetween(regionPages, 256) * SharedBytes.PAGE_SIZE)
+                );
+            } else {
+                if (randomBoolean()) {
+                    // region is between 8 pages (32kb) to 256 pages (1mb)
+                    var regionPages = randomIntBetween(8, 256);
+                    builder.put(
+                        SHARED_CACHE_REGION_SIZE_SETTING.getKey(),
+                        ByteSizeValue.ofBytes((long) regionPages * SharedBytes.PAGE_SIZE)
+                    );
+                }
+                // cache only uses up to 0.1% disk to be friendly with default region size
+                builder.put(SHARED_CACHE_SIZE_SETTING.getKey(), new RatioValue(randomDoubleBetween(0.0d, 0.1d, false)).toString());
+            }
+        } else {
+            // no cache (a single region does not even fit in the cache)
+            builder.put(SHARED_CACHE_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(1L));
+        }
+        return builder;
     }
 
     protected String startMasterOnlyNode() {

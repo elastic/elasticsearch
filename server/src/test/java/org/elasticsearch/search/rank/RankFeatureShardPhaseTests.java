@@ -11,6 +11,7 @@ package org.elasticsearch.search.rank;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.Index;
@@ -180,7 +181,7 @@ public class RankFeatureShardPhaseTests extends ESTestCase {
 
             @Override
             public TransportVersion getMinimalSupportedVersion() {
-                return TransportVersion.current();
+                return TransportVersions.RANK_FEATURE_PHASE_ADDED;
             }
         };
     }

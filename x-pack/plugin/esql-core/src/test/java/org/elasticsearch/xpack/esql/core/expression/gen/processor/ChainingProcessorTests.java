@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.esql.core.expression.gen.processor;
 
+import org.apache.lucene.tests.util.LuceneTestCase.AwaitsFix;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
@@ -16,6 +17,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Supplier;
 
+@AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/109012")
 public class ChainingProcessorTests extends AbstractWireSerializingTestCase<ChainingProcessor> {
     public static ChainingProcessor randomComposeProcessor() {
         return new ChainingProcessor(randomProcessor(), randomProcessor());

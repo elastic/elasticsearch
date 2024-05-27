@@ -16,6 +16,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.rest.RestUtils;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xcontent.ObjectPath;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -110,6 +111,12 @@ public class NodeShutdownIT extends ESRestTestCase {
         checkPutShutdownIdempotency("REMOVE");
     }
 
+    private static void maybeAddMasterNodeTimeout(Request request) {
+        if (randomBoolean()) {
+            request.addParameter(RestUtils.REST_MASTER_TIMEOUT_PARAM, TEST_REQUEST_TIMEOUT.getStringRep());
+        }
+    }
+
     @SuppressWarnings("unchecked")
     private void checkPutShutdownIdempotency(String type) throws Exception {
         String nodeIdToShutdown = getRandomNodeId();
@@ -122,12 +129,14 @@ public class NodeShutdownIT extends ESRestTestCase {
 
         // Put a shutdown request
         Request putShutdown = new Request("PUT", "_nodes/" + nodeIdToShutdown + "/shutdown");
+        maybeAddMasterNodeTimeout(putShutdown);
         putShutdown.setJsonEntity("{\"type\":  \"" + type + "\", \"reason\":  \"" + newReason + "\"}");
         assertOK(client().performRequest(putShutdown));
 
         // Ensure we can read it back and it has the new reason
         {
             Request getShutdownStatus = new Request("GET", "_nodes/" + nodeIdToShutdown + "/shutdown");
+            maybeAddMasterNodeTimeout(getShutdownStatus);
             Map<String, Object> statusResponse = responseAsMap(client().performRequest(getShutdownStatus));
             List<Map<String, Object>> nodesArray = (List<Map<String, Object>>) statusResponse.get("nodes");
             assertThat(nodesArray, hasSize(1));
@@ -410,6 +419,7 @@ public class NodeShutdownIT extends ESRestTestCase {
 
         // Put a shutdown request
         Request putShutdown = new Request("PUT", "_nodes/" + nodeIdToShutdown + "/shutdown");
+        maybeAddMasterNodeTimeout(putShutdown);
 
         try (XContentBuilder putBody = JsonXContent.contentBuilder()) {
             putBody.startObject();

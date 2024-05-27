@@ -18,6 +18,7 @@ import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 import static org.elasticsearch.rest.RestRequest.Method.PUT;
+import static org.elasticsearch.rest.RestUtils.getAckTimeout;
 import static org.elasticsearch.rest.RestUtils.getMasterNodeTimeout;
 
 public class RestPutLicenseAction extends BaseRestHandler {
@@ -46,7 +47,7 @@ public class RestPutLicenseAction extends BaseRestHandler {
         PutLicenseRequest putLicenseRequest = new PutLicenseRequest();
         putLicenseRequest.license(request.content(), request.getXContentType());
         putLicenseRequest.acknowledge(request.paramAsBoolean("acknowledge", false));
-        putLicenseRequest.ackTimeout(request.paramAsTime("timeout", putLicenseRequest.ackTimeout()));
+        putLicenseRequest.ackTimeout(getAckTimeout(request));
         putLicenseRequest.masterNodeTimeout(getMasterNodeTimeout(request));
 
         if (License.LicenseType.isBasic(putLicenseRequest.license().type())) {

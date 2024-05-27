@@ -33,7 +33,7 @@ import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.support.MapXContentParser;
 import org.elasticsearch.xpack.core.inference.results.ChunkedSparseEmbeddingResults;
 import org.elasticsearch.xpack.core.inference.results.ChunkedTextEmbeddingResults;
-import org.elasticsearch.xpack.core.ml.inference.results.TextExpansionResults;
+import org.elasticsearch.xpack.core.ml.search.WeightedToken;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -331,10 +331,10 @@ public record SemanticTextField(String fieldName, List<String> originalValues, I
     }
 
     /**
-     * Serialises the {@link TextExpansionResults.WeightedToken} list, according to the provided {@link XContent},
+     * Serialises the {@link WeightedToken} list, according to the provided {@link XContent},
      * into a {@link BytesReference}.
      */
-    private static BytesReference toBytesReference(XContent xContent, List<TextExpansionResults.WeightedToken> tokens) {
+    private static BytesReference toBytesReference(XContent xContent, List<WeightedToken> tokens) {
         try {
             XContentBuilder b = XContentBuilder.builder(xContent);
             b.startObject();

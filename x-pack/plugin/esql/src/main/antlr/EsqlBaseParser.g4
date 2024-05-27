@@ -105,19 +105,11 @@ field
     ;
 
 fromCommand
-    : FROM indexIdentifier (COMMA indexIdentifier)* metadata? fromOptions?
+    : FROM indexIdentifier (COMMA indexIdentifier)* metadata?
     ;
 
 indexIdentifier
     : INDEX_UNQUOTED_IDENTIFIER
-    ;
-
-fromOptions
-    : OPTIONS configOption (COMMA configOption)*
-    ;
-
-configOption
-    : string ASSIGN string
     ;
 
 metadata

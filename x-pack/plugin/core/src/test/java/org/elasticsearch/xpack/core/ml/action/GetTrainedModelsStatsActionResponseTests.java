@@ -56,13 +56,17 @@ public class GetTrainedModelsStatsActionResponseTests extends AbstractBWCWireSer
         List<String> pipelineIds = Stream.generate(() -> randomAlphaOfLength(10)).limit(randomIntBetween(0, 10)).toList();
         return new IngestStats(
             new IngestStats.Stats(randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong()),
-            pipelineIds.stream().map(id -> new IngestStats.PipelineStat(id, randomStats())).collect(Collectors.toList()),
+            pipelineIds.stream().map(id -> new IngestStats.PipelineStat(id, randomStats(), randomByteStats())).collect(Collectors.toList()),
             pipelineIds.stream().collect(Collectors.toMap(Function.identity(), (v) -> randomProcessorStats()))
         );
     }
 
     private IngestStats.Stats randomStats() {
         return new IngestStats.Stats(randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong());
+    }
+
+    private IngestStats.ByteStats randomByteStats() {
+        return new IngestStats.ByteStats(randomNonNegativeLong(), randomNonNegativeLong());
     }
 
     private List<IngestStats.ProcessorStat> randomProcessorStats() {
@@ -89,7 +93,21 @@ public class GetTrainedModelsStatsActionResponseTests extends AbstractBWCWireSer
                             stats -> new Response.TrainedModelStats(
                                 stats.getModelId(),
                                 null,
-                                stats.getIngestStats(),
+                                new IngestStats(
+                                    stats.getIngestStats().totalStats(),
+                                    stats.getIngestStats()
+                                        .pipelineStats()
+                                        .stream()
+                                        .map(
+                                            pipelineStat -> new IngestStats.PipelineStat(
+                                                pipelineStat.pipelineId(),
+                                                pipelineStat.stats(),
+                                                new IngestStats.ByteStats(0, 0)
+                                            )
+                                        )
+                                        .toList(),
+                                    stats.getIngestStats().processorStats()
+                                ),
                                 stats.getPipelineCount(),
                                 stats.getInferenceStats(),
                                 null
@@ -110,7 +128,21 @@ public class GetTrainedModelsStatsActionResponseTests extends AbstractBWCWireSer
                             stats -> new Response.TrainedModelStats(
                                 stats.getModelId(),
                                 stats.getModelSizeStats(),
-                                stats.getIngestStats(),
+                                new IngestStats(
+                                    stats.getIngestStats().totalStats(),
+                                    stats.getIngestStats()
+                                        .pipelineStats()
+                                        .stream()
+                                        .map(
+                                            pipelineStat -> new IngestStats.PipelineStat(
+                                                pipelineStat.pipelineId(),
+                                                pipelineStat.stats(),
+                                                new IngestStats.ByteStats(0, 0)
+                                            )
+                                        )
+                                        .toList(),
+                                    stats.getIngestStats().processorStats()
+                                ),
                                 stats.getPipelineCount(),
                                 stats.getInferenceStats(),
                                 stats.getDeploymentStats() == null
@@ -168,7 +200,21 @@ public class GetTrainedModelsStatsActionResponseTests extends AbstractBWCWireSer
                             stats -> new Response.TrainedModelStats(
                                 stats.getModelId(),
                                 stats.getModelSizeStats(),
-                                stats.getIngestStats(),
+                                new IngestStats(
+                                    stats.getIngestStats().totalStats(),
+                                    stats.getIngestStats()
+                                        .pipelineStats()
+                                        .stream()
+                                        .map(
+                                            pipelineStat -> new IngestStats.PipelineStat(
+                                                pipelineStat.pipelineId(),
+                                                pipelineStat.stats(),
+                                                new IngestStats.ByteStats(0, 0)
+                                            )
+                                        )
+                                        .toList(),
+                                    stats.getIngestStats().processorStats()
+                                ),
                                 stats.getPipelineCount(),
                                 stats.getInferenceStats(),
                                 stats.getDeploymentStats() == null
@@ -226,7 +272,21 @@ public class GetTrainedModelsStatsActionResponseTests extends AbstractBWCWireSer
                             stats -> new Response.TrainedModelStats(
                                 stats.getModelId(),
                                 stats.getModelSizeStats(),
-                                stats.getIngestStats(),
+                                new IngestStats(
+                                    stats.getIngestStats().totalStats(),
+                                    stats.getIngestStats()
+                                        .pipelineStats()
+                                        .stream()
+                                        .map(
+                                            pipelineStat -> new IngestStats.PipelineStat(
+                                                pipelineStat.pipelineId(),
+                                                pipelineStat.stats(),
+                                                new IngestStats.ByteStats(0, 0)
+                                            )
+                                        )
+                                        .toList(),
+                                    stats.getIngestStats().processorStats()
+                                ),
                                 stats.getPipelineCount(),
                                 stats.getInferenceStats(),
                                 stats.getDeploymentStats() == null
@@ -284,7 +344,21 @@ public class GetTrainedModelsStatsActionResponseTests extends AbstractBWCWireSer
                             stats -> new Response.TrainedModelStats(
                                 stats.getModelId(),
                                 stats.getModelSizeStats(),
-                                stats.getIngestStats(),
+                                new IngestStats(
+                                    stats.getIngestStats().totalStats(),
+                                    stats.getIngestStats()
+                                        .pipelineStats()
+                                        .stream()
+                                        .map(
+                                            pipelineStat -> new IngestStats.PipelineStat(
+                                                pipelineStat.pipelineId(),
+                                                pipelineStat.stats(),
+                                                new IngestStats.ByteStats(0, 0)
+                                            )
+                                        )
+                                        .toList(),
+                                    stats.getIngestStats().processorStats()
+                                ),
                                 stats.getPipelineCount(),
                                 stats.getInferenceStats(),
                                 stats.getDeploymentStats() == null
@@ -343,7 +417,21 @@ public class GetTrainedModelsStatsActionResponseTests extends AbstractBWCWireSer
                             stats -> new Response.TrainedModelStats(
                                 stats.getModelId(),
                                 stats.getModelSizeStats(),
-                                stats.getIngestStats(),
+                                new IngestStats(
+                                    stats.getIngestStats().totalStats(),
+                                    stats.getIngestStats()
+                                        .pipelineStats()
+                                        .stream()
+                                        .map(
+                                            pipelineStat -> new IngestStats.PipelineStat(
+                                                pipelineStat.pipelineId(),
+                                                pipelineStat.stats(),
+                                                new IngestStats.ByteStats(0, 0)
+                                            )
+                                        )
+                                        .toList(),
+                                    stats.getIngestStats().processorStats()
+                                ),
                                 stats.getPipelineCount(),
                                 stats.getInferenceStats(),
                                 stats.getDeploymentStats() == null
@@ -402,13 +490,100 @@ public class GetTrainedModelsStatsActionResponseTests extends AbstractBWCWireSer
                             stats -> new Response.TrainedModelStats(
                                 stats.getModelId(),
                                 stats.getModelSizeStats(),
-                                stats.getIngestStats(),
+                                new IngestStats(
+                                    stats.getIngestStats().totalStats(),
+                                    stats.getIngestStats()
+                                        .pipelineStats()
+                                        .stream()
+                                        .map(
+                                            pipelineStat -> new IngestStats.PipelineStat(
+                                                pipelineStat.pipelineId(),
+                                                pipelineStat.stats(),
+                                                new IngestStats.ByteStats(0, 0)
+                                            )
+                                        )
+                                        .toList(),
+                                    stats.getIngestStats().processorStats()
+                                ),
                                 stats.getPipelineCount(),
                                 stats.getInferenceStats(),
                                 stats.getDeploymentStats() == null
                                     ? null
                                     : new AssignmentStats(
                                         stats.getDeploymentStats().getModelId(),
+                                        stats.getDeploymentStats().getModelId(),
+                                        stats.getDeploymentStats().getThreadsPerAllocation(),
+                                        stats.getDeploymentStats().getNumberOfAllocations(),
+                                        stats.getDeploymentStats().getQueueCapacity(),
+                                        stats.getDeploymentStats().getCacheSize(),
+                                        stats.getDeploymentStats().getStartTime(),
+                                        stats.getDeploymentStats()
+                                            .getNodeStats()
+                                            .stream()
+                                            .map(
+                                                nodeStats -> new AssignmentStats.NodeStats(
+                                                    nodeStats.getNode(),
+                                                    nodeStats.getInferenceCount().orElse(null),
+                                                    nodeStats.getAvgInferenceTime().orElse(null),
+                                                    nodeStats.getAvgInferenceTimeExcludingCacheHit().orElse(null),
+                                                    nodeStats.getLastAccess(),
+                                                    nodeStats.getPendingCount(),
+                                                    nodeStats.getErrorCount(),
+                                                    nodeStats.getCacheHitCount().orElse(null),
+                                                    nodeStats.getRejectedExecutionCount(),
+                                                    nodeStats.getTimeoutCount(),
+                                                    nodeStats.getRoutingState(),
+                                                    nodeStats.getStartTime(),
+                                                    nodeStats.getThreadsPerAllocation(),
+                                                    nodeStats.getNumberOfAllocations(),
+                                                    nodeStats.getPeakThroughput(),
+                                                    nodeStats.getThroughputLastPeriod(),
+                                                    nodeStats.getAvgInferenceTimeLastPeriod(),
+                                                    nodeStats.getCacheHitCountLastPeriod().orElse(null)
+                                                )
+                                            )
+                                            .toList(),
+                                        stats.getDeploymentStats().getPriority()
+                                    )
+                            )
+                        )
+                        .toList(),
+                    instance.getResources().count(),
+                    RESULTS_FIELD
+                )
+            );
+        } else if (version.before(TransportVersions.NODE_STATS_INGEST_BYTES)) {
+            // added ByteStats to IngestStats.PipelineStat
+            return new Response(
+                new QueryPage<>(
+                    instance.getResources()
+                        .results()
+                        .stream()
+                        .map(
+                            stats -> new Response.TrainedModelStats(
+                                stats.getModelId(),
+                                stats.getModelSizeStats(),
+                                new IngestStats(
+                                    stats.getIngestStats().totalStats(),
+                                    stats.getIngestStats()
+                                        .pipelineStats()
+                                        .stream()
+                                        .map(
+                                            pipelineStat -> new IngestStats.PipelineStat(
+                                                pipelineStat.pipelineId(),
+                                                pipelineStat.stats(),
+                                                new IngestStats.ByteStats(0, 0)
+                                            )
+                                        )
+                                        .toList(),
+                                    stats.getIngestStats().processorStats()
+                                ),
+                                stats.getPipelineCount(),
+                                stats.getInferenceStats(),
+                                stats.getDeploymentStats() == null
+                                    ? null
+                                    : new AssignmentStats(
+                                        stats.getDeploymentStats().getDeploymentId(),
                                         stats.getDeploymentStats().getModelId(),
                                         stats.getDeploymentStats().getThreadsPerAllocation(),
                                         stats.getDeploymentStats().getNumberOfAllocations(),

@@ -32,6 +32,7 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.query.QueryBuilders;
@@ -326,14 +327,22 @@ public class NativeRolesStoreTests extends ESTestCase {
     public void testPutOfRoleWithFlsDlsUnlicensed() throws IOException {
         final Client client = mock(Client.class);
         final ClusterService clusterService = mockClusterServiceWithMinNodeVersion(TransportVersion.current());
+        final FeatureService featureService = mock(FeatureService.class);
         final XPackLicenseState licenseState = mock(XPackLicenseState.class);
         final AtomicBoolean methodCalled = new AtomicBoolean(false);
 
         final SecuritySystemIndices systemIndices = new SecuritySystemIndices(clusterService.getSettings());
-        systemIndices.init(client, clusterService);
+        systemIndices.init(client, featureService, clusterService);
         final SecurityIndexManager securityIndex = systemIndices.getMainIndexManager();
 
-        final NativeRolesStore rolesStore = new NativeRolesStore(Settings.EMPTY, client, licenseState, securityIndex, clusterService) {
+        final NativeRolesStore rolesStore = new NativeRolesStore(
+            Settings.EMPTY,
+            client,
+            licenseState,
+            securityIndex,
+            clusterService,
+            mock(FeatureService.class)
+        ) {
             @Override
             void innerPutRole(final PutRoleRequest request, final RoleDescriptor role, final ActionListener<Boolean> listener) {
                 if (methodCalled.compareAndSet(false, true)) {
@@ -443,10 +452,18 @@ public class NativeRolesStoreTests extends ESTestCase {
             final AtomicBoolean methodCalled = new AtomicBoolean(false);
 
             final SecuritySystemIndices systemIndices = new SecuritySystemIndices(clusterService.getSettings());
-            systemIndices.init(client, clusterService);
+            final FeatureService featureService = mock(FeatureService.class);
+            systemIndices.init(client, featureService, clusterService);
             final SecurityIndexManager securityIndex = systemIndices.getMainIndexManager();
 
-            final NativeRolesStore rolesStore = new NativeRolesStore(Settings.EMPTY, client, licenseState, securityIndex, clusterService) {
+            final NativeRolesStore rolesStore = new NativeRolesStore(
+                Settings.EMPTY,
+                client,
+                licenseState,
+                securityIndex,
+                clusterService,
+                mock(FeatureService.class)
+            ) {
                 @Override
                 void innerPutRole(final PutRoleRequest request, final RoleDescriptor role, final ActionListener<Boolean> listener) {
                     if (methodCalled.compareAndSet(false, true)) {
@@ -502,10 +519,18 @@ public class NativeRolesStoreTests extends ESTestCase {
         final ClusterService clusterService = mock(ClusterService.class);
         final XPackLicenseState licenseState = mock(XPackLicenseState.class);
         final SecuritySystemIndices systemIndices = new SecuritySystemIndices(settings);
-        systemIndices.init(client, clusterService);
+        final FeatureService featureService = mock(FeatureService.class);
+        systemIndices.init(client, featureService, clusterService);
         final SecurityIndexManager securityIndex = systemIndices.getMainIndexManager();
 
-        final NativeRolesStore store = new NativeRolesStore(settings, client, licenseState, securityIndex, clusterService);
+        final NativeRolesStore store = new NativeRolesStore(
+            settings,
+            client,
+            licenseState,
+            securityIndex,
+            clusterService,
+            mock(FeatureService.class)
+        );
 
         final PlainActionFuture<RoleRetrievalResult> future = new PlainActionFuture<>();
         store.getRoleDescriptors(Set.of(randomAlphaOfLengthBetween(4, 12)), future);

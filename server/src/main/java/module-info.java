@@ -392,6 +392,7 @@ module org.elasticsearch.server {
     exports org.elasticsearch.plugins.internal
         to
             org.elasticsearch.metering,
+            org.elasticsearch.stateless,
             org.elasticsearch.settings.secure,
             org.elasticsearch.serverless.constants,
             org.elasticsearch.serverless.apifiltering,

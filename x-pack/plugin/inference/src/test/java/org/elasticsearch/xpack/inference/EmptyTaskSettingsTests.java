@@ -29,6 +29,7 @@ public class EmptyTaskSettingsTests extends AbstractWireSerializingTestCase<Empt
 
     @Override
     protected EmptyTaskSettings mutateInstance(EmptyTaskSettings instance) {
+        // All instances are the same and have no fields, nothing to mutate
         return null;
     }
 }

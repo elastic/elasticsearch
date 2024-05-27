@@ -92,7 +92,7 @@ public class AzureOpenAiEmbeddingsTaskSettingsTests extends AbstractWireSerializ
 
     @Override
     protected AzureOpenAiEmbeddingsTaskSettings mutateInstance(AzureOpenAiEmbeddingsTaskSettings instance) throws IOException {
-        return createRandomWithUser();
+        return randomValueOtherThan(instance, AzureOpenAiEmbeddingsTaskSettingsTests::createRandomWithUser);
     }
 
     public static Map<String, Object> getAzureOpenAiRequestTaskSettingsMap(@Nullable String user) {

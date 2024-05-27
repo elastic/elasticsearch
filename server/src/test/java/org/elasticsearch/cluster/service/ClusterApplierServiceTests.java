@@ -27,7 +27,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.MockLogAppender;
+import org.elasticsearch.test.MockLog;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -117,33 +117,32 @@ public class ClusterApplierServiceTests extends ESTestCase {
 
     @TestLogging(value = "org.elasticsearch.cluster.service:TRACE", reason = "to ensure that we log cluster state events on TRACE level")
     public void testClusterStateUpdateLogging() throws Exception {
-        MockLogAppender mockAppender = new MockLogAppender();
-        mockAppender.addExpectation(
-            new MockLogAppender.SeenEventExpectation(
-                "test1",
-                ClusterApplierService.class.getCanonicalName(),
-                Level.DEBUG,
-                "*processing [test1]: took [1s] no change in cluster state"
-            )
-        );
-        mockAppender.addExpectation(
-            new MockLogAppender.SeenEventExpectation(
-                "test2",
-                ClusterApplierService.class.getCanonicalName(),
-                Level.TRACE,
-                "*failed to execute cluster state applier in [2s]*"
-            )
-        );
-        mockAppender.addExpectation(
-            new MockLogAppender.SeenEventExpectation(
-                "test3",
-                ClusterApplierService.class.getCanonicalName(),
-                Level.DEBUG,
-                "*processing [test3]: took [0s] no change in cluster state*"
-            )
-        );
+        try (var mockLog = MockLog.capture(ClusterApplierService.class)) {
+            mockLog.addExpectation(
+                new MockLog.SeenEventExpectation(
+                    "test1",
+                    ClusterApplierService.class.getCanonicalName(),
+                    Level.DEBUG,
+                    "*processing [test1]: took [1s] no change in cluster state"
+                )
+            );
+            mockLog.addExpectation(
+                new MockLog.SeenEventExpectation(
+                    "test2",
+                    ClusterApplierService.class.getCanonicalName(),
+                    Level.TRACE,
+                    "*failed to execute cluster state applier in [2s]*"
+                )
+            );
+            mockLog.addExpectation(
+                new MockLog.SeenEventExpectation(
+                    "test3",
+                    ClusterApplierService.class.getCanonicalName(),
+                    Level.DEBUG,
+                    "*processing [test3]: took [0s] no change in cluster state*"
+                )
+            );
 
-        try (var ignored = mockAppender.capturing(ClusterApplierService.class)) {
             currentTimeMillis = randomLongBetween(0L, Long.MAX_VALUE / 2);
             clusterApplierService.runOnApplierThread(
                 "test1",
@@ -181,24 +180,23 @@ public class ClusterApplierServiceTests extends ESTestCase {
                     fail();
                 }
             });
-            assertBusy(mockAppender::assertAllExpectationsMatched);
+            assertBusy(mockLog::assertAllExpectationsMatched);
         }
     }
 
     @TestLogging(value = "org.elasticsearch.cluster.service:WARN", reason = "to ensure that we log cluster state events on WARN level")
     public void testLongClusterStateUpdateLogging() throws Exception {
-        MockLogAppender mockAppender = new MockLogAppender();
-        try (var ignored = mockAppender.capturing(ClusterApplierService.class)) {
-            mockAppender.addExpectation(
-                new MockLogAppender.UnseenEventExpectation(
+        try (var mockLog = MockLog.capture(ClusterApplierService.class)) {
+            mockLog.addExpectation(
+                new MockLog.UnseenEventExpectation(
                     "test1 shouldn't see because setting is too low",
                     ClusterApplierService.class.getCanonicalName(),
                     Level.WARN,
                     "*cluster state applier task [test1] took [*] which is above the warn threshold of *"
                 )
             );
-            mockAppender.addExpectation(
-                new MockLogAppender.SeenEventExpectation(
+            mockLog.addExpectation(
+                new MockLog.SeenEventExpectation(
                     "test2",
                     ClusterApplierService.class.getCanonicalName(),
                     Level.WARN,
@@ -206,8 +204,8 @@ public class ClusterApplierServiceTests extends ESTestCase {
                         + "[running task [test2]] took [*"
                 )
             );
-            mockAppender.addExpectation(
-                new MockLogAppender.SeenEventExpectation(
+            mockLog.addExpectation(
+                new MockLog.SeenEventExpectation(
                     "test4",
                     ClusterApplierService.class.getCanonicalName(),
                     Level.WARN,
@@ -282,7 +280,7 @@ public class ClusterApplierServiceTests extends ESTestCase {
             });
             latch.await();
 
-            mockAppender.assertAllExpectationsMatched();
+            mockLog.assertAllExpectationsMatched();
         }
     }
 

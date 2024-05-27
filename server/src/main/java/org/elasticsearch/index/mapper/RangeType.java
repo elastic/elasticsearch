@@ -570,12 +570,13 @@ public enum RangeType {
 
         @Override
         public List<RangeFieldMapper.Range> decodeRanges(BytesRef bytes) throws IOException {
-            return LONG.decodeRanges(bytes);
+            return BinaryRangeUtil.decodeIntegerRanges(bytes);
         }
 
         @Override
         public Double doubleValue(Object endpointValue) {
-            return LONG.doubleValue(endpointValue);
+            assert endpointValue instanceof Integer;
+            return ((Integer) endpointValue).doubleValue();
         }
 
         @Override

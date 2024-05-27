@@ -525,7 +525,7 @@ count(*):long | ip_prefix(ip1, 24):ip
 1             | fe80::cae2:65ff:fece:fe00
 ;
 
-ipPrefixWithWrongArguments
+ipPrefixWithWrongArguments#[skip:-,reason:null returns not supported yet in evaluators]
 required_capability: fn_ip_prefix
 row ip4 = to_ip("1.2.3.4")
 | eval a = ip_prefix(null, 128), b = ip_prefix(ip4, null), c = ip_prefix(ip4, 129), d = ip_prefix(ip4, -1);

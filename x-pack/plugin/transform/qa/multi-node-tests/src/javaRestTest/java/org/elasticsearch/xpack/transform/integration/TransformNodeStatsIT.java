@@ -14,12 +14,15 @@ import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 import org.elasticsearch.xpack.core.transform.transforms.QueryConfig;
+import org.elasticsearch.xpack.core.transform.transforms.TimeSyncConfig;
 import org.elasticsearch.xpack.core.transform.transforms.pivot.TermsGroupSource;
 import org.junit.After;
 
 import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.is;
 
@@ -46,8 +49,8 @@ public class TransformNodeStatsIT extends TransformRestTestCase {
 
     @SuppressWarnings("unchecked")
     public void testTransformNodeStats() throws Exception {
-        var transformId = "transform-basic-stats";
-        createStoppedTransform("basic-stats-reviews", transformId);
+        var transformId = "transform-node-stats";
+        createTransform("basic-stats-reviews", transformId);
 
         var nodesInfo = getNodesInfo(adminClient());
         assertThat("Nodes were: " + nodesInfo, nodesInfo.size(), is(equalTo(3)));
@@ -56,20 +59,20 @@ public class TransformNodeStatsIT extends TransformRestTestCase {
         assertThat(response, hasKey("total"));
         assertThat(
             "Response was: " + response,
-            XContentMapValues.extractValue(response, "total", "scheduler", "registered_transform_count"),
-            is(equalTo(0))
+            (int) XContentMapValues.extractValue(response, "total", "scheduler", "registered_transform_count"),
+            is(greaterThan(0))
         );
         for (String nodeId : nodesInfo.keySet()) {
             assertThat(response, hasKey(nodeId));
             assertThat(
                 "Response was: " + response,
-                XContentMapValues.extractValue(response, nodeId, "scheduler", "registered_transform_count"),
-                is(equalTo(0))
+                (int) XContentMapValues.extractValue(response, nodeId, "scheduler", "registered_transform_count"),
+                is(greaterThanOrEqualTo(0))
             );
         }
     }
 
-    private void createStoppedTransform(String indexName, String transformId) throws Exception {
+    private void createTransform(String indexName, String transformId) throws Exception {
         createReviewsIndex(indexName, 100, NUM_USERS, TransformNodeStatsIT::getUserIdForRow, TransformNodeStatsIT::getDateStringForRow);
 
         var groups = Map.of(
@@ -87,12 +90,12 @@ public class TransformNodeStatsIT extends TransformRestTestCase {
 
         var config = createTransformConfigBuilder(transformId, "reviews-by-user-business-day", QueryConfig.matchAll(), indexName)
             .setPivotConfig(createPivotConfig(groups, aggs))
+            .setSyncConfig(new TimeSyncConfig("timestamp", null))
             .build();
 
         putTransform(transformId, Strings.toString(config), RequestOptions.DEFAULT);
         startTransform(config.getId(), RequestOptions.DEFAULT);
 
         waitUntilCheckpoint(config.getId(), 1L);
-        stopTransform(config.getId());
     }
 }

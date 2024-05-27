@@ -45,7 +45,7 @@ public class ES814ScalarQuantizedVectorsFormat extends FlatVectorsFormat {
 
     static final String NAME = "ES814ScalarQuantizedVectorsFormat";
 
-    private static final FlatVectorsFormat rawVectorFormat = new Lucene99FlatVectorsFormat(new DefaultFlatVectorScorer());
+    private static final FlatVectorsFormat rawVectorFormat = new Lucene99FlatVectorsFormat(DefaultFlatVectorScorer.INSTANCE);
 
     /** The minimum confidence interval */
     private static final float MINIMUM_CONFIDENCE_INTERVAL = 0.9f;
@@ -73,7 +73,7 @@ public class ES814ScalarQuantizedVectorsFormat extends FlatVectorsFormat {
             );
         }
         this.confidenceInterval = confidenceInterval;
-        this.flatVectorScorer = new ESFlatVectorsScorer(new ScalarQuantizedVectorScorer(new DefaultFlatVectorScorer()));
+        this.flatVectorScorer = new ESFlatVectorsScorer(new ScalarQuantizedVectorScorer(DefaultFlatVectorScorer.INSTANCE));
     }
 
     @Override

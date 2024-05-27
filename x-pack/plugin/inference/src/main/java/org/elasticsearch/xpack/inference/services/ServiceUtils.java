@@ -200,10 +200,6 @@ public class ServiceUtils {
         return Strings.format("[%s] Invalid url [%s] received for field [%s]. Error: %s", settingScope, url, settingName, error);
     }
 
-    public static String emptyUrlErrorMsg(String url, String settingName, String settingScope) {
-        return Strings.format("[%s] Url must be non-empty for field [%s]", settingScope, settingName);
-    }
-
     public static String mustBeNonEmptyString(String settingName, String scope) {
         return Strings.format("[%s] Invalid value empty string. [%s] must be a non-empty string", scope, settingName);
     }

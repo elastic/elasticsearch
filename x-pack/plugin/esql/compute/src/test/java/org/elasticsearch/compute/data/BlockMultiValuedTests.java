@@ -36,12 +36,12 @@ public class BlockMultiValuedTests extends ESTestCase {
     @ParametersFactory
     public static List<Object[]> params() {
         List<Object[]> params = new ArrayList<>();
-        for (ElementType elementType : ElementType.values()) {
-            if (elementType == ElementType.UNKNOWN || elementType == ElementType.NULL || elementType == ElementType.DOC) {
+        for (ElementType e : ElementType.values()) {
+            if (e == ElementType.UNKNOWN || e == ElementType.NULL || e == ElementType.DOC || e == ElementType.COMPOSITE) {
                 continue;
             }
             for (boolean nullAllowed : new boolean[] { false, true }) {
-                params.add(new Object[] { elementType, nullAllowed });
+                params.add(new Object[] { e, nullAllowed });
             }
         }
         return params;

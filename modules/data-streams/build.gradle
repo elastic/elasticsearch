@@ -14,7 +14,7 @@ esplugin {
 restResources {
   restApi {
     include 'bulk', 'count', 'search', '_common', 'indices', 'index', 'cluster', 'rank_eval', 'reindex', 'update_by_query', 'delete_by_query',
-      'eql', 'data_stream', 'ingest', 'cat'
+      'eql', 'data_stream', 'ingest', 'cat', 'capabilities'
   }
 }
 
@@ -39,7 +39,7 @@ if (BuildParams.inFipsJvm){
 }
 
 if (BuildParams.isSnapshotBuild() == false) {
-  tasks.named("internalClusterTest").configure {
+  tasks.withType(Test).configureEach {
     systemProperty 'es.failure_store_feature_flag_enabled', 'true'
   }
 }

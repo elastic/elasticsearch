@@ -1138,7 +1138,9 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
             int startRegion,
             int endRegion
         ) throws InterruptedException, ExecutionException {
-            final PlainActionFuture<Void> readsComplete = new UnsafePlainActionFuture<>(BlobStoreRepository.STATELESS_SHARD_PREWARMING_THREAD_NAME);
+            final PlainActionFuture<Void> readsComplete = new UnsafePlainActionFuture<>(
+                BlobStoreRepository.STATELESS_SHARD_PREWARMING_THREAD_NAME
+            );
             final AtomicInteger bytesRead = new AtomicInteger();
             try (var listeners = new RefCountingListener(1, readsComplete)) {
                 for (int region = startRegion; region <= endRegion; region++) {

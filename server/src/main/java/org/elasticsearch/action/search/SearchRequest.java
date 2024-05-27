@@ -491,7 +491,7 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
     }
 
     public ActionRequestValidationException validateRescores(ActionRequestValidationException validationException) {
-        RescorerBuilder<?> nonCombinableRescorer  = null;
+        RescorerBuilder<?> nonCombinableRescorer = null;
 
         if (source.rescores() == null) {
             return validationException;
@@ -499,7 +499,7 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
 
         int paginationWindowSize = source.from() + source.size();
 
-        for (RescorerBuilder<?> currentRescorer: source.rescores()) {
+        for (RescorerBuilder<?> currentRescorer : source.rescores()) {
             if (nonCombinableRescorer != null && nonCombinableRescorer.windowSize() < currentRescorer.windowSize()) {
                 validationException = addValidationError(
                     "unable to add a rescorer with [window_size: "
@@ -520,7 +520,7 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
                             + paginationWindowSize
                             + "] but was ["
                             + currentRescorer.windowSize()
-                            +"]",
+                            + "]",
                         validationException
                     );
                 }

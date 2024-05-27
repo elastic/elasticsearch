@@ -665,7 +665,8 @@ public class SearchRequestTests extends AbstractSearchTestCase {
 
     public void testRescoreChainValidation() {
         {
-            SearchSourceBuilder source = new SearchSourceBuilder().from(10).size(10)
+            SearchSourceBuilder source = new SearchSourceBuilder().from(10)
+                .size(10)
                 .addRescorer(createRescorerMock(true, randomIntBetween(2, 10000)))
                 .addRescorer(createRescorerMock(true, randomIntBetween(2, 10000)))
                 .addRescorer(createRescorerMock(false, 50))
@@ -689,13 +690,16 @@ public class SearchRequestTests extends AbstractSearchTestCase {
             assertThat(
                 validationErrors.validationErrors().get(0),
                 equalTo(
-                    "rescorer [window_size] is too small and should be at least the value of [from + size: 20] but was [" + rescorer.windowSize() + "]"
+                    "rescorer [window_size] is too small and should be at least the value of [from + size: 20] but was ["
+                        + rescorer.windowSize()
+                        + "]"
                 )
             );
         }
 
         {
-            SearchSourceBuilder source = new SearchSourceBuilder().from(10).size(10)
+            SearchSourceBuilder source = new SearchSourceBuilder().from(10)
+                .size(10)
                 .addRescorer(createRescorerMock(true, randomIntBetween(2, 10000)))
                 .addRescorer(createRescorerMock(true, randomIntBetween(2, 10000)))
                 .addRescorer(createRescorerMock(false, 50))
@@ -706,7 +710,7 @@ public class SearchRequestTests extends AbstractSearchTestCase {
             assertThat(
                 validationErrors.validationErrors().get(0),
                 equalTo(
-                "unable to add a rescorer with [window_size: 60] because a rescorer of type [not_combinable] with a smaller [window_size: 50] has been added before"
+                    "unable to add a rescorer with [window_size: 60] because a rescorer of type [not_combinable] with a smaller [window_size: 50] has been added before"
                 )
             );
         }

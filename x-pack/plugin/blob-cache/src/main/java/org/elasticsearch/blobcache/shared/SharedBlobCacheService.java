@@ -1116,7 +1116,9 @@ public class SharedBlobCacheService<KeyType> implements Releasable {
             RangeMissingHandler writer,
             int region
         ) throws InterruptedException, ExecutionException {
-            final PlainActionFuture<Integer> readFuture = new PlainActionFuture<>();
+            final PlainActionFuture<Integer> readFuture =  new UnsafePlainActionFuture<>(
+                BlobStoreRepository.STATELESS_SHARD_PREWARMING_THREAD_NAME
+            );
             final CacheFileRegion fileRegion = get(cacheKey, length, region);
             final long regionStart = getRegionStart(region);
             fileRegion.populateAndRead(

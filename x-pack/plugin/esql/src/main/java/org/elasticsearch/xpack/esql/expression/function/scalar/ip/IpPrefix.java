@@ -32,7 +32,8 @@ import java.util.function.Function;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.FIRST;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.SECOND;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isIPAndExact;
-import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isInteger;
+import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
+import static org.elasticsearch.xpack.esql.core.type.DataTypes.INTEGER;
 
 /**
  * Converts an IP value and a prefix length to the prefix.
@@ -96,6 +97,7 @@ public class IpPrefix extends EsqlScalarFunction {
     public ExpressionEvaluator.Factory toEvaluator(Function<Expression, ExpressionEvaluator.Factory> toEvaluator) {
         var ipEvaluatorSupplier = toEvaluator.apply(ipField);
         var prefixLengthEvaluatorSupplier = toEvaluator.apply(prefixLengthField);
+
         return new IpPrefixEvaluator.Factory(
             source(),
             ipEvaluatorSupplier,
@@ -144,12 +146,9 @@ public class IpPrefix extends EsqlScalarFunction {
             return new TypeResolution("Unresolved children");
         }
 
-        TypeResolution ipResolution = isIPAndExact(ipField, sourceText(), FIRST);
-        if (ipResolution.unresolved()) {
-            return ipResolution;
-        }
-
-        return isInteger(prefixLengthField, sourceText(), SECOND);
+        return isIPAndExact(ipField, sourceText(), FIRST).and(
+            isType(prefixLengthField, dt -> dt == INTEGER, sourceText(), SECOND, "integer")
+        );
     }
 
     @Override

@@ -529,17 +529,18 @@ ip4:ip   | ip6:ip                    | ip4_prefix:ip | ip6_prefix:ip
 ipPrefixAsGroup
 required_capability: fn_ip_prefix
 from hosts
-| stats count(*) by ip_prefix(ip1, 24);
+| stats count(*) by ip_prefix(ip1, 24)
+| sort `ip_prefix(ip1, 24)`;
 warning:Line 2:21: evaluation of [ip_prefix(ip1, 24)] failed, treating result as null. Only first 20 failures recorded.
 warning:Line 2:21: java.lang.IllegalArgumentException: single-value function encountered multi-value
 
 count(*):long | ip_prefix(ip1, 24):ip
-2             | null
-3             | 127.0.0.0
 2             | ::0
+3             | 127.0.0.0
 1             | 128.0.0.0
-1             | fe81::cae2:65ff:fece:fe00
 1             | fe80::cae2:65ff:fece:fe00
+1             | fe81::cae2:65ff:fece:fe00
+2             | null
 ;
 
 ipPrefixWithWrongArguments#[skip:-,reason:null returns not supported yet in evaluators]

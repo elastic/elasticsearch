@@ -678,7 +678,6 @@ public class NodeJoinTests extends ESTestCase {
         assertFalse(isLocalNodeElectedMaster());
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/109103")
     public void testConcurrentJoining() {
         List<DiscoveryNode> masterNodes = IntStream.rangeClosed(1, randomIntBetween(2, 5))
             .mapToObj(nodeId -> newNode(nodeId, true))
@@ -775,14 +774,14 @@ public class NodeJoinTests extends ESTestCase {
         final List<Thread> joinThreads = Stream.concat(correctJoinRequests.stream().map(joinRequest -> new Thread(() -> {
             safeAwait(barrier);
             joinNode(joinRequest);
-        }, "process " + joinRequest)), possiblyFailingJoinRequests.stream().map(joinRequest -> new Thread(() -> {
+        }, "TEST-process " + joinRequest)), possiblyFailingJoinRequests.stream().map(joinRequest -> new Thread(() -> {
             safeAwait(barrier);
             try {
                 joinNode(joinRequest);
             } catch (CoordinationStateRejectedException e) {
                 // ignore - these requests are expected to fail
             }
-        }, "process " + joinRequest))).toList();
+        }, "TEST-process " + joinRequest))).toList();
 
         assertionThread.start();
         joinThreads.forEach(Thread::start);

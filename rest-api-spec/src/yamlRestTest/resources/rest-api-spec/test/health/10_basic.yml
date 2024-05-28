@@ -38,8 +38,8 @@
 
 ---
 "basic shards capacity health indicator test":
-  - requires:
-      cluster_features: "gte_v8.8.0"
+  - skip:
+      version: "- 8.7.99"
       reason: "shards capacity indicator was added in 8.8.0"
 
   - do:
@@ -55,8 +55,8 @@
 
 ---
 "basic data stream lifecycle health indicator test":
-  - requires:
-      cluster_features: "gte_v8.13.0"
+  - skip:
+      version: "- 8.12.99"
       reason: "data stream lifecycle indicator was added in 8.13.0"
 
   - do:

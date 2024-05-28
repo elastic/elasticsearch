@@ -1,7 +1,7 @@
 ---
 "basic SLM health indicator test":
-  - requires:
-      cluster_features: "gte_v8.7.0"
+  - skip:
+      version: "- 8.6.99"
       reason: "health was added in 8.2.0, master_is_stable in 8.4.0, and REST API updated in 8.7"
 
   - do:

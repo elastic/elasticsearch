@@ -39,6 +39,7 @@ import org.elasticsearch.index.mapper.SourceValueFetcher;
 import org.elasticsearch.index.mapper.TextSearchInfo;
 import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.index.query.support.NestedScope;
 import org.elasticsearch.script.field.DocValuesScriptFieldFactory;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.MultiValueMode;
@@ -490,7 +491,7 @@ public class HistogramFieldMapper extends FieldMapper {
     }
 
     @Override
-    public SourceLoader.SyntheticFieldLoader syntheticFieldLoader() {
+    public SourceLoader.SyntheticFieldLoader syntheticFieldLoader(NestedScope nestedScope) {
         if (ignoreMalformed.value()) {
             throw new IllegalArgumentException(
                 "field [" + name() + "] of type [histogram] doesn't support synthetic source because it ignores malformed histograms"

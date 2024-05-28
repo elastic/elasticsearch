@@ -22,6 +22,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.query.support.NestedScope;
 import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.CompositeFieldScript;
@@ -3244,7 +3245,7 @@ public class DocumentParserTests extends MapperServiceTestCase {
             }
 
             @Override
-            public SourceLoader.SyntheticFieldLoader syntheticFieldLoader() {
+            public SourceLoader.SyntheticFieldLoader syntheticFieldLoader(NestedScope nestedScope) {
                 return new StringStoredFieldFieldLoader(name(), simpleName(), null) {
                     @Override
                     protected void write(XContentBuilder b, Object value) throws IOException {

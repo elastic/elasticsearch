@@ -13,6 +13,7 @@ import org.apache.lucene.document.StringField;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.index.query.support.NestedScope;
 
 import java.util.Collections;
 import java.util.Map;
@@ -121,7 +122,7 @@ public class RoutingFieldMapper extends MetadataFieldMapper {
     }
 
     @Override
-    public SourceLoader.SyntheticFieldLoader syntheticFieldLoader() {
+    public SourceLoader.SyntheticFieldLoader syntheticFieldLoader(NestedScope nestedScope) {
         return SourceLoader.SyntheticFieldLoader.NOTHING;
     }
 }

@@ -17,6 +17,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.index.query.support.NestedScope;
 
 import java.util.Collections;
 
@@ -85,7 +86,7 @@ public class NestedPathFieldMapper extends MetadataFieldMapper {
     }
 
     @Override
-    public SourceLoader.SyntheticFieldLoader syntheticFieldLoader() {
+    public SourceLoader.SyntheticFieldLoader syntheticFieldLoader(NestedScope nestedScope) {
         return SourceLoader.SyntheticFieldLoader.NOTHING;
     }
 }

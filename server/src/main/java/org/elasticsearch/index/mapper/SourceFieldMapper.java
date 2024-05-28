@@ -25,6 +25,7 @@ import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.query.QueryShardException;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.index.query.support.NestedScope;
 import org.elasticsearch.search.lookup.Source;
 import org.elasticsearch.search.lookup.SourceFilter;
 import org.elasticsearch.xcontent.XContentType;
@@ -363,7 +364,7 @@ public class SourceFieldMapper extends MetadataFieldMapper {
      */
     public SourceLoader newSourceLoader(Mapping mapping, SourceFieldMetrics metrics) {
         if (mode == Mode.SYNTHETIC) {
-            return new SourceLoader.Synthetic(mapping, metrics);
+            return new SourceLoader.Synthetic(mapping::syntheticFieldLoader, metrics);
         }
         return SourceLoader.FROM_STORED_SOURCE;
     }
@@ -373,7 +374,7 @@ public class SourceFieldMapper extends MetadataFieldMapper {
     }
 
     @Override
-    public SourceLoader.SyntheticFieldLoader syntheticFieldLoader() {
+    public SourceLoader.SyntheticFieldLoader syntheticFieldLoader(NestedScope nestedScope) {
         return SourceLoader.SyntheticFieldLoader.NOTHING;
     }
 }

@@ -857,7 +857,7 @@ public class RestController implements HttpServerTransport.Dispatcher {
                     final var headers = response.getHeaders();
                     response = RestResponse.chunked(
                         response.status(),
-                        new EncodedLengthTrackingChunkedRestResponseBody(response.chunkedContent(), responseLengthRecorder),
+                        new EncodedLengthTrackingChunkedRestResponseBodyPart(response.chunkedContent(), responseLengthRecorder),
                         Releasables.wrap(responseLengthRecorder, response)
                     );
                     for (final var header : headers.entrySet()) {
@@ -916,13 +916,13 @@ public class RestController implements HttpServerTransport.Dispatcher {
         }
     }
 
-    private static class EncodedLengthTrackingChunkedRestResponseBody implements ChunkedRestResponseBody {
+    private static class EncodedLengthTrackingChunkedRestResponseBodyPart implements ChunkedRestResponseBodyPart {
 
-        private final ChunkedRestResponseBody delegate;
+        private final ChunkedRestResponseBodyPart delegate;
         private final ResponseLengthRecorder responseLengthRecorder;
 
-        private EncodedLengthTrackingChunkedRestResponseBody(
-            ChunkedRestResponseBody delegate,
+        private EncodedLengthTrackingChunkedRestResponseBodyPart(
+            ChunkedRestResponseBodyPart delegate,
             ResponseLengthRecorder responseLengthRecorder
         ) {
             this.delegate = delegate;
@@ -930,19 +930,19 @@ public class RestController implements HttpServerTransport.Dispatcher {
         }
 
         @Override
-        public boolean isDone() {
-            return delegate.isDone();
+        public boolean isPartComplete() {
+            return delegate.isPartComplete();
         }
 
         @Override
-        public boolean isEndOfResponse() {
-            return delegate.isEndOfResponse();
+        public boolean isLastPart() {
+            return delegate.isLastPart();
         }
 
         @Override
-        public void getContinuation(ActionListener<ChunkedRestResponseBody> listener) {
-            delegate.getContinuation(
-                listener.map(continuation -> new EncodedLengthTrackingChunkedRestResponseBody(continuation, responseLengthRecorder))
+        public void getNextPart(ActionListener<ChunkedRestResponseBodyPart> listener) {
+            delegate.getNextPart(
+                listener.map(continuation -> new EncodedLengthTrackingChunkedRestResponseBodyPart(continuation, responseLengthRecorder))
             );
         }
 
@@ -950,7 +950,7 @@ public class RestController implements HttpServerTransport.Dispatcher {
         public ReleasableBytesReference encodeChunk(int sizeHint, Recycler<BytesRef> recycler) throws IOException {
             final ReleasableBytesReference bytesReference = delegate.encodeChunk(sizeHint, recycler);
             responseLengthRecorder.addChunkLength(bytesReference.length());
-            if (isDone() && isEndOfResponse()) {
+            if (isPartComplete() && isLastPart()) {
                 responseLengthRecorder.close();
             }
             return bytesReference;

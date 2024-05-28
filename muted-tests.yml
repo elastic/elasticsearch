@@ -35,12 +35,6 @@ tests:
 - class: "org.elasticsearch.upgrades.MlTrainedModelsUpgradeIT"
   issue: "https://github.com/elastic/elasticsearch/issues/108993"
   method: "testTrainedModelInference"
-- class: "org.elasticsearch.xpack.security.authc.esnative.ReservedRealmElasticAutoconfigIntegTests"
-  issue: "https://github.com/elastic/elasticsearch/issues/109058"
-  method: "testAutoconfigSucceedsAfterPromotionFailure"
-- class: "org.elasticsearch.xpack.security.authc.esnative.ReservedRealmElasticAutoconfigIntegTests"
-  issue: "https://github.com/elastic/elasticsearch/issues/109059"
-  method: "testAutoconfigFailedPasswordPromotion"
 # Examples:
 #
 #  Mute a single test case in a YAML test suite:

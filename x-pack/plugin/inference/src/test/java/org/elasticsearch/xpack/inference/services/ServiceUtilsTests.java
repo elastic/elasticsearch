@@ -307,7 +307,19 @@ public class ServiceUtilsTests extends ESTestCase {
 
         assertNull(uri);
         assertThat(validation.validationErrors().size(), is(1));
-        assertThat(validation.validationErrors().get(0), is("[scope] Invalid url [^^] received for field [name]"));
+        assertThat(validation.validationErrors().get(0), containsString("[scope] Invalid url [^^] received for field [name]"));
+    }
+
+    public void testConvertToUri_AddsValidationError_WhenUrlIsInvalid_PreservesReason() {
+        var validation = new ValidationException();
+        var uri = convertToUri("^^", "name", "scope", validation);
+
+        assertNull(uri);
+        assertThat(validation.validationErrors().size(), is(1));
+        assertThat(
+            validation.validationErrors().get(0),
+            is("[scope] Invalid url [^^] received for field [name]. Error: unable to parse url [^^]. Reason: Illegal character in path")
+        );
     }
 
     public void testCreateUri_CreatesUri() {
@@ -320,7 +332,7 @@ public class ServiceUtilsTests extends ESTestCase {
     public void testCreateUri_ThrowsException_WithInvalidUrl() {
         var exception = expectThrows(IllegalArgumentException.class, () -> createUri("^^"));
 
-        assertThat(exception.getMessage(), is("unable to parse url [^^]"));
+        assertThat(exception.getMessage(), containsString("unable to parse url [^^]"));
     }
 
     public void testCreateUri_ThrowsException_WithNullUrl() {

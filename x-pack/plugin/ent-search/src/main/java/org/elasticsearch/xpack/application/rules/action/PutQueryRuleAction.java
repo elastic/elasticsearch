@@ -60,11 +60,13 @@ public class PutQueryRuleAction {
             this.queryRulesetId = rulesetId;
 
             QueryRule queryRule = QueryRule.fromXContentBytes(content, contentType);
-            if (ruleId.equals(queryRule.id()) == false) {
+            if (queryRule.id() == null) {
+                this.queryRule = new QueryRule(ruleId, queryRule);
+            } else if (ruleId.equals(queryRule.id()) == false) {
                 throw new IllegalArgumentException("rule_id does not match the id in the query rule");
+            } else {
+                this.queryRule = queryRule;
             }
-
-            this.queryRule = queryRule;
         }
 
         @Override
@@ -78,8 +80,6 @@ public class PutQueryRuleAction {
             if (Strings.isNullOrEmpty(queryRule.id())) {
                 validationException = addValidationError("rule_id cannot be null or empty", validationException);
             }
-
-            // TODO additional validation?
 
             return validationException;
         }
@@ -123,7 +123,7 @@ public class PutQueryRuleAction {
 
         private static final ConstructingObjectParser<Request, String> PARSER = new ConstructingObjectParser<>(
             "put_query_rule_request",
-            p -> new Request((String) p[0], (QueryRule) p[2])
+            p -> new Request((String) p[0], (QueryRule) p[1])
         );
 
         static {
@@ -131,8 +131,11 @@ public class PutQueryRuleAction {
             PARSER.declareObject(constructorArg(), (p, c) -> QueryRule.fromXContent(p), QUERY_RULE_FIELD);
         }
 
-        public static PutQueryRuleAction.Request fromXContent(String queryRulesetId, String ruleId, XContentParser parser)
-            throws IOException {
+        public static PutQueryRuleAction.Request parse(XContentParser parser, String resourceName) {
+            return PARSER.apply(parser, resourceName);
+        }
+
+        public static PutQueryRuleAction.Request fromXContent(String queryRulesetId, XContentParser parser) throws IOException {
             return new PutQueryRuleAction.Request(queryRulesetId, QueryRule.fromXContent(parser));
         }
 

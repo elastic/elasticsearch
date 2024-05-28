@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.application.rules.action;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.application.EnterpriseSearchModuleTestUtils;
@@ -15,11 +16,14 @@ import org.elasticsearch.xpack.application.rules.QueryRule;
 import org.elasticsearch.xpack.core.ml.AbstractBWCSerializationTestCase;
 
 import java.io.IOException;
+import java.util.List;
+import java.util.stream.Collectors;
+
+import static org.elasticsearch.xpack.core.ml.AbstractBWCWireSerializationTestCase.getAllBWCVersions;
 
 public class PutQueryRuleActionRequestBWCSerializingTests extends AbstractBWCSerializationTestCase<PutQueryRuleAction.Request> {
 
-    private String queryRulesetId;
-    private QueryRule queryRule;
+    private String queryRuleId;
 
     @Override
     protected Writeable.Reader<PutQueryRuleAction.Request> instanceReader() {
@@ -28,8 +32,9 @@ public class PutQueryRuleActionRequestBWCSerializingTests extends AbstractBWCSer
 
     @Override
     protected PutQueryRuleAction.Request createTestInstance() {
-        this.queryRulesetId = randomAlphaOfLengthBetween(5, 10);
-        this.queryRule = EnterpriseSearchModuleTestUtils.randomQueryRule();
+        String queryRulesetId = randomAlphaOfLengthBetween(5, 10);
+        QueryRule queryRule = EnterpriseSearchModuleTestUtils.randomQueryRule();
+        this.queryRuleId = queryRule.id();
         return new PutQueryRuleAction.Request(queryRulesetId, queryRule);
     }
 
@@ -40,11 +45,18 @@ public class PutQueryRuleActionRequestBWCSerializingTests extends AbstractBWCSer
 
     @Override
     protected PutQueryRuleAction.Request doParseInstance(XContentParser parser) throws IOException {
-        return PutQueryRuleAction.Request.fromXContent(this.queryRulesetId, this.queryRule.id(), parser);
+        return PutQueryRuleAction.Request.parse(parser, this.queryRuleId);
     }
 
     @Override
     protected PutQueryRuleAction.Request mutateInstanceForVersion(PutQueryRuleAction.Request instance, TransportVersion version) {
-        return instance;
+        return new PutQueryRuleAction.Request(instance.queryRulesetId(), instance.queryRule());
+    }
+
+    @Override
+    protected List<TransportVersion> bwcVersions() {
+        return getAllBWCVersions().stream()
+            .filter(v -> v.onOrAfter(TransportVersions.QUERY_RULE_CRUD_API_PUT))
+            .collect(Collectors.toList());
     }
 }

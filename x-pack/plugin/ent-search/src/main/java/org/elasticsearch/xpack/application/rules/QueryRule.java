@@ -90,15 +90,13 @@ public class QueryRule implements Writeable, ToXContentObject {
      *                                  rules without specified priorities, in ascending priority order.
      */
     public QueryRule(
-        String id,
+        @Nullable String id,
         QueryRuleType type,
         List<QueryRuleCriteria> criteria,
         Map<String, Object> actions,
         @Nullable Integer priority
     ) {
-        if (Strings.isNullOrEmpty(id)) {
-            throw new IllegalArgumentException("Query rule id cannot be null or blank");
-        }
+        // Interstitial null state allowed during rule creation; validation occurs in CRUD API
         this.id = id;
 
         Objects.requireNonNull(type, "Query rule type cannot be null");
@@ -118,6 +116,10 @@ public class QueryRule implements Writeable, ToXContentObject {
         this.priority = priority != null ? priority : DEFAULT_PRIORITY;
 
         validate();
+    }
+
+    public QueryRule(String id, QueryRule other) {
+        this(id, other.type, other.criteria, other.actions, other.priority);
     }
 
     public QueryRule(StreamInput in) throws IOException {
@@ -147,6 +149,10 @@ public class QueryRule implements Writeable, ToXContentObject {
             }
         } else {
             throw new IllegalArgumentException("Unsupported QueryRuleType: " + type);
+        }
+
+        if (priority < MIN_PRIORITY || priority > MAX_PRIORITY) {
+            throw new IllegalArgumentException("Priority must be between " + MIN_PRIORITY + " and " + MAX_PRIORITY);
         }
     }
 

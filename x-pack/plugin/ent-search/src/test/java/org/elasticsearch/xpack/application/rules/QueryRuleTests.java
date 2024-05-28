@@ -76,20 +76,6 @@ public class QueryRuleTests extends ESTestCase {
         assertToXContentEquivalent(originalBytes, toXContent(parsed, XContentType.JSON, humanReadable), XContentType.JSON);
     }
 
-    public void testToXContentMissingQueryRuleId() throws IOException {
-        String content = XContentHelper.stripWhitespace("""
-            {
-              "type": "pinned",
-              "criteria": [
-                { "type": "exact", "metadata": "query_string", "values": ["foo", "bar"] }
-              ],
-              "actions": {
-                  "ids": ["id1", "id2"]
-                }
-            }""");
-        expectThrows(IllegalArgumentException.class, () -> QueryRule.fromXContentBytes(new BytesArray(content), XContentType.JSON));
-    }
-
     public void testToXContentEmptyCriteria() throws IOException {
         String content = XContentHelper.stripWhitespace("""
             {

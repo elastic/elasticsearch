@@ -41,57 +41,51 @@ setup:
         ruleset_id: test-ruleset
         rule_id: query-rule-id3
         body:
-          rules:
-            rule_id: 'query-rule-id3'
-            type: 'pinned'
-            criteria:
-              type: 'exact'
-              metadata: 'query_string'
-              values: [ 'logstash' ]
-            actions:
-              ids:
-                - 'id1'
-            priority: 2
+          type: 'pinned'
+          criteria:
+            type: 'exact'
+            metadata: 'query_string'
+            values: [ 'logstash' ]
+          actions:
+            ids:
+              - 'id1'
+          priority: 2
 
-  - match: { result: 'created' }
+  - match: { result: 'updated' }
 
 ---
-'Create Query Ruleset - Resource already exists':
+'Create Query Rule - Resource already exists':
   - do:
       query_rule.put:
-        ruleset_id: test-query-ruleset-recreating
+        ruleset_id: test-query-rule-recreating
         rule_id: abc
         body:
-          rules:
-            rule_id: 'abc'
-            type: 'pinned'
-            criteria:
-              type: 'exact'
-              metadata: 'query_string'
-              values: [ 'elastic' ]
-            actions:
-              ids:
-                - 'id1'
-            priority: 5
+          type: 'pinned'
+          criteria:
+            type: 'exact'
+            metadata: 'query_string'
+            values: [ 'elastic' ]
+          actions:
+            ids:
+              - 'id1'
+          priority: 5
 
   - match: { result: 'created' }
 
   - do:
       query_rule.put:
-        ruleset_id: test-query-ruleset-recreating
+        ruleset_id: test-query-rule-recreating
         rule_id: abc
         body:
-          rules:
-            rule_id: 'abc'
-            type: 'pinned'
-            criteria:
-              type: 'exact'
-              metadata: 'query_string'
-              values: [ 'elastic' ]
-            actions:
-              ids:
-                - 'id2'
-            priority: 3
+          type: 'pinned'
+          criteria:
+            type: 'exact'
+            metadata: 'query_string'
+            values: [ 'elastic' ]
+          actions:
+            ids:
+              - 'id2'
+          priority: 3
 
   - match: { result: 'updated' }
 
@@ -107,7 +101,6 @@ setup:
         ruleset_id: forbidden-query-ruleset
         rule_id: abc
         body:
-          rule_id: 'abc'
           type: 'pinned'
           criteria:
             type: 'exact'

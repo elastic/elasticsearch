@@ -29,6 +29,7 @@ import org.elasticsearch.xpack.application.rules.QueryRuleset;
 import java.io.IOException;
 import java.util.List;
 import java.util.Objects;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
@@ -60,18 +61,24 @@ public class PutQueryRulesetAction {
 
         @Override
         public ActionRequestValidationException validate() {
-            ActionRequestValidationException validationException = null;
+            AtomicReference<ActionRequestValidationException> validationException = new AtomicReference<>();
 
             if (Strings.isNullOrEmpty(queryRuleset.id())) {
-                validationException = addValidationError("ruleset_id cannot be null or empty", validationException);
+                validationException.set(addValidationError("ruleset_id cannot be null or empty", validationException.get()));
             }
 
             List<QueryRule> rules = queryRuleset.rules();
             if (rules == null || rules.isEmpty()) {
-                validationException = addValidationError("rules cannot be null or empty", validationException);
+                validationException.set(addValidationError("rules cannot be null or empty", validationException.get()));
             }
 
-            return validationException;
+            rules.stream().filter(rule -> rule.id() == null).forEach(rule -> {
+                validationException.set(
+                    addValidationError("rule_id cannot be null or empty. rule: [" + rule + "]", validationException.get())
+                );
+            });
+
+            return validationException.get();
         }
 
         @Override

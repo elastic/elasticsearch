@@ -1,16 +1,22 @@
 ---
 setup:
-  - skip:
-      known_issues:
-        - cluster_feature: "gte_v8.15.0"
-          fixed_by: "gte_v8.15.0"
-      reason: "logs index mode introduced in version 8.15"
+  - requires:
+      test_runner_features: [capabilities]
+      capabilities:
+        - method: PUT
+          path: /{index}
+          capabilities: [logs_index_mode]
+      reason: "Support for 'logs' index mode capability required"
 
 ---
 create logs index:
   - requires:
-      cluster_features: ["gte_v8.15.0"]
-      reason: introduced in 8.15.0
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: PUT
+          path: /{index}
+          capabilities: [ logs_index_mode ]
+      reason: "Support for 'logs' index mode capability required"
 
   - do:
       indices.create:
@@ -75,8 +81,12 @@ create logs index:
 ---
 using default timestamp field mapping:
   - requires:
-      cluster_features: ["gte_v8.15.0"]
-      reason: introduced in 8.15.0
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: PUT
+          path: /{index}
+          capabilities: [ logs_index_mode ]
+      reason: "Support for 'logs' index mode capability required"
 
   - do:
       indices.create:
@@ -103,8 +113,12 @@ using default timestamp field mapping:
 ---
 missing hostname field:
   - requires:
-      cluster_features: ["gte_v8.15.0"]
-      reason: introduced in 8.15.0
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: PUT
+          path: /{index}
+          capabilities: [ logs_index_mode ]
+      reason: "Support for 'logs' index mode capability required"
 
   - do:
       catch: bad_request
@@ -136,8 +150,12 @@ missing hostname field:
 ---
 missing sort field:
   - requires:
-      cluster_features: ["gte_v8.15.0"]
-      reason: introduced in 8.15.0
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: PUT
+          path: /{index}
+          capabilities: [ logs_index_mode ]
+      reason: "Support for 'logs' index mode capability required"
 
   - do:
       catch: bad_request
@@ -173,8 +191,12 @@ missing sort field:
 ---
 non-default sort settings:
   - requires:
-      cluster_features: ["gte_v8.15.0"]
-      reason: introduced in 8.15.0
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: PUT
+          path: /{index}
+          capabilities: [ logs_index_mode ]
+      reason: "Support for 'logs' index mode capability required"
 
   - do:
       indices.create:
@@ -222,8 +244,12 @@ non-default sort settings:
 ---
 override sort order settings:
   - requires:
-      cluster_features: ["gte_v8.15.0"]
-      reason: introduced in 8.15.0
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: PUT
+          path: /{index}
+          capabilities: [ logs_index_mode ]
+      reason: "Support for 'logs' index mode capability required"
 
   - do:
       indices.create:
@@ -266,8 +292,12 @@ override sort order settings:
 ---
 override sort missing settings:
   - requires:
-      cluster_features: ["gte_v8.15.0"]
-      reason: introduced in 8.15.0
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: PUT
+          path: /{index}
+          capabilities: [ logs_index_mode ]
+      reason: "Support for 'logs' index mode capability required"
 
   - do:
       indices.create:
@@ -310,8 +340,12 @@ override sort missing settings:
 ---
 override sort mode settings:
   - requires:
-      cluster_features: ["gte_v8.15.0"]
-      reason: introduced in 8.15.0
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: PUT
+          path: /{index}
+          capabilities: [ logs_index_mode ]
+      reason: "Support for 'logs' index mode capability required"
 
   - do:
       indices.create:
@@ -354,8 +388,12 @@ override sort mode settings:
 ---
 override sort field using nested field type in sorting:
   - requires:
-      cluster_features: ["gte_v8.15.0"]
-      reason: introduced in 8.15.0
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: PUT
+          path: /{index}
+          capabilities: [ logs_index_mode ]
+      reason: "Support for 'logs' index mode capability required"
 
   - do:
       catch: bad_request
@@ -396,8 +434,12 @@ override sort field using nested field type in sorting:
 ---
 override sort field using nested field type:
   - requires:
-      cluster_features: ["gte_v8.15.0"]
-      reason: introduced in 8.15.0
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: PUT
+          path: /{index}
+          capabilities: [ logs_index_mode ]
+      reason: "Support for 'logs' index mode capability required"
 
   - do:
       catch: bad_request
@@ -436,8 +478,12 @@ override sort field using nested field type:
 ---
 routing path not allowed in logs mode:
   - requires:
-      cluster_features: ["gte_v8.15.0"]
-      reason: introduced in 8.15.0
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: PUT
+          path: /{index}
+          capabilities: [ logs_index_mode ]
+      reason: "Support for 'logs' index mode capability required"
 
   - do:
       catch: bad_request
@@ -472,8 +518,12 @@ routing path not allowed in logs mode:
 ---
 start time not allowed in logs mode:
   - requires:
-      cluster_features: ["gte_v8.15.0"]
-      reason: introduced in 8.15.0
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: PUT
+          path: /{index}
+          capabilities: [ logs_index_mode ]
+      reason: "Support for 'logs' index mode capability required"
 
   - do:
       catch: bad_request
@@ -509,8 +559,12 @@ start time not allowed in logs mode:
 ---
 end time not allowed in logs mode:
   - requires:
-      cluster_features: ["gte_v8.15.0"]
-      reason: introduced in 8.15.0
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: PUT
+          path: /{index}
+          capabilities: [ logs_index_mode ]
+      reason: "Support for 'logs' index mode capability required"
 
   - do:
       catch: bad_request

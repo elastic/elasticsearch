@@ -711,7 +711,7 @@ public class SearchRequestTests extends AbstractSearchTestCase {
                 validationErrors.validationErrors().get(0),
                 equalTo(
                     "unable to add a rescorer with [window_size: 60] because a rescorer of type [not_combinable] "
-                    + "with a smaller [window_size: 50] has been added before"
+                        + "with a smaller [window_size: 50] has been added before"
                 )
             );
         }

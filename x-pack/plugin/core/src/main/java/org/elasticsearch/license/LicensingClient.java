@@ -24,10 +24,6 @@ public class LicensingClient {
         return new GetLicenseRequestBuilder(client);
     }
 
-    public DeleteLicenseRequestBuilder prepareDeleteLicense() {
-        return new DeleteLicenseRequestBuilder(client);
-    }
-
     public PostStartTrialRequestBuilder preparePostStartTrial() {
         return new PostStartTrialRequestBuilder(client);
     }

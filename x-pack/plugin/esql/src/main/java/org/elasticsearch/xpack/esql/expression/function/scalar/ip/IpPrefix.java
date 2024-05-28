@@ -36,7 +36,7 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isTyp
 import static org.elasticsearch.xpack.esql.core.type.DataTypes.INTEGER;
 
 /**
- * Converts an IP value and a prefix length to the prefix.
+ * Truncates an IP value to a given prefix length.
  */
 public class IpPrefix extends EsqlScalarFunction {
 

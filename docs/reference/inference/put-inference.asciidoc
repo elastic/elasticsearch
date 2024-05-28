@@ -307,6 +307,7 @@ To modify this, set the `requests_per_minute` setting of this object in your ser
     "requests_per_minute": <<number_of_requests>>
 }
 ```
+--
 =====
 +
 .`service_settings` for the `elasticsearch` service

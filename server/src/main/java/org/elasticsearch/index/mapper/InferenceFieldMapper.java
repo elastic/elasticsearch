@@ -10,9 +10,7 @@ package org.elasticsearch.index.mapper;
 
 import org.elasticsearch.cluster.metadata.InferenceFieldMetadata;
 import org.elasticsearch.inference.InferenceService;
-import org.elasticsearch.xcontent.XContentParser;
 
-import java.io.IOException;
 import java.util.Map;
 import java.util.Set;
 
@@ -35,15 +33,4 @@ public interface InferenceFieldMapper {
      * @return The field's original value, or {@code null} if none was provided
      */
     Object getOriginalValue(Map<String, Object> sourceAsMap);
-
-    /**
-     * Get the field's original value (i.e. the value the user specified) from the provided source.
-     *
-     * @param sourceParser The source parser
-     * @return The field's original value, or {@code null} if none was provided
-     * @throws IOException if an I/O exception occurs while parsing the source
-     */
-    default Object getOriginalValue(XContentParser sourceParser) throws IOException {
-        return getOriginalValue(sourceParser.map());
-    }
 }

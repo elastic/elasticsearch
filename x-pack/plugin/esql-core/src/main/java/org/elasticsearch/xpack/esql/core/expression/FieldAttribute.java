@@ -10,6 +10,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.type.DataTypes;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.core.util.StringUtils;
 
@@ -26,6 +27,7 @@ import java.util.Objects;
 public class FieldAttribute extends TypedAttribute {
 
     private final FieldAttribute parent;
+    private final FieldAttribute nestedParent;
     private final String path;
     private final EsField field;
 
@@ -65,6 +67,16 @@ public class FieldAttribute extends TypedAttribute {
         this.path = parent != null ? parent.name() : StringUtils.EMPTY;
         this.parent = parent;
         this.field = field;
+
+        // figure out the last nested parent
+        FieldAttribute nestedPar = null;
+        if (parent != null) {
+            nestedPar = parent.nestedParent;
+            if (parent.dataType() == DataTypes.NESTED) {
+                nestedPar = parent;
+            }
+        }
+        this.nestedParent = nestedPar;
     }
 
     @Override
@@ -83,6 +95,14 @@ public class FieldAttribute extends TypedAttribute {
     public String qualifiedPath() {
         // return only the qualifier is there's no path
         return qualifier() != null ? qualifier() + (Strings.hasText(path) ? "." + path : StringUtils.EMPTY) : path;
+    }
+
+    public boolean isNested() {
+        return nestedParent != null;
+    }
+
+    public FieldAttribute nestedParent() {
+        return nestedParent;
     }
 
     public EsField.Exact getExactInfo() {

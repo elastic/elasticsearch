@@ -15,6 +15,7 @@ import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.function.scalar.ScalarFunction;
 import org.elasticsearch.xpack.esql.core.expression.predicate.nulls.IsNotNull;
 import org.elasticsearch.xpack.esql.core.expression.predicate.nulls.IsNull;
+import org.elasticsearch.xpack.esql.core.planner.ExpressionTranslator;
 import org.elasticsearch.xpack.esql.core.planner.TranslatorHandler;
 import org.elasticsearch.xpack.esql.core.querydsl.query.Query;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -49,7 +50,7 @@ public final class EsqlTranslatorHandler implements TranslatorHandler {
             if ((sf instanceof IsNull || sf instanceof IsNotNull) == false) {
                 query = new SingleValueQuery(query, fa.name());
             }
-            return query;
+            return ExpressionTranslator.wrapIfNested(query, field);
         }
         if (field instanceof MetadataAttribute) {
             return querySupplier.get(); // MetadataAttributes are always single valued

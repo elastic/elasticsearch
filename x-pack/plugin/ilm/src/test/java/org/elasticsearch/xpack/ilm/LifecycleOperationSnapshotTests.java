@@ -125,10 +125,14 @@ public class LifecycleOperationSnapshotTests extends ESSingleNodeTestCase {
     }
 
     private OperationMode ilmMode() throws Exception {
-        return client().execute(GetStatusAction.INSTANCE, new AcknowledgedRequest.Plain()).get().getMode();
+        return client().execute(GetStatusAction.INSTANCE, new AcknowledgedRequest.Plain(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT))
+            .get()
+            .getMode();
     }
 
     private OperationMode slmMode() throws Exception {
-        return client().execute(GetSLMStatusAction.INSTANCE, new AcknowledgedRequest.Plain()).get().getOperationMode();
+        return client().execute(GetSLMStatusAction.INSTANCE, new AcknowledgedRequest.Plain(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT))
+            .get()
+            .getOperationMode();
     }
 }

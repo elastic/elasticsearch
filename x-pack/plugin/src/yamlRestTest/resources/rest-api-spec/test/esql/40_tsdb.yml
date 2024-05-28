@@ -116,7 +116,6 @@ load everything:
       esql.query:
         body:
           query: 'from test metadata _id'
-          version: 2024.04.01
 
   - match: {columns.0.name: "@timestamp"}
   - match: {columns.0.type: "date"}
@@ -142,7 +141,6 @@ load a document:
       esql.query:
         body:
           query: 'from test | where @timestamp == "2021-04-28T18:50:23.142Z"'
-          version: 2024.04.01
 
   - length: {values: 1}
   - length: {values.0: 7}
@@ -161,7 +159,6 @@ filter on counter without cast:
       esql.query:
         body:
           query: 'from test | where k8s.pod.network.tx == 1434577921'
-          version: 2024.04.01
 
 ---
 cast counter then filter:
@@ -169,7 +166,6 @@ cast counter then filter:
       esql.query:
         body:
           query: 'from test | where k8s.pod.network.tx::long == 2005177954 and k8s.pod.network.rx::integer == 801479970 | sort @timestamp | limit 10'
-          version: 2024.04.01
   - length: {values: 1}
   - length: {values.0: 7}
   - match: {values.0.0: "2021-04-28T18:50:24.467Z"}
@@ -187,7 +183,6 @@ sort on counter without cast:
       esql.query:
         body:
           query: 'from test |  KEEP k8s.pod.network.tx | sort @k8s.pod.network.tx | limit 1'
-          version: 2024.04.01
 
 ---
 cast then sort on counter:
@@ -195,7 +190,6 @@ cast then sort on counter:
       esql.query:
         body:
           query: 'from test | KEEP k8s.pod.network.tx | EVAL tx=to_long(k8s.pod.network.tx) | sort tx | limit 1'
-          version: 2024.04.01
   - length: {values: 1}
   - match: {values.0.0: 1434521831 }
 
@@ -207,7 +201,6 @@ from doc with aggregate_metric_double:
       esql.query:
         body:
           query: 'from test2'
-          version: 2024.04.01
 
   - match: {columns.0.name: "@timestamp"}
   - match: {columns.0.type: "date"}
@@ -228,7 +221,6 @@ stats on aggregate_metric_double:
       esql.query:
         body:
           query: 'FROM test2 | STATS max(agg_metric) BY dim'
-          version: 2024.04.01
 
 ---
 from index pattern unsupported counter:
@@ -238,7 +230,6 @@ from index pattern unsupported counter:
       esql.query:
         body:
           query: 'FROM test*'
-          version: 2024.04.01
 
   - match: {columns.0.name: "@timestamp"}
   - match: {columns.0.type: "date"}
@@ -267,7 +258,6 @@ from index pattern explicit counter use:
       esql.query:
         body:
           query: 'FROM test* | keep *.tx'
-          version: 2024.04.01
 
 
 ---
@@ -288,7 +278,6 @@ _source:
       esql.query:
         body:
           query: 'FROM test METADATA _source | WHERE @timestamp == "2021-04-28T18:50:23.142Z" | KEEP _source | LIMIT 1'
-          version: 2024.04.01
   - match: { columns.0.name: _source }
   - match: { columns.0.type: _source }
   - length: { values: 1 }

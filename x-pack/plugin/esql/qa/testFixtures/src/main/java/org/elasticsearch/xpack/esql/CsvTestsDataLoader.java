@@ -31,7 +31,7 @@ import org.elasticsearch.xcontent.XContent;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.xpack.ql.TestUtils;
+import org.elasticsearch.xpack.esql.core.TestUtils;
 
 import java.io.BufferedReader;
 import java.io.IOException;
@@ -314,7 +314,7 @@ public class CsvTestsDataLoader {
     ) throws IOException {
         ArrayList<String> failures = new ArrayList<>();
         StringBuilder builder = new StringBuilder();
-        try (BufferedReader reader = org.elasticsearch.xpack.ql.TestUtils.reader(resource)) {
+        try (BufferedReader reader = org.elasticsearch.xpack.esql.core.TestUtils.reader(resource)) {
             String line;
             int lineNumber = 1;
             String[] columns = null; // list of column names. If one column name contains dot, it is a subfield and its value will be null

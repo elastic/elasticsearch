@@ -29,6 +29,8 @@ import org.apache.lucene.search.MultiPhraseQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.SynonymQuery;
 import org.apache.lucene.search.TermQuery;
+import org.apache.lucene.store.Directory;
+import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.elasticsearch.common.lucene.search.MultiPhrasePrefixQuery;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.AnalyzerScope;
@@ -824,7 +826,50 @@ public class SearchAsYouTypeFieldMapperTests extends MapperTestCase {
 
     @Override
     protected SyntheticSourceSupport syntheticSourceSupport(boolean syntheticSource) {
-        throw new AssumptionViolatedException("not supported");
+        return new SyntheticSourceSupport() {
+            @Override
+            public boolean preservesExactSource() {
+                return true;
+            }
+
+            public SyntheticSourceExample example(int maxValues) {
+                if (randomBoolean()) {
+                    var value = generateValue();
+                    return new SyntheticSourceExample(value, value, this::mapping);
+                }
+
+                var array = randomList(1, 5, this::generateValue);
+                return new SyntheticSourceExample(array, array, this::mapping);
+            }
+
+            private Object generateValue() {
+                return rarely()
+                    ? null
+                    : randomList(0, 10, () -> randomAlphaOfLengthBetween(0, 10)).stream().collect(Collectors.joining(" "));
+            }
+
+            private void mapping(XContentBuilder b) throws IOException {
+                b.field("type", "search_as_you_type");
+                if (rarely()) {
+                    b.field("index", false);
+                }
+                if (rarely()) {
+                    b.field("store", true);
+                }
+            }
+
+            @Override
+            public List<SyntheticSourceInvalidExample> invalidExample() throws IOException {
+                return List.of();
+            }
+        };
+    }
+
+    @Override
+    protected RandomIndexWriter indexWriterForSyntheticSource(Directory directory) throws IOException {
+        // MockAnalyzer is "too good" and produces random payloads every time
+        // which then leads to failures during assertReaderEquals.
+        return new RandomIndexWriter(random(), directory, new StandardAnalyzer());
     }
 
     @Override

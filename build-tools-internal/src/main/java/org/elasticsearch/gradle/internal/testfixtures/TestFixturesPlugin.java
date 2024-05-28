@@ -70,7 +70,6 @@ public class TestFixturesPlugin implements Plugin<Project> {
         project.getRootProject().getPluginManager().apply(DockerSupportPlugin.class);
 
         TaskContainer tasks = project.getTasks();
-        TestFixtureExtension extension = project.getExtensions().create("testFixtures", TestFixtureExtension.class, project);
         Provider<DockerComposeThrottle> dockerComposeThrottle = project.getGradle()
             .getSharedServices()
             .registerIfAbsent(DOCKER_COMPOSE_THROTTLE, DockerComposeThrottle.class, spec -> spec.getMaxParallelUsages().set(1));
@@ -84,73 +83,63 @@ public class TestFixturesPlugin implements Plugin<Project> {
         File testFixturesDir = project.file("testfixtures_shared");
         ext.set("testFixturesDir", testFixturesDir);
 
-        if (project.file(DOCKER_COMPOSE_YML).exists()) {
-            project.getPluginManager().apply(BasePlugin.class);
-            project.getPluginManager().apply(DockerComposePlugin.class);
-            TaskProvider<TestFixtureTask> preProcessFixture = project.getTasks().register("preProcessFixture", TestFixtureTask.class, t -> {
-                t.getFixturesDir().set(testFixturesDir);
-                t.doFirst(task -> {
-                    try {
-                        Files.createDirectories(testFixturesDir.toPath());
-                    } catch (IOException e) {
-                        throw new UncheckedIOException(e);
-                    }
-                });
-            });
-            TaskProvider<Task> buildFixture = project.getTasks()
-                .register("buildFixture", t -> t.dependsOn(preProcessFixture, tasks.named("composeUp")));
-
-            TaskProvider<TestFixtureTask> postProcessFixture = project.getTasks()
-                .register("postProcessFixture", TestFixtureTask.class, task -> {
-                    task.getFixturesDir().set(testFixturesDir);
-                    task.dependsOn(buildFixture);
-                    configureServiceInfoForTask(
-                        task,
-                        project,
-                        false,
-                        (name, port) -> task.getExtensions().getByType(ExtraPropertiesExtension.class).set(name, port)
-                    );
-                });
-
-            maybeSkipTask(dockerSupport, preProcessFixture);
-            maybeSkipTask(dockerSupport, postProcessFixture);
-            maybeSkipTask(dockerSupport, buildFixture);
-
-            ComposeExtension composeExtension = project.getExtensions().getByType(ComposeExtension.class);
-            composeExtension.setProjectName(project.getName());
-            composeExtension.getUseComposeFiles().addAll(Collections.singletonList(DOCKER_COMPOSE_YML));
-            composeExtension.getRemoveContainers().set(true);
-            composeExtension.getCaptureContainersOutput()
-                .set(EnumSet.of(LogLevel.INFO, LogLevel.DEBUG).contains(project.getGradle().getStartParameter().getLogLevel()));
-            composeExtension.getUseDockerComposeV2().set(false);
-            composeExtension.getExecutable().set(this.providerFactory.provider(() -> {
-                String composePath = dockerSupport.get().getDockerAvailability().dockerComposePath();
-                LOGGER.debug("Docker Compose path: {}", composePath);
-                return composePath != null ? composePath : "/usr/bin/docker-compose";
-            }));
-
-            tasks.named("composeUp").configure(t -> {
-                // Avoid running docker-compose tasks in parallel in CI due to some issues on certain Linux distributions
-                if (BuildParams.isCi()) {
-                    t.usesService(dockerComposeThrottle);
-                }
-                t.mustRunAfter(preProcessFixture);
-            });
-            tasks.named("composePull").configure(t -> t.mustRunAfter(preProcessFixture));
-            tasks.named("composeDown").configure(t -> t.doLast(t2 -> getFileSystemOperations().delete(d -> d.delete(testFixturesDir))));
-        } else {
-            project.afterEvaluate(spec -> {
-                if (extension.fixtures.isEmpty()) {
-                    // if only one fixture is used, that's this one, but without a compose file that's not a valid configuration
-                    throw new IllegalStateException(
-                        "No " + DOCKER_COMPOSE_YML + " found for " + project.getPath() + " nor does it use other fixtures."
-                    );
-                }
-            });
+        if (project.file(DOCKER_COMPOSE_YML).exists() == false) {
+            // if only one fixture is used, that's this one, but without a compose file that's not a valid configuration
+            throw new IllegalStateException("No " + DOCKER_COMPOSE_YML + " found for " + project.getPath() + ".");
         }
+        project.getPluginManager().apply(BasePlugin.class);
+        project.getPluginManager().apply(DockerComposePlugin.class);
+        TaskProvider<TestFixtureTask> preProcessFixture = project.getTasks().register("preProcessFixture", TestFixtureTask.class, t -> {
+            t.getFixturesDir().set(testFixturesDir);
+            t.doFirst(task -> {
+                try {
+                    Files.createDirectories(testFixturesDir.toPath());
+                } catch (IOException e) {
+                    throw new UncheckedIOException(e);
+                }
+            });
+        });
+        TaskProvider<Task> buildFixture = project.getTasks()
+            .register("buildFixture", t -> t.dependsOn(preProcessFixture, tasks.named("composeUp")));
 
-        extension.fixtures.matching(fixtureProject -> fixtureProject.equals(project) == false)
-            .all(fixtureProject -> project.evaluationDependsOn(fixtureProject.getPath()));
+        TaskProvider<TestFixtureTask> postProcessFixture = project.getTasks()
+            .register("postProcessFixture", TestFixtureTask.class, task -> {
+                task.getFixturesDir().set(testFixturesDir);
+                task.dependsOn(buildFixture);
+                configureServiceInfoForTask(
+                    task,
+                    project,
+                    false,
+                    (name, port) -> task.getExtensions().getByType(ExtraPropertiesExtension.class).set(name, port)
+                );
+            });
+
+        maybeSkipTask(dockerSupport, preProcessFixture);
+        maybeSkipTask(dockerSupport, postProcessFixture);
+        maybeSkipTask(dockerSupport, buildFixture);
+
+        ComposeExtension composeExtension = project.getExtensions().getByType(ComposeExtension.class);
+        composeExtension.setProjectName(project.getName());
+        composeExtension.getUseComposeFiles().addAll(Collections.singletonList(DOCKER_COMPOSE_YML));
+        composeExtension.getRemoveContainers().set(true);
+        composeExtension.getCaptureContainersOutput()
+            .set(EnumSet.of(LogLevel.INFO, LogLevel.DEBUG).contains(project.getGradle().getStartParameter().getLogLevel()));
+        composeExtension.getUseDockerComposeV2().set(false);
+        composeExtension.getExecutable().set(this.providerFactory.provider(() -> {
+            String composePath = dockerSupport.get().getDockerAvailability().dockerComposePath();
+            LOGGER.debug("Docker Compose path: {}", composePath);
+            return composePath != null ? composePath : "/usr/bin/docker-compose";
+        }));
+
+        tasks.named("composeUp").configure(t -> {
+            // Avoid running docker-compose tasks in parallel in CI due to some issues on certain Linux distributions
+            if (BuildParams.isCi()) {
+                t.usesService(dockerComposeThrottle);
+            }
+            t.mustRunAfter(preProcessFixture);
+        });
+        tasks.named("composePull").configure(t -> t.mustRunAfter(preProcessFixture));
+        tasks.named("composeDown").configure(t -> t.doLast(t2 -> getFileSystemOperations().delete(d -> d.delete(testFixturesDir))));
 
         // Skip docker compose tasks if it is unavailable
         maybeSkipTasks(tasks, dockerSupport, Test.class);
@@ -161,17 +150,18 @@ public class TestFixturesPlugin implements Plugin<Project> {
         maybeSkipTasks(tasks, dockerSupport, ComposePull.class);
         maybeSkipTasks(tasks, dockerSupport, ComposeDown.class);
 
-        tasks.withType(Test.class).configureEach(task -> extension.fixtures.all(fixtureProject -> {
-            task.dependsOn(fixtureProject.getTasks().named("postProcessFixture"));
-            task.finalizedBy(fixtureProject.getTasks().named("composeDown"));
+        tasks.withType(Test.class).configureEach(testTask -> {
+            testTask.dependsOn(postProcessFixture);
+            testTask.finalizedBy(tasks.named("composeDown"));
             configureServiceInfoForTask(
-                task,
-                fixtureProject,
+                testTask,
+                project,
                 true,
-                (name, host) -> task.getExtensions().getByType(SystemPropertyCommandLineArgumentProvider.class).systemProperty(name, host)
+                (name, host) -> testTask.getExtensions()
+                    .getByType(SystemPropertyCommandLineArgumentProvider.class)
+                    .systemProperty(name, host)
             );
-        }));
-
+        });
     }
 
     private void maybeSkipTasks(TaskContainer tasks, Provider<DockerSupportService> dockerSupport, Class<? extends DefaultTask> taskClass) {
@@ -203,28 +193,20 @@ public class TestFixturesPlugin implements Plugin<Project> {
         task.doFirst(new Action<Task>() {
             @Override
             public void execute(Task theTask) {
-                TestFixtureExtension extension = theTask.getProject().getExtensions().getByType(TestFixtureExtension.class);
-
-                fixtureProject.getExtensions()
-                    .getByType(ComposeExtension.class)
-                    .getServicesInfos()
-                    .entrySet()
-                    .stream()
-                    .filter(entry -> enableFilter == false || extension.isServiceRequired(entry.getKey(), fixtureProject.getPath()))
-                    .forEach(entry -> {
-                        String service = entry.getKey();
-                        ServiceInfo infos = entry.getValue();
-                        infos.getTcpPorts().forEach((container, host) -> {
-                            String name = "test.fixtures." + service + ".tcp." + container;
-                            theTask.getLogger().info("port mapping property: {}={}", name, host);
-                            consumer.accept(name, host);
-                        });
-                        infos.getUdpPorts().forEach((container, host) -> {
-                            String name = "test.fixtures." + service + ".udp." + container;
-                            theTask.getLogger().info("port mapping property: {}={}", name, host);
-                            consumer.accept(name, host);
-                        });
+                fixtureProject.getExtensions().getByType(ComposeExtension.class).getServicesInfos().entrySet().stream().forEach(entry -> {
+                    String service = entry.getKey();
+                    ServiceInfo infos = entry.getValue();
+                    infos.getTcpPorts().forEach((container, host) -> {
+                        String name = "test.fixtures." + service + ".tcp." + container;
+                        theTask.getLogger().info("port mapping property: {}={}", name, host);
+                        consumer.accept(name, host);
                     });
+                    infos.getUdpPorts().forEach((container, host) -> {
+                        String name = "test.fixtures." + service + ".udp." + container;
+                        theTask.getLogger().info("port mapping property: {}={}", name, host);
+                        consumer.accept(name, host);
+                    });
+                });
             }
         });
     }

@@ -9,10 +9,12 @@
 package org.elasticsearch.action.support;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.service.ClusterApplierService;
 import org.elasticsearch.cluster.service.MasterService;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.common.util.concurrent.UncategorizedExecutionException;
 import org.elasticsearch.core.CheckedConsumer;
@@ -37,6 +39,7 @@ public class PlainActionFuture<T> implements ActionFuture<T>, ActionListener<T> 
 
     @Override
     public void onFailure(Exception e) {
+        assert assertCompleteAllowed();
         if (sync.setException(Objects.requireNonNull(e))) {
             done(false);
         }
@@ -113,6 +116,7 @@ public class PlainActionFuture<T> implements ActionFuture<T>, ActionListener<T> 
 
     @Override
     public boolean cancel(boolean mayInterruptIfRunning) {
+        assert assertCompleteAllowed();
         if (sync.cancel() == false) {
             return false;
         }
@@ -130,6 +134,7 @@ public class PlainActionFuture<T> implements ActionFuture<T>, ActionListener<T> 
      * @return true if the state was successfully changed.
      */
     protected final boolean set(@Nullable T value) {
+        assert assertCompleteAllowed();
         boolean result = sync.set(value);
         if (result) {
             done(true);
@@ -398,5 +403,27 @@ public class PlainActionFuture<T> implements ActionFuture<T>, ActionListener<T> 
         PlainActionFuture<T> fut = new PlainActionFuture<>();
         e.accept(fut);
         return fut.actionGet(timeout, unit);
+    }
+
+    private boolean assertCompleteAllowed() {
+        Thread waiter = sync.getFirstQueuedThread();
+        assert waiter == null || allowedExecutors(waiter, Thread.currentThread())
+            : "cannot complete future on thread "
+                + Thread.currentThread()
+                + " with waiter on thread "
+                + waiter
+                + ", could deadlock if pool was full\n"
+                + ExceptionsHelper.formatStackTrace(waiter.getStackTrace());
+        return true;
+    }
+
+    // only used in assertions
+    boolean allowedExecutors(Thread thread1, Thread thread2) {
+        // this should only be used to validate thread interactions, like not waiting for a future completed on the same
+        // executor, hence calling it with the same thread indicates a bug in the assertion using this.
+        assert thread1 != thread2 : "only call this for different threads";
+        String thread1Name = EsExecutors.executorName(thread1);
+        String thread2Name = EsExecutors.executorName(thread2);
+        return thread1Name == null || thread2Name == null || thread1Name.equals(thread2Name) == false;
     }
 }

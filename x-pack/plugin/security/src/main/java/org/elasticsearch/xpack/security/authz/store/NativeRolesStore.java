@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.security.authz.store;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DelegatingActionListener;
 import org.elasticsearch.action.DocWriteResponse;
@@ -30,6 +31,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.license.LicenseUtils;
@@ -61,6 +63,7 @@ import java.util.Set;
 import java.util.function.BiConsumer;
 import java.util.function.Supplier;
 
+import static org.elasticsearch.TransportVersions.ROLE_REMOTE_CLUSTER_PRIVS;
 import static org.elasticsearch.index.query.QueryBuilders.existsQuery;
 import static org.elasticsearch.search.SearchService.DEFAULT_KEEPALIVE_SETTING;
 import static org.elasticsearch.transport.RemoteClusterPortSettings.TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY;
@@ -72,6 +75,7 @@ import static org.elasticsearch.xpack.core.security.authz.RoleDescriptor.ROLE_TY
 import static org.elasticsearch.xpack.security.support.SecurityIndexManager.Availability.PRIMARY_SHARDS;
 import static org.elasticsearch.xpack.security.support.SecurityIndexManager.Availability.SEARCH_SHARDS;
 import static org.elasticsearch.xpack.security.support.SecuritySystemIndices.SECURITY_MAIN_ALIAS;
+import static org.elasticsearch.xpack.security.support.SecuritySystemIndices.SECURITY_ROLES_METADATA_FLATTENED;
 
 /**
  * NativeRolesStore is a {@code RolesStore} that, instead of reading from a
@@ -97,7 +101,10 @@ public class NativeRolesStore implements BiConsumer<Set<String>, ActionListener<
 
     private static final Logger logger = LogManager.getLogger(NativeRolesStore.class);
 
-    private static final RoleDescriptor.Parser ROLE_DESCRIPTOR_PARSER = RoleDescriptor.parserBuilder().allow2xFormat(true).build();
+    private static final RoleDescriptor.Parser ROLE_DESCRIPTOR_PARSER = RoleDescriptor.parserBuilder()
+        .allow2xFormat(true)
+        .allowDescription(true)
+        .build();
 
     private final Settings settings;
     private final Client client;
@@ -108,18 +115,22 @@ public class NativeRolesStore implements BiConsumer<Set<String>, ActionListener<
 
     private final ClusterService clusterService;
 
+    private final FeatureService featureService;
+
     public NativeRolesStore(
         Settings settings,
         Client client,
         XPackLicenseState licenseState,
         SecurityIndexManager securityIndex,
-        ClusterService clusterService
+        ClusterService clusterService,
+        FeatureService featureService
     ) {
         this.settings = settings;
         this.client = client;
         this.licenseState = licenseState;
         this.securityIndex = securityIndex;
         this.clusterService = clusterService;
+        this.featureService = featureService;
         this.enabled = settings.getAsBoolean(NATIVE_ROLES_ENABLED, true);
     }
 
@@ -264,9 +275,25 @@ public class NativeRolesStore implements BiConsumer<Set<String>, ActionListener<
                             + "] or higher to support remote indices privileges"
                     )
                 );
-            } else {
-                innerPutRole(request, role, listener);
-            }
+            } else if (role.hasRemoteClusterPermissions()
+                && clusterService.state().getMinTransportVersion().before(ROLE_REMOTE_CLUSTER_PRIVS)) {
+                    listener.onFailure(
+                        new IllegalStateException(
+                            "all nodes must have version [" + ROLE_REMOTE_CLUSTER_PRIVS + "] or higher to support remote cluster privileges"
+                        )
+                    );
+                } else if (role.hasDescription()
+                    && clusterService.state().getMinTransportVersion().before(TransportVersions.SECURITY_ROLE_DESCRIPTION)) {
+                        listener.onFailure(
+                            new IllegalStateException(
+                                "all nodes must have version ["
+                                    + TransportVersions.SECURITY_ROLE_DESCRIPTION.toReleaseVersion()
+                                    + "] or higher to support specifying role description"
+                            )
+                        );
+                    } else {
+                        innerPutRole(request, role, listener);
+                    }
     }
 
     // pkg-private for testing
@@ -278,7 +305,12 @@ public class NativeRolesStore implements BiConsumer<Set<String>, ActionListener<
         securityIndex.prepareIndexIfNeededThenExecute(listener::onFailure, () -> {
             final XContentBuilder xContentBuilder;
             try {
-                xContentBuilder = role.toXContent(jsonBuilder(), ToXContent.EMPTY_PARAMS, true);
+                xContentBuilder = role.toXContent(
+                    jsonBuilder(),
+                    ToXContent.EMPTY_PARAMS,
+                    true,
+                    featureService.clusterHasFeature(clusterService.state(), SECURITY_ROLES_METADATA_FLATTENED)
+                );
             } catch (IOException e) {
                 listener.onFailure(e);
                 return;
@@ -369,6 +401,16 @@ public class NativeRolesStore implements BiConsumer<Set<String>, ActionListener<
                                 .setTrackTotalHits(true)
                                 .setSize(0)
                         )
+                        .add(
+                            client.prepareSearch(SECURITY_MAIN_ALIAS)
+                                .setQuery(
+                                    QueryBuilders.boolQuery()
+                                        .must(QueryBuilders.termQuery(RoleDescriptor.Fields.TYPE.getPreferredName(), ROLE_TYPE))
+                                        .filter(existsQuery("remote_cluster"))
+                                )
+                                .setTrackTotalHits(true)
+                                .setSize(0)
+                        )
                         .request(),
                     new DelegatingActionListener<MultiSearchResponse, Map<String, Object>>(listener) {
                         @Override
@@ -394,6 +436,11 @@ public class NativeRolesStore implements BiConsumer<Set<String>, ActionListener<
                                 usageStats.put("remote_indices", 0);
                             } else {
                                 usageStats.put("remote_indices", responses[3].getResponse().getHits().getTotalHits().value);
+                            }
+                            if (responses[4].isFailure()) {
+                                usageStats.put("remote_cluster", 0);
+                            } else {
+                                usageStats.put("remote_cluster", responses[4].getResponse().getHits().getTotalHits().value);
                             }
                             delegate.onResponse(usageStats);
                         }
@@ -511,7 +558,9 @@ public class NativeRolesStore implements BiConsumer<Set<String>, ActionListener<
                     roleDescriptor.getMetadata(),
                     transientMap,
                     roleDescriptor.getRemoteIndicesPrivileges(),
-                    roleDescriptor.getRestriction()
+                    roleDescriptor.getRemoteClusterPermissions(),
+                    roleDescriptor.getRestriction(),
+                    roleDescriptor.getDescription()
                 );
             } else {
                 return roleDescriptor;

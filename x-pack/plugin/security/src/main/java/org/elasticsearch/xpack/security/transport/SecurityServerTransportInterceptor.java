@@ -378,6 +378,7 @@ public class SecurityServerTransportInterceptor implements TransportInterceptor 
                     assert false == action.startsWith("internal:") : "internal action must be sent with system user";
                     authzService.getRoleDescriptorsIntersectionForRemoteCluster(
                         remoteClusterAlias,
+                        connection.getTransportVersion(),
                         authentication.getEffectiveSubject(),
                         ActionListener.wrap(roleDescriptorsIntersection -> {
                             logger.trace(

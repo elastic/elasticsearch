@@ -90,7 +90,7 @@ public class TransportStopTransformAction extends TransportTasksAction<Transform
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
         this.threadPool = threadPool;
-        this.transformConfigManager = transformServices.getConfigManager();
+        this.transformConfigManager = transformServices.configManager();
         this.persistentTasksService = persistentTasksService;
     }
 

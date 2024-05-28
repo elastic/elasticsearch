@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.license;
 
+import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
@@ -15,6 +16,7 @@ import java.util.Set;
 
 import static org.elasticsearch.test.ESIntegTestCase.Scope.TEST;
 import static org.elasticsearch.test.NodeRoles.addRoles;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.CoreMatchers.equalTo;
 
 @ClusterScope(scope = TEST, numDataNodes = 0, numClientNodes = 0, maxNumDataNodes = 0)
@@ -51,7 +53,11 @@ public class ClusterStateLicenseServiceClusterTests extends AbstractLicensesInte
         logger.info("--> get and check signed license");
         assertThat(licensingClient.prepareGetLicense().get().license(), equalTo(license));
         logger.info("--> remove licenses");
-        licensingClient.prepareDeleteLicense().get();
+
+        assertAcked(
+            client().execute(TransportDeleteLicenseAction.TYPE, new AcknowledgedRequest.Plain(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT))
+                .get()
+        );
         assertOperationMode(License.OperationMode.BASIC);
 
         logger.info("--> restart all nodes");

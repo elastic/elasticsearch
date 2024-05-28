@@ -322,6 +322,36 @@ public class APMIndexTemplateRegistryTests extends ESTestCase {
                 .filter(t -> t.endsWith("@custom"))
                 .toList();
             assertThat(requiredCustomComponentTemplates, empty());
+
+            final Settings settings = template.template().settings();
+            if (namePrefix.equals("traces-apm.sampled")) {
+                // traces-apm.sampled does not have any ingest pipelines.
+                assertThat(settings, equalTo(null));
+            } else {
+                final boolean isIntervalDataStream = dataStreamType.equals("metrics") && namePrefix.matches(".*\\.[0-9]+m");
+                final String defaultPipeline = settings.get("index.default_pipeline");
+                if (isIntervalDataStream) {
+                    // e.g. metrics-apm.service_transaction.10m should call
+                    // metrics-apm.service_transaction@default-pipeline
+                    final String withoutInterval = namePrefix.substring(0, namePrefix.lastIndexOf('.'));
+                    assertThat(defaultPipeline, equalTo(withoutInterval + "@default-pipeline"));
+                } else {
+                    // All other data streams should call a default pipeline
+                    // specific to the data stream.
+                    assertThat(defaultPipeline, equalTo(namePrefix + "@default-pipeline"));
+                    break;
+                }
+
+                final String finalPipeline = settings.get("index.final_pipeline");
+                switch (dataStreamType) {
+                    case "metrics", "traces":
+                        assertThat(finalPipeline, equalTo(dataStreamType + "-apm@pipeline"));
+                        break;
+                    default:
+                        assertThat(finalPipeline, equalTo("apm@pipeline"));
+                        break;
+                }
+            }
         }
     }
 

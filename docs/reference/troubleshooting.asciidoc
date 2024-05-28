@@ -138,3 +138,5 @@ include::troubleshooting/troubleshooting-searches.asciidoc[]
 include::troubleshooting/troubleshooting-shards-capacity.asciidoc[]
 
 include::troubleshooting/troubleshooting-unbalanced-cluster.asciidoc[]
+
+include::troubleshooting/diagnostic.asciidoc[]

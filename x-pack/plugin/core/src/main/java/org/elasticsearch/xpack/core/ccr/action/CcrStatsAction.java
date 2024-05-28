@@ -45,7 +45,9 @@ public class CcrStatsAction extends ActionType<CcrStatsAction.Response> {
             }
         }
 
-        public Request() {}
+        public Request() {
+            super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT);
+        }
 
         @Override
         public ActionRequestValidationException validate() {

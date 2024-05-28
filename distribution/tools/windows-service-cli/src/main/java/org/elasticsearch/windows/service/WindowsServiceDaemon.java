@@ -23,6 +23,8 @@ import org.elasticsearch.server.cli.ServerProcess;
 import org.elasticsearch.server.cli.ServerProcessBuilder;
 import org.elasticsearch.server.cli.ServerProcessUtils;
 
+import java.io.IOException;
+
 /**
  * Starts an Elasticsearch process, but does not wait for it to exit.
  * <p>
@@ -55,7 +57,7 @@ class WindowsServiceDaemon extends EnvironmentAwareCommand {
     }
 
     @Override
-    public void close() {
+    public void close() throws IOException {
         if (server != null) {
             server.stop();
         }

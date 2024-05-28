@@ -204,16 +204,29 @@ public class SharedBytes extends AbstractRefCounted {
             if (bytesRead <= 0) {
                 break;
             }
-            if (buffer.hasRemaining()) {
-                // ensure that last write is aligned on 4k boundaries (= page size)
-                final int remainder = buffer.position() % PAGE_SIZE;
-                final int adjustment = remainder == 0 ? 0 : PAGE_SIZE - remainder;
-                buffer.position(buffer.position() + adjustment);
-            }
-            bytesCopied += positionalWrite(fc, fileChannelPos + bytesCopied, buffer);
+            bytesCopied += copyBufferToCacheFileAligned(fc, fileChannelPos + bytesCopied, buffer);
             progressUpdater.accept(bytesCopied);
         }
         return bytesCopied;
+    }
+
+    /**
+     * Copy all bytes from {@code buffer} to {@code fc}, only doing writes aligned along {@link #PAGE_SIZE}.
+     *
+     * @param fc output cache file reference
+     * @param fileChannelPos position in {@code fc} to write to
+     * @param buffer bytebuffer to copy from
+     * @return the number of bytes copied
+     * @throws IOException on failure
+     */
+    public static int copyBufferToCacheFileAligned(IO fc, int fileChannelPos, ByteBuffer buffer) throws IOException {
+        if (buffer.hasRemaining()) {
+            // ensure the write is aligned on 4k boundaries (= page size)
+            final int remainder = buffer.position() % PAGE_SIZE;
+            final int adjustment = remainder == 0 ? 0 : PAGE_SIZE - remainder;
+            buffer.position(buffer.position() + adjustment);
+        }
+        return positionalWrite(fc, fileChannelPos, buffer);
     }
 
     private static int positionalWrite(IO fc, int start, ByteBuffer byteBuffer) throws IOException {

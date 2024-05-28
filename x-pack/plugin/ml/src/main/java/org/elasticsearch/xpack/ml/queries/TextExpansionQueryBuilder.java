@@ -30,20 +30,20 @@ import org.elasticsearch.xpack.core.ml.inference.TrainedModelPrefixStrings;
 import org.elasticsearch.xpack.core.ml.inference.results.TextExpansionResults;
 import org.elasticsearch.xpack.core.ml.inference.results.WarningInferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextExpansionConfigUpdate;
+import org.elasticsearch.xpack.core.ml.search.TokenPruningConfig;
+import org.elasticsearch.xpack.core.ml.search.WeightedTokensQueryBuilder;
 
 import java.io.IOException;
-import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
-import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
+import static org.elasticsearch.xpack.core.ml.search.WeightedTokensQueryBuilder.PRUNING_CONFIG;
 
 public class TextExpansionQueryBuilder extends AbstractQueryBuilder<TextExpansionQueryBuilder> {
 
     public static final String NAME = "text_expansion";
-    public static final ParseField PRUNING_CONFIG = new ParseField("pruning_config");
     public static final ParseField MODEL_TEXT = new ParseField("model_text");
     public static final ParseField MODEL_ID = new ParseField("model_id");
 
@@ -52,29 +52,6 @@ public class TextExpansionQueryBuilder extends AbstractQueryBuilder<TextExpansio
     private final String modelId;
     private SetOnce<TextExpansionResults> weightedTokensSupplier;
     private final TokenPruningConfig tokenPruningConfig;
-
-    public enum AllowedFieldType {
-        RANK_FEATURES("rank_features"),
-        SPARSE_VECTOR("sparse_vector");
-
-        private final String typeName;
-
-        AllowedFieldType(String typeName) {
-            this.typeName = typeName;
-        }
-
-        public String getTypeName() {
-            return typeName;
-        }
-
-        public static boolean isFieldTypeAllowed(String typeName) {
-            return Arrays.stream(values()).anyMatch(value -> value.typeName.equals(typeName));
-        }
-
-        public static String getAllowedFieldTypesAsString() {
-            return Arrays.stream(values()).map(value -> value.typeName).collect(Collectors.joining(", "));
-        }
-    }
 
     public TextExpansionQueryBuilder(String fieldName, String modelText, String modelId) {
         this(fieldName, modelText, modelId, null);
@@ -101,7 +78,7 @@ public class TextExpansionQueryBuilder extends AbstractQueryBuilder<TextExpansio
         this.fieldName = in.readString();
         this.modelText = in.readString();
         this.modelId = in.readString();
-        if (in.getTransportVersion().onOrAfter(TransportVersions.TEXT_EXPANSION_TOKEN_PRUNING_CONFIG_ADDED)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_13_0)) {
             this.tokenPruningConfig = in.readOptionalWriteable(TokenPruningConfig::new);
         } else {
             this.tokenPruningConfig = null;
@@ -144,7 +121,7 @@ public class TextExpansionQueryBuilder extends AbstractQueryBuilder<TextExpansio
         out.writeString(fieldName);
         out.writeString(modelText);
         out.writeString(modelId);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.TEXT_EXPANSION_TOKEN_PRUNING_CONFIG_ADDED)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_13_0)) {
             out.writeOptionalWriteable(tokenPruningConfig);
         }
     }

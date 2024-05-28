@@ -14,7 +14,9 @@ import java.io.IOException;
 
 public class GetBasicStatusRequest extends MasterNodeReadRequest<GetBasicStatusRequest> {
 
-    public GetBasicStatusRequest() {}
+    public GetBasicStatusRequest() {
+        super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT);
+    }
 
     public GetBasicStatusRequest(StreamInput in) throws IOException {
         super(in);

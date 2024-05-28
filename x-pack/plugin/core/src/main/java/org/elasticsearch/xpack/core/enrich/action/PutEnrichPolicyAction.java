@@ -37,6 +37,7 @@ public class PutEnrichPolicyAction extends ActionType<AcknowledgedResponse> {
         private final String name;
 
         public Request(String name, EnrichPolicy policy) {
+            super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT);
             this.name = Objects.requireNonNull(name, "name cannot be null");
             this.policy = policy;
         }

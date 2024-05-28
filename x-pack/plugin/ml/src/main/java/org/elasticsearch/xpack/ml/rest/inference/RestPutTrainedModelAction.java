@@ -21,6 +21,7 @@ import java.io.IOException;
 import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.PUT;
+import static org.elasticsearch.rest.RestUtils.getAckTimeout;
 import static org.elasticsearch.xpack.ml.MachineLearning.BASE_PATH;
 
 @ServerlessScope(Scope.PUBLIC)
@@ -52,7 +53,7 @@ public class RestPutTrainedModelAction extends BaseRestHandler {
             waitForCompletion,
             parser
         );
-        putRequest.ackTimeout(restRequest.paramAsTime("timeout", putRequest.ackTimeout()));
+        putRequest.ackTimeout(getAckTimeout(restRequest));
         return channel -> client.execute(PutTrainedModelAction.INSTANCE, putRequest, new RestToXContentListener<>(channel));
     }
 }

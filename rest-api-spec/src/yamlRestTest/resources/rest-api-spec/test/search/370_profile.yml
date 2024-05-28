@@ -21,8 +21,8 @@ setup:
 
 ---
 fetch fields:
-  - skip:
-      version: ' - 8.14.99'
+  - requires:
+      cluster_features: "gte_v8.15.0"
       reason: _ignored is returned only from 8.15 on
 
   - do:
@@ -56,8 +56,8 @@ fetch fields:
 
 ---
 fetch source:
-  - skip:
-      version: ' - 8.14.99'
+  - requires:
+      cluster_features: "gte_v8.15.0"
       reason: _ignored is returned only from 8.15 on
 
   - do:
@@ -87,8 +87,8 @@ fetch source:
 
 ---
 fetch nested source:
-  - skip:
-      version: ' - 8.14.99'
+  - requires:
+      cluster_features: "gte_v8.15.0"
       reason: _ignored is returned only from 8.15 on
 
   - do:
@@ -156,8 +156,8 @@ fetch nested source:
 
 ---
 disabling stored fields removes fetch sub phases:
-  - skip:
-      version: ' - 7.15.99'
+  - requires:
+      cluster_features: "gte_v7.16.0"
       reason: fetch profiling implemented in 7.16.0
 
   - do:
@@ -173,8 +173,8 @@ disabling stored fields removes fetch sub phases:
 
 ---
 dfs knn vector profiling:
-  - skip:
-      version: ' - 8.6.99'
+  - requires:
+      cluster_features: "gte_v8.7.0"
       reason: multi-knn dfs profiling implemented in 8.7.0
 
   - do:
@@ -237,8 +237,8 @@ dfs knn vector profiling:
 
 ---
 dfs knn vector profiling with vector_operations_count:
-  - skip:
-      version: ' - 8.11.99'
+  - requires:
+      cluster_features: "gte_v8.12.0"
       reason: vector_operations_count in dfs profiling added in 8.12.0
 
   - do:
@@ -303,8 +303,8 @@ dfs knn vector profiling with vector_operations_count:
 
 ---
 dfs profile for search with dfs_query_then_fetch:
-  - skip:
-      version: ' - 8.5.99'
+  - requires:
+      cluster_features: "gte_v8.6.0"
       reason: dfs profiling implemented in 8.6.0
 
   - do:

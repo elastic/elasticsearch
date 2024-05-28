@@ -149,7 +149,7 @@ public class NestedObjectMapper extends ObjectMapper {
         String nestedTypePath,
         Query nestedTypeFilter
     ) {
-        super(name, fullPath, enabled, Explicit.IMPLICIT_TRUE, dynamic, mappers);
+        super(name, fullPath, enabled, Explicit.IMPLICIT_TRUE, Explicit.IMPLICIT_FALSE, dynamic, mappers);
         this.nestedTypePath = nestedTypePath;
         this.nestedTypeFilter = nestedTypeFilter;
         this.includeInParent = includeInParent;
@@ -294,6 +294,7 @@ public class NestedObjectMapper extends ObjectMapper {
 
     @Override
     public SourceLoader.SyntheticFieldLoader syntheticFieldLoader() {
-        throw new IllegalArgumentException("field [" + name() + "] of type [" + typeName() + "] doesn't support synthetic source");
+        // IgnoredSourceFieldMapper integration takes care of writing the source for nested objects.
+        return SourceLoader.SyntheticFieldLoader.NOTHING;
     }
 }

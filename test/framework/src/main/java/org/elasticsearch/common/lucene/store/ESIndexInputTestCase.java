@@ -74,36 +74,45 @@ public class ESIndexInputTestCase extends ESTestCase {
             switch (readStrategy) {
                 case 0, 1, 2, 3:
                     if (length - readPos >= Long.BYTES && readStrategy <= 0) {
-                        long read = indexInput.readLong();
-                        ByteBuffer.wrap(output, readPos, Long.BYTES).order(ByteOrder.LITTLE_ENDIAN).putLong(read);
+                        ByteBuffer.wrap(output, readPos, Long.BYTES).order(ByteOrder.LITTLE_ENDIAN).putLong(indexInput.readLong());
                         readPos += Long.BYTES;
-                        if (indexInput instanceof RandomAccessInput randomAccessInput) {
-                            assertEquals(read, randomAccessInput.readLong(indexInput.getFilePointer() - Long.BYTES));
-                            indexInput.seek(readPos);
-                        }
                     } else if (length - readPos >= Integer.BYTES && readStrategy <= 1) {
-                        int read = indexInput.readInt();
-                        ByteBuffer.wrap(output, readPos, Integer.BYTES).order(ByteOrder.LITTLE_ENDIAN).putInt(read);
+                        ByteBuffer.wrap(output, readPos, Integer.BYTES).order(ByteOrder.LITTLE_ENDIAN).putInt(indexInput.readInt());
                         readPos += Integer.BYTES;
-                        if (indexInput instanceof RandomAccessInput randomAccessInput) {
-                            assertEquals(read, randomAccessInput.readInt(indexInput.getFilePointer() - Integer.BYTES));
-                            indexInput.seek(readPos);
-                        }
                     } else if (length - readPos >= Short.BYTES && readStrategy <= 2) {
-                        short read = indexInput.readShort();
-                        ByteBuffer.wrap(output, readPos, Short.BYTES).order(ByteOrder.LITTLE_ENDIAN).putShort(read);
+                        ByteBuffer.wrap(output, readPos, Short.BYTES).order(ByteOrder.LITTLE_ENDIAN).putShort(indexInput.readShort());
                         readPos += Short.BYTES;
-                        if (indexInput instanceof RandomAccessInput randomAccessInput) {
-                            assertEquals(read, randomAccessInput.readShort(indexInput.getFilePointer() - Short.BYTES));
-                            indexInput.seek(readPos);
-                        }
                     } else {
-                        byte read = indexInput.readByte();
-                        output[readPos++] = read;
-                        if (indexInput instanceof RandomAccessInput randomAccessInput) {
-                            assertEquals(read, randomAccessInput.readByte(indexInput.getFilePointer() - 1));
+                        output[readPos++] = indexInput.readByte();
+                    }
+                    if (indexInput instanceof RandomAccessInput randomAccessInput && randomBoolean()) {
+                        final var randomAccessReadStart = between(0, length - 1);
+                        final int randomAccessReadEnd;
+                        if (length - randomAccessReadStart >= Long.BYTES && randomBoolean()) {
+                            ByteBuffer.wrap(output, randomAccessReadStart, Long.BYTES)
+                                .order(ByteOrder.LITTLE_ENDIAN)
+                                .putLong(randomAccessInput.readLong(randomAccessReadStart));
+                            randomAccessReadEnd = randomAccessReadStart + Long.BYTES;
+                        } else if (length - randomAccessReadStart >= Integer.BYTES && randomBoolean()) {
+                            ByteBuffer.wrap(output, randomAccessReadStart, Integer.BYTES)
+                                .order(ByteOrder.LITTLE_ENDIAN)
+                                .putInt(randomAccessInput.readInt(randomAccessReadStart));
+                            randomAccessReadEnd = randomAccessReadStart + Integer.BYTES;
+                        } else if (length - randomAccessReadStart >= Short.BYTES && randomBoolean()) {
+                            ByteBuffer.wrap(output, randomAccessReadStart, Short.BYTES)
+                                .order(ByteOrder.LITTLE_ENDIAN)
+                                .putShort(randomAccessInput.readShort(randomAccessReadStart));
+                            randomAccessReadEnd = randomAccessReadStart + Short.BYTES;
+                        } else {
+                            output[randomAccessReadStart] = randomAccessInput.readByte(randomAccessReadStart);
+                            randomAccessReadEnd = randomAccessReadStart + 1;
+                        }
+                        if (randomAccessReadStart <= readPos && readPos <= randomAccessReadEnd && randomBoolean()) {
+                            readPos = between(readPos, randomAccessReadEnd);
                             indexInput.seek(readPos);
                         }
+
+                        indexInput.seek(readPos); // BUG these random-access reads shouldn't affect the current position
                     }
                     break;
                 case 4:

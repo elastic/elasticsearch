@@ -12,6 +12,7 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchRoleRestrictionException;
 import org.elasticsearch.ElasticsearchSecurityException;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DelegatingActionListener;
 import org.elasticsearch.action.DocWriteRequest;
@@ -218,6 +219,7 @@ public class AuthorizationService {
 
     public void getRoleDescriptorsIntersectionForRemoteCluster(
         final String remoteClusterAlias,
+        final TransportVersion remoteClusterVersion,
         final Subject subject,
         final ActionListener<RoleDescriptorsIntersection> listener
     ) {
@@ -242,6 +244,7 @@ public class AuthorizationService {
                 listener.delegateFailure(
                     (delegatedLister, resolvedAuthzInfo) -> authorizationEngine.getRoleDescriptorsIntersectionForRemoteCluster(
                         remoteClusterAlias,
+                        remoteClusterVersion,
                         resolvedAuthzInfo,
                         wrapPreservingContext(delegatedLister, threadContext)
                     )

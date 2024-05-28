@@ -7,8 +7,6 @@
 
 package org.elasticsearch.xpack.profiling.action;
 
-import java.util.HashMap;
-import java.util.Map;
 import java.util.Objects;
 
 final class TraceEvent {
@@ -16,7 +14,7 @@ final class TraceEvent {
     double annualCO2Tons;
     double annualCostsUSD;
     long count;
-    final Map<String, Long> subGroups = new HashMap<>();
+    SubGroup subGroups;
 
     TraceEvent(String stacktraceID) {
         this(stacktraceID, 0);

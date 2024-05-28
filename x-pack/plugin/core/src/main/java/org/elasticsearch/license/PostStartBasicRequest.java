@@ -16,7 +16,9 @@ public class PostStartBasicRequest extends AcknowledgedRequest<PostStartBasicReq
 
     private boolean acknowledge = false;
 
-    public PostStartBasicRequest() {}
+    public PostStartBasicRequest() {
+        super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT, DEFAULT_ACK_TIMEOUT);
+    }
 
     public PostStartBasicRequest(StreamInput in) throws IOException {
         super(in);

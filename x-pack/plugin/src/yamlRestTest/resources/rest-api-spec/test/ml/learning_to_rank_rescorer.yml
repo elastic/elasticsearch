@@ -135,8 +135,7 @@ setup:
 ---
 "Test rescore with stored model":
   - skip:
-      version: all
-      reason: "@AwaitsFix https://github.com/elastic/elasticsearch/issues/80703"
+      awaits_fix: "https://github.com/elastic/elasticsearch/issues/80703"
 
   - do:
       search:
@@ -171,8 +170,7 @@ setup:
 ---
 "Test rescore with stored model and smaller window_size":
   - skip:
-      version: all
-      reason: "@AwaitsFix https://github.com/elastic/elasticsearch/issues/80703"
+      awaits_fix: "https://github.com/elastic/elasticsearch/issues/80703"
 
   - do:
       search:
@@ -193,8 +191,7 @@ setup:
 ---
 "Test rescore with stored model and chained rescorers":
   - skip:
-      version: all
-      reason: "@AwaitsFix https://github.com/elastic/elasticsearch/issues/80703"
+      awaits_fix: "https://github.com/elastic/elasticsearch/issues/80703"
 
   - do:
       search:

@@ -51,6 +51,7 @@ public class PutJobAction extends ActionType<PutJobAction.Response> {
 
         public Request(Job.Builder jobBuilder) {
             // Validate the jobBuilder immediately so that errors can be detected prior to transportation.
+            super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT, DEFAULT_ACK_TIMEOUT);
             jobBuilder.validateInputFields();
             // Validate that detector configs are unique.
             // This validation logically belongs to validateInputFields call but we perform it only for PUT action to avoid BWC issues which

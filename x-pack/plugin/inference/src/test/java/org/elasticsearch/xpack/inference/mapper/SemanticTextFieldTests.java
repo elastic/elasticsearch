@@ -21,7 +21,7 @@ import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.inference.results.ChunkedSparseEmbeddingResults;
 import org.elasticsearch.xpack.core.inference.results.ChunkedTextEmbeddingResults;
 import org.elasticsearch.xpack.core.ml.inference.results.ChunkedTextExpansionResults;
-import org.elasticsearch.xpack.core.ml.inference.results.TextExpansionResults;
+import org.elasticsearch.xpack.core.ml.search.WeightedToken;
 import org.elasticsearch.xpack.inference.model.TestModel;
 
 import java.io.IOException;
@@ -67,11 +67,11 @@ public class SemanticTextFieldTests extends AbstractXContentTestCase<SemanticTex
                     assertArrayEquals(expectedVector, newVector, 0f);
                 }
                 case SPARSE_EMBEDDING -> {
-                    List<TextExpansionResults.WeightedToken> expectedTokens = parseWeightedTokens(
+                    List<WeightedToken> expectedTokens = parseWeightedTokens(
                         expectedInstance.inference().chunks().get(i).rawEmbeddings(),
                         expectedInstance.contentType()
                     );
-                    List<TextExpansionResults.WeightedToken> newTokens = parseWeightedTokens(
+                    List<WeightedToken> newTokens = parseWeightedTokens(
                         newInstance.inference().chunks().get(i).rawEmbeddings(),
                         newInstance.contentType()
                     );
@@ -147,9 +147,9 @@ public class SemanticTextFieldTests extends AbstractXContentTestCase<SemanticTex
     public static ChunkedSparseEmbeddingResults randomSparseEmbeddings(List<String> inputs) {
         List<ChunkedTextExpansionResults.ChunkedResult> chunks = new ArrayList<>();
         for (String input : inputs) {
-            var tokens = new ArrayList<TextExpansionResults.WeightedToken>();
+            var tokens = new ArrayList<WeightedToken>();
             for (var token : input.split("\\s+")) {
-                tokens.add(new TextExpansionResults.WeightedToken(token, randomFloat()));
+                tokens.add(new WeightedToken(token, randomFloat()));
             }
             chunks.add(new ChunkedTextExpansionResults.ChunkedResult(input, tokens));
         }
@@ -222,12 +222,12 @@ public class SemanticTextFieldTests extends AbstractXContentTestCase<SemanticTex
         }
     }
 
-    private static List<TextExpansionResults.WeightedToken> parseWeightedTokens(BytesReference value, XContentType contentType) {
+    private static List<WeightedToken> parseWeightedTokens(BytesReference value, XContentType contentType) {
         try (XContentParser parser = XContentHelper.createParserNotCompressed(XContentParserConfiguration.EMPTY, value, contentType)) {
             Map<String, Object> map = parser.map();
-            List<TextExpansionResults.WeightedToken> weightedTokens = new ArrayList<>();
+            List<WeightedToken> weightedTokens = new ArrayList<>();
             for (var entry : map.entrySet()) {
-                weightedTokens.add(new TextExpansionResults.WeightedToken(entry.getKey(), ((Number) entry.getValue()).floatValue()));
+                weightedTokens.add(new WeightedToken(entry.getKey(), ((Number) entry.getValue()).floatValue()));
             }
             return weightedTokens;
         } catch (IOException e) {

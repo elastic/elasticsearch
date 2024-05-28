@@ -1,0 +1,5 @@
+pr: 108257
+summary: "ESQL: Log queries at debug level"
+area: ES|QL
+type: enhancement
+issues: []

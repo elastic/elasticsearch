@@ -276,13 +276,13 @@ public abstract class BatchEncoder implements Releasable, Accountable {
 
         @Override
         public final int positionCount() {
-            return Math.max(valueCount, 1);
+            return 1; // always has one position already loaded
         }
 
         @Override
         public final int valueCount(int positionOffset) {
             assert positionOffset == 0 : positionOffset;
-            return positionCount();
+            return Math.max(valueCount, 1);
         }
 
         @Override

@@ -15,9 +15,9 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ServiceSettings;
-import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.inference.services.openai.OpenAiRateLimitServiceSettings;
+import org.elasticsearch.xpack.inference.services.settings.FilteredXContentObject;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 
 import java.io.IOException;
@@ -38,7 +38,7 @@ import static org.elasticsearch.xpack.inference.services.openai.OpenAiServiceFie
 /**
  * Defines the service settings for interacting with OpenAI's chat completion models.
  */
-public class OpenAiChatCompletionServiceSettings implements ServiceSettings, OpenAiRateLimitServiceSettings {
+public class OpenAiChatCompletionServiceSettings extends FilteredXContentObject implements ServiceSettings, OpenAiRateLimitServiceSettings {
 
     public static final String NAME = "openai_completion_service_settings";
 
@@ -141,24 +141,29 @@ public class OpenAiChatCompletionServiceSettings implements ServiceSettings, Ope
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
 
-        {
-            builder.field(MODEL_ID, modelId);
-
-            if (uri != null) {
-                builder.field(URL, uri.toString());
-            }
-
-            if (organizationId != null) {
-                builder.field(ORGANIZATION, organizationId);
-            }
-
-            if (maxInputTokens != null) {
-                builder.field(MAX_INPUT_TOKENS, maxInputTokens);
-            }
-        }
+        toXContentFragmentOfExposedFields(builder, params);
         rateLimitSettings.toXContent(builder, params);
 
         builder.endObject();
+        return builder;
+    }
+
+    @Override
+    protected XContentBuilder toXContentFragmentOfExposedFields(XContentBuilder builder, Params params) throws IOException {
+        builder.field(MODEL_ID, modelId);
+
+        if (uri != null) {
+            builder.field(URL, uri.toString());
+        }
+
+        if (organizationId != null) {
+            builder.field(ORGANIZATION, organizationId);
+        }
+
+        if (maxInputTokens != null) {
+            builder.field(MAX_INPUT_TOKENS, maxInputTokens);
+        }
+
         return builder;
     }
 
@@ -182,11 +187,6 @@ public class OpenAiChatCompletionServiceSettings implements ServiceSettings, Ope
         if (out.getTransportVersion().onOrAfter(TransportVersions.ML_INFERENCE_RATE_LIMIT_SETTINGS_ADDED)) {
             rateLimitSettings.writeTo(out);
         }
-    }
-
-    @Override
-    public ToXContentObject getFilteredXContentObject() {
-        return this;
     }
 
     @Override

@@ -664,8 +664,8 @@ public class InternalEngine extends Engine {
     }
 
     // Package private for testing purposes only
-    boolean hasSnapshottedCommits() {
-        return combinedDeletionPolicy.hasSnapshottedCommits();
+    boolean hasAcquiredIndexCommits() {
+        return combinedDeletionPolicy.hasAcquiredIndexCommits();
     }
 
     @Override

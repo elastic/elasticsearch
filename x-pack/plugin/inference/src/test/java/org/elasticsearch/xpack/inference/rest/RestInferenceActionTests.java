@@ -76,7 +76,7 @@ public class RestInferenceActionTests extends RestActionTestCase {
 
     private static InferenceAction.Response createResponse() {
         return new InferenceAction.Response(
-            new TextEmbeddingByteResults(List.of(new TextEmbeddingByteResults.Embedding(List.of((byte) -1))))
+            new TextEmbeddingByteResults(List.of(new TextEmbeddingByteResults.Embedding(new byte[] { (byte) -1 })))
         );
     }
 }

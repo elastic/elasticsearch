@@ -141,7 +141,9 @@ public class HuggingFaceServiceSettingsTests extends AbstractWireSerializingTest
 
         assertThat(
             thrownException.getMessage(),
-            is(Strings.format("Validation Failed: 1: [service_settings] Invalid url [%s] received for field [%s];", url, ServiceFields.URL))
+            containsString(
+                Strings.format("Validation Failed: 1: [service_settings] Invalid url [%s] received for field [%s]", url, ServiceFields.URL)
+            )
         );
     }
 
@@ -173,6 +175,18 @@ public class HuggingFaceServiceSettingsTests extends AbstractWireSerializingTest
             {"url":"url","rate_limit":{"requests_per_minute":3}}"""));
     }
 
+    public void testToXContent_WritesAllValues_Except_RateLimit() throws IOException {
+        var serviceSettings = new HuggingFaceServiceSettings(ServiceUtils.createUri("url"), null, null, null, new RateLimitSettings(3));
+
+        XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
+        var filteredXContent = serviceSettings.getFilteredXContentObject();
+        filteredXContent.toXContent(builder, null);
+        String xContentResult = org.elasticsearch.common.Strings.toString(builder);
+
+        assertThat(xContentResult, is("""
+            {"url":"url"}"""));
+    }
+
     @Override
     protected Writeable.Reader<HuggingFaceServiceSettings> instanceReader() {
         return HuggingFaceServiceSettings::new;
@@ -185,7 +199,7 @@ public class HuggingFaceServiceSettingsTests extends AbstractWireSerializingTest
 
     @Override
     protected HuggingFaceServiceSettings mutateInstance(HuggingFaceServiceSettings instance) throws IOException {
-        return createRandom();
+        return randomValueOtherThan(instance, HuggingFaceServiceSettingsTests::createRandom);
     }
 
     public static Map<String, Object> getServiceSettingsMap(String url) {

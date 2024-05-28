@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.slm.action;
+package org.elasticsearch.xpack.inference.rest;
 
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.rest.BaseRestHandler;
@@ -13,30 +13,32 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.Scope;
 import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestToXContentListener;
-import org.elasticsearch.xpack.core.slm.action.StopSLMAction;
+import org.elasticsearch.xpack.core.inference.action.GetInferenceDiagnosticsAction;
 
 import java.util.List;
 
-import static org.elasticsearch.rest.RestRequest.Method.POST;
-import static org.elasticsearch.rest.RestUtils.getAckTimeout;
-import static org.elasticsearch.rest.RestUtils.getMasterNodeTimeout;
+import static org.elasticsearch.rest.RestRequest.Method.GET;
+import static org.elasticsearch.xpack.inference.rest.Paths.INFERENCE_DIAGNOSTICS_PATH;
 
 @ServerlessScope(Scope.INTERNAL)
-public class RestStopSLMAction extends BaseRestHandler {
-
-    @Override
-    public List<Route> routes() {
-        return List.of(new Route(POST, "/_slm/stop"));
-    }
+public class RestGetInferenceDiagnosticsAction extends BaseRestHandler {
 
     @Override
     public String getName() {
-        return "slm_stop_action";
+        return "get_inference_diagnostics_action";
+    }
+
+    @Override
+    public List<Route> routes() {
+        return List.of(new Route(GET, INFERENCE_DIAGNOSTICS_PATH));
     }
 
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) {
-        final var request = new StopSLMAction.Request(getMasterNodeTimeout(restRequest), getAckTimeout(restRequest));
-        return channel -> client.execute(StopSLMAction.INSTANCE, request, new RestToXContentListener<>(channel));
+        return channel -> client.execute(
+            GetInferenceDiagnosticsAction.INSTANCE,
+            new GetInferenceDiagnosticsAction.Request(),
+            new RestToXContentListener<>(channel)
+        );
     }
 }

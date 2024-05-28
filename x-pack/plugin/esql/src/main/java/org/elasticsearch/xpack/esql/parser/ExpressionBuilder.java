@@ -71,7 +71,9 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.function.BiFunction;
+import java.util.function.Consumer;
 
+import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.xpack.esql.core.parser.ParserUtils.source;
 import static org.elasticsearch.xpack.esql.core.parser.ParserUtils.typedParsing;
@@ -240,6 +242,37 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
 
         List<String> strings = visitList(this, ctx.identifier(), String.class);
         return new UnresolvedAttribute(source(ctx), Strings.collectionToDelimitedString(strings, "."));
+    }
+
+    @Override
+    public List<NamedExpression> visitQualifiedNamePatterns(EsqlBaseParser.QualifiedNamePatternsContext ctx) {
+        return visitQualifiedNamePatterns(ctx, ne -> {});
+    }
+
+    protected List<NamedExpression> visitQualifiedNamePatterns(
+        EsqlBaseParser.QualifiedNamePatternsContext ctx,
+        Consumer<NamedExpression> checker
+    ) {
+        if (ctx == null) {
+            return emptyList();
+        }
+        List<EsqlBaseParser.QualifiedNamePatternContext> identifiers = ctx.qualifiedNamePattern();
+        List<NamedExpression> names = new ArrayList<>(identifiers.size());
+
+        for (EsqlBaseParser.QualifiedNamePatternContext patternContext : identifiers) {
+            names.add(visitQualifiedNamePattern(patternContext, checker));
+        }
+
+        return names;
+    }
+
+    protected NamedExpression visitQualifiedNamePattern(
+        EsqlBaseParser.QualifiedNamePatternContext patternContext,
+        Consumer<NamedExpression> checker
+    ) {
+        NamedExpression ne = visitQualifiedNamePattern(patternContext);
+        checker.accept(ne);
+        return ne;
     }
 
     @Override
@@ -601,11 +634,12 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
     }
 
     private NamedExpression enrichFieldName(EsqlBaseParser.QualifiedNamePatternContext ctx) {
-        var name = visitQualifiedNamePattern(ctx);
-        if (name instanceof UnresolvedNamePattern up) {
-            throw new ParsingException(source(ctx), "Using wildcards [*] in ENRICH WITH projections is not allowed [{}]", up.pattern());
-        }
-        return name;
+        return visitQualifiedNamePattern(ctx, ne -> {
+            if (ne instanceof UnresolvedNamePattern up) {
+                var src = ne.source();
+                throw new ParsingException(src, "Using wildcards [*] in ENRICH WITH projections is not allowed [{}]", up.pattern());
+            }
+        });
     }
 
     @Override

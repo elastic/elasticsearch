@@ -649,6 +649,7 @@ public class EsExecutorsTests extends ESTestCase {
             assertThat(EsExecutors.executorName(thread.getName()), equalTo(executorName));
             assertThat(EsExecutors.executorName(thread), equalTo(executorName));
             assertThat(EsExecutors.executorName("TEST-" + thread.getName()), is(nullValue()));
+            assertThat(EsExecutors.executorName("LuceneTestCase" + thread.getName()), is(nullValue()));
         } finally {
             thread.join();
         }

@@ -105,7 +105,7 @@ public class DataTiersMigrationsTests extends ESIntegTestCase {
         Phase warmPhase = new Phase("warm", TimeValue.ZERO, Collections.emptyMap());
         Phase coldPhase = new Phase("cold", TimeValue.ZERO, Collections.emptyMap());
         LifecyclePolicy lifecyclePolicy = new LifecyclePolicy(policy, Map.of("hot", hotPhase, "warm", warmPhase, "cold", coldPhase));
-        PutLifecycleRequest putLifecycleRequest = new PutLifecycleRequest(lifecyclePolicy);
+        PutLifecycleRequest putLifecycleRequest = new PutLifecycleRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, lifecyclePolicy);
         assertAcked(client().execute(ILMActions.PUT, putLifecycleRequest).get());
 
         Settings settings = Settings.builder()
@@ -166,7 +166,7 @@ public class DataTiersMigrationsTests extends ESIntegTestCase {
         Phase warmPhase = new Phase("warm", TimeValue.ZERO, Collections.emptyMap());
         Phase coldPhase = new Phase("cold", TimeValue.ZERO, Collections.emptyMap());
         LifecyclePolicy lifecyclePolicy = new LifecyclePolicy(policy, Map.of("hot", hotPhase, "warm", warmPhase, "cold", coldPhase));
-        PutLifecycleRequest putLifecycleRequest = new PutLifecycleRequest(lifecyclePolicy);
+        PutLifecycleRequest putLifecycleRequest = new PutLifecycleRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, lifecyclePolicy);
         assertAcked(client().execute(ILMActions.PUT, putLifecycleRequest).get());
 
         Settings settings = Settings.builder()

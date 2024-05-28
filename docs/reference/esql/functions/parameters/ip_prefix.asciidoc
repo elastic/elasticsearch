@@ -5,5 +5,8 @@
 `ip`::
 IP address of type `ip` (both IPv4 and IPv6 are supported).
 
-`prefixLength`::
-Prefix length. If in the range (0, 32), the IP is treated as an IPv4 address. If in the range (32, 128), the IP is treated as an IPv6 address. If the prefix length is out of range, the function returns `null`.
+`prefixLengthV4`::
+Prefix length, in the range [0, 32], to apply to IPv4 addresses.
+
+`prefixLengthV6`::
+Prefix length, in the range [0, 128], to apply to IPv6 addresses. If not provided, the original IPv6 addresses will be returned.

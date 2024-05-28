@@ -13,10 +13,34 @@
           "description" : "IP address of type `ip` (both IPv4 and IPv6 are supported)."
         },
         {
-          "name" : "prefixLength",
+          "name" : "prefixLengthV4",
           "type" : "integer",
           "optional" : false,
-          "description" : "Prefix length. If in the range (0, 32), the IP is treated as an IPv4 address. If in the range (32, 128), the IP is treated as an IPv6 address. If the prefix length is out of range, the function returns `null`."
+          "description" : "Prefix length, in the range [0, 32], to apply to IPv4 addresses."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "ip"
+    },
+    {
+      "params" : [
+        {
+          "name" : "ip",
+          "type" : "ip",
+          "optional" : false,
+          "description" : "IP address of type `ip` (both IPv4 and IPv6 are supported)."
+        },
+        {
+          "name" : "prefixLengthV4",
+          "type" : "integer",
+          "optional" : false,
+          "description" : "Prefix length, in the range [0, 32], to apply to IPv4 addresses."
+        },
+        {
+          "name" : "prefixLengthV6",
+          "type" : "integer",
+          "optional" : true,
+          "description" : "Prefix length, in the range [0, 128], to apply to IPv6 addresses. If not provided, the original IPv6 addresses will be returned."
         }
       ],
       "variadic" : false,

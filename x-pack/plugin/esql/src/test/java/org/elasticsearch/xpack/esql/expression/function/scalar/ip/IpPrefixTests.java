@@ -31,14 +31,16 @@ public class IpPrefixTests extends AbstractFunctionTestCase {
     public static Iterable<Object[]> parameters() {
 
         var suppliers = List.of(
+            // V4
             new TestCaseSupplier(
                 List.of(DataTypes.IP, DataTypes.INTEGER),
                 () -> new TestCaseSupplier.TestCase(
                     List.of(
                         new TestCaseSupplier.TypedData(EsqlDataTypeConverter.stringToIP("1.2.3.4"), DataTypes.IP, "ip"),
-                        new TestCaseSupplier.TypedData(24, DataTypes.INTEGER, "prefixLength")
+                        new TestCaseSupplier.TypedData(24, DataTypes.INTEGER, "prefixLengthV4"),
+                        new TestCaseSupplier.TypedData(127, DataTypes.INTEGER, "prefixLengthV6")
                     ),
-                    "IpPrefixEvaluator[ip=Attribute[channel=0], prefixLength=Attribute[channel=1]]",
+                    "IpPrefixEvaluator[ip=Attribute[channel=0], prefixLengthV4=Attribute[channel=1], prefixLengthV6=Attribute[channel=2]]",
                     DataTypes.IP,
                     equalTo(EsqlDataTypeConverter.stringToIP("1.2.3.0"))
                 )
@@ -47,12 +49,39 @@ public class IpPrefixTests extends AbstractFunctionTestCase {
                 List.of(DataTypes.IP, DataTypes.INTEGER),
                 () -> new TestCaseSupplier.TestCase(
                     List.of(
-                        new TestCaseSupplier.TypedData(EsqlDataTypeConverter.stringToIP("::ff"), DataTypes.IP, "ip"),
-                        new TestCaseSupplier.TypedData(127, DataTypes.INTEGER, "prefixLength")
+                        new TestCaseSupplier.TypedData(EsqlDataTypeConverter.stringToIP("1.2.3.4"), DataTypes.IP, "ip"),
+                        new TestCaseSupplier.TypedData(24, DataTypes.INTEGER, "prefixLengthV4")
                     ),
-                    "IpPrefixEvaluator[ip=Attribute[channel=0], prefixLength=Attribute[channel=1]]",
+                    "IpPrefixOnlyV4Evaluator[ip=Attribute[channel=0], prefixLengthV4=Attribute[channel=1]]",
+                    DataTypes.IP,
+                    equalTo(EsqlDataTypeConverter.stringToIP("1.2.3.0"))
+                )
+            ),
+
+            // V6
+            new TestCaseSupplier(
+                List.of(DataTypes.IP, DataTypes.INTEGER),
+                () -> new TestCaseSupplier.TestCase(
+                    List.of(
+                        new TestCaseSupplier.TypedData(EsqlDataTypeConverter.stringToIP("::ff"), DataTypes.IP, "ip"),
+                        new TestCaseSupplier.TypedData(24, DataTypes.INTEGER, "prefixLengthV4"),
+                        new TestCaseSupplier.TypedData(127, DataTypes.INTEGER, "prefixLengthV6")
+                    ),
+                    "IpPrefixEvaluator[ip=Attribute[channel=0], prefixLengthV4=Attribute[channel=1], prefixLengthV6=Attribute[channel=2]]",
                     DataTypes.IP,
                     equalTo(EsqlDataTypeConverter.stringToIP("::fe"))
+                )
+            ),
+            new TestCaseSupplier(
+                List.of(DataTypes.IP, DataTypes.INTEGER),
+                () -> new TestCaseSupplier.TestCase(
+                    List.of(
+                        new TestCaseSupplier.TypedData(EsqlDataTypeConverter.stringToIP("::ff"), DataTypes.IP, "ip"),
+                        new TestCaseSupplier.TypedData(24, DataTypes.INTEGER, "prefixLengthV4")
+                    ),
+                    "IpPrefixOnlyV4Evaluator[ip=Attribute[channel=0], prefixLengthV4=Attribute[channel=1]]",
+                    DataTypes.IP,
+                    equalTo(EsqlDataTypeConverter.stringToIP("::ff"))
                 )
             )
         );
@@ -62,6 +91,6 @@ public class IpPrefixTests extends AbstractFunctionTestCase {
 
     @Override
     protected Expression build(Source source, List<Expression> args) {
-        return new IpPrefix(source, args.get(0), args.get(1));
+        return new IpPrefix(source, args.get(0), args.get(1), args.size() == 3 ? args.get(2) : null);
     }
 }

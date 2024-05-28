@@ -4,6 +4,7 @@
 
 [%header.monospaced.styled,format=dsv,separator=|]
 |===
-ip | prefixLength | result
-ip | integer | ip
+ip | prefixLengthV4 | prefixLengthV6 | result
+ip | integer | integer | ip
+ip | integer | | ip
 |===

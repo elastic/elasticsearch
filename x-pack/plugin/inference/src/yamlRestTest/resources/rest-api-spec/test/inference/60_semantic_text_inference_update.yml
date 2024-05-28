@@ -309,7 +309,7 @@ setup:
           doc: { "sparse_field": [{"key": "value"}], "dense_field": [{"key": "value"}] }
 
   - match: { error.type: "status_exception" }
-  - match: { error.reason: "/Invalid\\sformat\\sfor\\sfield\\s\\[(dense|sparse)_field\\].+/" }
+  - match: { error.reason: "/Invalid\\ format\\ for\\ field\\ \\[(dense|sparse)_field\\].+/" }
 
 ---
 "Partial updates work when using the update API":

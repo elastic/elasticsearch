@@ -78,6 +78,8 @@ public class LifecycleOperationSnapshotTests extends ESSingleNodeTestCase {
         client().execute(
             ILMActions.PUT,
             new PutLifecycleRequest(
+                TEST_REQUEST_TIMEOUT,
+                TEST_REQUEST_TIMEOUT,
                 new LifecyclePolicy(
                     "ilm-policy",
                     Map.of("warm", new Phase("warm", TimeValue.timeValueHours(1), Map.of("readonly", new ReadOnlyAction())))
@@ -109,7 +111,7 @@ public class LifecycleOperationSnapshotTests extends ESSingleNodeTestCase {
             }
         });
 
-        assertAcked(client().execute(ILMActions.STOP, new StopILMRequest()).get());
+        assertAcked(client().execute(ILMActions.STOP, new StopILMRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)).get());
         assertAcked(client().execute(StopSLMAction.INSTANCE, new StopSLMAction.Request()).get());
         assertBusy(() -> assertThat(ilmMode(), equalTo(OperationMode.STOPPED)));
         assertBusy(() -> assertThat(slmMode(), equalTo(OperationMode.STOPPED)));

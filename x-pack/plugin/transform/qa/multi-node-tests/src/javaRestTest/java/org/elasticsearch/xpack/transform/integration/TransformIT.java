@@ -590,6 +590,7 @@ public class TransformIT extends TransformRestTestCase {
         deleteTransform(config.getId());
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/108561")
     public void testStartTransform_GivenTimeout_Returns408() throws Exception {
         String indexName = "start-transform-timeout-index";
         String transformId = "start-transform-timeout";

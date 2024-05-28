@@ -21,7 +21,6 @@ import org.junit.After;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.is;
@@ -60,7 +59,7 @@ public class TransformNodeStatsIT extends TransformRestTestCase {
         assertThat(
             "Response was: " + response,
             (int) XContentMapValues.extractValue(response, "total", "scheduler", "registered_transform_count"),
-            is(greaterThan(0))
+            is(equalTo(1))
         );
         for (String nodeId : nodesInfo.keySet()) {
             assertThat(response, hasKey(nodeId));

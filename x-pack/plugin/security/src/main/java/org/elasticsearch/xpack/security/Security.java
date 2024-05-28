@@ -2298,12 +2298,14 @@ public class Security extends Plugin
 
     @Override
     public void close() {
-        closableComponents.get().forEach(component -> {
-            try {
-                component.close();
-            } catch (Exception e) {
-                logger.warn("component close() method should not throw Exception", e);
-            }
-        });
+        if (enabled) {
+            closableComponents.get().forEach(component -> {
+                try {
+                    component.close();
+                } catch (Exception e) {
+                    logger.warn("component close() method should not throw Exception", e);
+                }
+            });
+        }
     }
 }

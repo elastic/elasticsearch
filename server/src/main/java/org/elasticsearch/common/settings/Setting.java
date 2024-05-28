@@ -425,7 +425,7 @@ public class Setting<T> implements ToXContentObject {
     }
 
     /**
-     * @return whether this is a silent setting. See {@link Property#Silent)}.
+     * @return whether this is a silent setting.
      */
     public boolean isSilent() {
         return properties.contains(Property.Silent);

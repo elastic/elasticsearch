@@ -146,16 +146,6 @@ public final class EsqlExpressionTranslators {
     public static class BinaryComparisons extends ExpressionTranslator<BinaryComparison> {
         @Override
         protected Query asQuery(BinaryComparison bc, TranslatorHandler handler) {
-            // TODO: Pretty sure this check is redundant with the one at the beginning of translate
-            ExpressionTranslators.BinaryComparisons.checkBinaryComparison(bc);
-            Query translated = translateOutOfRangeComparisons(bc);
-            if (translated != null) {
-                return handler.wrapFunctionQuery(bc, bc.left(), () -> translated);
-            }
-            return handler.wrapFunctionQuery(bc, bc.left(), () -> translate(bc, handler));
-        }
-
-        static Query translate(BinaryComparison bc, TranslatorHandler handler) {
             Check.isTrue(
                 bc.right().foldable(),
                 "Line {}:{}: Comparisons against fields are not (currently) supported; offender [{}] in [{}]",
@@ -164,6 +154,15 @@ public final class EsqlExpressionTranslators {
                 Expressions.name(bc.right()),
                 bc.symbol()
             );
+
+            Query translated = translateOutOfRangeComparisons(bc);
+            if (translated != null) {
+                return handler.wrapFunctionQuery(bc, bc.left(), () -> translated);
+            }
+            return handler.wrapFunctionQuery(bc, bc.left(), () -> translate(bc, handler));
+        }
+
+        static Query translate(BinaryComparison bc, TranslatorHandler handler) {
             TypedAttribute attribute = checkIsPushableAttribute(bc.left());
             Source source = bc.source();
             String name = handler.nameOf(attribute);
@@ -353,8 +352,9 @@ public final class EsqlExpressionTranslators {
                     return handler.wrapFunctionQuery(f, cm.ipField(), () -> query);
                 }
             }
+            // TODO we could optimize starts_with as well
 
-            return ExpressionTranslators.Scalars.doTranslate(f, handler);
+            throw new QlIllegalArgumentException("Cannot translate expression:[" + f.sourceText() + "]");
         }
     }
 
@@ -385,17 +385,17 @@ public final class EsqlExpressionTranslators {
          * improvement overall.
          * TODO: Remove this method and call the parent method once the SingleValueQuery improvements have been made
          */
-        public static Query wrapFunctionQuery(Expression field, Supplier<Query> querySupplier) {
-            return ExpressionTranslator.wrapIfNested(querySupplier.get(), field);
+        public static Query wrapFunctionQuery(Supplier<Query> querySupplier) {
+            return querySupplier.get();
         }
 
         public static Query doTranslate(SpatialRelatesFunction bc, TranslatorHandler handler) {
             if (bc.left().foldable()) {
                 checkSpatialRelatesFunction(bc.left(), bc.queryRelation());
-                return wrapFunctionQuery(bc.right(), () -> translate(bc, handler, bc.right(), bc.left()));
+                return wrapFunctionQuery(() -> translate(bc, handler, bc.right(), bc.left()));
             } else {
                 checkSpatialRelatesFunction(bc.right(), bc.queryRelation());
-                return wrapFunctionQuery(bc.left(), () -> translate(bc, handler, bc.left(), bc.right()));
+                return wrapFunctionQuery(() -> translate(bc, handler, bc.left(), bc.right()));
             }
         }
 

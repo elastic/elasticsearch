@@ -984,34 +984,33 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
         }
 
         public HealthIndicatorDetails getDetails(boolean verbose) {
-            if (verbose) {
-                return new SimpleHealthIndicatorDetails(
-                    Map.of(
-                        "unassigned_primaries",
-                        primaries.unassigned,
-                        "initializing_primaries",
-                        primaries.initializing,
-                        "creating_primaries",
-                        primaries.unassigned_new,
-                        "restarting_primaries",
-                        primaries.unassigned_restarting,
-                        "started_primaries",
-                        primaries.started + primaries.relocating,
-                        "unassigned_replicas",
-                        replicas.unassigned,
-                        "initializing_replicas",
-                        replicas.initializing,
-                        "creating_replicas",
-                        replicas.unassigned_new,
-                        "restarting_replicas",
-                        replicas.unassigned_restarting,
-                        "started_replicas",
-                        replicas.started + replicas.relocating
-                    )
-                );
-            } else {
+            if (verbose == false) {
                 return HealthIndicatorDetails.EMPTY;
             }
+            return new SimpleHealthIndicatorDetails(
+                Map.of(
+                    "unassigned_primaries",
+                    primaries.unassigned,
+                    "initializing_primaries",
+                    primaries.initializing,
+                    "creating_primaries",
+                    primaries.unassigned_new,
+                    "restarting_primaries",
+                    primaries.unassigned_restarting,
+                    "started_primaries",
+                    primaries.started + primaries.relocating,
+                    "unassigned_replicas",
+                    replicas.unassigned,
+                    "initializing_replicas",
+                    replicas.initializing,
+                    "creating_replicas",
+                    replicas.unassigned_new,
+                    "restarting_replicas",
+                    replicas.unassigned_restarting,
+                    "started_replicas",
+                    replicas.started + replicas.relocating
+                )
+            );
         }
 
         public List<HealthIndicatorImpact> getImpacts() {

@@ -131,7 +131,6 @@ public class ConnectorTests extends ESTestCase {
                   "document_level_security":{
                      "enabled":true
                   },
-                  "filtering_advanced_config":true,
                   "sync_rules":{
                      "advanced":{
                         "enabled":false

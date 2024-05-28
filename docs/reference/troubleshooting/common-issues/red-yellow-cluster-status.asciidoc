@@ -17,7 +17,8 @@ some <<index-lifecycle-management,{ilm-init}>> actions require the index on whic
 operate to have a green health status.
 
 In many cases, your cluster will recover to green health status automatically. 
-If the cluster doesn't automatically recover, then you must <<fix-red-yellow-cluster-status,manually address>> the remaining problems as soon as possible.
+If the cluster doesn't automatically recover, then you must <<fix-red-yellow-cluster-status,manually address>> 
+the remaining problems so management and cleanup activities can proceed.
 
 [discrete]
 [[diagnose-cluster-status]]

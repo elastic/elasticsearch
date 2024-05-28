@@ -30,6 +30,7 @@ import org.apache.logging.log4j.Level;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.SubscribableListener;
+import org.elasticsearch.action.support.UnsafePlainActionFuture;
 import org.elasticsearch.blobcache.shared.SharedBlobCacheService;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
@@ -400,5 +401,12 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessIntegTestC
             super.warmCache(indexShard, commit, wrappedListener);
             safeAwait(wrappedListener);
         }
+    }
+
+    // overload this to allow unsafe usage
+    public static <T> T safeAwait(SubscribableListener<T> listener) {
+        final var future = new UnsafePlainActionFuture<T>(ThreadPool.Names.GENERIC);
+        listener.addListener(future);
+        return safeGet(future);
     }
 }

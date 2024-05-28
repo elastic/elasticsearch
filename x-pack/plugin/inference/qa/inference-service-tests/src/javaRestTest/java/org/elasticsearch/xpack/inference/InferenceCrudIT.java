@@ -9,6 +9,7 @@
 
 package org.elasticsearch.xpack.inference;
 
+import org.apache.http.util.EntityUtils;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.inference.TaskType;
@@ -114,5 +115,34 @@ public class InferenceCrudIT extends InferenceBaseRestTest {
 
         // We would expect an error about the invalid API key if the validation occurred
         putModel("unvalidated", openAiConfigWithBadApiKey, TaskType.TEXT_EMBEDDING);
+    }
+
+    public void testDeleteEndpointWhileReferencedByPipeline() throws IOException {
+        String modelId = "model_referenced_by_pipeline";
+        putModel(modelId, mockSparseServiceModelConfig(), TaskType.SPARSE_EMBEDDING);
+        var pipelineId = "pipeline_referencing_model";
+        putPipeline(pipelineId, modelId);
+
+        {
+            var e = expectThrows(ResponseException.class, () -> deleteModel(modelId));
+            assertThat(
+                e.getMessage(),
+                containsString(
+                    "Model model_referenced_by_pipeline is referenced by pipelines and cannot be deleted. Use `force` to delete it anyway, or use `dry_run` to list the pipelines that reference it."
+                )
+            );
+        }
+        {
+            var response = deleteModel(modelId, "dry_run=true");
+            var entityString = EntityUtils.toString(response.getEntity());
+            assertThat(entityString, containsString(pipelineId));
+            assertThat(entityString, containsString("\"acknowledged\":false"));
+        }
+        {
+            var response = deleteModel(modelId, "force=true");
+            var entityString = EntityUtils.toString(response.getEntity());
+            assertThat(entityString, containsString("\"acknowledged\":true"));
+        }
+        deletePipeline(pipelineId);
     }
 }

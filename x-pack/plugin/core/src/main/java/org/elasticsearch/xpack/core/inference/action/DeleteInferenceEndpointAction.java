@@ -14,9 +14,9 @@ import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.inference.TaskType;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
-import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 
@@ -103,19 +103,40 @@ public class DeleteInferenceEndpointAction extends ActionType<AcknowledgedRespon
 
     public static class Response extends AcknowledgedResponse {
 
-        Map<String, Set<String>> pipelineIdsByEndpoint;
+        private final String PIPELINE_IDS = "pipelines";
+        Set<String> pipelineIds;
 
-        public Response(boolean acknowledged, Map<String, Set<String>> pipelineIdsByEndpoint) {
+        public Response(boolean acknowledged, Set<String> pipelineIds) {
             super(acknowledged);
-            this.pipelineIdsByEndpoint = pipelineIdsByEndpoint;
+            this.pipelineIds = pipelineIds;
         }
 
         public Response(StreamInput in) throws IOException {
             super(in);
-            pipelineIdsByEndpoint = in.readMap(
-                StreamInput::readString,
-                innerStreamInput -> innerStreamInput.readCollectionAsSet(StreamInput::readString)
-            );
+            pipelineIds = in.readCollectionAsSet(StreamInput::readString);
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            super.writeTo(out);
+            out.writeCollection(pipelineIds, StreamOutput::writeString);
+        }
+
+        @Override
+        protected void addCustomFields(XContentBuilder builder, Params params) throws IOException {
+            super.addCustomFields(builder, params);
+            builder.field(PIPELINE_IDS, pipelineIds);
+        }
+
+        @Override
+        public String toString() {
+            StringBuilder returnable = new StringBuilder();
+            returnable.append("acknowledged: ").append(this.acknowledged);
+            returnable.append(", pipelineIdsByEndpoint: ");
+            for (String entry : pipelineIds) {
+                returnable.append(entry).append(", ");
+            }
+            return returnable.toString();
         }
     }
 }

@@ -90,7 +90,7 @@ public class TransportDeleteInferenceEndpointAction extends AcknowledgedTranspor
                 masterListener.onResponse(
                     new DeleteInferenceEndpointAction.Response(
                         false,
-                        InferenceProcessorInfoExtractor.pipelineIdsByResource(state, Set.of(request.getInferenceEndpointId()))
+                        InferenceProcessorInfoExtractor.pipelineIdsForResource(state, Set.of(request.getInferenceEndpointId()))
                     )
                 );
                 return;

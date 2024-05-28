@@ -14,7 +14,7 @@ import org.elasticsearch.ingest.IngestMetadata;
 import org.elasticsearch.ingest.Pipeline;
 import org.elasticsearch.transport.Transports;
 
-import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
@@ -26,7 +26,7 @@ import static org.elasticsearch.ingest.Pipeline.PROCESSORS_KEY;
 
 /**
  * Utilities for extracting information around inference processors from IngestMetadata
- *
+ * <p>
  * this class was duplicated from org.elasticsearch.xpack.ml.utils.InferenceProcessorInfoExtractor
  */
 
@@ -73,16 +73,16 @@ public final class InferenceProcessorInfoExtractor {
      * @return a map from Model or Deployment IDs or Aliases to each pipeline referencing them.
      */
     @SuppressWarnings("unchecked")
-    public static Map<String, Set<String>> pipelineIdsByResource(ClusterState state, Set<String> ids) {
+    public static Set<String> pipelineIdsForResource(ClusterState state, Set<String> ids) {
         assert Transports.assertNotTransportThread("non-trivial nested loops over cluster state structures");
-        Map<String, Set<String>> pipelineIdsByModelIds = new HashMap<>();
+        Set<String> pipelineIds = new HashSet<>();
         Metadata metadata = state.metadata();
         if (metadata == null) {
-            return pipelineIdsByModelIds;
+            return pipelineIds;
         }
         IngestMetadata ingestMetadata = metadata.custom(IngestMetadata.TYPE);
         if (ingestMetadata == null) {
-            return pipelineIdsByModelIds;
+            return pipelineIds;
         }
         ingestMetadata.getPipelines().forEach((pipelineId, configuration) -> {
             Map<String, Object> configMap = configuration.getConfigAsMap();
@@ -91,13 +91,13 @@ public final class InferenceProcessorInfoExtractor {
                 for (Map.Entry<String, Object> entry : processorConfigWithKey.entrySet()) {
                     addModelsAndPipelines(entry.getKey(), pipelineId, (Map<String, Object>) entry.getValue(), pam -> {
                         if (ids.contains(pam.modelIdOrAlias)) {
-                            pipelineIdsByModelIds.computeIfAbsent(pam.modelIdOrAlias, m -> new LinkedHashSet<>()).add(pipelineId);
+                            pipelineIds.add(pipelineId);
                         }
                     }, 0);
                 }
             }
         });
-        return pipelineIdsByModelIds;
+        return pipelineIds;
     }
 
     @SuppressWarnings("unchecked")

@@ -34,7 +34,6 @@ import java.util.Map;
 import java.util.Set;
 
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.hasEntry;
 
 public class InferenceProcessorInfoExtractorTests extends ESTestCase {
     /*
@@ -43,31 +42,6 @@ public class InferenceProcessorInfoExtractorTests extends ESTestCase {
      * 2.0; you may not use this file except in compliance with the Elastic License
      * 2.0.
      */
-
-    public void testPipelineIdsByModelIds() throws IOException {
-        String modelId1 = "trained_model_1";
-        String modelId2 = "trained_model_2";
-        String modelId3 = "trained_model_3";
-        Set<String> modelIds = new HashSet<>(Arrays.asList(modelId1, modelId2, modelId3));
-
-        ClusterState clusterState = buildClusterStateWithModelReferences(2, modelId1, modelId2, modelId3);
-
-        Map<String, Set<String>> pipelineIdsByModelIds = InferenceProcessorInfoExtractor.pipelineIdsByResource(clusterState, modelIds);
-
-        assertThat(pipelineIdsByModelIds.keySet(), equalTo(modelIds));
-        assertThat(
-            pipelineIdsByModelIds,
-            hasEntry(modelId1, new HashSet<>(Arrays.asList("pipeline_with_model_" + modelId1 + 0, "pipeline_with_model_" + modelId1 + 1)))
-        );
-        assertThat(
-            pipelineIdsByModelIds,
-            hasEntry(modelId2, new HashSet<>(Arrays.asList("pipeline_with_model_" + modelId2 + 0, "pipeline_with_model_" + modelId2 + 1)))
-        );
-        assertThat(
-            pipelineIdsByModelIds,
-            hasEntry(modelId3, new HashSet<>(Arrays.asList("pipeline_with_model_" + modelId3 + 0, "pipeline_with_model_" + modelId3 + 1)))
-        );
-    }
 
     public void testGetModelIdsFromInferenceProcessors() throws IOException {
         String modelId1 = "trained_model_1";

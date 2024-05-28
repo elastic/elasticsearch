@@ -13,6 +13,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.transport.Transports;
 import org.elasticsearch.xpack.core.textstructure.action.FindStructureAction;
 import org.elasticsearch.xpack.core.textstructure.action.FindStructureResponse;
 import org.elasticsearch.xpack.textstructure.structurefinder.TextStructureFinder;
@@ -20,22 +21,29 @@ import org.elasticsearch.xpack.textstructure.structurefinder.TextStructureFinder
 import org.elasticsearch.xpack.textstructure.structurefinder.TextStructureOverrides;
 
 import java.io.InputStream;
+import java.util.concurrent.ExecutorService;
+
+import static org.elasticsearch.common.util.concurrent.EsExecutors.DIRECT_EXECUTOR_SERVICE;
 
 public class TransportFindStructureAction extends HandledTransportAction<FindStructureAction.Request, FindStructureResponse> {
 
     private final ThreadPool threadPool;
+    private final ExecutorService executorService;
 
     @Inject
     public TransportFindStructureAction(TransportService transportService, ActionFilters actionFilters, ThreadPool threadPool) {
-        super(FindStructureAction.NAME, transportService, actionFilters, FindStructureAction.Request::new, threadPool.generic());
+        super(FindStructureAction.NAME, transportService, actionFilters, FindStructureAction.Request::new, DIRECT_EXECUTOR_SERVICE);
         this.threadPool = threadPool;
+        this.executorService = threadPool.generic();
     }
 
     @Override
     protected void doExecute(Task task, FindStructureAction.Request request, ActionListener<FindStructureResponse> listener) {
         try {
-            // for GH#109100, offload request to generic threadpool (and preserve thread context)
-            threadPool.generic().execute(threadPool.getThreadContext().preserveContext(() -> {
+            // workaround for https://github.com/elastic/elasticsearch/issues/97916 - TODO remove this when we can
+            // when the workaround is removed, change the value that this class's constructor passes to the super constructor from
+            // DIRECT_EXECUTOR_SERVICE back to threadpool.generic() so that we continue to fork off of the transport thread.
+            executorService.execute(threadPool.getThreadContext().preserveContext(() -> {
                 ActionListener.completeWith(listener, () -> buildTextStructureResponse(request));
             }));
         } catch (Exception e) {
@@ -44,6 +52,7 @@ public class TransportFindStructureAction extends HandledTransportAction<FindStr
     }
 
     private FindStructureResponse buildTextStructureResponse(FindStructureAction.Request request) throws Exception {
+        assert Transports.assertNotTransportThread("TransportFindStructureAction work must always fork to an appropriate executor");
         TextStructureFinderManager structureFinderManager = new TextStructureFinderManager(threadPool.scheduler());
         try (InputStream sampleStream = request.getSample().streamInput()) {
             TextStructureFinder textStructureFinder = structureFinderManager.findTextStructure(

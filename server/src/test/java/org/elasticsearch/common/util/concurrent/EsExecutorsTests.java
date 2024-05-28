@@ -37,6 +37,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasToString;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThan;
+import static org.hamcrest.Matchers.nullValue;
 
 /**
  * Tests for EsExecutors and its components like EsAbortPolicy.
@@ -646,6 +647,8 @@ public class EsExecutorsTests extends ESTestCase {
         final var thread = threadFactory.newThread(() -> {});
         try {
             assertThat(EsExecutors.executorName(thread.getName()), equalTo(executorName));
+            assertThat(EsExecutors.executorName(thread), equalTo(executorName));
+            assertThat(EsExecutors.executorName("TEST-" + thread.getName()), is(nullValue()));
         } finally {
             thread.join();
         }

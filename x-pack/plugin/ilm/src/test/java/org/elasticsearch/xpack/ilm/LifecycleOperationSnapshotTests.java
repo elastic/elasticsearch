@@ -63,6 +63,8 @@ public class LifecycleOperationSnapshotTests extends ESSingleNodeTestCase {
         client().execute(
             PutSnapshotLifecycleAction.INSTANCE,
             new PutSnapshotLifecycleAction.Request(
+                TEST_REQUEST_TIMEOUT,
+                TEST_REQUEST_TIMEOUT,
                 "slm-policy",
                 new SnapshotLifecyclePolicy(
                     "slm-policy",
@@ -93,7 +95,7 @@ public class LifecycleOperationSnapshotTests extends ESSingleNodeTestCase {
         // Take snapshot
         ExecuteSnapshotLifecycleAction.Response resp = client().execute(
             ExecuteSnapshotLifecycleAction.INSTANCE,
-            new ExecuteSnapshotLifecycleAction.Request("slm-policy")
+            new ExecuteSnapshotLifecycleAction.Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, "slm-policy")
         ).get();
         final String snapshotName = resp.getSnapshotName();
         // Wait for the snapshot to be successful
@@ -112,7 +114,7 @@ public class LifecycleOperationSnapshotTests extends ESSingleNodeTestCase {
         });
 
         assertAcked(client().execute(ILMActions.STOP, new StopILMRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)).get());
-        assertAcked(client().execute(StopSLMAction.INSTANCE, new StopSLMAction.Request()).get());
+        assertAcked(client().execute(StopSLMAction.INSTANCE, new StopSLMAction.Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)).get());
         assertBusy(() -> assertThat(ilmMode(), equalTo(OperationMode.STOPPED)));
         assertBusy(() -> assertThat(slmMode(), equalTo(OperationMode.STOPPED)));
 

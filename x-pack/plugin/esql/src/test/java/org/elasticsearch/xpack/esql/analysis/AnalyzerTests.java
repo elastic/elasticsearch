@@ -1878,6 +1878,15 @@ public class AnalyzerTests extends ESTestCase {
             """, "mapping-multi-field-variation.json", "text");
     }
 
+    public void testLookup() {
+        var e = expectThrows(ParsingException.class, () -> analyze("""
+              FROM test
+            | RENAME languages AS int
+            | LOOKUP int_number_names ON int
+            """));
+        assertThat(e.getMessage(), containsString("LOOKUP not yet supported"));
+    }
+
     private void verifyUnsupported(String query, String errorMessage) {
         verifyUnsupported(query, errorMessage, "mapping-multi-field-variation.json");
     }

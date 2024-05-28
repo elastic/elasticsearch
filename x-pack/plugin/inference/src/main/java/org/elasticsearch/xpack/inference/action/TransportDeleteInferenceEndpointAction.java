@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.inference.action;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
@@ -38,6 +40,7 @@ public class TransportDeleteInferenceEndpointAction extends AcknowledgedTranspor
 
     private final ModelRegistry modelRegistry;
     private final InferenceServiceRegistry serviceRegistry;
+    private static final Logger logger = LogManager.getLogger(TransportDeleteInferenceEndpointAction.class);
 
     @Inject
     public TransportDeleteInferenceEndpointAction(
@@ -135,23 +138,21 @@ public class TransportDeleteInferenceEndpointAction extends AcknowledgedTranspor
         }
         IngestMetadata ingestMetadata = metadata.custom(IngestMetadata.TYPE);
         if (ingestMetadata == null) {
-            listener.onFailure(
-                new ElasticsearchStatusException("Cluster State IngestMetadata was unexpectedly null", RestStatus.INTERNAL_SERVER_ERROR)
-            );
-            return true;
-        }
-        Set<String> modelIdsReferencedByPipelines = InferenceProcessorInfoExtractor.getModelIdsFromInferenceProcessors(ingestMetadata);
-        if (modelIdsReferencedByPipelines.contains(inferenceEndpointId)) {
-            listener.onFailure(
-                new ElasticsearchStatusException(
-                    "Model "
-                        + inferenceEndpointId
-                        + " is referenced by pipelines and cannot be deleted. "
-                        + "Use `force` to delete it anyway, or use `dry_run` to list the pipelines that reference it.",
-                    RestStatus.FORBIDDEN
-                )
-            );
-            return true;
+            logger.debug("No ingest metadata found in cluster state while attempting to delete inference endpoint");
+        } else {
+            Set<String> modelIdsReferencedByPipelines = InferenceProcessorInfoExtractor.getModelIdsFromInferenceProcessors(ingestMetadata);
+            if (modelIdsReferencedByPipelines.contains(inferenceEndpointId)) {
+                listener.onFailure(
+                    new ElasticsearchStatusException(
+                        "Model "
+                            + inferenceEndpointId
+                            + " is referenced by pipelines and cannot be deleted. "
+                            + "Use `force` to delete it anyway, or use `dry_run` to list the pipelines that reference it.",
+                        RestStatus.FORBIDDEN
+                    )
+                );
+                return true;
+            }
         }
         return false;
     }

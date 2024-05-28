@@ -262,20 +262,20 @@ final class Security {
         Map<String, Set<URL>> securedFiles,
         Map<String, Set<URL>> securedSettingKeys
     ) {
-        String securedFileName = extractSecuredNames(p, SecuredFileAccessPermission.class);
+        String securedFileName = extractSecuredName(p, SecuredFileAccessPermission.class);
         if (securedFileName != null) {
             Path securedFile = environment.configFile().resolve(securedFileName);
             Log.debug("Jar {} securing access to config file {}", url, securedFile);
             securedFiles.computeIfAbsent(securedFile.toString(), k -> new HashSet<>()).add(url);
         }
 
-        String securedKey = extractSecuredNames(p, SecuredFileSettingAccessPermission.class);
+        String securedKey = extractSecuredName(p, SecuredFileSettingAccessPermission.class);
         if (securedKey != null) {
             securedSettingKeys.computeIfAbsent(securedKey, k -> new HashSet<>()).add(url);
         }
     }
 
-    private static String extractSecuredNames(Permission p, Class<? extends Permission> permissionType) {
+    private static String extractSecuredName(Permission p, Class<? extends Permission> permissionType) {
         if (permissionType.isInstance(p)) {
             return p.getName();
         } else if (p instanceof UnresolvedPermission up && up.getUnresolvedType().equals(permissionType.getCanonicalName())) {

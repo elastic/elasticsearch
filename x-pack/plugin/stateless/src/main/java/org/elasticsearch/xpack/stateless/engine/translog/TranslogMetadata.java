@@ -25,26 +25,28 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Objects;
 
-public record TranslogMetadata(
-    long offset,
-    long size,
-    long minSeqNo,
-    long maxSeqNo,
-    long totalOps,
-    long shardTranslogGeneration,
-    Directory directory
-) implements Writeable {
+public record TranslogMetadata(long offset, long size, long minSeqNo, long maxSeqNo, long totalOps, Directory directory)
+    implements
+        Writeable {
 
     public static TranslogMetadata readFromStore(StreamInput streamInput, int version) throws IOException {
-        return new TranslogMetadata(
-            streamInput.readLong(),
-            streamInput.readLong(),
-            streamInput.readLong(),
-            streamInput.readLong(),
-            streamInput.readLong(),
-            version >= CompoundTranslogHeader.VERSION_WITH_SHARD_TRANSLOG_GENERATION ? streamInput.readLong() : -1,
-            version >= CompoundTranslogHeader.VERSION_WITH_BROKEN_DIRECTORY ? Directory.readFromStore(streamInput, version) : null
-        );
+        long offset = streamInput.readLong();
+        long size = streamInput.readLong();
+        long minSeqNo = streamInput.readLong();
+        long maxSeqNo = streamInput.readLong();
+        long totalOps = streamInput.readLong();
+        if (hasShardGeneration(version)) {
+            streamInput.readLong();
+        }
+        Directory directory = version >= CompoundTranslogHeader.VERSION_WITH_BROKEN_DIRECTORY
+            ? Directory.readFromStore(streamInput, version)
+            : null;
+        return new TranslogMetadata(offset, size, minSeqNo, maxSeqNo, totalOps, directory);
+    }
+
+    private static boolean hasShardGeneration(int version) {
+        return version >= CompoundTranslogHeader.VERSION_WITH_SHARD_TRANSLOG_GENERATION
+            && version < CompoundTranslogHeader.VERSION_WITH_REMOVED_SHARD_GENERATION_DIRECTORY;
     }
 
     @Override
@@ -54,7 +56,6 @@ public record TranslogMetadata(
         out.writeLong(minSeqNo);
         out.writeLong(maxSeqNo);
         out.writeLong(totalOps);
-        out.writeLong(shardTranslogGeneration);
         directory.writeTo(out);
     }
 
@@ -71,8 +72,6 @@ public record TranslogMetadata(
             + maxSeqNo
             + ", totalOps="
             + totalOps
-            + ", shardTranslogGeneration="
-            + shardTranslogGeneration
             + ", directory="
             + directory
             + '}';

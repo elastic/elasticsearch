@@ -961,7 +961,7 @@ public class TranslogReplicatorTests extends ESTestCase {
         }
     }
 
-    public void testReplicatorReaderStopsRecoveringAfterHoleInShardTranslogGenerations() throws IOException {
+    public void testReplicatorReaderStopsRecoveringWhenMissingExpectedDirectoryFilesWhenAtTheBeginning() throws IOException {
         ShardId shardId = new ShardId(new Index("name", "uuid"), 0);
         long primaryTerm = randomLongBetween(0, 10);
 
@@ -1011,7 +1011,70 @@ public class TranslogReplicatorTests extends ESTestCase {
 
         assertThat(compoundFiles.size(), equalTo(Math.toIntExact(translogReplicator.getMaxUploadedFile() + 1)));
 
-        compoundFiles.remove(1);
+        compoundFiles.set(0, null);
+
+        assertTranslogContains(new TranslogReplicatorReader(objectStoreService.getTranslogBlobContainer(), shardId));
+
+        // If the translog recovery start file has advanced past the missing hole, then we get all the operations
+        assertTranslogContains(
+            new TranslogReplicatorReader(objectStoreService.getTranslogBlobContainer(), shardId, 0, Long.MAX_VALUE, 1, () -> false),
+            operations[1],
+            operations[3],
+            operations[2]
+        );
+    }
+
+    public void testReplicatorReaderStopsRecoveringAfterHoleInExpectedDirectoryFiles() throws IOException {
+        ShardId shardId = new ShardId(new Index("name", "uuid"), 0);
+        long primaryTerm = randomLongBetween(0, 10);
+
+        ArrayList<BytesReference> compoundFiles = new ArrayList<>();
+        ObjectStoreService objectStoreService = mockObjectStoreService(compoundFiles);
+        StatelessClusterConsistencyService consistencyService = mockConsistencyService();
+
+        TranslogReplicator translogReplicator = new TranslogReplicator(
+            threadPool,
+            getSettings(),
+            objectStoreService,
+            consistencyService,
+            (sId) -> primaryTerm
+        );
+        translogReplicator.doStart();
+        translogReplicator.register(shardId, primaryTerm, seqNo -> {});
+
+        Translog.Operation[] operations = generateRandomOperations(4);
+        BytesReference[] operationsBytes = convertOperationsToBytes(operations);
+        long currentLocation = 0;
+        translogReplicator.add(shardId, operationsBytes[0], 0, new Translog.Location(0, currentLocation, operationsBytes[0].length()));
+        currentLocation += operationsBytes[0].length();
+
+        PlainActionFuture<Void> future = new PlainActionFuture<>();
+        translogReplicator.syncAll(shardId, future);
+        future.actionGet();
+
+        assertThat(compoundFiles.size(), equalTo(1));
+
+        translogReplicator.add(shardId, operationsBytes[1], 1, new Translog.Location(0, currentLocation, operationsBytes[1].length()));
+        currentLocation += operationsBytes[1].length();
+
+        PlainActionFuture<Void> future2 = new PlainActionFuture<>();
+        translogReplicator.syncAll(shardId, future2);
+        future2.actionGet();
+
+        assertThat(compoundFiles.size(), equalTo(2));
+
+        translogReplicator.add(shardId, operationsBytes[3], 3, new Translog.Location(0, currentLocation, operationsBytes[3].length()));
+        currentLocation += operationsBytes[3].length();
+        Translog.Location finalLocation = new Translog.Location(0, currentLocation, operationsBytes[2].length());
+        translogReplicator.add(shardId, operationsBytes[2], 2, finalLocation);
+
+        PlainActionFuture<Void> future3 = new PlainActionFuture<>();
+        translogReplicator.syncAll(shardId, future3);
+        future3.actionGet();
+
+        assertThat(compoundFiles.size(), equalTo(Math.toIntExact(translogReplicator.getMaxUploadedFile() + 1)));
+
+        compoundFiles.set(1, null);
 
         assertTranslogContains(new TranslogReplicatorReader(objectStoreService.getTranslogBlobContainer(), shardId), operations[0]);
     }
@@ -1056,7 +1119,9 @@ public class TranslogReplicatorTests extends ESTestCase {
             var map = new LinkedHashMap<String, BlobMetadata>();
             for (int i = 0; i < compoundFiles.size(); i++) {
                 String filename = Strings.format("%019d", i);
-                map.put(filename, new BlobMetadata(filename, compoundFiles.get(i).length()));
+                if (compoundFiles.get(i) != null) {
+                    map.put(filename, new BlobMetadata(filename, compoundFiles.get(i).length()));
+                }
             }
             return map;
         }).when(blobContainer).listBlobs(OperationPurpose.TRANSLOG);

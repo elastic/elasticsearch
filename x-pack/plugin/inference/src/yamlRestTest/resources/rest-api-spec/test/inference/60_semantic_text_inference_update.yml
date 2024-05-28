@@ -298,7 +298,7 @@ setup:
 
   - match: { errors: true }
   - match: { items.0.update.status: 400 }
-  - match: { items.0.update.error.reason: "/Invalid\\sformat\\sfor\\sfield\\s\\[(dense|sparse)_field\\].+/" }
+  - match: { items.0.update.error.reason: "/Invalid\\ format\\ for\\ field\\ \\[(dense|sparse)_field\\].+/" }
 
   - do:
       catch: bad_request
